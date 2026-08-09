@@ -18,7 +18,7 @@ type ToolApprovalGrantRecord = contract.ToolApprovalGrantPayload
 // ToolApprovalGrantListRecord is one workspace's remembered native-tool decisions.
 type ToolApprovalGrantListRecord = contract.ToolApprovalGrantListResponse
 
-func (c *unixSocketClient) SetToolApprovalGrant(
+func (c *daemonClient) SetToolApprovalGrant(
 	ctx context.Context,
 	workspaceID string,
 	request ToolApprovalGrantSetRequest,
@@ -39,7 +39,7 @@ func (c *unixSocketClient) SetToolApprovalGrant(
 	return response.Grant, nil
 }
 
-func (c *unixSocketClient) ListToolApprovalGrants(
+func (c *daemonClient) ListToolApprovalGrants(
 	ctx context.Context,
 	workspaceID string,
 ) (ToolApprovalGrantListRecord, error) {
@@ -51,7 +51,7 @@ func (c *unixSocketClient) ListToolApprovalGrants(
 	return response, nil
 }
 
-func (c *unixSocketClient) RevokeToolApprovalGrant(ctx context.Context, workspaceID string, id string) error {
+func (c *daemonClient) RevokeToolApprovalGrant(ctx context.Context, workspaceID string, id string) error {
 	values := url.Values{taskWorkspaceIDKey: []string{strings.TrimSpace(workspaceID)}}
 	path := "/api/tool-approval-grants/" + url.PathEscape(strings.TrimSpace(id))
 	return c.doJSON(ctx, http.MethodDelete, path, values, nil, nil)

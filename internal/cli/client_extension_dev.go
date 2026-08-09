@@ -10,7 +10,7 @@ import (
 
 const extensionWorkspaceQueryKey = "workspace"
 
-func (c *unixSocketClient) DevExtension(
+func (c *daemonClient) DevExtension(
 	ctx context.Context,
 	workspaceRef string,
 	request DevLinkExtensionRequest,
@@ -25,7 +25,7 @@ func (c *unixSocketClient) DevExtension(
 	return response.Extension, nil
 }
 
-func (c *unixSocketClient) ReloadDevExtension(
+func (c *daemonClient) ReloadDevExtension(
 	ctx context.Context,
 	workspaceRef string,
 	name string,
@@ -42,7 +42,7 @@ func (c *unixSocketClient) ReloadDevExtension(
 	return response.Extension, nil
 }
 
-func (c *unixSocketClient) ExtensionLogs(
+func (c *daemonClient) ExtensionLogs(
 	ctx context.Context,
 	workspaceRef string,
 	name string,
@@ -59,7 +59,7 @@ func (c *unixSocketClient) ExtensionLogs(
 	return response.Logs, nil
 }
 
-func (c *unixSocketClient) StreamExtensionLogs(
+func (c *daemonClient) StreamExtensionLogs(
 	ctx context.Context,
 	workspaceRef string,
 	name string,
@@ -71,7 +71,7 @@ func (c *unixSocketClient) StreamExtensionLogs(
 	return c.doSSE(ctx, path, query, "", handler)
 }
 
-func (c *unixSocketClient) RemoveDevExtension(
+func (c *daemonClient) RemoveDevExtension(
 	ctx context.Context,
 	workspaceRef string,
 	name string,

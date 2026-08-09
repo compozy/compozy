@@ -13,6 +13,7 @@ import type {
   BridgeSummary,
 } from "../types";
 import { BridgeDetailConfiguration } from "./bridge-detail-configuration";
+import { BridgeGatewayIngressSection } from "./bridge-gateway-ingress-section";
 import { BridgeDetailHeader } from "./bridge-detail-header";
 import { BridgeDetailMetrics } from "./bridge-detail-metrics";
 import { BridgeEventStreamSection } from "./bridge-event-stream-section";
@@ -176,6 +177,7 @@ export function BridgeDetailPanel({
         ) : null}
 
         <BridgeDetailMetrics health={health} routes={routes} />
+        <BridgeGatewayIngressSection bridge={bridge} />
         <BridgeDetailConfiguration bridge={bridge} workspaceName={workspaceName} />
         <BridgeProviderRuntimeSection
           bindingsByName={bindingsByName}

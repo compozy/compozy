@@ -25,6 +25,9 @@ func newDefaultServer(homePaths compozyconfig.HomePaths) *Server {
 		},
 		pollInterval: defaultPollInterval,
 		agentLoader:  compozyconfig.LoadAgentDef,
+		httpExtendedServices: httpExtendedServices{
+			surfaceSet: SurfaceSetLocal,
+		},
 	}
 }
 
@@ -38,10 +41,10 @@ func applyOptions(server *Server, opts []Option) {
 
 func (s *Server) finalize() error {
 	s.applyDefaults()
+	s.configureAddress()
 	if err := s.validateRequired(); err != nil {
 		return err
 	}
-	s.configureAddress()
 	return nil
 }
 
@@ -72,7 +75,22 @@ func (s *Server) applyDefaults() {
 }
 
 func (s *Server) validateRequired() error {
+	if err := s.surfaceSet.validate(); err != nil {
+		return err
+	}
 	switch {
+	case s.surfaceSet != SurfaceSetLocal && !isLoopbackHost(canonicalHost(s.host)):
+		return errors.New("httpapi: tier listeners must bind a loopback host")
+	case s.surfaceSet.hasOperatorRoutes() && s.deviceAuth == nil:
+		return errors.New("httpapi: device authentication is required for operator tier listeners")
+	case s.surfaceSet.hasOperatorRoutes() && s.gateway == nil:
+		return errors.New("httpapi: gateway service is required for operator tier listeners")
+	case s.surfaceSet != SurfaceSetLocal && s.gatewayAdmission == nil:
+		return errors.New("httpapi: gateway admission control is required for tier listeners")
+	case s.surfaceSet != SurfaceSetLocal && s.gatewayChallenges == nil:
+		return errors.New("httpapi: gateway challenge resolver is required for tier listeners")
+	case s.surfaceSet != SurfaceSetLocal && s.gatewayTier.Validate() != nil:
+		return errors.New("httpapi: gateway tier is required for tier listeners")
 	case len(s.resourceAuth) > 0 && s.resources == nil:
 		return errors.New("httpapi: resource service is required when resource operator auth is configured")
 	case s.sessions == nil:
@@ -92,7 +110,7 @@ func (s *Server) configureAddress() {
 	if strings.TrimSpace(s.host) == "" {
 		s.host = strings.TrimSpace(s.config.HTTP.Host)
 	}
-	if s.port <= 0 {
+	if !s.portSet {
 		s.port = s.config.HTTP.Port
 	}
 }
@@ -105,7 +123,7 @@ func (s *Server) ensureEngine() {
 	s.engine = ginutil.NewEngine()
 	s.engine.Use(gin.Recovery())
 	s.engine.Use(requestLoggingMiddleware(s.logger))
-	s.engine.Use(corsMiddleware(s.host))
+	s.engine.Use(corsMiddlewareWithForwardedTarget(s.host, s.surfaceSet != SurfaceSetLocal))
 	s.engine.Use(requestBodyLimitMiddleware(maxAPIRequestBodyBytes))
 	s.engine.Use(errorMiddleware())
 }

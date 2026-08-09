@@ -20,7 +20,7 @@ type ClarificationAnswerRequest = contract.ClarificationAnswerRequest
 // ClarificationAnswerRecord is the exact shared clarification result.
 type ClarificationAnswerRecord = contract.ClarificationAnswerPayload
 
-func (c *unixSocketClient) ListSessionClarifications(
+func (c *daemonClient) ListSessionClarifications(
 	ctx context.Context,
 	sessionID string,
 ) (ClarificationsRecord, error) {
@@ -35,7 +35,7 @@ func (c *unixSocketClient) ListSessionClarifications(
 	return response, nil
 }
 
-func (c *unixSocketClient) AnswerSessionClarification(
+func (c *daemonClient) AnswerSessionClarification(
 	ctx context.Context,
 	sessionID string,
 	requestID string,

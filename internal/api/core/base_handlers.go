@@ -91,6 +91,8 @@ type BaseHandlerConfig struct {
 	MemorySessionLedger          MemorySessionLedgerService
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
+	Gateway                      GatewayService
+	GatewayPairingSource         string
 	HomePaths                    compozyconfig.HomePaths
 	Config                       compozyconfig.Config
 	Logger                       *slog.Logger
@@ -170,6 +172,8 @@ type BaseHandlers struct {
 	MemorySessionLedger          MemorySessionLedgerService
 	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
 	DeadEntities                 doctor.DeadEntitySource
+	Gateway                      GatewayService
+	GatewayPairingSource         string
 	HomePaths                    compozyconfig.HomePaths
 	Config                       compozyconfig.Config
 	Logger                       *slog.Logger
@@ -252,6 +256,8 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		MemorySessionLedger:          cfg.MemorySessionLedger,
 		RuntimeMemory:                cfg.RuntimeMemory,
 		DeadEntities:                 cfg.DeadEntities,
+		Gateway:                      cfg.Gateway,
+		GatewayPairingSource:         strings.TrimSpace(cfg.GatewayPairingSource),
 		HomePaths:                    cfg.HomePaths,
 		Config:                       cfg.Config,
 		Logger:                       defaults.logger,

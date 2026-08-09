@@ -37,7 +37,7 @@ type MemoryDecisionRevertRequest = contract.MemoryDecisionRevertRequest
 // MemoryDecisionRevertRecord captures a decision revert response.
 type MemoryDecisionRevertRecord = contract.MemoryDecisionRevertResponse
 
-func (c *unixSocketClient) ListMemoryDecisions(
+func (c *daemonClient) ListMemoryDecisions(
 	ctx context.Context,
 	query MemoryDecisionListQuery,
 ) (MemoryDecisionListRecord, error) {
@@ -55,7 +55,7 @@ func (c *unixSocketClient) ListMemoryDecisions(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetMemoryDecision(ctx context.Context, id string) (MemoryDecisionRecord, error) {
+func (c *daemonClient) GetMemoryDecision(ctx context.Context, id string) (MemoryDecisionRecord, error) {
 	var response MemoryDecisionRecord
 	path := "/api/memory/decisions/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -64,7 +64,7 @@ func (c *unixSocketClient) GetMemoryDecision(ctx context.Context, id string) (Me
 	return response, nil
 }
 
-func (c *unixSocketClient) RevertMemoryDecision(
+func (c *daemonClient) RevertMemoryDecision(
 	ctx context.Context,
 	id string,
 	request MemoryDecisionRevertRequest,

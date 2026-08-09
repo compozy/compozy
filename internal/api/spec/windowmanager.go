@@ -229,7 +229,7 @@ func putWindowManagerLayoutProfileOperation(
 		Parameters:  []ParameterSpec{workspaceParam, profileParam},
 		RequestBody: contract.PutResourceRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "Updated", Body: contract.ResourceResponse{}},
+			{Status: 200, Description: specUpdatedDescription, Body: contract.ResourceResponse{}},
 			{Status: 201, Description: specCreatedDescription, Body: contract.ResourceResponse{}},
 			{Status: 400, Description: "Invalid JSON body", Body: resourceError},
 			{Status: 403, Description: specForbiddenDescription, Body: resourceError},

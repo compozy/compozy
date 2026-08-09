@@ -24,7 +24,7 @@ persona:
 
 - **Who:** the developer who uses the `implement-tasks` Loop to execute authored task graphs. Runs Loops many times a day, keeps the run page and CLI open side by side, knows the overrides and the ceilings.
 - **What they reveal:** false `done` on an exhausted/stalled run (the trust-killer), meter drift, speed regressions in the run form, pause/resume/stop that lies about state, configure/fork friction, override clamps that don't hold, and partial task/automation catalogs presented as complete.
-- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, J-24 triage-work-at-scale, and J-diagnose-task-session-health. **Goal:** J-26 controls, J-27 editor, and J-28 context/budgets.
+- **Owns journeys:** J-01 arrive-and-use, J-02 dry-run, J-04 pause/resume, J-05 configure, J-06 fork-and-edit, J-08 watch-and-maintain, J-10 converse-and-decide, J-24 triage-work-at-scale, J-diagnose-task-session-health, J-deliver-through-public-gateway, and J-connect-gateway-ssh. **Goal:** J-26 controls, J-27 editor, and J-28 context/budgets.
 
 ## Lea — First-time Adopter
 
@@ -262,7 +262,7 @@ persona:
 persona:
   name: Iris
   base: Power User
-  goal: "Operate a daemon that runs on another machine: install and authorize a remote MCP server even though the OAuth callback can never reach my browser, using the copyable link and manual code/redirect paste-back."
+  goal: "Operate a daemon that runs on another machine: pair my browser and CLI, recover lost or revoked access, and complete remote authorization flows without assuming the daemon can reach my browser."
   device: laptop
   network: wifi-slow
   modality: mouse-keyboard
@@ -270,9 +270,9 @@ persona:
   patience_seconds: 45
 ```
 
-- **Who:** the operator whose Compozy daemon lives on a homelab box, VM, or remote dev server while her browser and terminal are local. The ADR-011 authorization floor exists for her: the always-copyable authorization URL, the browser-optional flow, and the manual `exchange` completion path (paste a code or the full redirect URL). She also verifies the non-loopback hardening — the auto-callback must refuse to exist on her deployment.
-- **What they reveal:** dead or non-copyable authorization links, success toasts before the credential is confirmed present (`authenticated && token_present`), manual paste fields that reject full redirect URLs or echo secrets, expired/superseded PKCE sessions with unhelpful errors, failed exchanges that destroy a previously valid token, and remote flows that silently assume a local browser.
-- **Owns journeys:** J-mcp-authorize-repair (manual-completion lane).
+- **Who:** the operator whose Compozy daemon lives on a homelab box, VM, or remote dev server while her browser and terminal are local. She pairs devices, selects named remote CLI profiles, and uses browser-optional authorization flows when callbacks cannot reach her machine.
+- **What they reveal:** dead or non-copyable pairing and authorization links, remote flows that silently assume a local browser, stale profiles, unclear unreachable-versus-revoked errors, stream reconnect failures, credentials echoed in output, and recovery paths that require an already-paired device.
+- **Owns journeys:** J-mcp-authorize-repair (manual-completion lane), J-expose-and-pair-gateway, and J-operate-remote-gateway-cli.
 
 ## Rafa — Transcript Reviewer
 
@@ -314,4 +314,4 @@ persona:
 
 - **Who:** the person who owns the daemon: restarts and deploys it, reads `compozy status`/`compozy doctor`, sets config keys, and answers for the security posture and the bill. Operates mostly through CLI/HTTP/UDS with the Web settings pages as secondary surface.
 - **What they reveal:** drains that kill in-flight work or lie about state, doctor items that disagree across HTTP/UDS/CLI, memory reports presented as something they are not, secrets surviving in logs/SSE/event stores, redaction toggles that silently no-op, estimated cost rendered as actual spend, and dead sidecars hammered forever or requiring a restart to recover.
-- **Owns journeys:** J-drain-daemon-safely, J-keep-secrets-contained; co-owns J-offer-runnable-capabilities (dead-entity half, with Ada).
+- **Owns journeys:** J-drain-daemon-safely, J-keep-secrets-contained, J-expose-and-pair-gateway, and J-audit-and-teardown-gateway; co-owns J-offer-runnable-capabilities (dead-entity half, with Ada).

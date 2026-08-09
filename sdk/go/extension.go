@@ -50,6 +50,7 @@ type Extension struct {
 	toolHandlers         map[string]registeredTool
 	commandGroups        []contracts.ExtensionCommandGroupSpec
 	watchHandlers        map[string]registeredWatchSource
+	connectivityProvider bool
 	readyCallbacks       []func(context.Context, *HostAPI, ExtensionSession) error
 	readyLifecycle       *readyCallbackLifecycle
 	readyCallbacksClosed bool
@@ -143,6 +144,9 @@ func (e *Extension) Handle(method string, handler ExtensionHandler) error {
 	}
 	if len(e.watchHandlers) > 0 && isWatchSourceMethod(cleanMethod) {
 		return NewInvalidParamsError(cleanMethod+" is reserved by WatchSource", nil)
+	}
+	if e.connectivityProvider && isConnectivityProviderMethod(cleanMethod) {
+		return NewInvalidParamsError(cleanMethod+" is reserved by ConnectivityProvider", nil)
 	}
 	e.handlers[cleanMethod] = handler
 	e.transport.Handle(cleanMethod, e.dispatch)

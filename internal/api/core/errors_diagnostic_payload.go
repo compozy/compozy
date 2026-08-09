@@ -15,6 +15,9 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if code := GatewayErrorCode(err); code != "" {
+		payload.Code = code
+	}
 	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
 		payload.Code = string(reason.Code)
 		payload.Details = lifecycleReasonDetails(reason.Meta)

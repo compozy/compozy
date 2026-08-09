@@ -98,7 +98,7 @@ func putResourceOperationSpec() OperationSpec {
 		},
 		RequestBody: contract.PutResourceRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "Updated", Body: contract.ResourceResponse{}},
+			{Status: 200, Description: specUpdatedDescription, Body: contract.ResourceResponse{}},
 			{Status: 201, Description: specCreatedDescription, Body: contract.ResourceResponse{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflict", Body: contract.ErrorPayload{}},

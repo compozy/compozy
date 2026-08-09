@@ -845,6 +845,7 @@ func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 		trigger := testTrigger(AutomationScopeGlobal, "resource-crud-trigger", "")
 		trigger.Event = "session.stopped"
 		trigger.WebhookID = ""
+		trigger.EndpointSlug = ""
 		createdTrigger, err := manager.CreateTrigger(h.ctx, trigger, WebhookSecretWrite{})
 		if err != nil {
 			t.Fatalf("CreateTrigger(resource) error = %v", err)
@@ -895,6 +896,7 @@ func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 		loopTrigger.Prompt = ""
 		loopTrigger.Event = "ext.qa.loop-ready"
 		loopTrigger.WebhookID = ""
+		loopTrigger.EndpointSlug = ""
 		loopTrigger.WebhookSecretRef = ""
 		loopTrigger.TargetKind = TargetKindLoop
 		loopTrigger.LoopTarget = &LoopTarget{
@@ -1234,6 +1236,7 @@ func TestAutomationResourceSyncManagedDefinitionsPublishesAndPrunesSourceRecords
 	trigger := testTrigger(AutomationScopeGlobal, "managed-resource-trigger", "")
 	trigger.Event = "session.stopped"
 	trigger.WebhookID = ""
+	trigger.EndpointSlug = ""
 	trigger.WebhookSecretRef = ""
 
 	stats, err := manager.SyncManagedDefinitions(
@@ -1351,6 +1354,7 @@ func TestAutomationResourceConfigEnabledChangesUseOperationalOverlays(t *testing
 	trigger := testTrigger(AutomationScopeGlobal, "config-resource-trigger", "")
 	trigger.Event = "session.stopped"
 	trigger.WebhookID = ""
+	trigger.EndpointSlug = ""
 	trigger.WebhookSecretRef = ""
 	if _, err := manager.SyncManagedDefinitions(
 		h.ctx,

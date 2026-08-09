@@ -7,7 +7,7 @@ import (
 )
 
 func pathParam(name string, description string) ParameterSpec {
-	return ParameterSpec{Name: name, In: openapi3.ParameterInPath, Description: description, Required: true}
+	return ParameterSpec{Name: name, In: specParameterInPath, Description: description, Required: true}
 }
 
 func headerParam(name string, description string) ParameterSpec {
@@ -19,13 +19,13 @@ func optionalHeaderParam(name string, description string) ParameterSpec {
 }
 
 func queryParam(name string, description string, required bool) ParameterSpec {
-	return ParameterSpec{Name: name, In: openapi3.ParameterInQuery, Description: description, Required: required}
+	return ParameterSpec{Name: name, In: specParameterInQuery, Description: description, Required: required}
 }
 
 func enumQueryParam(name string, description string, values []string) ParameterSpec {
 	return ParameterSpec{
 		Name:        name,
-		In:          openapi3.ParameterInQuery,
+		In:          specParameterInQuery,
 		Description: description,
 		Required:    false,
 		Enum:        values,
@@ -35,7 +35,7 @@ func enumQueryParam(name string, description string, values []string) ParameterS
 func boolQueryParam(name string, description string) ParameterSpec {
 	return ParameterSpec{
 		Name:        name,
-		In:          openapi3.ParameterInQuery,
+		In:          specParameterInQuery,
 		Description: description,
 		Required:    false,
 		Kind:        "boolean",
@@ -45,7 +45,7 @@ func boolQueryParam(name string, description string) ParameterSpec {
 func intQueryParam(name string, description string) ParameterSpec {
 	return ParameterSpec{
 		Name:        name,
-		In:          openapi3.ParameterInQuery,
+		In:          specParameterInQuery,
 		Description: description,
 		Required:    false,
 		Kind:        specIntegerKey,

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,13 +41,18 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 		h.respondError(c, bridgeCatalogReadErrorStatus(err), err)
 		return
 	}
+	projectionCtx, err := h.gatewayIngressReadContext(c, "bridges.health.stream")
+	if err != nil {
+		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		return
+	}
 	writer, err := PrepareSSE(c)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	snapshot, err := h.bridgeHealthStreamSnapshot(c.Request.Context(), bridges, observer, query)
+	snapshot, err := h.bridgeHealthStreamSnapshot(projectionCtx, bridges, observer, query)
 	if err != nil {
 		h.writeSSEBestEffort(writer, SSEMessage{
 			Name: bridgesErrorKey,
@@ -69,7 +76,7 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 	defer ticker.Stop()
 	for {
 		select {
-		case <-c.Request.Context().Done():
+		case <-projectionCtx.Done():
 			return
 		case <-streamDone:
 			return
@@ -77,7 +84,7 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 			if bridgeHealthStreamStopped(c.Request.Context(), streamDone) {
 				return
 			}
-			nextSnapshot, pollErr := h.bridgeHealthStreamSnapshot(c.Request.Context(), bridges, observer, query)
+			nextSnapshot, pollErr := h.bridgeHealthStreamSnapshot(projectionCtx, bridges, observer, query)
 			if pollErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
 					Name: bridgesErrorKey,
@@ -154,6 +161,13 @@ func (h *BaseHandlers) bridgeHealthStreamSnapshot(
 	health, err := bridgeCatalogHealthFromObserver(ctx, observer, instances)
 	if err != nil {
 		return contract.BridgeHealthStreamPayload{}, err
+	}
+	for id, current := range health {
+		enriched, enrichErr := h.enrichBridgeHealthIngress(ctx, current)
+		if enrichErr != nil {
+			return contract.BridgeHealthStreamPayload{}, enrichErr
+		}
+		health[id] = enriched
 	}
 	if health == nil {
 		health = map[string]contract.BridgeHealthPayload{}

@@ -4,6 +4,40 @@ package contracts
 
 import "time"
 
+type ConnectivityAdvertisedEndpoint struct {
+	URL          string `json:"url"`
+	Scheme       string `json:"scheme"`
+	SchemePolicy string `json:"scheme_policy,omitempty"`
+	Stability    string `json:"stability"`
+}
+
+type ConnectivityEstablishRequest struct {
+	Tier          string    `json:"tier"`
+	ForwardTarget string    `json:"forward_target"`
+	ChallengePath string    `json:"challenge_path"`
+	Deadline      time.Time `json:"deadline"`
+}
+
+type ConnectivityReachability struct {
+	Tier      string                           `json:"tier"`
+	Endpoints []ConnectivityAdvertisedEndpoint `json:"endpoints"`
+	Health    string                           `json:"health"`
+	Reason    string                           `json:"reason,omitempty"`
+}
+
+type ConnectivityStatusRequest struct {
+	Tier string `json:"tier"`
+}
+
+type ConnectivityTeardownRequest struct {
+	Tier     string    `json:"tier"`
+	Deadline time.Time `json:"deadline"`
+}
+
+type ConnectivityTeardownResponse struct {
+	Stopped bool `json:"stopped"`
+}
+
 type ConsentArea struct {
 	Area   string `json:"area"`
 	Access string `json:"access"`
@@ -216,61 +250,4 @@ type CoordinatorPreSpawnPayload struct {
 	Reason                       string    `json:"reason,omitempty"`
 	Denied                       bool      `json:"denied,omitempty"`
 	DenyReason                   string    `json:"deny_reason,omitempty"`
-}
-
-type CoordinatorSpawnPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	AgentName  *string `json:"agent_name,omitempty"`
-	Provider   *string `json:"provider,omitempty"`
-	Model      *string `json:"model,omitempty"`
-}
-
-type CoordinatorSpawnedPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	DecisionKind                 string    `json:"decision_kind,omitempty"`
-	Decision                     string    `json:"decision,omitempty"`
-	StopReason                   string    `json:"stop_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-}
-
-type CoordinatorStoppedPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	DecisionKind                 string    `json:"decision_kind,omitempty"`
-	Decision                     string    `json:"decision,omitempty"`
-	StopReason                   string    `json:"stop_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-}
-
-type CostSource string
-
-type CostStatus string
-
-type CountedCursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Total      int    `json:"total"`
-	Limit      int    `json:"limit"`
 }

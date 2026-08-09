@@ -24,6 +24,9 @@ func (d *Daemon) applyServerFactoryDefaults() {
 			return udsapi.New(udsServerOptions(&deps)...)
 		}
 	}
+	if d.gatewayTierFactory == nil {
+		d.gatewayTierFactory = defaultGatewayTierServerFactory
+	}
 }
 
 func (d *Daemon) applySystemDefaults() {

@@ -29,6 +29,7 @@
 - Replace software-delivery with implement-tasks (#325)
 - **BREAKING:** remove software-delivery; use implement-tasks without gate inputs.
 - Parent and child sessions (#327)
+- Add secure remote gateway access (#331)
 
 ### 🐛 Bug Fixes
 

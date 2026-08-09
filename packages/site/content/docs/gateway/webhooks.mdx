@@ -1,0 +1,224 @@
+---
+title: Receive GitHub webhooks
+description: Give GitHub a public delivery URL on your own machine — expose delivery ingress over Tailscale Funnel, sign deliveries from a workflow, and watch a push land as an automation run.
+---
+
+Webhook senders need a URL they can reach from the internet, and your daemon runs on a machine that
+usually is not. This page closes that gap: at the end, a push to your repository delivers a signed
+event to `https://compozy-gateway.<your-tailnet>.ts.net`, and Compozy dispatches an automation run
+on your machine. The public address serves deliveries and nothing else — no UI, no API, no pairing.
+
+## Before you start
+
+- The gateway ceiling is raised and the Tailscale extension is enabled with a bound auth key —
+  steps 1–3 of the [quickstart](/docs/gateway/quickstart).
+- Your tailnet allows **Funnel** and has **HTTPS certificates** enabled — see
+  [Prepare your tailnet](/docs/gateway/tailscale#step-1-prepare-your-tailnet).
+- A webhook trigger with a secret. If you do not have one yet:
+
+```bash
+compozy automation triggers create \
+  --name github-push \
+  --scope workspace \
+  --workspace /path/to/your/project \
+  --event webhook \
+  --endpoint-slug github-push \
+  --webhook-secret "$GITHUB_PUSH_WEBHOOK_SECRET" \
+  --agent reviewer \
+  --prompt 'Summarize push {{ index .Data "sha" }} on {{ index .Data "branch" }}.' \
+  --filter data.action=push
+```
+
+[Webhook triggers](/docs/automation/webhooks) covers filters, secrets, and payloads in full.
+
+- A GitHub repository you administer.
+
+## Step 1: Activate the provider on the public tier
+
+```bash
+compozy gateway provider enable tailscale --tier public --source bundled
+```
+
+If the provider already serves your private tier, this is an additional activation — one provider
+can serve both.
+
+## Step 2: Turn on public delivery
+
+```bash
+compozy gateway surface enable webhook_ingress --tier public
+```
+
+This is the narrow switch: the public listener is built with only the delivery routes. The
+management API and web UI do not exist on it.
+
+## Step 3: Wait for the public address
+
+```bash
+compozy gateway status -o json
+```
+
+You are waiting for the public tier to verify (output trimmed):
+
+```json
+{
+  "tiers": [{ "tier": "public", "observed": "up", "advertised": true }],
+  "addresses": [
+    { "tier": "public", "address": "https://compozy-gateway.<your-tailnet>.ts.net", "live": true }
+  ]
+}
+```
+
+The first Funnel activation issues a certificate and waits for public DNS to publish — allow a
+minute or two while the daemon retries on its own. An address is advertised only after the daemon
+fetches its own one-time challenge through it.
+
+## Step 4: Publish the delivery URL
+
+A live public address does not publish anyone's URL yet. Each trigger (and each bridge) is
+confirmed individually against the current address, so an address change can never silently
+redirect deliveries.
+
+Confirm the trigger in the web UI — the trigger view shows its delivery URL and whether it
+currently answers — or through the API on the local machine:
+
+```http
+POST /api/gateway/ingress-bindings
+Content-Type: application/json
+
+{
+  "subject_kind": "webhook_trigger",
+  "subject_id": "<trigger-id>",
+  "confirmed": true
+}
+```
+
+Then read the trigger to get the URL you will hand to GitHub:
+
+```bash
+compozy automation triggers get <trigger-id>
+```
+
+The `ingress` object carries the full delivery URL and its reachability. Use the URL only when
+`reachability` is `live`:
+
+```text
+https://compozy-gateway.<your-tailnet>.ts.net/api/webhooks/workspaces/<workspace-id>/github-push--wbh_<id>
+```
+
+Confirming before the surface is live refuses honestly —
+`gateway exposure refused: public ingress is not reachable; fix: enable the public webhook ingress
+surface and wait for a verified address` — so run steps 1–3 first.
+
+<OperatorNote>
+  Deliveries reach Compozy only while the daemon and its connectivity provider are running. There is
+  no store-and-forward queue: configure retries at the sender and treat a connection failure as a
+  failed delivery.
+</OperatorNote>
+
+## Step 5: Add the sender in GitHub
+
+<OperatorNote label="Why not a plain repository webhook?">
+  GitHub's native repository webhooks sign requests with `X-Hub-Signature-256`. Compozy's generic
+  webhook triggers deliberately require Compozy's own timestamped `X-Compozy-*` signature, so a
+  plain repository webhook pointed at this URL is rejected. Send from a GitHub Actions workflow that
+  signs the Compozy contract, as below. The [GitHub bridge](/docs/bridges/setup-github) is the
+  exception: it verifies GitHub's native signature itself.
+</OperatorNote>
+
+In your repository, add two Actions secrets under **Settings → Secrets and variables → Actions**:
+
+- `COMPOZY_WEBHOOK_URL` — the delivery URL from the previous step.
+- `COMPOZY_WEBHOOK_SECRET` — the same secret your trigger references.
+
+Then commit `.github/workflows/notify-compozy.yml`:
+
+```yaml
+name: Notify Compozy on push
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify-compozy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send signed delivery
+        env:
+          COMPOZY_WEBHOOK_URL: ${{ secrets.COMPOZY_WEBHOOK_URL }}
+          COMPOZY_WEBHOOK_SECRET: ${{ secrets.COMPOZY_WEBHOOK_SECRET }}
+          BRANCH: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          body=$(jq -nc \
+            --arg action push \
+            --arg branch "$BRANCH" \
+            --arg repository "$REPOSITORY" \
+            --arg sha "$SHA" \
+            '{action:$action, branch:$branch, repository:$repository, sha:$sha}')
+
+          timestamp=$(date -u +%s)
+          signature="sha256=$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$COMPOZY_WEBHOOK_SECRET" -hex | awk '{print $2}')"
+
+          curl --fail-with-body -sS -X POST "$COMPOZY_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -H "X-Compozy-Webhook-Timestamp: $timestamp" \
+            -H "X-Compozy-Webhook-Signature: $signature" \
+            -H "X-Compozy-Webhook-Delivery-ID: push-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --data "$body"
+```
+
+## Step 6: Push and watch it land
+
+Push a commit to `main`. The workflow run appears under the repository's **Actions** tab, and a
+successful delivery returns the dispatch result in its log:
+
+```json
+{
+  "result": {
+    "matched": 1,
+    "runs": [{ "id": "run_...", "trigger_id": "trg_...", "status": "scheduled" }]
+  }
+}
+```
+
+On your machine, the run shows up immediately:
+
+```bash
+compozy automation runs --last 5
+```
+
+## Step 7: Verify both sides agree
+
+Compare the delivery ID in the Actions log (`push-<run-id>-<attempt>`) with the run metadata from
+`compozy automation runs` — they should match. To retry a delivery, re-run the workflow from the
+Actions tab; Compozy rejects replays of the same delivery ID inside the freshness window, so a
+re-run gets a new ID from `$GITHUB_RUN_ATTEMPT`.
+
+That is the whole loop: a push on GitHub became an automation run on your machine, over an address
+only your daemon can serve.
+
+## Bridge callbacks use the same ingress
+
+Messaging bridges (Slack, Telegram, and the rest) publish per-bridge delivery URLs through the same
+public ingress surface: confirm the bridge's binding and use its projected `gateway_ingress` URL
+when `reachability` is `live`. See [Bridge operations](/docs/bridges/operations) for the
+bridge-side flow.
+
+## If deliveries fail
+
+| Symptom                                 | Cause and fix                                                                                                              |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `401` in the Actions log                | Wrong secret, or a stale timestamp. Confirm both Actions secrets and that the runner clock is sane.                        |
+| `404`                                   | No trigger matches the route. Re-read the URL with `compozy automation triggers get <trigger-id>`.                         |
+| `409`                                   | Replayed delivery ID or a disabled trigger. Re-run the workflow (new attempt = new ID) or enable the trigger.              |
+| `429`                                   | Delivery budget exceeded — 60 requests per minute per endpoint and source. Honor `Retry-After`.                            |
+| Sender cannot connect at all            | The daemon or provider is down, or the address changed. Check `compozy gateway status -o json`; nothing queues while down. |
+| Trigger shows `reconfirmation_required` | The public address changed. Confirm the binding again — deliveries are never silently redirected.                          |
+
+## Related
+
+- [Webhook triggers](/docs/automation/webhooks) — trigger authoring, filters, signature contract.
+- [Tailscale extension](/docs/gateway/tailscale) — Funnel prerequisites and provider failures.
+- [Gateway security](/docs/gateway/security) — what the public listener does and does not serve.

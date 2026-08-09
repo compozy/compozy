@@ -14,7 +14,8 @@ func ValidateConfigWriteScope(scope WriteScope, path []string) error {
 	if err != nil {
 		return err
 	}
-	if scope == WriteScopeWorkspace && clean[0] == toolSurfaceMarketplaceKey {
+	if scope == WriteScopeWorkspace &&
+		(clean[0] == toolSurfaceMarketplaceKey || clean[0] == "gateway") {
 		return fmt.Errorf(
 			"config: path %q is global-only and cannot be written at workspace scope",
 			strings.Join(clean, "."),

@@ -1,0 +1,108 @@
+---
+title: Gateway security
+description: What each gateway switch exposes and to whom, who can see your traffic, what Compozy guarantees when things fail, and what you still have to do yourself.
+---
+
+This page states plainly what each exposure level makes reachable, what stays on this machine no
+matter what, and which duties remain yours. Check any claim here against
+`compozy gateway status -o json` and `compozy gateway audit` — the runtime, not this page, is the
+authority.
+
+## What each switch exposes
+
+| State                  | Who can reach it          | What they get                                                             | What is not there                                                        |
+| ---------------------- | ------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Local only (default)   | Processes on this machine | Loopback HTTP and the Unix socket                                         | Any remote path at all                                                   |
+| Private overlay        | Devices on your tailnet   | The pairing gate; the full product only after device authentication       | Any access without a device session                                      |
+| Public delivery        | The internet              | Webhook and bridge delivery endpoints that verify each request themselves | The UI, the API, pairing — those routes are not built into this listener |
+| Public operator access | The internet              | The pairing gate in front of the UI and API, after explicit consent       | Pairing mint and redeem — a device session can only be created privately |
+
+Two properties hold across the whole table. The agent kernel, hosted MCP, task mutations, and
+resource mutations exist only on local access and never move. And a tier is a property of the
+listener, not of the request: each listener is built with a fixed set of routes, so a request
+cannot ask to be treated as another tier — the route it wants does not exist where it arrived.
+
+## Who can see your traffic
+
+- Connections terminate inside your daemon's embedded Tailscale node, with an HTTPS certificate
+  issued to it. On the public path, Tailscale's Funnel relay forwards encrypted bytes; it cannot
+  read them.
+- A connectivity provider sees the traffic it forwards. For the bundled extension that provider is
+  Tailscale operating under your own account. Third-party providers are gated by install-source
+  trust and a control digest that is re-checked on every enable and every boot — a changed digest
+  fails closed until you confirm it.
+- A valid delivery grants exactly one thing: dispatching its own trigger. It is not an operator
+  session and cannot become one.
+
+## Safe by default
+
+These hold by construction, including when things fail:
+
+- **Nothing is advertised before it is proven.** An address is published only after the daemon
+  fetches a one-time challenge through it and gets its own answer back. Public checks resolve DNS
+  through an authenticated resolver, require HTTPS, follow no redirects, and reject addresses that
+  resolve inward.
+- **Reaching an address is never authentication.** Every request on a tier listener either carries
+  a device session or verifies itself; being local to the forwarded loopback port grants nothing.
+- **Exposure lives in one place.** Configuration contributes tunables and one ceiling
+  (`gateway.enabled`). No combination of config keys or environment values can enable a surface —
+  intent is an explicit, durable transition.
+- **Failure degrades; it never half-exposes.** Effects apply in a fixed order and unwind in reverse
+  on any failure. A failed provider marks the tier degraded and advertises nothing.
+- **Restarts restore intent, not exposure.** Boot reconciles before anything is advertised, back to
+  what you last asked for — never to something you turned off.
+- **Stale work is fenced.** Every transition carries a generation; an effect that completes against
+  an obsolete one is dropped, so a slow provider cannot resurrect exposure you withdrew.
+- **Revocation finishes before it returns.** Revoking a device cancels its live streams and fails
+  its in-flight writes before the command completes.
+- **Credentials are one-way.** The daemon stores only a hash of each device credential and compares
+  in constant time. Live streams authenticate with single-use tickets that expire in seconds
+  (`gateway.stream_ticket.ttl`, default 30s), so a ticket recovered from a proxy log is already
+  spent. Pairing codes, credentials, and tickets appear only redacted in logs, status, and audit
+  output.
+
+## What you must do
+
+The guarantees above do not replace these duties:
+
+1. **Keep webhook secrets secret and rotate them.** Reference them as `env:` or `vault:` values;
+   signature verification is the only thing standing between the internet and your triggers.
+2. **Revoke a lost or stolen device immediately.** A device session is a bearer credential —
+   `compozy device revoke <device-id>` is the response, and it is immediate.
+3. **Treat pairing files as secrets.** A minted pairing code is written to a private file; move it
+   through a trusted channel and delete it after use. It expires in five minutes regardless.
+4. **Review who is on your tailnet.** Private-tier reachability is scoped by your Tailscale
+   network; membership there is yours to manage.
+5. **Re-run the audit after every change.** `compozy gateway audit` names findings with concrete
+   remediations. Make "no findings" your steady state.
+
+## Before you go public
+
+Before enabling public operator access (`--consent`):
+
+- Pair at least one device over the private tier — the daemon refuses otherwise, because a gate
+  nobody can pass is not useful and a gate anybody could pass is not safe.
+- Run `compozy gateway audit` and clear every finding.
+- Know your off switch: `compozy gateway surface disable operator_ui --tier public`, and
+  `compozy config set gateway.enabled false` to drop everything at once.
+- Remember consent returns on every enable. That is deliberate.
+
+## What this does not protect against
+
+- **A compromised daemon machine.** Local access is the root of trust: it can mint pairings and
+  revoke devices. Someone with this machine has the product.
+- **A compromised paired device.** Revoke it — that is what the inventory and immediate revocation
+  are for.
+- **A hostile connectivity provider.** Trust gating and digest confirmation reduce the risk of
+  installing one; they do not reduce the consequence of running one.
+- **Delivery loss while offline.** There is no store-and-forward queue. Sender-side retry is the
+  mitigation.
+- **Denial of service.** Ingress and authentication failures are rate limited per source, which
+  bounds abuse; it does not make a public address immune to traffic.
+
+## Related
+
+- [Devices, audit, and teardown](/docs/gateway/manage) — the commands behind these duties.
+- [Remote CLI, SSH, and public access](/docs/gateway/remote-access) — the consent switch itself.
+- [`[gateway]` configuration reference](/docs/configuration/config-toml#gateway) — the bounded
+  tunables named on this page.

@@ -66,6 +66,11 @@ const SECTION_PAGES = {
       default: m.NetworkSettingsPage,
     }))
   ),
+  gateway: lazy(() =>
+    import("@/routes/_app/settings/-gateway-settings-page").then(m => ({
+      default: m.GatewaySettingsPage,
+    }))
+  ),
   observability: lazy(() =>
     import("@/routes/_app/settings/-observability-settings-page").then(m => ({
       default: m.ObservabilitySettingsPage,

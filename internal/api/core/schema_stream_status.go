@@ -39,6 +39,7 @@ func (h *BaseHandlers) daemonStatusPayload(
 	health *observe.Health,
 	totalSessions int,
 	networkStatus *contract.NetworkStatusPayload,
+	gatewayStatus *contract.GatewayStatusPayload,
 	schemaStreams []contract.SchemaStreamStatus,
 ) contract.DaemonStatusPayload {
 	activeSessions := 0
@@ -67,6 +68,7 @@ func (h *BaseHandlers) daemonStatusPayload(
 		TotalSessions:  totalSessions,
 		Version:        version,
 		Network:        networkStatus,
+		Gateway:        gatewayStatus,
 		SchemaStreams:  schemaStreams,
 	}
 }

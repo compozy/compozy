@@ -2028,14 +2028,30 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return err
 		}
+		if h.scenario == "connectivity_secret_error" {
+			return h.sendError(req.ID, -32050, "api_key=sk-connectivity-secret", map[string]string{
+				"token": "sk-connectivity-secret",
+			})
+		}
+		if h.scenario == "connectivity_secret_stdout" {
+			return h.writeRaw("api_key=sk-connectivity-secret\n")
+		}
 		response := fakeInitializeResponse(params)
+		if h.scenario == "connectivity_unimplemented" {
+			response.ImplementedMethods = slices.DeleteFunc(response.ImplementedMethods, func(method string) bool {
+				return method == string(extensionprotocol.ExtensionServiceMethodConnectivityTeardown)
+			})
+		}
 		h.mu.Lock()
 		h.extension = params.Extension.Name
 		h.mu.Unlock()
 		if err := h.sendResult(req.ID, response); err != nil {
 			return err
 		}
-		if h.scenario == "record_initialize" || h.scenario == "auto_exit_record_initialize" {
+		if h.scenario == "record_initialize" || h.scenario == "auto_exit_record_initialize" ||
+			h.scenario == "connectivity_teardown_hang" || h.scenario == "connectivity_crash_after_establish" ||
+			h.scenario == "connectivity_teardown_refused" || h.scenario == "connectivity_malformed" ||
+			h.scenario == "connectivity_crash" {
 			if err := h.recordInitialize(params, response); err != nil {
 				return err
 			}
@@ -2064,6 +2080,18 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 				os.Exit(1)
 			}()
 		case "auto_exit_record_initialize":
+			go func() {
+				time.Sleep(15 * time.Millisecond)
+				os.Exit(1)
+			}()
+		case "connectivity_malformed":
+			go func() {
+				time.Sleep(15 * time.Millisecond)
+				if err := h.writeRaw("{malformed-json-rpc\n"); err != nil {
+					os.Exit(1)
+				}
+			}()
+		case "connectivity_crash":
 			go func() {
 				time.Sleep(15 * time.Millisecond)
 				os.Exit(1)
@@ -2191,11 +2219,71 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 				}},
 			},
 		})
+	case string(extensionprotocol.ExtensionServiceMethodConnectivityEstablish):
+		var params extensioncontract.ConnectivityEstablishRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		tier := strings.TrimSpace(params.Tier)
+		if h.scenario == "connectivity_wrong_tier" {
+			tier = "public"
+		}
+		endpointURL := "https://gateway.example.test"
+		if h.scenario == "connectivity_endpoint" {
+			endpointURL = h.marker
+		}
+		if err := h.sendResult(req.ID, extensioncontract.ConnectivityReachability{
+			Tier: tier,
+			Endpoints: []extensioncontract.ConnectivityAdvertisedEndpoint{{
+				URL: endpointURL, Scheme: "https", Stability: "stable",
+			}},
+			Health: "healthy",
+		}); err != nil {
+			return err
+		}
+		if h.scenario == "connectivity_crash_after_establish" {
+			if err := appendMarkerLine(h.marker, fmt.Sprintf("%d", os.Getpid())); err != nil {
+				return err
+			}
+			go func() {
+				time.Sleep(5 * time.Millisecond)
+				os.Exit(1)
+			}()
+		}
+		return nil
+	case string(extensionprotocol.ExtensionServiceMethodConnectivityStatus):
+		var params extensioncontract.ConnectivityStatusRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		endpointURL := "https://gateway.example.test"
+		if h.scenario == "connectivity_endpoint" {
+			endpointURL = h.marker
+		}
+		return h.sendResult(req.ID, extensioncontract.ConnectivityReachability{
+			Tier: strings.TrimSpace(params.Tier),
+			Endpoints: []extensioncontract.ConnectivityAdvertisedEndpoint{{
+				URL: endpointURL, Scheme: "https", Stability: "stable",
+			}},
+			Health: "healthy",
+		})
+	case string(extensionprotocol.ExtensionServiceMethodConnectivityTeardown):
+		if h.scenario == "connectivity_method_not_found" {
+			return h.sendError(req.ID, -32601, "Method not found", nil)
+		}
+		if h.scenario == "connectivity_teardown_hang" {
+			select {}
+		}
+		if h.scenario == "connectivity_teardown_refused" {
+			return h.sendResult(req.ID, extensioncontract.ConnectivityTeardownResponse{Stopped: false})
+		}
+		return h.sendResult(req.ID, extensioncontract.ConnectivityTeardownResponse{Stopped: true})
 	case "shutdown":
 		if h.scenario == "shutdown_hang" {
 			select {}
 		}
-		if h.marker != "" && h.scenario != "tool_call_generation_marker" {
+		if h.marker != "" && h.scenario != "tool_call_generation_marker" &&
+			h.scenario != "connectivity_endpoint" && h.scenario != "connectivity_teardown_refused" {
 			if err := os.WriteFile(h.marker, []byte("shutdown"), 0o600); err != nil {
 				return err
 			}
@@ -2299,6 +2387,15 @@ func (h *extensionHelperServer) write(payload any) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if _, err := h.writer.Write(append(data, '\n')); err != nil {
+		return err
+	}
+	return h.writer.Flush()
+}
+
+func (h *extensionHelperServer) writeRaw(payload string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if _, err := h.writer.WriteString(payload); err != nil {
 		return err
 	}
 	return h.writer.Flush()

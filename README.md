@@ -45,6 +45,8 @@ surfaces.
   inspectable while work continues in the background.
 - **Local-first by default.** One Go binary and SQLite-backed stores keep runtime state on the
   operator's machine unless a configured provider or extension owns an external boundary.
+- **Remote access stays explicit.** The [Gateway](https://compozy.com/docs/gateway)
+  pairs devices and exposes only the private or public surfaces an operator enables.
 - **Built to extend.** Agents, skills, capabilities, hooks, bridges, and extension kits plug into
   explicit runtime contracts.
 - **Compozy Network.** Sessions can discover peers, exchange typed messages, delegate work, and close

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/gateway"
 
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
@@ -82,6 +83,21 @@ func WithHTTPServerFactory(factory ServerFactory) Option {
 func WithUDSServerFactory(factory ServerFactory) Option {
 	return func(d *Daemon) {
 		d.udsFactory = factory
+	}
+}
+
+// WithGatewayTierServerFactory overrides daemon-owned tier listener construction.
+func WithGatewayTierServerFactory(factory GatewayTierServerFactory) Option {
+	return func(d *Daemon) {
+		d.gatewayTierFactory = factory
+	}
+}
+
+// WithGatewayProviderEffects injects the provider preflight, establish, verify, advertise,
+// withdraw, teardown, and health-supervision lifecycle used by gateway reconciliation.
+func WithGatewayProviderEffects(effects gateway.EffectDriver) Option {
+	return func(d *Daemon) {
+		d.gatewayProviderEffects = effects
 	}
 }
 

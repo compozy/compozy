@@ -36,6 +36,9 @@ func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (A
 	if result.Section == SectionNetwork {
 		return s.recordNetworkSectionApply(ctx, result)
 	}
+	if result.Section == SectionGateway {
+		return s.recordGatewaySectionApply(ctx, result)
+	}
 	if result.Section == SectionWindowManager {
 		return s.recordWindowManagerSectionApply(ctx, result)
 	}

@@ -228,8 +228,8 @@ type ResourceListQuery struct {
 type SSEEvent = sse.Event
 type SSEHandler = sse.Handler
 
-type unixSocketClient struct {
-	socketPath   string
+type daemonClient struct {
+	target       ClientTarget
 	httpClient   *http.Client
 	streamClient *http.Client
 }

@@ -12,7 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const windowManagerActiveField = "active"
+const (
+	windowManagerActiveField  = "active"
+	windowManagerChangedField = "changed"
+)
 
 func windowManagerJSONBundle(name string, title string, value any) outputBundle {
 	return outputBundle{
@@ -108,7 +111,7 @@ func windowManagerPreviewBundle(preview contract.WindowManagerPreview) outputBun
 		humanTitle:      "Window manager preview",
 		toonName:        "window_manager_preview",
 		stateLabel:      "Changed",
-		stateField:      "changed",
+		stateField:      windowManagerChangedField,
 		revision:        uint64(preview.Snapshot.Revision),
 		state:           preview.Changed,
 		desktopChanges:  len(preview.Changes.DesktopIDs),
@@ -296,7 +299,7 @@ func windowManagerLayoutDiagnosticsTable(diagnostics []windowmanager.Diagnostic)
 	}
 	return renderHumanTable(
 		windowManagerDiagnosticsLabel,
-		[]string{cliCodeValue, "Path", authoredContextMessageValue},
+		[]string{cliCodeValue, automationPathValue, authoredContextMessageValue},
 		rows,
 	)
 }

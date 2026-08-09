@@ -172,6 +172,9 @@ func executeWriteAttempt(
 	if err := fn(ctx, tx); err != nil {
 		return fmt.Errorf("store: execute sqlite write callback: %w", err)
 	}
+	if err := validateMutationCommitFence(ctx); err != nil {
+		return fmt.Errorf("store: mutation commit fence: %w", err)
+	}
 	if _, err := conn.ExecContext(ctx, sqliteCommitStatement); err != nil {
 		return fmt.Errorf("store: commit sqlite write: %w", err)
 	}

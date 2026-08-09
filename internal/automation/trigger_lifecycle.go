@@ -221,6 +221,9 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 	); err != nil {
 		return TriggerResult{}, err
 	}
+	if !registration.Trigger.Enabled {
+		return TriggerResult{}, ErrWebhookTriggerDisabled
+	}
 	claim, err := e.claimWebhookDelivery(ctx, registration.Trigger, request.DeliveryID)
 	if err != nil {
 		return TriggerResult{}, err

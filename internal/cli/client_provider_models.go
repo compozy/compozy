@@ -59,7 +59,7 @@ type ProviderModelStatusRecord = contract.ProviderModelStatusResponse
 // ProviderModelSourceStatusRecord is one provider-scoped source status row.
 type ProviderModelSourceStatusRecord = contract.ModelCatalogSourceStatusPayload
 
-func (c *unixSocketClient) ListProviderModels(
+func (c *daemonClient) ListProviderModels(
 	ctx context.Context,
 	query ProviderModelListQuery,
 ) (ProviderModelListRecord, error) {
@@ -77,7 +77,7 @@ func (c *unixSocketClient) ListProviderModels(
 	return response, nil
 }
 
-func (c *unixSocketClient) CurateProviderModel(
+func (c *daemonClient) CurateProviderModel(
 	ctx context.Context,
 	providerID string,
 	request ProviderModelCurationRequest,
@@ -94,7 +94,7 @@ func (c *unixSocketClient) CurateProviderModel(
 	return response, nil
 }
 
-func (c *unixSocketClient) RefreshProviderModels(
+func (c *daemonClient) RefreshProviderModels(
 	ctx context.Context,
 	providerID string,
 	request ProviderModelRefreshRequest,
@@ -108,7 +108,7 @@ func (c *unixSocketClient) RefreshProviderModels(
 	return response, nil
 }
 
-func (c *unixSocketClient) ProviderModelStatus(
+func (c *daemonClient) ProviderModelStatus(
 	ctx context.Context,
 	providerID string,
 ) (ProviderModelStatusRecord, error) {

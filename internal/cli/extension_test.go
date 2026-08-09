@@ -33,6 +33,23 @@ type extensionSecretTestWriter struct {
 	err       error
 }
 
+// Invariant: every embedded extension scaffold is discoverable from `extension init --help`.
+// Owning layer: CLI extension authoring command.
+// Canonical suite: no existing extension-init help suite owns this product contract.
+func TestExtensionInitHelpListsEveryScaffoldTemplate(t *testing.T) {
+	t.Parallel()
+
+	stdout, _, err := executeRootCommand(t, commandDeps{}, "extension", "init", "--help")
+	if err != nil {
+		t.Fatalf("executeRootCommand(extension init --help) error = %v", err)
+	}
+	for _, template := range extensionpkg.ScaffoldTemplates() {
+		if !strings.Contains(stdout, string(template)) {
+			t.Fatalf("extension init --help omitted template %q", template)
+		}
+	}
+}
+
 func (w *extensionSecretTestWriter) Write(data []byte) (int, error) {
 	w.writes++
 	if w.writes > w.failAfter {
@@ -566,7 +583,7 @@ func TestExtensionStatusOfflineReportsMissingEnvWithoutLeakingValues(t *testing.
 			return localExtensionRecord(*getInstalledExtension(t, homePaths, "env-ext"), deps.now, deps.getenv), nil
 		},
 	}
-	deps.newClient = func(string) (DaemonClient, error) {
+	deps.newClient = func(ClientTarget) (DaemonClient, error) {
 		return statusClient, nil
 	}
 

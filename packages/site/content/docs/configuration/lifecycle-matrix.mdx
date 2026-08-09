@@ -31,6 +31,9 @@ description: Generated Compozy config lifecycle matrix for live apply, session r
 | `defaults.*`                                    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `extensions.*`                                  | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `extensions.trust.allow_unverified`             | `live`             | `live`             | `none`                                  |
+| `gateway.*`                                     | `live`             | `live`             | `none`                                  |
+| `gateway.private_port`                          | `restart-required` | `restart-required` | `restart-daemon`                        |
+| `gateway.public_port`                           | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `goals.*`                                       | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `hooks.*`                                       | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `http.*`                                        | `restart-required` | `restart-required` | `restart-daemon`                        |

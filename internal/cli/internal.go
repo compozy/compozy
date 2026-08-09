@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/compozy/compozy/extensions/connectivity/tailscale"
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	"github.com/spf13/cobra"
 )
@@ -23,6 +24,13 @@ func newInternalExtensionProviderCommand() *cobra.Command {
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch args[0] {
+			case tailscale.Name:
+				return tailscale.RunProvider(
+					cmd.Context(),
+					cmd.InOrStdin(),
+					cmd.OutOrStdout(),
+					cmd.ErrOrStderr(),
+				)
 			case devcycle.Name:
 				return devcycle.RunProvider(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout())
 			default:

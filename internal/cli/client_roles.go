@@ -24,7 +24,7 @@ type RoleQuery struct {
 	Workspace string
 }
 
-func (c *unixSocketClient) ListRoles(ctx context.Context, query RoleQuery) ([]RoleRecord, error) {
+func (c *daemonClient) ListRoles(ctx context.Context, query RoleQuery) ([]RoleRecord, error) {
 	var response contract.RolesResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/roles", roleValues(query), nil, &response); err != nil {
 		return nil, fmt.Errorf("cli: list roles: %w", err)
@@ -32,7 +32,7 @@ func (c *unixSocketClient) ListRoles(ctx context.Context, query RoleQuery) ([]Ro
 	return response.Roles, nil
 }
 
-func (c *unixSocketClient) GetRole(ctx context.Context, role string, query RoleQuery) (RoleRecord, error) {
+func (c *daemonClient) GetRole(ctx context.Context, role string, query RoleQuery) (RoleRecord, error) {
 	var response contract.RoleStatusResponse
 	path := "/api/roles/" + url.PathEscape(strings.TrimSpace(role))
 	if err := c.doJSON(ctx, http.MethodGet, path, roleValues(query), nil, &response); err != nil {

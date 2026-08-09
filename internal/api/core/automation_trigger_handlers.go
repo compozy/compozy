@@ -2,12 +2,9 @@ package core
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"net/http"
-
 	"strings"
 	"time"
 
@@ -19,6 +16,10 @@ import (
 // ListAutomationTriggers returns the filtered automation trigger list.
 func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 	manager, ok := h.requireAutomationManager(c)
+	if !ok {
+		return
+	}
+	projectionCtx, ok := h.requireGatewayIngressReadContext(c, "automation.triggers.list")
 	if !ok {
 		return
 	}
@@ -34,9 +35,14 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
+	payloads, err := h.triggerPayloads(projectionCtx, page.Triggers)
+	if err != nil {
+		h.respondGatewayError(c, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, contract.TriggersResponse{
-		Triggers: TriggerPayloadsFromTriggers(page.Triggers),
+		Triggers: payloads,
 		Page: contract.CountedCursorPagePayload{
 			NextCursor: page.NextCursor,
 			HasMore:    page.HasMore,
@@ -75,18 +81,31 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
+	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
+		c,
+		"automation.triggers.create",
+		trigger.WorkspaceID,
+	)
+	if !ok {
+		return
+	}
 	created, err := manager.CreateTrigger(c.Request.Context(), trigger, webhookSecret)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, contract.TriggerResponse{Trigger: TriggerPayloadFromTrigger(created)})
+	payload := h.triggerPayloadBestEffort(projectionCtx, created, "automation.triggers.create")
+	c.JSON(http.StatusCreated, contract.TriggerResponse{Trigger: payload})
 }
 
 // GetAutomationTrigger returns one automation trigger by id.
 func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 	manager, ok := h.requireAutomationManager(c)
+	if !ok {
+		return
+	}
+	projectionCtx, ok := h.requireGatewayIngressReadContext(c, "automation.triggers.get")
 	if !ok {
 		return
 	}
@@ -96,7 +115,12 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.TriggerResponse{Trigger: TriggerPayloadFromTrigger(trigger)})
+	payload, err := h.triggerPayload(projectionCtx, trigger)
+	if err != nil {
+		h.respondGatewayError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TriggerResponse{Trigger: payload})
 }
 
 // UpdateAutomationTrigger patches one automation trigger definition.
@@ -131,6 +155,14 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
+	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
+		c,
+		"automation.triggers.update",
+		current.WorkspaceID,
+	)
+	if !ok {
+		return
+	}
 
 	var updated automationpkg.Trigger
 	switch current.Source {
@@ -154,7 +186,8 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TriggerResponse{Trigger: TriggerPayloadFromTrigger(updated)})
+	payload := h.triggerPayloadBestEffort(projectionCtx, updated, "automation.triggers.update")
+	c.JSON(http.StatusOK, contract.TriggerResponse{Trigger: payload})
 }
 
 // DeleteAutomationTrigger removes one dynamic automation trigger definition.
@@ -167,6 +200,13 @@ func (h *BaseHandlers) DeleteAutomationTrigger(c *gin.Context) {
 	current, err := manager.GetTrigger(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if _, ok := h.requireGatewayIngressReadContextForWorkspace(
+		c,
+		"automation.triggers.delete",
+		current.WorkspaceID,
+	); !ok {
 		return
 	}
 	if current.Source != automationpkg.JobSourceDynamic {

@@ -21,7 +21,7 @@ type BridgeSendTestRequest = contract.BridgeSendTestRequest
 // BridgeSendTestRecord is the provider acknowledgment for a real test delivery.
 type BridgeSendTestRecord = contract.BridgeSendTestResponse
 
-func (c *unixSocketClient) VerifyBridge(ctx context.Context, id string) (BridgeVerifyRecord, error) {
+func (c *daemonClient) VerifyBridge(ctx context.Context, id string) (BridgeVerifyRecord, error) {
 	bridgeID, err := requiredBridgeControlID(id)
 	if err != nil {
 		return BridgeVerifyRecord{}, err
@@ -41,7 +41,7 @@ func (c *unixSocketClient) VerifyBridge(ctx context.Context, id string) (BridgeV
 	return response, nil
 }
 
-func (c *unixSocketClient) SendBridgeTest(
+func (c *daemonClient) SendBridgeTest(
 	ctx context.Context,
 	id string,
 	request BridgeSendTestRequest,

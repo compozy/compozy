@@ -541,4 +541,52 @@ describe("BridgeDetailPanel", () => {
     expect(onSaveSecretBinding).toHaveBeenCalledWith("bot_token");
     expect(onDeleteSecretBinding).toHaveBeenCalledWith("bot_token");
   });
+
+  it("Should stay silent about gateway ingress for a bridge behind the operator's own proxy", () => {
+    renderPanel();
+    expect(screen.queryByTestId("bridge-gateway-ingress")).not.toBeInTheDocument();
+  });
+
+  it("Should report callback ingress health for a bridge bound to the gateway", () => {
+    renderPanel({
+      bridge: makeBridge({
+        gateway_ingress: {
+          confirmed_at: "2026-08-07T09:00:00Z",
+          confirmed_endpoint_generation: 2,
+          endpoint_generation: 2,
+          reachability: "live",
+          scope_kind: "workspace",
+          subject_id: "brg_support",
+          subject_kind: "bridge_instance",
+          url: "https://public.gateway.test/api/bridge-callbacks/brg_support",
+          workspace_id: "ws_test",
+        },
+      }),
+    });
+
+    const ingress = screen.getByTestId("bridge-gateway-ingress");
+    expect(ingress).toHaveTextContent("Live");
+    expect(ingress).toHaveTextContent(
+      "https://public.gateway.test/api/bridge-callbacks/brg_support"
+    );
+  });
+
+  it("Should report a broken callback path rather than presenting the URL as working", () => {
+    renderPanel({
+      bridge: makeBridge({
+        gateway_ingress: {
+          endpoint_generation: 2,
+          reachability: "broken",
+          scope_kind: "workspace",
+          subject_id: "brg_support",
+          subject_kind: "bridge_instance",
+          workspace_id: "ws_test",
+        },
+      }),
+    });
+
+    const ingress = screen.getByTestId("bridge-gateway-ingress");
+    expect(ingress).toHaveTextContent("Broken");
+    expect(ingress).toHaveTextContent("No verified public address is published yet");
+  });
 });

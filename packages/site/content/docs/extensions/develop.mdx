@@ -47,13 +47,15 @@ Every verb supports `-o human|json|jsonl|toon`. Exact flags:
 compozy extension init my-ext --template tool-provider-go
 ```
 
-| Template               | Language   | Shows                                            |
-| ---------------------- | ---------- | ------------------------------------------------ |
-| `tool-provider-ts`     | TypeScript | One tool with a typed handler. Default template. |
-| `tool-provider-go`     | Go         | The same tool with Go generics.                  |
-| `hook-ts`              | TypeScript | A `prompt.post_assemble` hook returning a patch. |
-| `memory-backend-ts`    | TypeScript | The `memory.backend` provide surface.            |
-| `loop-watch-source-go` | Go         | The `loop.watch_source` provide surface.         |
+| Template                   | Language   | Shows                                            |
+| -------------------------- | ---------- | ------------------------------------------------ |
+| `tool-provider-ts`         | TypeScript | One tool with a typed handler. Default template. |
+| `tool-provider-go`         | Go         | The same tool with Go generics.                  |
+| `hook-ts`                  | TypeScript | A `prompt.post_assemble` hook returning a patch. |
+| `memory-backend-ts`        | TypeScript | The `memory.backend` provide surface.            |
+| `loop-watch-source-go`     | Go         | The `loop.watch_source` provide surface.         |
+| `connectivity-provider-go` | Go         | A Gateway connectivity provider.                 |
+| `connectivity-provider-ts` | TypeScript | A Gateway connectivity provider.                 |
 
 Templates carry no manifest. They carry `package.json`/`go.mod`, a source file, and nothing else.
 
@@ -217,13 +219,14 @@ Agents call that ID directly. Operators can call the same tool through a friendl
 `capabilities.provides` declares which runtime interfaces the extension implements. The set is closed
 and validated at build, install, and load.
 
-| Provide             | Compozy calls the extension with                 | Public |
-| ------------------- | ------------------------------------------------ | ------ |
-| `tool.provider`     | `provide_tools`, `tools/call`                    | yes    |
-| `memory.backend`    | `memory/store`, `memory/recall`, `memory/forget` | yes    |
-| `model.source`      | `models/list`                                    | yes    |
-| `loop.watch_source` | `watch/poll`                                     | yes    |
-| `bridge.adapter`    | `bridges/deliver`, `bridges/targets/snapshot`    | no     |
+| Provide                 | Compozy calls the extension with                                         | Public |
+| ----------------------- | ------------------------------------------------------------------------ | ------ |
+| `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
+| `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
+| `model.source`          | `models/list`                                                            | yes    |
+| `loop.watch_source`     | `watch/poll`                                                             | yes    |
+| `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
+| `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
 
 Missing a required service method for a declared provide fails the build. Declaring a value outside
 this set fails manifest load with the valid set in the error.
@@ -252,12 +255,48 @@ The authorization layer classifies `models/list` and `models/status` under `mode
 `models/refresh` under `model.write`. Operator-facing consent renders those areas as `model:read`
 and `model:write`; authors still declare only the method paths in `permissions.requires`.
 
+### Connectivity providers
+
+A connectivity provider publishes a verified route to one daemon-owned Gateway tier listener. Start
+from `connectivity-provider-go` or `connectivity-provider-ts`; both templates register the public
+`connectivity.provider` capability and its three service methods.
+
+The daemon calls `connectivity/establish` with a tier, a loopback `forward_target`, an opaque
+`challenge_path`, and a deadline. Forward the assigned tier to that target without rewriting the
+challenge path, then return the current `tier`, `health`, and HTTPS `endpoints`. Each endpoint names
+its URL, scheme, and whether it is `stable` or `ephemeral`. `connectivity/status` returns the same
+reachability shape for one tier. `connectivity/teardown` stops that tier before its deadline and
+returns `stopped: true` only after forwarding has ended.
+
+Provider output is not proof. Compozy requests the challenge through every returned endpoint and
+requires the exact nonce from the assigned tier listener. It validates TLS, follows no redirects,
+bounds the response and request time, and blocks public endpoints that resolve inward. A failed
+challenge leaves the tier unadvertised and marks the provider degraded.
+
+Connectivity providers have stricter trust rules than ordinary extensions:
+
+- Install them globally. Workspace-scoped sources are rejected.
+- Declare required Live Network participation. Its normalized requirement becomes the control
+  digest that the operator confirms through the extension lifecycle. Include `gateway.private`,
+  `gateway.public`, or both in `channel_scopes`; a provider cannot start for a tier it did not
+  declare.
+- Expect that digest and install source to be read again from the live registry whenever Gateway
+  enables the provider and whenever the daemon boots. An update that changes the digest requires
+  fresh confirmation before provider code can affect reachability.
+- Support independent private and public calls, but expect only one selected provider per tier.
+
+Use the generated [Gateway API reference](/docs/api/gateway) to select a provider for a tier and pass
+the exact current digest. Use [Gateway security](/docs/gateway/security) to understand which routes
+can be published, and the bundled [Tailscale extension](/docs/gateway/tailscale) as the reference
+implementation. The provider never adds a Host API method; all three calls are initiated by the
+daemon.
+
 ### Bridge adapters
 
 External bridge authoring is a **planned follow-up program**, not a supported path today. Compozy
 does not yet publish the bridge service and control contracts, the grant surface, or a public bridge
 conformance harness, so `bridge.adapter` is excluded from the public completeness surface: an
-installed third-party manifest declaring it is rejected deterministically with that reason. The four
+installed third-party manifest declaring it is rejected deterministically with that reason. The five
 public provide surfaces above are the complete third-party set for now.
 
 In-tree bridge providers are unaffected — they are not installed extensions. Contributing one inside
@@ -276,7 +315,7 @@ Permissions: compozysdk.PermissionsConfig{
 ```
 
 Compozy derives the operator-facing consent areas from that list and enforces it per call. The full
-87-method catalog, the derived areas, and the ceiling applied per install source are in
+95-method catalog, the derived areas, and the ceiling applied per install source are in
 [Extension Permissions](/docs/extensions/permissions).
 
 ### Paged collection results

@@ -7,6 +7,92 @@ import (
 	"time"
 )
 
+type ToolCallPatch struct {
+	Deny       bool            `json:"deny,omitempty"`
+	DenyReason string          `json:"deny_reason,omitempty"`
+	ToolID     *string         `json:"tool_id,omitempty"`
+	ReadOnly   *bool           `json:"read_only,omitempty"`
+	ToolInput  json.RawMessage `json:"tool_input,omitempty"`
+}
+
+type ToolCallRef struct {
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	ToolID     string `json:"tool_id,omitempty"`
+	ReadOnly   bool   `json:"read_only,omitempty"`
+}
+
+type ToolContent struct {
+	Type     string                     `json:"type"`
+	Text     string                     `json:"text,omitempty"`
+	Data     json.RawMessage            `json:"data,omitempty"`
+	MIMEType string                     `json:"mime_type,omitempty"`
+	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
+}
+
+type ToolID string
+
+type ToolLocation struct {
+	Path      string `json:"path,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+}
+
+type ToolPostCallPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	ToolCallID     string          `json:"tool_call_id,omitempty"`
+	ToolID         string          `json:"tool_id,omitempty"`
+	ReadOnly       bool            `json:"read_only,omitempty"`
+	Title          string          `json:"title,omitempty"`
+	ToolInput      json.RawMessage `json:"tool_input,omitempty"`
+	ToolResult     json.RawMessage `json:"tool_result,omitempty"`
+}
+
+type ToolPostErrorPatch struct {
+	Deny       bool            `json:"deny,omitempty"`
+	DenyReason string          `json:"deny_reason,omitempty"`
+	Title      *string         `json:"title,omitempty"`
+	ToolResult json.RawMessage `json:"tool_result,omitempty"`
+	Error      *string         `json:"error,omitempty"`
+}
+
+type ToolPostErrorPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	ToolCallID     string          `json:"tool_call_id,omitempty"`
+	ToolID         string          `json:"tool_id,omitempty"`
+	ReadOnly       bool            `json:"read_only,omitempty"`
+	Title          string          `json:"title,omitempty"`
+	ToolInput      json.RawMessage `json:"tool_input,omitempty"`
+	Error          string          `json:"error,omitempty"`
+}
+
 type ToolPreCallPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
@@ -66,26 +152,27 @@ type ToolResultPatch struct {
 type ToolsetID string
 
 type Trigger struct {
-	ID                   string            `json:"id"`
-	Scope                Scope             `json:"scope"`
-	Name                 string            `json:"name"`
-	TargetKind           TargetKind        `json:"target_kind"`
-	AgentName            string            `json:"agent_name"`
-	WorkspaceID          string            `json:"workspace_id,omitempty"`
-	Prompt               string            `json:"prompt"`
-	Event                string            `json:"event"`
-	Filter               map[string]string `json:"filter,omitempty"`
-	LoopTarget           *LoopTarget       `json:"loop_target,omitempty"`
-	Enabled              bool              `json:"enabled"`
-	Retry                RetryConfig       `json:"retry"`
-	FireLimit            FireLimitConfig   `json:"fire_limit"`
-	Source               JobSource         `json:"source"`
-	WebhookID            string            `json:"webhook_id,omitempty"`
-	EndpointSlug         string            `json:"endpoint_slug,omitempty"`
-	WebhookSecretPresent bool              `json:"webhook_secret_present"`
-	WebhookSecretHash    string            `json:"webhook_secret_hash,omitempty"`
-	CreatedAt            time.Time         `json:"created_at"`
-	UpdatedAt            time.Time         `json:"updated_at"`
+	ID                   string                 `json:"id"`
+	Scope                Scope                  `json:"scope"`
+	Name                 string                 `json:"name"`
+	TargetKind           TargetKind             `json:"target_kind"`
+	AgentName            string                 `json:"agent_name"`
+	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	Prompt               string                 `json:"prompt"`
+	Event                string                 `json:"event"`
+	Filter               map[string]string      `json:"filter,omitempty"`
+	LoopTarget           *LoopTarget            `json:"loop_target,omitempty"`
+	Enabled              bool                   `json:"enabled"`
+	Retry                RetryConfig            `json:"retry"`
+	FireLimit            FireLimitConfig        `json:"fire_limit"`
+	Source               JobSource              `json:"source"`
+	WebhookID            string                 `json:"webhook_id,omitempty"`
+	EndpointSlug         string                 `json:"endpoint_slug,omitempty"`
+	WebhookSecretPresent bool                   `json:"webhook_secret_present"`
+	WebhookSecretHash    string                 `json:"webhook_secret_hash,omitempty"`
+	Ingress              *GatewayIngressPayload `json:"ingress,omitempty"`
+	CreatedAt            time.Time              `json:"created_at"`
+	UpdatedAt            time.Time              `json:"updated_at"`
 }
 
 type TriggerResult struct {
@@ -182,67 +269,4 @@ type ValidationIssue struct {
 	Field    string        `json:"field,omitempty"`
 	Message  string        `json:"message"`
 	Severity IssueSeverity `json:"severity"`
-}
-
-type Visibility string
-
-type WindowManagerActor struct {
-	Kind string `json:"kind,omitempty"`
-	ID   string `json:"id,omitempty"`
-}
-
-type WindowManagerChanges struct {
-	DesktopIDs     []string `json:"desktop_ids,omitempty"`
-	WindowIDs      []string `json:"window_ids,omitempty"`
-	GroupIDs       []string `json:"group_ids,omitempty"`
-	NodeIDs        []string `json:"node_ids,omitempty"`
-	ClientIDs      []string `json:"client_ids,omitempty"`
-	StackGrouped   []string `json:"stack_grouped,omitempty"`
-	StackUngrouped []string `json:"stack_ungrouped,omitempty"`
-}
-
-type WindowManagerDesktopCreatedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}
-
-type WindowManagerDesktopDeletedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}
-
-type WindowManagerLayoutAppliedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}
-
-type WindowManagerObservationPatch struct{}
-
-type WindowManagerStackActivatedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
 }

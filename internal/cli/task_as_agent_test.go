@@ -21,8 +21,8 @@ func TestUnixSocketClientCreateTaskAsAgentSendsIdentityHeaders(t *testing.T) {
 			SessionID: "sess-1",
 			AgentName: "coder",
 		}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					assertAgentRequestHeaders(t, req, credentials)
@@ -68,8 +68,8 @@ func TestUnixSocketClientTaskReviewAsAgentSendsIdentityHeaders(t *testing.T) {
 			SessionID: "sess-1",
 			AgentName: "coder",
 		}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					assertAgentRequestHeaders(t, req, credentials)
@@ -111,8 +111,8 @@ func TestUnixSocketClientTaskReviewAsAgentSendsIdentityHeaders(t *testing.T) {
 			SessionID: "sess-1",
 			AgentName: "coder",
 		}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					assertAgentRequestHeaders(t, req, credentials)

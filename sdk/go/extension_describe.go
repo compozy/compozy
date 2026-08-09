@@ -75,10 +75,11 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Args:    slices.Clone(e.definition.Subprocess.Args),
 			Env:     cloneStringMap(e.definition.Subprocess.Env),
 		},
-		Tools:            tools,
-		CommandGroups:    e.commandGroupsLocked(),
-		HookEvents:       normalizeStrings(e.definition.SupportedHookEvents),
-		WatchSourceKinds: e.watchSourceKindsLocked(),
+		NetworkParticipation: normalizeDescribeNetworkParticipation(e.definition.NetworkParticipation),
+		Tools:                tools,
+		CommandGroups:        e.commandGroupsLocked(),
+		HookEvents:           normalizeStrings(e.definition.SupportedHookEvents),
+		WatchSourceKinds:     e.watchSourceKindsLocked(),
 		SDK: contracts.DescribeSDKInfo{
 			Name:              SDKName,
 			Version:           e.sdkVersion,
@@ -86,6 +87,18 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			MinCompozyVersion: MinCompozyVersion,
 		},
 	}, nil
+}
+
+func normalizeDescribeNetworkParticipation(
+	value *NetworkParticipationRequirement,
+) *contracts.DescribeNetworkParticipation {
+	if value == nil {
+		return nil
+	}
+	return &contracts.DescribeNetworkParticipation{
+		Required: value.Required, Mode: strings.TrimSpace(value.Mode),
+		ChannelScopes: normalizeStrings(value.ChannelScopes),
+	}
 }
 
 func (e *Extension) writeDescribe(output io.Writer) error {

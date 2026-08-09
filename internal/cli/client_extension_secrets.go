@@ -13,7 +13,7 @@ type extensionSecretsClient interface {
 	DeleteExtensionSecret(context.Context, string, string, string) error
 }
 
-func (c *unixSocketClient) ListExtensionSecrets(
+func (c *daemonClient) ListExtensionSecrets(
 	ctx context.Context,
 	name string,
 	workspaceRef string,
@@ -30,7 +30,7 @@ func (c *unixSocketClient) ListExtensionSecrets(
 	return response, err
 }
 
-func (c *unixSocketClient) SetExtensionSecrets(
+func (c *daemonClient) SetExtensionSecrets(
 	ctx context.Context,
 	name string,
 	workspaceRef string,
@@ -48,7 +48,7 @@ func (c *unixSocketClient) SetExtensionSecrets(
 	return response, err
 }
 
-func (c *unixSocketClient) DeleteExtensionSecret(
+func (c *daemonClient) DeleteExtensionSecret(
 	ctx context.Context,
 	name string,
 	workspaceRef string,

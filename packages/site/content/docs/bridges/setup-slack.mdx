@@ -45,14 +45,14 @@ webhook.
 
 Collect or decide these values:
 
-| Value                    | Required | Where it comes from                                                                                    |
-| ------------------------ | -------- | ------------------------------------------------------------------------------------------------------ |
-| Compozy workspace ID     | yes      | `compozy workspace list -o json`; this workspace's default agent receives new routed messages.         |
-| Public callback URL      | yes      | Stable HTTPS URL that forwards to the Slack provider listener and path.                                |
-| Local listener address   | yes      | `provider_config.webhook.listen_addr` or `COMPOZY_BRIDGE_SLACK_LISTEN_ADDR` in the daemon environment. |
-| Bot User OAuth token     | yes      | Slack app **OAuth & Permissions** after installation; use the bot token, not a user token.             |
-| App signing secret       | yes      | Slack app **Basic Information → App Credentials**.                                                     |
-| Slack app administration | yes      | Permission to create and install an app in the target Slack workspace.                                 |
+| Value                    | Required | Where it comes from                                                                                                           |
+| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Compozy workspace ID     | yes      | `compozy workspace list -o json`; this workspace's default agent receives new routed messages.                                |
+| Public callback URL      | yes      | Confirmed Compozy Gateway delivery URL, or a stable external HTTPS URL that forwards to the Slack provider listener and path. |
+| Local listener address   | yes      | `provider_config.webhook.listen_addr` or `COMPOZY_BRIDGE_SLACK_LISTEN_ADDR` in the daemon environment.                        |
+| Bot User OAuth token     | yes      | Slack app **OAuth & Permissions** after installation; use the bot token, not a user token.                                    |
+| App signing secret       | yes      | Slack app **Basic Information → App Credentials**.                                                                            |
+| Slack app administration | yes      | Permission to create and install an app in the target Slack workspace.                                                        |
 
 The provider needs no Slack app-level token. Keep Socket Mode disabled.
 
@@ -73,6 +73,10 @@ provider](/docs/bridges/setup#install-an-in-tree-provider) first.
 ## Step 1: Map the public and local endpoints
 
 Choose a stable callback before generating the manifest:
+
+When Compozy Gateway owns public ingress, use the delivery URL projected for this bridge after its
+binding is confirmed. Otherwise, use an operator-owned proxy or tunnel as shown below. See [Bridge
+callbacks over the gateway](/docs/gateway/webhooks#bridge-callbacks-use-the-same-ingress) for that flow.
 
 ```text
 Slack → https://bridge.example.com/slack/support

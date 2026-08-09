@@ -60,7 +60,7 @@ func newSkillInstallCommand(deps commandDeps) *cobra.Command {
 
 func newSkillRemoveCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "remove <name>",
+		Use:   cliRemoveNameUse,
 		Short: "Remove an installed marketplace skill",
 		Example: `  # Remove a marketplace-installed skill by local name
   compozy skill remove code-review`,

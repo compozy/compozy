@@ -10,7 +10,7 @@ import (
 // SessionUsageRecord is the shared aggregated session usage payload.
 type SessionUsageRecord = contract.SessionUsagePayload
 
-func (c *unixSocketClient) GetSessionUsage(ctx context.Context, id string) (SessionUsageRecord, error) {
+func (c *daemonClient) GetSessionUsage(ctx context.Context, id string) (SessionUsageRecord, error) {
 	var response contract.SessionUsageResponse
 	path, err := c.sessionScopedPath(ctx, id, "/usage")
 	if err != nil {

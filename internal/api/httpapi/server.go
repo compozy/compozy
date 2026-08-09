@@ -22,6 +22,7 @@ const (
 	serverLocalhostKey       = "localhost"
 	defaultPollInterval      = 100 * time.Millisecond
 	defaultReadHeaderTimeout = 5 * time.Second
+	defaultReadTimeout       = 30 * time.Second
 	defaultIdleTimeout       = 60 * time.Second
 )
 
@@ -37,6 +38,7 @@ type Server struct {
 	configSet          bool
 	host               string
 	port               int
+	portSet            bool
 	logger             *slog.Logger
 	startedAt          time.Time
 	now                func() time.Time
@@ -336,7 +338,15 @@ func New(opts ...Option) (*Server, error) {
 	server.ensureEngine()
 	server.staticSource = staticSource.source
 	server.handlers = newHandlers(server.handlerConfig(staticSource.fs))
-	ginutil.QuietDebug(func() { RegisterRoutes(server.engine, server.handlers) })
+	ginutil.QuietDebug(func() {
+		registerGatewayChallengeRoute(
+			server.engine,
+			server.surfaceSet,
+			server.gatewayTier,
+			server.gatewayChallenges,
+		)
+		RegisterSurfaceRoutes(server.engine, server.handlers, server.surfaceSet)
+	})
 
 	return server, nil
 }

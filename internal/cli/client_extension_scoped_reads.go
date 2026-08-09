@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (c *unixSocketClient) ListExtensionsScoped(
+func (c *daemonClient) ListExtensionsScoped(
 	ctx context.Context,
 	workspaceRef string,
 ) ([]ExtensionRecord, error) {
@@ -21,7 +21,7 @@ func (c *unixSocketClient) ListExtensionsScoped(
 	return response.Extensions, nil
 }
 
-func (c *unixSocketClient) ExtensionStatusScoped(
+func (c *daemonClient) ExtensionStatusScoped(
 	ctx context.Context,
 	workspaceRef string,
 	name string,

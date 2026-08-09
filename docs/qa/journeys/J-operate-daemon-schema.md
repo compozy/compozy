@@ -28,7 +28,8 @@ flowchart TD
     BOOT --> DOMAINS[Read workspace and memory catalogs through public CLI surfaces]
     DOMAINS --> STATUS[Inspect GET /api/status over HTTP and UDS]
     STATUS --> CLI[Inspect compozy status -o json]
-    CLI --> MATCH{global + memory entries match?}
+    CLI --> AUDIT[Run gateway audit over CLI, HTTP, UDS, and the native tool]
+    AUDIT --> MATCH{schema and gateway observations match?}
     MATCH -->|yes| END[True end: daemon running and schema ownership is inspectable across surfaces]
     MATCH -->|no| STOP[Stop daemon and retain logs for diagnosis]
     STOP -.-> STATUS
@@ -39,7 +40,7 @@ journey:
   id: J-operate-daemon-schema
   name: "Start and inspect the daemon schema safely"
   value_statement: "An operator can start Compozy without silently rewriting incompatible or corrupt state and can inspect the exact daemon-global schema versions through agent-manageable surfaces."
-  personas: [Bruno, Ada]
+  personas: [Bruno, Ada, Dora]
   entry_points:
     - url: "CLI: compozy daemon start"
       origin: direct
@@ -48,6 +49,8 @@ journey:
     - url: "HTTP/UDS: GET /api/status"
       origin: direct
     - url: "CLI: compozy status -o json"
+      origin: direct
+    - url: "CLI: compozy gateway audit -o json; HTTP/UDS: GET /api/gateway/audit; native tool: compozy__gateway action=audit"
       origin: direct
     - url: "CLI: compozy extension list -o json; compozy mcp auth status -o json; compozy provider auth status <bound-secret-provider> -o json"
       origin: direct
@@ -71,10 +74,13 @@ journey:
     - step: 5
       verb: "Compare schema status over HTTP, UDS, and CLI JSON"
       expected_observable: "All surfaces return the same ordered global and memory entries with version, applied count, and schema digest."
+    - step: 6
+      verb: "Run the gateway self-audit through each structured surface"
+      expected_observable: "Every surface returns the same stable, severity-ranked findings or an explicit no-findings result without changing gateway state or exposing credentials."
   goal:
-    observable: "The daemon is running on a supported schema and reports its two compozy.db migration streams consistently across structured surfaces."
+    observable: "The daemon is running on a supported schema and reports schema and gateway posture consistently across structured surfaces."
     side_effects: [fresh-database-created, migration-streams-applied, status-contract-published]
-  true_end_state: "After a fresh status read, HTTP, UDS, and CLI agree on global and memory schema state; any refused COMPOZY_HOME, workspace .compozy, or session database family is preserved and was never modified."
+  true_end_state: "After fresh status and gateway-audit reads, HTTP, UDS, CLI, and the native tool agree on schema and gateway posture without changing runtime state; any refused COMPOZY_HOME, workspace .compozy, or session database family is preserved and was never modified."
   exit:
     natural: "The operator continues normal Compozy work with a running, inspectable daemon."
   abandonment:
@@ -88,6 +94,7 @@ journey:
 ```
 
 Taxonomy note: this journey covers the functional happy path, global and per-session legacy/ahead/corruption error and
-recovery paths, shared-file domain smoke, structured-surface consistency, and operational recoverability. UI
+recovery paths, shared-file domain smoke, structured-surface consistency, deterministic gateway findings, secret
+containment, and operational recoverability. UI
 responsiveness, mobile continuity, and screen-reader coverage are deliberately skipped because the program adds
 no rendered UI.

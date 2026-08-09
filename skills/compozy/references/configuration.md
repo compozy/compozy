@@ -3,6 +3,7 @@
 ## Contents
 
 - Desired state and apply lifecycle
+- Gateway
 - Marketplace catalog
 - Autonomy scheduler
 - Loop defaults and observability
@@ -18,7 +19,7 @@
 
 Settings changes surface lifecycle status, not just file writes. The public contract names are:
 
-- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `observability`, `hooks-extensions`, `window-manager`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
+- `SettingsApplyTargetName`: `general`, `memory`, `skills`, `automation`, `network`, `gateway`, `observability`, `hooks-extensions`, `window-manager`, `providers`, `mcp-servers`, `sandboxes`, and `hooks`.
 - `SettingsMutationBehavior`: `applied_now`, `restart_required`, or `action_trigger`.
 - `SettingsApplyLifecycle`: `live`, `live-add`, `live-remove-if-unused`, `restart-required`, or `session-rebind`.
 - `ConfigApplyStatus`: `pending_apply`, `applied`, `blocked`, or `failed`.
@@ -27,6 +28,33 @@ Settings changes surface lifecycle status, not just file writes. The public cont
 Use `compozy config reload -o json` to reconcile edited desired state with the active generation. Use `compozy config apply-history -o json` or `GET /api/settings/apply` to inspect persisted apply records. A settings write is incomplete until you can see whether it applied live, requires a daemon restart, affects only new sessions, or failed with retryable diagnostics.
 
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
+
+## Gateway
+
+`[gateway]` is the operator-global ceiling and tuning section for remote access. It defaults to
+`enabled = false` with OS-assigned private and public ports (`0`), pairing TTL `5m` and pending cap
+`8`, stream-ticket TTL `30s`, auth failure window `60s` with cap `10`, verification timeout `10s`,
+and public DNS-over-TLS verification resolver `1.1.1.1:853`. `gateway.enabled`,
+`gateway.verify.public_dns_resolver`, and the bounded duration/count keys apply live; `private_port`
+and `public_port` require a daemon restart. Public endpoint proof uses that resolver so a host's
+MagicDNS answer cannot substitute the private tailnet route. Configuration can never enable a surface:
+`gateway.public_ui.enabled` is invalid, and durable provider/surface intent remains database-owned.
+
+Client-side remote profiles are global metadata under `gateway.active_connection` and
+`[[gateway.connections]]`. HTTPS entries require `name`, `scheme = "https"`, `host`, `port`, and
+`credential_file = "<name>.cred"`; `default_workspace` is optional. SSH entries use
+`scheme = "ssh"`, accept optional `remote_home`, and never reference a Gateway credential. Profile
+names contain only letters, digits, hyphens, or underscores and are unique. The active connection
+must name an existing profile. Manage these tables with `compozy connect add|list|use|remove|export|import|ssh`
+instead of editing them during an active connection lifecycle.
+
+The TOML stores no credential material. Direct HTTPS credentials are encrypted in
+`$COMPOZY_HOME/gateway/credentials/<name>.cred`, with the wrapping key held by the operating-system
+credential store. Transfer an identity with `compozy connect export <name> --passphrase-file <file>
+--output-file <bundle>` and `compozy connect import <bundle> --passphrase-file <file>`; both the
+passphrase file and encrypted bundle must be private files. Copying `config.toml` alone does not copy
+an identity, and removing a profile removes both its metadata and credential. SSH uses the operator's OpenSSH configuration and agent;
+its profile stores only connection metadata.
 
 ## Marketplace Catalog
 

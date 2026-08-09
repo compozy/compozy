@@ -91,7 +91,7 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 		status int,
 		body string,
 		observePromptRequest func(*http.Request),
-	) *unixSocketClient {
+	) *daemonClient {
 		t.Helper()
 		transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			switch {
@@ -113,8 +113,8 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 				return nil, errors.New("unexpected request")
 			}
 		})
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target:     LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: transport},
 		}
 		client.streamClient = client.httpClient
@@ -259,8 +259,8 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 			`data: {"type":"error","timestamp":"2026-08-05T12:00:01Z","error":"peer disconnected before response","failure":{"kind":"process_exit","summary":"ACP subprocess exited unexpectedly"}}`,
 			"",
 		}, "\n")
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				response := newHTTPResponse(http.StatusOK, body)
 				response.Header.Set("Content-Type", "text/event-stream")
@@ -316,8 +316,8 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 				return nil, errors.New("unexpected request")
 			}
 		})
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target:     LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: transport},
 		}
 		client.streamClient = client.httpClient
@@ -344,8 +344,8 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 	t.Run("Should reject a clean EOF without a terminal event", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				response := newHTTPResponse(
 					http.StatusOK,
@@ -388,8 +388,8 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 				return nil, errors.New("unexpected request")
 			}
 		})
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target:     LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: transport},
 		}
 		client.streamClient = client.httpClient
@@ -411,8 +411,8 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 func TestUnixSocketClientSessionInputMethods(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			switch {
 			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
@@ -566,7 +566,7 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 		wantQuery  string
 		wantBody   any
 		response   string
-		run        func(t *testing.T, client *unixSocketClient)
+		run        func(t *testing.T, client *daemonClient)
 	}{
 		{
 			name:       "Should create an agent through the daemon",
@@ -580,7 +580,7 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 				},
 			},
 			response: `{"agent":{"name":"coder","provider":"fake","origin":"global","definition_digest":"digest-1","prompt":"Code."}}`,
-			run: func(t *testing.T, client *unixSocketClient) {
+			run: func(t *testing.T, client *daemonClient) {
 				t.Helper()
 				agent, err := client.CreateAgent(t.Context(), contract.CreateAgentRequest{
 					Scope:     contract.AgentCreateScopeWorkspace,
@@ -604,7 +604,7 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 				},
 			},
 			response: `{"agent":{"name":"coder","provider":"fake","origin":"global","definition_digest":"digest-2","prompt":"Review."}}`,
-			run: func(t *testing.T, client *unixSocketClient) {
+			run: func(t *testing.T, client *daemonClient) {
 				t.Helper()
 				agent, err := client.UpdateAgent(t.Context(), "coder", contract.UpdateAgentRequest{
 					Workspace:      "ws-1",
@@ -622,7 +622,7 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 			wantPath:   "/api/agents/coder",
 			wantQuery:  "workspace=ws-1",
 			response:   `{"name":"coder","origin":"workspace","unshadowed_origin":"global"}`,
-			run: func(t *testing.T, client *unixSocketClient) {
+			run: func(t *testing.T, client *daemonClient) {
 				t.Helper()
 				result, err := client.DeleteAgent(t.Context(), "coder", "ws-1")
 				if err != nil || result.UnshadowedOrigin != contract.AgentOriginGlobal {
@@ -644,7 +644,7 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 				},
 			},
 			response: `{"agent":{"name":"reviewer","provider":"fake","origin":"global","definition_digest":"digest-copy","prompt":"Review."}}`,
-			run: func(t *testing.T, client *unixSocketClient) {
+			run: func(t *testing.T, client *daemonClient) {
 				t.Helper()
 				agent, err := client.DuplicateAgent(t.Context(), "coder", contract.DuplicateAgentRequest{
 					Name:      "reviewer",
@@ -663,8 +663,8 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &unixSocketClient{
-				socketPath: "/tmp/compozy.sock",
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
 				httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != tt.wantMethod || req.URL.Path != tt.wantPath || req.URL.RawQuery != tt.wantQuery {
 						t.Fatalf(
@@ -708,8 +708,8 @@ func TestUnixSocketClientAgentMeSendsIdentityHeaders(t *testing.T) {
 	t.Run("Should send identity headers", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != http.MethodGet || req.URL.Path != "/api/agent/me" {
@@ -759,11 +759,11 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 
 	tests := []struct {
 		name string
-		run  func(t *testing.T, client *unixSocketClient)
+		run  func(t *testing.T, client *daemonClient)
 	}{
 		{
 			name: "Should list agent channels",
-			run: func(t *testing.T, client *unixSocketClient) {
+			run: func(t *testing.T, client *daemonClient) {
 				t.Helper()
 
 				channels, err := client.AgentChannels(context.Background(), credentials)
@@ -777,7 +777,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 		},
 		{
 			name: "Should receive agent channel messages",
-			run: func(t *testing.T, client *unixSocketClient) {
+			run: func(t *testing.T, client *daemonClient) {
 				t.Helper()
 
 				messages, err := client.AgentChannelRecv(
@@ -796,7 +796,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 		},
 		{
 			name: "Should send agent channel messages",
-			run: func(t *testing.T, client *unixSocketClient) {
+			run: func(t *testing.T, client *daemonClient) {
 				t.Helper()
 
 				message, err := client.AgentChannelSend(context.Background(), "builders", AgentChannelSendRequest{
@@ -813,7 +813,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 		},
 		{
 			name: "Should reply to agent channel messages",
-			run: func(t *testing.T, client *unixSocketClient) {
+			run: func(t *testing.T, client *daemonClient) {
 				t.Helper()
 
 				message, err := client.AgentChannelReply(context.Background(), AgentChannelReplyRequest{
@@ -834,8 +834,8 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &unixSocketClient{
-				socketPath: "/tmp/compozy.sock",
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
 				httpClient: &http.Client{
 					Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 						assertAgentRequestHeaders(t, req, credentials)
@@ -896,8 +896,8 @@ func TestUnixSocketClientLoopCatalog(t *testing.T) {
 	t.Run("Should serialize every bounded catalog query field", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != http.MethodGet || req.URL.Path != "/api/workspaces/ws-1/loops" {
@@ -950,8 +950,8 @@ func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 		SessionID: "sess-author",
 		AgentName: "coder",
 	}
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				assertAgentRequestHeaders(t, req, credentials)
@@ -1019,8 +1019,8 @@ func TestUnixSocketClientLoopMutationsSendIdentityHeaders(t *testing.T) {
 func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 				t.Fatal("HTTP transport should not be called for nil pointer requests")
@@ -1094,8 +1094,8 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 	var sawFail bool
 	var sawRelease bool
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				assertAgentRequestHeaders(t, req, credentials)
@@ -1292,8 +1292,8 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 		t.Parallel()
 
 		rawToken := "compozy_claim_CLIENTERRORTOKEN123"
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 					return newHTTPResponse(
@@ -1425,8 +1425,8 @@ func agentTaskLeaseHTTPResponse(t *testing.T, status taskpkg.RunStatus) *http.Re
 func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -1564,8 +1564,8 @@ func TestUnixSocketClientToolMethods(t *testing.T) {
 	t.Run("Should decode approval-required invoke response as an error", func(t *testing.T) {
 		t.Parallel()
 
-		approvalClient := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		approvalClient := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost || req.URL.Path != "/api/tools/compozy__workspace_info/invoke" {
 					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
@@ -1698,8 +1698,8 @@ func TestNearestCLIWorkspaceRoute(t *testing.T) {
 func TestUnixSocketClientToolMethodsReturnStructuredErrors(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -1793,8 +1793,8 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 	t.Run("Should exercise hosted MCP client methods", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					switch {
@@ -1917,8 +1917,8 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 	t.Run("Should redact hosted MCP stream errors", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != http.MethodGet || req.URL.Path != "/api/internal/hosted-mcp/projection/stream" {
@@ -1948,8 +1948,8 @@ func TestUnixSocketClientStreamsSessionEvents(t *testing.T) {
 	t.Run("Should stream session events", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1" {
@@ -2007,8 +2007,8 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 	t.Run("Should execute task mutation methods", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method != http.MethodPost {
@@ -2072,8 +2072,8 @@ func TestUnixSocketClientAgentContextAndSpawnMethods(t *testing.T) {
 			SessionID: "sess-1",
 			AgentName: "coder",
 		}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					assertAgentRequestHeaders(t, req, credentials)
@@ -2139,8 +2139,8 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	t.Parallel()
 
 	workspacePathRoot := t.TempDir()
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -2829,8 +2829,8 @@ func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {
 		t.Parallel()
 
 		var paths []string
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				paths = append(paths, req.URL.Path)
 				if req.URL.Path != "/api/sessions/sess-target" {
@@ -2861,8 +2861,8 @@ func TestUnixSocketClientRepairSession(t *testing.T) {
 	t.Run("Should repair session with dry run and force", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					if req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1" {
@@ -2905,8 +2905,8 @@ func TestUnixSocketClientSkillMarketplaceLifecycleMethods(t *testing.T) {
 	t.Run("Should map skill marketplace endpoints", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					switch {
@@ -2971,11 +2971,11 @@ func TestUnixSocketClientSkillMarketplaceLifecycleMethods(t *testing.T) {
 func TestUnixSocketClientExtensionMethods(t *testing.T) {
 	t.Parallel()
 
-	newClient := func(t *testing.T) *unixSocketClient {
+	newClient := func(t *testing.T) *daemonClient {
 		t.Helper()
 
-		return &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		return &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					switch {
@@ -3212,8 +3212,8 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 	startedAt := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
 	endedAt := startedAt.Add(2 * time.Minute)
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -3627,8 +3627,8 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 func TestUnixSocketClientTaskMethods(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -3991,8 +3991,8 @@ func TestUnixSocketClientBridgeListCatalogQuery(t *testing.T) {
 	t.Run("Should serialize every bounded bridge catalog query parameter", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodGet || req.URL.Path != "/api/bridges" {
 					t.Fatalf("request = %s %s, want GET /api/bridges", req.Method, req.URL.Path)
@@ -4040,8 +4040,8 @@ func TestUnixSocketClientBridgeListCatalogQuery(t *testing.T) {
 func TestUnixSocketClientBridgeMethods(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				switch {
@@ -4628,7 +4628,7 @@ func nilContext() context.Context {
 func TestNewClientRequiresSocket(t *testing.T) {
 	t.Parallel()
 
-	if _, err := NewClient(""); err == nil {
+	if _, err := NewClient(LocalClientTarget("")); err == nil {
 		t.Fatal("NewClient(\"\") error = nil, want non-nil")
 	}
 }
@@ -4636,13 +4636,13 @@ func TestNewClientRequiresSocket(t *testing.T) {
 func TestNewClientConfiguresTimeouts(t *testing.T) {
 	t.Parallel()
 
-	client, err := NewClient("/tmp/compozy.sock")
+	client, err := NewClient(LocalClientTarget("/tmp/compozy.sock"))
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	udsClient, ok := client.(*unixSocketClient)
+	udsClient, ok := client.(*daemonClient)
 	if !ok {
-		t.Fatalf("NewClient() = %T, want *unixSocketClient", client)
+		t.Fatalf("NewClient() = %T, want *daemonClient", client)
 	}
 	if udsClient.httpClient == nil {
 		t.Fatal("httpClient = nil, want timeout-bound client")
@@ -4661,8 +4661,8 @@ func TestNewClientConfiguresTimeouts(t *testing.T) {
 func TestDoRequestSetsHeaders(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if got := req.Header.Get("User-Agent"); got != defaultUserAgentName {
@@ -4704,8 +4704,8 @@ func TestClientCallersShouldOwnResponseBodies(t *testing.T) {
 			[]byte(" \n\t"),
 		}}
 		body := &responseBodyProbe{reader: reader}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					response := newHTTPResponse(http.StatusOK, "")
@@ -4751,8 +4751,8 @@ func TestClientCallersShouldOwnResponseBodies(t *testing.T) {
 			chunks:      [][]byte{[]byte(`{"status":"ok"}`)},
 			terminalErr: drainErr,
 		}}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					response := newHTTPResponse(http.StatusOK, "")
@@ -4801,8 +4801,8 @@ func TestClientCallersShouldOwnResponseBodies(t *testing.T) {
 			reader:   iotest.ErrReader(readErr),
 			closeErr: closeErr,
 		}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					response := newHTTPResponse(http.StatusOK, "")
@@ -4837,8 +4837,8 @@ func TestClientCallersShouldOwnResponseBodies(t *testing.T) {
 		readStarted := make(chan struct{})
 		closeErr := errors.New("close doSSE response")
 		var body *responseBodyProbe
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					body = &responseBodyProbe{
@@ -4886,8 +4886,8 @@ func TestClientCallersShouldOwnResponseBodies(t *testing.T) {
 			reader:   strings.NewReader("event: prompt_result\ndata: {}\n\n"),
 			closeErr: closeErr,
 		}
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{
 				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 					response := newHTTPResponse(http.StatusOK, "")
@@ -4941,8 +4941,8 @@ func TestClientCallersShouldOwnResponseBodies(t *testing.T) {
 				return nil, errors.New("unexpected request")
 			}
 		})
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target:     LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: transport},
 		}
 		client.streamClient = client.httpClient
@@ -4965,8 +4965,8 @@ func TestClientCallersShouldOwnResponseBodies(t *testing.T) {
 func TestDoRequestRejectsNilContext(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target:     LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{},
 	}
 

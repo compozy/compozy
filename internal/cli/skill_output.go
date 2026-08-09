@@ -280,7 +280,11 @@ func skillWhereBundle(record SkillShadowsRecord) outputBundle {
 					[]string{automationNameKey, "winner_path", "winner_tier"},
 					[]string{record.Name, record.Winner.Path, record.Winner.Tier},
 				),
-				renderToonArray("locations", []string{"winner", "tier", skillOutputPathKey}, skillWhereRows(record)),
+				renderToonArray(
+					"locations",
+					[]string{"winner", extensionMarketplaceTierKey, skillOutputPathKey},
+					skillWhereRows(record),
+				),
 			), nil
 		},
 	}

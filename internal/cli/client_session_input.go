@@ -7,7 +7,7 @@ import (
 )
 
 // ListSessionInputs returns pending input in the daemon's dispatch order.
-func (c *unixSocketClient) ListSessionInputs(
+func (c *daemonClient) ListSessionInputs(
 	ctx context.Context,
 	sessionID string,
 ) (SessionInputListRecord, error) {
@@ -23,7 +23,7 @@ func (c *unixSocketClient) ListSessionInputs(
 }
 
 // ReplaceSessionInput atomically updates one queued input.
-func (c *unixSocketClient) ReplaceSessionInput(
+func (c *daemonClient) ReplaceSessionInput(
 	ctx context.Context,
 	sessionID string,
 	inputID string,
@@ -47,7 +47,7 @@ func (c *unixSocketClient) ReplaceSessionInput(
 }
 
 // PromoteSessionInput atomically converts queued input into fenced steering input.
-func (c *unixSocketClient) PromoteSessionInput(
+func (c *daemonClient) PromoteSessionInput(
 	ctx context.Context,
 	sessionID string,
 	inputID string,
@@ -65,7 +65,7 @@ func (c *unixSocketClient) PromoteSessionInput(
 }
 
 // CancelSessionInput removes one pending queued input.
-func (c *unixSocketClient) CancelSessionInput(
+func (c *daemonClient) CancelSessionInput(
 	ctx context.Context,
 	sessionID string,
 	inputID string,

@@ -8,6 +8,8 @@
 - Session event store ownership
 - Background roles and usage cost
 - MCP serve and onboarding
+- Gateway exposure and device authentication
+- Remote CLI profiles and SSH forwards
 - Automation suggestions
 - Messaging bridge delivery, diagnostics, and runtime boundaries
 
@@ -344,6 +346,117 @@ inspect, and Soul refresh use CLI/HTTP/UDS management surfaces unless the live r
 scoped native tool. `compozy__clarify` asks from inside the active session; it does not answer another
 session's question.
 
+## Gateway Exposure and Device Authentication
+
+Gateway policy is operator-global desired state. Inspect its effective posture in
+`.daemon.gateway` from `compozy status -o json`, through `GET /api/status`, or directly through
+`GET /api/gateway/status` on the private HTTP listener or UDS. The status reports enabled tiers,
+durable surfaces, provider state, resolved loopback listener addresses, paired devices, and any
+refusal that prevented exposure. A configured port of `0` asks the daemon to select a free port;
+use the resolved status address instead of assuming a default.
+
+Run `compozy gateway audit -o json`, call `GET /api/gateway/audit`, or use the `audit` action of
+`compozy__gateway` to check the same posture as ranked findings. A completed report always has
+`ran=true`; an empty result also has `no_findings=true`, so it cannot be confused with a skipped
+check. Findings have stable `id`, `severity`, and `remediation` fields. Provider downtime is a
+finding, not an audit transport error. The audit only reads current state, so re-run it after a
+repair to confirm that the finding cleared.
+
+Manage tier surfaces, providers, pairings, and devices through the private authenticated HTTP
+listener or UDS under `/api/gateway`. Mint pairing artifacts with `POST /api/gateway/pairings`, redeem them with
+`POST /api/gateway/pairings/redeem`, and list, rename, or revoke devices with `GET /api/gateway/devices`,
+`PATCH /api/gateway/devices/{id}`, and `DELETE /api/gateway/devices/{id}`. Pairing mint and redeem are physically absent from
+the public listener. Browser redemption installs a `Secure`, `HttpOnly`, `SameSite=Lax` cookie and
+does not return the raw credential. CLI redemption generates and durably stores the credential on
+the client before sending it over TLS; the daemon stores only its hash.
+
+Select a connectivity provider with `POST /providers/{name}/enable`, naming the exact tier, live
+install source, current confirmed control digest, and expected generation. Read status first and do
+not reconstruct a digest. A third-party provider whose live registry digest changed fails closed
+until the extension requirement and Gateway provider selection both confirm the current value.
+Disable it with `POST /providers/{name}/disable?tier=<private|public>`. Only one provider may own a
+tier; replace that selection explicitly instead of racing two enables.
+
+Before enabling the bundled Tailscale provider, bind an auth key from the operator's Tailscale
+account through hidden input:
+
+    compozy extension secrets set tailscale --env TS_AUTHKEY
+
+The provider embeds `tsnet`; do not install or supervise a separate Tailscale client. The live
+manifest must include the selected tier as `gateway.private` or `gateway.public` in
+`channel_scopes`; a mismatch fails before provider code starts.
+
+Public endpoint proof resolves through authenticated DNS-over-TLS at
+`gateway.verify.public_dns_resolver`, not the host resolver, so MagicDNS cannot turn a Funnel proof
+into a private-tailnet connection. A provider waiting for public DNS remains staged and unadvertised
+while bounded recovery retries. Read `gateway status -o json` until the public tier reports
+`advertised=true` (the human rendering shows summary counts only); disable the provider to stop a
+staged attempt.
+
+Authenticated streaming over a tier listener uses a short-lived, single-use ticket. Obtain one with
+`POST /api/gateway/stream-tickets`, then pass it as the `ticket` query parameter on the SSE or
+WebSocket request. A consumed, expired, malformed, or revoked-device ticket is rejected uniformly;
+mint a fresh ticket for each reconnect. Revoking a device invalidates its future requests and closes
+its registered live streams.
+
+Tier listeners bind to daemon-owned loopback sockets. Connectivity providers publish those local
+listeners; they do not replace Gateway authentication or expose UDS-only APIs. The private tier owns
+operator management and the full operator surface. The public tier exposes only the selected
+operator and ingress surface union, never pairing mint or redeem and never ingress-binding
+management.
+
+Webhook triggers and bridge instances expose honest public-ingress projections. Read the trigger's
+`ingress` or the bridge's `gateway_ingress`; use its URL only when `reachability=live`. Confirm one
+subject through the private listener or UDS with `POST /api/gateway/ingress-bindings` and
+`{subject_kind, subject_id, confirmed:true}`. Remove it with
+`DELETE /api/gateway/ingress-bindings/{subject_kind}/{subject_id}`. Subject scope and workspace are
+resolved by the daemon, not accepted from the caller. An endpoint-generation change produces
+`reconfirmation_required`. Public ingress has no store-and-forward queue: when the daemon or provider
+is offline, the sender must retry the failed delivery.
+
+Gateway API errors use stable codes. Branch on the returned code instead of matching prose. The
+repairable policy and state codes are `gateway_exposure_refused`, `gateway_consent_required`,
+`gateway_provider_trust_stale`, `gateway_digest_confirmation_required`,
+`gateway_endpoint_unverified`, `gateway_provider_degraded`, `gateway_generation_conflict`, and
+`gateway_tier_provider_conflict`. Authentication, pairing, device, ticket, ingress, and local-only
+failures use their matching `gateway_device_*`, `gateway_pairing_*`, `gateway_stream_ticket_invalid`,
+`gateway_ingress_*`, and `gateway_local_only_operation` codes.
+
+### Remote CLI profiles and SSH forwards
+
+Pair a direct HTTPS client with `compozy pair mint`. The command writes the raw artifact to the
+private `0600` file named by `artifact_ref`; transfer that file out of band, then redeem its contents
+on the client with `compozy pair redeem <artifact> --name <name> --address https://host[:port]`.
+CLI output never contains the raw artifact. Use `--use` to make the profile active immediately, or
+select it later with `compozy connect use <name>`. Inspect
+non-secret metadata with `compozy connect list -o json`; `compozy connect remove <name>` removes both
+the profile and its client-local credential. `compozy connect use local` returns the CLI to UDS.
+Move the same revocable identity to another client with `compozy connect export <name>
+--passphrase-file <private-file> --output-file <bundle>` and `compozy connect import <bundle>
+--passphrase-file <private-file>`. The bundle uses passphrase-derived authenticated encryption;
+protect it like a key. Copying `config.toml` alone never transfers an identity.
+When a remote profile is active, commands report the selected target on stderr while structured
+stdout remains parseable. `compozy open` uses the selected HTTPS origin.
+
+Direct profiles can operate sessions; read tasks; and use Loops, memory, settings, bridges,
+extensions, and private Gateway management. Task mutations, task-run queue and scheduler authority,
+agent-internal routes, run lifecycle mutations, and resource mutations are local-only and fail before network I/O. Use the
+local daemon or an SSH forward when that authority is required. Each remote SSE or WebSocket connect
+and reconnect mints a fresh single-use stream ticket. A dropped stream reports
+`gateway_stream_interrupted`; accepted work continues on the daemon and can be observed after
+reconnect.
+
+Use `compozy connect ssh <host>` when direct HTTPS is unavailable or local-equivalent authority is
+needed. The command uses the system OpenSSH client and its existing configuration and agent, checks
+that the remote `compozy` version exactly matches, starts the remote daemon only when necessary,
+requires its HTTP listener to be loopback-only, and creates a loopback-only local forward. Pass
+`--remote-home <path>` to run every remote probe and lifecycle command with that `COMPOZY_HOME`.
+An intentional close tears down only its tunnel and stops the remote daemon only if this invocation
+started the same process. Concurrent connects to an SSH-owned daemon return `gateway_ssh_busy`
+instead of racing its lifecycle. An unexpected tunnel loss leaves that daemon running so accepted work can
+be observed after reconnect. Changed host keys fail closed; install, version, reachability, and
+tunnel-loss failures use stable `gateway_ssh_*` codes.
+
 ## Automation Suggestions
 
 List one workspace's pending Job proposals with
@@ -370,6 +483,13 @@ An empty bridge `dm_policy` normalizes to permissive `open`. The current create/
 For `send-test` and `test-delivery`, preserve valid UTF-8 bridge, peer, thread, and group IDs exactly across CLI, HTTP, and UDS; URL-encode path IDs that contain `/`. Delivery mode is the literal `direct-send` or `reply`; aliases, case changes, surrounding whitespace, explicit empty strings, and `null` are invalid. Omitting mode uses the bridge instance default, then `direct-send` when no default exists.
 
 Credential-bearing API, OAuth, and service destinations are operator-owned adapter environment, not instance configuration. `provider_config` rejects `api_base_url`, `oauth_token_url`, `service_url`, `openid_metadata_url`, and `token_url`; use the provider's `COMPOZY_BRIDGE_*` process variables for trusted overrides. Provider clients use `bridgesdk.CredentialedHTTPClient`, returning the original `3xx` for classification without forwarding credentials or replaying mutation bodies. `webhook.public_url` must be public HTTPS, and verification blocks internal/special-use addresses, proxying, and redirects before reachability is attempted. Bridge reads expose the validated callback as optional `webhook_public_url`; clients use that projection for setup readiness instead of re-parsing `provider_config`.
+
+For gateway-managed callbacks, set `provider_config.webhook.listen_addr` to a fixed literal loopback
+IP and port and set `provider_config.webhook.path` to the adapter path. After explicit bridge binding,
+the platform callback uses `/api/bridge-callbacks/{bridge_id}` on the verified public gateway and is
+proxied only to that loopback target. Webhook registration uses the live `gateway_ingress.url` when
+available. A bridge without a gateway binding keeps its validated `webhook_public_url` and external
+proxy unchanged; its health omits gateway ingress.
 
 Terminal replies are split provider-side on natural boundaries with `(N/M)` markers. Compozy measures Slack at 40,000 UTF-16 code units, Telegram at 4,096 UTF-16 code units, Discord at 2,000 Unicode code points, Teams at 28,000 Unicode code points, Google Chat at 32,000 UTF-8 bytes, and WhatsApp at 4,096 Unicode code points. Every multi-chunk delivery acknowledges its last remote message. Edit-capable providers keep an oversized non-terminal response in one mutable preview and materialize its continuations only on the terminal update. Slack converts common Markdown to mrkdwn; Telegram sends escaped MarkdownV2 and retries a typed parse rejection as plain text.
 

@@ -13,8 +13,8 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 	t.Run("Should map all marketplace namespace requests", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method == http.MethodGet {
 					if got, want := req.URL.Query().Get("scope"), "workspace"; got != want {
@@ -102,7 +102,7 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 	t.Run("Should reject blank marketplace path segments before transport", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{}
+		client := &daemonClient{}
 		ctx := context.Background()
 		globalScope := MarketplaceReadScope{Scope: "global"}
 		if _, err := client.BrowseMarketplace(ctx, "   ", "", 20, "", globalScope); err == nil ||
@@ -139,8 +139,8 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 	t.Run("Should reject installed identity for an unsupported detail kind before transport", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				t.Fatalf("unexpected marketplace request: %s %s", req.Method, req.URL.String())
 				return nil, nil

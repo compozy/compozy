@@ -690,7 +690,7 @@ func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 			Dir:         createdSkill.Dir,
 			Metadata:    createdSkill.Meta.Metadata,
 		}
-		deps.newClient = func(string) (DaemonClient, error) {
+		deps.newClient = func(ClientTarget) (DaemonClient, error) {
 			return &stubClient{
 				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 					if ref != env.workspace {
@@ -2858,7 +2858,7 @@ func newSkillTestEnv(t *testing.T, mutateConfig func(*compozyconfig.Config)) ski
 				return homePaths, nil
 			},
 			ensureHome: func(compozyconfig.HomePaths) error { return nil },
-			newClient: func(string) (DaemonClient, error) {
+			newClient: func(ClientTarget) (DaemonClient, error) {
 				return nil, errors.New("unexpected daemon client call")
 			},
 			getwd: func() (string, error) {
@@ -2883,7 +2883,7 @@ func newSkillTestEnv(t *testing.T, mutateConfig func(*compozyconfig.Config)) ski
 func skillWorkspaceDeps(t *testing.T, env *skillTestEnv) commandDeps {
 	t.Helper()
 	deps := env.deps
-	deps.newClient = func(string) (DaemonClient, error) {
+	deps.newClient = func(ClientTarget) (DaemonClient, error) {
 		return &stubClient{
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 				if ref != env.workspace {

@@ -9,6 +9,7 @@ import type {
   HostAPIMethod,
   DescribeSubprocess,
   DescribeResources,
+  DescribeNetworkParticipation,
   ExtensionCommandGroupSpec,
   ExtensionCommandSpec,
   RiskClass,
@@ -112,6 +113,7 @@ export interface ExtensionManifest {
   capabilities?: CapabilitiesConfig;
   permissions?: PermissionsConfig;
   subprocess?: SubprocessConfig;
+  network_participation?: DescribeNetworkParticipation;
 }
 
 export interface ExtensionDefinition extends Pick<
@@ -122,6 +124,7 @@ export interface ExtensionDefinition extends Pick<
   resources?: DescribeResources;
   subprocess?: DescribeSubprocess;
   supported_hook_events?: HookEvent[];
+  network_participation?: DescribeNetworkParticipation;
 }
 
 export interface HealthCheckResult {

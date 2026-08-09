@@ -87,6 +87,17 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       args: [...(input.definition.subprocess?.args ?? [])],
       env: { ...input.definition.subprocess?.env },
     },
+    ...(input.definition.network_participation === undefined
+      ? {}
+      : {
+          network_participation: {
+            required: input.definition.network_participation.required,
+            mode: input.definition.network_participation.mode.trim().toLowerCase(),
+            channel_scopes: normalizeStringList(
+              input.definition.network_participation.channel_scopes
+            ),
+          },
+        }),
     tools: [...input.tools].sort((left, right) => left.handler.localeCompare(right.handler)),
     command_groups: input.commandGroups.map(group => ({ ...group })),
     hook_events: normalizeStringList(input.definition.supported_hook_events),

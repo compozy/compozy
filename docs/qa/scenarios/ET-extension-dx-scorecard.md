@@ -11,8 +11,8 @@ bug_ids: BUG-20260729-public-extension-sdks-unpublished
 fix_status: pending
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/newcomer/quickstart.json
-last_report: docs/qa/reports/2026-07-29-ext-improvs.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/newcomer/quickstart.json;/Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/41-extension-template-discovery.json
+last_report: docs/qa/reports/2026-08-07-remote-gateway.md
 overlaps: ET-extension-quickstart-verbatim; ET-extension-published-source-installs; ET-extension-passive-update-discovery
 ---
 
@@ -23,3 +23,9 @@ Task 11 measured nine introduced concepts and three documented extension command
 setup, within the binding targets. The grade cannot be awarded: the second extension command fails
 in a clean external workspace because neither public SDK coordinate is currently consumable. This
 is a release blocker, not an extra newcomer action or a locally repairable documentation defect.
+
+QA impact 2026-08-06: the public develop, manifest, and permissions references gained the
+connectivity-provider contract and two templates. Flag only; Tasks 08–09 own the re-walk.
+
+QA walk 2026-08-07: discovery is now complete, but the unchanged public-SDK blocker prevents a
+release-stamped newcomer from reaching connectivity-provider first success without a local override.

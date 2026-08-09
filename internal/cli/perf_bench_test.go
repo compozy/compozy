@@ -49,8 +49,8 @@ func BenchmarkDecodeSSELargeStream(b *testing.B) {
 
 func BenchmarkDoRequestPostJSON(b *testing.B) {
 	ctx := context.Background()
-	client := &unixSocketClient{
-		socketPath: "/tmp/compozy.sock",
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
 		httpClient: &http.Client{
 			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Body != nil {

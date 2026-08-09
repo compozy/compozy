@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-func (c *unixSocketClient) ResolveBridgeTarget(
+func (c *daemonClient) ResolveBridgeTarget(
 	ctx context.Context,
 	id string,
 	name string,

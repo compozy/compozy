@@ -60,6 +60,7 @@ func (s *Server) Start(ctx context.Context) error {
 	httpServer := &http.Server{
 		Handler:           s.engine,
 		ReadHeaderTimeout: defaultReadHeaderTimeout,
+		ReadTimeout:       defaultReadTimeout,
 		IdleTimeout:       defaultIdleTimeout,
 	}
 	httpServer.RegisterOnShutdown(streamCancel)

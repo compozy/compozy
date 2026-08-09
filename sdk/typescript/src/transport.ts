@@ -22,6 +22,7 @@ export type TransportHandler = (
 export interface TransportLike {
   call<TResult = unknown>(method: string, params?: unknown): Promise<TResult>;
   handle(method: string, handler: TransportHandler): void;
+  unhandle(method: string): void;
   onTransportError(listener: (error: Error) => void): () => void;
   start(): void;
   close(): Promise<void>;
@@ -107,6 +108,10 @@ export class StdioTransport implements TransportLike {
 
   public handle(method: string, handler: TransportHandler): void {
     this.handlers.set(method.trim(), handler);
+  }
+
+  public unhandle(method: string): void {
+    this.handlers.delete(method.trim());
   }
 
   public onTransportError(listener: (error: Error) => void): () => void {
@@ -295,6 +300,7 @@ export class StdioTransport implements TransportLike {
 
 export class NotReadyTransport implements TransportLike {
   public handle(): void {}
+  public unhandle(_method: string): void {}
   public onTransportError(): () => void {
     return () => {};
   }

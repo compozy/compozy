@@ -2,7 +2,7 @@ package httpapi
 
 import "github.com/gin-gonic/gin"
 
-func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
+func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 	agent := api.Group("/agent")
 	agent.GET("/me", handlers.AgentMe)
 	agent.GET("/context", handlers.AgentContext)
@@ -21,7 +21,9 @@ func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
 	agentTasks.POST("/:run_id/complete", handlers.AgentTaskComplete)
 	agentTasks.POST("/:run_id/fail", handlers.AgentTaskFail)
 	agentTasks.POST("/:run_id/release", handlers.AgentTaskRelease)
+}
 
+func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
 	agents := api.Group("/agents")
 	agents.GET("", handlers.ListAgents)
 	agents.GET("/catalog", handlers.ListAgentCatalog)

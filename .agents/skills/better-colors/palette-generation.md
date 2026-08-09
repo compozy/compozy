@@ -10,7 +10,7 @@ Design system palettes use a numeric scale from 50 (lightest) to 950 (darkest). 
 | 9 | 50, 100, 200, 300, 500, 700, 800, 900, 950 |
 | 11 | 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950 |
 
-9 steps is the standard default (matches Tailwind).
+11 steps matches Tailwind's default scales; use 9 as a leaner default when the `400`/`600` in-betweens aren't needed.
 
 ## Algorithm
 
@@ -70,7 +70,7 @@ Different hues have different max chroma at the same lightness. Using the same a
 
 ## Dark mode
 
-Reverse the palette mapping so that the lightest step becomes the darkest and vice versa:
+Start by swapping the light and dark semantic roles, then tune the mapped values for the dark appearance:
 
 ```css
 :root {
@@ -84,7 +84,7 @@ Reverse the palette mapping so that the lightest step becomes the darkest and vi
 }
 ```
 
-This works because oklch's perceptual uniformity means equal L steps in both directions produce equally readable results.
+Do not mechanically reverse every palette step. Dark appearances often need different chroma and lightness spacing, and equal OKLCH steps do not guarantee that every foreground/background pair preserves its contrast. Recheck each pair and tune the dark tokens independently where needed.
 
 ## Why not HSL palettes?
 

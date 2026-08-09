@@ -783,6 +783,30 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatal("NativeDescriptors() reused input schema bytes")
 		}
 	})
+
+	t.Run("Should expose the closed gateway action contract", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDGateway]
+		var input struct {
+			Properties map[string]struct {
+				Enum []string `json:"enum"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+			t.Fatalf("gateway input schema unmarshal error = %v", err)
+		}
+		wantActions := []string{
+			"status", "audit", "device_list", "surface_set", "provider_enable", "provider_disable",
+			"device_rename", "device_revoke", "ingress_bind", "ingress_unbind",
+		}
+		if got := input.Properties["action"].Enum; !slices.Equal(got, wantActions) {
+			t.Fatalf("gateway action enum = %#v, want %#v", got, wantActions)
+		}
+		if len(descriptor.OutputSchema) == 0 || !json.Valid(descriptor.OutputSchema) {
+			t.Fatal("gateway output schema is missing or invalid")
+		}
+	})
 }
 
 type nativeDescriptorExpectation struct {
@@ -916,6 +940,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__extensions_update", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__extensions_validate", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__gateway", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__goal_get", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
@@ -2493,6 +2519,14 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPAuthStatus}; !slices.Equal(mcpAuth, want) {
 			t.Fatalf("mcp auth expansion = %#v, want %#v", mcpAuth, want)
+		}
+
+		gatewayTools, err := catalog.Expand(toolspkg.ToolsetIDGateway, universe)
+		if err != nil {
+			t.Fatalf("Expand(gateway) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{toolspkg.ToolIDGateway}; !slices.Equal(gatewayTools, want) {
+			t.Fatalf("gateway expansion = %#v, want %#v", gatewayTools, want)
 		}
 	})
 }

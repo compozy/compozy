@@ -1,0 +1,48 @@
+---
+title: "compozy connect ssh"
+description: "Reach a remote daemon through a loopback-only SSH forward"
+---
+
+## compozy connect ssh
+
+Reach a remote daemon through a loopback-only SSH forward
+
+```
+compozy connect ssh <host> [flags]
+```
+
+### Options
+
+```
+  -h, --help                 help for ssh
+      --name string          Stored SSH profile name
+      --overwrite            Replace an existing SSH profile
+      --port int             SSH port (default 22)
+      --remote-home string   Remote COMPOZY_HOME
+      --start                Start the remote daemon when it is not running (default true)
+      --user string          SSH user; defaults to SSH configuration
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy connect ssh <host> -o json
+```

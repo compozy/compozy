@@ -136,6 +136,10 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 5. Produce a Verification Report (see template below) with verdict PASS.
 6. Only then run `git commit`.
 
+**Loop checkpoint commits are the narrow-claim exception** (see Scope of
+Verification): each per-task checkpoint rides the loop's focused validation;
+the full-gate requirement binds the workstream-closing commit/PR.
+
 **Before creating a PR:**
 
 1. All of the above, plus:
@@ -159,6 +163,11 @@ If the full pipeline has not passed after the last code change — by fresh run 
 - **Walk passes:** record the verdict fields per the qa-report state schema (`qa_status: pass`, `evidence`, `last_report`).
 - **Walk fails:** the diff broke the promise — fix the production code and re-walk until it passes, recording bugs/fixes per the fix loop. A scenario left at `fail` makes the task verdict FAIL.
 - **Human-only step** (real payment, external email/SMS, product decision): record `blocked-verify`/`blocked-decision` with the blocker in the body — the only statuses that may remain unwalked.
+
+**Loop exception:** an orchestrating workflow with a dedicated QA phase
+walks there — once, before workstream close; per-task completions flag only,
+citing the added/reset ids on `QA impact:`. Standalone tasks keep
+flag-then-walk.
 
 Completing with a flagged scenario still `untested` is a stale-verdict claim: the same dishonesty as claiming tests pass without running them. Cite the walked scenario ids and verdicts on the Verification Report's `QA impact:` line.
 

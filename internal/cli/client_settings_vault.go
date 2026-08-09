@@ -20,33 +20,62 @@ import (
 	"github.com/compozy/compozy/internal/sse"
 )
 
-var _ DaemonClient = (*unixSocketClient)(nil)
-var _ mcppkg.HostedProxyClient = (*unixSocketClient)(nil)
+var _ DaemonClient = (*daemonClient)(nil)
+var _ mcppkg.HostedProxyClient = (*daemonClient)(nil)
 
 var errStopSSE = sse.ErrStop
 
-// NewClient constructs a daemon client that talks HTTP over a Unix domain socket.
-func NewClient(socketPath string) (DaemonClient, error) {
-	path := strings.TrimSpace(socketPath)
-	if path == "" {
-		return nil, errors.New("cli: daemon socket path is required")
+func defaultCLIRedirectPolicy(_ *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	return nil
+}
+
+// NewClient constructs a daemon client for one fully resolved connection target.
+func NewClient(target ClientTarget) (DaemonClient, error) {
+	if err := target.validate(); err != nil {
+		return nil, err
 	}
 
-	transport := &http.Transport{
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var dialer net.Dialer
-			return dialer.DialUnix(ctx, "unix", nil, &net.UnixAddr{Name: path, Net: "unix"})
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, errors.New("cli: default HTTP transport is not an HTTP transport")
+	}
+	transport := defaultTransport.Clone()
+	switch target.kind {
+	case clientTargetLocal:
+		transport = &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var dialer net.Dialer
+				return dialer.DialUnix(
+					ctx,
+					clientUnixNetwork,
+					nil,
+					&net.UnixAddr{Name: target.socketPath, Net: clientUnixNetwork},
+				)
+			},
+		}
+	case clientTargetSSHForward:
+		transport.Proxy = nil
+	}
+	checkRedirect := defaultCLIRedirectPolicy
+	if target.isRemoteGateway() {
+		checkRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+
+	return &daemonClient{
+		target: target,
+		httpClient: &http.Client{
+			Transport: transport, Timeout: defaultUnixSocketClientTimeout, CheckRedirect: checkRedirect,
 		},
-	}
-
-	return &unixSocketClient{
-		socketPath:   path,
-		httpClient:   &http.Client{Transport: transport, Timeout: defaultUnixSocketClientTimeout},
-		streamClient: &http.Client{Transport: transport},
+		streamClient: &http.Client{Transport: transport, CheckRedirect: checkRedirect},
 	}, nil
 }
 
-func (c *unixSocketClient) TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error) {
+func (c *daemonClient) TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error) {
 	var response SettingsRestartActionRecord
 	if err := c.doJSON(ctx, http.MethodPost, "/api/settings/actions/restart", nil, nil, &response); err != nil {
 		return SettingsRestartActionRecord{}, err
@@ -54,7 +83,7 @@ func (c *unixSocketClient) TriggerSettingsRestart(ctx context.Context) (Settings
 	return response, nil
 }
 
-func (c *unixSocketClient) GetSettingsRestartStatus(
+func (c *daemonClient) GetSettingsRestartStatus(
 	ctx context.Context,
 	operationID string,
 ) (SettingsRestartStatusRecord, error) {
@@ -66,7 +95,7 @@ func (c *unixSocketClient) GetSettingsRestartStatus(
 	return response, nil
 }
 
-func (c *unixSocketClient) CreateSupportBundle(
+func (c *daemonClient) CreateSupportBundle(
 	ctx context.Context,
 	request CreateSupportBundleRequest,
 ) (SupportBundleOperationRecord, error) {
@@ -77,7 +106,7 @@ func (c *unixSocketClient) CreateSupportBundle(
 	return response.Operation, nil
 }
 
-func (c *unixSocketClient) GetSupportBundle(
+func (c *daemonClient) GetSupportBundle(
 	ctx context.Context,
 	operationID string,
 ) (SupportBundleOperationRecord, error) {
@@ -89,7 +118,7 @@ func (c *unixSocketClient) GetSupportBundle(
 	return response.Operation, nil
 }
 
-func (c *unixSocketClient) DownloadSupportBundle(
+func (c *daemonClient) DownloadSupportBundle(
 	ctx context.Context,
 	operationID string,
 	dst io.Writer,
@@ -124,7 +153,7 @@ func supportBundleOperationPath(operationID string) string {
 	return "/api/support/bundles/" + url.PathEscape(strings.TrimSpace(operationID))
 }
 
-func (c *unixSocketClient) GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error) {
+func (c *daemonClient) GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error) {
 	var response SettingsUpdateRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/settings/update", nil, nil, &response); err != nil {
 		return SettingsUpdateRecord{}, err
@@ -132,7 +161,7 @@ func (c *unixSocketClient) GetSettingsUpdate(ctx context.Context) (SettingsUpdat
 	return response, nil
 }
 
-func (c *unixSocketClient) UpdateSettingsSkills(
+func (c *daemonClient) UpdateSettingsSkills(
 	ctx context.Context,
 	request UpdateSettingsSkillsRequest,
 ) (SettingsMutationRecord, error) {
@@ -143,7 +172,7 @@ func (c *unixSocketClient) UpdateSettingsSkills(
 	return response, nil
 }
 
-func (c *unixSocketClient) UpdateSettingsWindowManager(
+func (c *daemonClient) UpdateSettingsWindowManager(
 	ctx context.Context,
 	request UpdateSettingsWindowManagerRequest,
 ) (SettingsMutationRecord, error) {
@@ -154,7 +183,7 @@ func (c *unixSocketClient) UpdateSettingsWindowManager(
 	return response, nil
 }
 
-func (c *unixSocketClient) ReloadSettings(ctx context.Context) (SettingsMutationRecord, error) {
+func (c *daemonClient) ReloadSettings(ctx context.Context) (SettingsMutationRecord, error) {
 	var response SettingsMutationRecord
 	if err := c.doJSON(ctx, http.MethodPost, "/api/settings/reload", nil, nil, &response); err != nil {
 		return SettingsMutationRecord{}, err
@@ -162,7 +191,7 @@ func (c *unixSocketClient) ReloadSettings(ctx context.Context) (SettingsMutation
 	return response, nil
 }
 
-func (c *unixSocketClient) ListSettingsApplyRecords(
+func (c *daemonClient) ListSettingsApplyRecords(
 	ctx context.Context,
 	query SettingsApplyHistoryQuery,
 ) (SettingsApplyHistoryRecord, error) {
@@ -183,7 +212,7 @@ func (c *unixSocketClient) ListSettingsApplyRecords(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error) {
+func (c *daemonClient) ListVaultSecrets(ctx context.Context, query VaultListQuery) ([]VaultRecord, error) {
 	var response struct {
 		Secrets []VaultRecord `json:"secrets"`
 	}
@@ -200,7 +229,7 @@ func (c *unixSocketClient) ListVaultSecrets(ctx context.Context, query VaultList
 	return response.Secrets, nil
 }
 
-func (c *unixSocketClient) GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error) {
+func (c *daemonClient) GetVaultSecret(ctx context.Context, ref string) (VaultRecord, error) {
 	trimmedRef, err := requireVaultRef(ref)
 	if err != nil {
 		return VaultRecord{}, err
@@ -221,7 +250,7 @@ func (c *unixSocketClient) GetVaultSecret(ctx context.Context, ref string) (Vaul
 	return response.Secret, nil
 }
 
-func (c *unixSocketClient) PutVaultSecret(
+func (c *daemonClient) PutVaultSecret(
 	ctx context.Context,
 	request PutVaultSecretRequest,
 ) (VaultRecord, error) {
@@ -234,7 +263,7 @@ func (c *unixSocketClient) PutVaultSecret(
 	return response.Secret, nil
 }
 
-func (c *unixSocketClient) DeleteVaultSecret(ctx context.Context, ref string) error {
+func (c *daemonClient) DeleteVaultSecret(ctx context.Context, ref string) error {
 	trimmedRef, err := requireVaultRef(ref)
 	if err != nil {
 		return err

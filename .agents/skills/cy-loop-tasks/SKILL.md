@@ -134,25 +134,30 @@ sections.
    `update-state.py <slug> --task-completed <stem>` for already-finished
    tasks or `--reconcile-tasks` for a late-authored graph, then re-run
    detect-phase.
-2. Activate `cy-spec-preflight` in `task-body` mode for the picked file.
-3. Resolve the shared and current memory paths from
+2. Mark the task active: flip its frontmatter `status:` to `in_progress`,
+   then run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --task-current <stem>`
+   (a marker call — it records no iteration; `--task-completed` clears it
+   automatically at step 8).
+3. Activate `cy-spec-preflight` in `task-body` mode for the picked file.
+4. Resolve the shared and current memory paths from
    `references/memory-protocol.md` and pass them into the lane that executes
    the work.
-4. **Frontend lane** — when detect-phase printed `lane=frontend agent=<x>`:
+5. **Frontend lane** — when detect-phase printed `lane=frontend agent=<x>`:
    dispatch the task to that worker per `references/herdr-delegation.md`.
-   The worker owns implementation, memory updates, scoped validation, and
-   `cy-final-verify` evidence. It never commits. Skip step 5.
-5. **Local lane** — activate `cy-execute-task` on the picked file with
-   auto-commit disabled. Run the task's scoped validation (the project's
-   scoped gate — `make gate` in Compozy), then `cy-final-verify` with the
-   narrow per-task claim; the full gate belongs to Phase E. Skip any
-   per-task peer-review step the task file requests — that review is
-   Phase D (see Critical Rules).
-6. Confirm memory is updated (written locally, or verified from the worker)
+   The worker owns implementation, memory updates, focused validation, and
+   `cy-final-verify` evidence. It never commits. Skip step 6.
+6. **Local lane** — activate `cy-execute-task` on the picked file with
+   auto-commit disabled. Run the task's focused validation — the commands
+   the task file names plus scoped tests for touched packages; no
+   project-wide gate here (gate map: Critical Rules). Then `cy-final-verify`
+   with the narrow per-task claim. Skip any per-task peer-review or QA-walk
+   step the task file requests — flag `docs/qa/scenarios/` per the diff and
+   move on (review is Phase D, the walk is Phase C).
+7. Confirm memory is updated (written locally, or verified from the worker)
    and that `cy-final-verify` evidence is PASS before any state flip. For the
    frontend lane, verify the worker's evidence instead of re-running verify.
-7. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase B --task-completed <stem> --action "executed <stem>" --outcome completed --memory-written "memory/<stem>.md,memory/MEMORY.md" --verify-pass`.
-8. Run `python3 .agents/skills/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --task <stem>`.
+8. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase B --task-completed <stem> --action "executed <stem>" --outcome completed --memory-written "memory/<stem>.md,memory/MEMORY.md" --verify-pass`.
+9. Run `python3 .agents/skills/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --task <stem>`.
    Stdout starts with a commit SHA or `SKIP: no changes`; copy it into the
    iteration summary (in stacked mode a `stack: submitted` line follows —
    the script owns the layer branch and PR submission, see
@@ -176,11 +181,12 @@ all reflect the same completed task.
 5. **Frontend lane** — when `state.frontend_agent` is set AND the slice's
    owned paths are exclusively frontend surfaces (classification in
    `references/herdr-delegation.md`): dispatch per that reference. The
-   worker owns implementation, memory updates, scoped validation, and
+   worker owns implementation, memory updates, focused validation, and
    `cy-final-verify` evidence; it never commits. Skip step 6.
 6. **Local lane** — implement the slice, record decisions and learnings in
-   the current memory file, run the scoped gate, then `cy-final-verify` with
-   the narrow per-slice claim (the full gate belongs to Phase E).
+   the current memory file, run the slice's focused validation (slice-named
+   commands + scoped tests for touched packages; no project-wide gate), then
+   `cy-final-verify` with the narrow per-slice claim.
 7. Confirm memory is updated and `cy-final-verify` evidence is PASS. For the
    frontend lane, verify the worker's evidence instead of re-running verify.
 8. Acceptance self-check: when every techspec criterion has a completed
@@ -199,14 +205,17 @@ Run only the printed action.
 
 `qa_report` — dispatched, never authored locally:
 
-1. When release-grade runtime scope needs a lab and no active
+1. Run the B→C boundary gate: one `make gate`, repaired to green through
+   the recovery loop before any QA action — cross-task drift surfaces here,
+   not inside a QA cycle.
+2. When release-grade runtime scope needs a lab and no active
    `bootstrap-manifest.json` exists, activate the project's QA bootstrap
    skill first (e.g. `eng-qa-bootstrap` in Compozy) when installed.
-2. Dispatch the Fable 5 worker per `references/herdr-delegation.md`
+3. Dispatch the Fable 5 worker per `references/herdr-delegation.md`
    (QA-report lane). The worker activates `qa-report` with
    `qa-docs-path=docs/qa` and updates journey flows, `docs/qa/scenarios/`
    files, and cycle charters.
-3. Verify the worker evidence (each reported artifact exists, no worker
+4. Verify the worker evidence (each reported artifact exists, no worker
    commit), then run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase C --qa-report-done --action "qa-report produced" --outcome completed --memory-written "memory/qa-report.md,memory/MEMORY.md"`.
 
 `qa_execution` — local:
@@ -266,7 +275,9 @@ finding and nitpick from it is remediated (or the verdict was SHIP), and
    pass.
 3. Print the iteration summary block from
    `assets/iteration-summary.template.md` with `phase_out=E` and checkpoint
-   field `n/a (phase != B/D)`.
+   field `n/a (phase != B/D)`, followed by every entry from
+   `memory/MEMORY.md` `## Open Questions` — the decisions defaulted
+   mid-loop surface to the user here, in one batch.
 4. Print the literal contents of `assets/done-signature.txt` on its own line
    — the codex-loop goal-check confirmation scans for it.
 5. Stop — Phase E is the only successful terminal.
@@ -305,29 +316,35 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
 - One phase action per iteration; repair failures inside that action, then
   **continue** at detect until Phase E or a proven external blocker — never
   idle between rounds waiting for a restart or re-invocation.
+- The loop never stops to ask. Any decision — orchestrator included —
+  resolves autonomously via `cy-execute-task`'s Authority ladder; record the
+  pick and any user-facing question under `memory/MEMORY.md`
+  `## Open Questions` and continue. Questions reach the user in one batch in
+  the Phase E summary.
 - `state.yaml` mutates only through `init-state.py` and `update-state.py`;
   hand-edits void resume guarantees. There is no top-level `current_phase` —
   `detect-phase.py` derives it from durable state and filesystem truth every
   run.
+- `goal_signature` — and the `[[CODEX_LOOP]]` goal text it mirrors — is
+  write-once at bootstrap: no rewording, no re-init, no deleting
+  `state.yaml`. Mid-loop scope changes land in memory.
 - Frontmatter `status:` on `task_NN.md` is the source of truth; reconcile
   `state.yaml` when they disagree.
 - Memory updates precede status flips. Always.
-- Frontend lane: `state.frontend_agent` set → herdr dispatch is the only way
-  frontend work gets implemented; null → every task runs locally. Workers are
-  interactive TUIs launched via `rtk herdr agent start` — a pane streaming
-  raw JSON is a broken headless delegation: interrupt and relaunch per
-  `references/herdr-delegation.md`.
-- `qa_report` is always produced by the Fable 5 worker; `qa_execution` always
-  runs locally.
-- Every Phase B task or slice runs the scoped gate then `cy-final-verify`
-  (narrow per-task claim) before its checkpoint commit — the full gate runs
-  exactly once, at Phase E. A FAIL opens the repair loop; only the final
-  PASS closes the phase action.
+- Gate map — Phase B runs only focused validation (task-named commands +
+  scoped tests) then `cy-final-verify` (narrow claim) before each checkpoint;
+  project-wide gates concentrate at the tail: one `make gate` at Phase C
+  entry (the B→C boundary), the scoped gate after each Phase D remediation,
+  the full gate exactly once at Phase E. A FAIL opens the repair loop; only
+  the final PASS closes the phase action.
 - Peer review (`deep-review`) runs only in Phase D. Per-task peer-review
   instructions inside task files or specs are superseded by this loop's phase
   machine — note "deferred to Phase D" in the task memory and move on.
-- Phase D repeats in consecutive rounds until SHIP; every non-SHIP round
-  remediates all blockers and nits before the next round starts.
+- The QA walk runs only in Phase C. Per-task QA-walk demands — task-file
+  validation items, `cy-final-verify`'s QA Tracker Impact, project rules —
+  are satisfied during Phase B by flagging alone: add/reset
+  `docs/qa/scenarios/` files per the task's diff, note "walk deferred to
+  Phase C" in the task memory, and move on.
 - Checkpoint commits (Phases B and D) belong to the orchestrator:
   `cy-execute-task` runs with auto-commit disabled, and every worker packet
   forbids committing. The checkpoint captures code, memory, task frontmatter,
@@ -335,6 +352,10 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
   restorable snapshot. When `state.stacked=true`, the checkpoint script also
   owns the stack layer and PR submission (`references/stacked-prs.md`); the
   loop never merges the stack.
+- Checkpoint commits capture the whole tree (`git add -A` is the script's
+  contract): files this loop did not author ride into the snapshot by design
+  — the untouched-files rule forbids reverting them, not committing them.
+  Never pause to triage a dirty tree.
 - Phase E requires `qa.report_done=true`, `qa.execution_done=true`,
   `review.ship=true`, and `verify.last_status=PASS`.
 - Do not regenerate the loop's input graph with `cy-create-tasks`,

@@ -14,7 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-func (c *unixSocketClient) ListTasks(ctx context.Context, query TaskListQuery) (TaskListRecord, error) {
+func (c *daemonClient) ListTasks(ctx context.Context, query TaskListQuery) (TaskListRecord, error) {
 	var response contract.TasksResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/tasks", taskValues(query), nil, &response); err != nil {
 		return TaskListRecord{}, err
@@ -22,7 +22,7 @@ func (c *unixSocketClient) ListTasks(ctx context.Context, query TaskListQuery) (
 	return response, nil
 }
 
-func (c *unixSocketClient) CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error) {
+func (c *daemonClient) CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error) {
 	var response contract.TaskResponse
 	if err := c.doJSON(ctx, http.MethodPost, "/api/tasks", nil, request, &response); err != nil {
 		return TaskRecord{}, err
@@ -30,7 +30,7 @@ func (c *unixSocketClient) CreateTask(ctx context.Context, request CreateTaskReq
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) CreateTaskAsAgent(
+func (c *daemonClient) CreateTaskAsAgent(
 	ctx context.Context,
 	request CreateTaskRequest,
 	credentials agentidentity.Credentials,
@@ -42,7 +42,7 @@ func (c *unixSocketClient) CreateTaskAsAgent(
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) GetTask(ctx context.Context, id string) (TaskDetailRecord, error) {
+func (c *daemonClient) GetTask(ctx context.Context, id string) (TaskDetailRecord, error) {
 	var response contract.TaskDetailResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -51,7 +51,7 @@ func (c *unixSocketClient) GetTask(ctx context.Context, id string) (TaskDetailRe
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) InspectTask(ctx context.Context, id string) (TaskInspectRecord, error) {
+func (c *daemonClient) InspectTask(ctx context.Context, id string) (TaskInspectRecord, error) {
 	var response contract.TaskInspectResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/inspect"
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -60,7 +60,7 @@ func (c *unixSocketClient) InspectTask(ctx context.Context, id string) (TaskInsp
 	return response.Inspect, nil
 }
 
-func (c *unixSocketClient) InspectRun(ctx context.Context, id string) (TaskInspectRecord, error) {
+func (c *daemonClient) InspectRun(ctx context.Context, id string) (TaskInspectRecord, error) {
 	var response contract.TaskInspectResponse
 	path := "/api/runs/" + url.PathEscape(strings.TrimSpace(id)) + "/inspect"
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -69,7 +69,7 @@ func (c *unixSocketClient) InspectRun(ctx context.Context, id string) (TaskInspe
 	return response.Inspect, nil
 }
 
-func (c *unixSocketClient) UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error) {
+func (c *daemonClient) UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error) {
 	var response contract.TaskResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
@@ -78,7 +78,7 @@ func (c *unixSocketClient) UpdateTask(ctx context.Context, id string, request Up
 	return response.Task, nil
 }
 
-func (c *unixSocketClient) BlockTask(
+func (c *daemonClient) BlockTask(
 	ctx context.Context,
 	id string,
 	request CreateTaskBlockRequest,
@@ -90,7 +90,7 @@ func (c *unixSocketClient) BlockTask(
 	return response.Block, nil
 }
 
-func (c *unixSocketClient) BlockTaskAsAgent(
+func (c *daemonClient) BlockTaskAsAgent(
 	ctx context.Context,
 	id string,
 	request CreateTaskBlockRequest,
@@ -111,7 +111,7 @@ func (c *unixSocketClient) BlockTaskAsAgent(
 	return response.Block, nil
 }
 
-func (c *unixSocketClient) ListTaskBlocks(
+func (c *daemonClient) ListTaskBlocks(
 	ctx context.Context,
 	id string,
 	includeCleared bool,
@@ -127,7 +127,7 @@ func (c *unixSocketClient) ListTaskBlocks(
 	return response.Blocks, nil
 }
 
-func (c *unixSocketClient) ClearTaskBlock(
+func (c *daemonClient) ClearTaskBlock(
 	ctx context.Context,
 	id string,
 	blockID string,
@@ -141,7 +141,7 @@ func (c *unixSocketClient) ClearTaskBlock(
 	return response.Block, nil
 }
 
-func (c *unixSocketClient) ClearTaskBlockAsAgent(
+func (c *daemonClient) ClearTaskBlockAsAgent(
 	ctx context.Context,
 	id string,
 	blockID string,
@@ -156,7 +156,7 @@ func (c *unixSocketClient) ClearTaskBlockAsAgent(
 	return response.Block, nil
 }
 
-func (c *unixSocketClient) RecoverTask(
+func (c *daemonClient) RecoverTask(
 	ctx context.Context,
 	id string,
 	request RecoverTaskRequest,
@@ -173,7 +173,7 @@ func taskBlocksPath(id string) string {
 	return "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/blocks"
 }
 
-func (c *unixSocketClient) GetTaskExecutionProfile(
+func (c *daemonClient) GetTaskExecutionProfile(
 	ctx context.Context,
 	id string,
 ) (TaskExecutionProfileRecord, error) {
@@ -185,7 +185,7 @@ func (c *unixSocketClient) GetTaskExecutionProfile(
 	return response.Profile, nil
 }
 
-func (c *unixSocketClient) SetTaskExecutionProfile(
+func (c *daemonClient) SetTaskExecutionProfile(
 	ctx context.Context,
 	id string,
 	request *TaskExecutionProfileRequest,
@@ -201,7 +201,7 @@ func (c *unixSocketClient) SetTaskExecutionProfile(
 	return response.Profile, nil
 }
 
-func (c *unixSocketClient) DeleteTaskExecutionProfile(ctx context.Context, id string) error {
+func (c *daemonClient) DeleteTaskExecutionProfile(ctx context.Context, id string) error {
 	return c.doJSON(ctx, http.MethodDelete, taskExecutionProfilePath(id), nil, nil, nil)
 }
 
@@ -209,7 +209,7 @@ func taskExecutionProfilePath(id string) string {
 	return "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/execution-profile"
 }
 
-func (c *unixSocketClient) CreateTaskBridgeNotificationSubscription(
+func (c *daemonClient) CreateTaskBridgeNotificationSubscription(
 	ctx context.Context,
 	taskID string,
 	request *TaskBridgeNotificationSubscriptionRequest,
@@ -227,7 +227,7 @@ func (c *unixSocketClient) CreateTaskBridgeNotificationSubscription(
 	return response.Subscription, nil
 }
 
-func (c *unixSocketClient) ListTaskBridgeNotificationSubscriptions(
+func (c *daemonClient) ListTaskBridgeNotificationSubscriptions(
 	ctx context.Context,
 	taskID string,
 	query TaskBridgeNotificationSubscriptionQuery,
@@ -241,7 +241,7 @@ func (c *unixSocketClient) ListTaskBridgeNotificationSubscriptions(
 	return response.Subscriptions, nil
 }
 
-func (c *unixSocketClient) GetTaskBridgeNotificationSubscription(
+func (c *daemonClient) GetTaskBridgeNotificationSubscription(
 	ctx context.Context,
 	taskID string,
 	subscriptionID string,
@@ -254,7 +254,7 @@ func (c *unixSocketClient) GetTaskBridgeNotificationSubscription(
 	return response.Subscription, nil
 }
 
-func (c *unixSocketClient) DeleteTaskBridgeNotificationSubscription(
+func (c *daemonClient) DeleteTaskBridgeNotificationSubscription(
 	ctx context.Context,
 	taskID string,
 	subscriptionID string,
@@ -271,7 +271,7 @@ func taskBridgeNotificationSubscriptionPath(taskID string, subscriptionID string
 	return taskBridgeNotificationSubscriptionsPath(taskID) + "/" + url.PathEscape(subscriptionID)
 }
 
-func (c *unixSocketClient) RequestTaskRunReview(
+func (c *daemonClient) RequestTaskRunReview(
 	ctx context.Context,
 	runID string,
 	request *TaskRunReviewRequest,
@@ -287,7 +287,7 @@ func (c *unixSocketClient) RequestTaskRunReview(
 	return response, nil
 }
 
-func (c *unixSocketClient) RequestTaskRunReviewAsAgent(
+func (c *daemonClient) RequestTaskRunReviewAsAgent(
 	ctx context.Context,
 	runID string,
 	request *TaskRunReviewRequest,
@@ -304,7 +304,7 @@ func (c *unixSocketClient) RequestTaskRunReviewAsAgent(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListTaskRunReviews(
+func (c *daemonClient) ListTaskRunReviews(
 	ctx context.Context,
 	query TaskRunReviewListQuery,
 ) ([]TaskRunReviewRecord, error) {
@@ -319,7 +319,7 @@ func (c *unixSocketClient) ListTaskRunReviews(
 	return response.Reviews, nil
 }
 
-func (c *unixSocketClient) GetTaskRunReview(
+func (c *daemonClient) GetTaskRunReview(
 	ctx context.Context,
 	reviewID string,
 ) (TaskRunReviewRecord, error) {
@@ -331,7 +331,7 @@ func (c *unixSocketClient) GetTaskRunReview(
 	return response.Review, nil
 }
 
-func (c *unixSocketClient) SubmitTaskRunReviewVerdict(
+func (c *daemonClient) SubmitTaskRunReviewVerdict(
 	ctx context.Context,
 	reviewID string,
 	request *TaskRunReviewVerdictRequest,
@@ -347,7 +347,7 @@ func (c *unixSocketClient) SubmitTaskRunReviewVerdict(
 	return response, nil
 }
 
-func (c *unixSocketClient) SubmitTaskRunReviewVerdictAsAgent(
+func (c *daemonClient) SubmitTaskRunReviewVerdictAsAgent(
 	ctx context.Context,
 	reviewID string,
 	request *TaskRunReviewVerdictRequest,

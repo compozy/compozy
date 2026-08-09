@@ -9,8 +9,6 @@ import (
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 
-	"github.com/compozy/compozy/internal/session"
-
 	"github.com/compozy/compozy/internal/support"
 )
 
@@ -49,17 +47,6 @@ func extensionRuntimeHasRegisteredEntries(
 }
 
 func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	loopAPI, err := newDaemonLoopAPIService(state, d.homePaths, d.now)
-	if err != nil {
-		return err
-	}
-	state.deps.Loops = loopAPI
-	if installer, ok := state.sessions.(goalCommandHandlerInstaller); ok {
-		if handler, handlerOK := loopAPI.(session.GoalCommandHandler); handlerOK {
-			installer.SetGoalCommandHandler(handler)
-		}
-	}
-
 	httpServer, err := d.httpFactory(ctx, state.deps)
 	if err != nil {
 		return fmt.Errorf("daemon: create http server: %w", err)

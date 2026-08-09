@@ -31,6 +31,7 @@
         "hooks",
         "---Operations---",
         "operations",
+        "gateway",
         "configuration",
         "---Reference---",
         "cli",
