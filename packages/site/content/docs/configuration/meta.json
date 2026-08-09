@@ -3,7 +3,6 @@
     "icon": "Settings",
     "pages": [
         "config-toml",
-        "gateway",
         "lifecycle-matrix",
         "vault",
         "agent-md",

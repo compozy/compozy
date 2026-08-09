@@ -140,7 +140,10 @@ func (d *Daemon) resolveGatewayProviderEffects(
 	if d.gatewayProviderEffects != nil {
 		return d.gatewayProviderEffects, nil
 	}
-	verifier, err := gateway.NewEndpointVerifier(state.cfg.Gateway.Verify.Timeout)
+	verifier, err := gateway.NewEndpointVerifier(
+		state.cfg.Gateway.Verify.Timeout,
+		state.cfg.Gateway.Verify.PublicDNSResolver,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create gateway endpoint verifier: %w", err)
 	}

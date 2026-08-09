@@ -1,0 +1,97 @@
+---
+title: Remote CLI, SSH, and public access
+description: Operate a remote daemon from the CLI with a connection profile, reach it over SSH with zero exposure, or put the operator surface on the public internet with explicit consent.
+---
+
+The [quickstart](/docs/gateway/quickstart) gets your browser in. This page covers the other three
+ways to reach a daemon that is not in front of you — pick the one that matches your situation:
+
+| You have…                                             | Use                                                                                                                 |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Another machine on your tailnet, and you want the CLI | [A connection profile](#connect-a-remote-cli)                                                                       |
+| SSH access to the daemon machine                      | [`compozy connect ssh`](#connect-over-ssh) — no exposure at all                                                     |
+| A device that cannot join your tailnet                | [Public operator access](#put-the-operator-surface-on-the-public-internet) — the largest exposure, gated by consent |
+
+## What works remotely
+
+Remote connections operate the same daemon state as local ones, with one deliberate boundary:
+
+- **Remote-capable:** sessions, task reads, loops, memory, settings, bridges, extensions, and
+  gateway management.
+- **Local-only:** task mutations, task-run queue and scheduler authority, the agent kernel, hosted
+  MCP and the MCP Host API, and resource mutation. These verbs refuse deterministically from a
+  remote profile — use local access or an SSH connection for them.
+
+## Connect a remote CLI
+
+A remote machine redeems a pairing into a named connection profile.
+
+On the daemon machine, mint a pairing (`compozy pair mint` writes the one-time code to a private
+file and prints its path — see [the quickstart](/docs/gateway/quickstart#step-7-pair-your-device)).
+Move the code to the remote machine through a channel you trust, then:
+
+```bash
+compozy connect add studio \
+  --pairing <artifact> \
+  --address https://compozy-gateway.<your-tailnet>.ts.net:8443 \
+  --use
+```
+
+The device credential lands in an encrypted file local to that machine; the profile entry in
+`config.toml` holds only non-secret metadata, so copying the profile alone never transfers
+identity. Manage profiles with:
+
+```bash
+compozy connect list          # NAME | SCHEME | HOST | PORT | ACTIVE
+compozy connect use studio    # target this daemon
+compozy connect use local     # back to the local daemon
+compozy connect remove studio
+```
+
+Moving a profile between machines uses `compozy connect export` and `compozy connect import`.
+
+## Connect over SSH
+
+When you already have SSH access to the machine, you do not need any gateway exposure:
+
+```bash
+compozy connect ssh <host>
+```
+
+This rides your existing SSH trust — keys, configuration, host verification. A changed host
+identity refuses the connection, it stops only daemons it started, and it opens no new reachable
+surface on either machine. It is also the way to run local-only verbs against a remote machine.
+
+## Put the operator surface on the public internet
+
+This switch serves the web UI and management API on your public Funnel address — the largest
+exposure the gateway offers. It exists for the device that cannot join your tailnet.
+
+Two rules are enforced, not suggested:
+
+1. **At least one device must already be paired.** The public address never mints or redeems a
+   pairing, so publishing a gate nobody can pass is refused:
+   `public operator UI requires at least one paired device`.
+2. **Consent is asked on every enable.** There is no "don't ask again".
+
+```bash
+compozy gateway surface enable operator_ui --tier public --consent
+```
+
+Without `--consent` the daemon answers
+`gateway consent required: confirm public operator UI exposure before retrying`.
+
+The internet can now reach the pairing gate — and nothing behind it without a device session, which
+can only be obtained locally or over the private tier. Read
+[Gateway security](/docs/gateway/security) before enabling this, and turn it off when the need
+passes:
+
+```bash
+compozy gateway surface disable operator_ui --tier public
+```
+
+## Related
+
+- [Gateway quickstart](/docs/gateway/quickstart) — pairing and the private tier.
+- [Devices, audit, and teardown](/docs/gateway/manage) — review and revoke what you granted.
+- [Gateway security](/docs/gateway/security) — what each switch exposes.

@@ -49,6 +49,30 @@ func TestProviderSupervisorEnableSafety(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bound provider activation independently from endpoint proof [UT-166]", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, time.August, 8, 12, 0, 0, 0, time.UTC)
+		source := healthySupervisorSource(nil)
+		supervisor := newSupervisorForTest(
+			t,
+			bundledTrustResolver(nil),
+			bundledIdentityStore(nil),
+			&supervisorSourceResolver{sources: map[string]ConnectivitySource{"provider-a": source}},
+			&supervisorVerifier{timeout: 10 * time.Second},
+			WithProviderSupervisorClock(func() time.Time { return now }),
+			WithProviderEstablishTimeout(time.Minute),
+		)
+		if _, err := supervisor.Establish(
+			testutil.Context(t), supervisorActivation("provider-a"), testProviderBound(),
+		); err != nil {
+			t.Fatalf("Establish() error = %v", err)
+		}
+		request := source.lastEstablishRequest()
+		if want := now.Add(time.Minute); !request.Deadline.Equal(want) {
+			t.Fatalf("provider deadline = %s, want %s", request.Deadline, want)
+		}
+	})
+
 	t.Run("Should refuse an ephemeral public endpoint before verification [IT-051]", func(t *testing.T) {
 		t.Parallel()
 		source := healthySupervisorSource(nil)
@@ -156,6 +180,58 @@ func TestProviderSupervisorEnableSafety(t *testing.T) {
 		supervisor.mu.Unlock()
 		if monitor != nil {
 			t.Fatal("unverified provider started an advertisement monitor")
+		}
+	})
+
+	t.Run("Should keep an unverified provider session available for a later proof", func(t *testing.T) {
+		t.Parallel()
+		source := healthySupervisorSource(nil)
+		verifier := &supervisorVerifier{
+			timeout: time.Second,
+			errors:  []error{ErrEndpointUnverified, nil},
+		}
+		supervisor := newSupervisorForTest(
+			t,
+			bundledTrustResolver(nil),
+			bundledIdentityStore(nil),
+			&supervisorSourceResolver{sources: map[string]ConnectivitySource{"provider-a": source}},
+			verifier,
+		)
+		activation := supervisorActivation("provider-a")
+		bound := testProviderBound()
+		reachability, err := supervisor.Establish(testutil.Context(t), activation, bound)
+		if err != nil {
+			t.Fatalf("Establish(initial) error = %v", err)
+		}
+		if err := supervisor.Verify(testutil.Context(t), reachability); !errors.Is(err, ErrEndpointUnverified) {
+			t.Fatalf("Verify(initial) error = %v, want ErrEndpointUnverified", err)
+		}
+		supervisor.mu.Lock()
+		session := supervisor.sessions[TierPrivate]
+		supervisor.mu.Unlock()
+		if session == nil {
+			t.Fatal("unverified provider session was removed")
+		}
+		if _, ok := supervisor.challenges.Resolve(TierPrivate, session.path); !ok {
+			t.Fatal("verification challenge was removed before provider teardown")
+		}
+
+		retried, err := supervisor.Establish(testutil.Context(t), activation, bound)
+		if err != nil {
+			t.Fatalf("Establish(retry) error = %v", err)
+		}
+		if source.establishCount() != 1 || source.teardownCount() != 0 {
+			t.Fatalf(
+				"provider lifecycle = establishes %d, teardowns %d; want 1, 0",
+				source.establishCount(),
+				source.teardownCount(),
+			)
+		}
+		if err := supervisor.Verify(testutil.Context(t), retried); err != nil {
+			t.Fatalf("Verify(retry) error = %v", err)
+		}
+		if err := supervisor.Advertise(testutil.Context(t), retried, nil); err != nil {
+			t.Fatalf("Advertise() error = %v", err)
 		}
 	})
 }
@@ -508,12 +584,30 @@ type supervisorSource struct {
 	statusErr    error
 	teardown     func(context.Context) error
 	teardowns    int
+	establishes  int
+	lastRequest  EstablishRequest
 	events       *supervisorEventLog
 }
 
-func (s *supervisorSource) Establish(_ context.Context, _ EstablishRequest) (Reachability, error) {
+func (s *supervisorSource) Establish(_ context.Context, request EstablishRequest) (Reachability, error) {
+	s.mu.Lock()
+	s.establishes++
+	s.lastRequest = request
+	s.mu.Unlock()
 	s.events.add("establish")
 	return s.reachability, s.establishErr
+}
+
+func (s *supervisorSource) lastEstablishRequest() EstablishRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastRequest
+}
+
+func (s *supervisorSource) establishCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.establishes
 }
 
 func (s *supervisorSource) Status(_ context.Context, _ Tier) (Reachability, error) {
@@ -541,6 +635,7 @@ type supervisorVerifier struct {
 	mu      sync.Mutex
 	timeout time.Duration
 	err     error
+	errors  []error
 	events  *supervisorEventLog
 	calls   int
 }
@@ -548,9 +643,14 @@ type supervisorVerifier struct {
 func (v *supervisorVerifier) Verify(context.Context, Tier, AdvertisedEndpoint, string, string) error {
 	v.mu.Lock()
 	v.calls++
+	call := v.calls
+	err := v.err
+	if call <= len(v.errors) {
+		err = v.errors[call-1]
+	}
 	v.mu.Unlock()
 	v.events.add("verify")
-	return v.err
+	return err
 }
 
 func (v *supervisorVerifier) Timeout() time.Duration { return v.timeout }

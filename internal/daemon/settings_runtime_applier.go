@@ -108,13 +108,15 @@ func (a daemonSettingsRuntimeApplier) applyGatewayTuningChange(
 			))
 		}
 	}
-	if verifier := a.state.gatewayVerifier; verifier != nil &&
-		previous.Gateway.Verify.Timeout != next.Gateway.Verify.Timeout {
-		if err := verifier.ReconfigureTimeout(next.Gateway.Verify.Timeout); err != nil {
+	if verifier := a.state.gatewayVerifier; verifier != nil && previous.Gateway.Verify != next.Gateway.Verify {
+		if err := verifier.Reconfigure(
+			next.Gateway.Verify.Timeout,
+			next.Gateway.Verify.PublicDNSResolver,
+		); err != nil {
 			failures = append(failures, configApplyFailure(
-				"gateway_verify_timeout",
+				"gateway_verify",
 				diagnosticcontract.CategoryConfig,
-				"Gateway verification timeout sync failed",
+				"Gateway verification config sync failed",
 				err,
 			))
 		}
@@ -135,45 +137,68 @@ func (a daemonSettingsRuntimeApplier) rollbackGatewayAndNetwork(
 	next *compozyconfig.Config,
 	failures []settingspkg.ApplyFailure,
 ) []settingspkg.ApplyFailure {
-	if gatewayTuningChanged(previous.Gateway, next.Gateway) {
-		if service := a.state.deps.Gateway; service != nil {
-			if err := service.ReconfigureDeviceLimits(
-				previous.Gateway.Pairing.MaxPending,
-				previous.Gateway.Pairing.TTL,
-				previous.Gateway.StreamTicket.TTL,
-			); err != nil {
-				failures = append(failures, configApplyFailure(
-					"gateway_device_limits_rollback",
-					diagnosticcontract.CategoryConfig,
-					"Gateway device limit rollback failed",
-					err,
-				))
-			}
-		}
-		if limiter := a.state.deps.GatewayAuthLimiter; limiter != nil {
-			if err := limiter.Reconfigure(
-				previous.Gateway.Auth.RateLimit.MaxFails,
-				previous.Gateway.Auth.RateLimit.Window,
-			); err != nil {
-				failures = append(failures, configApplyFailure(
-					"gateway_auth_limits_rollback",
-					diagnosticcontract.CategoryConfig,
-					"Gateway authentication limit rollback failed",
-					err,
-				))
-			}
-		}
-		if verifier := a.state.gatewayVerifier; verifier != nil {
-			if err := verifier.ReconfigureTimeout(previous.Gateway.Verify.Timeout); err != nil {
-				failures = append(failures, configApplyFailure(
-					"gateway_verify_timeout_rollback",
-					diagnosticcontract.CategoryConfig,
-					"Gateway verification timeout rollback failed",
-					err,
-				))
-			}
+	failures = a.rollbackGatewayTuning(previous, next, failures)
+	failures = a.rollbackGatewayCeiling(ctx, previous, next, failures)
+	return a.rollbackNetworkAvailability(ctx, previous, next, failures)
+}
+
+func (a daemonSettingsRuntimeApplier) rollbackGatewayTuning(
+	previous *compozyconfig.Config,
+	next *compozyconfig.Config,
+	failures []settingspkg.ApplyFailure,
+) []settingspkg.ApplyFailure {
+	if !gatewayTuningChanged(previous.Gateway, next.Gateway) {
+		return failures
+	}
+	if service := a.state.deps.Gateway; service != nil {
+		if err := service.ReconfigureDeviceLimits(
+			previous.Gateway.Pairing.MaxPending,
+			previous.Gateway.Pairing.TTL,
+			previous.Gateway.StreamTicket.TTL,
+		); err != nil {
+			failures = append(failures, configApplyFailure(
+				"gateway_device_limits_rollback",
+				diagnosticcontract.CategoryConfig,
+				"Gateway device limit rollback failed",
+				err,
+			))
 		}
 	}
+	if limiter := a.state.deps.GatewayAuthLimiter; limiter != nil {
+		if err := limiter.Reconfigure(
+			previous.Gateway.Auth.RateLimit.MaxFails,
+			previous.Gateway.Auth.RateLimit.Window,
+		); err != nil {
+			failures = append(failures, configApplyFailure(
+				"gateway_auth_limits_rollback",
+				diagnosticcontract.CategoryConfig,
+				"Gateway authentication limit rollback failed",
+				err,
+			))
+		}
+	}
+	if verifier := a.state.gatewayVerifier; verifier != nil {
+		if err := verifier.Reconfigure(
+			previous.Gateway.Verify.Timeout,
+			previous.Gateway.Verify.PublicDNSResolver,
+		); err != nil {
+			failures = append(failures, configApplyFailure(
+				"gateway_verify_rollback",
+				diagnosticcontract.CategoryConfig,
+				"Gateway verification config rollback failed",
+				err,
+			))
+		}
+	}
+	return failures
+}
+
+func (a daemonSettingsRuntimeApplier) rollbackGatewayCeiling(
+	ctx context.Context,
+	previous *compozyconfig.Config,
+	next *compozyconfig.Config,
+	failures []settingspkg.ApplyFailure,
+) []settingspkg.ApplyFailure {
 	if a.state.gateway != nil && previous.Gateway.Enabled != next.Gateway.Enabled {
 		if err := a.state.gateway.SetEnabled(ctx, previous.Gateway.Enabled); err != nil {
 			failures = append(failures, configApplyFailure(
@@ -184,6 +209,15 @@ func (a daemonSettingsRuntimeApplier) rollbackGatewayAndNetwork(
 			))
 		}
 	}
+	return failures
+}
+
+func (a daemonSettingsRuntimeApplier) rollbackNetworkAvailability(
+	ctx context.Context,
+	previous *compozyconfig.Config,
+	next *compozyconfig.Config,
+	failures []settingspkg.ApplyFailure,
+) []settingspkg.ApplyFailure {
 	if a.networkAvailability != nil && previous.Network.Enabled != next.Network.Enabled {
 		if failure := a.persistNetworkAvailability(
 			ctx,

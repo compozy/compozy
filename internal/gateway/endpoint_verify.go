@@ -9,7 +9,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,11 +29,12 @@ type EndpointVerification interface {
 
 // EndpointVerifier proves that one provider endpoint reaches the assigned tier listener.
 type EndpointVerifier struct {
-	mu       sync.RWMutex
-	timeout  time.Duration
-	resolver outboundpolicy.Resolver
-	dialer   outboundpolicy.NetworkDialer
-	rootCAs  *x509.CertPool
+	mu             sync.RWMutex
+	timeout        time.Duration
+	resolver       outboundpolicy.Resolver
+	publicResolver outboundpolicy.Resolver
+	dialer         outboundpolicy.NetworkDialer
+	rootCAs        *x509.CertPool
 }
 
 // Timeout returns the dedicated verification deadline.
@@ -46,26 +49,36 @@ func (v *EndpointVerifier) Timeout() time.Duration {
 
 var _ EndpointVerification = (*EndpointVerifier)(nil)
 
-// NewEndpointVerifier constructs a verifier with a dedicated client timeout.
-func NewEndpointVerifier(timeout time.Duration) (*EndpointVerifier, error) {
+// NewEndpointVerifier constructs a verifier with a dedicated client timeout and public DNS path.
+func NewEndpointVerifier(timeout time.Duration, publicDNSResolver string) (*EndpointVerifier, error) {
 	if timeout <= 0 {
 		return nil, errors.New("gateway: endpoint verification timeout must be positive")
 	}
+	publicResolver, err := newPublicDNSResolver(publicDNSResolver, timeout)
+	if err != nil {
+		return nil, err
+	}
 	return &EndpointVerifier{
-		timeout: timeout, resolver: net.DefaultResolver, dialer: &net.Dialer{Timeout: timeout},
+		timeout: timeout, resolver: net.DefaultResolver, publicResolver: publicResolver,
+		dialer: &net.Dialer{Timeout: timeout},
 	}, nil
 }
 
-// ReconfigureTimeout applies a live verification deadline to future probes.
-func (v *EndpointVerifier) ReconfigureTimeout(timeout time.Duration) error {
+// Reconfigure applies live verification settings to future probes.
+func (v *EndpointVerifier) Reconfigure(timeout time.Duration, publicDNSResolver string) error {
 	if v == nil {
 		return errors.New("gateway: endpoint verifier is required")
 	}
 	if timeout <= 0 {
 		return errors.New("gateway: endpoint verification timeout must be positive")
 	}
+	resolver, err := newPublicDNSResolver(publicDNSResolver, timeout)
+	if err != nil {
+		return err
+	}
 	v.mu.Lock()
 	v.timeout = timeout
+	v.publicResolver = resolver
 	if current, ok := v.dialer.(*net.Dialer); ok {
 		updated := *current
 		updated.Timeout = timeout
@@ -83,8 +96,8 @@ func (v *EndpointVerifier) Verify(
 	challengePath string,
 	nonce string,
 ) error {
-	timeout, resolver, dialer, rootCAs := v.configuration()
-	if timeout <= 0 || resolver == nil || dialer == nil {
+	timeout, resolver, publicResolver, dialer, rootCAs := v.configuration()
+	if timeout <= 0 || resolver == nil || publicResolver == nil || dialer == nil {
 		return errors.New("gateway: endpoint verifier is not configured")
 	}
 	if err := tier.Validate(); err != nil {
@@ -102,6 +115,9 @@ func (v *EndpointVerifier) Verify(
 	challengeURL, err := endpointChallengeURL(endpoint, challengePath)
 	if err != nil {
 		return fmt.Errorf("%w: invalid challenge URL", ErrEndpointUnverified)
+	}
+	if tier == TierPublic {
+		resolver = publicResolver
 	}
 	client, err := endpointVerificationClient(tier, challengeURL, timeout, resolver, dialer, rootCAs)
 	if err != nil {
@@ -136,15 +152,69 @@ func (v *EndpointVerifier) Verify(
 func (v *EndpointVerifier) configuration() (
 	time.Duration,
 	outboundpolicy.Resolver,
+	outboundpolicy.Resolver,
 	outboundpolicy.NetworkDialer,
 	*x509.CertPool,
 ) {
 	if v == nil {
-		return 0, nil, nil, nil
+		return 0, nil, nil, nil, nil
 	}
 	v.mu.RLock()
 	defer v.mu.RUnlock()
-	return v.timeout, v.resolver, v.dialer, v.rootCAs
+	return v.timeout, v.resolver, v.publicResolver, v.dialer, v.rootCAs
+}
+
+func newPublicDNSResolver(address string, timeout time.Duration) (*net.Resolver, error) {
+	return newPublicDNSResolverWithTransport(address, timeout, nil, nil)
+}
+
+type publicDNSDialFunc func(context.Context, string, string) (net.Conn, error)
+
+func newPublicDNSResolverWithTransport(
+	address string,
+	timeout time.Duration,
+	rootCAs *x509.CertPool,
+	dial publicDNSDialFunc,
+) (*net.Resolver, error) {
+	trimmed := strings.TrimSpace(address)
+	resolverAddress, err := netip.ParseAddrPort(trimmed)
+	if err != nil || trimmed != address || resolverAddress.Port() == 0 {
+		return nil, errors.New("gateway: public DNS resolver must be a public IP address with a non-zero port")
+	}
+	if err := outboundpolicy.New(false).ValidateResolvedAddresses(
+		[]netip.Addr{resolverAddress.Addr()},
+		resolverAddress.Addr().String(),
+		strconv.Itoa(int(resolverAddress.Port())),
+	); err != nil {
+		return nil, errors.New("gateway: public DNS resolver must be a public IP address with a non-zero port")
+	}
+	if dial == nil {
+		dialer := &net.Dialer{Timeout: timeout}
+		dial = dialer.DialContext
+	}
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    rootCAs,
+		ServerName: resolverAddress.Addr().String(),
+	}
+	return &net.Resolver{
+		PreferGo:     true,
+		StrictErrors: true,
+		Dial: func(ctx context.Context, _ string, _ string) (net.Conn, error) {
+			connection, err := dial(ctx, "tcp", resolverAddress.String())
+			if err != nil {
+				return nil, fmt.Errorf("gateway: connect public DNS-over-TLS resolver: %w", err)
+			}
+			secured := tls.Client(connection, tlsConfig.Clone())
+			if err := secured.HandshakeContext(ctx); err != nil {
+				return nil, errors.Join(
+					fmt.Errorf("gateway: authenticate public DNS-over-TLS resolver: %w", err),
+					connection.Close(),
+				)
+			}
+			return secured, nil
+		},
+	}, nil
 }
 
 func endpointVerificationClient(

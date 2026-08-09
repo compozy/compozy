@@ -90,12 +90,16 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		next.Gateway.Auth.RateLimit.MaxFails = 1
 		next.Gateway.Auth.RateLimit.Window = 2 * time.Minute
 		next.Gateway.Verify.Timeout = 250 * time.Millisecond
+		next.Gateway.Verify.PublicDNSResolver = "8.8.8.8:853"
 		limiter := gateway.NewAuthFailureLimiter(
 			previous.Gateway.Auth.RateLimit.MaxFails,
 			previous.Gateway.Auth.RateLimit.Window,
 			nil,
 		)
-		verifier, err := gateway.NewEndpointVerifier(previous.Gateway.Verify.Timeout)
+		verifier, err := gateway.NewEndpointVerifier(
+			previous.Gateway.Verify.Timeout,
+			previous.Gateway.Verify.PublicDNSResolver,
+		)
 		if err != nil {
 			t.Fatalf("NewEndpointVerifier() error = %v", err)
 		}

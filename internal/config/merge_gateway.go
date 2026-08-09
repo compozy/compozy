@@ -33,7 +33,8 @@ type gatewayAuthRateLimitOverlay struct {
 }
 
 type gatewayVerifyOverlay struct {
-	Timeout *time.Duration `toml:"timeout"`
+	Timeout           *time.Duration `toml:"timeout"`
+	PublicDNSResolver *string        `toml:"public_dns_resolver"`
 }
 
 func (o gatewayOverlay) Apply(dst *GatewayConfig) {
@@ -50,6 +51,7 @@ func (o gatewayOverlay) Apply(dst *GatewayConfig) {
 	applyOptional(o.Auth.RateLimit.Window, &dst.Auth.RateLimit.Window)
 	applyOptional(o.Auth.RateLimit.MaxFails, &dst.Auth.RateLimit.MaxFails)
 	applyOptional(o.Verify.Timeout, &dst.Verify.Timeout)
+	applyOptional(o.Verify.PublicDNSResolver, &dst.Verify.PublicDNSResolver)
 }
 
 func mergeGatewayConnections(

@@ -1,14 +1,5 @@
 {
     "title": "Operations",
     "icon": "Wrench",
-    "pages": [
-        "daemon",
-        "mcp-serve",
-        "remote-gateway",
-        "gateway-threat-model",
-        "database",
-        "support-bundles",
-        "troubleshooting",
-        "production"
-    ]
+    "pages": ["daemon", "mcp-serve", "database", "support-bundles", "troubleshooting", "production"]
 }

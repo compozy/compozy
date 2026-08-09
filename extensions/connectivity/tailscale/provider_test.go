@@ -68,8 +68,17 @@ func TestBundledProviderEstablishesBothTiers(t *testing.T) {
 			}
 		})
 	}
-	if node.upCalls != 2 || node.privateCalls != 1 || node.publicCalls != 1 {
-		t.Fatalf("node calls = up:%d private:%d public:%d", node.upCalls, node.privateCalls, node.publicCalls)
+	if node.upCalls != 2 || node.privateCalls != 1 || node.provisionCalls != 1 || node.publicCalls != 1 {
+		t.Fatalf(
+			"node calls = up:%d private:%d provision:%d public:%d",
+			node.upCalls,
+			node.privateCalls,
+			node.provisionCalls,
+			node.publicCalls,
+		)
+	}
+	if node.provisionDomain != "gateway.example.ts.net" {
+		t.Fatalf("provision domain = %q, want gateway.example.ts.net", node.provisionDomain)
 	}
 	for _, tier := range []string{tierPrivate, tierPublic} {
 		response, err := provider.Teardown(testutil.Context(t), compozysdk.ExtensionContext{},
@@ -492,6 +501,9 @@ type fakeTailscaleNode struct {
 	upCalls         int
 	privateCalls    int
 	publicCalls     int
+	provisionCalls  int
+	provisionDomain string
+	provisioned     bool
 	closeCalls      int
 	upStarted       chan struct{}
 	upRelease       <-chan struct{}
@@ -525,10 +537,22 @@ func (n *fakeTailscaleNode) ListenPublic(context.Context) (net.Listener, error) 
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.publicCalls++
+	if !n.provisioned {
+		return nil, errors.New("public listener opened before certificate provisioning")
+	}
 	return n.publicListener, nil
 }
 
 func (n *fakeTailscaleNode) CertificateDomains() []string { return n.domains }
+
+func (n *fakeTailscaleNode) ProvisionCertificate(_ context.Context, domain string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.provisionCalls++
+	n.provisionDomain = domain
+	n.provisioned = true
+	return nil
+}
 
 func (n *fakeTailscaleNode) Health(context.Context) error {
 	n.mu.Lock()

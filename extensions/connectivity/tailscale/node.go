@@ -17,6 +17,7 @@ type tailscaleNode interface {
 	ListenPrivate(context.Context) (net.Listener, error)
 	ListenPublic(context.Context) (net.Listener, error)
 	CertificateDomains() []string
+	ProvisionCertificate(context.Context, string) error
 	Health(context.Context) error
 	Close(context.Context) error
 }
@@ -81,6 +82,23 @@ func (n *tsnetNode) ListenPublic(ctx context.Context) (net.Listener, error) {
 
 func (n *tsnetNode) CertificateDomains() []string {
 	return n.server.CertDomains()
+}
+
+func (n *tsnetNode) ProvisionCertificate(ctx context.Context, domain string) error {
+	if n == nil || n.server == nil {
+		return errors.New("tailscale: node is required")
+	}
+	client, err := n.server.LocalClient()
+	if err != nil {
+		return fmt.Errorf("tailscale: access local certificate service: %w", err)
+	}
+	certificatePEM, privateKeyPEM, err := client.CertPair(ctx, domain)
+	clear(certificatePEM)
+	clear(privateKeyPEM)
+	if err != nil {
+		return fmt.Errorf("tailscale: provision HTTPS certificate: %w", err)
+	}
+	return nil
 }
 
 func (n *tsnetNode) Health(ctx context.Context) error {

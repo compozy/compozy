@@ -1,0 +1,115 @@
+---
+title: Gateway
+description: Reach your Compozy daemon from your other devices, give webhook senders a public delivery address, and take it all back — one explicit switch at a time.
+---
+
+A fresh Compozy install is reachable only from the machine it runs on. That is the permanent
+default. The gateway is how you change it: pair your phone or laptop for access from anywhere, give
+GitHub a public address to deliver events to, or operate a remote daemon from your CLI — each behind
+its own switch, each off until you turn it on, each reversible with one command.
+
+## What you can do with it
+
+- **Use Compozy from your other devices.** Your phone and laptop reach the full web UI and API over
+  your own private Tailscale network. Follow the [quickstart](/docs/gateway/quickstart).
+- **Let a repository push start work on your machine.** GitHub delivers signed events to a stable
+  public URL that serves deliveries and nothing else. Follow
+  [Receive GitHub webhooks](/docs/gateway/webhooks).
+- **Operate a remote daemon from the CLI — or over SSH with no exposure at all.** See
+  [Remote CLI, SSH, and public access](/docs/gateway/remote-access).
+
+## Three switches, all off by default
+
+| Switch                 | Who can reach it                      | What becomes reachable                                                                   |
+| ---------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Private overlay        | Devices on your own Tailscale network | The full product, to devices you have paired. Everything else sees a pairing gate.       |
+| Public delivery        | The internet                          | Signed webhook and bridge deliveries only. No UI, no API, no pairing.                    |
+| Public operator access | The internet                          | The web UI and management API, still behind device pairing. Asks for consent every time. |
+
+Start private. Turn on public delivery only when a sender outside your network — a GitHub
+repository, a messaging platform — needs to reach you. Turn on public operator access only when a
+device that cannot join your Tailscale network needs the UI, and read
+[Gateway security](/docs/gateway/security) first.
+
+Turning any switch off takes effect immediately and survives a restart. A restart restores what you
+last asked for and never re-enables something you turned off.
+
+## How it works
+
+1. The daemon never listens on a public address itself. Gateway listeners bind only to loopback —
+   the address that is reachable from this machine alone.
+2. A connectivity extension — the bundled [Tailscale extension](/docs/gateway/tailscale) — carries
+   outside traffic to that local listener using your own Tailscale account. Compozy operates no
+   relay, server, or account on your behalf.
+3. Before an address is shown to you or handed to a sender, the daemon proves it works: it fetches a
+   one-time challenge through that address and requires its own answer back. An address that cannot
+   prove it reaches this daemon is never advertised.
+4. Reaching an address is never authentication. Every device must pair, and every delivery must be
+   signed, no matter which address the request came through.
+
+<OperatorNote>
+  Everything on these pages is also available in the web UI under **Settings → Gateway**. The UI is
+  a view of daemon state, never a second source of truth.
+</OperatorNote>
+
+## Start here
+
+<RouteList>
+  <RouteRow
+    href="/docs/gateway/quickstart"
+    label="Start"
+    title="Gateway quickstart"
+    description="Reach Compozy from your phone or laptop in about ten minutes, end to end."
+    meta="Tutorial"
+  />
+  <RouteRow
+    href="/docs/gateway/tailscale"
+    label="Provider"
+    title="Tailscale extension"
+    description="Set up the bundled connectivity extension properly: auth key, tailnet settings, state, teardown."
+    meta="Setup"
+  />
+  <RouteRow
+    href="/docs/gateway/webhooks"
+    label="Deliver"
+    title="Receive GitHub webhooks"
+    description="Give GitHub a public delivery URL and watch a push land as an automation run."
+    meta="Tutorial"
+  />
+  <RouteRow
+    href="/docs/gateway/remote-access"
+    label="Connect"
+    title="Remote CLI, SSH, and public access"
+    description="Operate a remote daemon from the CLI, over SSH, or from the public internet."
+    meta="How-to"
+  />
+  <RouteRow
+    href="/docs/gateway/manage"
+    label="Operate"
+    title="Devices, audit, and teardown"
+    description="Review paired devices, revoke access, audit the posture, and turn exposure off."
+    meta="Operate"
+  />
+  <RouteRow
+    href="/docs/gateway/security"
+    label="Security"
+    title="Gateway security"
+    description="What each switch exposes, who can see your traffic, and what stays on this machine no matter what."
+    meta="Security"
+  />
+</RouteList>
+
+## Limits
+
+Know these before you build on the gateway:
+
+- **No store-and-forward.** Deliveries sent while the daemon or its connectivity provider is down
+  are lost from Compozy's side. Configure retries at the sender.
+- **Public delivery is rate limited.** 60 requests per minute per endpoint and source; rejected
+  requests carry a `Retry-After` header.
+- **One connectivity provider per tier.** Replacing the provider is an explicit operation.
+- **Some operations never leave this machine.** The agent kernel, hosted MCP, task mutations, and
+  resource mutations refuse from any remote connection. Use SSH or local access for those.
+
+Exposing Compozy to an MCP client on the same machine is a separate, local-only feature — see
+[Expose Compozy over MCP](/docs/operations/mcp-serve).

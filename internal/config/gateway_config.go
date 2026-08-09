@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/outboundpolicy"
 )
 
 const (
@@ -15,6 +18,7 @@ const (
 	defaultGatewayAuthWindow      = 60 * time.Second
 	defaultGatewayAuthMaxFails    = 10
 	defaultGatewayVerifyTimeout   = 10 * time.Second
+	defaultGatewayPublicDNS       = "1.1.1.1:853"
 	maximumGatewayListenerPort    = 65535
 	positiveGatewayValueMessage   = "must be positive"
 	gatewayConnectionSchemeSSH    = "ssh"
@@ -71,7 +75,8 @@ type GatewayAuthRateLimitConfig struct {
 
 // GatewayVerifyConfig bounds provider endpoint verification.
 type GatewayVerifyConfig struct {
-	Timeout time.Duration `toml:"timeout"`
+	Timeout           time.Duration `toml:"timeout"`
+	PublicDNSResolver string        `toml:"public_dns_resolver"`
 }
 
 func defaultGatewayConfig(homePaths HomePaths) GatewayConfig {
@@ -89,7 +94,10 @@ func defaultGatewayConfig(homePaths HomePaths) GatewayConfig {
 			Window:   defaultGatewayAuthWindow,
 			MaxFails: defaultGatewayAuthMaxFails,
 		}},
-		Verify: GatewayVerifyConfig{Timeout: defaultGatewayVerifyTimeout},
+		Verify: GatewayVerifyConfig{
+			Timeout:           defaultGatewayVerifyTimeout,
+			PublicDNSResolver: defaultGatewayPublicDNS,
+		},
 	}
 }
 
@@ -131,6 +139,9 @@ func (c GatewayConfig) Validate() error {
 	if c.Verify.Timeout <= 0 {
 		return ValidationError{Path: "gateway.verify.timeout", Message: positiveGatewayValueMessage}
 	}
+	if err := validateGatewayPublicDNSResolver(c.Verify.PublicDNSResolver); err != nil {
+		return ValidationError{Path: "gateway.verify.public_dns_resolver", Message: err.Error()}
+	}
 	connections := make(map[string]struct{}, len(c.Connections))
 	for index := range c.Connections {
 		connection := c.Connections[index]
@@ -152,6 +163,24 @@ func (c GatewayConfig) Validate() error {
 				Message: fmt.Sprintf("unknown connection %q", active),
 			}
 		}
+	}
+	return nil
+}
+
+func validateGatewayPublicDNSResolver(value string) error {
+	if value == "" || strings.TrimSpace(value) != value {
+		return errors.New("must be a public IP address with a non-zero port")
+	}
+	resolver, err := netip.ParseAddrPort(value)
+	if err != nil || resolver.Port() == 0 {
+		return errors.New("must be a public IP address with a non-zero port")
+	}
+	if err := outboundpolicy.New(false).ValidateResolvedAddresses(
+		[]netip.Addr{resolver.Addr()},
+		resolver.Addr().String(),
+		fmt.Sprint(resolver.Port()),
+	); err != nil {
+		return errors.New("must be a public IP address with a non-zero port")
 	}
 	return nil
 }

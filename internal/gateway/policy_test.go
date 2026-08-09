@@ -393,6 +393,44 @@ func TestPolicyGenerationFencingAndEffects(t *testing.T) {
 		waitForProviderObserved(t, store, ProviderUp)
 	})
 
+	t.Run("Should recover an initial endpoint proof without advertising it early", func(t *testing.T) {
+		t.Parallel()
+		store := &testStore{snapshot: enabledPrivateSnapshot()}
+		log := &testCallLog{}
+		effects := &firstEndpointProofFailureEffects{testEffects: newTestEffects(log)}
+		reconciler := NewReconciler(
+			store,
+			effects,
+			WithProviderRecoveryBackoff(time.Millisecond, 5*time.Millisecond),
+		)
+		t.Cleanup(func() {
+			if err := reconciler.Close(testContext(t)); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+
+		err := reconciler.Reconcile(testContext(t), planSnapshot(store.snapshot))
+		if !errors.Is(err, ErrProviderDegraded) {
+			t.Fatalf("Reconcile(initial) error = %v, want ErrProviderDegraded", err)
+		}
+		if effects.isAdvertised(TierPrivate) {
+			t.Fatal("provider was advertised before endpoint verification")
+		}
+		initialCalls := log.snapshot()
+		if slices.Contains(initialCalls, "teardown") {
+			t.Fatalf("initial proof failure dismantled staged reachability: %#v", initialCalls)
+		}
+		runtime := reconciler.Runtime()
+		if len(runtime) == 0 || runtime[0].Tier != TierPrivate || !runtime[0].Bound.IsValid() {
+			t.Fatalf("staged private listener = %#v, want a bound fail-closed listener", runtime)
+		}
+
+		waitForProviderObserved(t, store, ProviderUp)
+		if !effects.isAdvertised(TierPrivate) {
+			t.Fatal("provider recovery did not advertise the verified endpoint")
+		}
+	})
+
 	t.Run("Should restore the previous advertisement when listener replacement fails", func(t *testing.T) {
 		t.Parallel()
 		store := &testStore{snapshot: enabledPrivateSnapshot()}
@@ -481,6 +519,22 @@ func TestProviderRecoveryBackoff(t *testing.T) {
 			t.Fatalf("nextProviderRecoveryDelay() = %s, want %s", got, maximum)
 		}
 	})
+}
+
+type firstEndpointProofFailureEffects struct {
+	*testEffects
+	failed bool
+}
+
+func (e *firstEndpointProofFailureEffects) Verify(context.Context, Reachability) error {
+	if err := e.call("verify"); err != nil {
+		return err
+	}
+	if !e.failed {
+		e.failed = true
+		return ErrEndpointUnverified
+	}
+	return nil
 }
 
 func TestPolicyDisableSemantics(t *testing.T) {

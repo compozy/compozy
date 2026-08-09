@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	defaultProviderHealthInterval  = 30 * time.Second
-	defaultProviderHealthTimeout   = 5 * time.Second
-	defaultProviderTeardownTimeout = 5 * time.Second
+	defaultProviderHealthInterval   = 30 * time.Second
+	defaultProviderHealthTimeout    = 5 * time.Second
+	defaultProviderTeardownTimeout  = 5 * time.Second
+	defaultProviderEstablishTimeout = time.Minute
 )
 
 // ProviderDegradationHandler removes one generation's advertisement and records a redacted failure.
@@ -30,6 +31,7 @@ type supervisedProvider struct {
 	activation ProviderActivation
 	source     ConnectivitySource
 	reachable  Reachability
+	bound      netip.AddrPort
 	path       string
 	nonce      string
 	cleanup    func()
@@ -40,17 +42,18 @@ type supervisedProvider struct {
 
 // ProviderSupervisor adapts extension connectivity services to the reconciler effect boundary.
 type ProviderSupervisor struct {
-	resolver      ConnectivitySourceResolver
-	trust         ProviderTrustResolver
-	identities    ProviderIdentityStore
-	challenges    *ChallengeRegistry
-	verifier      EndpointVerification
-	now           func() time.Time
-	healthEvery   time.Duration
-	healthTimeout time.Duration
-	teardownAfter time.Duration
-	logger        *slog.Logger
-	audit         ProviderAuditSink
+	resolver       ConnectivitySourceResolver
+	trust          ProviderTrustResolver
+	identities     ProviderIdentityStore
+	challenges     *ChallengeRegistry
+	verifier       EndpointVerification
+	now            func() time.Time
+	healthEvery    time.Duration
+	healthTimeout  time.Duration
+	establishAfter time.Duration
+	teardownAfter  time.Duration
+	logger         *slog.Logger
+	audit          ProviderAuditSink
 
 	mu        sync.Mutex
 	sessions  map[Tier]*supervisedProvider
@@ -59,6 +62,15 @@ type ProviderSupervisor struct {
 
 // ProviderSupervisorOption customizes bounded lifecycle timing.
 type ProviderSupervisorOption func(*ProviderSupervisor)
+
+// WithProviderEstablishTimeout installs the bound for one provider activation.
+func WithProviderEstablishTimeout(timeout time.Duration) ProviderSupervisorOption {
+	return func(supervisor *ProviderSupervisor) {
+		if timeout > 0 {
+			supervisor.establishAfter = timeout
+		}
+	}
+}
 
 // WithProviderSupervisorClock installs a deterministic clock.
 func WithProviderSupervisorClock(now func() time.Time) ProviderSupervisorOption {
@@ -132,7 +144,8 @@ func NewProviderSupervisor(
 		challenges: challenges, verifier: verifier,
 		now:         func() time.Time { return time.Now().UTC() },
 		healthEvery: defaultProviderHealthInterval, healthTimeout: defaultProviderHealthTimeout,
-		teardownAfter: defaultProviderTeardownTimeout, logger: slog.Default(), audit: noopProviderAuditSink{},
+		establishAfter: defaultProviderEstablishTimeout, teardownAfter: defaultProviderTeardownTimeout,
+		logger: slog.Default(), audit: noopProviderAuditSink{},
 		sessions: make(map[Tier]*supervisedProvider),
 	}
 	for _, option := range options {
@@ -175,6 +188,9 @@ func (s *ProviderSupervisor) Establish(
 	if err := s.PreflightProvider(ctx, activation); err != nil {
 		return Reachability{}, err
 	}
+	if reachability, ok := s.pendingReachability(activation, bound); ok {
+		return reachability, nil
+	}
 	source, err := s.resolver.ResolveConnectivitySource(ctx, activation.ProviderName)
 	if err != nil {
 		return Reachability{}, fmt.Errorf("gateway: resolve connectivity provider: %w", err)
@@ -192,7 +208,7 @@ func (s *ProviderSupervisor) Establish(
 			cleanup()
 		}
 	}()
-	deadline := s.now().Add(s.verifier.Timeout())
+	deadline := s.now().Add(s.establishAfter)
 	callCtx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 	reachability, err := source.Establish(callCtx, EstablishRequest{
@@ -221,7 +237,7 @@ func (s *ProviderSupervisor) Establish(
 	stableReachability := cloneReachability(reachability)
 	session := &supervisedProvider{
 		activation: activation, source: source, reachable: stableReachability,
-		path: path, nonce: nonce, cleanup: cleanup,
+		bound: bound, path: path, nonce: nonce, cleanup: cleanup,
 	}
 	s.mu.Lock()
 	s.sessions[activation.Tier] = session
@@ -252,7 +268,6 @@ func (s *ProviderSupervisor) Verify(ctx context.Context, reachability Reachabili
 	if session == nil {
 		return fmt.Errorf("%w: no active provider attempt", ErrEndpointUnverified)
 	}
-	defer session.cleanup()
 	verifyCtx, cancel := context.WithTimeout(ctx, s.verifier.Timeout())
 	defer cancel()
 	if session.reachable.Tier != reachability.Tier ||
@@ -273,12 +288,29 @@ func (s *ProviderSupervisor) Verify(ctx context.Context, reachability Reachabili
 			return fmt.Errorf("gateway: record verified provider endpoint: %w", err)
 		}
 	}
+	session.cleanup()
 	s.mu.Lock()
 	if current := s.sessions[reachability.Tier]; current == session {
 		current.verified = true
 	}
 	s.mu.Unlock()
 	return nil
+}
+
+func (s *ProviderSupervisor) pendingReachability(
+	activation ProviderActivation,
+	bound netip.AddrPort,
+) (Reachability, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	session := s.sessions[activation.Tier]
+	if session == nil || session.verified || session.bound != bound ||
+		session.activation.ProviderName != activation.ProviderName ||
+		session.activation.Generation != activation.Generation {
+		return Reachability{}, false
+	}
+	session.activation = activation
+	return cloneReachability(session.reachable), true
 }
 
 // Advertise commits verified reachability and starts bounded health supervision.

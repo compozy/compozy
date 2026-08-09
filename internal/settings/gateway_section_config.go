@@ -57,6 +57,11 @@ func gatewaySettingFields(
 			path: []string{"verify", "timeout"}, changed: current.Verify.Timeout != desired.Verify.Timeout,
 			value: desired.Verify.Timeout.String(),
 		},
+		{
+			path:    []string{"verify", "public_dns_resolver"},
+			changed: current.Verify.PublicDNSResolver != desired.Verify.PublicDNSResolver,
+			value:   desired.Verify.PublicDNSResolver,
+		},
 	}
 }
 

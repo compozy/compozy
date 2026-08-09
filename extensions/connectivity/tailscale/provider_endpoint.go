@@ -93,6 +93,9 @@ func listenForTier(
 		listener, err = node.ListenPrivate(ctx)
 		rawURL = (&url.URL{Scheme: providerSchemeHTTPS, Host: net.JoinHostPort(domain, privateListenerPort)}).String()
 	case tierPublic:
+		if err := node.ProvisionCertificate(ctx, domain); err != nil {
+			return nil, compozysdk.ConnectivityAdvertisedEndpoint{}, err
+		}
 		listener, err = node.ListenPublic(ctx)
 		rawURL = (&url.URL{Scheme: providerSchemeHTTPS, Host: domain}).String()
 	default:

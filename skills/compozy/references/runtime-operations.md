@@ -386,6 +386,13 @@ The provider embeds `tsnet`; do not install or supervise a separate Tailscale cl
 manifest must include the selected tier as `gateway.private` or `gateway.public` in
 `channel_scopes`; a mismatch fails before provider code starts.
 
+Public endpoint proof resolves through authenticated DNS-over-TLS at
+`gateway.verify.public_dns_resolver`, not the host resolver, so MagicDNS cannot turn a Funnel proof
+into a private-tailnet connection. A provider waiting for public DNS remains staged and unadvertised
+while bounded recovery retries. Read `gateway status -o json` until the public tier reports
+`advertised=true` (the human rendering shows summary counts only); disable the provider to stop a
+staged attempt.
+
 Authenticated streaming over a tier listener uses a short-lived, single-use ticket. Obtain one with
 `POST /api/gateway/stream-tickets`, then pass it as the `ticket` query parameter on the SSE or
 WebSocket request. A consumed, expired, malformed, or revoked-device ticket is rejected uniformly;
@@ -395,7 +402,8 @@ its registered live streams.
 Tier listeners bind to daemon-owned loopback sockets. Connectivity providers publish those local
 listeners; they do not replace Gateway authentication or expose UDS-only APIs. The private tier owns
 operator management and the full operator surface. The public tier exposes only the selected
-operator and ingress surface union, never Gateway pairing or device management.
+operator and ingress surface union, never pairing mint or redeem and never ingress-binding
+management.
 
 Webhook triggers and bridge instances expose honest public-ingress projections. Read the trigger's
 `ingress` or the bridge's `gateway_ingress`; use its URL only when `reachability=live`. Confirm one

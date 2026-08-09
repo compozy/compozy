@@ -286,9 +286,10 @@ Connectivity providers have stricter trust rules than ordinary extensions:
 - Support independent private and public calls, but expect only one selected provider per tier.
 
 Use the generated [Gateway API reference](/docs/api/gateway) to select a provider for a tier and pass
-the exact current digest. Use [Gateway access model](/docs/configuration/gateway) to understand which
-routes can be published. The provider never adds a Host API method; all three calls are initiated by
-the daemon.
+the exact current digest. Use [Gateway security](/docs/gateway/security) to understand which routes
+can be published, and the bundled [Tailscale extension](/docs/gateway/tailscale) as the reference
+implementation. The provider never adds a Host API method; all three calls are initiated by the
+daemon.
 
 ### Bridge adapters
 

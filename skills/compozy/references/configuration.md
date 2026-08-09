@@ -33,9 +33,11 @@ Read and write scalar keys with `compozy config show|list|get|set|unset|diff|pat
 
 `[gateway]` is the operator-global ceiling and tuning section for remote access. It defaults to
 `enabled = false` with OS-assigned private and public ports (`0`), pairing TTL `5m` and pending cap
-`8`, stream-ticket TTL `30s`, auth failure window `60s` with cap `10`, and verification timeout
-`10s`. `gateway.enabled` and the bounded duration/count keys apply live; `private_port` and
-`public_port` require a daemon restart. Configuration can never enable a surface:
+`8`, stream-ticket TTL `30s`, auth failure window `60s` with cap `10`, verification timeout `10s`,
+and public DNS-over-TLS verification resolver `1.1.1.1:853`. `gateway.enabled`,
+`gateway.verify.public_dns_resolver`, and the bounded duration/count keys apply live; `private_port`
+and `public_port` require a daemon restart. Public endpoint proof uses that resolver so a host's
+MagicDNS answer cannot substitute the private tailnet route. Configuration can never enable a surface:
 `gateway.public_ui.enabled` is invalid, and durable provider/surface intent remains database-owned.
 
 Client-side remote profiles are global metadata under `gateway.active_connection` and

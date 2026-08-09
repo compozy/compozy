@@ -25,7 +25,8 @@ func TestGatewayConfig(t *testing.T) {
 		}
 		if cfg.Pairing.TTL != 5*time.Minute || cfg.Pairing.MaxPending != 8 ||
 			cfg.StreamTicket.TTL != 30*time.Second || cfg.Auth.RateLimit.Window != 60*time.Second ||
-			cfg.Auth.RateLimit.MaxFails != 10 || cfg.Verify.Timeout != 10*time.Second {
+			cfg.Auth.RateLimit.MaxFails != 10 || cfg.Verify.Timeout != 10*time.Second ||
+			cfg.Verify.PublicDNSResolver != "1.1.1.1:853" {
 			t.Fatalf("default gateway tunables = %#v", cfg)
 		}
 		wantCredentials := filepath.Join(homePaths.HomeDir, GatewayDirName, GatewayCredentialsDirName)
@@ -46,6 +47,17 @@ func TestGatewayConfig(t *testing.T) {
 		}
 		if got := info.Mode().Perm(); got != privateDirMode {
 			t.Fatalf("credentials mode = %#o, want %#o", got, privateDirMode)
+		}
+	})
+
+	t.Run("Should require a public DNS resolver for public endpoint proof", func(t *testing.T) {
+		t.Parallel()
+		for _, resolver := range []string{
+			"", " 1.1.1.1:853", "1.1.1.1", "127.0.0.1:853", "100.100.100.100:853", "[::1]:853",
+		} {
+			cfg := defaultGatewayConfig(HomePaths{})
+			cfg.Verify.PublicDNSResolver = resolver
+			assertGatewayValidationPath(t, cfg.Validate(), "gateway.verify.public_dns_resolver")
 		}
 	})
 
@@ -91,11 +103,14 @@ func TestGatewayConfig(t *testing.T) {
 		enabled := true
 		privatePort := 4242
 		pairingTTL := 2 * time.Minute
+		publicDNSResolver := "8.8.8.8:853"
 		gatewayOverlay{
 			Enabled: &enabled, PrivatePort: &privatePort,
 			Pairing: gatewayPairingOverlay{TTL: &pairingTTL},
+			Verify:  gatewayVerifyOverlay{PublicDNSResolver: &publicDNSResolver},
 		}.Apply(&cfg)
-		if !cfg.Enabled || cfg.PrivatePort != privatePort || cfg.Pairing.TTL != pairingTTL {
+		if !cfg.Enabled || cfg.PrivatePort != privatePort || cfg.Pairing.TTL != pairingTTL ||
+			cfg.Verify.PublicDNSResolver != publicDNSResolver {
 			t.Fatalf("set overlay config = %#v", cfg)
 		}
 		if cfg.PublicPort != original.PublicPort || cfg.CredentialsDir != original.CredentialsDir {

@@ -845,6 +845,7 @@ max_fails = 10
 
 [gateway.verify]
 timeout = "10s"
+public_dns_resolver = "1.1.1.1:853"
 ```
 
 ## `[daemon]`
@@ -2290,14 +2291,24 @@ disables all gateway tiers during live reload.
 Port `0` asks the operating system to assign an available loopback port. Gateway tier listeners do
 not bind non-loopback addresses.
 
-| Field                       | Type     | Default | Validation | Lifecycle |
-| --------------------------- | -------- | ------- | ---------- | --------- |
-| `pairing.ttl`               | duration | `5m`    | Positive   | Live      |
-| `pairing.max_pending`       | integer  | `8`     | Positive   | Live      |
-| `stream_ticket.ttl`         | duration | `30s`   | Positive   | Live      |
-| `auth.rate_limit.window`    | duration | `60s`   | Positive   | Live      |
-| `auth.rate_limit.max_fails` | integer  | `10`    | Positive   | Live      |
-| `verify.timeout`            | duration | `10s`   | Positive   | Live      |
+| Field                        | Type     | Default       | Validation                  | Lifecycle |
+| ---------------------------- | -------- | ------------- | --------------------------- | --------- |
+| `pairing.ttl`                | duration | `5m`          | Positive                    | Live      |
+| `pairing.max_pending`        | integer  | `8`           | Positive                    | Live      |
+| `stream_ticket.ttl`          | duration | `30s`         | Positive                    | Live      |
+| `auth.rate_limit.window`     | duration | `60s`         | Positive                    | Live      |
+| `auth.rate_limit.max_fails`  | integer  | `10`          | Positive                    | Live      |
+| `verify.timeout`             | duration | `10s`         | Positive                    | Live      |
+| `verify.public_dns_resolver` | string   | `1.1.1.1:853` | Public IP and non-zero port | Live      |
+
+Public endpoint verification uses authenticated DNS-over-TLS through `verify.public_dns_resolver`
+instead of the host resolver. This keeps a Tailscale MagicDNS answer from satisfying a public Funnel
+proof through the private tailnet.
+Change it when the default resolver is unavailable from the daemon host.
+
+`verify.timeout` bounds one endpoint probe. Provider activation runs under its own fixed one-minute
+bound, and a failed probe keeps the listener staged while the daemon retries with backoff — raising
+`verify.timeout` is rarely the fix for a slow first activation.
 
 `gateway.public_ui.enabled` does not exist. Public operator UI reachability is an explicit,
 consented database transition, not a config value.
@@ -2323,8 +2334,8 @@ A connection entry holds no secret: the device credential lives in the reference
 owner-only permissions. Copying these entries to another machine does not transfer identity — use
 `compozy connect export` and `compozy connect import`.
 
-See the [Remote Gateway runbook](/docs/operations/remote-gateway) for the operator flows and the
-[Gateway Threat Model](/docs/operations/gateway-threat-model) for what each tier exposes.
+See the [Gateway section](/docs/gateway) for setup, tutorials, and operations, and
+[Gateway security](/docs/gateway/security) for what each tier exposes.
 
 ## Related Pages
 

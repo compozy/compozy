@@ -183,6 +183,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, plan ExposurePlan) error {
 			err = r.disableTier(ctx, tierPlan)
 		}
 		if err != nil {
+			if tierPlan.Provider != nil && errors.Is(err, ErrProviderDegraded) {
+				r.scheduleRecoveryLocked(*tierPlan.Provider)
+			}
 			errs = append(errs, fmt.Errorf("gateway: reconcile %s tier: %w", tier, err))
 		}
 	}
@@ -235,6 +238,9 @@ func (r *Reconciler) enableTier(ctx context.Context, plan TierPlan) error {
 		return errors.Join(err, r.compensateTier(ctx, plan.Tier, provider, state, false))
 	}
 	if err := r.effects.Verify(ctx, reachability); err != nil {
+		if errors.Is(err, ErrEndpointUnverified) {
+			return r.markDegraded(ctx, plan, err)
+		}
 		return errors.Join(
 			r.markDegraded(ctx, plan, err),
 			r.compensateTier(ctx, plan.Tier, provider, state, false),

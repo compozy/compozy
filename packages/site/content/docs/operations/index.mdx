@@ -23,6 +23,9 @@ layers: the global catalog and per-session event stores. When a session looks wr
 check daemon health first, then inspect the relevant database path with the backup and recovery rules
 from this section.
 
+Remote access has its own section: the [Gateway](/docs/gateway) pages cover reaching the daemon from
+other devices, receiving webhooks from the internet, and the security model behind both.
+
 ## In this section
 
 <RouteList>
@@ -39,20 +42,6 @@ from this section.
     title="Expose Compozy over MCP"
     description="Connect a trusted MCP client to one workspace over stdio or authenticated loopback HTTP."
     meta="Integration"
-  />
-  <RouteRow
-    href="/docs/operations/remote-gateway"
-    label="Gateway"
-    title="Remote Gateway operations"
-    description="Enable private access, publish selected delivery surfaces, pair devices, and return the daemon to local-only mode."
-    meta="Access"
-  />
-  <RouteRow
-    href="/docs/operations/gateway-threat-model"
-    label="Security"
-    title="Gateway threat model"
-    description="Review the trust boundaries, refusal rules, credential ownership, and incident checks behind remote access."
-    meta="Security"
   />
   <RouteRow
     href="/docs/operations/database"
