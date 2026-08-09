@@ -81,9 +81,9 @@ Generated artifacts that **must be in lockstep** with their generators (any drif
 
 The fonts allowed are precisely three:
 
-- **Inter** — `packages/site/app/layout.tsx:8-12` (sans, body, UI, docs headings)
-- **Playfair Display** — `packages/site/app/layout.tsx:14-19` (marketing display, `.site-home h1/h2` only — `packages/site/app/global.css:310-313`)
-- **JetBrains Mono** — `packages/site/app/layout.tsx:21-25` (mono labels, badges, code)
+- **Geist** — `packages/site/app/layout.tsx:13-17` (sans, body, UI, docs headings)
+- **Playfair Display** — `packages/site/app/layout.tsx:19-24` (marketing display, `.site-home h1/h2` only — `packages/site/app/global.css:310-313`)
+- **JetBrains Mono** — `packages/site/app/layout.tsx:26-30` (mono labels, badges, code)
 Per `DESIGN.md` §3 "Font Families" any other font on any page is a doc-site failure.
 
 ## 2. Existing coverage — do NOT duplicate
@@ -116,7 +116,7 @@ The gap real-scenario lane must close: every existing vitest spec stubs the runt
 4. **API reference rendering is faithful to `openapi/compozy.json`**: every `<tag>.mdx` exists, renders an APIPage block, and the page enumerates every operation in that tag (DOC-04).
 5. **CLI reference rendering is faithful to the cobra export**: `make cli-docs` is idempotent, every cobra leaf has a generated MDX, and any agent-manageable verb listed in `internal/cli/root.go` is reachable from `/docs/cli/<verb>` (DOC-05).
 6. **MDX live blocks compile**: `Mermaid`, `GuideCard`, `GuideGrid`, `OperatorNote`, `RouteList`, `RouteRow`, `Workflow`, `WorkflowStep`, and `APIPage` all render in static export (DOC-06).
-7. **Theme contract**: every page passes the dark-only contract; `<html class="dark">` is hardcoded in the export; no shadows, no off-palette hex colors, fonts limited to Inter + JetBrains Mono + Playfair Display (`.site-home` only) (DOC-07).
+7. **Theme contract**: every page passes the dark-only contract; `<html class="dark">` is hardcoded in the export; no shadows, no off-palette hex colors, fonts limited to Geist + JetBrains Mono + Playfair Display (`.site-home` only) (DOC-07).
 8. **Mobile viewport 390×844**: no horizontal overflow, no truncated nav (DOC-08).
 9. **Accessibility headless audit**: keyboard nav, aria-labels, landmarks, color contrast (DOC-09).
 10. **External links live**: every external href on the static export is non-rotting (HTTP 200/301/302) or marked `archive` (DOC-10).
@@ -451,7 +451,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: doc-07-theme-contract
-title: Every page is dark-only; no shadows; only DESIGN.md hex tokens and Inter / JetBrains Mono / Playfair Display (site-home only) fonts appear
+title: Every page is dark-only; no shadows; only DESIGN.md hex tokens and Geist / JetBrains Mono / Playfair Display (site-home only) fonts appear
 theme: docs-site.design-system
 coverage:
   primary:
@@ -478,7 +478,7 @@ steps:
   - Assert zero matches for `box-shadow` (excluding `box-shadow:none` if it appears as an explicit reset).
   - Assert zero matches for `drop-shadow` and `text-shadow`.
   - Extract every `#[0-9a-fA-F]{6,8}` hex from the concatenated CSS; assert each is also present in `packages/ui/src/tokens.css` (case-insensitive). The existing `site-design-token-contract.test.ts` enforces this on source files; this scenario re-runs the assertion on the **emitted** CSS bundle.
-  - Extract every `font-family` declaration; assert each name is one of: `Inter`, `Inter Variable`, `JetBrains Mono`, `Playfair Display`, system fallbacks (`-apple-system`, `BlinkMacSystemFont`, `sans-serif`, `serif`, `monospace`, `ui-monospace`, `Courier New`).
+  - Extract every `font-family` declaration; assert each name is one of: `Geist`, `Geist Variable`, `JetBrains Mono`, `Playfair Display`, system fallbacks (`-apple-system`, `BlinkMacSystemFont`, `sans-serif`, `serif`, `monospace`, `ui-monospace`, `Courier New`).
   - Inspect rendered DOM on `/`: assert `<html class="dark …">` (per `app/layout.tsx:80-83`).
   - Inspect rendered DOM on `/docs/`, `/docs/network/protocol/`, `/blog/`, `/changelog/`: same `class="dark"` and no `prefers-color-scheme: light` adaptation.
   - Inspect every page that uses Playfair Display: confirm scope is `.site-home h1, .site-home h2` (per `app/global.css:310-313`) — Playfair must NOT appear on `/docs/`, `/docs/network/protocol/`, `/blog/`, or `/changelog/` document headings.
@@ -805,7 +805,7 @@ code_refs:
 steps:
   - Concatenate every CSS file under `packages/site/out/_next/static/css/`.
   - Run the same scrape as DOC-07, but on the EMITTED CSS (DOC-07 also covers the source files via the existing `site-design-token-contract.test.ts`).
-  - Assert no retired local wordmark font is emitted; Inter, JetBrains Mono, and Playfair Display come from `next/font/google` and are inlined as data URIs.
+  - Assert no retired local wordmark font is emitted; Geist, JetBrains Mono, and Playfair Display come from `next/font/google` and are inlined as data URIs.
 expected:
   - Zero shadow declarations.
   - Zero off-palette hex.

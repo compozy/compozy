@@ -126,7 +126,7 @@ describe("Landing OpenGraph image (root)", () => {
 });
 
 describe("Docs OpenGraph template", () => {
-  it("renders the docs eyebrow, technical path, and Inter title", async () => {
+  it("renders the docs eyebrow, technical path, and Geist title", async () => {
     const { renderDocsOG } = await import("@/lib/og/templates/docs");
     const response = asMockImageResponse(
       await renderDocsOG({

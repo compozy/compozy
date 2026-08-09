@@ -13,7 +13,7 @@ const meta: Meta<typeof PillGroup> = {
     docs: {
       description: {
         component:
-          "Canonical segmented control. Rewritten — borderless `--canvas-soft` track at `--radius-md`, Inter sentence-case 12/510/-0.005em segments (no mono-uppercase), active state lifts to `--elevated` plus the `--highlight` inset shadow. Count badges render at 3px corners on the neutral `--badge-fill`.",
+          "Canonical segmented control. Rewritten — borderless `--canvas-soft` track at `--radius-md`, Geist sentence-case 12/510/-0.005em segments (no mono-uppercase), active state lifts to `--elevated` plus the `--highlight` inset shadow. Count badges render at 3px corners on the neutral `--badge-fill`.",
       },
     },
   },
@@ -57,7 +57,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          "Default `md` size with the first segment active. Renders the new sentence-case Inter label and the lifted `--elevated` + `--highlight` active surface.",
+          "Default `md` size with the first segment active. Renders the new sentence-case Geist label and the lifted `--elevated` + `--highlight` active surface.",
       },
     },
   },
@@ -109,7 +109,7 @@ export const SizeSm: Story = {
     docs: {
       description: {
         story:
-          "`size='sm'` shrinks the segment height to `--height-pill-group-segment-sm` (20px) while keeping the same Inter type ramp.",
+          "`size='sm'` shrinks the segment height to `--height-pill-group-segment-sm` (20px) while keeping the same Geist type ramp.",
       },
     },
   },
@@ -167,7 +167,7 @@ export const WithIcons: Story = {
     docs: {
       description: {
         story:
-          "Icon + label (+ optional badge) composition. Segment uses `leading-none` and `[&_svg]` sizing so Lucide icons sit on the same optical center as the Inter label.",
+          "Icon + label (+ optional badge) composition. Segment uses `leading-none` and `[&_svg]` sizing so Lucide icons sit on the same optical center as the Geist label.",
       },
     },
   },

@@ -5,7 +5,6 @@
    Consumed by docs-page.html and docs-design-system.html.
    ============================================================ */
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;1,400&display=swap");
 
 :root {
   /* -- color (verbatim: packages/ui/src/tokens.css) -- */
@@ -26,7 +25,7 @@
   --info: #8e8eb5;
 
   /* -- type (verbatim families; site ramp) -- */
-  --font-sans: "Inter", "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Geist",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
   --font-display: "Playfair Display", Georgia, serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
   --text-small-body: 0.78125rem;   /* 12.5px — sidebar/toc rows */

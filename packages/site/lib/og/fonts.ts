@@ -11,9 +11,9 @@ export interface OGFont {
 }
 
 const FONT_MANIFEST: ReadonlyArray<{ file: string; name: string; weight: FontWeight }> = [
-  { file: "Inter-Regular.ttf", name: "Inter", weight: 400 },
-  { file: "Inter-Medium.ttf", name: "Inter", weight: 500 },
-  { file: "Inter-SemiBold.ttf", name: "Inter", weight: 600 },
+  { file: "Geist-Regular.ttf", name: "Geist", weight: 400 },
+  { file: "Geist-Medium.ttf", name: "Geist", weight: 500 },
+  { file: "Geist-SemiBold.ttf", name: "Geist", weight: 600 },
   { file: "PlayfairDisplay-Regular.ttf", name: "Playfair Display", weight: 400 },
   { file: "JetBrainsMono-Medium.ttf", name: "JetBrains Mono", weight: 500 },
 ];

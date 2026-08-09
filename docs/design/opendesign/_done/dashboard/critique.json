@@ -15,7 +15,7 @@
     },
     "typography": {
       "score": 4,
-      "notes": "Token stack verbatim from agent-detail.html lineage; Inter for UI, JetBrains Mono strictly for numerics/ids/CLI; tabular-nums on every counter and timer."
+      "notes": "Token stack verbatim from agent-detail.html lineage; Geist for UI, JetBrains Mono strictly for numerics/ids/CLI; tabular-nums on every counter and timer."
     },
     "motion": {
       "score": 4,

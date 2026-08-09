@@ -10,7 +10,7 @@ const meta: Meta<typeof Eyebrow> = {
     docs: {
       description: {
         component:
-          "Canonical eyebrow primitive — single Inter UC 11 px / 600 / -0.005em contract. The component is prop-less (children + className only); tone, size, case, and weight have been collapsed (/ §11, lesson L-022). Apply text-color utilities through `className` when a tone is needed (`text-muted`, `text-subtle`, `text-accent`, signal palette).",
+          "Canonical eyebrow primitive — single Geist UC 11 px / 600 / -0.005em contract. The component is prop-less (children + className only); tone, size, case, and weight have been collapsed (/ §11, lesson L-022). Apply text-color utilities through `className` when a tone is needed (`text-muted`, `text-subtle`, `text-accent`, signal palette).",
       },
     },
   },

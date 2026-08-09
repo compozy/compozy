@@ -131,3 +131,12 @@ implementation files.
 - `.agents/skills/eng/eng-design/SKILL.md` — brand brief reaffirming the single Inter UC contract.
 - `web/CLAUDE.md` ("Critical Rules") and `packages/site/CLAUDE.md` ("Critical Rules") — surface
   guards for the rule.
+
+## Addendum — 2026-08-09
+
+The type stack migrated from Inter to Geist. The canonical contract is now **Geist UC 11 px /
+weight 600 / -0.005em**; `--text-eyebrow` and `--tracking-eyebrow` are unchanged. Geist exposes a
+`wght` axis only, so the body baseline no longer sets `font-optical-sizing` or a character-variant
+feature block. The rule this lesson establishes — one primitive, one utility, one uppercase
+contract — is unchanged; only the typeface name moved. The evidence and analysis above are the
+2026-05-10 record and are intentionally left as written.

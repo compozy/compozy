@@ -1,6 +1,6 @@
 @import "tailwindcss";
-/* Inter Variable with opsz+wght — matches OpenDesign rsms Inter optical sizing. */
-@import "@fontsource-variable/inter/opsz.css";
+/* Geist Variable — wght axis only (100–900); Geist ships no optical-size axis. */
+@import "@fontsource-variable/geist";
 @import "@fontsource-variable/jetbrains-mono";
 @import "@compozy/ui/tokens.css";
 @import "shadcn/tailwind.css";

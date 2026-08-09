@@ -814,7 +814,7 @@ steps:
       - /settings/general,
       - /settings/hooks-extensions.
     Filter to `severity in ["serious","critical"]` violations; assert count == 0.
-  - Color contrast: for each surface, sample foreground/background pairs against `DESIGN.md` tokens (Inter body 13/15px on `--color-text-primary`/`--color-text-secondary` over `--color-canvas`/`--color-surface`). Assert WCAG-AA contrast ratios.
+  - Color contrast: for each surface, sample foreground/background pairs against `DESIGN.md` tokens (Geist body 13/15px on `--color-text-primary`/`--color-text-secondary` over `--color-canvas`/`--color-surface`). Assert WCAG-AA contrast ratios.
   - Reduced-motion: re-run UI-02 with `prefers-reduced-motion: reduce`; assert no transform-spin / loop animations remain (per CLAUDE.md design polish).
 expected:
   - Tab order is logical (header → sidebar → main content → composer); no focus traps outside dialogs/sheets.

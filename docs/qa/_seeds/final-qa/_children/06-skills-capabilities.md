@@ -1075,7 +1075,7 @@ steps:
 expected:
   - Transcript explicitly mentions tokens from DESIGN.md / the
     `eng-design` skill body — e.g. accent `#E8572A`, success
-    `#30D158`, "flat depth", "warm-dark palette", Inter / JetBrains
+    `#30D158`, "flat depth", "warm-dark palette", Geist / JetBrains
     Mono / Playfair Display, NuixyberNext (wordmark only).
   - At least one explicit skill-body citation (verbatim phrase from
     the skill body) survives in the transcript.

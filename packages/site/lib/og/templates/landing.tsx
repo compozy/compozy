@@ -23,7 +23,7 @@ const canvasStyle: CSSProperties = {
   justifyContent: "space-between",
   background: COLORS.canvas,
   color: COLORS.textPrimary,
-  fontFamily: FONTS.inter,
+  fontFamily: FONTS.sans,
   padding: "72px",
 };
 
@@ -105,7 +105,7 @@ export async function renderLandingOG(): Promise<ImageResponse> {
         </div>
         <div
           style={{
-            fontFamily: FONTS.inter,
+            fontFamily: FONTS.sans,
             fontSize: "26px",
             lineHeight: 1.45,
             color: COLORS.textSecondary,

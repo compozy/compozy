@@ -95,7 +95,7 @@ The contract holds because the substitution is mechanical. If a card's backgroun
 
 A style guide is advisory. A lint rule is unbuildable-if-violated. Compozy's design system runs through `lint-plugins/compozy-design-system.mjs`, an oxlint plugin that scans JSX for the patterns the token system is supposed to make unreachable.
 
-The eyebrow rule is the cleanest specimen. The canonical eyebrow contract is **Inter UC 11px / 600 / -0.005em**, bound to `--text-eyebrow` and `--tracking-eyebrow` in `tokens.css`. Any consumer that needs an uppercase metadata label renders through `<Eyebrow>` from `@compozy/ui` or applies the `.eyebrow` utility on a structural HTML element (`<dt>`, `<label>`, `<th>`). The rule rejects every other path:
+The eyebrow rule is the cleanest specimen. The canonical eyebrow contract is **Geist UC 11px / 600 / -0.005em**, bound to `--text-eyebrow` and `--tracking-eyebrow` in `tokens.css`. Any consumer that needs an uppercase metadata label renders through `<Eyebrow>` from `@compozy/ui` or applies the `.eyebrow` utility on a structural HTML element (`<dt>`, `<label>`, `<th>`). The rule rejects every other path:
 
 ```js
 // lint-plugins/compozy-design-system.mjs — the no-inline-eyebrow predicate
@@ -121,9 +121,9 @@ The same plugin carries `no-design-glaze-rgba` (forbids inline `bg-[rgba(255,255
 
 The eyebrow rule is narrow on purpose. The system landed there only after an audit found **124 separate eyebrow callsites** across `web/`, `packages/site/`, and `packages/ui/` — roughly half going through the `<Eyebrow>` primitive, the other half inlining the same idea by hand with five distinct tuples in active use (`text-[10.5px] tracking-wider`, `text-eyebrow tracking-mono`, `text-badge tracking-badge`, hard-coded `text-[11px]` inside chat primitives, arbitrary `text-[10px] tracking-[0.08em]` inside dialogs).
 
-The pattern observation generalises: a design token without a primitive invites callsite drift; a primitive with a wide prop matrix invites the same drift one layer up. The first revision of `<Eyebrow>` carried `case`, `family`, `tone`, `size`, and `weight` props. With that many switches, callsites still picked the wrong combination and the JetBrains-Mono contract leaked into surfaces that needed the Inter UC contract. The fan-out of variants was the drift surface.
+The pattern observation generalises: a design token without a primitive invites callsite drift; a primitive with a wide prop matrix invites the same drift one layer up. The first revision of `<Eyebrow>` carried `case`, `family`, `tone`, `size`, and `weight` props. With that many switches, callsites still picked the wrong combination and the JetBrains-Mono contract leaked into surfaces that needed the Geist UC contract. The fan-out of variants was the drift surface.
 
-The system now ships one primitive with no variant props, one CSS utility, one Inter UC contract. `DESIGN.md` §3 names the contract; `tokens.css` declares `--text-eyebrow` and `--tracking-eyebrow`; the lint rule rejects every other path. Color is the only knob a consumer can turn — `text-(--muted)`, `text-(--subtle)`, `text-(--accent)` — passed through `className`.
+The system now ships one primitive with no variant props, one CSS utility, one Geist UC contract. `DESIGN.md` §3 names the contract; `tokens.css` declares `--text-eyebrow` and `--tracking-eyebrow`; the lint rule rejects every other path. Color is the only knob a consumer can turn — `text-(--muted)`, `text-(--subtle)`, `text-(--accent)` — passed through `className`.
 
 The transferable observation: when a typographic primitive proliferates faster than the design system can govern it, the move is not more props on the primitive. It is fewer.
 

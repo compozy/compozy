@@ -18,8 +18,11 @@ export const TOKENS = {
   successTint: "#30d15826",
   warning: "#ffd60a",
   warningTint: "#ffd60a26",
-  fontSans: '"Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  fontMono: '"JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace',
+  // The player renders inline in the page, so it inherits the next/font variables
+  // set on <html> in app/layout.tsx. next/font registers hashed family names —
+  // the literal "Geist"/"JetBrains Mono" would never match.
+  fontSans: 'var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  fontMono: 'var(--font-jetbrains-mono), "SFMono-Regular", Menlo, Consolas, monospace',
   trackingMono: "0.06em",
   trackingBadge: "0.08em",
   radiusSm: 6,

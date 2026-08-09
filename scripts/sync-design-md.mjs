@@ -20,6 +20,9 @@ const colorGroups = {
 };
 const componentSizeTokenPattern =
   /^(container|height|min-width|size|space|spacing|width)-|^overlay-blur$/;
+// Matched against every declaration, not just @theme: `--font-weight-display`
+// lives in `:root` (L-023).
+const fontTokenPattern = /^font-/;
 const runtimeTheme = parseTheme(runtimeCss, "packages/ui/src/tokens.css");
 const runtimeDecls = parseDecls(runtimeCss);
 const siteTheme = parseTheme(siteCss, "packages/site/app/global.css");
@@ -64,6 +67,7 @@ function replaceGeneratedSections(text) {
     ["signal", signalTable()],
     ["owner-avatar", tokenTable(prefixRows(runtimeTheme, "color-avatar-"))],
     ["status-tone", tokenTable(prefixRows(runtimeTheme, "color-kind-"))],
+    ["fonts", tokenTable(namedRows(runtimeDecls, fontTokenPattern))],
     ["type-ladder", typeTable()],
     ["tracking-ladder", tokenTable(prefixRows(runtimeTheme, "tracking-"))],
     ["radii", tokenTable(prefixRows(runtimeTheme, "radius", true))],
@@ -187,6 +191,11 @@ function emitFrontmatter() {
     "tokens:",
     "  runtime:",
     yamlMap("colors", namespaceMap(runtimeTheme, "color"), 4),
+    yamlMap(
+      "fonts",
+      mapNamed(runtimeDecls, fontTokenPattern, name => name.slice("font-".length)),
+      4
+    ),
     yamlMap("typography", typographyMap(), 4),
     yamlMap("rounded", radiusMap(), 4),
     "    motion:",
@@ -268,7 +277,11 @@ function yamlValue(value) {
       " }"
     );
   }
-  return JSON.stringify(value);
+  // Font stacks embed double quotes; oxfmt rewrites those to YAML single-quoted
+  // scalars, so emit that form or codegen and bun-lint fight over DESIGN.md.
+  const text = String(value);
+  if (text.includes('"') && !text.includes("'")) return "'" + text + "'";
+  return JSON.stringify(text);
 }
 
 function auditSite() {

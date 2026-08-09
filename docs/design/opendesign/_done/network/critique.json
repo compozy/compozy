@@ -13,7 +13,7 @@
     },
     "typography": {
       "score": 4,
-      "notes": "design-system.html scale: 13.5px body, 16px channel name, 13px/600 w2-title, 10.5px mono status chips. JetBrains Mono strictly for ids, session refs, counts, timestamps, and enum values (capability_match, wk_9f2); Inter for all prose, names, and previews — no all-caps eyebrow subheaders survive from the old surface."
+      "notes": "design-system.html scale: 13.5px body, 16px channel name, 13px/600 w2-title, 10.5px mono status chips. JetBrains Mono strictly for ids, session refs, counts, timestamps, and enum values (capability_match, wk_9f2); Geist for all prose, names, and previews — no all-caps eyebrow subheaders survive from the old surface."
     },
     "motion": {
       "score": 4,

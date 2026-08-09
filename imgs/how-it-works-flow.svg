@@ -12,10 +12,10 @@
       .line-soft { stroke: rgba(255,255,255,.09); stroke-width: 2; fill: none; }
       .line-accent { stroke: #e8572a; stroke-width: 3; fill: none; }
       .eyebrow { fill: #9a9a9f; font: 600 17px "JetBrains Mono Variable", "JetBrains Mono", monospace; letter-spacing: 2.8px; }
-      .title { fill: #f6f6f8; font: 510 48px "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -1.25px; }
-      .section { fill: #ececef; font: 600 27px "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -.45px; }
-      .label { fill: #ececef; font: 510 22px "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -.2px; }
-      .body { fill: #9a9a9f; font: 400 19px "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif; }
+      .title { fill: #f6f6f8; font: 510 48px "Geist", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -1.25px; }
+      .section { fill: #ececef; font: 600 27px "Geist", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -.45px; }
+      .label { fill: #ececef; font: 510 22px "Geist", -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: -.2px; }
+      .body { fill: #9a9a9f; font: 400 19px "Geist", -apple-system, BlinkMacSystemFont, sans-serif; }
       .mono { fill: #b8b8bd; font: 510 18px "JetBrains Mono Variable", "JetBrains Mono", monospace; letter-spacing: .1px; }
       .mono-accent { fill: #f6874f; font: 600 18px "JetBrains Mono Variable", "JetBrains Mono", monospace; letter-spacing: .7px; }
     </style>
