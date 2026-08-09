@@ -11,7 +11,7 @@ charter:
     network: wifi-fast
     locale: en-US
   journey: J-operate-desktop-shell
-  scenarios: [ET-web-command-palette-shortcuts, ET-web-desktop-shell-lifecycle, ET-web-dock-default-window-size, ET-web-dock-magnification, ET-web-inter-opsz-medium-510, ET-web-menubar-menu-set, ET-web-sessions-catalog-modal, ET-web-shell-shortcuts-about-dialogs, ET-web-ui-resilience, ET-web-window-routing-lifecycle]
+  scenarios: [ET-web-command-palette-shortcuts, ET-web-desktop-shell-lifecycle, ET-web-dock-default-window-size, ET-web-dock-magnification, ET-web-geist-wght-medium-510, ET-web-menubar-menu-set, ET-web-sessions-catalog-modal, ET-web-shell-shortcuts-about-dialogs, ET-web-ui-resilience, ET-web-window-routing-lifecycle]
   tour: Feature Tour
   time_box_minutes: 90
   guidance:

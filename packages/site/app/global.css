@@ -22,11 +22,11 @@
 
 /*
  * Wire Next.js font variables into Tailwind's font tokens.
- * `--font-inter`, `--font-jetbrains-mono`, and `--font-playfair` are injected
+ * `--font-geist`, `--font-jetbrains-mono`, and `--font-playfair` are injected
  * by next/font in app/layout.tsx via the html className.
  */
 @theme inline {
-  --font-sans: var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: var(--font-playfair), "Playfair Display", serif;
   --font-mono:
     var(--font-jetbrains-mono), "JetBrains Mono Variable", "JetBrains Mono", "Courier New",

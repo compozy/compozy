@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { siteConfig } from "../site-config";
 
 vi.mock("next/font/google", () => ({
-  Inter: () => ({ variable: "--font-inter" }),
+  Geist: () => ({ variable: "--font-geist" }),
   JetBrains_Mono: () => ({ variable: "--font-jetbrains-mono" }),
   Playfair_Display: () => ({ variable: "--font-playfair" }),
 }));

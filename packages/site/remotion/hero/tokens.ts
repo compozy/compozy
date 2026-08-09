@@ -18,7 +18,7 @@ export const TOKENS = {
   successTint: "#30d15826",
   warning: "#ffd60a",
   warningTint: "#ffd60a26",
-  fontSans: '"Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  fontSans: '"Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   fontMono: '"JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace',
   trackingMono: "0.06em",
   trackingBadge: "0.08em",

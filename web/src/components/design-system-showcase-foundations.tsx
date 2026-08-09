@@ -95,23 +95,26 @@ export function TypographySection() {
       id="typography"
       data-testid="section-typography"
       label={<SectionLink section={sectionById("typography")}>Foundations: Typography</SectionLink>}
-      right={<Pill mono>Inter · JetBrains Mono · NuixyberNext</Pill>}
+      right={<Pill mono>Geist · JetBrains Mono · NuixyberNext</Pill>}
     >
       <div className="grid gap-3 pt-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Page title · Inter 20/700</CardTitle>
+            <CardTitle>Page title · Geist 20/510</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="text-xl font-medium leading-7 tracking-tight" style={{ fontWeight: 510 }}>
+            <p
+              className="text-xl font-medium leading-7 tracking-tight"
+              style={{ fontWeight: "var(--font-weight-medium)" }}
+            >
               Runtime sessions overview
             </p>
             <p className="text-base leading-7 text-muted">
-              Body · Inter 16px regular, the default reading text for operator UI. Line-height
+              Body · Geist 16px regular, the default reading text for operator UI. Line-height
               1.5–1.7 keeps dense dashboards breathable without resorting to oversized padding.
             </p>
             <p className="text-small-body leading-small-body text-subtle">
-              Small body · Inter 13px, helper text, captions, meta rows.
+              Small body · Geist 13px, helper text, captions, meta rows.
             </p>
           </CardContent>
         </Card>
@@ -120,7 +123,7 @@ export function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Eyebrow className="text-muted">Eyebrow · JetBrains Mono 11/600 0.06em</Eyebrow>
+            <Eyebrow className="text-muted">Eyebrow · Geist UC 11/600/-0.005em</Eyebrow>
             <p className="font-mono text-sm leading-7 text-fg">
               compozy-network/v0 · run_id_01hq8…
             </p>

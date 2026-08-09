@@ -14,7 +14,7 @@ Match the exact id (case-sensitive, dashes only). Common slip: `systems-tasks-ro
 
 ## Symptom: PNGs render in fallback system fonts (Arial / Helvetica)
 
-Cause: `document.fonts.ready` resolved before Inter or JetBrains Mono finished decoding, OR the WARN line `fonts.ready timeout` appeared in stderr.
+Cause: `document.fonts.ready` resolved before Geist or JetBrains Mono finished decoding, OR the WARN line `fonts.ready timeout` appeared in stderr.
 
 Fix:
 

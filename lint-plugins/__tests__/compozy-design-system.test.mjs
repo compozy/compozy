@@ -545,7 +545,7 @@ describe("compozy-design-system lint plugin", () => {
             }
           `,
         },
-        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui (Inter UC 11/600/-0.005em, single style"
+        "Inlined eyebrow tuple in className. Use <Eyebrow> from @compozy/ui (Geist UC 11/600/-0.005em, single style"
       );
 
       const message = result.messages.join("\n");

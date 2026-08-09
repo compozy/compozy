@@ -9,7 +9,7 @@ function classes(node: HTMLElement): string[] {
 
 describe("Eyebrow", () => {
   // KEEP: DESIGN.md §3 eyebrow contract — the eyebrow utility itself is the product contract.
-  it("Should render the single eyebrow utility (Inter UC 11/600/-0.005em) with no variant props", () => {
+  it("Should render the single eyebrow utility (Geist UC 11/600/-0.005em) with no variant props", () => {
     render(<Eyebrow>Run state</Eyebrow>);
     const eyebrow = screen.getByText("Run state");
 

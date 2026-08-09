@@ -117,6 +117,15 @@ tokens:
       sidebar-ring: "var(--color-line-strong)"
       shell-glass: "var(--shell-glass)"
       shell-glass-pop: "var(--shell-glass-pop)"
+    fonts:
+      sans: '"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif'
+      mono: '"JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace'
+      display: "var(--font-sans)"
+      weight-normal: "400"
+      weight-medium: "510"
+      weight-semibold: "600"
+      weight-bold: "700"
+      weight-display: "620"
     typography:
       item-title: { size: "0.9375rem", line: "1.375rem" }
       small-body: { size: "0.78125rem", line: "1.125rem" }
@@ -682,28 +691,47 @@ new tone map at each feature boundary.
 
 ## 3. Typography and eyebrow contract
 
-Inter Variable (opsz + wght) is the runtime typeface. JetBrains Mono is reserved
+Geist Variable (wght) is the runtime typeface. JetBrains Mono is reserved
 for ids, code, channel metadata, and fixed-width operational values. The site
 binds `--font-display` to Playfair Display for landing (`.site-home`) and docs
 display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only — never
 below ~26px. Runtime and shared UI code treat `--font-display` as a reserved
 alias, not a type-ramp utility.
 
-The body baseline is set once in `tokens.css`: compact Inter, readable line
-height, optical sizing (`font-optical-sizing: auto`), and a small negative
-tracking correction. UI medium weight is `--font-weight-medium: 510` (maps to
+The body baseline is set once in `tokens.css`: compact Geist, readable line
+height, and a small negative tracking correction. Geist exposes a `wght` axis
+only, so there is no optical-size compensation and no character-variant or
+stylistic-set feature block. UI medium weight is `--font-weight-medium: 510` (maps to
 `font-medium`) — a soft half-step between Regular and classic Medium, matching
 the OpenDesign prototypes. Components should compose from text and tracking
 tokens rather than re-declaring pixel sizes.
 
 The eyebrow contract is intentionally narrow after L-022: one `<Eyebrow>`
-primitive, one `.eyebrow` utility, one Inter uppercase style. Eyebrow is for
+primitive, one `.eyebrow` utility, one Geist uppercase style — the canonical
+contract is Geist UC 11/600/-0.005em. Eyebrow is for
 structural labels such as table heads, metadata terms, section labels, and
 breadcrumbs. Metrics, KPI labels, ids, code, and pills are not eyebrows just
 because they are small. Docs-shell labels are the exception: they keep the
 `<Eyebrow>` wrapper but speak JetBrains Mono via `--text-badge` (section /
 crumbs) or `--text-group-label` (in-folder groups) — not marketing
 `--text-eyebrow`.
+
+### Font families and weights
+
+<!-- BEGIN:tokens:fonts -->
+
+| Token                    | Value                                                                   |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `--font-sans`            | `"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif`     |
+| `--font-mono`            | `"JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace` |
+| `--font-display`         | `var(--font-sans)`                                                      |
+| `--font-weight-normal`   | `400`                                                                   |
+| `--font-weight-medium`   | `510`                                                                   |
+| `--font-weight-semibold` | `600`                                                                   |
+| `--font-weight-bold`     | `700`                                                                   |
+| `--font-weight-display`  | `620`                                                                   |
+
+<!-- END:tokens:fonts -->
 
 ### Type ladder
 
@@ -981,7 +1009,7 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
 - `<Empty>` and `<RouteState>`: state surfaces, not marketing cards. Use when a
   list, detail pane, or route has no data, is loading, or has failed.
 - `<Metric>` and `<KpiCard>`: numeric summaries. Labels are sentence-case
-  Inter, not eyebrow labels. Values use semantic color only when the color is
+  Geist, not eyebrow labels. Values use semantic color only when the color is
   the data.
 - `<Dialog>` and sheets: overlay surfaces with the overlay shadow/scrim
   contract. They own modal header/body/footer rhythm.
@@ -1055,7 +1083,7 @@ responsive type clamps, layout widths, doc body classes, and bento overlays.
 Playfair Display is allowed on the site for landing (`.site-home`) and docs
 display roles (`.site-doc-masthead__title`, `.site-doc-body h2`) only. Runtime
 UI, shared UI primitives, blog bodies, changelog bodies, and all other docs
-chrome (sidebar, TOC, actions, `h3`+) stay on Inter. Docs mono labels bind
+chrome (sidebar, TOC, actions, `h3`+) stay on Geist. Docs mono labels bind
 `--text-badge` / `--text-group-label`, not `--text-eyebrow`.
 
 ### Site typography clamps

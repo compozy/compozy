@@ -26,7 +26,7 @@ const canvasStyle: CSSProperties = {
   flexDirection: "column",
   background: COLORS.canvas,
   color: COLORS.textPrimary,
-  fontFamily: FONTS.inter,
+  fontFamily: FONTS.sans,
   padding: "80px",
 };
 
@@ -42,7 +42,7 @@ const metaStyle: CSSProperties = {
 };
 
 const titleStyle: CSSProperties = {
-  fontFamily: FONTS.inter,
+  fontFamily: FONTS.sans,
   fontSize: "64px",
   lineHeight: 0.98,
   letterSpacing: "-0.04em",
@@ -97,7 +97,7 @@ export async function renderDocsOG({
         {safeDescription ? (
           <div
             style={{
-              fontFamily: FONTS.inter,
+              fontFamily: FONTS.sans,
               fontSize: "24px",
               lineHeight: 1.4,
               color: COLORS.textSecondary,

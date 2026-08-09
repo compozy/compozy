@@ -6,7 +6,7 @@
 <title>CompozyOS DS · 01 Foundations</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
 <style>
 /* ---- chapter chrome (doc scaffolding, not product) ---- */
@@ -79,7 +79,7 @@ body{background:var(--canvas);overflow-y:auto}
     <p class="eyebrow">CompozyOS Design System · Chapter 01</p>
     <h1>Foundations</h1>
     <p>The token layer every Compozy surface is built from. One warm-dark ramp, one accent, hairline depth,
-    Inter + JetBrains Mono. Production truth is <code class="mono">packages/ui/src/tokens.css</code>;
+    Geist + JetBrains Mono. Production truth is <code class="mono">packages/ui/src/tokens.css</code>;
     the prototype-canonical mirror is <code class="mono">design-system/ds-core.css</code> — copy its
     <code class="mono">:root</code> verbatim into any new prototype. There is no light theme.</p>
   </header>
@@ -137,7 +137,7 @@ body{background:var(--canvas);overflow-y:auto}
   <!-- ============ 03 TYPOGRAPHY ============ -->
   <section class="sec" id="type" data-od-id="sec-type">
     <div class="sec__head"><span class="sec__num">03</span><h2>Typography</h2></div>
-    <p>Two families. <b>Inter</b> (display + body; features <code class="mono">cv01 ss03</code>) for UI chrome,
+    <p>Two families. <b>Geist</b> (display + body; wght axis only, no feature block) for UI chrome,
     names and prose. <b>JetBrains Mono</b> for everything machine-shaped: ids, slugs, counts, timestamps,
     durations, key-values, code — always with <code class="mono">tabular-nums</code>, subpixel-antialiased,
     letter-spacing 0. Body baseline is 13.5px / 1.5 / −.006em. Production medium weight is <b>510</b>.</p>

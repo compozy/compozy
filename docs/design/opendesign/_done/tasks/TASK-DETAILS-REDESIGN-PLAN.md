@@ -221,7 +221,7 @@ Tabs become URL state: `/tasks/$id?tab=runs` (or child routes). Deep links to a 
 - **Grid**: `.page` max-width 1240px, padding 24px 36px 80px; content + 320px rail, gap 32px; collapse to 1 column ≤1080px (rail becomes sheet).
 - **Tabs**: 40px height, 13px/500, count as mono chip; **foreground underline** (1.5px), never accent (per DESIGN.md Tabs contract; note: agent-detail.html's accent underline is the older idiom, do not copy it).
 - **Sections**: label 10.5px/600 uppercase tracking .04em subtle; 24-28px section gap; one padding rhythm for all tab panels (kill the px-9/px-6 drift): panel padding 24px, rows 12-14px vertical.
-- **Type**: Inter; H1 1.4rem/600 -.028em; body 13.5px; meta 12px; micro labels 10.5-11px uppercase; JetBrains Mono strictly for ids, event types, model names, timestamps in feeds. Never mono for prose or labels.
+- **Type**: Geist; H1 1.4rem/600 -.028em; body 13.5px; meta 12px; micro labels 10.5-11px uppercase; JetBrains Mono strictly for ids, event types, model names, timestamps in feeds. Never mono for prose or labels.
 - **Color**: tokens.css only. Signal palette carries state (success/warning/danger/info + neutral); accent = primary action + live pulse only. Status dots 6px inside pills; hollow ring = pending; pulse = live, wrapped in `prefers-reduced-motion`.
 - **Depth**: flat; `--line`/`--line-soft` hairlines; `panelbox` canvas-soft radius-lg; shadows only on overlays (`--shadow-overlay`).
 - **Motion**: 100/140/200ms, `--ease-out`; live-tick duration counter updates without layout shift (tabular numerals); skeleton shimmer 1.4s; all guarded by reduced motion.

@@ -163,7 +163,7 @@ accent    --accent #e8572a · --accent-hover #d14e25 · --accent-strong #f6874f 
 status    success #5fbf85/.08 · warning #d6a647/.08 · danger #e0635a/.09 · info #8e8eb5/.12 · neutral #7a7a80/.06
           (always tint-bg + saturated text; NEVER solid fills)
 glaze     --row-hover .022 · --row-selected .03 · --input-fill .025 · --badge-fill .05 · --btn-fill .04 · --bar-fill .18
-type      Inter Variable (font-feature cv01,ss03) + JetBrains Mono
+type      Geist Variable (wght axis) + JetBrains Mono
 scale     body 13.5px · detail-h1 22px/-.028em · section label 10.5-11px uppercase · mono ids ~11px
 radii     4/5/6/8/10/14 · pill 9999 · motion 140ms cubic-bezier(.2,0,0,1)
 ```

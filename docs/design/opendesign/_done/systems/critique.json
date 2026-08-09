@@ -13,7 +13,7 @@
     },
     "typography": {
       "score": 5,
-      "notes": "Inter UI + JetBrains Mono for refs/endpoints/enums. Mono row/card titles for machine profile names; card Meta eyebrow stays uppercase sans with mono-slug for persistence."
+      "notes": "Geist UI + JetBrains Mono for refs/endpoints/enums. Mono row/card titles for machine profile names; card Meta eyebrow stays uppercase sans with mono-slug for persistence."
     },
     "motion": {
       "score": 4,

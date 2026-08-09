@@ -46,7 +46,7 @@
   --surface-glaze:rgba(255,255,255,.04);
   --scrim:rgba(0,0,0,.55);
   --radius-xxs:3px; --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
-  --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-sans:"Geist",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
   --font-mono:"JetBrains Mono Variable","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
   --dur:140ms; --dur-fast:100ms; --dur-slow:200ms;
   --ease:cubic-bezier(.2,0,0,1); --ease-in-out:cubic-bezier(.4,0,0,.2,1);
@@ -72,7 +72,6 @@
 html,body{height:100%}
 body{
   font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;
-  font-feature-settings:"cv01","ss03";
   color:var(--fg);background:var(--canvas);
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
 }

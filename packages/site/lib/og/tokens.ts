@@ -12,7 +12,7 @@ export const COLORS = {
 } as const;
 
 export const FONTS = {
-  inter: "Inter",
+  sans: "Geist",
   display: "Playfair Display",
   mono: "JetBrains Mono",
 } as const;

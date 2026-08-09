@@ -19,13 +19,11 @@
     font-size: 0.84375rem;
     line-height: 1.5;
     letter-spacing: -0.006em;
-    font-feature-settings: "cv01", "ss03", "cv11";
-    font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
   }
 
-  /* JetBrains Mono needs its native stroke rendering instead of Inter's
-     inherited OpenType and grayscale smoothing configuration. */
+  /* JetBrains Mono needs its native stroke rendering instead of the grayscale
+     smoothing the body baseline applies for the sans stack. */
   .font-mono,
   [class*="font-mono"],
   code,
@@ -34,7 +32,6 @@
   pre {
     -webkit-font-smoothing: subpixel-antialiased;
     -moz-osx-font-smoothing: auto;
-    font-feature-settings: normal;
   }
 
   ::selection {

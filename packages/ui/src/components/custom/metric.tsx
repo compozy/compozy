@@ -31,7 +31,7 @@ export interface MetricProps extends Omit<React.ComponentProps<"div">, "title"> 
    * `--font-weight-display` (620), the approved dashboard scale.
    */
   size?: MetricSize;
-  /** `sentence` — Inter sentence-case label; `eyebrow` — uppercase KPI label. */
+  /** `sentence` — Geist sentence-case label; `eyebrow` — uppercase KPI label. */
   labelCase?: MetricLabelCase;
 }
 

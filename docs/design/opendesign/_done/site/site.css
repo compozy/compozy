@@ -9,7 +9,6 @@
    packages/ui/src/tokens.css + packages/site/app/global.css.
    ============================================================ */
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;1,400&display=swap");
 
 :root {
   /* -- color (verbatim: packages/ui/src/tokens.css) -- */
@@ -41,7 +40,7 @@
   --input-fill: rgba(255, 255, 255, 0.025);
 
   /* -- type -- */
-  --font-sans: "Inter", "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Geist",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
   --font-display: "Playfair Display", Georgia, serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
   --text-small-body: 0.78125rem;   /* 12.5px — nav rows, UI text */

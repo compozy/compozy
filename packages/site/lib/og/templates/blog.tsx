@@ -20,7 +20,7 @@ const canvasStyle: CSSProperties = {
   justifyContent: "space-between",
   background: COLORS.canvas,
   color: COLORS.textPrimary,
-  fontFamily: FONTS.inter,
+  fontFamily: FONTS.sans,
   padding: "72px",
 };
 
@@ -94,7 +94,7 @@ export async function renderBlogOG({
         {safeDescription ? (
           <div
             style={{
-              fontFamily: FONTS.inter,
+              fontFamily: FONTS.sans,
               fontSize: "22px",
               lineHeight: 1.5,
               color: COLORS.textSecondary,

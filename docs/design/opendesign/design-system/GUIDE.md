@@ -20,7 +20,7 @@ Read this before starting any surface. On conflict: **production (`packages/ui/s
 
 1. Self-contained HTML in the domain folder (`tasks/`, `settings/`, `os/`, …), semantic filename.
 2. Paste the `ds-core.css` `:root` verbatim into the first `<style>` (or link `../design-system/ds-core.css` for multi-file work). Shell surfaces also take `ds-shell.css`.
-3. Fonts: Inter + JetBrains Mono (Google Fonts links as in the chapter files).
+3. Fonts: Geist + JetBrains Mono (Google Fonts links as in the chapter files).
 4. Compose from the component classes — check `components.html` before authoring anything; domain variants get domain-prefixed names, never forked geometry.
 5. Surfaces render **inside an OS window**: unified 44px head (identity once, ≤2 actions), optional 38px tools strip, drill-in via breadcrumb. No legacy topbar/PageHead.
 6. Data is runtime-plausible daemon truth; design empty/loading/error/degraded states.

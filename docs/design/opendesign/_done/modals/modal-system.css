@@ -44,7 +44,7 @@
   --color-btn-default-hover: rgba(255, 255, 255, 0.07);
   --color-badge-fill: rgba(255, 255, 255, 0.05);
   --color-overlay-scrim: rgba(0, 0, 0, 0.55);
-  --font-sans: "Inter Variable", "Inter", -apple-system, "BlinkMacSystemFont", system-ui, sans-serif;
+  --font-sans: "Geist",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
   --text-item-title: 0.9375rem;
   --text-modal-title: 0.84375rem;
@@ -115,7 +115,6 @@ body {
   font-size: 13.5px;
   line-height: 1.5;
   letter-spacing: var(--tracking-body);
-  font-feature-settings: "cv01", "ss03", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;

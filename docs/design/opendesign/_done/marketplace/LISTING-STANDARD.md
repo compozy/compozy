@@ -101,7 +101,7 @@ Compose like `@compozy/ui` `CatalogCard`:
 
 ```
 [logo 24]  title
-           updated · relative date   ← under title (CatalogCard.Meta eyebrow — Inter UC, text-subtle; ids stay mono)
+           updated · relative date   ← under title (CatalogCard.Meta eyebrow — Geist UC, text-subtle; ids stay mono)
 description (optional — only when it adds meaning)
 ── border-t ──
 Pill type (+ optional Pill kind) ····· Delete / Run

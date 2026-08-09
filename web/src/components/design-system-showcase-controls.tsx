@@ -112,7 +112,7 @@ export function ButtonsAndPillsSection() {
 
 export function InputsAndSearchSection() {
   const [textareaValue, setTextareaValue] = useState(
-    "Multiline textarea — Inter 14px, 1.6 leading."
+    "Multiline textarea — Geist 14px, 1.6 leading."
   );
 
   return (

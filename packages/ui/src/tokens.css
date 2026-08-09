@@ -150,18 +150,17 @@
   --color-sidebar-ring: var(--color-line-strong);
 
   /* Font families. */
-  --font-sans: "Inter Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
+  --font-sans: "Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace;
   /* Display alias reserved for explicit logo/wordmark surfaces only.
-     `font-display` utility is forbidden inside type-ramp callers under
-     `web/src/**` and `packages/ui/src/**` (lint enforced; see
-     `lint-plugins/compozy-design-system.mjs`).
+     Keep the `font-display` utility out of type-ramp callers under
+     `web/src/**` and `packages/ui/src/**` — review-enforced, no lint rule.
      Site re-binds this to Playfair Display in `packages/site/app/global.css`. */
   --font-display: var(--font-sans);
 
   /* Weight ladder. Medium is 510 (not 500) — OpenDesign UI medium: a soft
      half-step between Regular and classic Medium that `font-medium` maps to
-     across every surface. Requires Inter Variable (wght axis). */
+     across every surface. Requires Geist Variable (wght axis). */
   --font-weight-normal: 400;
   --font-weight-medium: 510;
   --font-weight-semibold: 600;
@@ -528,7 +527,7 @@
   color-scheme: dark;
 
   /* Numeric-display weight for KPI / metric values (approved dashboard scale, 620:
-     a soft step above semibold; requires Inter Variable wght axis). Kept out of
+     a soft step above semibold; requires Geist Variable wght axis). Kept out of
      @theme so it never generates a `font-display` weight utility that collides
      with the `--font-display` font-family utility. Consumed via
      `style={{ fontWeight: "var(--font-weight-display)" }}`. */

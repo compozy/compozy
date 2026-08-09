@@ -22,6 +22,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - **Test placement before test creation** (skill: `eng-consolidate-test-suites`). Name the invariant, owning layer, and canonical suite; edit the existing suite — don't create standalone/duplicate regressions. Static/prose/CSS/snapshot/generated/config tests are forbidden by default: allowed only when that artifact is the product contract and no stronger gate (`make verify`, `codegen-check`, build, link-check, Storybook capture) owns it.
 - **Subagents for exploration** (keeps your context clean): Use the `explorer` subagents always; Just use `agent-exploration` using `explorer` subagent; Use subagents for read-only exploration as much as possible to avoid bloat the main context window
 - **UI descriptions:** Do not add subtitles, helper text, or descriptive copy beneath headings, labels, cards, or settings by default. Prefer one concise, self-explanatory heading or label. Only add supporting copy when the user explicitly asks for it or when it is necessary to prevent misunderstanding or error, and never use it to restate the heading.
+- **Settings affected**: When changing/removing a feature you need to make sure that feature is not attached to any settings under config.toml to avoid lefting deprecated/broke setting in the project.
 
 ## Workflow Rules
 

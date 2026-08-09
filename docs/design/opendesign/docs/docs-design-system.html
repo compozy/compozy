@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Docs Shell — Design System · Compozy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&family=Playfair+Display:wght@400&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="docs.css" />
 <script src="https://unpkg.com/lucide@latest"></script>
 <style>
@@ -123,14 +126,14 @@
   <!-- ============ 02 TYPOGRAPHY ============ -->
   <section class="sp-section" id="s-type" data-od-id="spec-typography">
     <h2 class="sp-h2"><span class="sp-num">02</span>Typography</h2>
-    <p class="sp-p">Three voices, strict jurisdictions. <strong>Playfair Display</strong> speaks only at display sizes — the page title and <code>h2</code> headings, nothing below ~26px. <strong>Inter</strong> is everything the reader and the UI say: body, leads, <code>h3</code>, sidebar rows, buttons. <strong>JetBrains Mono</strong> is the system's voice: section labels, breadcrumbs, group labels, code — and it is the <em>only</em> face allowed to speak uppercase. Every value below maps to a token in <code>packages/ui/src/tokens.css</code> or the site's <code>@theme inline</code> block in <code>app/global.css</code>.</p>
+    <p class="sp-p">Three voices, strict jurisdictions. <strong>Playfair Display</strong> speaks only at display sizes — the page title and <code>h2</code> headings, nothing below ~26px. <strong>Geist</strong> is everything the reader and the UI say: body, leads, <code>h3</code>, sidebar rows, buttons. <strong>JetBrains Mono</strong> is the system's voice: section labels, breadcrumbs, group labels, code — and it is the <em>only</em> face allowed to speak uppercase. Every value below maps to a token in <code>packages/ui/src/tokens.css</code> or the site's <code>@theme inline</code> block in <code>app/global.css</code>.</p>
 
     <h3 class="sp-h3">Families — as wired in packages/site</h3>
     <table class="sp-table">
       <thead><tr><th>Token</th><th>Stack (next/font variable first)</th><th>Weights loaded</th><th>Jurisdiction</th></tr></thead>
       <tbody>
         <tr><td class="sp-td"><code>--font-display</code></td><td class="sp-td"><code>var(--font-playfair), "Playfair Display", serif</code></td><td class="sp-td">400 (+ 400 italic optional)</td><td class="sp-td">Doc title, <code>h2</code> only</td></tr>
-        <tr><td class="sp-td"><code>--font-sans</code></td><td class="sp-td"><code>var(--font-inter), "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif</code></td><td class="sp-td">400 · 500 · 600 — <strong>never 700</strong></td><td class="sp-td">Body, leads, <code>h3</code>, all UI text</td></tr>
+        <tr><td class="sp-td"><code>--font-sans</code></td><td class="sp-td"><code>var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, sans-serif</code></td><td class="sp-td">400 · 500 · 600 — <strong>never 700</strong></td><td class="sp-td">Body, leads, <code>h3</code>, all UI text</td></tr>
         <tr><td class="sp-td"><code>--font-mono</code></td><td class="sp-td"><code>var(--font-jetbrains-mono), "JetBrains Mono", "Courier New", monospace</code></td><td class="sp-td">400 · 500</td><td class="sp-td">Labels, breadcrumbs, code — sole uppercase voice</td></tr>
       </tbody>
     </table>
@@ -150,19 +153,19 @@
           </div>
           <div class="sp-type__row">
             <div class="sp-type__sample" style="font-size:1.25rem;font-weight:600;line-height:1.25;letter-spacing:-0.02em;color:var(--fg)">Verification gates</div>
-            <div class="sp-type__meta"><b>h3</b> · Inter 600<br>1.25rem / 20px · lh 1.25 · −0.02em</div>
+            <div class="sp-type__meta"><b>h3</b> · Geist 600<br>1.25rem / 20px · lh 1.25 · −0.02em</div>
           </div>
           <div class="sp-type__row">
             <div class="sp-type__sample" style="font-size:1.125rem;line-height:1.65;color:var(--muted)">Named, goal-seeking, self-correcting units of work the daemon owns.</div>
-            <div class="sp-type__meta"><b>Lead</b> · Inter 400<br>1.125rem / 18px · lh 1.65 · 64ch max</div>
+            <div class="sp-type__meta"><b>Lead</b> · Geist 400<br>1.125rem / 18px · lh 1.65 · 64ch max</div>
           </div>
           <div class="sp-type__row">
             <div class="sp-type__sample" style="font-size:1rem;line-height:1.8;color:var(--muted)">A Loop is not a script and not a chat session. What makes it a Loop is a <strong style="color:var(--fg);font-weight:600">contract</strong> — with <code style="font-family:var(--font-mono);font-size:0.9em;border:1px solid var(--line);border-radius:0.55rem;background:var(--elevated);padding:0.12rem 0.38rem;color:var(--fg)">action</code> nodes inline.</div>
-            <div class="sp-type__meta"><b>Body</b> · Inter 400<br>1rem / 16px · lh 1.8 · 72ch max</div>
+            <div class="sp-type__meta"><b>Body</b> · Geist 400<br>1rem / 16px · lh 1.8 · 72ch max</div>
           </div>
           <div class="sp-type__row">
             <div class="sp-type__sample" style="font-size:0.78125rem;line-height:1.125rem;color:var(--muted)">Running and observing</div>
-            <div class="sp-type__meta"><b>UI small</b> · Inter 400/500<br>--text-small-body · 12.5px · lh 18px</div>
+            <div class="sp-type__meta"><b>UI small</b> · Geist 400/500<br>--text-small-body · 12.5px · lh 18px</div>
           </div>
           <div class="sp-type__row">
             <div class="sp-type__sample" style="font-family:var(--font-mono);font-size:0.65625rem;font-weight:500;letter-spacing:0.09em;text-transform:uppercase;color:color-mix(in srgb,var(--accent) 65%,var(--muted))">Capabilities</div>
@@ -186,12 +189,12 @@
       <tbody>
         <tr><td class="sp-td">Doc title</td><td class="sp-td"><code>.mh-title</code> / <code>h1</code></td><td class="sp-td">Playfair 400</td><td class="sp-td"><code>clamp(2.4rem, 4vw, 3.4rem)</code></td><td class="sp-td">1.02</td><td class="sp-td">−0.02em</td><td class="sp-td"><code>fg</code></td></tr>
         <tr><td class="sp-td">Doc h2</td><td class="sp-td"><code>.doc-body h2</code></td><td class="sp-td">Playfair 400</td><td class="sp-td"><code>clamp(1.6rem, 2.6vw, 2.15rem)</code></td><td class="sp-td">1.1</td><td class="sp-td">−0.02em</td><td class="sp-td"><code>fg</code> + hairline top</td></tr>
-        <tr><td class="sp-td">Doc h3</td><td class="sp-td"><code>.doc-body h3</code></td><td class="sp-td">Inter 600</td><td class="sp-td"><code>1.25rem</code> (20px)</td><td class="sp-td">1.25</td><td class="sp-td">−0.02em</td><td class="sp-td"><code>fg</code></td></tr>
-        <tr><td class="sp-td">Lead</td><td class="sp-td"><code>.mh-lead</code></td><td class="sp-td">Inter 400</td><td class="sp-td"><code>1.125rem</code> (18px)</td><td class="sp-td">1.65</td><td class="sp-td">0</td><td class="sp-td"><code>muted</code> · 64ch</td></tr>
-        <tr><td class="sp-td">Body</td><td class="sp-td"><code>.doc-body</code> / <code>.site-doc-body</code></td><td class="sp-td">Inter 400</td><td class="sp-td"><code>1rem</code> (16px); 0.95rem &lt; 768px</td><td class="sp-td">1.8; 1.75 &lt; 768px</td><td class="sp-td">0</td><td class="sp-td"><code>muted</code>; <code>strong</code> → <code>fg</code> 600 · 72ch</td></tr>
-        <tr><td class="sp-td">Card / pager title</td><td class="sp-td"><code>.doc-card__title</code>, <code>.doc-pager__title</code></td><td class="sp-td">Inter 600</td><td class="sp-td"><code>13.5px</code></td><td class="sp-td">1.4</td><td class="sp-td">0</td><td class="sp-td"><code>fg</code></td></tr>
-        <tr><td class="sp-td">UI small</td><td class="sp-td"><code>.sb-item</code>, <code>.toc-list a</code>, <code>.act-menu__item</code>, <code>.mh-meta</code></td><td class="sp-td">Inter 400 (500 active)</td><td class="sp-td"><code>--text-small-body</code> · 0.78125rem (12.5px)</td><td class="sp-td">1.125rem</td><td class="sp-td">0</td><td class="sp-td"><code>muted</code>; active → <code>accent</code></td></tr>
-        <tr><td class="sp-td">Action label</td><td class="sp-td"><code>.act-btn</code></td><td class="sp-td">Inter 500</td><td class="sp-td"><code>12px</code></td><td class="sp-td">1</td><td class="sp-td">0</td><td class="sp-td"><code>muted</code> → <code>fg</code> hover</td></tr>
+        <tr><td class="sp-td">Doc h3</td><td class="sp-td"><code>.doc-body h3</code></td><td class="sp-td">Geist 600</td><td class="sp-td"><code>1.25rem</code> (20px)</td><td class="sp-td">1.25</td><td class="sp-td">−0.02em</td><td class="sp-td"><code>fg</code></td></tr>
+        <tr><td class="sp-td">Lead</td><td class="sp-td"><code>.mh-lead</code></td><td class="sp-td">Geist 400</td><td class="sp-td"><code>1.125rem</code> (18px)</td><td class="sp-td">1.65</td><td class="sp-td">0</td><td class="sp-td"><code>muted</code> · 64ch</td></tr>
+        <tr><td class="sp-td">Body</td><td class="sp-td"><code>.doc-body</code> / <code>.site-doc-body</code></td><td class="sp-td">Geist 400</td><td class="sp-td"><code>1rem</code> (16px); 0.95rem &lt; 768px</td><td class="sp-td">1.8; 1.75 &lt; 768px</td><td class="sp-td">0</td><td class="sp-td"><code>muted</code>; <code>strong</code> → <code>fg</code> 600 · 72ch</td></tr>
+        <tr><td class="sp-td">Card / pager title</td><td class="sp-td"><code>.doc-card__title</code>, <code>.doc-pager__title</code></td><td class="sp-td">Geist 600</td><td class="sp-td"><code>13.5px</code></td><td class="sp-td">1.4</td><td class="sp-td">0</td><td class="sp-td"><code>fg</code></td></tr>
+        <tr><td class="sp-td">UI small</td><td class="sp-td"><code>.sb-item</code>, <code>.toc-list a</code>, <code>.act-menu__item</code>, <code>.mh-meta</code></td><td class="sp-td">Geist 400 (500 active)</td><td class="sp-td"><code>--text-small-body</code> · 0.78125rem (12.5px)</td><td class="sp-td">1.125rem</td><td class="sp-td">0</td><td class="sp-td"><code>muted</code>; active → <code>accent</code></td></tr>
+        <tr><td class="sp-td">Action label</td><td class="sp-td"><code>.act-btn</code></td><td class="sp-td">Geist 500</td><td class="sp-td"><code>12px</code></td><td class="sp-td">1</td><td class="sp-td">0</td><td class="sp-td"><code>muted</code> → <code>fg</code> hover</td></tr>
         <tr><td class="sp-td">Section label</td><td class="sp-td"><code>.sb-label</code>, <code>.toc-label</code>, <code>.mh-crumbs</code></td><td class="sp-td">Mono 500 · uppercase</td><td class="sp-td"><code>--text-badge</code> · 0.65625rem (10.5px)</td><td class="sp-td">0.75rem</td><td class="sp-td">+0.09em (+0.08em crumbs)</td><td class="sp-td">accent-mix / <code>subtle</code></td></tr>
         <tr><td class="sp-td">Group label</td><td class="sp-td"><code>.sb-group</code>, <code>.doc-pager__dir</code>, <code>.act-menu__label</code></td><td class="sp-td">Mono 500 · uppercase</td><td class="sp-td"><code>0.625rem</code> (10px)</td><td class="sp-td">0.75rem</td><td class="sp-td">+0.08em</td><td class="sp-td"><code>subtle</code> 72%</td></tr>
         <tr><td class="sp-td">Inline code</td><td class="sp-td"><code>.doc-body :is(p,li,td,th) code</code></td><td class="sp-td">Mono 400</td><td class="sp-td"><code>--text-inline-code</code> · 0.9em</td><td class="sp-td">inherit</td><td class="sp-td">0</td><td class="sp-td"><code>fg</code> on <code>elevated</code> chip</td></tr>
@@ -220,7 +223,7 @@
     <h3 class="sp-h3">Rules</h3>
     <div style="margin-top:6px">
       <div class="sp-rule sp-rule--do"><span class="sp-rule__tag">Do</span><span><strong>Playfair only at display size</strong> — title and <code>h2</code>, nothing under ~26px rendered. Serif at UI sizes on the dark canvas is a legibility failure.</span></div>
-      <div class="sp-rule sp-rule--do"><span class="sp-rule__tag">Do</span><span><strong>Uppercase is mono-only</strong>: JetBrains Mono 500, ≤ 10.5px, tracked +0.08–0.09em. Inter is never uppercased, never tracked positive.</span></div>
+      <div class="sp-rule sp-rule--do"><span class="sp-rule__tag">Do</span><span><strong>Uppercase is mono-only</strong>: JetBrains Mono 500, ≤ 10.5px, tracked +0.08–0.09em. Geist is never uppercased, never tracked positive.</span></div>
       <div class="sp-rule sp-rule--do"><span class="sp-rule__tag">Do</span><span>Negative tracking (−0.02em) only at ≥ 20px. Weight caps at <strong>600</strong> — hierarchy comes from family, size, and color, not boldness.</span></div>
       <div class="sp-rule sp-rule--do"><span class="sp-rule__tag">Do</span><span>Body copy is <code>muted</code>; <code>fg</code> is earned by headings, <code>strong</code>, links, and code. Measures: 72ch prose, 64ch lead.</span></div>
       <div class="sp-rule sp-rule--dont"><span class="sp-rule__tag">Don't</span><span>No font-weight 700, no Playfair in the sidebar/TOC/buttons, no new size values outside this ramp — if a size isn't in the table, it doesn't exist.</span></div>
