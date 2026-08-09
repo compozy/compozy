@@ -9,10 +9,10 @@ entry_points: compozy mcp serve --workspace; official-SDK MCP stdio client; comp
 qa_status: pass
 bug_ids:
 fix_status: fixed
-retest_status: passed
+retest_status: pass
 fix_commits: final loop-lifecycle remediation commit
-evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-lifecycle-mcp-inputs-20260804-044709-893107-lab/qa-artifacts/qa/mcp-projection-evidence.md
-last_report: docs/qa/reports/2026-08-04-loop-lifecycle-mcp-inputs.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-release-runtime-startup-20260809-192742-317027-lab/qa-artifacts/qa/release-runtime-startup-evidence.md
+last_report: docs/qa/reports/2026-08-09-release-runtime-startup.md
 overlaps: ET-workspace-host-api-mcp; RT-019
 ---
 
@@ -29,3 +29,7 @@ reported 238 tools and zero `compozy_host__` IDs.
 Walk the scenario through the built CLI and an unmodified official-SDK MCP client. Require all four
 tool names, valid input schemas, a successful workspace-bound list call, a clean relay exit, and a
 native registry read showing that no `compozy__*` IDs were added by the Host API projection.
+
+QA 2026-08-09: the official Go MCP SDK initialized the current-source `compozy mcp serve`, discovered
+all four session-input tools, created and independently read session `sess-535e26a44ff986b5`, and
+confirmed 248 native tools with zero `compozy_host__` IDs in a fresh isolated lab.

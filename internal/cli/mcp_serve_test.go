@@ -95,6 +95,16 @@ func TestMCPServeCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("Should capture complete daemon defaults in the installed serve runner", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{}).withDefaults()
+		err := deps.runMCPServe(t.Context(), mcpServeOptions{Transport: mcpServeTransportStdio})
+		if err == nil || !strings.Contains(err.Error(), "daemon is not running") {
+			t.Fatalf("runMCPServe() error = %v, want daemon not running", err)
+		}
+	})
+
 	t.Run("Should pass the cwd-resolved workspace through the real serve flow", func(t *testing.T) {
 		t.Parallel()
 

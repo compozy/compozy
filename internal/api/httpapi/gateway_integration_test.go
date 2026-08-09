@@ -56,6 +56,18 @@ func (s *gatewayIntegrationService) Status(ctx context.Context) (gateway.Status,
 	}, nil
 }
 
+func (s *gatewayIntegrationService) Audit(ctx context.Context) (gateway.AuditReport, error) {
+	status, err := s.Status(ctx)
+	if err != nil {
+		return gateway.AuditReport{}, err
+	}
+	return gateway.AuditReport{
+		Ran:        true,
+		NoFindings: true,
+		Status:     status,
+	}, nil
+}
+
 func (s *gatewayIntegrationService) SetSurfaceExposure(
 	ctx context.Context,
 	_ gateway.SurfaceExposureRequest,

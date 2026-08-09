@@ -46,8 +46,8 @@ func (d commandDeps) withRegistryDefaults() commandDeps {
 
 func (d commandDeps) withRuntimeDefaults() commandDeps {
 	d = d.withGatewayRuntimeDefaults()
-	d = d.withMCPRuntimeDefaults()
 	d = d.withDaemonRuntimeDefaults()
+	d = d.withMCPRuntimeDefaults()
 	return d
 }
 

@@ -971,6 +971,124 @@ func TestGlobalDBReplaceBridgeInstancesPreservesNewerOperationalState(t *testing
 	}
 }
 
+func TestGlobalDBBridgeWritesWaitForConcurrentWriter(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		wantDisplay string
+		mutate      func(context.Context, *GlobalDB, bridges.BridgeInstance) error
+	}{
+		{
+			name:        "Should retry a provider state update after the active writer commits",
+			wantDisplay: "Provider update",
+			mutate: func(ctx context.Context, globalDB *GlobalDB, instance bridges.BridgeInstance) error {
+				instance.DisplayName = "Provider update"
+				instance.Status = bridges.BridgeStatusReady
+				instance.UpdatedAt = instance.UpdatedAt.Add(2 * time.Minute)
+				return globalDB.UpdateBridgeInstance(ctx, instance)
+			},
+		},
+		{
+			name:        "Should retry a desired-state projection after the active writer commits",
+			wantDisplay: "Projection update",
+			mutate: func(ctx context.Context, globalDB *GlobalDB, instance bridges.BridgeInstance) error {
+				instance.DisplayName = "Projection update"
+				instance.UpdatedAt = instance.UpdatedAt.Add(2 * time.Minute)
+				return globalDB.ReplaceBridgeInstances(ctx, []bridges.BridgeInstance{instance})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			globalDB := openTestGlobalDB(t)
+			ctx, cancel := context.WithTimeout(testutil.Context(t), 5*time.Second)
+			defer cancel()
+
+			instance := bridges.BridgeInstance{
+				ID:            "brg-concurrent-writer",
+				Scope:         bridges.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "telegram-reference",
+				DisplayName:   "Initial bridge",
+				Source:        bridges.BridgeInstanceSourceDynamic,
+				Enabled:       true,
+				Status:        bridges.BridgeStatusStarting,
+				DMPolicy:      bridges.BridgeDMPolicyOpen,
+				RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+				CreatedAt:     time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC),
+				UpdatedAt:     time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC),
+			}
+			if err := globalDB.InsertBridgeInstance(ctx, instance); err != nil {
+				t.Fatalf("InsertBridgeInstance() error = %v", err)
+			}
+
+			writer, err := globalDB.db.Conn(ctx)
+			if err != nil {
+				t.Fatalf("DB.Conn() error = %v", err)
+			}
+			writerActive := false
+			defer func() {
+				cleanupCtx := context.WithoutCancel(ctx)
+				if writerActive {
+					if _, rollbackErr := writer.ExecContext(cleanupCtx, "ROLLBACK"); rollbackErr != nil {
+						t.Errorf("ROLLBACK concurrent writer error = %v", rollbackErr)
+					}
+				}
+				if closeErr := writer.Close(); closeErr != nil {
+					t.Errorf("DB.Conn().Close() error = %v", closeErr)
+				}
+			}()
+			if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+				t.Fatalf("BEGIN IMMEDIATE concurrent writer error = %v", err)
+			}
+			writerActive = true
+			if _, err := writer.ExecContext(
+				ctx,
+				"UPDATE bridge_instances SET display_name = ? WHERE id = ?",
+				"Concurrent writer",
+				instance.ID,
+			); err != nil {
+				t.Fatalf("UPDATE concurrent writer error = %v", err)
+			}
+
+			result := make(chan error, 1)
+			go func() {
+				result <- tt.mutate(ctx, globalDB, instance)
+			}()
+
+			select {
+			case err := <-result:
+				t.Fatalf("bridge write returned before concurrent writer committed: %v", err)
+			case <-time.After(100 * time.Millisecond):
+			}
+			if _, err := writer.ExecContext(ctx, "COMMIT"); err != nil {
+				t.Fatalf("COMMIT concurrent writer error = %v", err)
+			}
+			writerActive = false
+
+			select {
+			case err := <-result:
+				if err != nil {
+					t.Fatalf("bridge write after concurrent commit error = %v", err)
+				}
+			case <-ctx.Done():
+				t.Fatalf("bridge write after concurrent commit timed out: %v", ctx.Err())
+			}
+			loaded, err := globalDB.GetBridgeInstance(ctx, instance.ID)
+			if err != nil {
+				t.Fatalf("GetBridgeInstance() error = %v", err)
+			}
+			if got := loaded.DisplayName; got != tt.wantDisplay {
+				t.Fatalf("GetBridgeInstance().DisplayName = %q, want %q", got, tt.wantDisplay)
+			}
+		})
+	}
+}
+
 func TestGlobalDBBridgeRouteCRUD(t *testing.T) {
 	t.Parallel()
 
