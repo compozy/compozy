@@ -1,0 +1,103 @@
+---
+title: Devices, audit, and teardown
+description: See what is reachable right now, manage and revoke paired devices, audit the exposure posture, and turn the gateway off — one surface or all of it.
+---
+
+Day-two gateway operation is four verbs: look, revoke, audit, disable. All of them are also in the
+web UI under **Settings → Gateway**.
+
+## See what is reachable right now
+
+```bash
+compozy gateway status
+```
+
+The human output is a summary — enabled state and counts of tiers, surfaces, providers, and
+devices. The proof lives in the JSON:
+
+```bash
+compozy gateway status -o json
+```
+
+Read `tiers[].advertised` (was this address verified?), `addresses[]` with `live: true` (what is
+published right now), `providers[].health`, and `refusal` (why the last transition was refused, with
+its fix). A `listener_address` can appear while `advertised` is still `false` — that proves the
+local bind, not reachability. The same projection is folded into `compozy status -o json` under
+`.daemon.gateway`.
+
+## Manage paired devices
+
+```bash
+compozy device list
+compozy device rename <device-id> --name "Work phone"
+compozy device revoke <device-id>
+```
+
+The list shows every device that holds a session, where it was paired from, and when it was last
+active. Revocation is immediate and terminal: the device's live streams are canceled before the
+command returns (the output includes `Canceled Streams`), an in-flight request fails instead of
+committing, and the device lands on an explicit "access ended" screen. A returning device needs a
+new pairing and gets a new identity.
+
+Losing every remote device is recoverable. Local access on the daemon machine is the root of trust:
+it can always mint a new pairing and revoke any device. There is no password to forget.
+
+## Audit the posture
+
+```bash
+compozy gateway audit
+```
+
+```text
+Gateway audit
+  Ran             true
+  Result          no findings
+  Local only      false
+  Findings        0
+  Active devices  1
+```
+
+The audit reads current state without changing it. Findings carry a stable ID, a severity, and a
+remediation that names the next command to run; "no findings" is an explicit result, not an
+absence. Run it after every exposure change and after any provider incident, and re-run it after a
+repair to confirm the finding cleared.
+
+Agent sessions can read the same report through the `compozy__gateway` native tool in every
+permission mode; its management actions require `approve-all`.
+
+## Turn it off
+
+Each switch disables independently, immediately, and unconditionally:
+
+```bash
+compozy gateway surface disable operator_ui --tier public
+compozy gateway provider disable tailscale --tier public
+```
+
+To drop everything at once, lower the ceiling — this tears down every tier during live reload:
+
+```bash
+compozy config set gateway.enabled false
+```
+
+Confirm with `compozy gateway status -o json` that `addresses` is empty. Disabling survives
+restarts: boot restores what you last asked for and never re-enables something you turned off.
+
+To remove the provider entirely — extension, secret binding, node state, and the tailnet machine —
+follow [Remove it cleanly](/docs/gateway/tailscale#remove-it-cleanly).
+
+## Generation conflicts
+
+Every provider and surface transition accepts `--generation <n>` to fence your change against a
+concurrent one. On a fresh setup the default is correct and the flag can be omitted. When a change
+races another operator (or an agent), the daemon refuses with a `gateway generation conflict`: read
+the current generation from the matching `surfaces[]` or `providers[]` entry in
+`compozy gateway status -o json` and retry with `--generation <n>`. A stale effect that completes
+against an obsolete generation is dropped, never applied.
+
+## Related
+
+- [Gateway security](/docs/gateway/security) — what each switch exposes and the guarantees behind
+  revocation.
+- [Remote CLI, SSH, and public access](/docs/gateway/remote-access) — the consent switch this page
+  turns off.

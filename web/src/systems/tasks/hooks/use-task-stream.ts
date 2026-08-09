@@ -1,6 +1,8 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { createStreamEventSource } from "@/lib/ticketed-event-source";
+
 import { buildTaskStreamUrl } from "../adapters/tasks-api";
 import { tasksKeys } from "../lib/query-keys";
 import type { TaskStreamFilter, TaskStreamPayload } from "../types";
@@ -23,7 +25,7 @@ interface UseTaskStreamOptions {
 }
 
 function defaultEventSourceFactory(url: string): TaskStreamEventSource {
-  return new EventSource(url);
+  return createStreamEventSource(url);
 }
 
 function attachTaskStreamSource(

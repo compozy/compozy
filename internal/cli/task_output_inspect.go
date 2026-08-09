@@ -78,7 +78,7 @@ func taskInspectBundle(record *TaskInspectRecord) outputBundle {
 func renderTaskInspectHuman(record *TaskInspectRecord) (string, error) {
 	blocks := []string{
 		renderHumanSection("Task Inspect", []keyValue{
-			{Label: "Target", Value: stringOrDash(record.Target)},
+			{Label: automationTargetValue, Value: stringOrDash(record.Target)},
 			{Label: taskTaskValue, Value: stringOrDash(record.Task.ID)},
 			{Label: taskTitleValue, Value: stringOrDash(record.Task.Title)},
 			{Label: taskStatusValue, Value: stringOrDash(string(record.Task.Status))},

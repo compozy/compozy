@@ -11,9 +11,9 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-var _ bridgeSetupClient = (*unixSocketClient)(nil)
+var _ bridgeSetupClient = (*daemonClient)(nil)
 
-func (c *unixSocketClient) RegisterBridgeWebhook(
+func (c *daemonClient) RegisterBridgeWebhook(
 	ctx context.Context,
 	id string,
 ) (BridgeWebhookRegistrationRecord, error) {

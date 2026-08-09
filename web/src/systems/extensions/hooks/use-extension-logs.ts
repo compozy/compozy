@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { createStreamEventSource } from "@/lib/ticketed-event-source";
+
 import {
   appendExtensionLogEntries,
   buildExtensionLogsStreamUrl,
@@ -41,7 +43,7 @@ export interface ExtensionLogsModel {
 }
 
 function defaultEventSourceFactory(url: string): ExtensionLogEventSource {
-  return new EventSource(url);
+  return createStreamEventSource(url);
 }
 
 /**

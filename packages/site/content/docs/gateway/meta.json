@@ -1,0 +1,5 @@
+{
+    "title": "Gateway",
+    "icon": "Route",
+    "pages": ["quickstart", "tailscale", "webhooks", "remote-access", "manage", "security"]
+}

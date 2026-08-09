@@ -152,6 +152,7 @@ func webhookEnvelope(request WebhookRequest, trigger Trigger) (ActivationEnvelop
 	data["endpoint"] = endpoint
 	data["endpoint_slug"] = strings.TrimSpace(trigger.EndpointSlug)
 	data["webhook_id"] = strings.TrimSpace(trigger.WebhookID)
+	data[triggerDeliveryIDKey] = strings.TrimSpace(request.DeliveryID)
 	data["timestamp"] = request.Timestamp.UTC().Format(time.RFC3339Nano)
 
 	return ActivationEnvelope{

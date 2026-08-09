@@ -19,8 +19,8 @@ func TestUnixSocketClientRegisterBridgeWebhook(t *testing.T) {
 	t.Run("Should post to the escaped instance route and decode a warning", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost ||
 					req.URL.EscapedPath() != "/api/bridges/brg%2Ftelegram/webhook/register" {
@@ -50,7 +50,7 @@ func TestUnixSocketClientRegisterBridgeWebhook(t *testing.T) {
 	t.Run("Should reject a blank instance before transport", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{}
+		client := &daemonClient{}
 		_, err := client.RegisterBridgeWebhook(context.Background(), "   ")
 		if err == nil || !strings.Contains(err.Error(), "bridge instance id is required") {
 			t.Fatalf("RegisterBridgeWebhook(blank) error = %v, want instance remediation", err)

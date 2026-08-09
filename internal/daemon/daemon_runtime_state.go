@@ -6,6 +6,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/memory"
@@ -37,6 +38,7 @@ type daemonRuntimeState struct {
 	spawnReaper            *spawnReaper
 	scheduler              *schedulerRuntime
 	network                networkRuntime
+	gateway                gateway.Policy
 	networkWakeRunner      *networkWakeRunner
 	toolRegistry           toolspkg.Registry
 	clarify                *clarifyBridge

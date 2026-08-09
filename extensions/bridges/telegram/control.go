@@ -71,7 +71,10 @@ func (p *telegramProvider) handleBridgeWebhookRegistration(
 			Remediation: configCheck.Remediation,
 		}, nil
 	}
-	publicURL, err := bridgepkg.WebhookPublicURL(managed.Instance)
+	publicURL := strings.TrimSpace(request.PublicURL)
+	if publicURL == "" {
+		publicURL, err = bridgepkg.WebhookPublicURL(managed.Instance)
+	}
 	if err != nil {
 		return bridgepkg.BridgeWebhookRegistrationResponse{
 			Status: bridgepkg.BridgeCheckStatusFail,

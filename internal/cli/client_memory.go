@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-func (c *unixSocketClient) MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error) {
+func (c *daemonClient) MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error) {
 	var response MemoryHealthRecord
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(workspace); trimmed != "" {
@@ -25,7 +25,7 @@ func (c *unixSocketClient) MemoryHealth(ctx context.Context, workspace string) (
 	return response, nil
 }
 
-func (c *unixSocketClient) MemoryHistory(
+func (c *daemonClient) MemoryHistory(
 	ctx context.Context,
 	query MemoryHistoryQuery,
 ) ([]MemoryHistoryRecord, error) {
@@ -43,7 +43,7 @@ func (c *unixSocketClient) MemoryHistory(
 	return response.Operations, nil
 }
 
-func (c *unixSocketClient) ShowMemory(
+func (c *daemonClient) ShowMemory(
 	ctx context.Context,
 	filename string,
 	query MemorySelectorQuery,
@@ -62,7 +62,7 @@ func (c *unixSocketClient) ShowMemory(
 	return response, nil
 }
 
-func (c *unixSocketClient) CreateMemory(
+func (c *daemonClient) CreateMemory(
 	ctx context.Context,
 	request MemoryCreateRequest,
 ) (MemoryMutationRecord, error) {
@@ -73,7 +73,7 @@ func (c *unixSocketClient) CreateMemory(
 	return response, nil
 }
 
-func (c *unixSocketClient) EditMemory(
+func (c *daemonClient) EditMemory(
 	ctx context.Context,
 	filename string,
 	request MemoryEditRequest,
@@ -92,7 +92,7 @@ func (c *unixSocketClient) EditMemory(
 	return response, nil
 }
 
-func (c *unixSocketClient) DeleteMemory(
+func (c *daemonClient) DeleteMemory(
 	ctx context.Context,
 	filename string,
 	query MemorySelectorQuery,
@@ -111,7 +111,7 @@ func (c *unixSocketClient) DeleteMemory(
 	return response, nil
 }
 
-func (c *unixSocketClient) SearchMemory(
+func (c *daemonClient) SearchMemory(
 	ctx context.Context,
 	request MemorySearchRequest,
 ) (MemorySearchRecord, error) {
@@ -129,7 +129,7 @@ func (c *unixSocketClient) SearchMemory(
 	return response, nil
 }
 
-func (c *unixSocketClient) ReindexMemory(
+func (c *daemonClient) ReindexMemory(
 	ctx context.Context,
 	request MemoryReindexRequest,
 ) (MemoryReindexRecord, error) {
@@ -147,7 +147,7 @@ func (c *unixSocketClient) ReindexMemory(
 	return response, nil
 }
 
-func (c *unixSocketClient) PromoteMemory(
+func (c *daemonClient) PromoteMemory(
 	ctx context.Context,
 	request MemoryPromoteRequest,
 ) (MemoryPromoteRecord, error) {
@@ -158,7 +158,7 @@ func (c *unixSocketClient) PromoteMemory(
 	return response, nil
 }
 
-func (c *unixSocketClient) ResetMemory(ctx context.Context, request MemoryResetRequest) (MemoryResetRecord, error) {
+func (c *daemonClient) ResetMemory(ctx context.Context, request MemoryResetRequest) (MemoryResetRecord, error) {
 	var response MemoryResetRecord
 	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/reset", nil, request, &response); err != nil {
 		return MemoryResetRecord{}, err
@@ -166,7 +166,7 @@ func (c *unixSocketClient) ResetMemory(ctx context.Context, request MemoryResetR
 	return response, nil
 }
 
-func (c *unixSocketClient) ReloadMemory(ctx context.Context, request MemorySelectorQuery) (MemoryReloadRecord, error) {
+func (c *daemonClient) ReloadMemory(ctx context.Context, request MemorySelectorQuery) (MemoryReloadRecord, error) {
 	var response MemoryReloadRecord
 	if err := c.doJSON(
 		ctx,
@@ -181,7 +181,7 @@ func (c *unixSocketClient) ReloadMemory(ctx context.Context, request MemorySelec
 	return response, nil
 }
 
-func (c *unixSocketClient) MemoryScopeShow(
+func (c *daemonClient) MemoryScopeShow(
 	ctx context.Context,
 	query MemorySelectorQuery,
 ) (MemoryScopeShowRecord, error) {
@@ -199,7 +199,7 @@ func (c *unixSocketClient) MemoryScopeShow(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetMemoryRecallTrace(
+func (c *daemonClient) GetMemoryRecallTrace(
 	ctx context.Context,
 	sessionID string,
 	turnSeq int64,
@@ -216,7 +216,7 @@ func (c *unixSocketClient) GetMemoryRecallTrace(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListMemoryDreams(ctx context.Context) (MemoryDreamListRecord, error) {
+func (c *daemonClient) ListMemoryDreams(ctx context.Context) (MemoryDreamListRecord, error) {
 	var response MemoryDreamListRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/dreams", nil, nil, &response); err != nil {
 		return MemoryDreamListRecord{}, err
@@ -224,7 +224,7 @@ func (c *unixSocketClient) ListMemoryDreams(ctx context.Context) (MemoryDreamLis
 	return response, nil
 }
 
-func (c *unixSocketClient) GetMemoryDream(ctx context.Context, id string) (MemoryDreamRecord, error) {
+func (c *daemonClient) GetMemoryDream(ctx context.Context, id string) (MemoryDreamRecord, error) {
 	var response MemoryDreamRecord
 	path := "/api/memory/dreams/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -233,7 +233,7 @@ func (c *unixSocketClient) GetMemoryDream(ctx context.Context, id string) (Memor
 	return response, nil
 }
 
-func (c *unixSocketClient) TriggerMemoryDream(
+func (c *daemonClient) TriggerMemoryDream(
 	ctx context.Context,
 	request MemoryDreamTriggerRequest,
 ) (MemoryDreamTriggerRecord, error) {
@@ -244,7 +244,7 @@ func (c *unixSocketClient) TriggerMemoryDream(
 	return response, nil
 }
 
-func (c *unixSocketClient) RetryMemoryDream(
+func (c *daemonClient) RetryMemoryDream(
 	ctx context.Context,
 	id string,
 	request MemoryDreamRetryRequest,
@@ -257,7 +257,7 @@ func (c *unixSocketClient) RetryMemoryDream(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetMemoryDreamStatus(ctx context.Context) (MemoryDreamListRecord, error) {
+func (c *daemonClient) GetMemoryDreamStatus(ctx context.Context) (MemoryDreamListRecord, error) {
 	var response MemoryDreamListRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/dreams/status", nil, nil, &response); err != nil {
 		return MemoryDreamListRecord{}, err
@@ -265,7 +265,7 @@ func (c *unixSocketClient) GetMemoryDreamStatus(ctx context.Context) (MemoryDrea
 	return response, nil
 }
 
-func (c *unixSocketClient) ListMemoryDailyLogs(
+func (c *daemonClient) ListMemoryDailyLogs(
 	ctx context.Context,
 	query MemorySelectorQuery,
 ) (MemoryDailyLogListRecord, error) {
@@ -283,7 +283,7 @@ func (c *unixSocketClient) ListMemoryDailyLogs(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetMemoryExtractorStatus(
+func (c *daemonClient) GetMemoryExtractorStatus(
 	ctx context.Context,
 	sessionID string,
 ) (MemoryExtractorStatusRecord, error) {
@@ -298,7 +298,7 @@ func (c *unixSocketClient) GetMemoryExtractorStatus(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListMemoryExtractorFailures(ctx context.Context) (MemoryExtractorFailuresRecord, error) {
+func (c *daemonClient) ListMemoryExtractorFailures(ctx context.Context) (MemoryExtractorFailuresRecord, error) {
 	var response MemoryExtractorFailuresRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/extractor/failures", nil, nil, &response); err != nil {
 		return MemoryExtractorFailuresRecord{}, err
@@ -306,7 +306,7 @@ func (c *unixSocketClient) ListMemoryExtractorFailures(ctx context.Context) (Mem
 	return response, nil
 }
 
-func (c *unixSocketClient) RetryMemoryExtractor(
+func (c *daemonClient) RetryMemoryExtractor(
 	ctx context.Context,
 	request MemoryExtractorRetryRequest,
 ) (MemoryExtractorRetryRecord, error) {
@@ -317,7 +317,7 @@ func (c *unixSocketClient) RetryMemoryExtractor(
 	return response, nil
 }
 
-func (c *unixSocketClient) DrainMemoryExtractor(ctx context.Context) (MemoryExtractorDrainRecord, error) {
+func (c *daemonClient) DrainMemoryExtractor(ctx context.Context) (MemoryExtractorDrainRecord, error) {
 	var response MemoryExtractorDrainRecord
 	if err := c.doJSON(ctx, http.MethodPost, "/api/memory/extractor/drain", nil, nil, &response); err != nil {
 		return MemoryExtractorDrainRecord{}, err
@@ -325,7 +325,7 @@ func (c *unixSocketClient) DrainMemoryExtractor(ctx context.Context) (MemoryExtr
 	return response, nil
 }
 
-func (c *unixSocketClient) ListMemoryProviders(ctx context.Context) (MemoryProviderListRecord, error) {
+func (c *daemonClient) ListMemoryProviders(ctx context.Context) (MemoryProviderListRecord, error) {
 	var response MemoryProviderListRecord
 	if err := c.doJSON(ctx, http.MethodGet, "/api/memory/providers", nil, nil, &response); err != nil {
 		return MemoryProviderListRecord{}, err
@@ -333,7 +333,7 @@ func (c *unixSocketClient) ListMemoryProviders(ctx context.Context) (MemoryProvi
 	return response, nil
 }
 
-func (c *unixSocketClient) GetMemoryProvider(ctx context.Context, name string) (MemoryProviderRecord, error) {
+func (c *daemonClient) GetMemoryProvider(ctx context.Context, name string) (MemoryProviderRecord, error) {
 	var response MemoryProviderRecord
 	path := "/api/memory/providers/" + url.PathEscape(strings.TrimSpace(name))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
@@ -342,7 +342,7 @@ func (c *unixSocketClient) GetMemoryProvider(ctx context.Context, name string) (
 	return response, nil
 }
 
-func (c *unixSocketClient) SelectMemoryProvider(
+func (c *daemonClient) SelectMemoryProvider(
 	ctx context.Context,
 	request MemoryProviderSelectRequest,
 ) (MemoryProviderLifecycleRecord, error) {
@@ -353,7 +353,7 @@ func (c *unixSocketClient) SelectMemoryProvider(
 	return response, nil
 }
 
-func (c *unixSocketClient) EnableMemoryProvider(
+func (c *daemonClient) EnableMemoryProvider(
 	ctx context.Context,
 	name string,
 	request MemoryProviderLifecycleRequest,
@@ -366,7 +366,7 @@ func (c *unixSocketClient) EnableMemoryProvider(
 	return response, nil
 }
 
-func (c *unixSocketClient) DisableMemoryProvider(
+func (c *daemonClient) DisableMemoryProvider(
 	ctx context.Context,
 	name string,
 	request MemoryProviderLifecycleRequest,
@@ -379,7 +379,7 @@ func (c *unixSocketClient) DisableMemoryProvider(
 	return response, nil
 }
 
-func (c *unixSocketClient) CreateMemoryAdhocNote(
+func (c *daemonClient) CreateMemoryAdhocNote(
 	ctx context.Context,
 	request MemoryAdhocNoteRequest,
 ) (MemoryAdhocNoteRecord, error) {

@@ -1,5 +1,7 @@
 package spec
 
+import "maps"
+
 func cloneOperationSpecs(specs []OperationSpec) []OperationSpec {
 	if len(specs) == 0 {
 		return nil
@@ -15,6 +17,7 @@ func cloneOperationSpecs(specs []OperationSpec) []OperationSpec {
 func cloneOperationSpec(spec OperationSpec) OperationSpec {
 	spec.Tags = append([]string(nil), spec.Tags...)
 	spec.Transports = append([]Transport(nil), spec.Transports...)
+	spec.Auth = maps.Clone(spec.Auth)
 	spec.Parameters = cloneParameterSpecs(spec.Parameters)
 	spec.RequestBody = cloneSpecValue(spec.RequestBody)
 	spec.Responses = cloneResponseSpecs(spec.Responses)

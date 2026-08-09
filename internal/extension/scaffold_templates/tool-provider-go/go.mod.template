@@ -3,3 +3,5 @@ module example.com/__EXTENSION_NAME__
 go 1.26.4
 
 require github.com/compozy/compozy/sdk/go __COMPOZY_GO_SDK_VERSION__
+
+__COMPOZY_GO_SDK_REPLACE__

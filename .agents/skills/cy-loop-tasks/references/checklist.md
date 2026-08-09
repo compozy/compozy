@@ -16,6 +16,8 @@ final iteration.
 - [ ] Any `outcome=blocked` satisfies all three external-blocker criteria with evidence of exhausted safe alternatives; a repairable failure never appears as a blocker.
 - [ ] For any herdr dispatch: the worker launched as a TUI (banner + input box, status left `unknown`), and HEAD is unchanged (no worker commit).
 - [ ] The iteration summary block (from `assets/iteration-summary.template.md`) was printed after the phase work. On completed non-E outcomes, Step 1 was re-entered immediately (**continue**); on blocked or Phase E, the session stopped (Phase E adds the done-signature as the final line).
+- [ ] `goal_signature` still matches its bootstrap value verbatim (write-once; scope changes → memory).
+- [ ] Zero mid-loop questions to the user — decisions defaulted via the Authority ladder into `## Open Questions`.
 
 ## Phase 0 (bootstrap) only
 
@@ -28,9 +30,11 @@ final iteration.
 ## Phase B mode=tasks only
 
 - [ ] `task_NN.md` frontmatter `status:` was checked and trusted as source of truth (state.yaml reconciled if it disagreed).
+- [ ] The task was marked active at pick time: frontmatter flipped to `in_progress` and `update-state.py --task-current <stem>` ran before dispatch.
 - [ ] The lane matched detect-phase: `lane=frontend agent=<x>` printed → herdr dispatch; no suffix → local `cy-execute-task`.
-- [ ] Scoped validation ran, every failure was repaired in the same phase action, then `cy-final-verify` passed (or worker PASS evidence was verified for the frontend lane) before `update-state.py`.
+- [ ] Focused validation ran (task/slice-named commands + scoped tests; no project-wide gate), every failure was repaired in the same phase action, then `cy-final-verify` passed (or worker PASS evidence was verified for the frontend lane) before `update-state.py`.
 - [ ] No peer-review round (`deep-review`) ran in this iteration — per-task review instructions were deferred to Phase D.
+- [ ] QA stayed flag-only: user-visible diffs added/reset `docs/qa/scenarios/` files; the walk was deferred to Phase C.
 - [ ] Exactly ONE task was attempted in this iteration.
 - [ ] `commit-checkpoint.py <slug> --task <stem>` ran after `update-state.py` and printed a commit SHA or the literal `SKIP: no changes` (plus a `stack: submitted` line when `state.stacked=true`), captured in the summary's checkpoint field.
 
@@ -39,12 +43,13 @@ final iteration.
 - [ ] The slice picked was small enough to finish in one iteration (≤ ~4 hours).
 - [ ] The slice was added to `progress.checklist[]` BEFORE implementation started.
 - [ ] If the slice was delegated, its owned paths were exclusively frontend surfaces per `references/herdr-delegation.md`.
-- [ ] Scoped validation ran, every failure was repaired in the same phase action, then `cy-final-verify` passed (or worker PASS evidence was verified for the frontend lane) before `update-state.py`.
+- [ ] Focused validation ran (task/slice-named commands + scoped tests; no project-wide gate), every failure was repaired in the same phase action, then `cy-final-verify` passed (or worker PASS evidence was verified for the frontend lane) before `update-state.py`.
 - [ ] If `deliverables_complete` was set true: every techspec acceptance criterion has at least one matching `progress.checklist[]` entry with `status=completed`. Self-quote each criterion → its checklist entry in the iteration summary.
 - [ ] `commit-checkpoint.py <slug> --slice "<slice text>"` ran after `update-state.py` and printed a commit SHA or `SKIP: no changes`, captured in the summary's checkpoint field.
 
 ## Phase C only
 
+- [ ] On the `qa_report` iteration, the B→C boundary gate (`make gate`) ran green before any QA action.
 - [ ] `qa_report` completed before `qa_execution` (never skip ahead).
 - [ ] `qa_report` was produced by the Fable 5 herdr worker — the orchestrator only verified artifacts; `qa_execution` ran locally.
 - [ ] If `bootstrap-manifest.json` was missing, a QA bootstrap skill (e.g. `eng-qa-bootstrap`) ran first — or its absence in this project was noted before falling through.

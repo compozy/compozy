@@ -1,0 +1,171 @@
+---
+title: Tailscale extension
+description: Set up and operate the bundled Tailscale connectivity extension — auth key, tailnet prerequisites, Funnel for public delivery, state, and clean removal.
+---
+
+The Tailscale extension is the first-party connectivity provider that ships inside Compozy. It is
+what carries traffic from your other devices — and, when you choose, from the internet — to the
+gateway's local listeners.
+
+It runs the Tailscale node inside the Compozy process (through `tsnet`), against **your** Tailscale
+account. You do not install or run a separate Tailscale client on the daemon machine, and Compozy
+operates no relay, server, or account on your behalf. The extension is installed automatically;
+you only enable it and give it a key.
+
+## What you get
+
+| Tier    | Transport                          | Address                                              |
+| ------- | ---------------------------------- | ---------------------------------------------------- |
+| Private | Your tailnet                       | `https://compozy-gateway.<your-tailnet>.ts.net:8443` |
+| Public  | Tailscale Funnel (internet-facing) | `https://compozy-gateway.<your-tailnet>.ts.net`      |
+
+The node always joins your tailnet as `compozy-gateway`, so the address is predictable. Devices
+that use the private address must run Tailscale and belong to the same tailnet; the public Funnel
+address works from any network.
+
+## Before you start
+
+- A [Tailscale](https://tailscale.com) account and access to its admin console.
+- The gateway ceiling is raised: `compozy config set gateway.enabled true`.
+
+## Step 1: Prepare your tailnet
+
+In the Tailscale admin console:
+
+1. Under **DNS**, enable **MagicDNS** and **HTTPS certificates**. The gateway serves HTTPS on both
+   tiers and cannot start without a certificate domain.
+2. Only if you will use the public tier: allow [Funnel](https://tailscale.com/kb/1223/funnel) for
+   the node, by accepting the funnel policy when Tailscale prompts for it or by adding the `funnel`
+   node attribute to your tailnet policy file.
+
+Skipping either produces a clear failure later — `tailnet HTTPS certificate domain is unavailable`
+or a refused Funnel listener — so it is worth doing first.
+
+## Step 2: Create and bind an auth key
+
+Create an auth key in the admin console under **Settings → Keys**. Bind it through a hidden prompt:
+
+```bash
+compozy extension secrets set tailscale --env TS_AUTHKEY
+```
+
+The extension manifest declares only the variable name; Compozy stores the value through the
+extension secret-binding surface and never returns it in status or diagnostics. Replace a rotated
+key by running the same command again; remove the binding with
+`compozy extension secrets unset tailscale --env TS_AUTHKEY`.
+
+## Step 3: Enable the extension
+
+```bash
+compozy extension enable tailscale
+```
+
+The extension declares that it carries gateway traffic on the `gateway.private` and
+`gateway.public` channels, so the first enable refuses with a network requirement digest and prints
+the exact confirmation command to run:
+
+```bash
+compozy extension enable tailscale --confirm-network-requirement <digest>
+```
+
+Confirming the digest is consent to exactly that declaration — an update that changes it asks
+again. `compozy extension preview tailscale` shows the current digest and whether a confirmation is
+pending; on a fresh install the extension arrives enabled, and this consent is the only step left.
+
+## Step 4: Activate it for a tier
+
+```bash
+compozy gateway provider enable tailscale --tier private --source bundled
+compozy gateway provider enable tailscale --tier public --source bundled
+```
+
+Enable only the tiers you use; the same provider can serve both. Activation makes nothing reachable
+by itself — a tier goes live only when it also has an enabled surface
+([quickstart](/docs/gateway/quickstart), [webhooks](/docs/gateway/webhooks)).
+
+## Verify
+
+```bash
+compozy gateway status -o json
+```
+
+A healthy activation shows the provider and a verified address (output trimmed):
+
+```json
+{
+  "providers": [{ "name": "tailscale", "tier": "private", "health": "healthy" }],
+  "addresses": [
+    {
+      "tier": "private",
+      "address": "https://compozy-gateway.<your-tailnet>.ts.net:8443",
+      "live": true
+    }
+  ]
+}
+```
+
+Two more inspection commands are specific to the extension: `compozy extension status tailscale`
+reports the runtime state — `Missing Env: TS_AUTHKEY` there is the clearest sign the key was never
+bound — and `compozy extension logs tailscale` streams the provider's own log lines.
+
+## Configuration
+
+There is no `[extensions.tailscale]` section in `config.toml`, and nothing to hunt for: the
+extension's entire configurable surface is the `TS_AUTHKEY` binding above. The node hostname
+(`compozy-gateway`), the tailnet ports (8443 private, 443 public), and the forwarding limits are
+fixed. The daemon-side tunables that shape verification live under the
+[`[gateway]` keys](/docs/configuration/config-toml#gateway).
+
+## The first activation is the slow one
+
+Three things happen once, in sequence, before an address can be verified: Tailscale issues the
+HTTPS certificate for the new node, the public DNS name is published, and the daemon fetches its
+one-time challenge through the address. Certificate issuance alone can take up to a minute, and
+public DNS can lag behind it.
+
+While that converges, the daemon keeps the listener staged but unadvertised and retries with
+backoff — status shows the provider establishing or degraded, which is a wait state, not a failure.
+Public addresses are resolved through an authenticated DNS-over-TLS resolver
+(`gateway.verify.public_dns_resolver`, default `1.1.1.1:853`) rather than this machine's resolver,
+so a private MagicDNS answer can never stand in for the public route.
+
+## Where state lives
+
+The embedded node keeps its identity, and the private key of its issued certificate, in
+`$COMPOZY_HOME/gateway/tailscale` (owner-only permissions). Treat the directory as secret material.
+Deleting it de-authenticates the node: the next activation needs a valid auth key and registers a
+fresh node.
+
+## Troubleshooting
+
+| Symptom                                                      | Cause and fix                                                                                                           |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `TS_AUTHKEY binding is required`                             | No key bound, or the binding was removed. Run step 2. Expired and revoked keys fail the same way.                       |
+| `tailscale: tailnet HTTPS certificate domain is unavailable` | MagicDNS or HTTPS certificates are off. Enable both under **DNS** in the admin console.                                 |
+| `tailscale: provision HTTPS certificate: …`                  | Certificate issuance failed or timed out. Confirm HTTPS certificates are enabled, then let the daemon retry.            |
+| `tailscale: listen for public gateway: …`                    | Funnel is not allowed for this node. Grant the funnel policy in the admin console (step 1) and retry.                   |
+| `gateway endpoint unverified: endpoint probe failed`         | Usually public DNS still propagating. The daemon retries on its own; recheck status after a minute.                     |
+| Provider degraded with `forward target is unavailable`       | The tier's loopback listener stopped. Check daemon health with `compozy status`, then `compozy gateway status -o json`. |
+
+## Remove it cleanly
+
+Four artifacts outlive a casual disable; remove all of them when you are done:
+
+```bash
+compozy gateway provider disable tailscale --tier private
+compozy gateway provider disable tailscale --tier public
+compozy extension disable tailscale
+compozy extension secrets unset tailscale --env TS_AUTHKEY
+```
+
+Then delete the node state directory (`$COMPOZY_HOME/gateway/tailscale`) and, in the Tailscale
+admin console, delete the `compozy-gateway` machine and revoke the auth key if it is still valid.
+
+## Related
+
+- [Gateway quickstart](/docs/gateway/quickstart) — the end-to-end private setup.
+- [Receive GitHub webhooks](/docs/gateway/webhooks) — the public delivery path over Funnel.
+- [Build a connectivity provider](/docs/extensions/develop#connectivity-providers) — the contract
+  this extension implements, for extension authors.
+- [`[gateway]` configuration reference](/docs/configuration/config-toml#gateway) — verification
+  timeout and resolver keys.

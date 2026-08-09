@@ -240,6 +240,13 @@ export const routeStoryRegistry = [
   },
   {
     system: "settings",
+    routePath: "/settings/gateway",
+    storybookPath: "/settings/gateway",
+    title: "systems/settings/routes/SettingsGateway",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
     routePath: "/settings/memory",
     storybookPath: "/settings/memory",
     title: "systems/settings/routes/SettingsMemory",

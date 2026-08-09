@@ -19,6 +19,7 @@ import (
 	"time"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/redact"
 )
 
 const (
@@ -340,6 +341,38 @@ func TestCallReturnsTypedResponseDecodeError(t *testing.T) {
 	})
 }
 
+func TestCallRedactsProviderRPCError(t *testing.T) {
+	t.Parallel()
+
+	const secret = "sk-subprocess-provider-secret"
+	process := launchHelperProcess(t, "default", LaunchConfig{})
+	defer shutdownProcess(t, process)
+	initializeProcess(t, process, InitializeRuntime{
+		HealthCheckIntervalMS: 1_000,
+		HealthCheckTimeoutMS:  100,
+		ShutdownTimeoutMS:     250,
+		DefaultHookTimeoutMS:  100,
+	})
+
+	err := process.Call(testContext(t), "secret_error", nil, nil)
+	if err == nil {
+		t.Fatal("Call(secret_error) error = nil, want RPC error")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatalf("Call(secret_error) error leaked provider credential: %v", err)
+	}
+	rpcErr, ok := errors.AsType[*RPCError](err)
+	if !ok {
+		t.Fatalf("Call(secret_error) error = %T, want *RPCError", err)
+	}
+	if strings.Contains(string(rpcErr.Data), secret) {
+		t.Fatalf("Call(secret_error) data leaked provider credential: %s", rpcErr.Data)
+	}
+	if !strings.Contains(err.Error(), redact.Marker) || !strings.Contains(string(rpcErr.Data), redact.Marker) {
+		t.Fatalf("Call(secret_error) error = %#v, want redaction markers", rpcErr)
+	}
+}
+
 func TestCallWithContextCancellationReturnsPromptly(t *testing.T) {
 	t.Parallel()
 
@@ -563,8 +596,42 @@ func TestHealthCheckHealthyFalseMarksUnhealthyImmediately(t *testing.T) {
 
 	waitForCondition(t, time.Second, func() bool {
 		state := process.HealthState()
-		return !state.Healthy && strings.Contains(state.Message, "unhealthy") &&
-			state.ConsecutiveFailures >= 3
+		if state.Healthy || !strings.Contains(state.Message, "unhealthy") || state.ConsecutiveFailures < 3 {
+			return false
+		}
+		if strings.Contains(state.Message, "sk-subprocess-health-secret") ||
+			strings.Contains(string(state.Details), "sk-subprocess-health-secret") {
+			t.Fatalf("HealthState() leaked provider credential: %#v", state)
+		}
+		return strings.Contains(state.Message, redact.Marker) &&
+			strings.Contains(string(state.Details), redact.Marker)
+	})
+}
+
+func TestHealthDetailsRetentionBound(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain redacted structured details within the diagnostic budget", func(t *testing.T) {
+		t.Parallel()
+
+		details := redactHealthDetails(json.RawMessage(`{"status":"sk-subprocess-health-secret"}`))
+		if len(details) == 0 || len(details) > maxHealthDiagnosticBytes {
+			t.Fatalf("redactHealthDetails() length = %d, want non-empty bounded details", len(details))
+		}
+		if strings.Contains(string(details), "sk-subprocess-health-secret") ||
+			!strings.Contains(string(details), redact.Marker) {
+			t.Fatalf("redactHealthDetails() retained sensitive material: %q", details)
+		}
+	})
+
+	t.Run("Should drop structured details that exceed the diagnostic budget", func(t *testing.T) {
+		t.Parallel()
+
+		details := redactHealthDetails(json.RawMessage(`{"value":"` +
+			strings.Repeat("x", maxHealthDiagnosticBytes) + `"}`))
+		if details != nil {
+			t.Fatalf("redactHealthDetails() length = %d, want dropped oversized details", len(details))
+		}
 	})
 }
 
@@ -1293,6 +1360,13 @@ func (h *helperServer) handleRequest(envelope rpcEnvelope) {
 		h.handleShutdown(envelope)
 	case "oversize":
 		h.handleOversize(envelope)
+	case "secret_error":
+		h.mustSendError(
+			envelope.ID,
+			NewRPCError(codeInternalError, "api_key=sk-subprocess-provider-secret", map[string]string{
+				"token": "sk-subprocess-provider-secret",
+			}),
+		)
 	default:
 		h.mustSendError(
 			envelope.ID,
@@ -1406,7 +1480,11 @@ func (h *helperServer) handleHealthCheck(envelope rpcEnvelope) {
 		time.Sleep(200 * time.Millisecond)
 		h.mustSendResult(envelope.ID, HealthCheckResponse{Healthy: true})
 	case "health_false":
-		h.mustSendResult(envelope.ID, HealthCheckResponse{Healthy: false, Message: "helper unhealthy"})
+		h.mustSendResult(envelope.ID, HealthCheckResponse{
+			Healthy: false,
+			Message: "helper unhealthy api_key=sk-subprocess-health-secret",
+			Details: json.RawMessage(`{"token":"sk-subprocess-health-secret"}`),
+		})
 	default:
 		h.healthMu.Lock()
 		h.healthCount++

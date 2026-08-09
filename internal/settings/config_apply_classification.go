@@ -64,6 +64,15 @@ func (s *service) classifyNetworkRequest(ctx context.Context, req SectionUpdateR
 	return lifecycleForChangedPaths(changed, lifecycle.RestartRequired)
 }
 
+func (s *service) classifyGatewayRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
+	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	if err != nil {
+		return lifecycle.RestartRequired
+	}
+	changed := diffGatewaySettings(cfg.Gateway, *req.Gateway)
+	return lifecycleForChangedPaths(changed, lifecycle.RestartRequired)
+}
+
 func (s *service) classifyWindowManagerRequest(
 	ctx context.Context,
 	req SectionUpdateRequest,

@@ -4,23 +4,34 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"strings"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/store"
+)
+
+const (
+	manifestFieldCapabilitiesProvides = "capabilities.provides"
+	manifestFieldNetworkParticipation = "network_participation"
 )
 
 func (r *Registry) installWithConfig(manifest *Manifest, path string, checksum string, config installConfig) error {
 	if err := r.checkReady("install extension"); err != nil {
 		return err
 	}
-	sourceText, err := validateInstallConfig(manifest, checksum, &config)
+	_, err := validateInstallConfig(manifest, checksum, &config)
 	if err != nil {
 		return err
 	}
 
 	resolvedManifest, manifestPath, actualChecksum, err := loadVerifiedInstallManifest(manifest, path, checksum)
+	if err != nil {
+		return err
+	}
+	sourceText, err := validateInstallConfig(resolvedManifest, actualChecksum, &config)
 	if err != nil {
 		return err
 	}
@@ -62,9 +73,45 @@ func validateInstallConfig(manifest *Manifest, checksum string, config *installC
 		extensionprotocol.CapabilityProvideBridgeAdapter,
 	) {
 		return "", &ManifestValidationError{
-			Field:   "capabilities.provides",
+			Field:   manifestFieldCapabilitiesProvides,
 			Value:   extensionprotocol.CapabilityProvideBridgeAdapter,
 			Message: "external bridge authoring is a planned follow-up",
+		}
+	}
+	if providesCapability(
+		manifest.Capabilities.Provides,
+		extensionprotocol.CapabilityProvideConnectivityProvider,
+	) {
+		if config.source == SourceWorkspace {
+			return "", &ManifestValidationError{
+				Field:   manifestFieldCapabilitiesProvides,
+				Value:   extensionprotocol.CapabilityProvideConnectivityProvider,
+				Message: "connectivity providers must be installed globally",
+			}
+		}
+		digest, digestErr := NetworkParticipationRequirementDigest(manifest.NetworkParticipation)
+		if digestErr != nil {
+			return "", digestErr
+		}
+		if digest == "" {
+			return "", &ManifestValidationError{
+				Field:   manifestFieldNetworkParticipation,
+				Message: "connectivity providers must declare required live network participation",
+			}
+		}
+		normalized := manifest.NetworkParticipation.Normalize()
+		privateScope := gateway.ProviderChannelScope(gateway.TierPrivate)
+		publicScope := gateway.ProviderChannelScope(gateway.TierPublic)
+		if normalized == nil || (!slices.Contains(normalized.ChannelScopes, privateScope) &&
+			!slices.Contains(normalized.ChannelScopes, publicScope)) {
+			return "", &ManifestValidationError{
+				Field: "network_participation.channel_scopes",
+				Message: fmt.Sprintf(
+					"connectivity providers must declare %q or %q",
+					privateScope,
+					publicScope,
+				),
+			}
 		}
 	}
 

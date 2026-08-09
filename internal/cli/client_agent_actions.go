@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
-func (c *unixSocketClient) AgentMe(
+func (c *daemonClient) AgentMe(
 	ctx context.Context,
 	credentials agentidentity.Credentials,
 ) (AgentMeRecord, error) {
@@ -23,7 +23,7 @@ func (c *unixSocketClient) AgentMe(
 	return response.Me, nil
 }
 
-func (c *unixSocketClient) AgentContext(
+func (c *daemonClient) AgentContext(
 	ctx context.Context,
 	credentials agentidentity.Credentials,
 ) (AgentContextRecord, error) {
@@ -34,7 +34,7 @@ func (c *unixSocketClient) AgentContext(
 	return response.Context, nil
 }
 
-func (c *unixSocketClient) AgentSpawn(
+func (c *daemonClient) AgentSpawn(
 	ctx context.Context,
 	request AgentSpawnRequest,
 	credentials agentidentity.Credentials,
@@ -54,7 +54,7 @@ func (c *unixSocketClient) AgentSpawn(
 	return response.Spawn, nil
 }
 
-func (c *unixSocketClient) AgentChannels(
+func (c *daemonClient) AgentChannels(
 	ctx context.Context,
 	credentials agentidentity.Credentials,
 ) ([]AgentChannelRecord, error) {
@@ -65,7 +65,7 @@ func (c *unixSocketClient) AgentChannels(
 	return response.Channels, nil
 }
 
-func (c *unixSocketClient) AgentChannelRecv(
+func (c *daemonClient) AgentChannelRecv(
 	ctx context.Context,
 	channel string,
 	query AgentChannelRecvQuery,
@@ -87,7 +87,7 @@ func (c *unixSocketClient) AgentChannelRecv(
 	return response.Messages, nil
 }
 
-func (c *unixSocketClient) AgentChannelSend(
+func (c *daemonClient) AgentChannelSend(
 	ctx context.Context,
 	channel string,
 	request AgentChannelSendRequest,
@@ -109,7 +109,7 @@ func (c *unixSocketClient) AgentChannelSend(
 	return response.Message, nil
 }
 
-func (c *unixSocketClient) AgentChannelReply(
+func (c *daemonClient) AgentChannelReply(
 	ctx context.Context,
 	request AgentChannelReplyRequest,
 	credentials agentidentity.Credentials,
@@ -129,7 +129,7 @@ func (c *unixSocketClient) AgentChannelReply(
 	return response.Message, nil
 }
 
-func (c *unixSocketClient) AgentTaskClaimNext(
+func (c *daemonClient) AgentTaskClaimNext(
 	ctx context.Context,
 	request AgentTaskClaimNextRequest,
 	credentials agentidentity.Credentials,
@@ -159,7 +159,7 @@ func (c *unixSocketClient) AgentTaskClaimNext(
 	return AgentTaskNextRecord{Claimed: true, Claim: &claim}, nil
 }
 
-func (c *unixSocketClient) AgentTaskHeartbeat(
+func (c *daemonClient) AgentTaskHeartbeat(
 	ctx context.Context,
 	runID string,
 	request AgentTaskHeartbeatRequest,
@@ -168,7 +168,7 @@ func (c *unixSocketClient) AgentTaskHeartbeat(
 	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "heartbeat", request, credentials)
 }
 
-func (c *unixSocketClient) AgentTaskComplete(
+func (c *daemonClient) AgentTaskComplete(
 	ctx context.Context,
 	runID string,
 	request AgentTaskCompleteRequest,
@@ -177,7 +177,7 @@ func (c *unixSocketClient) AgentTaskComplete(
 	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "complete", request, credentials)
 }
 
-func (c *unixSocketClient) AgentTaskFail(
+func (c *daemonClient) AgentTaskFail(
 	ctx context.Context,
 	runID string,
 	request AgentTaskFailRequest,
@@ -186,7 +186,7 @@ func (c *unixSocketClient) AgentTaskFail(
 	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "fail", request, credentials)
 }
 
-func (c *unixSocketClient) AgentTaskRelease(
+func (c *daemonClient) AgentTaskRelease(
 	ctx context.Context,
 	runID string,
 	request AgentTaskReleaseRequest,
@@ -195,7 +195,7 @@ func (c *unixSocketClient) AgentTaskRelease(
 	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "release", request, credentials)
 }
 
-func (c *unixSocketClient) agentTaskLeaseAction(
+func (c *daemonClient) agentTaskLeaseAction(
 	ctx context.Context,
 	runID string,
 	action string,
@@ -210,7 +210,7 @@ func (c *unixSocketClient) agentTaskLeaseAction(
 	return response.Lease, nil
 }
 
-func (c *unixSocketClient) extensionAction(ctx context.Context, name string, action string) (ExtensionRecord, error) {
+func (c *daemonClient) extensionAction(ctx context.Context, name string, action string) (ExtensionRecord, error) {
 	var response struct {
 		Extension ExtensionRecord `json:"extension"`
 	}
@@ -221,7 +221,7 @@ func (c *unixSocketClient) extensionAction(ctx context.Context, name string, act
 	return response.Extension, nil
 }
 
-func (c *unixSocketClient) bridgeAction(ctx context.Context, id string, action string) (BridgeRecord, error) {
+func (c *daemonClient) bridgeAction(ctx context.Context, id string, action string) (BridgeRecord, error) {
 	var response struct {
 		Bridge BridgeRecord `json:"bridge"`
 	}
@@ -232,7 +232,7 @@ func (c *unixSocketClient) bridgeAction(ctx context.Context, id string, action s
 	return response.Bridge, nil
 }
 
-func (c *unixSocketClient) skillAction(
+func (c *daemonClient) skillAction(
 	ctx context.Context,
 	name string,
 	action string,
@@ -246,7 +246,7 @@ func (c *unixSocketClient) skillAction(
 	return response, nil
 }
 
-func (c *unixSocketClient) taskRunAction(
+func (c *daemonClient) taskRunAction(
 	ctx context.Context,
 	id string,
 	action string,
@@ -260,7 +260,7 @@ func (c *unixSocketClient) taskRunAction(
 	return response.Run, nil
 }
 
-func (c *unixSocketClient) forceTaskRunAction(
+func (c *daemonClient) forceTaskRunAction(
 	ctx context.Context,
 	id string,
 	action string,
@@ -274,7 +274,7 @@ func (c *unixSocketClient) forceTaskRunAction(
 	return response.Run, nil
 }
 
-func (c *unixSocketClient) bulkForceTaskRunAction(
+func (c *daemonClient) bulkForceTaskRunAction(
 	ctx context.Context,
 	action string,
 	requestBody BulkForceTaskRunRequest,
@@ -287,7 +287,7 @@ func (c *unixSocketClient) bulkForceTaskRunAction(
 	return response, nil
 }
 
-func (c *unixSocketClient) taskExecutionAction(
+func (c *daemonClient) taskExecutionAction(
 	ctx context.Context,
 	id string,
 	action string,

@@ -66,3 +66,4 @@ export {
   extensionKeys,
   extensionWorkspaceKey,
 } from "./lib/query-keys";
+export { extensionsListOptions } from "./lib/query-options";

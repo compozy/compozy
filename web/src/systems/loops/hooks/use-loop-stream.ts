@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { LOOP_RUN_EVENT_KINDS, LOOP_RUN_LIFECYCLE_EVENT_KINDS } from "@/generated/loop-enums";
+import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { buildLoopStreamUrl } from "../adapters/loops-api";
 import { isTerminalLoopStatus } from "../lib/loop-formatters";
@@ -63,7 +64,7 @@ function isTerminalStatusFrame(kind: string, frame: LoopRunEventFrame): boolean 
 }
 
 function defaultEventSourceFactory(url: string): LoopStreamEventSource {
-  return new EventSource(url);
+  return createStreamEventSource(url);
 }
 
 function attachLoopStreamSource(

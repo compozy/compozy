@@ -216,3 +216,92 @@ func TestValidateWebhookDestinationIPContract(t *testing.T) {
 		}
 	})
 }
+
+func TestWebhookLocalTargetContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept a literal loopback address fixed port and explicit path", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range []struct {
+			name   string
+			config string
+			want   string
+		}{
+			{
+				name:   "Should accept IPv4 loopback",
+				config: `{"webhook":{"listen_addr":"127.0.0.1:43123","path":"/telegram/callback"}}`,
+				want:   "http://127.0.0.1:43123/telegram/callback",
+			},
+			{
+				name:   "Should accept IPv6 loopback and normalize a relative path",
+				config: `{"webhook":{"listen_addr":"[::1]:43124","path":"slack/callback"}}`,
+				want:   "http://[::1]:43124/slack/callback",
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				target, err := WebhookLocalTarget(BridgeInstance{ProviderConfig: json.RawMessage(test.config)})
+				if err != nil {
+					t.Fatalf("WebhookLocalTarget() error = %v", err)
+				}
+				if got := target.String(); got != test.want {
+					t.Fatalf("WebhookLocalTarget() = %q, want %q", got, test.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject targets outside the provider-owned loopback boundary", func(t *testing.T) {
+		t.Parallel()
+		for _, test := range []struct {
+			name       string
+			config     string
+			wantErrSub string
+		}{
+			{name: "Should reject missing config", wantErrSub: "local target is required"},
+			{
+				name:       "Should reject a hostname even when it says localhost",
+				config:     `{"webhook":{"listen_addr":"localhost:43123","path":"/callback"}}`,
+				wantErrSub: "loopback IP",
+			},
+			{
+				name:       "Should reject a private non-loopback IP",
+				config:     `{"webhook":{"listen_addr":"10.0.0.5:43123","path":"/callback"}}`,
+				wantErrSub: "loopback IP",
+			},
+			{
+				name:       "Should reject an OS-assigned port",
+				config:     `{"webhook":{"listen_addr":"127.0.0.1:0","path":"/callback"}}`,
+				wantErrSub: "fixed webhook listen port",
+			},
+			{
+				name:       "Should reject a non-numeric port",
+				config:     `{"webhook":{"listen_addr":"127.0.0.1:not-a-port","path":"/callback"}}`,
+				wantErrSub: "valid webhook listen port",
+			},
+			{
+				name:       "Should reject a port above the TCP range",
+				config:     `{"webhook":{"listen_addr":"127.0.0.1:70000","path":"/callback"}}`,
+				wantErrSub: "valid webhook listen port",
+			},
+			{
+				name:       "Should reject a non-canonical signed port",
+				config:     `{"webhook":{"listen_addr":"127.0.0.1:+43123","path":"/callback"}}`,
+				wantErrSub: "valid webhook listen port",
+			},
+			{
+				name:       "Should reject a missing callback path",
+				config:     `{"webhook":{"listen_addr":"127.0.0.1:43123"}}`,
+				wantErrSub: "webhook path is required",
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				target, err := WebhookLocalTarget(BridgeInstance{ProviderConfig: json.RawMessage(test.config)})
+				if err == nil || !strings.Contains(err.Error(), test.wantErrSub) {
+					t.Fatalf("WebhookLocalTarget() = (%v, %v), want error containing %q", target, err, test.wantErrSub)
+				}
+			})
+		}
+	})
+}

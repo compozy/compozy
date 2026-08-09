@@ -297,6 +297,7 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 },
 	roleConfigSetPathKinds(),
 	networkConfigSetPathKinds(),
+	gatewayConfigSetPathKinds(),
 	loopAndGoalConfigSetPathKinds(),
 	extensionConfigSetPathKinds(),
 	marketplaceConfigSetPathKinds(),

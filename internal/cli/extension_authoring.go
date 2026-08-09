@@ -38,10 +38,19 @@ func newExtensionInitCommand() *cobra.Command {
 		"template",
 		"t",
 		string(extensionpkg.ScaffoldTemplateToolProviderTS),
-		"Template: tool-provider-ts, tool-provider-go, hook-ts, memory-backend-ts, or loop-watch-source-go",
+		extensionScaffoldTemplateHelp(),
 	)
 	command.Flags().StringVarP(&directory, "dir", "d", "", "Target directory (default: ./<name>)")
 	return command
+}
+
+func extensionScaffoldTemplateHelp() string {
+	templates := extensionpkg.ScaffoldTemplates()
+	names := make([]string, 0, len(templates))
+	for _, template := range templates {
+		names = append(names, string(template))
+	}
+	return "Template: " + strings.Join(names, ", ")
 }
 
 func newExtensionBuildCommand(deps commandDeps) *cobra.Command {

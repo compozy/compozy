@@ -87,6 +87,10 @@ func (h *BaseHandlers) statusPayload(
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect network status: %w", err)
 	}
+	gatewayStatus, err := h.runtimeGatewayStatusPayload(ctx)
+	if err != nil {
+		return contract.StatusPayload{}, fmt.Errorf("api: collect gateway status: %w", err)
+	}
 	schemaStreams, err := h.schemaStreamStatusPayloads(ctx)
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect schema stream status: %w", err)
@@ -106,9 +110,15 @@ func (h *BaseHandlers) statusPayload(
 	configStatus := h.configRuntimeStatusPayload(ctx)
 
 	return contract.StatusPayload{
-		SchemaVersion:    contract.StatusSchemaVersion,
-		GeneratedAt:      h.nowUTC(),
-		Daemon:           h.daemonStatusPayload(&health, sessionSummary.Total, networkStatus, schemaStreams),
+		SchemaVersion: contract.StatusSchemaVersion,
+		GeneratedAt:   h.nowUTC(),
+		Daemon: h.daemonStatusPayload(
+			&health,
+			sessionSummary.Total,
+			networkStatus,
+			gatewayStatus,
+			schemaStreams,
+		),
 		Sessions:         sessionSummary,
 		SubprocessHealth: h.subprocessHealthAggregate(workspaceID),
 		Health:           ObserveHealthPayloadFromHealth(&health),
@@ -122,6 +132,17 @@ func (h *BaseHandlers) statusPayload(
 		Config:           configStatus,
 		LogTail:          h.logTailStatusPayload(ctx),
 	}, nil
+}
+
+func (h *BaseHandlers) runtimeGatewayStatusPayload(ctx context.Context) (*contract.GatewayStatusPayload, error) {
+	if h.Gateway == nil {
+		return nil, nil
+	}
+	payload, err := h.GatewayStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &payload, nil
 }
 
 func (h *BaseHandlers) runtimeNetworkStatusPayload(ctx context.Context) (*contract.NetworkStatusPayload, error) {

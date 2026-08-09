@@ -367,10 +367,15 @@ func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	root, err := materializeEmbeddedExtension(homePaths)
+	root, err := extensionpkg.MaterializeBundledExtension(homePaths, Name, FS())
 	if err != nil {
-		t.Fatalf("materializeEmbeddedExtension() error = %v", err)
+		t.Fatalf("MaterializeBundledExtension() error = %v", err)
 	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(root); err != nil {
+			t.Errorf("RemoveAll(%q) error = %v", root, err)
+		}
+	})
 	manifest, err := extensionpkg.LoadManifest(root)
 	if err != nil {
 		t.Fatalf("LoadManifest(%q) error = %v", root, err)
@@ -975,9 +980,9 @@ func TestEmbeddedAgentsShouldParseWithRuntimeSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	root, err := materializeEmbeddedExtension(homePaths)
+	root, err := extensionpkg.MaterializeBundledExtension(homePaths, Name, FS())
 	if err != nil {
-		t.Fatalf("materializeEmbeddedExtension() error = %v", err)
+		t.Fatalf("MaterializeBundledExtension() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if err := os.RemoveAll(root); err != nil {

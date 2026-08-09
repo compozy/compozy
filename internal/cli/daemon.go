@@ -24,6 +24,7 @@ const (
 	daemonDaemonKey    = "daemon"
 	daemonDisabledKey  = "disabled"
 	daemonStartKey     = "start"
+	daemonStopKey      = "stop"
 	daemonStartedAtKey = "started_at"
 	daemonStatusKey    = "status"
 	versionKey         = "version"
@@ -112,7 +113,7 @@ func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
 
 func newDaemonStopCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "stop",
+		Use:   daemonStopKey,
 		Short: "Stop the Compozy daemon",
 		Example: `  # Ask the running daemon to stop
   compozy daemon stop`,

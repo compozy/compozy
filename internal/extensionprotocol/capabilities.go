@@ -16,21 +16,26 @@ const (
 	CapabilityProvideModelSource = "model.source"
 	// CapabilityProvideWatchSource is the provide surface for loop watch-source polling.
 	CapabilityProvideWatchSource = "loop.watch_source"
+	// CapabilityProvideConnectivityProvider is the public provide surface for daemon reachability providers.
+	CapabilityProvideConnectivityProvider = "connectivity.provider"
 )
 
 // ExtensionServiceMethod identifies one Compozy -> extension capability service request.
 type ExtensionServiceMethod string
 
 const (
-	ExtensionServiceMethodMemoryStore    ExtensionServiceMethod = "memory/store"
-	ExtensionServiceMethodMemoryRecall   ExtensionServiceMethod = "memory/recall"
-	ExtensionServiceMethodMemoryForget   ExtensionServiceMethod = "memory/forget"
-	ExtensionServiceMethodBridgesDeliver ExtensionServiceMethod = "bridges/deliver"
-	ExtensionServiceMethodBridgeTargets  ExtensionServiceMethod = "bridges/targets/snapshot"
-	ExtensionServiceMethodProvideTools   ExtensionServiceMethod = "provide_tools"
-	ExtensionServiceMethodToolsCall      ExtensionServiceMethod = "tools/call"
-	ExtensionServiceMethodModelsList     ExtensionServiceMethod = "models/list"
-	ExtensionServiceMethodWatchPoll      ExtensionServiceMethod = "watch/poll"
+	ExtensionServiceMethodMemoryStore           ExtensionServiceMethod = "memory/store"
+	ExtensionServiceMethodMemoryRecall          ExtensionServiceMethod = "memory/recall"
+	ExtensionServiceMethodMemoryForget          ExtensionServiceMethod = "memory/forget"
+	ExtensionServiceMethodBridgesDeliver        ExtensionServiceMethod = "bridges/deliver"
+	ExtensionServiceMethodBridgeTargets         ExtensionServiceMethod = "bridges/targets/snapshot"
+	ExtensionServiceMethodProvideTools          ExtensionServiceMethod = "provide_tools"
+	ExtensionServiceMethodToolsCall             ExtensionServiceMethod = "tools/call"
+	ExtensionServiceMethodModelsList            ExtensionServiceMethod = "models/list"
+	ExtensionServiceMethodWatchPoll             ExtensionServiceMethod = "watch/poll"
+	ExtensionServiceMethodConnectivityEstablish ExtensionServiceMethod = "connectivity/establish"
+	ExtensionServiceMethodConnectivityStatus    ExtensionServiceMethod = "connectivity/status"
+	ExtensionServiceMethodConnectivityTeardown  ExtensionServiceMethod = "connectivity/teardown"
 )
 
 var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
@@ -52,6 +57,11 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 	},
 	CapabilityProvideWatchSource: {
 		ExtensionServiceMethodWatchPoll,
+	},
+	CapabilityProvideConnectivityProvider: {
+		ExtensionServiceMethodConnectivityEstablish,
+		ExtensionServiceMethodConnectivityStatus,
+		ExtensionServiceMethodConnectivityTeardown,
 	},
 }
 

@@ -49,13 +49,17 @@ func (e *goalCommandAPIError) Error() string {
 	return string(e.result.Outcome)
 }
 
-func (c *unixSocketClient) doSessionPrompt(
+func (c *daemonClient) doSessionPrompt(
 	ctx context.Context,
 	method string,
 	path string,
 	query url.Values,
 	requestBody any,
 ) (record SessionPromptRecord, err error) {
+	query, err = c.withFreshStreamTicket(ctx, query)
+	if err != nil {
+		return SessionPromptRecord{}, err
+	}
 	response, err := c.doRequestWithCredentialsAndClient(
 		ctx,
 		method,
@@ -92,7 +96,11 @@ func (c *unixSocketClient) doSessionPrompt(
 		})
 		record := SessionPromptRecord{Events: events}
 		if decodeErr != nil || state.failure != nil {
-			return record, errors.Join(decodeErr, state.failure)
+			streamErr := errors.Join(decodeErr, state.failure)
+			if c.target.isRemoteGateway() && ctx.Err() == nil {
+				streamErr = newGatewayStreamInterruptedError(c.target, streamErr)
+			}
+			return record, streamErr
 		}
 		if !state.terminal {
 			return record, errSessionPromptStreamIncomplete
@@ -111,7 +119,7 @@ func (c *unixSocketClient) doSessionPrompt(
 	return SessionPromptRecord{Prompt: responseBody.Prompt, Goal: responseBody.Prompt.Goal}, nil
 }
 
-func (c *unixSocketClient) StreamPromptSession(
+func (c *daemonClient) StreamPromptSession(
 	ctx context.Context,
 	id string,
 	request SessionPromptRequest,
@@ -121,11 +129,15 @@ func (c *unixSocketClient) StreamPromptSession(
 	if err != nil {
 		return err
 	}
+	query, err := c.withFreshStreamTicket(ctx, nil)
+	if err != nil {
+		return err
+	}
 	response, err := c.doRequestWithCredentialsAndClient(
 		ctx,
 		http.MethodPost,
 		path,
-		nil,
+		query,
 		request,
 		"",
 		agentidentity.Credentials{},
@@ -150,7 +162,11 @@ func (c *unixSocketClient) StreamPromptSession(
 			return handler(event)
 		})
 		if decodeErr != nil || state.failure != nil {
-			return errors.Join(decodeErr, state.failure)
+			streamErr := errors.Join(decodeErr, state.failure)
+			if c.target.isRemoteGateway() && ctx.Err() == nil {
+				return newGatewayStreamInterruptedError(c.target, streamErr)
+			}
+			return streamErr
 		}
 		if !state.terminal {
 			return errSessionPromptStreamIncomplete

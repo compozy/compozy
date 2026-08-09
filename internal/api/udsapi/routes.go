@@ -36,6 +36,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerVaultRoutes(api, handlers)
 	registerProviderRoutes(api, handlers)
 	registerModelCatalogRoutes(api, handlers)
+	registerGatewayRoutes(api, handlers)
 	registerMCPRoutes(api, handlers)
 }
 

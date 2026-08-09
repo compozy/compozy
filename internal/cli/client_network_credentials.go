@@ -30,7 +30,7 @@ func networkAgentCredentialsFromContext(ctx context.Context) agentidentity.Crede
 	return credentials
 }
 
-func (c *unixSocketClient) doNetworkJSON(
+func (c *daemonClient) doNetworkJSON(
 	ctx context.Context,
 	method string,
 	path string,

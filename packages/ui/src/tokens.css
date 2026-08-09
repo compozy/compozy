@@ -365,6 +365,11 @@
   --size-empty-icon: 38px;
   --width-menu-sub-min: 96px;
 
+  /* QR geometry — fixed physical sizes preserve a scanable quiet zone. */
+  --size-qr-code-sm: 128px;
+  --size-qr-code-default: 176px;
+  --size-qr-code-lg: 224px;
+
   /* Icon-well ladder + status vocabulary + avatar sizes. */
   --size-icon-well-row: 34px; /* listing-row identity well */
   --size-topbar-glyph: 22px; /* OS window-head glyph */

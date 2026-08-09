@@ -59,7 +59,7 @@ type MCPSettingsClient interface {
 	LogoutSettingsMCPAuth(ctx context.Context, target SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 }
 
-func (c *unixSocketClient) InstallSettingsMCPServer(
+func (c *daemonClient) InstallSettingsMCPServer(
 	ctx context.Context,
 	request InstallSettingsMCPServerRequest,
 ) (InstallSettingsMCPServerRecord, error) {
@@ -77,7 +77,7 @@ func (c *unixSocketClient) InstallSettingsMCPServer(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListSettingsMCPServers(
+func (c *daemonClient) ListSettingsMCPServers(
 	ctx context.Context,
 	scope contract.SettingsWorkspaceScopeKind,
 	workspaceID string,
@@ -94,7 +94,7 @@ func (c *unixSocketClient) ListSettingsMCPServers(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetSettingsMCPAuthStatus(
+func (c *daemonClient) GetSettingsMCPAuthStatus(
 	ctx context.Context,
 	target SettingsMCPAuthTarget,
 ) (SettingsMCPAuthStatusRecord, error) {
@@ -112,7 +112,7 @@ func (c *unixSocketClient) GetSettingsMCPAuthStatus(
 	return response, nil
 }
 
-func (c *unixSocketClient) BeginSettingsMCPAuth(
+func (c *daemonClient) BeginSettingsMCPAuth(
 	ctx context.Context,
 	target SettingsMCPAuthTarget,
 	request SettingsMCPAuthBeginRequest,
@@ -131,7 +131,7 @@ func (c *unixSocketClient) BeginSettingsMCPAuth(
 	return response, nil
 }
 
-func (c *unixSocketClient) ExchangeSettingsMCPAuth(
+func (c *daemonClient) ExchangeSettingsMCPAuth(
 	ctx context.Context,
 	target SettingsMCPAuthTarget,
 	request SettingsMCPAuthExchangeRequest,
@@ -150,7 +150,7 @@ func (c *unixSocketClient) ExchangeSettingsMCPAuth(
 	return response, nil
 }
 
-func (c *unixSocketClient) LogoutSettingsMCPAuth(
+func (c *daemonClient) LogoutSettingsMCPAuth(
 	ctx context.Context,
 	target SettingsMCPAuthTarget,
 ) (SettingsMCPAuthStatusRecord, error) {

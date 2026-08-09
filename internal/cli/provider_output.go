@@ -18,7 +18,7 @@ func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
 					"Credentials",
 					[]string{
 						providerNameValue,
-						"Target",
+						automationTargetValue,
 						authoredContextSourceValue,
 						"Required",
 						authoredContextPresentValue,

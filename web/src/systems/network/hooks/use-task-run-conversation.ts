@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { createStreamEventSource } from "@/lib/ticketed-event-source";
+
 import { networkKeys } from "../lib/query-keys";
 import type { TaskRunNetworkProjection, TaskRunNetworkUsage } from "../types";
 import { useNetworkMessages, type UseNetworkMessagesResult } from "./use-messages";
@@ -34,7 +36,7 @@ export function useTaskRunConversation(
   useEffect(() => {
     if (!conversation || !network || typeof EventSource === "undefined") return;
     let active = true;
-    const source = new EventSource(conversation.stream_url);
+    const source = createStreamEventSource(conversation.stream_url);
     const handleMessage = () => {
       setStreamError(null);
       void queryClient.invalidateQueries({

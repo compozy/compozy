@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/gateway"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -73,8 +74,18 @@ func (h *BaseHandlers) ListBridges(c *gin.Context) {
 		h.respondError(c, bridgeCatalogReadErrorStatus(err), err)
 		return
 	}
-	health = h.enrichBridgeCatalogHealth(c.Request.Context(), bridges, page.Items, health)
-	c.JSON(http.StatusOK, bridgeCatalogResponse(page, health))
+	projectionCtx, err := h.gatewayIngressReadContext(c, "bridges.list")
+	if err != nil {
+		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		return
+	}
+	health = h.enrichBridgeCatalogHealth(projectionCtx, bridges, page.Items, health)
+	response, err := h.bridgeCatalogResponse(projectionCtx, page, health)
+	if err != nil {
+		h.respondGatewayError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func bridgeCatalogQueryErrorStatus(err error) int {
@@ -276,13 +287,26 @@ func bridgeCatalogPageInstances(items []bridgepkg.BridgeCatalogItem) []bridgepkg
 	return instances
 }
 
-func bridgeCatalogResponse(
+func (h *BaseHandlers) bridgeCatalogResponse(
+	ctx context.Context,
 	page bridgepkg.BridgeCatalogPage,
 	health map[string]contract.BridgeHealthPayload,
-) contract.BridgesResponse {
+) (contract.BridgesResponse, error) {
+	if health == nil {
+		health = make(map[string]contract.BridgeHealthPayload, len(page.Items))
+	}
 	payloads := make([]contract.BridgePayload, 0, len(page.Items))
 	for _, item := range page.Items {
-		payloads = append(payloads, BridgePayloadFromBridgeInstance(item.Instance))
+		ingress, err := h.bridgeIngressPayload(ctx, item.Instance.ID)
+		if err != nil {
+			return contract.BridgesResponse{}, err
+		}
+		payload := BridgePayloadFromBridgeInstance(item.Instance)
+		payload.GatewayIngress = ingress
+		payloads = append(payloads, payload)
+		if current, ok := health[item.Instance.ID]; ok {
+			health[item.Instance.ID] = bridgeHealthWithIngress(current, ingress)
+		}
 	}
 	return contract.BridgesResponse{
 		Bridges:      payloads,
@@ -297,7 +321,7 @@ func bridgeCatalogResponse(
 			Total:      page.Total,
 			Limit:      page.Limit,
 		},
-	}
+	}, nil
 }
 
 func bridgeStatusCountsPayload(counts map[bridgepkg.BridgeStatus]int) contract.BridgeStatusCountsPayload {

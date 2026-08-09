@@ -795,6 +795,84 @@ func TestManagerHandleWebhookWithSecretResolver(t *testing.T) {
 	}
 }
 
+func TestManagerDisabledWebhookReturnsDistinctRejection(t *testing.T) {
+	h := newManagerHarness(t)
+	t.Setenv("COMPOZY_TEST_DISABLED_WEBHOOK_SECRET", "disabled-secret")
+	cfg := compozyconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+		Triggers: []compozyconfig.AutomationTrigger{
+			func() compozyconfig.AutomationTrigger {
+				trigger := managerConfigTrigger(
+					AutomationScopeWorkspace,
+					"disabled-webhook",
+					h.workspaceRoot,
+					"webhook",
+				)
+				trigger.EndpointSlug = "disabled-delivery"
+				trigger.WebhookSecretRef = "env:COMPOZY_TEST_DISABLED_WEBHOOK_SECRET"
+				trigger.Enabled = false
+				return trigger
+			}(),
+		},
+	}
+
+	manager := h.newManager(t, cfg)
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	trigger, err := manager.resolveConfigTrigger(h.ctx, cfg.Triggers[0])
+	if err != nil {
+		t.Fatalf("resolveConfigTrigger() error = %v", err)
+	}
+	endpoint, err := FormatWebhookEndpoint(trigger.EndpointSlug, trigger.WebhookID)
+	if err != nil {
+		t.Fatalf("FormatWebhookEndpoint() error = %v", err)
+	}
+
+	payload := []byte(`{"payload":"deploy"}`)
+	timestamp := time.Now().UTC()
+	_, err = manager.HandleWebhook(h.ctx, WebhookRequest{
+		Scope:       AutomationScopeWorkspace,
+		WorkspaceID: h.workspace.ID,
+		Endpoint:    endpoint,
+		DeliveryID:  "delivery-disabled-unsigned",
+		Timestamp:   timestamp,
+		Signature:   "sha256=" + strings.Repeat("0", 64),
+		Payload:     payload,
+	})
+	if !errors.Is(err, ErrWebhookSignatureInvalid) {
+		t.Fatalf("HandleWebhook(disabled invalid signature) error = %v, want ErrWebhookSignatureInvalid", err)
+	}
+	signature, err := SignWebhookPayload("disabled-secret", timestamp, payload)
+	if err != nil {
+		t.Fatalf("SignWebhookPayload() error = %v", err)
+	}
+	_, err = manager.HandleWebhook(h.ctx, WebhookRequest{
+		Scope:       AutomationScopeWorkspace,
+		WorkspaceID: h.workspace.ID,
+		Endpoint:    endpoint,
+		DeliveryID:  "delivery-disabled-1",
+		Timestamp:   timestamp,
+		Signature:   signature,
+		Payload:     payload,
+	})
+	if !errors.Is(err, ErrWebhookTriggerDisabled) {
+		t.Fatalf("HandleWebhook(disabled) error = %v, want ErrWebhookTriggerDisabled", err)
+	}
+	if got := h.sessions.promptCount(); got != 0 {
+		t.Fatalf("Prompt() call count = %d, want 0", got)
+	}
+}
+
 func TestManagerHandleWebhookWithConfigSecretEnv(t *testing.T) {
 	h := newManagerHarness(t)
 	t.Setenv("COMPOZY_TEST_CONFIG_WEBHOOK_SECRET", "config-super-secret")

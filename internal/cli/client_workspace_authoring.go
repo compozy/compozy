@@ -27,7 +27,7 @@ func (e *workspacePathNotRegisteredError) Error() string {
 	return fmt.Sprintf("cli: workspace path %q is not registered", e.path)
 }
 
-func (c *unixSocketClient) CreateWorkspace(
+func (c *daemonClient) CreateWorkspace(
 	ctx context.Context,
 	request WorkspaceCreateRequest,
 ) (WorkspaceRecord, error) {
@@ -40,7 +40,7 @@ func (c *unixSocketClient) CreateWorkspace(
 	return response.Workspace, nil
 }
 
-func (c *unixSocketClient) ListWorkspaces(ctx context.Context) ([]WorkspaceRecord, error) {
+func (c *daemonClient) ListWorkspaces(ctx context.Context) ([]WorkspaceRecord, error) {
 	var response struct {
 		Workspaces []WorkspaceRecord `json:"workspaces"`
 	}
@@ -50,7 +50,7 @@ func (c *unixSocketClient) ListWorkspaces(ctx context.Context) ([]WorkspaceRecor
 	return response.Workspaces, nil
 }
 
-func (c *unixSocketClient) GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error) {
+func (c *daemonClient) GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error) {
 	routeRef, err := c.workspaceRouteRef(ctx, ref)
 	if err != nil {
 		return WorkspaceDetailRecord{}, err
@@ -63,7 +63,7 @@ func (c *unixSocketClient) GetWorkspace(ctx context.Context, ref string) (Worksp
 	return response, nil
 }
 
-func (c *unixSocketClient) workspaceRouteRef(ctx context.Context, ref string) (string, error) {
+func (c *daemonClient) workspaceRouteRef(ctx context.Context, ref string) (string, error) {
 	trimmed := strings.TrimSpace(ref)
 	if trimmed == "" {
 		return "", errWorkspaceReferenceRequired
@@ -128,7 +128,7 @@ func canonicalCLIWorkspacePath(path string) (string, error) {
 	return "", fmt.Errorf("cli: resolve workspace path %q: %w", cleaned, err)
 }
 
-func (c *unixSocketClient) UpdateWorkspace(
+func (c *daemonClient) UpdateWorkspace(
 	ctx context.Context,
 	ref string,
 	request WorkspaceUpdateRequest,
@@ -143,12 +143,12 @@ func (c *unixSocketClient) UpdateWorkspace(
 	return response.Workspace, nil
 }
 
-func (c *unixSocketClient) DeleteWorkspace(ctx context.Context, ref string) error {
+func (c *daemonClient) DeleteWorkspace(ctx context.Context, ref string) error {
 	path := "/api/workspaces/" + url.PathEscape(strings.TrimSpace(ref))
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *unixSocketClient) GetAgentSoul(
+func (c *daemonClient) GetAgentSoul(
 	ctx context.Context,
 	name string,
 	query AgentQuery,
@@ -161,7 +161,7 @@ func (c *unixSocketClient) GetAgentSoul(
 	return response, nil
 }
 
-func (c *unixSocketClient) ValidateAgentSoul(
+func (c *daemonClient) ValidateAgentSoul(
 	ctx context.Context,
 	name string,
 	request AgentSoulValidateRequest,
@@ -174,7 +174,7 @@ func (c *unixSocketClient) ValidateAgentSoul(
 	return response, nil
 }
 
-func (c *unixSocketClient) PutAgentSoul(
+func (c *daemonClient) PutAgentSoul(
 	ctx context.Context,
 	name string,
 	request AgentSoulPutRequest,
@@ -187,7 +187,7 @@ func (c *unixSocketClient) PutAgentSoul(
 	return response, nil
 }
 
-func (c *unixSocketClient) DeleteAgentSoul(
+func (c *daemonClient) DeleteAgentSoul(
 	ctx context.Context,
 	name string,
 	request AgentSoulDeleteRequest,
@@ -200,7 +200,7 @@ func (c *unixSocketClient) DeleteAgentSoul(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListAgentSoulHistory(
+func (c *daemonClient) ListAgentSoulHistory(
 	ctx context.Context,
 	name string,
 	request AgentSoulHistoryRequest,
@@ -213,7 +213,7 @@ func (c *unixSocketClient) ListAgentSoulHistory(
 	return response, nil
 }
 
-func (c *unixSocketClient) RollbackAgentSoul(
+func (c *daemonClient) RollbackAgentSoul(
 	ctx context.Context,
 	name string,
 	request AgentSoulRollbackRequest,
@@ -226,7 +226,7 @@ func (c *unixSocketClient) RollbackAgentSoul(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetAgentHeartbeat(
+func (c *daemonClient) GetAgentHeartbeat(
 	ctx context.Context,
 	name string,
 	query AgentQuery,
@@ -239,7 +239,7 @@ func (c *unixSocketClient) GetAgentHeartbeat(
 	return response, nil
 }
 
-func (c *unixSocketClient) ValidateAgentHeartbeat(
+func (c *daemonClient) ValidateAgentHeartbeat(
 	ctx context.Context,
 	name string,
 	request AgentHeartbeatValidateRequest,
@@ -252,7 +252,7 @@ func (c *unixSocketClient) ValidateAgentHeartbeat(
 	return response, nil
 }
 
-func (c *unixSocketClient) PutAgentHeartbeat(
+func (c *daemonClient) PutAgentHeartbeat(
 	ctx context.Context,
 	name string,
 	request AgentHeartbeatPutRequest,
@@ -265,7 +265,7 @@ func (c *unixSocketClient) PutAgentHeartbeat(
 	return response, nil
 }
 
-func (c *unixSocketClient) DeleteAgentHeartbeat(
+func (c *daemonClient) DeleteAgentHeartbeat(
 	ctx context.Context,
 	name string,
 	request AgentHeartbeatDeleteRequest,
@@ -278,7 +278,7 @@ func (c *unixSocketClient) DeleteAgentHeartbeat(
 	return response, nil
 }
 
-func (c *unixSocketClient) ListAgentHeartbeatHistory(
+func (c *daemonClient) ListAgentHeartbeatHistory(
 	ctx context.Context,
 	name string,
 	request AgentHeartbeatHistoryRequest,
@@ -291,7 +291,7 @@ func (c *unixSocketClient) ListAgentHeartbeatHistory(
 	return response, nil
 }
 
-func (c *unixSocketClient) RollbackAgentHeartbeat(
+func (c *daemonClient) RollbackAgentHeartbeat(
 	ctx context.Context,
 	name string,
 	request AgentHeartbeatRollbackRequest,
@@ -304,7 +304,7 @@ func (c *unixSocketClient) RollbackAgentHeartbeat(
 	return response, nil
 }
 
-func (c *unixSocketClient) GetAgentHeartbeatStatus(
+func (c *daemonClient) GetAgentHeartbeatStatus(
 	ctx context.Context,
 	name string,
 	request AgentHeartbeatStatusRequest,
@@ -317,7 +317,7 @@ func (c *unixSocketClient) GetAgentHeartbeatStatus(
 	return response, nil
 }
 
-func (c *unixSocketClient) WakeAgentHeartbeat(
+func (c *daemonClient) WakeAgentHeartbeat(
 	ctx context.Context,
 	name string,
 	request AgentHeartbeatWakeRequest,

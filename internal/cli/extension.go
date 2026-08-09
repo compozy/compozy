@@ -34,6 +34,7 @@ const (
 	extensionDevVerb                = "dev"
 	extensionReloadVerb             = "reload"
 	extensionConfirmNetworkFlagName = "confirm-network-requirement"
+	cliRemoveNameUse                = "remove <name>"
 	cliUseEnableName                = "enable <name>"
 	cliUseDisableName               = "disable <name>"
 )
@@ -167,7 +168,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var global bool
 	command := &cobra.Command{
-		Use:   "remove <name>",
+		Use:   cliRemoveNameUse,
 		Short: "Remove an installed extension from disk and the registry",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {

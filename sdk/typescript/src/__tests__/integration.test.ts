@@ -285,8 +285,15 @@ describe("SDK integration", () => {
 
   it("runs generated conformance fixtures for every public provide", () => {
     const fixtures = publicProvideFixtures();
-    expect(fixtures).toHaveLength(4);
-    expect(fixtures.map(fixture => fixture.provide)).not.toContain("bridge.adapter");
+    const provides = fixtures.map(fixture => fixture.provide);
+    expect(provides).toEqual([
+      "connectivity.provider",
+      "loop.watch_source",
+      "memory.backend",
+      "model.source",
+      "tool.provider",
+    ]);
+    expect(provides).not.toContain("bridge.adapter");
 
     for (const fixture of fixtures) {
       expect(() =>

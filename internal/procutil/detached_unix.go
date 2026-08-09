@@ -55,7 +55,10 @@ func spawnDetachedLoggedProcess(
 	process, err := startDetachedProcess(binary, launchArgv(binary, req.Args), &os.ProcAttr{
 		Env:   launchSandbox(req.Sandbox),
 		Files: []*os.File{stdinFile, logFile, logFile},
-		Sys:   &syscall.SysProcAttr{Setpgid: true},
+		// A detached daemon must leave the launcher's session as well as its
+		// process group. Setpgid alone still lets an SSH session hang up the
+		// daemon after the remote start command exits.
+		Sys: &syscall.SysProcAttr{Setsid: true},
 	})
 	if err != nil {
 		return nil, errors.Join(

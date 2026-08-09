@@ -19,6 +19,7 @@ home defaults to `~/.compozy` and can be changed with `COMPOZY_HOME`.
 | `$COMPOZY_HOME/daemon.json`                                              | Global                 | Daemon discovery metadata.                                                                         |
 | `$COMPOZY_HOME/logs/compozy.log`                                         | Global                 | Structured daemon log file.                                                                        |
 | `$COMPOZY_HOME/logs/network.audit`                                       | Global                 | Append-only network audit file.                                                                    |
+| `$COMPOZY_HOME/gateway/credentials/`                                     | Client-local gateway   | Private credential files for named remote connection profiles.                                     |
 | `$COMPOZY_HOME/support-bundles/`                                         | Global                 | Daemon-created support bundle archives and operation downloads.                                    |
 | `$COMPOZY_HOME/providers/<provider>/`                                    | Provider               | Isolated provider home when `home_policy` is set.                                                  |
 | `$COMPOZY_HOME/sessions/<session-id>/events.db`                          | Session (live)         | Per-session event database during the live session.                                                |
@@ -43,21 +44,23 @@ home defaults to `~/.compozy` and can be changed with `COMPOZY_HOME`.
 
 ## Global Home
 
-| Path                             | Created by home layout | Description                                                                   |
-| -------------------------------- | ---------------------- | ----------------------------------------------------------------------------- |
-| `$COMPOZY_HOME`                  | yes                    | Home root. Defaults to `~/.compozy`; `COMPOZY_HOME` overrides it.             |
-| `$COMPOZY_HOME/config.toml`      | no                     | Global TOML config file.                                                      |
-| `$COMPOZY_HOME/mcp.json`         | no                     | Global MCP sidecar loaded after global TOML by the general config loader.     |
-| `$COMPOZY_HOME/agents/`          | yes                    | Global agent definitions.                                                     |
-| `$COMPOZY_HOME/skills/`          | yes                    | Global user and marketplace skills.                                           |
-| `$COMPOZY_HOME/memory/`          | yes                    | Default global memory directory. Can be overridden by `[memory].global_dir`.  |
-| `$COMPOZY_HOME/providers/`       | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
-| `$COMPOZY_HOME/sessions/`        | yes                    | Parent directory for per-session state.                                       |
-| `$COMPOZY_HOME/logs/`            | yes                    | Parent directory for daemon logs and network audit output.                    |
-| `$COMPOZY_HOME/extensions/`      | no                     | Managed installed extension root. Created when installing managed extensions. |
-| `$COMPOZY_HOME/support-bundles/` | no                     | Created when the daemon builds or the CLI downloads a support bundle.         |
+| Path                                 | Created by home layout | Description                                                                   |
+| ------------------------------------ | ---------------------- | ----------------------------------------------------------------------------- |
+| `$COMPOZY_HOME`                      | yes                    | Home root. Defaults to `~/.compozy`; `COMPOZY_HOME` overrides it.             |
+| `$COMPOZY_HOME/config.toml`          | no                     | Global TOML config file.                                                      |
+| `$COMPOZY_HOME/mcp.json`             | no                     | Global MCP sidecar loaded after global TOML by the general config loader.     |
+| `$COMPOZY_HOME/agents/`              | yes                    | Global agent definitions.                                                     |
+| `$COMPOZY_HOME/skills/`              | yes                    | Global user and marketplace skills.                                           |
+| `$COMPOZY_HOME/memory/`              | yes                    | Default global memory directory. Can be overridden by `[memory].global_dir`.  |
+| `$COMPOZY_HOME/providers/`           | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
+| `$COMPOZY_HOME/sessions/`            | yes                    | Parent directory for per-session state.                                       |
+| `$COMPOZY_HOME/logs/`                | yes                    | Parent directory for daemon logs and network audit output.                    |
+| `$COMPOZY_HOME/gateway/`             | yes                    | Client-local gateway state.                                                   |
+| `$COMPOZY_HOME/gateway/credentials/` | yes                    | Private remote connection credential files.                                   |
+| `$COMPOZY_HOME/extensions/`          | no                     | Managed installed extension root. Created when installing managed extensions. |
+| `$COMPOZY_HOME/support-bundles/`     | no                     | Created when the daemon builds or the CLI downloads a support bundle.         |
 
-`EnsureHomeLayout` creates the root, `agents`, `skills`, `memory`, `sessions`, and `logs`
+`EnsureHomeLayout` creates the root, `agents`, `skills`, `memory`, `sessions`, `logs`, and gateway
 directories. Individual files are created by the features that own them.
 
 ## Global Runtime Files

@@ -30,6 +30,10 @@ const (
 	RestartsDirName = "restarts"
 	// LogsDirName is the directory used for structured logs.
 	LogsDirName = "logs"
+	// GatewayDirName is the directory used for client-local gateway state.
+	GatewayDirName = "gateway"
+	// GatewayCredentialsDirName is the private gateway credential directory.
+	GatewayCredentialsDirName = "credentials"
 	// DatabaseName is the global database filename.
 	DatabaseName = "compozy.db"
 	// DaemonSocketName is the daemon UDS filename.
@@ -49,22 +53,24 @@ const (
 
 // HomePaths captures the filesystem layout for the Compozy home directory.
 type HomePaths struct {
-	HomeDir          string
-	ConfigFile       string
-	AgentsDir        string
-	SkillsDir        string
-	LoopsDir         string
-	MemoryDir        string
-	SessionsDir      string
-	ToolArtifactsDir string
-	RestartsDir      string
-	LogsDir          string
-	LogFile          string
-	NetworkAuditFile string
-	DatabaseFile     string
-	DaemonSocket     string
-	DaemonLock       string
-	DaemonInfo       string
+	HomeDir               string
+	ConfigFile            string
+	AgentsDir             string
+	SkillsDir             string
+	LoopsDir              string
+	MemoryDir             string
+	SessionsDir           string
+	ToolArtifactsDir      string
+	RestartsDir           string
+	LogsDir               string
+	GatewayDir            string
+	GatewayCredentialsDir string
+	LogFile               string
+	NetworkAuditFile      string
+	DatabaseFile          string
+	DaemonSocket          string
+	DaemonLock            string
+	DaemonInfo            string
 }
 
 // ResolveHomeDir resolves the global Compozy home directory, honoring COMPOZY_HOME when present.
@@ -191,22 +197,24 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 	}
 
 	return HomePaths{
-		HomeDir:          root,
-		ConfigFile:       filepath.Join(root, ConfigName),
-		AgentsDir:        filepath.Join(root, AgentsDirName),
-		SkillsDir:        filepath.Join(root, SkillsDirName),
-		LoopsDir:         filepath.Join(root, LoopsDirName),
-		MemoryDir:        filepath.Join(root, MemoryDirName),
-		SessionsDir:      filepath.Join(root, SessionsDirName),
-		ToolArtifactsDir: filepath.Join(root, ToolArtifactsDirName),
-		RestartsDir:      filepath.Join(root, RestartsDirName),
-		LogsDir:          filepath.Join(root, LogsDirName),
-		LogFile:          filepath.Join(root, LogsDirName, LogFileName),
-		NetworkAuditFile: filepath.Join(root, LogsDirName, NetworkAuditFileName),
-		DatabaseFile:     filepath.Join(root, DatabaseName),
-		DaemonSocket:     filepath.Join(root, DaemonSocketName),
-		DaemonLock:       filepath.Join(root, DaemonLockName),
-		DaemonInfo:       filepath.Join(root, DaemonInfoName),
+		HomeDir:               root,
+		ConfigFile:            filepath.Join(root, ConfigName),
+		AgentsDir:             filepath.Join(root, AgentsDirName),
+		SkillsDir:             filepath.Join(root, SkillsDirName),
+		LoopsDir:              filepath.Join(root, LoopsDirName),
+		MemoryDir:             filepath.Join(root, MemoryDirName),
+		SessionsDir:           filepath.Join(root, SessionsDirName),
+		ToolArtifactsDir:      filepath.Join(root, ToolArtifactsDirName),
+		RestartsDir:           filepath.Join(root, RestartsDirName),
+		LogsDir:               filepath.Join(root, LogsDirName),
+		GatewayDir:            filepath.Join(root, GatewayDirName),
+		GatewayCredentialsDir: filepath.Join(root, GatewayDirName, GatewayCredentialsDirName),
+		LogFile:               filepath.Join(root, LogsDirName, LogFileName),
+		NetworkAuditFile:      filepath.Join(root, LogsDirName, NetworkAuditFileName),
+		DatabaseFile:          filepath.Join(root, DatabaseName),
+		DaemonSocket:          filepath.Join(root, DaemonSocketName),
+		DaemonLock:            filepath.Join(root, DaemonLockName),
+		DaemonInfo:            filepath.Join(root, DaemonInfoName),
 	}, nil
 }
 
@@ -222,6 +230,8 @@ func EnsureHomeLayout(paths HomePaths) error {
 		paths.ToolArtifactsDir,
 		paths.RestartsDir,
 		paths.LogsDir,
+		paths.GatewayDir,
+		paths.GatewayCredentialsDir,
 	} {
 		if strings.TrimSpace(dir) == "" {
 			return errors.New("config: home path is required")

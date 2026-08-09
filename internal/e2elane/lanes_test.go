@@ -153,6 +153,15 @@ func TestLaneRunPatternsCompileAndMatchRepresentativeTests(t *testing.T) {
 			rejects: []string{"TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun"},
 		},
 		{
+			name:    "Should match remote gateway CLI e2e tests with the gateway pattern",
+			pattern: RemoteGatewayE2EPattern,
+			matches: []string{
+				"TestRemoteGatewayE2EProfileWorkSurvivesDisconnectAndReconnect",
+				"TestRemoteGatewayE2ESSHConnectLeavesNoReachableSurface",
+			},
+			rejects: []string{"TestRemoteCLIProfilesIntegrationIT060ThroughIT066"},
+		},
+		{
 			name:    "Should match credentialed Daytona nightly tests with the Daytona pattern",
 			pattern: DaytonaNightlyE2EPattern,
 			matches: []string{
@@ -204,6 +213,7 @@ func expectedRuntimeGoSuites() []GoSuite {
 		{Packages: []string{"./internal/api/httpapi"}, Run: "^TestHTTPTransport"},
 		{Packages: []string{"./internal/api/udsapi"}, Run: "^TestUDSTransport"},
 		{Packages: []string{"./internal/testutil/e2e"}, Run: "^TestStartRuntimeHarness"},
+		{Packages: []string{"./internal/cli"}, Run: "^TestRemoteGatewayE2E"},
 	}
 }
 

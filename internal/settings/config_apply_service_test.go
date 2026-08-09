@@ -435,6 +435,92 @@ cost_reasoning_per_million = 30
 	})
 
 	t.Run(
+		"Should preserve pending gateway ports while applying the ceiling live",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := WithMutationSource(context.Background(), "http")
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+			db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(ctx); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			})
+
+			applier := &fakeConfigRuntimeApplier{}
+			service := testService(t, homePaths, Dependencies{
+				RuntimeApplier: applier,
+				ApplyRecords:   NewConfigApplyRecordRepository(db.DB(), nil),
+			})
+			initial, err := service.ActiveConfig(ctx)
+			if err != nil {
+				t.Fatalf("ActiveConfig(initial) error = %v", err)
+			}
+			pendingGateway := initial.Gateway
+			pendingGateway.PrivatePort = 43210
+			pending, err := service.ApplySection(ctx, SectionUpdateRequest{
+				SectionRequest: SectionRequest{Section: SectionGateway},
+				Gateway:        &pendingGateway,
+			})
+			if err != nil {
+				t.Fatalf("ApplySection(pending gateway port) error = %v", err)
+			}
+			if pending.Applied || !pending.RestartRequired || pending.Record.Status != lifecycle.StatusBlocked {
+				t.Fatalf("pending gateway apply = %#v, want blocked restart-required result", pending)
+			}
+
+			desired, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatalf("LoadForHome(pending) error = %v", err)
+			}
+			desired.Gateway.Enabled = !initial.Gateway.Enabled
+			live, err := service.ApplySection(ctx, SectionUpdateRequest{
+				SectionRequest: SectionRequest{Section: SectionGateway},
+				Gateway:        &desired.Gateway,
+			})
+			if err != nil {
+				t.Fatalf("ApplySection(gateway ceiling) error = %v", err)
+			}
+			if !live.Applied || live.RestartRequired || live.Record.Lifecycle != lifecycle.Live {
+				t.Fatalf("gateway ceiling apply = %#v, want live applied result", live)
+			}
+			if live.Record.DesiredHash == live.Record.ActiveHash {
+				t.Fatalf(
+					"gateway hashes = desired %q active %q, want pending restart drift",
+					live.Record.DesiredHash,
+					live.Record.ActiveHash,
+				)
+			}
+			if got, want := applier.calls, 1; got != want {
+				t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
+			}
+			runtimeGateway := applier.snapshots[0].Gateway
+			if runtimeGateway.Enabled != desired.Gateway.Enabled {
+				t.Fatalf("runtime gateway.enabled = %t, want %t", runtimeGateway.Enabled, desired.Gateway.Enabled)
+			}
+			if runtimeGateway.PrivatePort != initial.Gateway.PrivatePort {
+				t.Fatalf(
+					"runtime gateway.private_port = %d, want prior active %d",
+					runtimeGateway.PrivatePort,
+					initial.Gateway.PrivatePort,
+				)
+			}
+			active, err := service.ActiveConfig(ctx)
+			if err != nil {
+				t.Fatalf("ActiveConfig(after live projection) error = %v", err)
+			}
+			if !reflect.DeepEqual(active.Gateway, runtimeGateway) {
+				t.Fatalf("active gateway = %#v, want runtime projection %#v", active.Gateway, runtimeGateway)
+			}
+		},
+	)
+
+	t.Run(
 		"Should preserve pending restart-required Network fields while applying availability live",
 		func(t *testing.T) {
 			t.Parallel()
@@ -1210,6 +1296,22 @@ func TestReloadChangedPaths(t *testing.T) {
 		want := []string{"roles.auto_title.enabled"}
 		if got := reloadChangedPaths(&current, &desired); !slices.Equal(got, want) {
 			t.Fatalf("reloadChangedPaths() = %#v, want %#v", got, want)
+		}
+		if got := classifyReloadLifecycle(&current, &desired); got != lifecycle.Live {
+			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)
+		}
+	})
+
+	t.Run("Should classify client-only gateway profile changes as live", func(t *testing.T) {
+		t.Parallel()
+		current := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		desired := current
+		desired.Gateway.Connections = []compozyconfig.GatewayConnectionConfig{{
+			Name: "remote", Scheme: "ssh", Host: "gateway.example.test", Port: 22,
+		}}
+		desired.Gateway.ActiveConnection = "remote"
+		if got := reloadChangedPaths(&current, &desired); len(got) != 0 {
+			t.Fatalf("reloadChangedPaths() = %#v, want no daemon runtime paths", got)
 		}
 		if got := classifyReloadLifecycle(&current, &desired); got != lifecycle.Live {
 			t.Fatalf("classifyReloadLifecycle() = %q, want %q", got, lifecycle.Live)

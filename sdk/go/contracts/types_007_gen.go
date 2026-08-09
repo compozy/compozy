@@ -7,6 +7,63 @@ import (
 	"time"
 )
 
+type CoordinatorSpawnPatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	AgentName  *string `json:"agent_name,omitempty"`
+	Provider   *string `json:"provider,omitempty"`
+	Model      *string `json:"model,omitempty"`
+}
+
+type CoordinatorSpawnedPayload struct {
+	Event                        HookEvent `json:"event"`
+	Timestamp                    time.Time `json:"timestamp"`
+	WorkspaceID                  string    `json:"workspace_id,omitempty"`
+	Workspace                    string    `json:"workspace,omitempty"`
+	AgentName                    string    `json:"agent_name,omitempty"`
+	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
+	TaskID                       string    `json:"task_id,omitempty"`
+	RunID                        string    `json:"run_id,omitempty"`
+	WorkflowID                   string    `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
+	Provider                     string    `json:"provider,omitempty"`
+	Model                        string    `json:"model,omitempty"`
+	DecisionKind                 string    `json:"decision_kind,omitempty"`
+	Decision                     string    `json:"decision,omitempty"`
+	StopReason                   string    `json:"stop_reason,omitempty"`
+	Error                        string    `json:"error,omitempty"`
+}
+
+type CoordinatorStoppedPayload struct {
+	Event                        HookEvent `json:"event"`
+	Timestamp                    time.Time `json:"timestamp"`
+	WorkspaceID                  string    `json:"workspace_id,omitempty"`
+	Workspace                    string    `json:"workspace,omitempty"`
+	AgentName                    string    `json:"agent_name,omitempty"`
+	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
+	TaskID                       string    `json:"task_id,omitempty"`
+	RunID                        string    `json:"run_id,omitempty"`
+	WorkflowID                   string    `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
+	Provider                     string    `json:"provider,omitempty"`
+	Model                        string    `json:"model,omitempty"`
+	DecisionKind                 string    `json:"decision_kind,omitempty"`
+	Decision                     string    `json:"decision,omitempty"`
+	StopReason                   string    `json:"stop_reason,omitempty"`
+	Error                        string    `json:"error,omitempty"`
+}
+
+type CostSource string
+
+type CostStatus string
+
+type CountedCursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Total      int    `json:"total"`
+	Limit      int    `json:"limit"`
+}
+
 type CursorPagePayload struct {
 	NextCursor string `json:"next_cursor,omitempty"`
 	HasMore    bool   `json:"has_more"`
@@ -97,20 +154,27 @@ type DeliveryTarget struct {
 
 type DependencyKind string
 
+type DescribeNetworkParticipation struct {
+	Required      bool     `json:"required"`
+	Mode          string   `json:"mode"`
+	ChannelScopes []string `json:"channel_scopes,omitempty"`
+}
+
 type DescribePayload struct {
-	Name             string                           `json:"name"`
-	Version          string                           `json:"version"`
-	Description      string                           `json:"description,omitempty"`
-	Provides         []string                         `json:"provides"`
-	Permissions      []string                         `json:"permissions"`
-	RequiresEnv      []string                         `json:"requires_env,omitempty"`
-	Resources        DescribeResources                `json:"resources"`
-	Subprocess       DescribeSubprocess               `json:"subprocess"`
-	Tools            []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
-	HookEvents       []string                         `json:"hook_events,omitempty"`
-	WatchSourceKinds []string                         `json:"watch_source_kinds,omitempty"`
-	CommandGroups    []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
-	SDK              DescribeSDKInfo                  `json:"sdk"`
+	Name                 string                           `json:"name"`
+	Version              string                           `json:"version"`
+	Description          string                           `json:"description,omitempty"`
+	Provides             []string                         `json:"provides"`
+	Permissions          []string                         `json:"permissions"`
+	RequiresEnv          []string                         `json:"requires_env,omitempty"`
+	Resources            DescribeResources                `json:"resources"`
+	Subprocess           DescribeSubprocess               `json:"subprocess"`
+	NetworkParticipation *DescribeNetworkParticipation    `json:"network_participation,omitempty"`
+	Tools                []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
+	HookEvents           []string                         `json:"hook_events,omitempty"`
+	WatchSourceKinds     []string                         `json:"watch_source_kinds,omitempty"`
+	CommandGroups        []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
+	SDK                  DescribeSDKInfo                  `json:"sdk"`
 }
 
 type DescribeResources struct {
@@ -126,64 +190,4 @@ type DescribeSDKInfo struct {
 	Version           string `json:"version"`
 	ProtocolVersion   string `json:"protocol_version"`
 	MinCompozyVersion string `json:"min_compozy_version"`
-}
-
-type DescribeSubprocess struct {
-	Command string            `json:"command"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
-}
-
-type Effort string
-
-type EmptyResult struct{}
-
-type EventPostRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type EventPostRecordPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	RecordType     string          `json:"record_type,omitempty"`
-	Sequence       int64           `json:"sequence,omitempty"`
-	Content        json.RawMessage `json:"content,omitempty"`
-}
-
-type EventPreRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type EventPreRecordPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	RecordType     string          `json:"record_type,omitempty"`
-	Sequence       int64           `json:"sequence,omitempty"`
-	Content        json.RawMessage `json:"content,omitempty"`
 }

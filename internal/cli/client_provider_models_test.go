@@ -18,8 +18,8 @@ func TestProviderModelClientRoutesGlobalActions(t *testing.T) {
 	t.Run("Should route refresh without a provider to the global endpoint", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost || req.URL.Path != "/api/model-catalog/models/refresh" {
 					return nil, fmt.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
@@ -39,8 +39,8 @@ func TestProviderModelClientRoutesGlobalActions(t *testing.T) {
 	t.Run("Should route status without a provider to the global endpoint", func(t *testing.T) {
 		t.Parallel()
 
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodGet || req.URL.Path != "/api/model-catalog/sources/status" {
 					return nil, fmt.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
@@ -57,7 +57,7 @@ func TestProviderModelClientRoutesGlobalActions(t *testing.T) {
 func TestProviderModelClientRequiresProviderIDForCuration(t *testing.T) {
 	t.Parallel()
 
-	client := &unixSocketClient{}
+	client := &daemonClient{}
 
 	t.Run("Should reject blank provider IDs for curation", func(t *testing.T) {
 		t.Parallel()
@@ -76,8 +76,8 @@ func TestProviderModelClientRequiresProviderIDForCuration(t *testing.T) {
 
 		hidden := false
 		featured := true
-		client := &unixSocketClient{
-			socketPath: "/tmp/compozy.sock",
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
 			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method != http.MethodPost ||
 					req.URL.Path != "/api/model-catalog/providers/codex/models/curate" {

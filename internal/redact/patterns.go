@@ -17,6 +17,7 @@ var (
 	)
 	bearerTokenPattern      = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
 	claimTokenPattern       = regexp.MustCompile(`(?i)compozy_claim_[A-Za-z0-9_-]+`)
+	gatewaySecretPattern    = regexp.MustCompile(`(?i)\b(cpz_gw[dpt]_)[A-Za-z0-9_-]{20,}`)
 	urlUserinfoPattern      = regexp.MustCompile(`(?i)(://)[^/@\s:]+:[^/@\s]+@`)
 	quotedAssignmentPattern = regexp.MustCompile(
 		`(?i)(["'])(` + sensitiveAssignmentKeyPattern + `)(["'])(\s*:\s*)(["'])(?:\\.|[^\\])*?(["'])`,

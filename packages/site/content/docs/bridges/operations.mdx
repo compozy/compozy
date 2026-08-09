@@ -193,6 +193,13 @@ proof. After deletion, confirm both the binding list and the provider-side revoc
 
 ## Move or expose a callback
 
+<OperatorNote>
+  Compozy Gateway can own the public ingress boundary and project a confirmed delivery URL for each
+  bridge. Use that URL when Gateway is enabled; use the tunnel or reverse-proxy options below when
+  an external boundary owns reachability. See [Bridge callbacks over the
+  gateway](/docs/gateway/webhooks#bridge-callbacks-use-the-same-ingress).
+</OperatorNote>
+
 ### Development tunnel
 
 For a temporary local test, point a tunnel at the provider listener port:

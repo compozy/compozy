@@ -33,6 +33,9 @@ const CapabilityToolProvider = "tool.provider"
 // CapabilityProvideWatchSource is the provide surface for loop watch-source polling.
 const CapabilityProvideWatchSource = "loop.watch_source"
 
+// CapabilityProvideConnectivityProvider is the public daemon reachability surface.
+const CapabilityProvideConnectivityProvider = "connectivity.provider"
+
 // ExtensionServiceMethodProvideTools is the runtime descriptor service method.
 const ExtensionServiceMethodProvideTools = "provide_tools"
 
@@ -41,6 +44,15 @@ const ExtensionServiceMethodToolsCall = "tools/call"
 
 // ExtensionServiceMethodWatchPoll is the watch-source poll service method.
 const ExtensionServiceMethodWatchPoll = "watch/poll"
+
+const (
+	// ExtensionServiceMethodConnectivityEstablish starts one connectivity tier.
+	ExtensionServiceMethodConnectivityEstablish = "connectivity/establish"
+	// ExtensionServiceMethodConnectivityStatus reads one connectivity tier.
+	ExtensionServiceMethodConnectivityStatus = "connectivity/status"
+	// ExtensionServiceMethodConnectivityTeardown stops one connectivity tier.
+	ExtensionServiceMethodConnectivityTeardown = "connectivity/teardown"
+)
 
 const (
 	initializeMethod  = "initialize"
@@ -101,20 +113,24 @@ const (
 
 // ExtensionDefinition describes one extension process implementation.
 type ExtensionDefinition struct {
-	Name                string             `json:"name"`
-	Version             string             `json:"version"`
-	Description         string             `json:"description,omitempty"`
-	RequiresEnv         []string           `json:"requires_env,omitempty"`
-	Resources           DescribeResources  `json:"resources,omitempty"`
-	Subprocess          DescribeSubprocess `json:"subprocess"`
-	Capabilities        CapabilitiesConfig `json:"capabilities"`
-	Permissions         PermissionsConfig  `json:"permissions"`
-	SupportedHookEvents []string           `json:"supported_hook_events,omitempty"`
-	Metadata            map[string]string  `json:"metadata,omitempty"`
+	Name                 string                           `json:"name"`
+	Version              string                           `json:"version"`
+	Description          string                           `json:"description,omitempty"`
+	RequiresEnv          []string                         `json:"requires_env,omitempty"`
+	Resources            DescribeResources                `json:"resources,omitempty"`
+	Subprocess           DescribeSubprocess               `json:"subprocess"`
+	Capabilities         CapabilitiesConfig               `json:"capabilities"`
+	Permissions          PermissionsConfig                `json:"permissions"`
+	SupportedHookEvents  []string                         `json:"supported_hook_events,omitempty"`
+	NetworkParticipation *NetworkParticipationRequirement `json:"network_participation,omitempty"`
+	Metadata             map[string]string                `json:"metadata,omitempty"`
 }
 
 // DescribeResources declares source-relative static resource paths shipped by an extension.
 type DescribeResources = contracts.DescribeResources
+
+// NetworkParticipationRequirement declares live network control for digest consent.
+type NetworkParticipationRequirement = contracts.DescribeNetworkParticipation
 
 // CapabilitiesConfig lists extension-provided capability surfaces.
 type CapabilitiesConfig struct {

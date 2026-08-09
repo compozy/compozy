@@ -1,3 +1,5 @@
+import { createStreamEventSource } from "@/lib/ticketed-event-source";
+
 const TRANSCRIPT_SNAPSHOT_EVENT = "transcript_snapshot";
 const TRANSCRIPT_DELTA_EVENT = "transcript_delta";
 const GOAL_SNAPSHOT_CHANGED_EVENT = "goal_snapshot_changed";
@@ -24,7 +26,7 @@ export interface SessionStreamListeners {
 }
 
 export function defaultEventSourceFactory(url: string): SessionStreamEventSource {
-  return new EventSource(url);
+  return createStreamEventSource(url);
 }
 
 export function attachSessionStreamSource(

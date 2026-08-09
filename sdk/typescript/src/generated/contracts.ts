@@ -1024,6 +1024,19 @@ export interface AutomationTriggersParams {
   limit?: number;
 }
 
+export interface GatewayIngressPayload {
+  subject_kind: string;
+  subject_id: string;
+  scope_kind: string;
+  workspace_id?: string;
+  url?: string;
+  reachability: string;
+  endpoint_generation: number;
+  confirmed_endpoint_generation?: number;
+  confirmed_at?: ISODateTime;
+  enable_path?: string;
+}
+
 export interface Trigger {
   id: string;
   scope: Scope;
@@ -1043,6 +1056,7 @@ export interface Trigger {
   endpoint_slug?: string;
   webhook_secret_present: boolean;
   webhook_secret_hash?: string;
+  ingress?: GatewayIngressPayload;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }
@@ -1156,6 +1170,7 @@ export interface BridgeTargetSnapshotResponse {
 
 export interface BridgeWebhookRegistrationRequest {
   bridge_instance_id: string;
+  public_url?: string;
 }
 
 export interface BridgeWebhookRegistrationResponse {
@@ -1215,6 +1230,40 @@ export interface CommandFlag {
 export interface CompactionMatcher {
   compaction_reason?: string;
   compaction_strategy?: string;
+}
+
+export interface ConnectivityAdvertisedEndpoint {
+  url: string;
+  scheme: string;
+  scheme_policy?: string;
+  stability: string;
+}
+
+export interface ConnectivityEstablishRequest {
+  tier: string;
+  forward_target: string;
+  challenge_path: string;
+  deadline: ISODateTime;
+}
+
+export interface ConnectivityReachability {
+  tier: string;
+  endpoints: ConnectivityAdvertisedEndpoint[];
+  health: string;
+  reason?: string;
+}
+
+export interface ConnectivityStatusRequest {
+  tier: string;
+}
+
+export interface ConnectivityTeardownRequest {
+  tier: string;
+  deadline: ISODateTime;
+}
+
+export interface ConnectivityTeardownResponse {
+  stopped: boolean;
 }
 
 export interface ConsentArea {
@@ -1590,6 +1639,12 @@ export interface DeliveryRequest {
   snapshot?: DeliverySnapshot;
 }
 
+export interface DescribeNetworkParticipation {
+  required: boolean;
+  mode: string;
+  channel_scopes?: string[];
+}
+
 export interface DescribeResources {
   skills?: string[];
   loops?: string[];
@@ -1653,6 +1708,7 @@ export interface DescribePayload {
   requires_env?: string[];
   resources: DescribeResources;
   subprocess: DescribeSubprocess;
+  network_participation?: DescribeNetworkParticipation;
   tools?: ExtensionToolRuntimeDescriptor[];
   hook_events?: string[];
   watch_source_kinds?: string[];
@@ -7171,6 +7227,11 @@ export interface HostAPIMethodMap {
 
 export const REQUIRED_METHODS_BY_PROVIDE = {
   "bridge.adapter": ["bridges/deliver", "bridges/targets/snapshot"],
+  "connectivity.provider": [
+    "connectivity/establish",
+    "connectivity/status",
+    "connectivity/teardown",
+  ],
   "loop.watch_source": ["watch/poll"],
   "memory.backend": ["memory/forget", "memory/recall", "memory/store"],
   "model.source": ["models/list"],
@@ -7183,6 +7244,10 @@ export interface ProvideConformanceFixture {
 }
 
 export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFixture[] = [
+  {
+    provide: "connectivity.provider",
+    required_methods: REQUIRED_METHODS_BY_PROVIDE["connectivity.provider"],
+  },
   {
     provide: "loop.watch_source",
     required_methods: REQUIRED_METHODS_BY_PROVIDE["loop.watch_source"],

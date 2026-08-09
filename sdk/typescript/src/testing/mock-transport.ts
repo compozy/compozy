@@ -30,6 +30,10 @@ export class MockTransport implements TransportLike {
     this.handlers.set(method.trim(), handler);
   }
 
+  public unhandle(method: string): void {
+    this.handlers.delete(method.trim());
+  }
+
   public onTransportError(listener: (error: Error) => void): () => void {
     this.errors.add(listener);
     return () => {

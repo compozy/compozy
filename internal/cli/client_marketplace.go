@@ -43,7 +43,7 @@ type MarketplaceClient interface {
 	RefreshMarketplace(ctx context.Context, kind string) (MarketplaceRefreshRecord, error)
 }
 
-func (c *unixSocketClient) SearchMarketplace(
+func (c *daemonClient) SearchMarketplace(
 	ctx context.Context,
 	query string,
 	limit int,
@@ -66,7 +66,7 @@ func (c *unixSocketClient) SearchMarketplace(
 	return response, nil
 }
 
-func (c *unixSocketClient) BrowseMarketplace(
+func (c *daemonClient) BrowseMarketplace(
 	ctx context.Context,
 	kind string,
 	query string,
@@ -99,7 +99,7 @@ func (c *unixSocketClient) BrowseMarketplace(
 	return response, nil
 }
 
-func (c *unixSocketClient) MarketplaceInfo(
+func (c *daemonClient) MarketplaceInfo(
 	ctx context.Context,
 	kind string,
 	entryID string,
@@ -160,7 +160,7 @@ func (s MarketplaceReadScope) queryValues() (url.Values, error) {
 	return values, nil
 }
 
-func (c *unixSocketClient) RefreshMarketplace(
+func (c *daemonClient) RefreshMarketplace(
 	ctx context.Context,
 	kind string,
 ) (MarketplaceRefreshRecord, error) {

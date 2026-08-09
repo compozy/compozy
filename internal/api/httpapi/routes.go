@@ -4,6 +4,10 @@ import "github.com/gin-gonic/gin"
 
 // RegisterRoutes registers the shared Compozy API routes on the supplied Gin router.
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
+	RegisterSurfaceRoutes(router, handlers, SurfaceSetLocal)
+}
+
+func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	if handlers == nil {
 		return
 	}
@@ -17,35 +21,11 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		api = api.Group("", loopbackAPIGuard(handlers.boundHost))
 	}
 
-	registerStatusRoutes(api, handlers)
-	registerOnboardingRoutes(api, handlers)
-	registerFilesystemRoutes(api, handlers)
-	registerBridgeRoutes(api, handlers)
-	registerNotificationRoutes(api, handlers)
-	registerWorkspaceRoutes(api, handlers)
-	registerWindowManagerRoutes(api, handlers)
-	registerSessionRoutes(api, handlers)
-	registerAgentRoutes(api, handlers)
-	registerRoleRoutes(api, handlers)
-	registerLogsRoutes(api, handlers)
-	registerSupportRoutes(api, handlers)
-	registerObserveRoutes(api, handlers)
-	registerHookRoutes(api, handlers)
+	registerOperatorRoutes(api, handlers, true)
+	registerAgentKernelRoutes(api, handlers)
 	registerResourceRoutes(api, handlers)
-	registerToolRoutes(api, handlers)
-	registerAutomationRoutes(api, handlers)
-	registerLoopRoutes(api, handlers)
-	registerTaskRoutes(api, handlers)
-	registerMarketplaceRoutes(api, handlers)
-	registerSkillRoutes(api, handlers)
-	registerMemoryRoutes(api, handlers)
-	registerNetworkRoutes(api, handlers)
-	registerExtensionRoutes(api, handlers)
-	registerSettingsRoutes(api, handlers)
-	registerVaultRoutes(api, handlers)
-	registerProviderRoutes(api, handlers)
-	registerModelCatalogRoutes(api, handlers)
-	registerOpenAIModelRoutes(api, handlers)
+	registerGatewayRedeemRoute(api, handlers)
+	registerGatewayManagementRoutes(api, handlers, false)
 
 	if engine, ok := router.(*gin.Engine); ok {
 		engine.NoRoute(handlers.serveStaticRoute)
@@ -141,6 +121,16 @@ func registerResourceRoutes(api gin.IRouter, handlers *Handlers) {
 	resourcesGroup.DELETE("/:kind/:id", handlers.DeleteResource)
 }
 
+func registerRemoteResourceReadRoutes(api gin.IRouter, handlers *Handlers) {
+	if handlers == nil {
+		return
+	}
+	resourcesGroup := api.Group("/resources")
+	resourcesGroup.GET("", handlers.ListResources)
+	resourcesGroup.GET("/:kind", handlers.ListResources)
+	resourcesGroup.GET("/:kind/:id", handlers.GetResource)
+}
+
 func registerToolRoutes(api gin.IRouter, handlers *Handlers) {
 	privileged := handlers.privilegedMutationGuard()
 	tools := api.Group("/tools")
@@ -166,38 +156,73 @@ func registerToolRoutes(api gin.IRouter, handlers *Handlers) {
 	approvalGrants.DELETE("/:id", handlers.privilegedMutationGuard(), handlers.RevokeToolApprovalGrant)
 }
 
-func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
+func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeTaskMutations bool) {
 	tasks := api.Group("/tasks")
-	tasks.POST("", handlers.CreateTask)
 	tasks.GET("", handlers.ListTasks)
 	tasks.GET("/:id", handlers.GetTask)
 	tasks.GET("/:id/inspect", handlers.InspectTask)
+	tasks.GET("/:id/execution-profile", handlers.GetTaskExecutionProfile)
+	tasks.GET("/:id/notifications/bridges", handlers.ListTaskBridgeNotificationSubscriptions)
+	tasks.GET("/:id/notifications/bridges/:subscription_id", handlers.GetTaskBridgeNotificationSubscription)
+	tasks.GET("/:id/reviews", handlers.ListTaskReviews)
+	tasks.GET("/:id/blocks", handlers.ListTaskBlocks)
+	tasks.GET("/:id/timeline", handlers.TaskTimeline)
+	tasks.GET("/:id/stream", handlers.StreamTask)
+	tasks.GET("/:id/tree", handlers.TaskTree)
+	tasks.GET("/:id/runs", handlers.ListTaskRuns)
+	if includeTaskMutations {
+		registerTaskMutationRoutes(tasks, handlers)
+	}
+
+	taskRuns := api.Group("/task-runs")
+	taskRuns.GET("/:id", handlers.GetTaskRun)
+	taskRuns.GET("/:id/conversation/stream", handlers.StreamTaskRunConversation)
+	taskRuns.GET("/:id/reviews", handlers.ListTaskRunReviews)
+	if includeTaskMutations {
+		taskRuns.POST("/:id/reviews", handlers.RequestTaskRunReview)
+		taskRuns.POST("/:id/start", handlers.StartTaskRun)
+		taskRuns.POST("/:id/attach-session", handlers.AttachTaskRunSession)
+		taskRuns.POST("/:id/complete", handlers.CompleteTaskRun)
+		taskRuns.POST("/:id/fail", handlers.FailTaskRun)
+		taskRuns.POST("/:id/cancel", handlers.CancelTaskRun)
+	}
+
+	runs := api.Group("/runs")
+	runs.GET("/:id/inspect", handlers.InspectRun)
+	if includeTaskMutations {
+		registerRunMutationRoutes(runs, handlers)
+	}
+
+	if includeTaskMutations {
+		registerSchedulerRoutes(api, handlers)
+	}
+
+	taskReviews := api.Group("/task-reviews")
+	taskReviews.GET("/:id", handlers.GetTaskRunReview)
+	if includeTaskMutations {
+		taskReviews.POST("/:id/verdict", handlers.SubmitTaskRunReviewVerdict)
+	}
+}
+
+func registerTaskMutationRoutes(tasks *gin.RouterGroup, handlers *Handlers) {
+	tasks.POST("", handlers.CreateTask)
 	tasks.DELETE("/:id", handlers.DeleteTask)
 	tasks.PATCH("/:id", handlers.UpdateTask)
-	tasks.GET("/:id/execution-profile", handlers.GetTaskExecutionProfile)
 	tasks.PUT("/:id/execution-profile", handlers.SetTaskExecutionProfile)
 	tasks.DELETE("/:id/execution-profile", handlers.DeleteTaskExecutionProfile)
 	tasks.POST("/:id/notifications/bridges", handlers.CreateTaskBridgeNotificationSubscription)
-	tasks.GET("/:id/notifications/bridges", handlers.ListTaskBridgeNotificationSubscriptions)
-	tasks.GET("/:id/notifications/bridges/:subscription_id", handlers.GetTaskBridgeNotificationSubscription)
-	deleteBridgeNotificationSubscription := handlers.DeleteTaskBridgeNotificationSubscription
-	tasks.DELETE("/:id/notifications/bridges/:subscription_id", deleteBridgeNotificationSubscription)
-	tasks.GET("/:id/reviews", handlers.ListTaskReviews)
+	tasks.DELETE("/:id/notifications/bridges/:subscription_id", handlers.DeleteTaskBridgeNotificationSubscription)
 	tasks.POST("/:id/publish", handlers.PublishTask)
 	tasks.POST("/:id/start", handlers.StartTask)
 	tasks.POST("/:id/cancel", handlers.CancelTask)
 	tasks.POST("/:id/pause", handlers.PauseTask)
 	tasks.POST("/:id/resume", handlers.ResumeTask)
 	tasks.POST("/:id/blocks", handlers.BlockTask)
-	tasks.GET("/:id/blocks", handlers.ListTaskBlocks)
 	tasks.POST("/:id/blocks/:block_id/clear", handlers.ClearTaskBlock)
 	tasks.POST("/:id/recover", handlers.RecoverTask)
 	tasks.POST("/:id/children", handlers.CreateChildTask)
 	tasks.POST("/:id/dependencies", handlers.AddTaskDependency)
 	tasks.DELETE("/:id/dependencies/:depends_on_id", handlers.RemoveTaskDependency)
-	tasks.GET("/:id/timeline", handlers.TaskTimeline)
-	tasks.GET("/:id/stream", handlers.StreamTask)
-	tasks.GET("/:id/tree", handlers.TaskTree)
 	tasks.POST("/:id/approve", handlers.ApproveTask)
 	tasks.POST("/:id/reject", handlers.RejectTask)
 	tasks.POST("/:id/triage/read", handlers.MarkTaskRead)
@@ -205,42 +230,24 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 	tasks.POST("/:id/triage/dismiss", handlers.DismissTask)
 	tasks.POST("/:id/runs", handlers.EnqueueTaskRun)
 	tasks.POST("/:id/runs/fan-out", handlers.FanOutTaskRuns)
-	tasks.GET("/:id/runs", handlers.ListTaskRuns)
+}
 
-	taskRuns := api.Group("/task-runs")
-	taskRuns.GET("/:id", handlers.GetTaskRun)
-	taskRuns.GET("/:id/conversation/stream", handlers.StreamTaskRunConversation)
-	taskRuns.POST("/:id/reviews", handlers.RequestTaskRunReview)
-	taskRuns.GET("/:id/reviews", handlers.ListTaskRunReviews)
-	taskRuns.POST("/:id/start", handlers.StartTaskRun)
-	taskRuns.POST("/:id/attach-session", handlers.AttachTaskRunSession)
-	taskRuns.POST("/:id/complete", handlers.CompleteTaskRun)
-	taskRuns.POST("/:id/fail", handlers.FailTaskRun)
-	taskRuns.POST("/:id/cancel", handlers.CancelTaskRun)
+func registerRunMutationRoutes(runs *gin.RouterGroup, handlers *Handlers) {
+	runs.POST("/bulk/release", handlers.BulkForceReleaseTaskRuns)
+	runs.POST("/bulk/fail", handlers.BulkForceFailTaskRuns)
+	runs.POST("/:id/release", handlers.ForceReleaseTaskRun)
+	runs.POST("/:id/fail", handlers.ForceFailTaskRun)
+	runs.POST("/:id/retry", handlers.RetryTaskRun)
+	runs.POST("/:id/recover", handlers.RecoverTaskRun)
+}
 
-	registerRunForceRoutes(api, handlers)
-
+func registerSchedulerRoutes(api gin.IRouter, handlers *Handlers) {
 	scheduler := api.Group("/scheduler")
 	scheduler.GET("", handlers.GetScheduler)
 	scheduler.GET("/backlog", handlers.GetSchedulerBacklog)
 	scheduler.POST("/pause", handlers.PauseScheduler)
 	scheduler.POST("/resume", handlers.ResumeScheduler)
 	scheduler.POST("/drain", handlers.DrainScheduler)
-
-	taskReviews := api.Group("/task-reviews")
-	taskReviews.GET("/:id", handlers.GetTaskRunReview)
-	taskReviews.POST("/:id/verdict", handlers.SubmitTaskRunReviewVerdict)
-}
-
-func registerRunForceRoutes(api gin.IRouter, handlers *Handlers) {
-	runs := api.Group("/runs")
-	runs.POST("/bulk/release", handlers.BulkForceReleaseTaskRuns)
-	runs.POST("/bulk/fail", handlers.BulkForceFailTaskRuns)
-	runs.GET("/:id/inspect", handlers.InspectRun)
-	runs.POST("/:id/release", handlers.ForceReleaseTaskRun)
-	runs.POST("/:id/fail", handlers.ForceFailTaskRun)
-	runs.POST("/:id/retry", handlers.RetryTaskRun)
-	runs.POST("/:id/recover", handlers.RecoverTaskRun)
 }
 
 func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
@@ -453,7 +460,11 @@ func registerOpenAIModelRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
-	webhooks := api.Group("/webhooks")
+	webhooks := api.Group("/webhooks", handlers.gatewayIngressRateLimitMiddleware())
 	webhooks.POST("/global/:endpoint", handlers.DeliverGlobalWebhook)
 	webhooks.POST("/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
+	callbacks := api.Group("/bridge-callbacks", handlers.gatewayIngressRateLimitMiddleware())
+	callbacks.GET("/:id", handlers.ProxyGatewayBridgeCallback)
+	callbacks.POST("/:id", handlers.ProxyGatewayBridgeCallback)
+	callbacks.HEAD("/:id", handlers.ProxyGatewayBridgeCallback)
 }

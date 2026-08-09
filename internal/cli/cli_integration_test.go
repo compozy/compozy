@@ -10,10 +10,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -40,6 +43,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/version"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -154,6 +158,789 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 
 	if err := h.runner.waitForExit(); err != nil {
 		t.Fatalf("waitForExit() error = %v", err)
+	}
+}
+
+func TestRemoteCLIProfilesIntegrationIT060ThroughIT066(t *testing.T) {
+	t.Run("Should keep remote profiles, streams, work, and revocation consistent [IT-060..066]", func(t *testing.T) {
+		t.Parallel()
+		state := newRemoteCLIIntegrationState()
+		server := httptest.NewTLSServer(http.HandlerFunc(state.serveHTTP))
+		t.Cleanup(server.Close)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		credentials := make(map[string]string)
+		var credentialsMu sync.Mutex
+		credentialKey := func(dir string, name string) string { return filepath.Join(dir, name) }
+		deps := commandDeps{
+			resolveHome: func() (compozyconfig.HomePaths, error) { return homePaths, nil },
+			loadConfig:  func() (compozyconfig.Config, error) { return compozyconfig.LoadForHome(homePaths) },
+			writeGatewayCredential: func(dir string, name string, credential string) (string, error) {
+				credentialsMu.Lock()
+				defer credentialsMu.Unlock()
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					return "", err
+				}
+				path := filepath.Join(dir, name+".cred")
+				if err := os.WriteFile(path, []byte("encrypted-test-payload"), 0o600); err != nil {
+					return "", err
+				}
+				credentials[credentialKey(dir, name)] = credential
+				return path, nil
+			},
+			readGatewayCredential: func(dir string, name string) (string, error) {
+				credentialsMu.Lock()
+				defer credentialsMu.Unlock()
+				credential, exists := credentials[credentialKey(dir, name)]
+				if !exists {
+					return "", os.ErrNotExist
+				}
+				return credential, nil
+			},
+			removeGatewayCredential: func(dir string, name string) error {
+				credentialsMu.Lock()
+				defer credentialsMu.Unlock()
+				delete(credentials, credentialKey(dir, name))
+				err := os.Remove(filepath.Join(dir, name+".cred"))
+				if errors.Is(err, os.ErrNotExist) {
+					return nil
+				}
+				return err
+			},
+		}
+		deps.newClient = redirectingGatewayClientFactory(t, server)
+		deps = deps.withDefaults()
+
+		address := "https://gateway.example:443"
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"pair", "redeem", "pairing-once", "--name", "laptop", "--address", address, "--use", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("pair redeem error = %v", err)
+		}
+		if strings.Contains(stdout, gatewayDeviceCredentialPrefix) {
+			t.Fatalf("pair output leaked credential: %s", stdout)
+		}
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		profile, exists := findGatewayProfile(cfg.Gateway.Connections, "laptop")
+		if !exists || cfg.Gateway.ActiveConnection != "laptop" || profile.CredentialFile != "laptop.cred" {
+			t.Fatalf("paired profile = %#v active=%q [IT-060]", profile, cfg.Gateway.ActiveConnection)
+		}
+		credentialPath := filepath.Join(homePaths.GatewayCredentialsDir, "laptop.cred")
+		credentialInfo, err := os.Stat(credentialPath)
+		if err != nil || credentialInfo.Mode().Perm() != 0o600 || state.deviceCount() != 1 {
+			t.Fatalf("paired credential/device = info:%v err:%v devices:%d [IT-060]", credentialInfo, err, state.deviceCount())
+		}
+
+		passphrase := filepath.Join(t.TempDir(), "profile.passphrase")
+		if err := os.WriteFile(passphrase, []byte("portable profile passphrase\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(passphrase) error = %v", err)
+		}
+		bundlePath := filepath.Join(t.TempDir(), "laptop.cpzprofile")
+		exportOut, _, err := executeRootCommand(
+			t, deps,
+			"connect", "export", "laptop",
+			"--passphrase-file", passphrase,
+			"--output-file", bundlePath,
+			"-o", "json",
+		)
+		if err != nil || !json.Valid([]byte(exportOut)) || strings.Contains(exportOut, state.credential) {
+			t.Fatalf("connect export = stdout:%q err:%v, want redacted structured output", exportOut, err)
+		}
+		bundlePayload, err := os.ReadFile(bundlePath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(bundle) error = %v", err)
+		}
+		if bytes.Contains(bundlePayload, []byte(state.credential)) {
+			t.Fatal("portable profile bundle contains the raw device credential")
+		}
+
+		copyHomePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom(copy) error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(copyHomePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout(copy) error = %v", err)
+		}
+		copiedBundlePath := filepath.Join(copyHomePaths.HomeDir, "laptop.cpzprofile")
+		if err := os.WriteFile(copiedBundlePath, bundlePayload, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(copied bundle) error = %v", err)
+		}
+		copyPassphrase := filepath.Join(copyHomePaths.HomeDir, "profile.passphrase")
+		if err := os.WriteFile(copyPassphrase, []byte("portable profile passphrase\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(copy passphrase) error = %v", err)
+		}
+		copyDeps := deps
+		copyDeps.resolveHome = func() (compozyconfig.HomePaths, error) { return copyHomePaths, nil }
+		copyDeps.loadConfig = func() (compozyconfig.Config, error) { return compozyconfig.LoadForHome(copyHomePaths) }
+		importOut, _, err := executeRootCommand(
+			t, copyDeps,
+			"connect", "import", copiedBundlePath,
+			"--passphrase-file", copyPassphrase,
+			"--use",
+			"-o", "json",
+		)
+		if err != nil || !json.Valid([]byte(importOut)) || strings.Contains(importOut, state.credential) {
+			t.Fatalf("connect import = stdout:%q err:%v, want redacted structured output", importOut, err)
+		}
+		copyConfig, err := compozyconfig.LoadForHome(copyHomePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(copy) error = %v", err)
+		}
+		copyTarget, err := resolveConfiguredClientTarget(
+			copyHomePaths, &copyConfig, copyDeps.readGatewayCredential,
+		)
+		if err != nil {
+			t.Fatalf("resolveConfiguredClientTarget(copy) error = %v", err)
+		}
+		if copyTarget.credential != state.credential || copyTarget.name != "laptop" {
+			t.Fatalf("copied target = %#v, want same device credential [IT-061]", copyTarget)
+		}
+
+		remoteClient, err := deps.newClient(mustGatewayTarget(t, "laptop", state.credential))
+		if err != nil {
+			t.Fatalf("new remote client error = %v", err)
+		}
+		localClient := &daemonClient{
+			target:       LocalClientTarget(homePaths.DaemonSocket),
+			httpClient:   &http.Client{Transport: redirectRoundTripper(server)},
+			streamClient: &http.Client{Transport: redirectRoundTripper(server)},
+		}
+		remoteGateway := remoteClient.(gatewayClientAPI)
+		localGateway := any(localClient).(gatewayClientAPI)
+		localStatus, err := localGateway.GetGatewayStatus(t.Context())
+		if err != nil {
+			t.Fatalf("local GetGatewayStatus() error = %v", err)
+		}
+		remoteStatus, err := remoteGateway.GetGatewayStatus(t.Context())
+		if err != nil || remoteStatus.Enabled != localStatus.Enabled {
+			t.Fatalf("remote/local status = %#v/%#v err=%v [IT-062]", remoteStatus, localStatus, err)
+		}
+		remoteConcrete := remoteClient.(*daemonClient)
+		var remoteEvents atomic.Int32
+		if err := remoteConcrete.doSSE(t.Context(), "/api/logs/stream", nil, "", func(SSEEvent) error {
+			remoteEvents.Add(1)
+			return nil
+		}); err != nil {
+			t.Fatalf("remote stream error = %v", err)
+		}
+		var localEvents atomic.Int32
+		if err := localClient.doSSE(t.Context(), "/api/logs/stream", nil, "", func(SSEEvent) error {
+			localEvents.Add(1)
+			return nil
+		}); err != nil {
+			t.Fatalf("local stream error = %v", err)
+		}
+		if remoteEvents.Load() != localEvents.Load() || remoteEvents.Load() != 1 {
+			t.Fatalf("remote/local stream events = %d/%d [IT-062]", remoteEvents.Load(), localEvents.Load())
+		}
+		var reconnectEvents atomic.Int32
+		if err := remoteConcrete.doSSE(t.Context(), "/api/logs/stream", nil, "", func(SSEEvent) error {
+			reconnectEvents.Add(1)
+			return nil
+		}); err != nil {
+			t.Fatalf("remote reconnect stream error = %v", err)
+		}
+		if reconnectEvents.Load() != 1 || state.ticketCount() != 2 {
+			t.Fatalf("remote reconnect events/tickets = %d/%d, want 1/2", reconnectEvents.Load(), state.ticketCount())
+		}
+
+		secondClient, err := copyDeps.newClient(copyTarget)
+		if err != nil {
+			t.Fatalf("new second client error = %v", err)
+		}
+		_, err = remoteGateway.SetGatewaySurface(t.Context(), contract.GatewaySurfaceRequest{
+			Surface: "operator_ui", Tier: "private", Desired: "enabled",
+		})
+		if err != nil {
+			t.Fatalf("SetGatewaySurface() error = %v", err)
+		}
+		consistent, err := secondClient.(gatewayClientAPI).GetGatewayStatus(t.Context())
+		if err != nil || len(consistent.Surfaces) != 1 || consistent.Surfaces[0].Desired != "enabled" {
+			t.Fatalf("second-client status = %#v, %v [IT-065]", consistent, err)
+		}
+		statusOut, targetStderr, err := executeRootCommand(t, deps, "gateway", "status", "-o", "json")
+		if err != nil {
+			t.Fatalf("gateway status command error = %v", err)
+		}
+		if !strings.Contains(targetStderr, "target: laptop (https://gateway.example:443)") {
+			t.Fatalf("remote target indication = %q, want active profile and origin", targetStderr)
+		}
+		auditOut, auditStderr, err := executeRootCommand(t, deps, "gateway", "audit", "-o", "json")
+		if err != nil {
+			t.Fatalf("gateway audit command error = %v; stderr=%s", err, auditStderr)
+		}
+		for label, output := range map[string]string{
+			"gateway status CLI": statusOut + targetStderr,
+			"gateway audit CLI":  auditOut + auditStderr,
+		} {
+			if strings.Contains(output, state.credential) || strings.Contains(output, "compozy_claim_") ||
+				strings.Contains(output, "cpz_gwp_") || strings.Contains(output, "cpz_gwt_") {
+				t.Fatalf("[IT-080][IT-081] %s leaked gateway secret bytes: %s", label, output)
+			}
+		}
+
+		if err := remoteConcrete.doJSON(
+			t.Context(), http.MethodPost, "/api/sessions/session-1/prompt", nil, struct{}{}, &struct{}{},
+		); err != nil {
+			t.Fatalf("remote work start error = %v", err)
+		}
+		reconnected, err := deps.newClient(mustGatewayTarget(t, "reconnected", state.credential))
+		if err != nil {
+			t.Fatalf("new reconnected client error = %v", err)
+		}
+		var work struct {
+			State string `json:"state"`
+		}
+		if err := reconnected.(*daemonClient).doJSON(
+			t.Context(), http.MethodGet, "/api/sessions/session-1", nil, nil, &work,
+		); err != nil || work.State != "running" {
+			t.Fatalf("reconnected work = %#v, %v [IT-066]", work, err)
+		}
+		localOnlyErr := reconnected.(*daemonClient).doJSON(
+			t.Context(), http.MethodPost, "/api/agent/tasks/claim-next", nil, struct{}{}, nil,
+		)
+		assertGatewayClientErrorCode(t, localOnlyErr, "gateway_local_only_operation")
+
+		_, err = remoteGateway.RevokeGatewayDevice(t.Context(), state.deviceID)
+		if err != nil {
+			t.Fatalf("RevokeGatewayDevice() error = %v", err)
+		}
+		for label, client := range map[string]gatewayClientAPI{
+			"original": remoteGateway,
+			"copied":   secondClient.(gatewayClientAPI),
+		} {
+			_, err := client.GetGatewayStatus(t.Context())
+			var apiErr *daemonAPIError
+			if !errors.As(err, &apiErr) || apiErr.payload.Code != "gateway_device_unauthenticated" {
+				t.Fatalf("%s copied-identity error = %T %v [IT-061]", label, err, err)
+			}
+		}
+		if _, _, err := executeRootCommand(t, deps, "connect", "remove", "laptop", "-o", "json"); err != nil {
+			t.Fatalf("connect remove error = %v", err)
+		}
+		removedConfig, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after remove) error = %v", err)
+		}
+		if _, exists := findGatewayProfile(removedConfig.Gateway.Connections, "laptop"); exists ||
+			removedConfig.Gateway.ActiveConnection != "" {
+			t.Fatalf("removed profile remains in config: %#v", removedConfig.Gateway)
+		}
+		if _, err := os.Stat(credentialPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("credential file after remove error = %v, want not-exist", err)
+		}
+	})
+}
+
+type remoteCLIIntegrationState struct {
+	mu         sync.Mutex
+	credential string
+	deviceID   string
+	revoked    bool
+	paired     bool
+	surfaceOn  bool
+	workState  string
+	tickets    map[string]struct{}
+	nextTicket int
+}
+
+func newRemoteCLIIntegrationState() *remoteCLIIntegrationState {
+	return &remoteCLIIntegrationState{
+		credential: testGatewayCredential('i'),
+		deviceID:   "dev_cli_integration",
+		tickets:    make(map[string]struct{}),
+	}
+}
+
+func (s *remoteCLIIntegrationState) deviceCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.paired {
+		return 1
+	}
+	return 0
+}
+
+func (s *remoteCLIIntegrationState) ticketCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.nextTicket
+}
+
+func (s *remoteCLIIntegrationState) serveHTTP(writer http.ResponseWriter, request *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	writer.Header().Set("Content-Type", "application/json")
+	if request.URL.Path == "/api/gateway/pairings/redeem" {
+		if s.paired {
+			writeRemoteCLIJSON(writer, http.StatusGone, contract.ErrorPayload{Error: "spent", Code: "gateway_pairing_spent"})
+			return
+		}
+		var redeem contract.GatewayPairingRedeemRequest
+		if err := json.NewDecoder(request.Body).Decode(&redeem); err != nil ||
+			!validGatewayDeviceCredential(redeem.Credential) {
+			writeRemoteCLIJSON(writer, http.StatusBadRequest, contract.ErrorPayload{
+				Error: "invalid", Code: "gateway_invalid_request",
+			})
+			return
+		}
+		s.credential = redeem.Credential
+		s.paired = true
+		writeRemoteCLIJSON(writer, http.StatusOK, contract.GatewayIssuedCredentialPayload{
+			Device:     contract.GatewayDevicePayload{ID: s.deviceID, Name: "laptop", ActorKind: "cli_profile"},
+			Credential: s.credential,
+		})
+		return
+	}
+	local := request.Header.Get("X-Compozy-Test-Local") == "true"
+	if !local && (s.revoked || request.Header.Get("Authorization") != "Bearer "+s.credential) {
+		writeRemoteCLIJSON(writer, http.StatusUnauthorized, contract.ErrorPayload{
+			Error: "Unauthorized", Code: "gateway_device_unauthenticated",
+		})
+		return
+	}
+	s.serveAuthenticatedHTTP(writer, request, local)
+}
+
+func (s *remoteCLIIntegrationState) serveAuthenticatedHTTP(
+	writer http.ResponseWriter,
+	request *http.Request,
+	local bool,
+) {
+	switch {
+	case request.URL.Path == "/api/gateway/stream-tickets" && request.Method == http.MethodPost:
+		s.nextTicket++
+		ticket := fmt.Sprintf("ticket-%d", s.nextTicket)
+		s.tickets[ticket] = struct{}{}
+		writeRemoteCLIJSON(writer, http.StatusCreated, contract.GatewayStreamTicketPayload{Ticket: ticket})
+	case request.URL.Path == "/api/logs/stream" && request.Method == http.MethodGet:
+		if !local {
+			ticket := request.URL.Query().Get("ticket")
+			if _, exists := s.tickets[ticket]; !exists {
+				writeRemoteCLIJSON(writer, http.StatusUnauthorized, contract.ErrorPayload{Error: "bad ticket"})
+				return
+			}
+			delete(s.tickets, ticket)
+		}
+		writer.Header().Set("Content-Type", "text/event-stream")
+		writer.WriteHeader(http.StatusOK)
+		if _, err := io.WriteString(writer, "event: log\ndata: {\"message\":\"ready\"}\n\n"); err != nil {
+			return
+		}
+	case request.URL.Path == "/api/gateway/status" && request.Method == http.MethodGet:
+		status := contract.GatewayStatusPayload{Enabled: true}
+		if s.surfaceOn {
+			status.Surfaces = []contract.GatewaySurfacePayload{{
+				Surface: "operator_ui", Tier: "private", Desired: "enabled", Observed: "on",
+			}}
+		}
+		writeRemoteCLIJSON(writer, http.StatusOK, status)
+	case request.URL.Path == "/api/gateway/audit" && request.Method == http.MethodGet:
+		writeRemoteCLIJSON(writer, http.StatusOK, contract.GatewayAuditPayload{
+			Ran: true, NoFindings: true, LocalOnly: true,
+			Status: contract.GatewayStatusPayload{Enabled: true},
+		})
+	case request.URL.Path == "/api/gateway/surfaces" && request.Method == http.MethodPost:
+		s.surfaceOn = true
+		writeRemoteCLIJSON(writer, http.StatusOK, contract.GatewayStatusPayload{
+			Enabled: true,
+			Surfaces: []contract.GatewaySurfacePayload{{
+				Surface: "operator_ui", Tier: "private", Desired: "enabled", Observed: "on",
+			}},
+		})
+	case request.URL.Path == "/api/gateway/devices/"+s.deviceID && request.Method == http.MethodDelete:
+		s.revoked = true
+		writeRemoteCLIJSON(writer, http.StatusOK, contract.GatewayRevokePayload{
+			Device:  contract.GatewayDevicePayload{ID: s.deviceID, Name: "laptop", ActorKind: "cli_profile"},
+			Changed: true,
+		})
+	case request.URL.Path == "/api/sessions/session-1/prompt" && request.Method == http.MethodPost:
+		s.workState = "running"
+		writeRemoteCLIJSON(writer, http.StatusOK, struct{}{})
+	case request.URL.Path == "/api/sessions/session-1" && request.Method == http.MethodGet:
+		writeRemoteCLIJSON(writer, http.StatusOK, map[string]string{"state": s.workState})
+	default:
+		writeRemoteCLIJSON(writer, http.StatusNotFound, contract.ErrorPayload{Error: "not found"})
+	}
+}
+
+func writeRemoteCLIJSON(writer http.ResponseWriter, status int, value any) {
+	writer.WriteHeader(status)
+	if err := json.NewEncoder(writer).Encode(value); err != nil {
+		return
+	}
+}
+
+func redirectingGatewayClientFactory(
+	t *testing.T,
+	server *httptest.Server,
+) func(ClientTarget) (DaemonClient, error) {
+	t.Helper()
+	return func(target ClientTarget) (DaemonClient, error) {
+		client, err := NewClient(target)
+		if err != nil {
+			return nil, err
+		}
+		concrete := client.(*daemonClient)
+		concrete.httpClient.Transport = redirectRoundTripper(server)
+		concrete.streamClient.Transport = redirectRoundTripper(server)
+		return concrete, nil
+	}
+}
+
+func redirectRoundTripper(server *httptest.Server) http.RoundTripper {
+	base := server.Client().Transport
+	return roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+		redirected := request.Clone(request.Context())
+		if request.URL.Host == "unix" {
+			redirected.Header.Set("X-Compozy-Test-Local", "true")
+		}
+		redirected.URL.Scheme = "https"
+		redirected.URL.Host = strings.TrimPrefix(server.URL, "https://")
+		return base.RoundTrip(redirected)
+	})
+}
+
+func mustGatewayTarget(t *testing.T, name string, credential string) ClientTarget {
+	t.Helper()
+	target, err := GatewayClientTarget(name, "gateway.example", 443, credential)
+	if err != nil {
+		t.Fatalf("GatewayClientTarget() error = %v", err)
+	}
+	return target
+}
+
+func TestConnectSSHIntegrationIT070ThroughIT072(t *testing.T) {
+	t.Run("Should own one loopback-only SSH forward and preserve reused daemons [IT-070..072]", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		executor := newSSHIntegrationExecutor()
+		forwardReady := make(chan struct{}, 3)
+		deps := commandDeps{
+			resolveHome:    func() (compozyconfig.HomePaths, error) { return homePaths, nil },
+			loadConfig:     func() (compozyconfig.Config, error) { return compozyconfig.LoadForHome(homePaths) },
+			newSSHExecutor: func() sshExecutor { return executor },
+			newClient: func(target ClientTarget) (DaemonClient, error) {
+				if target.kind != clientTargetSSHForward || !strings.HasPrefix(target.baseURL, "http://127.0.0.1:") {
+					return nil, fmt.Errorf("unexpected SSH forward target %#v", target)
+				}
+				forwardReady <- struct{}{}
+				return &stubClient{daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+					return DaemonStatus{Status: "running", HTTPHost: "127.0.0.1", HTTPPort: 2123}, nil
+				}}, nil
+			},
+			startTimeout: 500 * time.Millisecond,
+			stopTimeout:  500 * time.Millisecond,
+			pollInterval: time.Millisecond,
+		}
+		deps = deps.withDefaults()
+
+		firstCtx, cancelFirst := context.WithCancel(t.Context())
+		firstResult := executeSSHCommandAsync(deps, firstCtx, "connect", "ssh", "remote.example", "--name", "ssh-lab", "-o", "json")
+		firstTunnel := <-executor.tunnels
+		<-forwardReady
+		busyResult := executeSSHCommandAsync(
+			deps,
+			t.Context(),
+			"connect", "ssh", "remote.example", "--name", "ssh-lab", "--overwrite", "-o", "json",
+		)
+		busy := <-busyResult
+		assertGatewayClientErrorCode(t, busy.err, sshBusyCode)
+		if executor.startCount.Load() != 1 {
+			t.Fatalf("concurrent SSH starts = %d, want one [IT-071]", executor.startCount.Load())
+		}
+		cancelFirst()
+		first := <-firstResult
+		if first.err != nil || !json.Valid([]byte(first.stdout)) {
+			t.Fatalf("first SSH connect = stdout:%q err:%v [IT-070]", first.stdout, first.err)
+		}
+		if !firstTunnel.closed() || executor.startCount.Load() != 1 || executor.stopCount.Load() != 1 {
+			t.Fatalf(
+				"first SSH lifecycle = tunnel_closed:%t starts:%d stops:%d [IT-070]",
+				firstTunnel.closed(), executor.startCount.Load(), executor.stopCount.Load(),
+			)
+		}
+		profileConfig, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if _, exists := findGatewayProfile(profileConfig.Gateway.Connections, "ssh-lab"); !exists {
+			t.Fatal("SSH profile was not recorded [IT-070]")
+		}
+
+		executor.setRunning(true)
+		secondCtx, cancelSecond := context.WithCancel(t.Context())
+		defer cancelSecond()
+		secondResult := executeSSHCommandAsync(
+			deps,
+			secondCtx,
+			"connect", "ssh", "remote.example", "--name", "ssh-lab", "--overwrite", "-o", "json",
+		)
+		secondTunnel := <-executor.tunnels
+		<-forwardReady
+		secondTunnel.drop(errors.New("simulated SSH transport loss"))
+		second := <-secondResult
+		assertGatewayClientErrorCode(t, second.err, sshTunnelLostCode)
+		if executor.startCount.Load() != 1 || executor.stopCount.Load() != 1 || !executor.isRunning() {
+			t.Fatalf(
+				"reused daemon lifecycle = starts:%d stops:%d running:%t [IT-071]",
+				executor.startCount.Load(), executor.stopCount.Load(), executor.isRunning(),
+			)
+		}
+		if executor.lastRemoteHost() != "127.0.0.1" || executor.gatewayMutations.Load() != 0 {
+			t.Fatalf(
+				"SSH exposure = remote_host:%q gateway_mutations:%d [IT-072]",
+				executor.lastRemoteHost(), executor.gatewayMutations.Load(),
+			)
+		}
+
+		executor.setRunning(false)
+		thirdCtx, cancelThird := context.WithCancel(t.Context())
+		defer cancelThird()
+		thirdResult := executeSSHCommandAsync(
+			deps,
+			thirdCtx,
+			"connect", "ssh", "remote.example", "--name", "ssh-lab", "--overwrite", "-o", "json",
+		)
+		thirdTunnel := <-executor.tunnels
+		<-forwardReady
+		thirdTunnel.drop(errors.New("simulated SSH transport loss after daemon start"))
+		third := <-thirdResult
+		assertGatewayClientErrorCode(t, third.err, sshTunnelLostCode)
+		if executor.startCount.Load() != 2 || executor.stopCount.Load() != 1 || !executor.isRunning() {
+			t.Fatalf(
+				"dropped owned daemon lifecycle = starts:%d stops:%d running:%t [IT-071]",
+				executor.startCount.Load(), executor.stopCount.Load(), executor.isRunning(),
+			)
+		}
+	})
+}
+
+type sshCommandResult struct {
+	stdout string
+	err    error
+}
+
+func executeSSHCommandAsync(deps commandDeps, ctx context.Context, args ...string) <-chan sshCommandResult {
+	result := make(chan sshCommandResult, 1)
+	go func() {
+		command := newRootCommand(deps)
+		var stdout bytes.Buffer
+		command.SetOut(&stdout)
+		command.SetErr(io.Discard)
+		command.SetArgs(args)
+		err := command.ExecuteContext(ctx)
+		result <- sshCommandResult{stdout: stdout.String(), err: err}
+	}()
+	return result
+}
+
+type sshIntegrationExecutor struct {
+	mu                sync.Mutex
+	running           bool
+	remoteForwardHost string
+	tunnels           chan *sshIntegrationTunnel
+	startCount        atomic.Int32
+	stopCount         atomic.Int32
+	gatewayMutations  atomic.Int32
+	startedAt         time.Time
+	ownerToken        string
+}
+
+func newSSHIntegrationExecutor() *sshIntegrationExecutor {
+	return &sshIntegrationExecutor{
+		tunnels:   make(chan *sshIntegrationTunnel, 3),
+		startedAt: time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC),
+	}
+}
+
+func (e *sshIntegrationExecutor) Run(
+	_ context.Context,
+	_ sshTarget,
+	command []string,
+) ([]byte, error) {
+	if len(command) >= 3 {
+		switch command[2] {
+		case sshOwnershipInspectScript:
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			if e.ownerToken == "" {
+				return []byte(sshOwnershipAbsent), nil
+			}
+			return []byte(sshOwnershipMarkerState), nil
+		case sshOwnershipStopScript:
+			if len(command) < 6 {
+				return nil, errors.New("missing SSH ownership token")
+			}
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			if e.ownerToken != command[5] {
+				return []byte(sshOwnershipNotOwner), nil
+			}
+			e.running = false
+			e.stopCount.Add(1)
+			return json.Marshal(DaemonStatus{Status: "stopped"})
+		}
+	}
+	joined := strings.Join(command, " ")
+	switch {
+	case strings.Contains(joined, "command -v compozy"):
+		return []byte("/usr/local/bin/compozy\n"), nil
+	case strings.Contains(joined, " version ") || strings.HasSuffix(joined, " version -o json"):
+		return json.Marshal(version.Current())
+	case strings.Contains(joined, "gateway"):
+		e.gatewayMutations.Add(1)
+		return nil, errors.New("unexpected gateway mutation")
+	case strings.HasSuffix(joined, "compozy status -o json"):
+		if !e.isRunning() {
+			return nil, &sshCommandError{cause: errors.New("exit status 1"), output: "daemon unavailable"}
+		}
+		return json.Marshal(StatusRecord{Daemon: DaemonStatus{
+			Status: "running", PID: 4101, StartedAt: e.startedAt,
+			HTTPHost: "127.0.0.1", HTTPPort: 2123,
+		}})
+	case strings.Contains(joined, "daemon start"):
+		e.setRunning(true)
+		e.startCount.Add(1)
+		return json.Marshal(DaemonStatus{
+			Status: "running", PID: 4101, StartedAt: e.startedAt,
+			HTTPHost: "127.0.0.1", HTTPPort: 2123,
+		})
+	case strings.Contains(joined, "daemon stop"):
+		e.setRunning(false)
+		e.stopCount.Add(1)
+		return json.Marshal(DaemonStatus{Status: "stopped"})
+	default:
+		return nil, fmt.Errorf("unexpected SSH command %#v", command)
+	}
+}
+
+func (e *sshIntegrationExecutor) StartOwnershipLease(
+	_ context.Context,
+	_ sshTarget,
+	_ string,
+	ownership *sshDaemonOwnership,
+) (sshOwnershipLease, error) {
+	if ownership == nil || strings.TrimSpace(ownership.token) == "" {
+		return nil, errors.New("missing SSH ownership token")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.ownerToken != "" {
+		return nil, newSSHBusyError()
+	}
+	e.ownerToken = ownership.token
+	return &sshIntegrationOwnershipLease{executor: e, token: ownership.token, done: make(chan struct{})}, nil
+}
+
+func (e *sshIntegrationExecutor) StartTunnel(
+	_ context.Context,
+	_ sshTarget,
+	remoteHost string,
+	remotePort int,
+) (sshTunnel, error) {
+	if remotePort != 2123 {
+		return nil, fmt.Errorf("remote port = %d, want 2123", remotePort)
+	}
+	e.mu.Lock()
+	e.remoteForwardHost = remoteHost
+	e.mu.Unlock()
+	tunnel := &sshIntegrationTunnel{localPort: 43123, done: make(chan struct{})}
+	e.tunnels <- tunnel
+	return tunnel, nil
+}
+
+func (e *sshIntegrationExecutor) setRunning(running bool) {
+	e.mu.Lock()
+	e.running = running
+	e.mu.Unlock()
+}
+
+func (e *sshIntegrationExecutor) isRunning() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.running
+}
+
+func (e *sshIntegrationExecutor) lastRemoteHost() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.remoteForwardHost
+}
+
+type sshIntegrationTunnel struct {
+	localPort int
+	done      chan struct{}
+	once      sync.Once
+	err       error
+}
+
+type sshIntegrationOwnershipLease struct {
+	executor *sshIntegrationExecutor
+	token    string
+	done     chan struct{}
+	once     sync.Once
+}
+
+func (l *sshIntegrationOwnershipLease) Wait() error {
+	<-l.done
+	return nil
+}
+
+func (l *sshIntegrationOwnershipLease) Close() error {
+	l.once.Do(func() {
+		l.executor.mu.Lock()
+		if l.executor.ownerToken == l.token {
+			l.executor.ownerToken = ""
+		}
+		l.executor.mu.Unlock()
+		close(l.done)
+	})
+	return nil
+}
+
+func (t *sshIntegrationTunnel) LocalPort() int { return t.localPort }
+
+func (t *sshIntegrationTunnel) Wait() error {
+	<-t.done
+	return t.err
+}
+
+func (t *sshIntegrationTunnel) Close() error {
+	t.once.Do(func() { close(t.done) })
+	return nil
+}
+
+func (t *sshIntegrationTunnel) drop(err error) {
+	t.once.Do(func() {
+		t.err = err
+		close(t.done)
+	})
+}
+
+func (t *sshIntegrationTunnel) closed() bool {
+	select {
+	case <-t.done:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -3152,6 +3939,8 @@ type integrationDaemon struct {
 	bridgeProviders  []bridgepkg.BridgeProvider
 	driver           *integrationDriver
 	manager          *session.Manager
+	tasks            core.TaskService
+	observer         core.Observer
 	extensionSources []registrypkg.Source
 	extensionTrust   *extensionpkg.MarketplaceTrustEvidence
 }
@@ -3917,6 +4706,7 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		session.WithSoulSnapshotStore(registry),
 		session.WithSoulRunActivityChecker(integrationSoulRunActivityChecker{}),
 		session.WithSessionHealthStore(registry),
+		session.WithSessionPromptAdmissionStore(registry),
 		session.WithSessionHealthConfig(d.cfg.Agents.Heartbeat),
 		session.WithSessionCatalog(registry),
 		session.WithParticipationResolver(participationResolver),
@@ -3958,6 +4748,10 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("new observer: %w", err)
 	}
+	d.mu.Lock()
+	d.tasks = taskManager
+	d.observer = observer
+	d.mu.Unlock()
 	defer func() {
 		joinRunError("close observer", observer.Close(context.Background()))
 	}()
@@ -4107,6 +4901,8 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		d.bridges = nil
 		d.manager = nil
 		d.driver = nil
+		d.tasks = nil
+		d.observer = nil
 		d.mu.Unlock()
 	}()
 

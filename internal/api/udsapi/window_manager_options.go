@@ -12,6 +12,7 @@ type udsExtendedServices struct {
 	hostedMCP     *mcppkg.HostedService
 	mcpHostAPI    mcppkg.HostAPIInvoker
 	windowManager windowmanager.Service
+	gateway       core.GatewayService
 }
 
 // WithWindowManagerService injects the daemon-authoritative window manager.

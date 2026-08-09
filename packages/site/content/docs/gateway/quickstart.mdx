@@ -1,0 +1,181 @@
+---
+title: Gateway quickstart
+description: Reach Compozy from your phone or laptop in about ten minutes — enable the gateway, pair a device, and open the web UI from anywhere.
+---
+
+At the end of this page you will have one address, `https://compozy-gateway.<your-tailnet>.ts.net:8443`,
+that opens the full Compozy web UI from your phone or laptop — from anywhere, over your own private
+Tailscale network. Nothing becomes reachable from the public internet.
+
+Expect about ten minutes, most of it waiting for the first certificate.
+
+## Before you start
+
+- The Compozy daemon is running on this machine (`compozy status`).
+- You have a [Tailscale](https://tailscale.com) account. The free plan is enough.
+- In the Tailscale admin console, **MagicDNS and HTTPS certificates are enabled** for your tailnet
+  (under **DNS**). The gateway serves HTTPS and cannot start without a certificate domain.
+- The device you want to pair has the Tailscale app installed and is signed into the **same
+  tailnet**. The private address only resolves for members of your network.
+
+## Step 1: Allow the gateway
+
+`gateway.enabled` is a machine-wide ceiling — a hard maximum, not a switch that exposes anything by
+itself. Raise it once:
+
+```bash
+compozy config set gateway.enabled true
+```
+
+The change applies live; no restart. If you skip this step, every later command refuses with:
+
+```text
+gateway exposure refused: gateway.enabled is false and blocks every remote transition; fix: set gateway.enabled=true, then retry the explicit transition
+```
+
+Every gateway refusal reads like that — it names its cause and the fix.
+
+## Step 2: Give the Tailscale extension an auth key
+
+In the Tailscale admin console, create an auth key under **Settings → Keys**. Then bind it — the
+value is typed into a hidden prompt and never appears in your shell history, logs, or status output:
+
+```bash
+compozy extension secrets set tailscale --env TS_AUTHKEY
+```
+
+The Tailscale extension ships inside Compozy and uses your account only. There is nothing else to
+install — details on the [Tailscale extension](/docs/gateway/tailscale) page.
+
+## Step 3: Turn the extension on
+
+```bash
+compozy extension enable tailscale
+```
+
+The first enable refuses with a network requirement digest — the extension declares that it carries
+gateway traffic, and Compozy asks you to confirm exactly that. The refusal prints the exact command
+to run, in the shape:
+
+```bash
+compozy extension enable tailscale --confirm-network-requirement <digest>
+```
+
+Run it and the extension is on.
+
+## Step 4: Activate the provider for the private tier
+
+```bash
+compozy gateway provider enable tailscale --tier private --source bundled
+```
+
+On a fresh gateway no `--generation` flag is needed. If a later change reports a
+`gateway generation conflict`, read the current generation from `compozy gateway status -o json`
+and retry with `--generation <n>` — see [Devices, audit, and teardown](/docs/gateway/manage#generation-conflicts).
+
+## Step 5: Turn on the private surface
+
+```bash
+compozy gateway surface enable operator_ui --tier private
+```
+
+The daemon now binds a loopback listener, asks Tailscale to establish reachability, verifies the
+endpoint with a one-time challenge, and only then advertises the address.
+
+## Step 6: Wait for the address
+
+```bash
+compozy gateway status -o json
+```
+
+The human output shows summary counts; the JSON carries the proof. You are waiting for
+`advertised: true` and a live address (output trimmed):
+
+```json
+{
+  "tiers": [{ "tier": "private", "observed": "up", "advertised": true }],
+  "providers": [{ "name": "tailscale", "tier": "private", "health": "healthy" }],
+  "addresses": [
+    {
+      "tier": "private",
+      "address": "https://compozy-gateway.<your-tailnet>.ts.net:8443",
+      "live": true
+    }
+  ]
+}
+```
+
+The first activation is the slow one: Tailscale issues an HTTPS certificate for the new
+`compozy-gateway` node, which can take a minute. Until then status reports the provider as
+establishing or degraded while the daemon retries on its own — that is a wait state, not a failure.
+An address appears only after it is verified.
+
+## Step 7: Pair your device
+
+Reaching the address is not enough — every new device sees a pairing gate until you admit it.
+
+The easiest path is the web UI: **Settings → Gateway → Pair a device** shows a one-time code as a
+scannable QR and as copyable text. From the CLI:
+
+```bash
+compozy pair mint
+```
+
+```text
+Pairing
+  Artifact File  ~/.compozy/gateway/credentials/<file>
+  Expires        2026-08-09T16:45:00Z
+```
+
+The pairing code is written to that private file, never to your terminal. On your phone, open
+`https://compozy-gateway.<your-tailnet>.ts.net:8443`, enter the code at the pairing gate, and name
+the device.
+
+<OperatorNote>
+  A pairing code is single-use and expires after five minutes by default. Move it through a channel
+  you trust and delete the file after use. Pairing is only ever minted locally or over the private
+  tier — the public address cannot mint or redeem a pairing under any configuration.
+</OperatorNote>
+
+## Step 8: Confirm it worked
+
+On the phone you are now in the full web UI — same sessions, same state as on this machine. Back on
+the daemon machine:
+
+```bash
+compozy device list
+```
+
+```text
+Devices
+  ID          NAME       KIND              ORIGIN   LAST SEEN              REVOKED
+  dev_...     My phone   operator_device   local    2026-08-09T16:41:12Z   false
+```
+
+`KIND` distinguishes browser devices (`operator_device`) from CLI connection profiles
+(`cli_profile`); `ORIGIN` records where the pairing was minted — `local` on this machine, `private`
+over the private tier.
+
+Done: your daemon is reachable from your devices, and only your devices.
+
+## What's next
+
+- [Receive GitHub webhooks](/docs/gateway/webhooks) — give senders a public delivery URL.
+- [Remote CLI, SSH, and public access](/docs/gateway/remote-access) — operate the daemon from
+  another machine.
+- [Devices, audit, and teardown](/docs/gateway/manage) — review devices, revoke access, turn it off.
+- [Gateway security](/docs/gateway/security) — what is exposed and what never leaves this machine.
+
+## If it didn't work
+
+| Symptom                                                        | Fix                                                                                                                                 |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `gateway exposure refused: gateway.enabled is false…`          | Run step 1. The refusal text always names the fix.                                                                                  |
+| `TS_AUTHKEY binding is required`                               | Run step 2. Expired or revoked keys fail the same way — mint a new key and bind it again.                                           |
+| `tailscale: tailnet HTTPS certificate domain is unavailable`   | Enable MagicDNS and HTTPS certificates in the Tailscale admin console under **DNS**, then retry.                                    |
+| Status shows `establishing` or a degraded provider for minutes | First activation issues a certificate; the daemon retries with backoff. Recheck `compozy gateway status -o json` after a minute.    |
+| The phone cannot open the address                              | Confirm the phone runs Tailscale and is signed into the same tailnet, then re-check the address in `addresses[]` with `live: true`. |
+| The pairing code is rejected                                   | Codes are single-use and expire in five minutes. Mint a fresh one.                                                                  |
+
+Still stuck? The [Tailscale extension](/docs/gateway/tailscale#troubleshooting) page covers
+provider-side failures in more detail.

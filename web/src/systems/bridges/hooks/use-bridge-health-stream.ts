@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 
+import { createStreamEventSource } from "@/lib/ticketed-event-source";
+
 import { bridgeKeys } from "../lib/query-keys";
 import type {
   BridgeDetailResponse,
@@ -28,7 +30,7 @@ const BRIDGE_HEALTH_STREAM_URL = "/api/bridges/health/stream";
 const MAX_BRIDGE_IDS_PER_STREAM = 200;
 
 function defaultEventSourceFactory(url: string): BridgeHealthEventSource {
-  return new EventSource(url);
+  return createStreamEventSource(url);
 }
 
 function normalizeOptionalText(value?: string | null): string | undefined {

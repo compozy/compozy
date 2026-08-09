@@ -10,16 +10,17 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 )
 
-const maxExtensionFailureLogBytes = 1024
+const maxExtensionFailureBytes = 1024
 
 func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err error) {
 	if ext == nil || err == nil {
 		return
 	}
 
+	safeError := safeExtensionFailure(err)
 	m.mu.Lock()
 	ext.phase = phase
-	ext.lastError = err.Error()
+	ext.lastError = safeError
 	ext.active = false
 	name := ext.info.Name
 	m.mu.Unlock()
@@ -31,7 +32,7 @@ func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err er
 		"phase",
 		phase,
 		"error",
-		diagnostics.RedactAndBound(err.Error(), maxExtensionFailureLogBytes),
+		safeError,
 	)
 }
 
@@ -92,12 +93,13 @@ func (m *Manager) recordOwnedInstanceFailure(
 		return 0, nil, false
 	}
 
+	safeReason := safeExtensionFailure(reason)
 	ext.process = nil
 	ext.active = false
 	ext.awaitingStability = false
 	ext.phase = ExtensionPhaseRecover
 	ext.lastExitedAt = m.now()
-	ext.lastError = reason.Error()
+	ext.lastError = safeReason
 	ext.consecutiveFailures++
 	cleanups := ext.redactionCleanups
 	ext.redactionCleanups = nil
@@ -118,7 +120,7 @@ func (m *Manager) recordOwnedInstanceFailure(
 			m.capChecker.Unregister(capabilityGrantID)
 		}
 		runExtensionRedactionCleanups(cleanups)
-		m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
+		m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, errors.New(safeReason))
 		m.logger.Error(
 			"extension.lifecycle.failed",
 			managerExtensionKey,
@@ -126,7 +128,7 @@ func (m *Manager) recordOwnedInstanceFailure(
 			"phase",
 			ExtensionPhaseRecover,
 			"error",
-			reason,
+			safeReason,
 			"consecutive_failures",
 			failures,
 		)
@@ -140,7 +142,7 @@ func (m *Manager) recordOwnedInstanceFailure(
 		m.capChecker.Unregister(capabilityGrantID)
 	}
 	runExtensionRedactionCleanups(cleanups)
-	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusDegraded, reason)
+	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusDegraded, errors.New(safeReason))
 	if eventErr := recordExtensionLifecycleEvent(m.lifecycleContext(), m.lifecycleEventSink, LifecycleEvent{
 		Type: eventspkg.ExtensionCrashLoopBackoff, ExtensionName: key.Name,
 		WorkspaceID: key.WorkspaceID,
@@ -152,7 +154,7 @@ func (m *Manager) recordOwnedInstanceFailure(
 		"extension.lifecycle.failed",
 		managerExtensionKey, name,
 		"phase", ExtensionPhaseRecover,
-		"error", reason,
+		"error", safeReason,
 		"consecutive_failures", failures,
 		"restart_backoff_ms", backoff.Milliseconds(),
 	)
@@ -217,6 +219,7 @@ func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason 
 		}
 	}
 
+	safeReason := safeExtensionFailure(reason)
 	m.mu.Lock()
 	if !m.matchesInstanceIdentityLocked(identity) {
 		m.mu.Unlock()
@@ -224,7 +227,7 @@ func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason 
 	}
 	ext.info.Enabled = false
 	ext.phase = ExtensionPhaseRecover
-	ext.lastError = reason.Error()
+	ext.lastError = safeReason
 	ext.active = false
 	ext.process = nil
 	ext.awaitingStability = false
@@ -236,13 +239,20 @@ func (m *Manager) disableOwnedInstance(identity managedInstanceIdentity, reason 
 	m.mu.Unlock()
 	runExtensionRedactionCleanups(cleanups)
 
-	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
+	m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, errors.New(safeReason))
 }
 
 func (m *Manager) matchesInstanceIdentityLocked(identity managedInstanceIdentity) bool {
 	ext := m.instanceLocked(identity.key)
 	return ext == identity.owner && ext != nil && ext.generation == identity.generation &&
 		ext.sessionNonce == identity.sessionNonce
+}
+
+func safeExtensionFailure(err error) string {
+	if err == nil {
+		return ""
+	}
+	return diagnostics.RedactAndBound(err.Error(), maxExtensionFailureBytes)
 }
 
 func (m *Manager) unregisterResources(ctx context.Context, ext *managedExtension) error {

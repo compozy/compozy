@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/redact"
 )
 
@@ -315,9 +316,31 @@ func (t *transport) handleResponse(envelope rpcEnvelope) {
 
 	responseCh <- callResult{
 		result: envelope.Result,
-		err:    envelope.Error,
+		err:    redactedRPCError(envelope.Error),
 	}
 	close(responseCh)
+}
+
+func redactedRPCError(rpcErr *RPCError) *RPCError {
+	if rpcErr == nil {
+		return nil
+	}
+
+	redacted := &RPCError{
+		Code:    rpcErr.Code,
+		Message: diagnostics.Redact(rpcErr.Message),
+	}
+	if len(rpcErr.Data) == 0 {
+		return redacted
+	}
+
+	data, err := diagnostics.RedactJSON(rpcErr.Data)
+	if err != nil {
+		// Untrusted error details are optional; dropping malformed data is safer than exposing it.
+		return redacted
+	}
+	redacted.Data = data
+	return redacted
 }
 
 func (t *transport) handleRequest(envelope rpcEnvelope) {
