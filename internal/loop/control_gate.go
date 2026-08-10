@@ -29,12 +29,8 @@ func evaluateGateNode(
 	outputs []GenerationOutput,
 	evaluations *gateEvaluationCollector,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
-	if evaluator == nil {
-		return GenerationOutput{}, nil, fmt.Errorf(
-			"%w: gate node %q requires a coordinator gate evaluator",
-			ErrValidation,
-			node.ID,
-		)
+	if err := requireGateEvaluator(evaluator, node.ID); err != nil {
+		return GenerationOutput{}, nil, err
 	}
 	namespace, err := runtimeNamespaceWithHistory(
 		run,
@@ -96,6 +92,17 @@ func evaluateGateNode(
 		evaluations.record(runtimeGate, output.ItemIndex, verdict)
 	}
 	return gateOutputFromVerdict(output, node.ID, verdict)
+}
+
+func requireGateEvaluator(evaluator gate.GateEvaluator, nodeID dsl.NodeID) error {
+	if evaluator == nil {
+		return fmt.Errorf(
+			"%w: gate node %q requires a coordinator gate evaluator",
+			ErrValidation,
+			nodeID,
+		)
+	}
+	return nil
 }
 
 func validateJudgeGateRuntimes(

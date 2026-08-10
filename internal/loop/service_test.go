@@ -1831,7 +1831,10 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		t.Parallel()
 
 		store := newFakeLoopStore()
-		svc := newTestService(t, store, validDefinition())
+		definition := validDefinition()
+		definition.Contract.Goal = "Complete {{ .inputs.tasks }}"
+		definition.Contract.DefinitionOfDone = "{{ .inputs.tasks }} is complete"
+		svc := newTestService(t, store, definition)
 
 		preview, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
 			Values: map[string]any{"tasks": "task-ref"},

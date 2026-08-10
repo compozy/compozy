@@ -27,7 +27,7 @@ func newLoopStatusCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, loopStatusOutputBundle(response))
+			return writeCommandOutput(cmd, loopStatusOutputBundle(&response))
 		},
 	}
 	addLoopRunIDFlags(cmd, &workspaceRef, &runID)

@@ -1554,7 +1554,7 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 				}},
 				Criteria: []gate.CriterionResult{{
 					ID: "verify", Type: dsl.CriterionCommand, Outcome: gate.VerdictOutcomeRejected,
-					ExitCode: goalTestIntPointer(1), Stderr: "task_03 is still pending",
+					ExitCode: new(1), Stderr: "task_03 is still pending",
 				}},
 				Warnings: []gate.DiagnosticWarning{{Code: "shell", Message: "check the task path"}},
 			}
@@ -2944,10 +2944,6 @@ func judgeResult(outcome gate.VerdictOutcome, tokens int64) JudgeResult {
 		result.TokensReported = tokens > 0
 	}
 	return result
-}
-
-func goalTestIntPointer(value int) *int {
-	return &value
 }
 
 func promptKinds(requests []loop.ActionPromptRequest) []string {

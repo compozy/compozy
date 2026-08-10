@@ -291,22 +291,7 @@ func goalTurnAlreadyCompleted(
 	if err != nil {
 		return false, err
 	}
-	wantVerdict := ""
-	if req.Verdict != nil {
-		wantVerdict = string(req.Verdict.Outcome)
-	}
-	matches := row.ResultStatus.String == string(req.Result.Outcome) &&
-		goalOptionalStringMatches(row.StopReason, string(req.Result.StopReason)) &&
-		goalOptionalStringMatches(row.ReasonCode, string(req.Result.ReasonCode)) &&
-		goalOptionalStringMatches(row.VerdictOutcome, wantVerdict) &&
-		row.BlockingJson == string(wantDiagnostics.blockingJSON) &&
-		row.CriteriaJson == string(wantDiagnostics.criteriaJSON) &&
-		row.WarningsJson == string(wantDiagnostics.warningsJSON) &&
-		goalOptionalTokensMatch(row.TokensUsed, req.Result.TokensUsed, req.Result.TokensReported) &&
-		row.ActorKind == strings.TrimSpace(req.DispatchActorKind) &&
-		row.ActorID == strings.TrimSpace(req.DispatchActorID) &&
-		row.BindingEpoch == req.ExpectedBindingEpoch
-	if !matches {
+	if !goalTurnSettlementMatches(row, req, wantDiagnostics) {
 		return false, goalControlStaleError("Goal turn already has a different settlement")
 	}
 	prompt, err := loadGoalPromptRow(ctx, exec, req.Key.LoopRunID, req.PromptID)
@@ -326,6 +311,28 @@ func goalTurnAlreadyCompleted(
 		return false, goalControlStaleError("Goal turn settlement control epoch changed")
 	}
 	return true, nil
+}
+
+func goalTurnSettlementMatches(
+	row sqlcgen.GetCompletedGoalTurnRow,
+	req goal.CompleteTurnRequest,
+	diagnostics goalVerdictDiagnostics,
+) bool {
+	wantVerdict := ""
+	if req.Verdict != nil {
+		wantVerdict = string(req.Verdict.Outcome)
+	}
+	return row.ResultStatus.String == string(req.Result.Outcome) &&
+		goalOptionalStringMatches(row.StopReason, string(req.Result.StopReason)) &&
+		goalOptionalStringMatches(row.ReasonCode, string(req.Result.ReasonCode)) &&
+		goalOptionalStringMatches(row.VerdictOutcome, wantVerdict) &&
+		row.BlockingJson == string(diagnostics.blockingJSON) &&
+		row.CriteriaJson == string(diagnostics.criteriaJSON) &&
+		row.WarningsJson == string(diagnostics.warningsJSON) &&
+		goalOptionalTokensMatch(row.TokensUsed, req.Result.TokensUsed, req.Result.TokensReported) &&
+		row.ActorKind == strings.TrimSpace(req.DispatchActorKind) &&
+		row.ActorID == strings.TrimSpace(req.DispatchActorID) &&
+		row.BindingEpoch == req.ExpectedBindingEpoch
 }
 
 func goalOptionalStringMatches(stored sql.NullString, want string) bool {

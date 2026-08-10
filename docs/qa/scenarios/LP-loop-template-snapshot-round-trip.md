@@ -4,15 +4,15 @@ area: LP
 title: Start a templated parent Loop after dry-run
 persona: Ada
 journey: J-01
-expected: A parent Loop with workspace and marketplace child Loops, templated child inputs, templated agent output references, and omitted child modes validates and dry-runs, then creates a persisted Run whose executed definition reloads through public status reads.
+expected: A templated parent Loop validates and dry-runs with resolved inputs, then its persisted Run exposes the raw authored executed definition beside a one-pass materialized contract while every Goal agent receives resolved text and literal braces inside input values remain literal.
 entry_points: compozy loop validate; compozy loop run --dry-run; compozy loop run; compozy loop status over UDS; POST /api/workspaces/:workspace_id/loops/:name/run over HTTP
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-313-loop-manifest-20260805-193142-599093-lab/qa-artifacts/qa/issue-313/verification.json; /Users/pedronauck/dev/qa-labs/compozy-issue-313-loop-manifest-20260805-193142-599093-lab/qa-artifacts/qa/journey-log.jsonl
-last_report: docs/qa/reports/2026-08-05-issue-313-loop-manifest.md
+evidence: docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/evidence/run-proof.json; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/qa-audit-report.md
+last_report: docs/qa/reports/2026-08-10-loop-convergence.md
 overlaps: LP-006; TA-068
 ---
 
@@ -30,3 +30,13 @@ from the marketplace while `workspace-child` came from the workspace. Two identi
 the Runs list empty. The real UDS submission created `looprun-4b66e31d8f935186`; fresh CLI/UDS and
 HTTP reads agreed on digest `sha256:73a51e3b67426d74ce8a9749973e038819463c549e62f77a83353f42aa1eaf85`
 and exposed both child nodes with `mode: await` plus the authored input/output templates.
+
+QA impact 2026-08-10: reset because run and dry-run details now separate the raw
+`executed_definition` from `materialized_contract`, and Goal parameters materialize recursively at
+one execution boundary. The walk must prove resolved input text reaches the Goal without a second
+template pass.
+
+QA result 2026-08-10: Ada dry-ran `qa-goal-convergence` and confirmed that no Run was created,
+`slug` resolved to `weather-app`, and the literal input `{{ .inputs.shadow }}` remained literal. The
+real Run preserved `{{ .inputs.slug }}` in `executed_definition`, exposed the resolved Goal in
+`materialized_contract`, and reached `done` with the same one-pass result.

@@ -109,49 +109,15 @@ func goalTurnPagePayload(page session.GoalTurnPage) (contract.GoalTurnPage, erro
 }
 
 func goalTurnPayload(turn session.GoalTurn) (contract.GoalTurn, error) {
-	if turn.ResultStatus == nil {
-		if turn.EndedAt != nil || turn.StopReason != nil || turn.ReasonCode != nil ||
-			turn.VerdictOutcome != nil || len(turn.BlockingIssues) > 0 || len(turn.Criteria) > 0 ||
-			len(turn.Warnings) > 0 || turn.EvidenceRef != nil || turn.TokensUsed != nil {
-			return contract.GoalTurn{}, goalContractValidationError(
-				"open Goal turn contains terminal fields",
-			)
-		}
-	} else if turn.EndedAt == nil {
-		return contract.GoalTurn{}, goalContractValidationError("terminal Goal turn has no ended_at")
+	if err := validateGoalTurnShape(turn); err != nil {
+		return contract.GoalTurn{}, err
 	}
-	issues := make([]contract.GoalBlockingIssue, 0, len(turn.BlockingIssues))
-	for _, issue := range turn.BlockingIssues {
-		issues = append(issues, contract.GoalBlockingIssue{ID: issue.ID, Note: issue.Note})
+	issues := goalBlockingIssuesPayload(turn.BlockingIssues)
+	criteria, err := goalCriteriaPayload(turn.Criteria)
+	if err != nil {
+		return contract.GoalTurn{}, err
 	}
-	criteria := make([]contract.GoalCriterionResult, 0, len(turn.Criteria))
-	for _, criterion := range turn.Criteria {
-		outcome, err := goalVerdictOutcomePayload(criterion.Outcome)
-		if err != nil {
-			return contract.GoalTurn{}, err
-		}
-		criterionIssues := make([]contract.GoalBlockingIssue, 0, len(criterion.BlockingIssues))
-		for _, issue := range criterion.BlockingIssues {
-			criterionIssues = append(criterionIssues, contract.GoalBlockingIssue{ID: issue.ID, Note: issue.Note})
-		}
-		criterionWarnings := make([]contract.GoalDiagnosticWarning, 0, len(criterion.Warnings))
-		for _, warning := range criterion.Warnings {
-			criterionWarnings = append(criterionWarnings, contract.GoalDiagnosticWarning{
-				Code: warning.Code, Message: warning.Message,
-			})
-		}
-		criteria = append(criteria, contract.GoalCriterionResult{
-			ID: criterion.ID, Type: criterion.Type, Outcome: outcome,
-			Passed: criterion.Passed, Broken: criterion.Broken, ExitCode: criterion.ExitCode,
-			Stdout: criterion.Stdout, Stderr: criterion.Stderr, Score: criterion.Score,
-			Evidence: append([]byte(nil), criterion.Evidence...), BlockingIssues: criterionIssues,
-			Warnings: criterionWarnings, Payload: append([]byte(nil), criterion.Payload...),
-		})
-	}
-	warnings := make([]contract.GoalDiagnosticWarning, 0, len(turn.Warnings))
-	for _, warning := range turn.Warnings {
-		warnings = append(warnings, contract.GoalDiagnosticWarning{Code: warning.Code, Message: warning.Message})
-	}
+	warnings := goalWarningsPayload(turn.Warnings)
 	resultStatus, err := goalTurnResultStatusPayload(turn.ResultStatus)
 	if err != nil {
 		return contract.GoalTurn{}, err
@@ -179,6 +145,57 @@ func goalTurnPayload(turn session.GoalTurn) (contract.GoalTurn, error) {
 		payload.StopReason = &value
 	}
 	return payload, nil
+}
+
+func validateGoalTurnShape(turn session.GoalTurn) error {
+	if turn.ResultStatus == nil {
+		if turn.EndedAt != nil || turn.StopReason != nil || turn.ReasonCode != nil ||
+			turn.VerdictOutcome != nil || len(turn.BlockingIssues) > 0 || len(turn.Criteria) > 0 ||
+			len(turn.Warnings) > 0 || turn.EvidenceRef != nil || turn.TokensUsed != nil {
+			return goalContractValidationError(
+				"open Goal turn contains terminal fields",
+			)
+		}
+	} else if turn.EndedAt == nil {
+		return goalContractValidationError("terminal Goal turn has no ended_at")
+	}
+	return nil
+}
+
+func goalBlockingIssuesPayload(issues []session.GoalBlockingIssue) []contract.GoalBlockingIssue {
+	payload := make([]contract.GoalBlockingIssue, 0, len(issues))
+	for _, issue := range issues {
+		payload = append(payload, contract.GoalBlockingIssue{ID: issue.ID, Note: issue.Note})
+	}
+	return payload
+}
+
+func goalCriteriaPayload(criteria []session.GoalCriterionResult) ([]contract.GoalCriterionResult, error) {
+	payload := make([]contract.GoalCriterionResult, 0, len(criteria))
+	for _, criterion := range criteria {
+		outcome, err := goalVerdictOutcomePayload(criterion.Outcome)
+		if err != nil {
+			return nil, err
+		}
+		payload = append(payload, contract.GoalCriterionResult{
+			ID: criterion.ID, Type: criterion.Type, Outcome: outcome,
+			Passed: criterion.Passed, Broken: criterion.Broken, ExitCode: criterion.ExitCode,
+			Stdout: criterion.Stdout, Stderr: criterion.Stderr, Score: criterion.Score,
+			Evidence:       append([]byte(nil), criterion.Evidence...),
+			BlockingIssues: goalBlockingIssuesPayload(criterion.BlockingIssues),
+			Warnings:       goalWarningsPayload(criterion.Warnings),
+			Payload:        append([]byte(nil), criterion.Payload...),
+		})
+	}
+	return payload, nil
+}
+
+func goalWarningsPayload(warnings []session.GoalDiagnosticWarning) []contract.GoalDiagnosticWarning {
+	payload := make([]contract.GoalDiagnosticWarning, 0, len(warnings))
+	for _, warning := range warnings {
+		payload = append(payload, contract.GoalDiagnosticWarning{Code: warning.Code, Message: warning.Message})
+	}
+	return payload
 }
 
 func goalStatusPayload(value string) (contract.GoalStatus, error) {
