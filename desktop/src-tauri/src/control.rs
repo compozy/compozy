@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{BufReader, ErrorKind, Read, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -149,10 +149,17 @@ impl Drop for ControlServer {
 }
 
 fn serve_connection(socket: &Socket, handler: &dyn ControlHandler) -> std::io::Result<()> {
+    socket.set_nonblocking(false)?;
     socket.set_read_timeout(Some(Duration::from_secs(2)))?;
     socket.set_write_timeout(Some(Duration::from_secs(2)))?;
-    let mut limited = BufReader::new(socket).take(MAX_REQUEST_BYTES);
-    let decoded = serde_json::from_reader::<_, ControlRequest>(&mut limited);
+    let mut limited = BufReader::new(socket).take(MAX_REQUEST_BYTES + 1);
+    let mut request_bytes = Vec::new();
+    let decoded = match limited.read_until(b'\n', &mut request_bytes) {
+        Ok(0) | Err(_) => Err(()),
+        Ok(_) if request_bytes.len() > MAX_REQUEST_BYTES as usize => Err(()),
+        Ok(_) if !request_bytes.ends_with(b"\n") => Err(()),
+        Ok(_) => serde_json::from_slice::<ControlRequest>(&request_bytes).map_err(|_| ()),
+    };
     let response = match decoded {
         Ok(request) if request.schema_version == CONTROL_SCHEMA_VERSION => {
             match handler.handle(request.method.trim(), request.params) {
@@ -229,7 +236,6 @@ fn set_socket_permissions(_path: &Path) -> Result<(), ControlServerError> {
 #[cfg(test)]
 mod tests {
     use std::io::{Read, Write};
-    use std::net::Shutdown;
     use std::sync::{Mutex, mpsc};
 
     use serde_json::json;
@@ -284,9 +290,6 @@ mod tests {
         });
         serde_json::to_writer(&socket, &payload).expect("request serializes");
         (&socket).write_all(b"\n").expect("request terminates");
-        socket
-            .shutdown(Shutdown::Write)
-            .expect("request half closes");
         let mut bytes = Vec::new();
         (&socket).read_to_end(&mut bytes).expect("response reads");
         serde_json::from_slice(&bytes).expect("response decodes")
