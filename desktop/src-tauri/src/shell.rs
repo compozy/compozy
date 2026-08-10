@@ -264,21 +264,39 @@ impl ShellCoordinator {
                     self.start_runtime(&binary, source == BinarySource::AppOwned);
                     return;
                 }
-                Resolution::NeedsProvision => match self.provision_runtime() {
-                    Ok(ProvisionOutcome::Installed { .. } | ProvisionOutcome::AttachExternally) => {
-                        self.publisher.publish(ShellState::Resolving);
-                    }
-                    Ok(ProvisionOutcome::UpToDate) => {
-                        self.publish_error(ShellErrorCode::RuntimeStartFailed);
+                Resolution::NeedsProvision => {
+                    let lock = match UpdateLock::acquire(&self.home.update_lock, &processes) {
+                        Ok(lock) => lock,
+                        Err(error) => {
+                            logging::error(format!("acquire runtime provision lock: {error}"));
+                            self.publish_error(ShellErrorCode::UpdateLockHeld);
+                            return;
+                        }
+                    };
+                    let outcome = self.provision_runtime();
+                    if let Err(error) = lock.release() {
+                        logging::error(format!("release runtime provision lock: {error}"));
+                        self.publish_error(ShellErrorCode::UpdateLockHeld);
                         return;
                     }
-                    Err(error) => {
-                        self.publisher.publish(ShellState::ShellError {
-                            error: shell_error(&self.home, &error),
-                        });
-                        return;
+                    match outcome {
+                        Ok(
+                            ProvisionOutcome::Installed { .. } | ProvisionOutcome::AttachExternally,
+                        ) => {
+                            self.publisher.publish(ShellState::Resolving);
+                        }
+                        Ok(ProvisionOutcome::UpToDate) => {
+                            self.publish_error(ShellErrorCode::RuntimeStartFailed);
+                            return;
+                        }
+                        Err(error) => {
+                            self.publisher.publish(ShellState::ShellError {
+                                error: shell_error(&self.home, &error),
+                            });
+                            return;
+                        }
                     }
-                },
+                }
                 Resolution::Failed { error } => {
                     self.publisher.publish(ShellState::ShellError { error });
                     return;

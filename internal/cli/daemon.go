@@ -176,7 +176,9 @@ func runDaemonForegroundMode(
 			return err
 		}
 		defer func() {
-			returnErr = errors.Join(returnErr, updateLock.Release())
+			if updateLock != nil {
+				returnErr = errors.Join(returnErr, updateLock.Release())
+			}
 		}()
 	}
 
@@ -189,6 +191,12 @@ func runDaemonForegroundMode(
 	runner, err := deps.newDaemon()
 	if err != nil {
 		return err
+	}
+	if updateLock != nil {
+		if err := updateLock.Release(); err != nil {
+			return err
+		}
+		updateLock = nil
 	}
 
 	// A harness-launched daemon self-terminates gracefully when its launcher

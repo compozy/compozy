@@ -6,13 +6,13 @@ persona: Ada
 journey: J-desktop-agent-headless
 expected: The full lifecycle — status before install (installed:false), open (launch/focus), transitional provisioning/updating states verbatim, attached running:true with runtime fields, open /settings navigation, update --check/--apply app|runtime, diagnose log paths, and running:false after kill — is deterministic, schema-valid `-o json`, with named error codes for every failure.
 entry_points: compozy app status|open|update|diagnose -o json; app.sock control socket
-qa_status: pass
+qa_status: blocked-verify
 bug_ids: BUG-20260810-app-control-timeout; BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed
 retest_status: pass
 fix_commits: 0805f649; f081a1e
-evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/app-control-product.txt
-last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/app-status-before-daemon.json; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/app-status-attached.json; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/app-control-product.json; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/platform-capability-blockers.txt
+last_report: docs/qa/reports/2026-08-10-desktop-coderabbit-remediation.md
 overlaps: APP-update-recovery-state
 ---
 

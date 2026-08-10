@@ -9,8 +9,8 @@ use compozyos_desktop::controller;
 use compozyos_desktop::errors::sanitize_public_text;
 use compozyos_desktop::home::CompozyHome;
 use compozyos_desktop::links::LinkQueue;
-use compozyos_desktop::{logging, shell, windowing};
-use tauri::{AppHandle, Wry};
+use compozyos_desktop::{boot_window, logging, shell, windowing};
+use tauri::{AppHandle, Wry, webview::PageLoadEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 
 fn main() {
@@ -58,6 +58,14 @@ fn run() -> Result<(), Box<dyn Error>> {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(logging::plugin(home.logs_dir.clone()))
         .invoke_handler(tauri::generate_handler![controller::shell_control])
+        .on_page_load(|webview, payload| {
+            if webview.label() == "boot"
+                && payload.event() == PageLoadEvent::Finished
+                && let Err(error) = boot_window::install_control_bridge(webview)
+            {
+                logging::error(format!("install boot control bridge: {error}"));
+            }
+        })
         .setup(move |app| {
             register_deep_links(app.handle(), &setup_links);
             shell::setup(

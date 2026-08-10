@@ -9,10 +9,10 @@ entry_points: update surface after a forced apply failure; compozy app status / 
 qa_status: blocked-verify
 bug_ids: BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed
-retest_status: blocked-verify
+retest_status: pass
 fix_commits: f081a1e
-evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/app-control-product.txt; /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/platform-capability-blockers.txt
-last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/app-control-product.json; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/platform-capability-blockers.txt
+last_report: docs/qa/reports/2026-08-10-desktop-coderabbit-remediation.md
 overlaps: APP-agent-cli-app-verbs
 ---
 

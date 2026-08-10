@@ -62,11 +62,28 @@ func TestDaemonDrainStatusRequiresClosedAdmissionAndSettledWork(t *testing.T) {
 			if status.SafeToStop != tc.wantSafe {
 				t.Fatalf("composeDrainStatus() = %#v, want safe_to_stop=%t", status, tc.wantSafe)
 			}
+			if status.AdmissionClosed != (tc.state == DrainStateDraining) {
+				t.Fatalf("admission_closed = %t, want %t", status.AdmissionClosed, tc.state == DrainStateDraining)
+			}
+			if status.ActiveSessionExecutions != tc.activeExecutions {
+				t.Fatalf("active_session_executions = %d, want %d", status.ActiveSessionExecutions, tc.activeExecutions)
+			}
+			if status.ActiveTaskClaims != tc.activeClaims {
+				t.Fatalf("active_task_claims = %d, want %d", status.ActiveTaskClaims, tc.activeClaims)
+			}
 			if status.AuthoritativeClaimsSettled != (tc.claimsKnown && tc.activeClaims == 0) {
-				t.Fatalf("authoritative claims projection = %#v", status)
+				t.Fatalf(
+					"authoritative_claims_settled = %t, want %t",
+					status.AuthoritativeClaimsSettled,
+					tc.claimsKnown && tc.activeClaims == 0,
+				)
 			}
 			if status.SessionExecutionSettled != (tc.executionsKnown && tc.activeExecutions == 0) {
-				t.Fatalf("session execution projection = %#v", status)
+				t.Fatalf(
+					"session_execution_settled = %t, want %t",
+					status.SessionExecutionSettled,
+					tc.executionsKnown && tc.activeExecutions == 0,
+				)
 			}
 		})
 	}

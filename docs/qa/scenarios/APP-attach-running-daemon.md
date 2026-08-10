@@ -9,10 +9,10 @@ entry_points: dock/launcher icon with a running daemon; browser tab open side by
 qa_status: blocked-verify
 bug_ids: BUG-20260810-desktop-runtime-stalls
 fix_status: fixed
-retest_status: blocked-verify
+retest_status: pass
 fix_commits: b415f24b; b3aa3d27; bd610cfa; 02b55a46
-evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/app-control-product.txt
-last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/app-attached.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/quit-runtime-survives.json; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/platform-capability-blockers.txt
+last_report: docs/qa/reports/2026-08-10-desktop-coderabbit-remediation.md
 overlaps:
 ---
 

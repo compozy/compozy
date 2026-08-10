@@ -1,6 +1,6 @@
 use serde::Serialize;
 use tauri::{
-    AppHandle, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    AppHandle, Manager, Runtime, Webview, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     webview::PageLoadEvent,
 };
 
@@ -8,17 +8,23 @@ use crate::errors::ShellError;
 use crate::state::{ShellState, UpdateTarget};
 
 const BOOT_BRIDGE_SCRIPT: &str = r#"
-Object.defineProperty(window, "__TAURI__", {
-  configurable: false,
-  enumerable: false,
-  value: Object.freeze({
-    core: Object.freeze({
-      invoke: (command, args) => window.__TAURI_INTERNALS__.invoke(command, args)
-    })
-  }),
-  writable: false
-});
+if (!Object.hasOwn(window, "__TAURI__")) {
+  Object.defineProperty(window, "__TAURI__", {
+    configurable: false,
+    enumerable: false,
+    value: Object.freeze({
+      core: Object.freeze({
+        invoke: (command, args) => window.__TAURI_INTERNALS__.invoke(command, args)
+      })
+    }),
+    writable: false
+  });
+}
 "#;
+
+pub fn install_control_bridge<R: Runtime>(webview: &Webview<R>) -> tauri::Result<()> {
+    webview.eval(BOOT_BRIDGE_SCRIPT)
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 struct BootPayload {

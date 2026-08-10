@@ -42,6 +42,12 @@ live_version=""
 live_feed="$(mktemp)"
 verify_dir="$(mktemp -d)"
 trap 'rm -f "${live_feed}"; rm -rf "${verify_dir}"' EXIT
+scripts/assert-runtime-manifest-payloads.sh \
+  "${feed_dir}/runtime.json" \
+  "${runtime_dir}" \
+  "${release_version}"
+jq -er '.platforms | to_entries[] | [.value.url, (.value.size | tostring), .value.sha256] | @tsv' \
+  "${feed_dir}/runtime.json" >"${verify_dir}/runtime-inventory.tsv"
 live_status="$(curl --silent --show-error --output "${live_feed}" --write-out '%{http_code}' \
   "https://releases.compozy.com/desktop/${channel}/latest.json")"
 case "${live_status}" in
@@ -66,13 +72,14 @@ for artifact_path in "${desktop_dir}"/*; do
     --endpoint-url "${endpoint}" \
     --cache-control "${immutable_cache}"
 done
-for runtime_path in "${runtime_dir}"/*; do
-  runtime_name="$(basename "${runtime_path}")"
+while IFS=$'\t' read -r runtime_url _runtime_size _runtime_sha256; do
+  runtime_name="${runtime_url##*/}"
+  runtime_path="${runtime_dir}/${runtime_name}"
   aws s3 cp "${runtime_path}" \
     "s3://${bucket}/desktop/v/runtime/${release_version}/${runtime_name}" \
     --endpoint-url "${endpoint}" \
     --cache-control "${immutable_cache}"
-done
+done <"${verify_dir}/runtime-inventory.tsv"
 
 # Manifests are the commit point. Each command is one atomic PutObject and runs
 # only after every immutable payload and signature is present.
@@ -114,6 +121,19 @@ scripts/verify-desktop-signature.sh \
   "${verify_dir}/runtime.json.minisig" \
   "${TAURI_SIGNING_PUBLIC_KEY}"
 
+runtime_verify_dir="${verify_dir}/runtime-payloads"
+mkdir -p "${runtime_verify_dir}"
+while IFS=$'\t' read -r runtime_url _runtime_size _runtime_sha256; do
+  runtime_name="${runtime_url##*/}"
+  curl --fail --silent --show-error \
+    "${runtime_url}" \
+    --output "${runtime_verify_dir}/${runtime_name}"
+done <"${verify_dir}/runtime-inventory.tsv"
+scripts/assert-runtime-manifest-payloads.sh \
+  "${verify_dir}/runtime.json" \
+  "${runtime_verify_dir}" \
+  "${release_version}"
+
 for platform in darwin-aarch64 darwin-x86_64 linux-x86_64 windows-x86_64; do
   payload_url="$(jq -er --arg platform "${platform}" '.platforms[$platform].url' "${verify_dir}/latest.json")"
   jq -er --arg platform "${platform}" '.platforms[$platform].signature' \
@@ -126,4 +146,3 @@ for platform in darwin-aarch64 darwin-x86_64 linux-x86_64 windows-x86_64; do
 done
 
 echo "desktop release publication: PASS (${release_version})"
-

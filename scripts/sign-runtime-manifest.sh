@@ -13,6 +13,5 @@ if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" || -z "${TAURI_SIGNING_PRIVATE_KEY_PAS
 fi
 
 bunx @tauri-apps/cli@2.11.4 signer sign "${manifest}"
-base64 --decode <"${manifest}.sig" >"${manifest}.minisig"
+openssl base64 -d -A <"${manifest}.sig" >"${manifest}.minisig"
 rm "${manifest}.sig"
-

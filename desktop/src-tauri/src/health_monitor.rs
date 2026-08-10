@@ -19,6 +19,25 @@ use crate::runtime::resolver::{InstallLocator, SystemInstallLocator};
 use crate::state::{DisconnectCause, ShellState};
 use crate::{boot_window, logging, windowing};
 
+#[derive(Debug, Default)]
+struct CompatibilityRetry {
+    pending: bool,
+}
+
+impl CompatibilityRetry {
+    fn should_check(&self, transition: HealthTransition, identity_present: bool) -> bool {
+        identity_present && (transition == HealthTransition::Reconnected || self.pending)
+    }
+
+    fn record(&mut self, compatible: bool) {
+        self.pending = !compatible;
+    }
+
+    fn reset(&mut self) {
+        self.pending = false;
+    }
+}
+
 pub fn spawn(
     app: AppHandle<Wry>,
     home: CompozyHome,
@@ -47,6 +66,7 @@ fn monitor(
         }
     };
     let mut tracker = HealthTracker::with_failure_threshold(3);
+    let mut compatibility_retry = CompatibilityRetry::default();
     loop {
         std::thread::sleep(Duration::from_secs(2));
         let identity = match discover(&home.daemon_info, &processes) {
@@ -56,58 +76,68 @@ fn monitor(
             },
             Discovery::Absent | Discovery::AbsentWithDiagnostic(_) => None,
         };
-        match tracker.observe(identity.is_some()) {
-            HealthTransition::None => {}
-            HealthTransition::Disconnected => disconnect(&app, &publisher),
-            HealthTransition::Reconnected => {
-                let Some(identity) = identity else {
-                    logging::error("health tracker reconnected without an identity");
-                    continue;
+        let transition = tracker.observe(identity.is_some());
+        if transition == HealthTransition::Disconnected {
+            compatibility_retry.reset();
+            disconnect(&app, &publisher);
+            continue;
+        }
+        if !compatibility_retry.should_check(transition, identity.is_some()) {
+            continue;
+        }
+        let Some(identity) = identity else {
+            logging::error("health tracker requested compatibility without an identity");
+            continue;
+        };
+        let owned = processes
+            .executable(identity.record.pid)
+            .is_some_and(|path| installs.owns_executable(&home, &path));
+        match handshake(&identity, &minimum) {
+            Compatibility::Compatible { .. } => {
+                compatibility_retry.record(true);
+                let state = ShellState::Product {
+                    origin: identity.origin.clone(),
+                    owned,
                 };
-                let owned = processes
-                    .executable(identity.record.pid)
-                    .is_some_and(|path| installs.owns_executable(&home, &path));
-                match handshake(&identity, &minimum) {
-                    Compatibility::Compatible { .. } => {
-                        let state = ShellState::Product {
-                            origin: identity.origin.clone(),
-                            owned,
-                        };
-                        publisher.publish(state);
-                        let update_controller = Arc::clone(&controller);
-                        if let Err(error) = windowing::create_main_window(
-                            &app,
-                            identity.origin,
-                            Arc::clone(&links),
+                publisher.publish(state);
+                let update_controller = Arc::clone(&controller);
+                if let Err(error) = windowing::create_main_window(
+                    &app,
+                    identity.origin,
+                    Arc::clone(&links),
+                    home.app_log.clone(),
+                    publisher.load_deadline_handler(),
+                    Arc::new(move || update_controller.present_pending_updates()),
+                ) {
+                    logging::error(format!("reopen product window: {error}"));
+                    let state = ShellState::ShellError {
+                        error: ShellError::from_code(
+                            ShellErrorCode::LoadDeadlineExceeded,
                             home.app_log.clone(),
-                            publisher.load_deadline_handler(),
-                            Arc::new(move || update_controller.present_pending_updates()),
-                        ) {
-                            logging::error(format!("reopen product window: {error}"));
-                            let state = ShellState::ShellError {
-                                error: ShellError::from_code(
-                                    ShellErrorCode::LoadDeadlineExceeded,
-                                    home.app_log.clone(),
-                                ),
-                            };
-                            publisher.publish(state.clone());
-                            if let Err(show_error) = boot_window::show(&app, state) {
-                                logging::error(format!("show reconnect error: {show_error}"));
-                            }
-                        }
+                        ),
+                    };
+                    publisher.publish(state.clone());
+                    if let Err(show_error) = boot_window::show(&app, state) {
+                        logging::error(format!("show reconnect error: {show_error}"));
                     }
-                    Compatibility::SkewOlder {
-                        runtime, needed, ..
-                    } => {
-                        show_skew(&app, &publisher, runtime, needed, false);
-                        return;
-                    }
-                    Compatibility::SkewNewer {
-                        runtime, needed, ..
-                    } => {
-                        show_skew(&app, &publisher, runtime, needed, true);
-                        return;
-                    }
+                }
+            }
+            Compatibility::SkewOlder {
+                runtime, needed, ..
+            } => {
+                let first_skew = !compatibility_retry.pending;
+                compatibility_retry.record(false);
+                if first_skew {
+                    show_skew(&app, &publisher, runtime, needed, false);
+                }
+            }
+            Compatibility::SkewNewer {
+                runtime, needed, ..
+            } => {
+                let first_skew = !compatibility_retry.pending;
+                compatibility_retry.record(false);
+                if first_skew {
+                    show_skew(&app, &publisher, runtime, needed, true);
                 }
             }
         }
@@ -144,5 +174,25 @@ fn show_skew(
     publisher.publish(state.clone());
     if let Err(error) = boot_window::show(app, state) {
         logging::error(format!("show reconnect skew state: {error}"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_retry_compatibility_after_skew_until_the_runtime_matches() {
+        let mut retry = CompatibilityRetry::default();
+        assert!(retry.should_check(HealthTransition::Reconnected, true));
+
+        retry.record(false);
+        assert!(retry.should_check(HealthTransition::None, true));
+        retry.reset();
+        assert!(!retry.should_check(HealthTransition::None, true));
+        assert!(retry.should_check(HealthTransition::Reconnected, true));
+
+        retry.record(true);
+        assert!(!retry.should_check(HealthTransition::None, true));
     }
 }

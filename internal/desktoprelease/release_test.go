@@ -238,11 +238,13 @@ func TestBuildFeeds(t *testing.T) {
 
 func TestChannelConfig(t *testing.T) {
 	t.Parallel()
+	const minisignPublicKey = "untrusted comment: minisign public key E7620F1842B4E81F\n" +
+		"RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3\n"
 
 	t.Run("Should embed beta endpoint public key and object-form Windows signer", func(t *testing.T) {
 		t.Parallel()
 
-		publicKey := base64.StdEncoding.EncodeToString([]byte("untrusted comment: minisign public key\nRWQexample\n"))
+		publicKey := base64.StdEncoding.EncodeToString([]byte(minisignPublicKey))
 		output := filepath.Join(t.TempDir(), "tauri.channel.conf.json")
 		err := WriteChannelConfig(ChannelConfigRequest{
 			Version:       "0.4.0-beta.2",
@@ -264,6 +266,24 @@ func TestChannelConfig(t *testing.T) {
 			if !strings.Contains(contents, want) {
 				t.Fatalf("channel config missing %q: %s", want, contents)
 			}
+		}
+	})
+
+	t.Run("Should reject updater public keys without a valid Ed25519 Minisign packet", func(t *testing.T) {
+		t.Parallel()
+
+		for _, decoded := range []string{
+			"untrusted comment: minisign public key\nRWQexample\n",
+			"untrusted comment: not a minisign public key\nRWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3\n",
+			"untrusted comment: minisign public key E7620F1842B4E81F\nWXgf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3\n",
+		} {
+			err := WriteChannelConfig(ChannelConfigRequest{
+				Version:    "0.4.0-beta.2",
+				Channel:    ChannelBeta,
+				PublicKey:  base64.StdEncoding.EncodeToString([]byte(decoded)),
+				OutputPath: filepath.Join(t.TempDir(), "tauri.channel.conf.json"),
+			})
+			assertErrorContains(t, err, "valid Ed25519 Minisign public key")
 		}
 	})
 }

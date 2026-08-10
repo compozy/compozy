@@ -1,4 +1,5 @@
-use std::fs;
+use std::ffi::OsString;
+use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -15,6 +16,8 @@ use crate::errors::sanitize_public_text;
 
 pub const CONTROL_SCHEMA_VERSION: u8 = 1;
 const MAX_REQUEST_BYTES: u64 = 64 * 1024;
+const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(20);
+const ACCEPT_RESOURCE_BACKOFF: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Deserialize)]
 struct ControlRequest {
@@ -66,6 +69,7 @@ pub struct ControlServer {
     path: PathBuf,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
+    lock: File,
 }
 
 impl ControlServer {
@@ -75,6 +79,21 @@ impl ControlServer {
     ) -> Result<Self, ControlServerError> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(ControlServerError::Io)?;
+            set_directory_permissions(parent)?;
+        }
+        let lock_path = control_lock_path(path);
+        let lock = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .truncate(false)
+            .write(true)
+            .open(&lock_path)
+            .map_err(ControlServerError::Io)?;
+        set_socket_permissions(&lock_path)?;
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(TryLockError::WouldBlock) => return Err(ControlServerError::AlreadyListening),
+            Err(TryLockError::Error(error)) => return Err(ControlServerError::Io(error)),
         }
         let address = SockAddr::unix(path).map_err(ControlServerError::Io)?;
         if socket_is_live(&address) {
@@ -84,11 +103,11 @@ impl ControlServer {
         let listener =
             Socket::new(Domain::UNIX, Type::STREAM, None).map_err(ControlServerError::Io)?;
         listener.bind(&address).map_err(ControlServerError::Io)?;
+        set_socket_permissions(path)?;
         listener.listen(32).map_err(ControlServerError::Io)?;
         listener
             .set_nonblocking(true)
             .map_err(ControlServerError::Io)?;
-        set_socket_permissions(path)?;
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = Arc::clone(&stop);
         let thread_path = path.to_path_buf();
@@ -107,13 +126,16 @@ impl ControlServer {
                             }
                         });
                     }
-                    Err(error) if error.kind() == ErrorKind::WouldBlock => {
-                        thread::sleep(Duration::from_millis(20));
-                    }
-                    Err(error) => {
-                        crate::logging::error(format!("accept app control connection: {error}"));
-                        break;
-                    }
+                    Err(error) => match classify_accept_error(&error) {
+                        AcceptErrorAction::Retry => {}
+                        AcceptErrorAction::RetryAfter(delay) => thread::sleep(delay),
+                        AcceptErrorAction::Stop => {
+                            crate::logging::error(format!(
+                                "accept app control connection: {error}"
+                            ));
+                            break;
+                        }
+                    },
                 }
             }
             if let Err(error) = fs::remove_file(&thread_path)
@@ -129,6 +151,7 @@ impl ControlServer {
             path: path.to_path_buf(),
             stop,
             thread: Some(thread),
+            lock,
         })
     }
 
@@ -145,7 +168,37 @@ impl Drop for ControlServer {
         {
             crate::logging::error(format!("join app control server: {error:?}"));
         }
+        if let Err(error) = self.lock.unlock() {
+            crate::logging::error(format!("unlock app control server: {error}"));
+        }
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AcceptErrorAction {
+    Retry,
+    RetryAfter(Duration),
+    Stop,
+}
+
+fn classify_accept_error(error: &std::io::Error) -> AcceptErrorAction {
+    match error.kind() {
+        ErrorKind::WouldBlock => AcceptErrorAction::RetryAfter(ACCEPT_POLL_INTERVAL),
+        ErrorKind::Interrupted | ErrorKind::ConnectionAborted => AcceptErrorAction::Retry,
+        _ if error
+            .raw_os_error()
+            .is_some_and(|code| code == libc::EMFILE || code == libc::ENFILE) =>
+        {
+            AcceptErrorAction::RetryAfter(ACCEPT_RESOURCE_BACKOFF)
+        }
+        _ => AcceptErrorAction::Stop,
+    }
+}
+
+fn control_lock_path(path: &Path) -> PathBuf {
+    let mut value = OsString::from(path.as_os_str());
+    value.push(".lock");
+    PathBuf::from(value)
 }
 
 fn serve_connection(socket: &Socket, handler: &dyn ControlHandler) -> std::io::Result<()> {
@@ -219,6 +272,18 @@ fn remove_socket(path: &Path) -> Result<(), ControlServerError> {
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
         Err(error) => Err(ControlServerError::Io(error)),
     }
+}
+
+#[cfg(unix)]
+fn set_directory_permissions(path: &Path) -> Result<(), ControlServerError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(ControlServerError::Io)
+}
+
+#[cfg(not(unix))]
+fn set_directory_permissions(_path: &Path) -> Result<(), ControlServerError> {
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -340,6 +405,42 @@ mod tests {
     }
 
     #[test]
+    fn should_keep_the_first_control_server_reachable_during_competing_startup() {
+        let directory = tempfile::tempdir().expect("temp directory opens");
+        let path = directory.path().join("app.sock");
+        let _server =
+            ControlServer::start(&path, Arc::new(EchoHandler)).expect("first server starts");
+
+        let second = ControlServer::start(&path, Arc::new(EchoHandler));
+        assert!(matches!(second, Err(ControlServerError::AlreadyListening)));
+        let response = request(&path, CONTROL_SCHEMA_VERSION, "diagnose", json!({}));
+        assert_eq!(
+            response.result,
+            Some(json!({"method": "diagnose", "params": {}}))
+        );
+    }
+
+    #[test]
+    fn should_retry_only_transient_accept_errors() {
+        assert_eq!(
+            classify_accept_error(&std::io::Error::from(ErrorKind::Interrupted)),
+            AcceptErrorAction::Retry
+        );
+        assert_eq!(
+            classify_accept_error(&std::io::Error::from_raw_os_error(libc::EMFILE)),
+            AcceptErrorAction::RetryAfter(ACCEPT_RESOURCE_BACKOFF)
+        );
+        assert_eq!(
+            classify_accept_error(&std::io::Error::from_raw_os_error(libc::ENFILE)),
+            AcceptErrorAction::RetryAfter(ACCEPT_RESOURCE_BACKOFF)
+        );
+        assert_eq!(
+            classify_accept_error(&std::io::Error::from(ErrorKind::PermissionDenied)),
+            AcceptErrorAction::Stop
+        );
+    }
+
+    #[test]
     fn should_serve_independent_connections_while_an_update_check_is_slow() {
         let directory = tempfile::tempdir().expect("temp directory opens");
         let path = directory.path().join("app.sock");
@@ -401,5 +502,17 @@ mod tests {
             .mode()
             & 0o777;
         assert_eq!(mode, 0o600);
+        let directory_mode = fs::metadata(directory.path())
+            .expect("control directory metadata reads")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(directory_mode, 0o700);
+        let lock_mode = fs::metadata(control_lock_path(&path))
+            .expect("control lock metadata reads")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(lock_mode, 0o600);
     }
 }

@@ -265,7 +265,7 @@ fn validate_artifact(artifact: &PlatformArtifact) -> Result<(), ArtifactError> {
     let local_fixture = artifact.url.scheme() == "http"
         && matches!(
             artifact.url.host_str(),
-            Some("localhost" | "127.0.0.1" | "::1")
+            Some("localhost" | "127.0.0.1" | "[::1]")
         );
     let digest_valid =
         artifact.sha256.len() == 64 && artifact.sha256.bytes().all(|byte| byte.is_ascii_hexdigit());
@@ -459,5 +459,16 @@ mod tests {
             ),
             Err(ArtifactError::UnsupportedPlatform(target)) if target == "windows-x86_64"
         ));
+    }
+
+    #[test]
+    fn should_allow_ipv6_loopback_only_for_local_http_fixtures() {
+        let artifact = PlatformArtifact {
+            url: Url::parse("http://[::1]:43119/runtime.tar.gz").expect("IPv6 URL parses"),
+            sha256: "a".repeat(64),
+            size: 3,
+        };
+
+        assert!(validate_artifact(&artifact).is_ok());
     }
 }

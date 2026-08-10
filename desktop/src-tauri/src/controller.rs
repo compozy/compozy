@@ -469,10 +469,20 @@ impl ControlHandler for DesktopController {
 }
 
 #[tauri::command]
-pub fn shell_control(
+pub async fn shell_control(
     controller: tauri::State<'_, Arc<DesktopController>>,
     method: String,
     params: Value,
 ) -> Result<Value, ControlError> {
-    controller.handle(method.trim(), params)
+    let controller = Arc::clone(controller.inner());
+    let method = method.trim().to_owned();
+    tauri::async_runtime::spawn_blocking(move || controller.handle(&method, params))
+        .await
+        .map_err(|error| {
+            crate::logging::error(format!("join app control command: {error}"));
+            ControlError::new(
+                "app_control_unavailable",
+                "The app control command could not be completed.",
+            )
+        })?
 }

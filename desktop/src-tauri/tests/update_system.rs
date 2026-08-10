@@ -213,6 +213,14 @@ fn fixture(
 }
 
 fn app_feed(artifact: &[u8], signed_bytes: &[u8]) -> (FixtureServer, String) {
+    app_feed_version("0.2.0", artifact, signed_bytes)
+}
+
+fn app_feed_version(
+    version: &str,
+    artifact: &[u8],
+    signed_bytes: &[u8],
+) -> (FixtureServer, String) {
     let pair = KeyPair::generate_unencrypted_keypair().expect("app test key generates");
     let public_key = BASE64.encode(pair.pk.to_box().expect("app public key boxes").to_string());
     let signature = BASE64.encode(
@@ -227,9 +235,10 @@ fn app_feed(artifact: &[u8], signed_bytes: &[u8]) -> (FixtureServer, String) {
         .to_string(),
     );
     let artifact = artifact.to_vec();
+    let version = version.to_owned();
     let server = FixtureServer::start(move |origin| {
         let feed = serde_json::to_vec(&json!({
-            "version": "0.2.0",
+            "version": version,
             "url": origin.join("app-update").expect("app update URL joins"),
             "signature": signature,
         }))
@@ -463,6 +472,27 @@ fn should_refuse_tampered_tauri_artifact_without_pending_update() {
 
 #[test]
 fn should_keep_malformed_and_missing_tauri_feeds_distinct_from_up_to_date() {
+    let current_version =
+        tauri::test::mock_context::<tauri::test::MockRuntime, _>(tauri::test::noop_assets())
+            .package_info()
+            .version
+            .to_string();
+    let (current_server, current_key) =
+        app_feed_version(&current_version, b"current app", b"current app");
+    let current_directory = tempfile::tempdir().expect("temp directory opens");
+    let (_current_app, current_updater) = mock_app_updater(
+        current_server
+            .origin
+            .join("feed.json")
+            .expect("feed URL joins"),
+        current_key,
+        current_directory.path().join("app-update-intent.json"),
+    );
+    assert!(matches!(
+        current_updater.check(true),
+        AppUpdateEvent::UpToDate { .. }
+    ));
+
     for (routes, expected) in [
         (
             HashMap::from([("/feed.json".to_owned(), b"not json".to_vec())]),

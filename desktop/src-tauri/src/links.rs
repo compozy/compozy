@@ -87,7 +87,11 @@ pub fn parse(raw: &str) -> LinkTarget {
 }
 
 fn valid_product_path(path: &str) -> bool {
-    if !path.starts_with('/') || path.starts_with("//") || path.contains("://") {
+    if !path.starts_with('/')
+        || path.starts_with("//")
+        || path.contains("://")
+        || path.contains('\\')
+    {
         return false;
     }
     !path
@@ -114,6 +118,9 @@ mod tests {
             "compozyos://open//evil.com/x",
             "compozyos://open/../etc",
             "compozyos://open/%2e%2e/etc",
+            "compozyos://open/..\\..\\etc",
+            "compozyos://open/%2e%2e%5cetc",
+            "compozyos://open/sessions%5c..%5cadmin",
             "https://example.com/sessions/abc",
         ] {
             assert_eq!(parse(input), LinkTarget::DefaultView, "input: {input}");

@@ -249,7 +249,7 @@ pub fn complete_recovery(
 }
 
 pub fn swap_binary(home: &CompozyHome, staged: &Path) -> Result<SwapCommit, SwapFailure> {
-    let parent = home.app_binary.parent().ok_or_else(|| SwapFailure {
+    let parent = home.app_binary.parent().ok_or(SwapFailure {
         committed: None,
         error: MutationError::InvalidJournal,
     })?;

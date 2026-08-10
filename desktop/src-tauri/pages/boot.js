@@ -28,6 +28,13 @@
   const runtimeLog = document.getElementById("boot-runtime-log");
   const lastErrorRow = document.getElementById("boot-last-error-row");
   const lastError = document.getElementById("boot-last-error");
+  const buttonGenerations = new WeakMap();
+
+  const nextButtonGeneration = button => {
+    const generation = (buttonGenerations.get(button) ?? 0) + 1;
+    buttonGenerations.set(button, generation);
+    return generation;
+  };
 
   const safeText = value => {
     if (typeof value !== "string") return "";
@@ -71,9 +78,11 @@
   };
 
   const configureButton = (button, options) => {
+    nextButtonGeneration(button);
     button.hidden = !options.visible;
     button.disabled = false;
     button.removeAttribute("aria-busy");
+    button.style.removeProperty("inline-size");
     button.classList.toggle("boot__control--primary", options.primary);
     button.textContent = options.label;
     button.dataset.label = options.label;
@@ -94,6 +103,7 @@
   };
 
   const runControl = async (button, method, params, pendingLabel) => {
+    const generation = nextButtonGeneration(button);
     const label = button.dataset.label;
     button.style.inlineSize = `${button.getBoundingClientRect().width}px`;
     button.disabled = true;
@@ -110,10 +120,12 @@
     } catch (error) {
       setResult(controlError(error), true);
     } finally {
-      button.disabled = false;
-      button.removeAttribute("aria-busy");
-      button.textContent = label;
-      button.style.removeProperty("inline-size");
+      if (buttonGenerations.get(button) === generation) {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        button.textContent = label;
+        button.style.removeProperty("inline-size");
+      }
     }
   };
 

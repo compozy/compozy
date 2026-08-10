@@ -12,7 +12,7 @@ static CLAIM_VALUE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static NAMED_SECRET: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?i)(claim_token|authorization|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;\"']+"#,
+        r#"(?i)(api[_-]?key|authorization|(?:[a-z0-9]+[_-])*token|(?:[a-z0-9]+[_-])*secret|oauth[_-]?code|authorization[_-]?code|code(?:[_-]?(?:verifier|challenge))?|pkce[_-]?verifier|secret[_-]?(?:binding|ref)|password|passphrase|credential|private[_-]?key)\s*[:=]\s*[^\s,;\"']+"#,
     )
     .expect("named secret regex is valid")
 });
@@ -104,6 +104,10 @@ impl ShellError {
 }
 
 pub fn sanitize_public_text(input: &str) -> String {
+    truncate_utf8(&redact_public_text(input), MAX_SAFE_MESSAGE_BYTES)
+}
+
+pub fn redact_public_text(input: &str) -> String {
     let printable: String = input
         .chars()
         .map(|character| {
@@ -118,7 +122,7 @@ pub fn sanitize_public_text(input: &str) -> String {
     let redacted = BEARER.replace_all(&redacted, REDACTED);
     let redacted = NAMED_SECRET.replace_all(&redacted, REDACTED);
     let redacted = VAULT_REF.replace_all(&redacted, REDACTED);
-    truncate_utf8(redacted.trim(), MAX_SAFE_MESSAGE_BYTES)
+    redacted.trim().to_owned()
 }
 
 fn truncate_utf8(value: &str, limit: usize) -> String {
@@ -153,6 +157,18 @@ mod tests {
             "claim_token=raw-token",
             "Authorization:Bearer abc.def.ghi",
             "api_key = secret-key",
+            "refresh_token=refresh-secret",
+            "client_secret: client-secret",
+            "oauth_code=oauth-secret",
+            "authorization_code=authorization-secret",
+            "code=oauth-code-secret",
+            "code_verifier=pkce-secret",
+            "code_challenge=pkce-challenge",
+            "pkce_verifier=verifier-secret",
+            "mcp_token=mcp-secret",
+            "private_key=private-secret",
+            "password=password-secret",
+            "passphrase=phrase-secret",
             "vault:providers/acme/token",
             "control\0characters",
         ]
@@ -161,6 +177,22 @@ mod tests {
 
         assert!(!sanitized.contains("compozy_claim_"));
         assert!(!sanitized.to_lowercase().contains("claim_token"));
+        for key in [
+            "refresh_token",
+            "client_secret",
+            "oauth_code",
+            "authorization_code",
+            "code=",
+            "code_verifier",
+            "code_challenge",
+            "pkce_verifier",
+            "mcp_token",
+            "private_key",
+            "password",
+            "passphrase",
+        ] {
+            assert!(!sanitized.to_lowercase().contains(key), "key: {key}");
+        }
         assert!(!sanitized.to_lowercase().contains("bearer"));
         assert!(!sanitized.contains("vault:"));
         assert!(!sanitized.contains('\0'));
@@ -168,18 +200,30 @@ mod tests {
     }
 
     #[test]
-    fn should_never_embed_http_response_body_in_public_error() {
+    fn should_preserve_long_redacted_logs_beyond_the_public_message_limit() {
+        let input = format!("{} refresh_token=refresh-secret", "x".repeat(700));
+        let redacted = redact_public_text(&input);
+
+        assert!(redacted.len() > MAX_SAFE_MESSAGE_BYTES);
+        assert!(!redacted.contains("refresh-secret"));
+        assert!(sanitize_public_text(&input).len() <= MAX_SAFE_MESSAGE_BYTES);
+    }
+
+    #[test]
+    fn should_redact_secrets_from_untrusted_response_detail() {
         let body = "claim_token=compozy_claim_response-secret";
         let error = ShellError::new(
             ShellErrorCode::RuntimeUnhealthy,
-            "The runtime returned an invalid response.",
+            format!("The runtime returned an invalid response: {body}"),
             PathBuf::from("/tmp/compozy.log"),
         );
 
         assert!(!error.safe_message.contains(body));
-        assert_eq!(
-            error.safe_message,
-            "The runtime returned an invalid response."
+        assert!(!error.safe_message.contains("compozy_claim_"));
+        assert!(
+            error
+                .safe_message
+                .starts_with("The runtime returned an invalid response:")
         );
     }
 }

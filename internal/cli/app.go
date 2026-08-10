@@ -1,15 +1,12 @@
 package cli
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
@@ -90,7 +87,11 @@ func newAppOpenCommand(deps commandDeps) *cobra.Command {
 					nil,
 				)
 			}
-			if appRecordRunning(homePaths, deps) {
+			running, err := appRecordRunning(homePaths, deps)
+			if err != nil {
+				return err
+			}
+			if running {
 				result, callErr := deps.callAppControl(
 					cmd.Context(),
 					filepath.Join(homePaths.HomeDir, "app.sock"),
@@ -202,19 +203,12 @@ func appTargetURL(raw string) (string, string, error) {
 	return "compozyos://open" + raw, raw, nil
 }
 
-func appRecordRunning(homePaths compozyconfig.HomePaths, deps commandDeps) bool {
-	raw, err := os.ReadFile(filepath.Join(homePaths.HomeDir, "app.json"))
-	if err != nil {
-		return false
+func appRecordRunning(homePaths compozyconfig.HomePaths, deps commandDeps) (bool, error) {
+	record, found, err := readAppStateRecord(homePaths)
+	if err != nil || !found || record.PID <= 0 {
+		return false, err
 	}
-	var identity struct {
-		PID       int       `json:"pid"`
-		StartedAt time.Time `json:"started_at"`
-	}
-	if err := json.Unmarshal(raw, &identity); err != nil || identity.PID <= 0 {
-		return false
-	}
-	return deps.processAlive(identity.PID) && deps.processMatchesStartTime(identity.PID, identity.StartedAt)
+	return deps.processAlive(record.PID) && deps.processMatchesStartTime(record.PID, record.StartedAt), nil
 }
 
 func appStatusBundle(report AppStatusReport) outputBundle {

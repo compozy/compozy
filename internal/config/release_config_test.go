@@ -1,9 +1,13 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -560,6 +564,203 @@ func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
 			t.Fatalf("CI key generation unexpectedly succeeded: %s", output)
 		}
 		assertContainsText(t, "key generation guard", string(output), "must never be generated in CI")
+	})
+
+	t.Run("Should create an update signing key with owner-only permissions", func(t *testing.T) {
+		t.Parallel()
+
+		binDir := t.TempDir()
+		bunxStub := "#!/bin/sh\nfor argument do output=\"${argument}\"; done\nprintf private-key >\"${output}\"\n"
+		if err := os.WriteFile(filepath.Join(binDir, "bunx"), []byte(bunxStub), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(bunx stub) error = %v", err)
+		}
+		outputPath := filepath.Join(t.TempDir(), "update.key")
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "generate-desktop-update-key.sh"),
+			outputPath,
+		)
+		cmd.Dir = root
+		cmd.Env = []string{
+			"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
+			"TAURI_SIGNING_PRIVATE_KEY_PASSWORD=fixture",
+		}
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("generate update key error = %v; output=%s", err, output)
+		}
+		info, err := os.Stat(outputPath)
+		if err != nil {
+			t.Fatalf("os.Stat(update key) error = %v", err)
+		}
+		if got := info.Mode().Perm(); got != 0o600 {
+			t.Fatalf("update key mode = %04o, want 0600", got)
+		}
+	})
+
+	t.Run("Should require exact runtime payload bytes from the signed manifest", func(t *testing.T) {
+		t.Parallel()
+
+		payloadDir := t.TempDir()
+		payload := []byte("runtime-payload")
+		payloadName := "compozy_darwin_arm64.tar.gz"
+		payloadPath := filepath.Join(payloadDir, payloadName)
+		if err := os.WriteFile(payloadPath, payload, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(runtime payload) error = %v", err)
+		}
+		digest := sha256.Sum256(payload)
+		manifest := map[string]any{
+			"platforms": map[string]any{
+				"darwin-aarch64": map[string]any{
+					"url":    "https://releases.compozy.com/desktop/v/runtime/0.4.0-beta.2/" + payloadName,
+					"size":   len(payload),
+					"sha256": hex.EncodeToString(digest[:]),
+				},
+			},
+		}
+		manifestBytes, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatalf("json.Marshal(runtime manifest) error = %v", err)
+		}
+		manifestPath := filepath.Join(t.TempDir(), "runtime.json")
+		if err := os.WriteFile(manifestPath, manifestBytes, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(runtime manifest) error = %v", err)
+		}
+		assertScript := filepath.Join(root, "scripts", "assert-runtime-manifest-payloads.sh")
+		run := func() ([]byte, error) {
+			cmd := exec.CommandContext(t.Context(), "bash", assertScript, manifestPath, payloadDir, "0.4.0-beta.2")
+			cmd.Dir = root
+			return cmd.CombinedOutput()
+		}
+		if output, err := run(); err != nil {
+			t.Fatalf("valid runtime payload verification error = %v; output=%s", err, output)
+		}
+		if err := os.WriteFile(filepath.Join(payloadDir, "unexpected.txt"), []byte("extra"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(extra payload) error = %v", err)
+		}
+		output, err := run()
+		if err == nil {
+			t.Fatalf("runtime verification accepted an extra payload: %s", output)
+		}
+		assertContainsText(t, "runtime inventory", string(output), "unexpected runtime payload")
+		if err := os.Remove(filepath.Join(payloadDir, "unexpected.txt")); err != nil {
+			t.Fatalf("os.Remove(extra payload) error = %v", err)
+		}
+		if err := os.WriteFile(payloadPath, []byte("runtime-payloae"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(corrupt payload) error = %v", err)
+		}
+		output, err = run()
+		if err == nil {
+			t.Fatalf("runtime verification accepted a digest mismatch: %s", output)
+		}
+		assertContainsText(t, "runtime digest", string(output), "SHA-256 does not match")
+		if err := os.Remove(payloadPath); err != nil {
+			t.Fatalf("os.Remove(runtime payload) error = %v", err)
+		}
+		output, err = run()
+		if err == nil {
+			t.Fatalf("runtime verification accepted a missing payload: %s", output)
+		}
+		assertContainsText(t, "runtime inventory", string(output), "declared runtime payload is missing")
+	})
+
+	t.Run("Should fail artifact normalization when discovery fails after a match", func(t *testing.T) {
+		t.Parallel()
+
+		binDir := t.TempDir()
+		findStub := "#!/bin/sh\nprintf '%s\\0' \"${EMITTED_MATCH}\"\nexit 7\n"
+		if err := os.WriteFile(filepath.Join(binDir, "find"), []byte(findStub), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(find stub) error = %v", err)
+		}
+		bundleRoot := t.TempDir()
+		match := filepath.Join(bundleRoot, "bundle", "macos", "CompozyOS.app.tar.gz")
+		if err := os.MkdirAll(filepath.Dir(match), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(bundle) error = %v", err)
+		}
+		if err := os.WriteFile(match, []byte("fixture"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(bundle) error = %v", err)
+		}
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "normalize-desktop-artifacts.sh"),
+			"macos", "0.4.0-beta.2", bundleRoot, t.TempDir(),
+		)
+		cmd.Dir = root
+		cmd.Env = []string{
+			"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
+			"EMITTED_MATCH=" + match,
+		}
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("normalization accepted a failed discovery: %s", output)
+		}
+		assertContainsText(t, "normalization discovery", string(output), "failed to enumerate")
+	})
+
+	t.Run("Should reject a DMG whose embedded app has another version", func(t *testing.T) {
+		if runtime.GOOS != "darwin" {
+			t.Skip("DMG inspection requires macOS PlistBuddy")
+		}
+		t.Parallel()
+
+		appPath := filepath.Join(t.TempDir(), "CompozyOS.app")
+		infoPath := filepath.Join(appPath, "Contents", "Info.plist")
+		if err := os.MkdirAll(filepath.Dir(infoPath), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(app contents) error = %v", err)
+		}
+		plist := `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>0.4.0-beta.2</string></dict></plist>`
+		if err := os.WriteFile(infoPath, []byte(plist), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(app plist) error = %v", err)
+		}
+		dmgPath := filepath.Join(t.TempDir(), "CompozyOS.dmg")
+		if err := os.WriteFile(dmgPath, []byte("fixture"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(DMG) error = %v", err)
+		}
+		binDir := t.TempDir()
+		hdiutilStub := `#!/bin/sh
+if [ "$1" = "detach" ]; then
+  rm "$2/CompozyOS.app/Contents/Info.plist"
+  rmdir "$2/CompozyOS.app/Contents" "$2/CompozyOS.app"
+  exit 0
+fi
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-mountpoint" ]; then
+    shift
+    mount_point="$1"
+    break
+  fi
+  shift
+done
+mkdir -p "$mount_point/CompozyOS.app/Contents"
+printf '%s' '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>9.9.9</string></dict></plist>' >"$mount_point/CompozyOS.app/Contents/Info.plist"
+`
+		if err := os.WriteFile(filepath.Join(binDir, "hdiutil"), []byte(hdiutilStub), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(hdiutil stub) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(binDir, "xcrun"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(xcrun stub) error = %v", err)
+		}
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "notarize-staple-dmg.sh"),
+			appPath, dmgPath, "0.4.0-beta.2",
+		)
+		cmd.Dir = root
+		cmd.Env = []string{
+			"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
+			"APPLE_API_ISSUER=fixture",
+			"APPLE_API_KEY=fixture",
+			"APPLE_API_KEY_PATH=fixture",
+		}
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("notarization accepted the wrong embedded app version: %s", output)
+		}
+		assertContainsText(t, "DMG bundle version", string(output), "DMG CFBundleShortVersionString 9.9.9")
 	})
 }
 

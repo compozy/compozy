@@ -50,8 +50,8 @@ pub enum ProvisionError {
     Artifact(#[from] ArtifactError),
     #[error("runtime archive is malformed")]
     Archive,
-    #[error("runtime staging needs {required} bytes of free space")]
-    DiskSpace { required: u64 },
+    #[error("runtime staging ran out of disk space")]
+    DiskSpace { required: Option<u64> },
     #[error("runtime staging path is not writable: {path}")]
     Permission { path: PathBuf },
     #[error("runtime provisioning could not access {path}")]
@@ -162,15 +162,15 @@ pub fn install_staged(
         .ok_or_else(|| ProvisionError::Permission {
             path: home.app_binary.clone(),
         })?;
-    fs::create_dir_all(parent).map_err(|error| map_io(parent, error, 0))?;
+    fs::create_dir_all(parent).map_err(|error| map_io(parent, error, None))?;
     File::open(staged_binary)
         .and_then(|file| file.sync_all())
-        .map_err(|error| map_io(staged_binary, error, 0))?;
+        .map_err(|error| map_io(staged_binary, error, None))?;
     fs::rename(staged_binary, &home.app_binary)
-        .map_err(|error| map_io(&home.app_binary, error, 0))?;
-    sync_directory(parent).map_err(|error| map_io(parent, error, 0))?;
+        .map_err(|error| map_io(&home.app_binary, error, None))?;
+    sync_directory(parent).map_err(|error| map_io(parent, error, None))?;
     let digest = provenance::sha256_file(&home.app_binary)
-        .map_err(|error| map_io(&home.app_binary, error, 0))?;
+        .map_err(|error| map_io(&home.app_binary, error, None))?;
     let marker = ProvenanceRecord::desktop(
         app_version,
         runtime_version.to_string(),
@@ -179,7 +179,7 @@ pub fn install_staged(
         digest,
     );
     provenance::write_atomic(&home.provenance, &marker)
-        .map_err(|error| map_io(&home.provenance, error, 0))
+        .map_err(|error| map_io(&home.provenance, error, None))
 }
 
 pub fn incomplete_stage(home: &CompozyHome) -> bool {
@@ -192,9 +192,16 @@ pub fn shell_error(home: &CompozyHome, error: &ProvisionError) -> ShellError {
         ProvisionError::Artifact(ArtifactError::Network) => {
             ShellError::from_code(ShellErrorCode::ProvisionNetwork, home.app_log.clone())
         }
-        ProvisionError::DiskSpace { required } => ShellError::new(
+        ProvisionError::DiskSpace {
+            required: Some(required),
+        } => ShellError::new(
             ShellErrorCode::ProvisionDiskSpace,
             format!("The runtime needs {required} bytes of free space."),
+            home.app_log.clone(),
+        ),
+        ProvisionError::DiskSpace { required: None } => ShellError::new(
+            ShellErrorCode::ProvisionDiskSpace,
+            "The runtime needs more free space.",
             home.app_log.clone(),
         ),
         ProvisionError::Permission { path } => ShellError::new(
@@ -232,7 +239,7 @@ fn extract_binary(archive_path: &Path, destination: &Path) -> Result<(), Provisi
 }
 
 fn extract_tar_gz(archive_path: &Path, destination: &Path) -> Result<(), ProvisionError> {
-    let file = File::open(archive_path).map_err(|error| map_io(archive_path, error, 0))?;
+    let file = File::open(archive_path).map_err(|error| map_io(archive_path, error, None))?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
     let entries = archive.entries().map_err(|_| ProvisionError::Archive)?;
     for entry in entries {
@@ -250,7 +257,7 @@ fn extract_tar_gz(archive_path: &Path, destination: &Path) -> Result<(), Provisi
 }
 
 fn extract_zip(archive_path: &Path, destination: &Path) -> Result<(), ProvisionError> {
-    let file = File::open(archive_path).map_err(|error| map_io(archive_path, error, 0))?;
+    let file = File::open(archive_path).map_err(|error| map_io(archive_path, error, None))?;
     let mut archive = ZipArchive::new(file).map_err(|_| ProvisionError::Archive)?;
     for index in 0..archive.len() {
         let mut entry = archive
@@ -275,16 +282,16 @@ fn write_executable(
         return Err(ProvisionError::Archive);
     }
     if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(|error| map_io(parent, error, size))?;
+        fs::create_dir_all(parent).map_err(|error| map_io(parent, error, Some(size)))?;
     }
     let mut file = OpenOptions::new()
         .create(true)
         .truncate(true)
         .write(true)
         .open(destination)
-        .map_err(|error| map_io(destination, error, size))?;
+        .map_err(|error| map_io(destination, error, Some(size)))?;
     let copied = std::io::copy(&mut reader.take(size + 1), &mut file)
-        .map_err(|error| map_io(destination, error, size))?;
+        .map_err(|error| map_io(destination, error, Some(size)))?;
     if copied != size {
         return Err(ProvisionError::Archive);
     }
@@ -293,10 +300,10 @@ fn write_executable(
         use std::os::unix::fs::PermissionsExt;
 
         file.set_permissions(fs::Permissions::from_mode(0o755))
-            .map_err(|error| map_io(destination, error, size))?;
+            .map_err(|error| map_io(destination, error, Some(size)))?;
     }
     file.sync_all()
-        .map_err(|error| map_io(destination, error, size))
+        .map_err(|error| map_io(destination, error, Some(size)))
 }
 
 fn remove_staging(paths: &StagingPaths) -> Result<(), ProvisionError> {
@@ -308,7 +315,7 @@ fn remove_file_if_present(path: &Path) -> Result<(), ProvisionError> {
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(map_io(path, error, 0)),
+        Err(error) => Err(map_io(path, error, None)),
     }
 }
 
@@ -326,7 +333,7 @@ fn map_artifact_download(error: ArtifactError) -> ProvisionError {
     ProvisionError::Artifact(error)
 }
 
-fn map_io(path: &Path, error: std::io::Error, required: u64) -> ProvisionError {
+fn map_io(path: &Path, error: std::io::Error, required: Option<u64>) -> ProvisionError {
     let disk_full = error.raw_os_error() == Some(libc::ENOSPC)
         || (cfg!(windows) && error.raw_os_error() == Some(112));
     if disk_full {
@@ -351,17 +358,42 @@ mod tests {
     fn should_classify_disk_space_and_permission_failures_with_actionable_paths() {
         let path = PathBuf::from("/tmp/compozy/bin");
         assert!(matches!(
-            map_io(&path, std::io::Error::from_raw_os_error(libc::ENOSPC), 4096,),
-            ProvisionError::DiskSpace { required: 4096 }
+            map_io(
+                &path,
+                std::io::Error::from_raw_os_error(libc::ENOSPC),
+                Some(4096),
+            ),
+            ProvisionError::DiskSpace {
+                required: Some(4096)
+            }
+        ));
+        assert!(matches!(
+            map_io(&path, std::io::Error::from_raw_os_error(libc::ENOSPC), None,),
+            ProvisionError::DiskSpace { required: None }
         ));
         assert!(matches!(
             map_io(
                 &path,
                 std::io::Error::new(std::io::ErrorKind::PermissionDenied, "fixture"),
-                0,
+                None,
             ),
             ProvisionError::Permission { path: denied } if denied == path
         ));
+        let home = CompozyHome::from_root(PathBuf::from("/tmp/compozy-home"));
+        assert_eq!(
+            shell_error(
+                &home,
+                &ProvisionError::DiskSpace {
+                    required: Some(4096),
+                },
+            )
+            .safe_message,
+            "The runtime needs 4096 bytes of free space."
+        );
+        assert_eq!(
+            shell_error(&home, &ProvisionError::DiskSpace { required: None }).safe_message,
+            "The runtime needs more free space."
+        );
     }
 
     #[test]

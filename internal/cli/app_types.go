@@ -99,32 +99,12 @@ func resolveAppStatus(
 		},
 	}
 
-	raw, err := os.ReadFile(filepath.Join(homePaths.HomeDir, "app.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return validateAppStatusReport(report)
-	}
+	record, found, err := readAppStateRecord(homePaths)
 	if err != nil {
-		return AppStatusReport{}, fmt.Errorf("app: read state record: %w", err)
+		return AppStatusReport{}, err
 	}
-	var version struct {
-		SchemaVersion int `json:"schema_version"`
-	}
-	if err := json.Unmarshal(raw, &version); err != nil {
-		return AppStatusReport{}, fmt.Errorf("app: decode state version: %w", err)
-	}
-	if version.SchemaVersion != appStateSchemaVersion {
-		return AppStatusReport{}, newAppCommandError(
-			appStateSchemaUnknownCode,
-			fmt.Sprintf("unsupported app state schema version %d", version.SchemaVersion),
-			nil,
-		)
-	}
-	if err := validateAppStateJSON(raw); err != nil {
-		return AppStatusReport{}, fmt.Errorf("app: validate state record: %w", err)
-	}
-	var record appStateRecord
-	if err := json.Unmarshal(raw, &record); err != nil {
-		return AppStatusReport{}, fmt.Errorf("app: decode state record: %w", err)
+	if !found {
+		return validateAppStatusReport(report)
 	}
 
 	report.Channel = record.Channel
@@ -155,6 +135,37 @@ func resolveAppStatus(
 		report.PID = 0
 	}
 	return validateAppStatusReport(report)
+}
+
+func readAppStateRecord(homePaths compozyconfig.HomePaths) (appStateRecord, bool, error) {
+	raw, err := os.ReadFile(filepath.Join(homePaths.HomeDir, "app.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return appStateRecord{}, false, nil
+	}
+	if err != nil {
+		return appStateRecord{}, false, fmt.Errorf("app: read state record: %w", err)
+	}
+	var version struct {
+		SchemaVersion int `json:"schema_version"`
+	}
+	if err := json.Unmarshal(raw, &version); err != nil {
+		return appStateRecord{}, false, fmt.Errorf("app: decode state version: %w", err)
+	}
+	if version.SchemaVersion != appStateSchemaVersion {
+		return appStateRecord{}, false, newAppCommandError(
+			appStateSchemaUnknownCode,
+			fmt.Sprintf("unsupported app state schema version %d", version.SchemaVersion),
+			nil,
+		)
+	}
+	if err := validateAppStateJSON(raw); err != nil {
+		return appStateRecord{}, false, fmt.Errorf("app: validate state record: %w", err)
+	}
+	var record appStateRecord
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return appStateRecord{}, false, fmt.Errorf("app: decode state record: %w", err)
+	}
+	return record, true, nil
 }
 
 func validateAppStatusReport(report AppStatusReport) (AppStatusReport, error) {

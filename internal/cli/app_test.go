@@ -266,6 +266,34 @@ func TestAppOpenUsesValidatedProductTargets(t *testing.T) {
 		_, err := executeAppTestCommand(t, deps, "app", "open")
 		assertAppCommandError(t, err, appLaunchFailedCode)
 	})
+
+	t.Run("Should reject a future app state before navigating a live process", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		writeAppTestRecord(t, homePaths, map[string]any{
+			"schema_version": 2,
+			"pid":            4242,
+			"started_at":     "2026-08-10T03:00:00Z",
+			"state":          "product",
+		})
+		deps := appTestDeps(homePaths)
+		deps.resolveAppInstallation = func(context.Context, compozyconfig.HomePaths) (appInstallation, error) {
+			return appInstallation{Installed: true, Version: "0.3.0"}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+		controlCalled := false
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+			controlCalled = true
+			return nil, nil
+		}
+
+		_, err := executeAppTestCommand(t, deps, "app", "open")
+		assertAppCommandError(t, err, appStateSchemaUnknownCode)
+		if controlCalled {
+			t.Fatal("app control called for an unsupported app state schema")
+		}
+	})
 }
 
 func TestAppControlReportsDeterministicTransportErrors(t *testing.T) {
@@ -330,6 +358,23 @@ func TestAppPlatformRegistrationOwnsInstallationTruth(t *testing.T) {
 		})
 		if err != nil || !installation.Installed || installation.Version != "0.3.0" {
 			t.Fatalf("macOS installation = %#v error=%v", installation, err)
+		}
+	})
+
+	t.Run("Should keep a registered macOS app installed when its version cannot be read", func(t *testing.T) {
+		t.Parallel()
+		installation, err := resolveDarwinAppInstallation(t.Context(), func(
+			_ context.Context,
+			name string,
+			_ ...string,
+		) (string, error) {
+			if name == "mdfind" {
+				return "/Applications/CompozyOS.app\n", nil
+			}
+			return "", errors.New("version metadata unavailable")
+		})
+		if err != nil || !installation.Installed || installation.Version != "" {
+			t.Fatalf("macOS installation = %#v error=%v, want installed without version", installation, err)
 		}
 	})
 

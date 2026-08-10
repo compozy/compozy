@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use tauri_plugin_log::{Target, TargetKind};
 
-use crate::errors::sanitize_public_text;
+use crate::errors::redact_public_text;
 
 pub fn plugin(logs_dir: PathBuf) -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_log::Builder::new()
@@ -16,5 +16,5 @@ pub fn plugin(logs_dir: PathBuf) -> tauri::plugin::TauriPlugin<tauri::Wry> {
 }
 
 pub fn error(message: impl AsRef<str>) {
-    log::error!("{}", sanitize_public_text(message.as_ref()));
+    log::error!("{}", redact_public_text(message.as_ref()));
 }

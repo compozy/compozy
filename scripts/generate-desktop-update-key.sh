@@ -12,7 +12,8 @@ if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
   exit 1
 fi
 
+umask 077
 bunx @tauri-apps/cli@2.11.4 signer generate \
   --password "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD}" \
   --write-keys "${output}"
-
+chmod 600 "${output}"

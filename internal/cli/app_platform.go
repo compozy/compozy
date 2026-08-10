@@ -58,7 +58,7 @@ func resolveDarwinAppInstallation(
 		"CFBundleShortVersionString",
 	)
 	if err != nil {
-		return appInstallation{}, fmt.Errorf("read macOS app version: %w", err)
+		return appInstallation{Installed: true}, nil
 	}
 	return appInstallation{Installed: true, Version: strings.TrimSpace(versionOutput)}, nil
 }

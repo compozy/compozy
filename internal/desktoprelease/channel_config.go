@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	minisign "github.com/jedisct1/go-minisign"
 )
 
 type ChannelConfigRequest struct {
@@ -85,8 +87,14 @@ func validatePublicKey(encoded string) error {
 	if err != nil {
 		return fmt.Errorf("desktop release: updater public key must be base64 content: %w", err)
 	}
-	if !strings.Contains(string(decoded), "minisign public key") {
-		return fmt.Errorf("desktop release: updater public key does not decode to a minisign public key")
+	text := strings.TrimSpace(string(decoded))
+	lines := strings.Split(text, "\n")
+	if len(lines) != 2 || !strings.HasPrefix(lines[0], "untrusted comment: minisign public key") {
+		return fmt.Errorf("desktop release: updater public key must decode to a valid Ed25519 Minisign public key")
+	}
+	publicKey, err := minisign.DecodePublicKey(text)
+	if err != nil || publicKey.SignatureAlgorithm != [2]byte{'E', 'd'} {
+		return fmt.Errorf("desktop release: updater public key must decode to a valid Ed25519 Minisign public key")
 	}
 	return nil
 }

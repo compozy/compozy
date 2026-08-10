@@ -581,8 +581,18 @@ func TestRunDaemonForegroundRunsDaemonWhenNotAlreadyRunning(t *testing.T) {
 	t.Run("Should run daemon when no daemon is already running", func(t *testing.T) {
 		t.Parallel()
 
-		runner := &stubRunner{}
 		deps := newTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		runner := &stubRunner{runFn: func(context.Context) error {
+			lock, err := acquireDaemonStartUpdateLock(daemonStartUpdateLockPath(homePaths))
+			if err != nil {
+				return err
+			}
+			return lock.Release()
+		}}
 		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
 			return compozydaemon.Info{}, os.ErrNotExist
 		}

@@ -19,6 +19,7 @@ const ATTEMPT_BACKOFF: [Option<Duration>; 3] = [
     Some(Duration::from_secs(1)),
     None,
 ];
+const MAX_CONTENTION_ROUNDS: usize = 3;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OwnedRuntime {
@@ -130,6 +131,7 @@ impl<'a> Supervisor<'a> {
     ) -> Result<StartResult, ShellError> {
         let lock_path = home.root.join("app-start.lock");
         let mut attempt = 0;
+        let mut contention_rounds = 0;
         while attempt < ATTEMPT_BACKOFF.len() {
             if let Some(identity) = self.readiness.ready(None) {
                 return Ok(StartResult::Attached(identity));
@@ -138,7 +140,12 @@ impl<'a> Supervisor<'a> {
                 Ok(lock) => lock,
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                     match StartLock::reclaim_if_stale(&lock_path, self.readiness) {
-                        Ok(true) => continue,
+                        Ok(true) => {
+                            if !self.retry_after_contention(&mut contention_rounds) {
+                                return Err(start_error(home));
+                            }
+                            continue;
+                        }
                         Ok(false) => {}
                         Err(error) => {
                             crate::logging::error(format!(
@@ -154,6 +161,9 @@ impl<'a> Supervisor<'a> {
                     if lock_path.exists() {
                         return Err(start_error(home));
                     }
+                    if !self.retry_after_contention(&mut contention_rounds) {
+                        return Err(start_error(home));
+                    }
                     continue;
                 }
                 Err(error) => {
@@ -164,6 +174,7 @@ impl<'a> Supervisor<'a> {
                     return Err(start_error(home));
                 }
             };
+            contention_rounds = 0;
             if let Some(identity) = self.readiness.ready(None) {
                 lock.release();
                 return Ok(StartResult::Attached(identity));
@@ -224,6 +235,15 @@ impl<'a> Supervisor<'a> {
             }
         }
         Err(start_error(home))
+    }
+
+    fn retry_after_contention(&self, rounds: &mut usize) -> bool {
+        *rounds += 1;
+        if *rounds >= MAX_CONTENTION_ROUNDS {
+            return false;
+        }
+        self.delay.sleep(self.poll_interval);
+        true
     }
 
     fn wait_for_competing_start(&self, lock_path: &Path) -> Option<BoundDaemonIdentity> {

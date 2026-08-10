@@ -3,6 +3,7 @@ name = "compozyos-desktop"
 version = "0.3.0"
 description = "Native CompozyOS desktop shell"
 edition = "2024"
+rust-version = "1.89"
 license = "BSL-1.1"
 publish = false
 

@@ -4366,6 +4366,7 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 		}
 		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
 		controller := &testDrainController{}
+		controller.settled.Store(true)
 		fixture.Handlers.DrainController = controller
 
 		for range 2 {
@@ -4383,6 +4384,20 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 				t.Fatalf("drain readout = %#v, want settled and safe to stop", payload)
 			}
 		}
+
+		controller.settled.Store(false)
+		unsettledResponse := performRequest(t, fixture.Engine, http.MethodPost, "/drain", nil)
+		var unsettled contract.DrainStatusResponse
+		decodeJSON(t, unsettledResponse.Body.Bytes(), &unsettled)
+		if unsettledResponse.Code != http.StatusOK || unsettled.SafeToStop ||
+			unsettled.AuthoritativeClaimsSettled || unsettled.SessionExecutionSettled {
+			t.Fatalf(
+				"unsettled drain readout = status %d %#v, want closed admission and unsafe projection",
+				unsettledResponse.Code,
+				unsettled,
+			)
+		}
+		controller.settled.Store(true)
 
 		statusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 		if statusResponse.Code != http.StatusOK {
@@ -4437,6 +4452,7 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 
 type testDrainController struct {
 	draining atomic.Bool
+	settled  atomic.Bool
 }
 
 func (c *testDrainController) Drain(ctx context.Context) error {
@@ -4465,12 +4481,13 @@ func (c *testDrainController) DrainState() contract.DrainState {
 func (c *testDrainController) DrainStatus(context.Context) (contract.DrainStatusResponse, error) {
 	state := c.DrainState()
 	draining := state == contract.DrainStateDraining
+	settled := c.settled.Load()
 	return contract.DrainStatusResponse{
 		State:                      state,
 		AdmissionClosed:            draining,
-		AuthoritativeClaimsSettled: true,
-		SessionExecutionSettled:    true,
-		SafeToStop:                 draining,
+		AuthoritativeClaimsSettled: settled,
+		SessionExecutionSettled:    settled,
+		SafeToStop:                 draining && settled,
 	}, nil
 }
 

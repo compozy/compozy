@@ -16,6 +16,7 @@ pub struct AppStatePublisher {
     started_at: DateTime<Utc>,
     diagnostic: Option<ShellError>,
     state: Arc<Mutex<PublishedState>>,
+    publish_order: Arc<Mutex<()>>,
 }
 
 struct PublishedState {
@@ -35,6 +36,7 @@ impl AppStatePublisher {
             home,
             started_at,
             diagnostic,
+            publish_order: Arc::new(Mutex::new(())),
             state: Arc::new(Mutex::new(PublishedState {
                 shell: ShellState::Resolving,
                 update: AppUpdateStatus::default(),
@@ -43,27 +45,27 @@ impl AppStatePublisher {
     }
 
     pub fn publish(&self, state: ShellState) {
-        let update = {
-            let mut published = self
-                .state
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            published.shell = state.clone();
-            published.update.clone()
-        };
-        self.persist(state, update);
+        publish_ordered(
+            &self.publish_order,
+            &self.state,
+            |published| {
+                published.shell = state.clone();
+                (state, published.update.clone())
+            },
+            |(state, update)| self.persist(state, update),
+        );
     }
 
     pub fn update_status(&self, mutate: impl FnOnce(&mut AppUpdateStatus)) {
-        let (shell, update) = {
-            let mut published = self
-                .state
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            mutate(&mut published.update);
-            (published.shell.clone(), published.update.clone())
-        };
-        self.persist(shell, update);
+        publish_ordered(
+            &self.publish_order,
+            &self.state,
+            |published| {
+                mutate(&mut published.update);
+                (published.shell.clone(), published.update.clone())
+            },
+            |(shell, update)| self.persist(shell, update),
+        );
     }
 
     pub fn status(&self) -> AppUpdateStatus {
@@ -115,5 +117,103 @@ impl AppStatePublisher {
         Arc::new(move |error| {
             publisher.publish(ShellState::ShellError { error });
         })
+    }
+}
+
+fn publish_ordered<State, Snapshot>(
+    order: &Mutex<()>,
+    state: &Mutex<State>,
+    mutate: impl FnOnce(&mut State) -> Snapshot,
+    persist: impl FnOnce(Snapshot),
+) {
+    let _publication = order
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let snapshot = {
+        let mut state = state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        mutate(&mut state)
+    };
+    persist(snapshot);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    use super::*;
+
+    #[test]
+    fn should_never_persist_an_older_snapshot_after_a_newer_publication() {
+        let order = Arc::new(Mutex::new(()));
+        let state = Arc::new(Mutex::new(0_u8));
+        let persisted = Arc::new(Mutex::new(0_u8));
+        let (first_entered_tx, first_entered_rx) = mpsc::channel();
+        let (first_release_tx, first_release_rx) = mpsc::channel();
+        let first_order = Arc::clone(&order);
+        let first_state = Arc::clone(&state);
+        let first_persisted = Arc::clone(&persisted);
+        let first = std::thread::spawn(move || {
+            publish_ordered(
+                &first_order,
+                &first_state,
+                |state| {
+                    *state = 1;
+                    *state
+                },
+                |snapshot| {
+                    first_entered_tx.send(()).expect("first persist signals");
+                    first_release_rx.recv().expect("first persist releases");
+                    *first_persisted
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner()) = snapshot;
+                },
+            );
+        });
+        first_entered_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("first publication enters persistence");
+        let (second_complete_tx, second_complete_rx) = mpsc::channel();
+        let second_order = Arc::clone(&order);
+        let second_state = Arc::clone(&state);
+        let second_persisted = Arc::clone(&persisted);
+        let second = std::thread::spawn(move || {
+            publish_ordered(
+                &second_order,
+                &second_state,
+                |state| {
+                    *state = 2;
+                    *state
+                },
+                |snapshot| {
+                    *second_persisted
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner()) = snapshot;
+                },
+            );
+            second_complete_tx
+                .send(())
+                .expect("second publication completes");
+        });
+        let second_while_first_persisted =
+            second_complete_rx.recv_timeout(Duration::from_millis(250));
+        first_release_tx
+            .send(())
+            .expect("first publication releases");
+        first.join().expect("first publication joins");
+        second.join().expect("second publication joins");
+
+        assert!(matches!(
+            second_while_first_persisted,
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+        assert_eq!(
+            *persisted
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()),
+            2
+        );
     }
 }

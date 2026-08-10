@@ -12,9 +12,17 @@ copy_one() {
   local pattern="$1"
   local destination="$2"
   local matches=()
-  while IFS= read -r match; do
+  local matches_file
+  matches_file="$(mktemp)"
+  if ! find "${bundle_root}" -type f -path "${pattern}" -print0 >"${matches_file}"; then
+    rm -f "${matches_file}"
+    echo "desktop release: failed to enumerate ${pattern}" >&2
+    exit 1
+  fi
+  while IFS= read -r -d '' match; do
     matches+=("${match}")
-  done < <(find "${bundle_root}" -type f -path "${pattern}" -print)
+  done <"${matches_file}"
+  rm -f "${matches_file}"
   if [[ "${#matches[@]}" != 1 ]]; then
     echo "desktop release: ${pattern} matched ${#matches[@]} artifacts, want exactly one" >&2
     exit 1
@@ -42,4 +50,3 @@ case "${platform}" in
     exit 2
     ;;
 esac
-

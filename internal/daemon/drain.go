@@ -78,6 +78,7 @@ func (d *Daemon) DrainStatus(ctx context.Context) (contract.DrainStatusResponse,
 	if err := ctx.Err(); err != nil {
 		return contract.DrainStatusResponse{}, fmtDrainContextError("read drain status", err)
 	}
+	state := d.DrainState()
 
 	d.mu.Lock()
 	sessions := d.sessions
@@ -109,8 +110,10 @@ func (d *Daemon) DrainStatus(ctx context.Context) (contract.DrainStatusResponse,
 		}
 		activeClaims = count
 	}
+	if d.DrainState() != state {
+		state = DrainStateActive
+	}
 
-	state := d.DrainState()
 	return composeDrainStatus(
 		state,
 		activeExecutions,

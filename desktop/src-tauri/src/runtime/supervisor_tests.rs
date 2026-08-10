@@ -93,7 +93,7 @@ fn should_spawn_detached_and_poll_until_bound_ready() {
         identity: identity(),
         alive: true,
     };
-    let delay = FakeDelay::default();
+    let delay = FakeDelay;
     let supervisor = Supervisor {
         spawner: &spawner,
         readiness: &readiness,
@@ -145,7 +145,7 @@ fn should_stop_after_three_failed_spawn_attempts() {
         identity: identity(),
         alive: false,
     };
-    let delay = FakeDelay::default();
+    let delay = FakeDelay;
     let supervisor = Supervisor {
         spawner: &spawner,
         readiness: &readiness,
@@ -183,7 +183,7 @@ fn should_terminate_a_live_child_before_abandoning_startup() {
         identity: identity(),
         alive: true,
     };
-    let delay = FakeDelay::default();
+    let delay = FakeDelay;
     let supervisor = Supervisor {
         spawner: &spawner,
         readiness: &readiness,
@@ -217,7 +217,7 @@ fn should_reclaim_a_start_lock_owned_by_a_dead_process() {
         identity: identity(),
         alive: false,
     };
-    let delay = FakeDelay::default();
+    let delay = FakeDelay;
     let supervisor = Supervisor {
         spawner: &spawner,
         readiness: &readiness,
@@ -255,6 +255,18 @@ impl ProcessSpawner for RaceSpawner {
 struct RaceReadiness<'a> {
     running: &'a AtomicBool,
     identity: BoundDaemonIdentity,
+}
+
+struct ChurnDelay {
+    lock_path: PathBuf,
+    sleeps: AtomicUsize,
+}
+
+impl Delay for ChurnDelay {
+    fn sleep(&self, _duration: Duration) {
+        self.sleeps.fetch_add(1, Ordering::SeqCst);
+        fs::write(&self.lock_path, "999999").expect("competing lock reappears");
+    }
 }
 
 impl ReadinessProbe for RaceReadiness<'_> {
@@ -316,6 +328,47 @@ fn should_serialize_concurrent_start_and_attach_to_the_winner() {
     );
 }
 
+#[test]
+fn should_stop_boundedly_when_the_start_lock_keeps_churning() {
+    let directory = tempfile::tempdir().expect("temp directory opens");
+    let home = CompozyHome::from_root(directory.path().to_path_buf());
+    fs::create_dir_all(&home.root).expect("home directory creates");
+    let lock_path = home.root.join("app-start.lock");
+    fs::write(&lock_path, "999999").expect("initial stale lock writes");
+    let spawner = FakeSpawner {
+        calls: AtomicUsize::new(0),
+        terminated: AtomicUsize::new(0),
+        pid: 42,
+    };
+    let readiness = FakeReadiness {
+        polls: AtomicUsize::new(0),
+        ready_after: usize::MAX,
+        identity: identity(),
+        alive: false,
+    };
+    let delay = ChurnDelay {
+        lock_path,
+        sleeps: AtomicUsize::new(0),
+    };
+    let supervisor = Supervisor {
+        spawner: &spawner,
+        readiness: &readiness,
+        delay: &delay,
+        readiness_deadline: Duration::from_millis(1),
+        poll_interval: Duration::from_millis(1),
+    };
+
+    let error = supervisor
+        .start_owned(Path::new("/tmp/compozy"), &home)
+        .expect_err("unbounded lock churn is rejected");
+    assert_eq!(error.code, ShellErrorCode::RuntimeStartFailed);
+    assert_eq!(spawner.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        delay.sleeps.load(Ordering::SeqCst),
+        MAX_CONTENTION_ROUNDS - 1
+    );
+}
+
 struct FakeVerifier(bool);
 
 impl OwnershipVerifier for FakeVerifier {
@@ -352,10 +405,11 @@ fn should_never_signal_or_remove_the_daemon_record_on_quit() {
         identity: identity(),
         alive: true,
     };
-    let delay = FakeDelay::default();
+    let delay = FakeDelay;
     let supervisor = Supervisor::system(&spawner, &readiness, &delay);
     fs::write(&home.daemon_info, b"durable daemon record").expect("daemon record writes");
     supervisor.on_quit(Some(42));
+    assert_eq!(spawner.terminated.load(Ordering::SeqCst), 0);
     assert_eq!(
         fs::read(&home.daemon_info).expect("daemon record remains"),
         b"durable daemon record"
