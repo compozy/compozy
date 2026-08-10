@@ -12,13 +12,12 @@ use crate::links::LinkQueue;
 use crate::runtime::discovery::{Discovery, ProcessTable, SystemProcessTable, discover};
 use crate::runtime::health::{HealthTracker, HealthTransition};
 use crate::runtime::probe::{
-    BoundProbe, Compatibility, HttpStatusTransport, Identity, IdentityProbe, handshake,
+    BoundProbe, Compatibility, HttpStatusTransport, Identity, IdentityProbe, MINIMUM_RUNTIME,
+    handshake,
 };
 use crate::runtime::resolver::{InstallLocator, SystemInstallLocator};
 use crate::state::{DisconnectCause, ShellState};
 use crate::{boot_window, logging, windowing};
-
-const MINIMUM_RUNTIME: &str = ">=0.3.0";
 
 pub fn spawn(
     app: AppHandle<Wry>,

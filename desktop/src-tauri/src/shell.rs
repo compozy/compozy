@@ -22,7 +22,7 @@ use crate::runtime::mutation::{
 };
 use crate::runtime::probe::{
     BoundDaemonIdentity, BoundProbe, Compatibility, HttpStatusTransport, Identity, IdentityProbe,
-    handshake,
+    MINIMUM_RUNTIME, handshake,
 };
 use crate::runtime::provision::{
     ProvisionOutcome, ProvisionRequest, ResumeChoice, incomplete_stage, provision, shell_error,
@@ -39,7 +39,6 @@ use crate::update::runtime_update::RuntimeLifecycle;
 use crate::update::runtime_update::{ManifestRuntimeStager, RuntimeUpdater};
 use crate::{logging, windowing};
 
-const MINIMUM_RUNTIME: &str = ">=0.3.0";
 const RESOLUTION_ATTEMPTS: usize = 4;
 
 pub fn setup(
