@@ -5,6 +5,9 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
+# shellcheck source=scripts/dev-common.sh
+source "$repo_root/scripts/dev-common.sh"
+
 if [[ -z ${COMPOZY_MARKETPLACE_CATALOG_BASE_URL:-} ]]; then
   export COMPOZY_MARKETPLACE_CATALOG_BASE_URL="file://${repo_root}/catalog"
 fi
@@ -46,48 +49,6 @@ configured_api_proxy_target() {
   '
 }
 
-terminate_process() {
-  local pid=$1
-  local name=$2
-
-  if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null; then
-    return
-  fi
-
-  echo "dev: stopping $name"
-  if ! kill -TERM "$pid" 2>/dev/null && kill -0 "$pid" 2>/dev/null; then
-    echo "dev: failed to signal $name (pid=$pid)" >&2
-  fi
-}
-
-wait_for_process() {
-  local pid=$1
-  local name=$2
-  local attempts=0
-
-  if [[ -z "$pid" ]]; then
-    return
-  fi
-
-  while kill -0 "$pid" 2>/dev/null && ((attempts < 64)); do
-    sleep 0.25
-    attempts=$((attempts + 1))
-  done
-
-  if kill -0 "$pid" 2>/dev/null; then
-    echo "dev: $name did not stop after 16s; forcing termination" >&2
-    if ! kill -KILL "$pid" 2>/dev/null && kill -0 "$pid" 2>/dev/null; then
-      echo "dev: failed to terminate $name (pid=$pid)" >&2
-    fi
-  fi
-
-  local wait_status=0
-  wait "$pid" || wait_status=$?
-  if ((wait_status != 0 && wait_status != 130 && wait_status != 137 && wait_status != 143)); then
-    echo "dev: $name exited with status $wait_status" >&2
-  fi
-}
-
 remove_dev_web_redirect() {
   if [[ -z "$dev_web_dir" ]]; then
     return
@@ -102,45 +63,6 @@ remove_dev_web_redirect() {
   fi
 }
 
-remove_dev_readiness() {
-  local cleanup_status=0
-
-  if ((readiness_fd_open == 1)); then
-    if ! exec 9>&-; then
-      echo "dev: failed to close the readiness channel" >&2
-      cleanup_status=1
-    fi
-    readiness_fd_open=0
-  fi
-  if [[ -n "$readiness_marker" ]] && [[ -d "$readiness_marker" ]]; then
-    if ! rmdir -- "$readiness_marker"; then
-      echo "dev: failed to remove readiness marker $readiness_marker" >&2
-      cleanup_status=1
-    fi
-  fi
-  if [[ -n "$readiness_fifo" ]] && [[ -p "$readiness_fifo" ]]; then
-    if ! rm -f -- "$readiness_fifo"; then
-      echo "dev: failed to remove readiness channel $readiness_fifo" >&2
-      cleanup_status=1
-    fi
-  fi
-  if [[ -n "$readiness_dir" ]] && [[ -d "$readiness_dir" ]]; then
-    if ! rmdir -- "$readiness_dir"; then
-      echo "dev: failed to remove readiness directory $readiness_dir" >&2
-      cleanup_status=1
-    fi
-  fi
-
-  return "$cleanup_status"
-}
-
-stop_owned_daemon() {
-  local binary="$air_build_dir/compozy"
-
-  go run ./scripts/air-state-lock "$air_state_dir/dev-owner.lock" -- \
-    bash scripts/stop-dev-daemon.sh "$air_state_dir" "$dev_run_id" "$binary"
-}
-
 cleanup() {
   local exit_status=$?
   trap - EXIT INT TERM
@@ -153,7 +75,7 @@ cleanup() {
   if ! remove_dev_readiness && ((exit_status == 0)); then
     exit_status=1
   fi
-  if ! stop_owned_daemon && ((exit_status == 0)); then
+  if ! stop_owned_daemon "$air_state_dir" "$dev_run_id" "$air_build_dir/compozy" && ((exit_status == 0)); then
     exit_status=1
   fi
 

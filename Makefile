@@ -94,8 +94,15 @@ demo-seed:
 	@go run ./scripts/demo-seed --home "$(DEMO_HOME)" --replace
 
 # Desktop shell
-desktop-dev:
-	@cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml
+#
+# `desktop-dev` runs the whole desktop stack with one command: it refreshes the
+# web bundle, starts the daemon under Air (Go hot reload) serving that bundle,
+# waits for readiness, then launches the desktop shell attached to the daemon
+# through the active COMPOZY_HOME. Quitting the app or pressing Ctrl-C tears
+# the stack down. Shell-only iteration against an already-running daemon:
+# `cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml`.
+desktop-dev: codegen web-build
+	@AIR_VERSION="$(AIR_VERSION)" bash scripts/desktop-dev.sh
 
 desktop-build:
 	@cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
