@@ -132,7 +132,7 @@ impl<T: StatusTransport> IdentityProbe for BoundProbe<T> {
     fn probe(
         &self,
         record: &DaemonRecord,
-        home: &Path,
+        _home: &Path,
         expected_child_pid: Option<u32>,
     ) -> Identity {
         let Ok(origin) = Url::parse(&format!("http://localhost:{}", record.port)) else {
@@ -147,7 +147,7 @@ impl<T: StatusTransport> IdentityProbe for BoundProbe<T> {
         let Ok(status) = serde_json::from_slice::<StatusPayload>(&bytes) else {
             return Identity::Foreign;
         };
-        if !identity_agrees(&status, record, home, expected_child_pid) {
+        if !identity_agrees(&status, record, expected_child_pid) {
             return Identity::Foreign;
         }
         let Ok(origin) = Url::parse(&format!(
@@ -209,7 +209,6 @@ pub fn identity_error(identity: &Identity, log_path: PathBuf) -> Option<ShellErr
 fn identity_agrees(
     status: &StatusPayload,
     record: &DaemonRecord,
-    home: &Path,
     expected_child_pid: Option<u32>,
 ) -> bool {
     let daemon = &status.daemon;
@@ -217,7 +216,6 @@ fn identity_agrees(
         && expected_child_pid.is_none_or(|pid| daemon.pid == pid)
         && daemon.http_port == record.port
         && is_loopback_host(&daemon.http_host)
-        && daemon.user_home_dir == home
         && (daemon.started_at.timestamp() - record.started_at.timestamp()).abs()
             <= START_TIME_TOLERANCE_SECONDS
 }
@@ -310,13 +308,27 @@ mod tests {
     }
 
     #[test]
+    fn should_treat_user_home_dir_as_operator_metadata() {
+        let probe = BoundProbe::new(
+            StubTransport(TransportResultFixture::Body(payload(serde_json::json!({
+                "daemon": {"user_home_dir": "/Users/operator"}
+            })))),
+            Duration::from_secs(1),
+        );
+
+        assert!(matches!(
+            probe.probe(&fixture_record(), Path::new("/tmp/compozy"), None),
+            Identity::Compozy(_)
+        ));
+    }
+
+    #[test]
     fn should_reject_foreign_shape_html_and_copied_payload_mismatches() {
         let cases = [
             b"<html>foreign</html>".to_vec(),
             payload(serde_json::json!({"daemon": {"pid": 99}})),
             payload(serde_json::json!({"daemon": {"started_at": "2026-08-09T03:00:00Z"}})),
             payload(serde_json::json!({"daemon": {"http_port": 9999}})),
-            payload(serde_json::json!({"daemon": {"user_home_dir": "/tmp/other"}})),
         ];
         for body in cases {
             let probe = BoundProbe::new(
