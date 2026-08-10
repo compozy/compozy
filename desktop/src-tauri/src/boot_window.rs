@@ -1,6 +1,6 @@
 use serde::Serialize;
 use tauri::{
-    AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry,
+    AppHandle, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     webview::PageLoadEvent,
 };
 
@@ -31,15 +31,18 @@ struct BootPayload {
     target: Option<UpdateTarget>,
 }
 
-pub fn render(window: &WebviewWindow<Wry>, state: &ShellState) -> tauri::Result<()> {
+pub fn render<R: Runtime>(window: &WebviewWindow<R>, state: &ShellState) -> tauri::Result<()> {
     render_payload(window, &payload_from_state(state))
 }
 
-pub fn show(app: &AppHandle<Wry>, state: ShellState) -> tauri::Result<()> {
+pub fn show<R: Runtime>(app: &AppHandle<R>, state: ShellState) -> tauri::Result<()> {
     show_payload(app, payload_from_state(&state))
 }
 
-pub fn show_update_offer(app: &AppHandle<Wry>, target: UpdateTarget) -> tauri::Result<()> {
+pub fn show_update_offer<R: Runtime>(
+    app: &AppHandle<R>,
+    target: UpdateTarget,
+) -> tauri::Result<()> {
     show_payload(
         app,
         BootPayload {
@@ -51,7 +54,7 @@ pub fn show_update_offer(app: &AppHandle<Wry>, target: UpdateTarget) -> tauri::R
     )
 }
 
-pub fn show_managed_update(app: &AppHandle<Wry>, action: &str) -> tauri::Result<()> {
+pub fn show_managed_update<R: Runtime>(app: &AppHandle<R>, action: &str) -> tauri::Result<()> {
     show_payload(
         app,
         BootPayload {
@@ -63,7 +66,7 @@ pub fn show_managed_update(app: &AppHandle<Wry>, action: &str) -> tauri::Result<
     )
 }
 
-pub fn show_error_notice(app: &AppHandle<Wry>, error: &ShellError) -> tauri::Result<()> {
+pub fn show_error_notice<R: Runtime>(app: &AppHandle<R>, error: &ShellError) -> tauri::Result<()> {
     show_payload(
         app,
         BootPayload {
@@ -75,14 +78,14 @@ pub fn show_error_notice(app: &AppHandle<Wry>, error: &ShellError) -> tauri::Res
     )
 }
 
-pub fn close(app: &AppHandle<Wry>) -> tauri::Result<()> {
+pub fn close<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     if let Some(boot) = app.get_webview_window("boot") {
         boot.close()?;
     }
     Ok(())
 }
 
-fn show_payload(app: &AppHandle<Wry>, payload: BootPayload) -> tauri::Result<()> {
+fn show_payload<R: Runtime>(app: &AppHandle<R>, payload: BootPayload) -> tauri::Result<()> {
     if let Some(boot) = app.get_webview_window("boot") {
         render_payload(&boot, &payload)?;
         boot.show()?;
@@ -110,7 +113,10 @@ fn show_payload(app: &AppHandle<Wry>, payload: BootPayload) -> tauri::Result<()>
     boot.set_focus()
 }
 
-fn render_payload(window: &WebviewWindow<Wry>, payload: &BootPayload) -> tauri::Result<()> {
+fn render_payload<R: Runtime>(
+    window: &WebviewWindow<R>,
+    payload: &BootPayload,
+) -> tauri::Result<()> {
     let payload = serde_json::to_string(payload)?;
     window.eval(format!(
         "window.__COMPOZY_BOOT__ && window.__COMPOZY_BOOT__.render({payload});"
@@ -176,5 +182,14 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn should_create_visible_boot_window_for_initial_resolution() {
+        let app = tauri::test::mock_app();
+
+        show(app.handle(), ShellState::Resolving).expect("initial boot window is shown");
+
+        assert!(app.get_webview_window("boot").is_some());
     }
 }

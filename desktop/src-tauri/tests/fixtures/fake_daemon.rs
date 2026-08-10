@@ -7,9 +7,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn main() {
     let arguments: Vec<String> = env::args().collect();
     if arguments.get(1).map(String::as_str) != Some("daemon")
-        || arguments.get(2).map(String::as_str) != Some("run")
+        || arguments.get(2).map(String::as_str) != Some("start")
+        || arguments.get(3).map(String::as_str) != Some("--foreground")
+        || arguments.get(4).map(String::as_str) != Some("--internal-child")
     {
-        eprintln!("expected daemon run");
+        eprintln!("expected daemon start --foreground --internal-child");
         std::process::exit(2);
     }
     let home = env::var("COMPOZY_HOME").expect("COMPOZY_HOME is required");

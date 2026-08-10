@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use tauri::webview::{NewWindowResponse, PageLoadEvent};
 use tauri::{
-    AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow,
+    AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, Wry,
 };
 use tauri_plugin_opener::OpenerExt;
@@ -17,6 +17,8 @@ use crate::nav::{self, NavigationDecision};
 use crate::state::ShellState;
 
 const LOAD_DEADLINE: Duration = Duration::from_secs(10);
+const WINDOW_RELEASE_ATTEMPTS: usize = 100;
+const WINDOW_RELEASE_POLL: Duration = Duration::from_millis(10);
 const MAIN_MIN_WIDTH: u32 = 900;
 const MAIN_MIN_HEIGHT: u32 = 600;
 
@@ -108,6 +110,15 @@ pub fn create_main_window(
         if load_decision(LOAD_DEADLINE, loaded.load(Ordering::Acquire)) != LoadDecision::Error {
             return;
         }
+        match destroy_timed_out_product(&app_for_deadline) {
+            Ok(true) => {}
+            Ok(false) => crate::logging::error(
+                "timed-out product window label was not released before retry became available",
+            ),
+            Err(destroy_error) => {
+                crate::logging::error(format!("destroy timed-out product window: {destroy_error}"))
+            }
+        }
         let error = ShellError::from_code(ShellErrorCode::LoadDeadlineExceeded, log_path);
         on_load_deadline(error.clone());
         if let Some(boot) = app_for_deadline.get_webview_window("boot") {
@@ -119,13 +130,29 @@ pub fn create_main_window(
                 crate::logging::error(format!("show boot deadline state: {show_error}"));
             }
         }
-        if let Some(main) = app_for_deadline.get_webview_window("main")
-            && let Err(close_error) = main.close()
-        {
-            crate::logging::error(format!("close timed-out product window: {close_error}"));
-        }
     });
     Ok(window)
+}
+
+fn destroy_timed_out_product<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<bool> {
+    let Some(main) = app.get_webview_window("main") else {
+        return Ok(true);
+    };
+    main.destroy()?;
+    Ok(wait_for_window_release(
+        || app.get_webview_window("main").is_some(),
+        || std::thread::sleep(WINDOW_RELEASE_POLL),
+    ))
+}
+
+fn wait_for_window_release(mut is_present: impl FnMut() -> bool, mut delay: impl FnMut()) -> bool {
+    for _ in 0..WINDOW_RELEASE_ATTEMPTS {
+        if !is_present() {
+            return true;
+        }
+        delay();
+    }
+    !is_present()
 }
 
 pub fn focus_existing(app: &AppHandle<Wry>, links: &LinkQueue) -> tauri::Result<()> {
@@ -356,5 +383,23 @@ mod tests {
                 unminimize: true,
             }
         );
+    }
+
+    #[test]
+    fn should_wait_for_timed_out_product_window_to_release_before_retry() {
+        let mut checks = 0;
+        let mut delays = 0;
+
+        let released = wait_for_window_release(
+            || {
+                checks += 1;
+                checks < 4
+            },
+            || delays += 1,
+        );
+
+        assert!(released);
+        assert_eq!(checks, 4);
+        assert_eq!(delays, 3);
     }
 }

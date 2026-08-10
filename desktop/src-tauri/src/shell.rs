@@ -37,7 +37,7 @@ use crate::state::ShellState;
 use crate::update::app_update::{AppUpdater, TauriAppUpdateBackend, recover_intent};
 use crate::update::runtime_update::RuntimeLifecycle;
 use crate::update::runtime_update::{ManifestRuntimeStager, RuntimeUpdater};
-use crate::{logging, windowing};
+use crate::{boot_window, logging, windowing};
 
 const RESOLUTION_ATTEMPTS: usize = 4;
 
@@ -111,6 +111,7 @@ pub fn setup(
     app.manage(server);
     app.manage(Arc::clone(&controller));
     app.manage(Arc::clone(&coordinator));
+    boot_window::show(app, ShellState::Resolving)?;
 
     let startup = Arc::clone(&coordinator);
     let interval = settings.config.update_check_interval;

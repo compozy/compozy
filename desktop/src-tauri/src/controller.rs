@@ -246,6 +246,12 @@ impl DesktopController {
         {
             return Ok(json!({"accepted": true, "update": self.check_updates()}));
         }
+        if !shell_retry_available(&self.publisher.shell_state()) {
+            return Err(ControlError::new(
+                "retry_unavailable",
+                "There is no operation to retry.",
+            ));
+        }
         let retry = self
             .retry
             .lock()
@@ -403,6 +409,34 @@ impl DesktopController {
                 ));
             }
         });
+    }
+}
+
+fn shell_retry_available(state: &ShellState) -> bool {
+    matches!(state, ShellState::ShellError { .. })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::errors::ShellErrorCode;
+    use url::Url;
+
+    #[test]
+    fn should_offer_shell_retry_only_for_a_designed_error_state() {
+        assert!(shell_retry_available(&ShellState::ShellError {
+            error: ShellError::from_code(
+                ShellErrorCode::LoadDeadlineExceeded,
+                PathBuf::from("/tmp/desktop.log"),
+            ),
+        }));
+        assert!(!shell_retry_available(&ShellState::Resolving));
+        assert!(!shell_retry_available(&ShellState::Product {
+            origin: Url::parse("http://127.0.0.1:2123").expect("fixture origin is valid"),
+            owned: true,
+        }));
     }
 }
 
