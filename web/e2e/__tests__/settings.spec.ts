@@ -52,6 +52,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Skills",
       "Automation",
       "Network",
+      "Gateway",
       "Observability",
       "Hooks",
       "Extensions",

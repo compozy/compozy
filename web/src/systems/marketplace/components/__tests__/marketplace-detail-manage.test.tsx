@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   extensionUpdateAvailable: false,
   extensionWorkspaceId: null as string | null,
   skillContent: "# Bundled skill\n\nFollow the incident checklist.",
+  skillEnabled: true,
   skillError: null as Error | null,
   extensionError: null as Error | null,
   extensionLoading: false,
@@ -158,7 +159,7 @@ vi.mock("@/systems/skill", async importOriginal => {
                 },
               ],
             },
-            enabled: true,
+            enabled: mocks.skillEnabled,
             metadata: {
               capabilities: ["git.inspect", "git.review"],
               recent_calls: [
@@ -358,6 +359,7 @@ describe("Marketplace installed-detail management", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.skillError = null;
+    mocks.skillEnabled = true;
     mocks.disableSkillError = null;
     mocks.extensionError = null;
     mocks.extensionLoading = false;
@@ -385,7 +387,7 @@ describe("Marketplace installed-detail management", () => {
 
   it("Should preserve skill enablement, content, and shadow resolution", async () => {
     const user = userEvent.setup();
-    render(<MarketplaceDetailSkillInstalled data={skillDetailData()} />);
+    const view = render(<MarketplaceDetailSkillInstalled data={skillDetailData()} />);
 
     expect(screen.getByText("Enabled")).toBeInTheDocument();
     expect(screen.getByTestId("skill-detail-activation-status")).toHaveTextContent("Inactive");
@@ -405,6 +407,11 @@ describe("Marketplace installed-detail management", () => {
       name: "bundled-skill",
       workspace: "workspace-a",
     });
+
+    mocks.skillEnabled = false;
+    view.rerender(<MarketplaceDetailSkillInstalled data={skillDetailData()} />);
+    expect(screen.getByText("Disabled")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-enabled-switch")).toHaveAttribute("aria-checked", "false");
   });
 
   it("Should surface a rejected skill availability update", async () => {

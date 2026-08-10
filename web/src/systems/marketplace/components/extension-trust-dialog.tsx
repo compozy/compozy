@@ -21,6 +21,7 @@ type ExtensionTrustWarning = NonNullable<
 interface ExtensionTrustDialogProps {
   /** Extension identity being consented to — a catalog entry name or a source-union ref. */
   name: string;
+  action: "install" | "update";
   description?: string;
   error?: string | null;
   open: boolean;
@@ -33,6 +34,7 @@ interface ExtensionTrustDialogProps {
 /** The single explicit-consent gate for every unverified extension install or update. */
 function ExtensionTrustDialog({
   name,
+  action,
   description,
   error,
   open,
@@ -41,6 +43,8 @@ function ExtensionTrustDialog({
   onConfirm,
   onOpenChange,
 }: ExtensionTrustDialogProps) {
+  const updating = action === "update";
+  const actionLabel = updating ? "Update" : "Install";
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
@@ -55,10 +59,12 @@ function ExtensionTrustDialog({
               <AlertTriangle aria-hidden="true" className="size-4" />
             </span>
             <div className="flex flex-col gap-1.5">
-              <DialogTitle>Install {name}?</DialogTitle>
+              <DialogTitle>
+                {actionLabel} {name}?
+              </DialogTitle>
               <DialogDescription id="extension-trust-description">
                 {description ??
-                  "This extension is not verified. Review the daemon warnings before installing it."}
+                  `This extension is not verified. Review the daemon warnings before ${updating ? "updating" : "installing"} it.`}
               </DialogDescription>
             </div>
           </div>
@@ -117,7 +123,7 @@ function ExtensionTrustDialog({
             variant="secondary"
           >
             {pending ? <Spinner aria-hidden="true" className="size-3" /> : null}
-            {pending ? "Installing…" : "Install anyway"}
+            {pending ? `${actionLabel}…` : `${actionLabel} anyway`}
           </Button>
         </DialogFooter>
       </DialogContent>

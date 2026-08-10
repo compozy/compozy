@@ -534,7 +534,10 @@ describe("useMarketplaceActionController", () => {
       </QueryClientProvider>
     );
     await user.click(screen.getByRole("button", { name: "Run action" }));
-    await user.click(await screen.findByTestId("extension-trust-confirm"));
+    expect(
+      await screen.findByRole("heading", { name: "Update Slack Notifications?" })
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Update anyway" }));
 
     await waitFor(() =>
       expect(mocks.updateExtension).toHaveBeenLastCalledWith({

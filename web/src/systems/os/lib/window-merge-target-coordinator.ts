@@ -14,8 +14,10 @@ interface MergeTargetRegistration {
 interface MergeTargetCoordinator {
   frameID: number | null;
   pending: { clientX: number; clientY: number } | null;
+  pointerListening: boolean;
   registrations: Map<string, MergeTargetRegistration>;
   onPointerMove: (event: PointerEvent) => void;
+  unsubscribeStore: () => void;
 }
 
 const coordinators = new WeakMap<WindowManagerController, MergeTargetCoordinator>();
@@ -99,7 +101,9 @@ function publishMergeTarget(manager: WindowManagerController, coordinator: Merge
   const target = resolveMergeTarget(manager, coordinator.registrations.values(), point);
   const current = windowManagerStore.getSnapshot().context.deckDropTarget;
   if (target === null) {
-    if (current !== null) windowManagerStore.trigger.deckDropCleared({});
+    if (current !== null && coordinator.registrations.has(current.frameId)) {
+      windowManagerStore.trigger.deckDropCleared({ frameId: current.frameId });
+    }
     return;
   }
   if (
@@ -112,10 +116,24 @@ function publishMergeTarget(manager: WindowManagerController, coordinator: Merge
   windowManagerStore.trigger.deckDropTargeted({ target });
 }
 
+function setPointerListening(coordinator: MergeTargetCoordinator, listening: boolean): void {
+  if (coordinator.pointerListening === listening) return;
+  coordinator.pointerListening = listening;
+  if (listening) {
+    window.addEventListener("pointermove", coordinator.onPointerMove);
+    return;
+  }
+  window.removeEventListener("pointermove", coordinator.onPointerMove);
+  coordinator.pending = null;
+  if (coordinator.frameID !== null) cancelAnimationFrame(coordinator.frameID);
+  coordinator.frameID = null;
+}
+
 function createCoordinator(manager: WindowManagerController): MergeTargetCoordinator {
   const coordinator: MergeTargetCoordinator = {
     frameID: null,
     pending: null,
+    pointerListening: false,
     registrations: new Map(),
     onPointerMove: event => {
       coordinator.pending = { clientX: event.clientX, clientY: event.clientY };
@@ -125,7 +143,16 @@ function createCoordinator(manager: WindowManagerController): MergeTargetCoordin
         publishMergeTarget(manager, coordinator);
       });
     },
+    unsubscribeStore: () => {},
   };
+  const subscription = windowManagerStore.subscribe(snapshot => {
+    setPointerListening(coordinator, snapshot.context.gesture?.status === "active");
+  });
+  coordinator.unsubscribeStore = () => subscription.unsubscribe();
+  setPointerListening(
+    coordinator,
+    windowManagerStore.getSnapshot().context.gesture?.status === "active"
+  );
   return coordinator;
 }
 
@@ -139,9 +166,7 @@ export function registerWindowMergeTarget(
     coordinator = createCoordinator(manager);
     coordinators.set(manager, coordinator);
   }
-  const start = coordinator.registrations.size === 0;
   coordinator.registrations.set(registration.frameId, registration);
-  if (start) window.addEventListener("pointermove", coordinator.onPointerMove);
 
   return () => {
     const activeCoordinator = coordinators.get(manager);
@@ -149,8 +174,8 @@ export function registerWindowMergeTarget(
     activeCoordinator.registrations.delete(registration.frameId);
     windowManagerStore.trigger.deckDropCleared({ frameId: registration.frameId });
     if (activeCoordinator.registrations.size > 0) return;
-    window.removeEventListener("pointermove", activeCoordinator.onPointerMove);
-    if (activeCoordinator.frameID !== null) cancelAnimationFrame(activeCoordinator.frameID);
+    setPointerListening(activeCoordinator, false);
+    activeCoordinator.unsubscribeStore();
     coordinators.delete(manager);
   };
 }

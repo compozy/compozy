@@ -1393,7 +1393,10 @@ test.describe("MCP marketplace authorization", () => {
       await installedCard.getByRole("link", { name: `View ${SERVER_NAME} details` }).click();
       const detail = appWindow(appPage, "marketplace").getByTestId("marketplace-detail");
       await expect(detail).toBeVisible();
-      await expect(detail.getByText("Needs login", { exact: true })).toBeVisible();
+      await expect(
+        appWindow(appPage, "marketplace").getByText("needs authorization", { exact: true })
+      ).toBeVisible();
+      await expect(appPage.getByRole("button", { name: "Authorize" })).toBeVisible();
 
       await appPage.getByTestId("mcp-authorize-btn").click();
       const urlBlock = appPage.getByTestId("settings-page-mcp-authorize-url");
@@ -1419,9 +1422,9 @@ test.describe("MCP marketplace authorization", () => {
       });
       await appPage.getByTestId("settings-page-mcp-authorize-done").click();
 
-      await expect(detail.getByText("Authenticated", { exact: true })).toBeVisible({
-        timeout: 15_000,
-      });
+      await expect(
+        detail.getByRole("region", { name: "Status" }).getByText("authenticated", { exact: true })
+      ).toBeVisible({ timeout: 15_000 });
 
       await browserArtifacts.captureScreenshot("mcp-authorize-confirmed", appPage);
     } finally {
@@ -2597,17 +2600,23 @@ test.describe("Extension update affordance", () => {
 
     await catalogCard.getByRole("link", { name: `View ${extensionName} details` }).click();
     await expect(marketplace.detail).toBeVisible({ timeout: 20_000 });
-    await expect(marketplace.extensionUpdateAction).toBeVisible();
+    const updateAction = marketplaceWin.getByRole("button", {
+      name: `Update ${extensionName}`,
+    });
+    await expect(updateAction).toBeVisible();
 
     const updateResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "PUT" &&
         new URL(response.url()).pathname === `/api/extensions/${extensionName}`
     );
-    await marketplace.extensionUpdateAction.click();
+    await updateAction.click();
     // The installed archive is not registry-verified, so the update needs explicit consent.
-    await expect(marketplace.extensionUpdateConsentConfirm).toBeVisible();
-    await marketplace.extensionUpdateConsentConfirm.click();
+    const trustDialog = appPage.getByTestId("extension-trust-dialog");
+    await expect(
+      trustDialog.getByRole("heading", { name: `Update ${extensionName}?` })
+    ).toBeVisible();
+    await trustDialog.getByRole("button", { name: "Update anyway" }).click();
     expect((await updateResponse).status()).toBe(200);
 
     await expect
@@ -2630,6 +2639,6 @@ test.describe("Extension update affordance", () => {
       .or(appPage.getByTestId(`marketplace-installed-card-${catalogEntryID}`))
       .first();
     await expect(installedCard).toContainText("v0.2.0");
-    await expect(installedCard.getByRole("button", { exact: true, name: "Update" })).toBeHidden();
+    await expect(installedCard.getByRole("button", { exact: true, name: "Update" })).toHaveCount(0);
   });
 });

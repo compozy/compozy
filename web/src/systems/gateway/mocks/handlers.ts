@@ -25,6 +25,7 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/gateway/audit", () =>
     HttpResponse.json(gatewayAuditFixture({ status: gatewayStatusFixture({ devices }) }))
   ),
+  compozyApiMock.post("/api/gateway/stream-tickets", () => new HttpResponse(null, { status: 404 })),
   compozyApiMock.post("/api/gateway/pairings", () =>
     HttpResponse.json(
       { artifact: "cpz_gwp_2f8c1d5a9b4e7c0d", expires_at: "2099-01-01T00:00:00Z" },

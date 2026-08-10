@@ -28,10 +28,6 @@ export function useWindowMergeTarget(
   // latest through a ref so mid-drag re-renders never tear the drop target
   // down. A mounted frame keeps its id, so the cleanup clear stays scoped.
   const frameRef = React.useRef(frame);
-  const gestureElsewhere = useSelector(windowManagerStore, snapshot => {
-    const gesture = snapshot.context.gesture;
-    return gesture?.status === "active" && !frame.members.includes(gesture.source.windowId);
-  });
   const mergeTargeted = useSelector(
     windowManagerStore,
     snapshot => snapshot.context.deckDropTarget?.frameId === frame.id
@@ -43,13 +39,13 @@ export function useWindowMergeTarget(
 
   const frameId = frame.id;
   React.useEffect(() => {
-    if (!enabled || !gestureElsewhere) return;
+    if (!enabled) return;
     return registerWindowMergeTarget(manager, {
       frameId,
       getFrame: () => frameRef.current,
       getChrome: () => chromeRef.current,
     });
-  }, [enabled, frameId, gestureElsewhere, manager]);
+  }, [enabled, frameId, manager]);
 
   return { chromeRef, mergeTargeted };
 }

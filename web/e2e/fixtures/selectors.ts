@@ -267,8 +267,6 @@ export const marketplaceOperatorTestIds = {
   extensionLogsStatus: "extension-logs-status",
   extensionOriginPath: "extension-origin-path",
   extensionOverridesPublishedBadge: "extension-overrides-published-badge",
-  extensionUpdateAction: "extension-update-action",
-  extensionUpdateConsentConfirm: "extension-update-consent-confirm",
   detail: "marketplace-detail",
   detailAction: "marketplace-detail-action",
   extensionTrustConfirm: "extension-trust-confirm",
@@ -531,8 +529,6 @@ export interface MarketplaceOperatorSelectors {
   extensionLogsStatus: Locator;
   extensionOriginPath: Locator;
   extensionOverridesPublishedBadge: Locator;
-  extensionUpdateAction: Locator;
-  extensionUpdateConsentConfirm: Locator;
   kindUpdates(kind: string): Locator;
   extensionAutomationStarted: Locator;
   extensionEnvironmentState: Locator;
@@ -1271,10 +1267,6 @@ export function marketplaceOperatorSelectors(
     extensionOriginPath: page.getByTestId(marketplaceOperatorTestIds.extensionOriginPath),
     extensionOverridesPublishedBadge: page.getByTestId(
       marketplaceOperatorTestIds.extensionOverridesPublishedBadge
-    ),
-    extensionUpdateAction: page.getByTestId(marketplaceOperatorTestIds.extensionUpdateAction),
-    extensionUpdateConsentConfirm: page.getByTestId(
-      marketplaceOperatorTestIds.extensionUpdateConsentConfirm
     ),
     kindUpdates: (kind: string) => page.getByTestId(`marketplace-kind-updates-${kind}`),
     detailAction: page.getByTestId(marketplaceOperatorTestIds.detailAction),

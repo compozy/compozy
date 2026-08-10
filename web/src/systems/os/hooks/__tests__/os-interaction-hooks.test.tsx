@@ -516,18 +516,19 @@ describe("useOsWindow", () => {
     expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
   });
 
-  it("Should commit a group snap when a floating tab frame drops on a tile zone", () => {
+  it("Should commit a group snap when a floating tab frame drops on a tile zone", async () => {
     const shell = createShell();
     beginPrimarySnapGesture("group");
     const { result } = renderHook(() => useOsWindow(stackedFrame()), {
       wrapper: shell.wrapper,
     });
 
-    act(() => {
+    await act(async () => {
       result.current.handleDragStop(
         new MouseEvent("mouseup", { clientX: 1, clientY: 300 }),
         dragData(1, 300)
       );
+      await Promise.resolve();
     });
 
     expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
@@ -539,7 +540,7 @@ describe("useOsWindow", () => {
     expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
   });
 
-  it("Should commit a group snap when a floating tab frame drops on a split zone", () => {
+  it("Should commit a group snap when a floating tab frame drops on a split zone", async () => {
     const shell = createShell();
     const board = {
       ...windowFixture("window:board", 3),
@@ -552,11 +553,12 @@ describe("useOsWindow", () => {
       wrapper: shell.wrapper,
     });
 
-    act(() => {
+    await act(async () => {
       result.current.handleDragStop(
         new MouseEvent("mouseup", { clientX: 700, clientY: 280 }),
         dragData(700, 280)
       );
+      await Promise.resolve();
     });
 
     expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
@@ -567,7 +569,7 @@ describe("useOsWindow", () => {
     expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
   });
 
-  it("Should commit a whole-frame swap when a group move drops on an occupied center", () => {
+  it("Should commit a whole-frame swap when a group move drops on an occupied center", async () => {
     const shell = createShell();
     const board = {
       ...windowFixture("window:board", 3),
@@ -580,11 +582,12 @@ describe("useOsWindow", () => {
       wrapper: shell.wrapper,
     });
 
-    act(() => {
+    await act(async () => {
       result.current.handleDragStop(
         new MouseEvent("mouseup", { clientX: 860, clientY: 280 }),
         dragData(860, 280)
       );
+      await Promise.resolve();
     });
 
     expect(shell.controller.applySnapTarget).toHaveBeenCalledOnce();
@@ -596,7 +599,7 @@ describe("useOsWindow", () => {
     expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
   });
 
-  it("Should drag a tiled tab frame as one unit from its deck bar", () => {
+  it("Should drag a tiled tab frame as one unit from its deck bar", async () => {
     const shell = createShell();
     act(() => {
       windowManagerStore.trigger.workAreaMeasured({
@@ -617,11 +620,12 @@ describe("useOsWindow", () => {
     expect(gesture?.status).toBe("active");
     expect(gesture?.status === "active" ? gesture.source.moveMode : null).toBe("group");
 
-    act(() => {
+    await act(async () => {
       result.current.handleDragStop(
         new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
         dragData(500, 300)
       );
+      await Promise.resolve();
     });
 
     expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
@@ -664,7 +668,7 @@ describe("useOsWindow", () => {
     expect(result.current.rect).toEqual(primaryFrame().rect);
   });
 
-  it("Should commit one ordered group command when the release point targets a deck [UT-095]", () => {
+  it("Should commit one ordered group command when the release point targets a deck [UT-095]", async () => {
     const shell = createShell();
     const target = windowFixture("window:target", 3);
     shell.setRuntimeState({
@@ -684,11 +688,12 @@ describe("useOsWindow", () => {
       wrapper: shell.wrapper,
     });
 
-    act(() => {
+    await act(async () => {
       result.current.handleDragStop(
         new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
         dragData(500, 300)
       );
+      await Promise.resolve();
     });
 
     expect(shell.controller.groupWindows).toHaveBeenCalledOnce();
@@ -775,6 +780,34 @@ describe("useWindowMergeTarget", () => {
     act(() => pointerMove(600, 60));
     frames.flush();
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+  });
+
+  it("Should preserve a drop target published by a deck", () => {
+    const frames = installAnimationFrameQueue();
+    const shell = createShell();
+    shell.setRuntimeState({ frames: { "desktop:main": [targetFrame()] } });
+    renderHook(() => useWindowMergeTarget(targetFrame(), true), {
+      wrapper: shell.wrapper,
+    });
+
+    act(() => beginPrimarySnapGesture());
+    act(() => {
+      windowManagerStore.trigger.deckDropTargeted({
+        target: {
+          frameId: "frame:deck",
+          targetWindowId: "window:deck-target",
+          insertIndex: 1,
+        },
+      });
+      pointerMove(600, 60);
+    });
+    frames.flush();
+
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
+      frameId: "frame:deck",
+      targetWindowId: "window:deck-target",
+      insertIndex: 1,
+    });
   });
 
   it("Should not advertise a head occluded by a higher floating frame", () => {

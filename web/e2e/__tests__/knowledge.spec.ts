@@ -10,7 +10,6 @@ import type { Page } from "@playwright/test";
 
 import { appWindow, sessionWindow } from "../fixtures/os-navigation";
 import {
-  SESSION_CREATE_FIRST_MESSAGE,
   knowledgeOperatorSelectors,
   sessionLifecycleSelectors,
   sessionWindowSelectors,
@@ -384,8 +383,6 @@ async function createSessionThroughBrowser(
   await expect(sessionWin).toBeVisible();
   const sessionUI = sessionWindowSelectors(sessionWin);
   await expect(sessionUI.composerTextarea).toBeVisible();
-  await sessionUI.composerTextarea.fill(SESSION_CREATE_FIRST_MESSAGE);
-  await sessionUI.composerTextarea.press("Enter");
   await waitForSeedSessionActive(runtime, session.session.id);
   return session;
 }

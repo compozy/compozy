@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-06-review-remediation/bruno-grouped-deck.png; docs/qa/evidence/2026-08-06-review-remediation/bruno-grouped-deck-reload.png
-last_report: docs/qa/reports/2026-08-06-review-remediation.md
+evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/window-merge-preview.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/window-three-tab-deck.png
+last_report: docs/qa/reports/2026-08-10-loop-browser-runtime-closeout.md
 overlaps: ET-window-manager-layout-gestures; ET-web-desktop-shell-lifecycle
 ---
 
@@ -64,3 +64,12 @@ qa-completion: 2026-08-06 targeted retest — Bruno moved Settings, observed the
 tabs" affordance over the Tasks head, released into one Tasks + Settings frame, and confirmed the
 same deck after reload. At 1280×800 with reduced motion, repeated Tasks dock activation cycled the
 existing deck without creating another frame.
+
+qa-impact: 2026-08-10 loop-convergence browser closeout — merge-target registration now stays hot
+through an active gesture without clearing a deck-owned insertion target. Reset for a fresh
+drag-to-deck walk, cancellation probe, commit, and reload canary from the current build.
+
+qa-completion: 2026-08-10 isolated retest — Bruno grouped Home and Tasks, dragged Marketplace into
+the live deck target, cancelled one preview with Escape, committed the next preview, and reloaded.
+The ordered Tasks, Skills, and Home tabs and the active Skills member persisted without a stuck
+merge target or duplicate frame.

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: The extension detail route survives refresh and renders runtime state, required and missing environment variables, bound key names, kit inventory, diagnostics and last_error severity, provenance, and trust.
 entry_points: /marketplace/extension/$entryId?installed_name=$name; Marketplace Extensions Installed row
-qa_status: pass
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status: blocked-verify
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/dev-cycle-trusted-detail.png
-last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
+evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-dev-cycle-trust.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-update-precondition.md
+last_report: docs/qa/reports/2026-08-10-loop-browser-runtime-closeout.md
 overlaps: ET-015; ET-022; ET-023; ET-web-extension-kit-inventory
 ---
 
@@ -38,3 +38,14 @@ overlay is selected. Flag only — retest in the next QA cycle.
 
 QA impact 2026-08-02: the detail adds truthful kit inventory, bound environment key names, and the
 shared Network confirmation affordance. Reset for the next QA cycle.
+
+QA impact 2026-08-10: Extension Update now opens update-specific trust copy and action semantics
+instead of reusing Install language. Reset for a fresh update-confirm, cancel, refresh, and detail
+walk from the current build.
+
+QA completion: blocked-verify 2026-08-10 — Bruno inspected `dev-cycle` runtime health and official
+verified trust after a disable, reload, and restore cycle. The public inventory reported
+`update_available: false` for both installed official extensions, so the update-confirm/cancel branch
+could not be reached without fabricating daemon state. The full Playwright suite passed the seeded
+update-confirm contract; a future catalog with a newer official generation must receive the manual
+retest.

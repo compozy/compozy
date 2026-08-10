@@ -50,6 +50,7 @@ export function useExtensionInstallDialog(
         pending={state.phase === "submitting"}
       />
       <ExtensionTrustDialog
+        action="install"
         description={
           state.phase === "consent" && state.reason
             ? state.reason

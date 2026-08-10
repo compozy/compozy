@@ -13,9 +13,12 @@ import type { OsDesktopRuntimeStore, OsWindow as OsWindowState } from "../../lib
 import { OsWindow } from "../os-window";
 
 vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
-vi.mock("../../hooks/use-os-shell", () => ({
-  useOsShell: () => ({ coordinator: { noteNavigateMode: vi.fn() } }),
-}));
+vi.mock("../../hooks/use-os-shell", () => {
+  const manager = {};
+  return {
+    useOsShell: () => ({ coordinator: { noteNavigateMode: vi.fn() }, manager }),
+  };
+});
 vi.mock("../../hooks/use-os-window", () => ({
   OS_WINDOW_DRAG_CANCEL_SELECTOR: "[data-slot='test-cancel']",
   OS_WINDOW_DRAG_HANDLE_CLASS: "test-drag-handle",
