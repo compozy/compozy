@@ -63,3 +63,11 @@ criterion passed with exit code 0, and `context-injected` was never created. HTT
 agreed on the raw template and materialized contract. The behavior audit passed with 0 blockers and
 0 warnings; its final freshness check is recorded after the repository gate. Teardown reported
 `clean: true` with no survivors.
+
+QA impact 2026-08-10 (review round 3): reset because command validation now requires `if` and
+`with` branches to preserve the shell quote context they entered with, even when both branches
+would otherwise converge on the same intermediate quote state.
+
+QA result 2026-08-10 (review round 3): CLI validation rejected a matching conditional quote span
+with `unsafe_command_interpolation` before execution. The targeted CLI/runtime audit passed with
+0 blockers and 0 warnings, and teardown reported `clean: true` with no survivors.

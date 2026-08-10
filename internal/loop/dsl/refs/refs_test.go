@@ -211,6 +211,17 @@ func TestCommandTemplateShouldQuoteRuntimeValuesAsShellData(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject conditional shell quote context changes", func(t *testing.T) {
+		t.Parallel()
+
+		raw := `{{ if .inputs.done }}'{{ else }}'{{ end }}value{{ if .inputs.done }}'{{ else }}'{{ end }}`
+		_, err := refs.CompileCommandTemplate("command", raw, namespace(false))
+		var refErr *refs.Error
+		if !errors.As(err, &refErr) || refErr.Code != refs.CodeUnsafeCommandInterpolation {
+			t.Fatalf("CompileCommandTemplate() error = %v, want conditional shell quote rejection", err)
+		}
+	})
+
 	t.Run("Should render shell metacharacters inside one quoted value", func(t *testing.T) {
 		t.Parallel()
 

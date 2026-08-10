@@ -75,6 +75,8 @@ func validateShellCommandTemplate(tmpl *template.Template) error {
 	if state.quote != shellCommandUnquoted || state.escaped {
 		return unsafeCommandTemplateError("authored command must end outside shell quotes and escapes")
 	}
+	// Reject << anywhere when runtime data is present. This intentionally conservative rule keeps
+	// heredoc and here-string parsing away from dynamic templates, even across unrelated branches.
 	if validator.emitsDynamic && validator.hasDoubleLess {
 		return unsafeCommandTemplateError(
 			"dynamic command templates cannot use << shell constructs",
@@ -202,12 +204,12 @@ func (v *shellCommandTemplateValidator) validateShellCommandBranches(
 	if err != nil {
 		return state, err
 	}
-	if left != right {
+	if left != state || right != state {
 		return state, unsafeCommandTemplateError(
-			"command template branches must preserve one shell quote context",
+			"command template branches must preserve their entry shell quote context",
 		)
 	}
-	return left, nil
+	return state, nil
 }
 
 func (v *shellCommandTemplateValidator) scanShellCommandText(
