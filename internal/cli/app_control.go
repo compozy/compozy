@@ -14,7 +14,7 @@ import (
 const (
 	appControlSchemaVersion = 1
 	appControlTimeout       = 2 * time.Second
-	appControlUpdateTimeout = 25 * time.Second
+	appControlUpdateTimeout = 2 * time.Minute
 )
 
 type appControlCaller func(context.Context, string, string, any) (any, error)

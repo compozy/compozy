@@ -13,7 +13,7 @@ pub struct HealthTracker {
 }
 
 impl HealthTracker {
-    pub fn connected(failure_threshold: u8) -> Self {
+    pub fn with_failure_threshold(failure_threshold: u8) -> Self {
         Self {
             connected: true,
             failures: 0,
@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn should_disconnect_after_threshold_and_reconnect_on_first_healthy_probe() {
-        let mut tracker = HealthTracker::connected(3);
+        let mut tracker = HealthTracker::with_failure_threshold(3);
         assert_eq!(tracker.observe(false), HealthTransition::None);
         assert_eq!(tracker.observe(false), HealthTransition::None);
         assert_eq!(tracker.observe(false), HealthTransition::Disconnected);

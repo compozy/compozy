@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"go/build"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,11 +117,11 @@ func isDesktopAppInstall(homeDir string, executablePath string, runtimeOS string
 		binaryName = compozyWindowsBinaryName
 	}
 	wantPath := filepath.Join(homeDir, "bin", binaryName)
-	resolvedExecutable, err := filepath.Abs(executablePath)
+	resolvedExecutable, err := canonicalInstallPath(executablePath)
 	if err != nil {
 		return false
 	}
-	resolvedWant, err := filepath.Abs(wantPath)
+	resolvedWant, err := canonicalInstallPath(wantPath)
 	if err != nil || normalizePath(resolvedExecutable) != normalizePath(resolvedWant) {
 		return false
 	}
@@ -134,12 +135,25 @@ func isDesktopAppInstall(homeDir string, executablePath string, runtimeOS string
 		strings.TrimSpace(marker.InstalledBy) != string(InstallMethodDesktopApp) {
 		return false
 	}
-	binaryBytes, err := os.ReadFile(resolvedWant)
+	binary, err := os.Open(resolvedWant)
 	if err != nil {
 		return false
 	}
-	digest := sha256.Sum256(binaryBytes)
-	return strings.EqualFold(strings.TrimSpace(marker.BinarySHA256), hex.EncodeToString(digest[:]))
+	hasher := sha256.New()
+	_, copyErr := io.Copy(hasher, binary)
+	closeErr := binary.Close()
+	if copyErr != nil || closeErr != nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(marker.BinarySHA256), hex.EncodeToString(hasher.Sum(nil)))
+}
+
+func canonicalInstallPath(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(absolute)
 }
 
 type installEnvironment struct {

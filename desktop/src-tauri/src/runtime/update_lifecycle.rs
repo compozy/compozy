@@ -40,8 +40,8 @@ impl SystemRuntimeLifecycle {
                 return Err(RuntimeUpdaterError::Lifecycle);
             }
         };
-        let probe = BoundProbe::new(HttpStatusTransport, REQUEST_TIMEOUT);
-        match probe.probe(&record, &self.home.root, None) {
+        let probe = BoundProbe::new(HttpStatusTransport::default(), REQUEST_TIMEOUT);
+        match probe.probe(&record, None) {
             Identity::Compozy(identity) => Ok(*identity),
             Identity::Foreign | Identity::Unreachable => Err(RuntimeUpdaterError::Lifecycle),
         }
@@ -62,7 +62,8 @@ impl RuntimeLifecycle for SystemRuntimeLifecycle {
             .as_deref()
             .ok_or(RuntimeUpdaterError::Version)
             .and_then(|version| {
-                Version::parse(version).map_err(|_| RuntimeUpdaterError::Version)
+                Version::parse(version.trim_start_matches('v'))
+                    .map_err(|_| RuntimeUpdaterError::Version)
             })?;
         let executable = self
             .processes
@@ -111,7 +112,7 @@ impl RuntimeLifecycle for SystemRuntimeLifecycle {
         executable: &Path,
         expected: &Version,
     ) -> Result<(), RuntimeUpdaterError> {
-        let probe = BoundProbe::new(HttpStatusTransport, REQUEST_TIMEOUT);
+        let probe = BoundProbe::new(HttpStatusTransport::default(), REQUEST_TIMEOUT);
         let readiness = DaemonReadiness {
             daemon_record: &self.home.daemon_info,
             home: &self.home.root,
@@ -124,7 +125,13 @@ impl RuntimeLifecycle for SystemRuntimeLifecycle {
         let identity = match supervisor.start_owned(executable, &self.home) {
             Ok(StartResult::Owned(runtime)) => runtime.identity,
             Ok(StartResult::Attached(identity)) => identity,
-            Err(_) => return Err(RuntimeUpdaterError::Lifecycle),
+            Err(error) => {
+                crate::logging::error(format!(
+                    "restart runtime after update: {}",
+                    error.safe_message
+                ));
+                return Err(RuntimeUpdaterError::Lifecycle);
+            }
         };
         let actual = identity
             .status
@@ -133,7 +140,8 @@ impl RuntimeLifecycle for SystemRuntimeLifecycle {
             .as_deref()
             .ok_or(RuntimeUpdaterError::Version)
             .and_then(|version| {
-                Version::parse(version).map_err(|_| RuntimeUpdaterError::Version)
+                Version::parse(version.trim_start_matches('v'))
+                    .map_err(|_| RuntimeUpdaterError::Version)
             })?;
         if &actual != expected {
             return Err(RuntimeUpdaterError::Version);

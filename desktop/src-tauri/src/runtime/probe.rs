@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::net::IpAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -10,11 +10,11 @@ use url::Url;
 
 use crate::errors::{ShellError, ShellErrorCode};
 
+use super::PROCESS_START_TOLERANCE_SECONDS;
 use super::discovery::DaemonRecord;
 
 pub const MAX_KNOWN_STATUS_SCHEMA: &str = "2026-07-16";
 pub const MINIMUM_RUNTIME: &str = ">=0.3.0-beta.8";
-const START_TIME_TOLERANCE_SECONDS: i64 = 2;
 const MAX_STATUS_BODY_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -56,12 +56,10 @@ pub enum Compatibility {
     SkewOlder {
         runtime: Version,
         needed: VersionReq,
-        recommendation: String,
     },
     SkewNewer {
         runtime: Version,
         needed: VersionReq,
-        recommendation: String,
     },
 }
 
@@ -77,40 +75,50 @@ pub trait StatusTransport: Send + Sync {
 }
 
 pub trait IdentityProbe: Send + Sync {
-    fn probe(
-        &self,
-        record: &DaemonRecord,
-        home: &Path,
-        expected_child_pid: Option<u32>,
-    ) -> Identity;
+    fn probe(&self, record: &DaemonRecord, expected_child_pid: Option<u32>) -> Identity;
 }
 
-pub struct HttpStatusTransport;
+pub struct HttpStatusTransport {
+    client: Option<reqwest::blocking::Client>,
+}
+
+impl Default for HttpStatusTransport {
+    fn default() -> Self {
+        let client = reqwest::blocking::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|error| crate::logging::error(format!("build status HTTP client: {error}")))
+            .ok();
+        Self { client }
+    }
+}
 
 impl StatusTransport for HttpStatusTransport {
     fn get_status(&self, origin: &Url, deadline: Duration) -> TransportResult {
-        let Ok(client) = reqwest::blocking::Client::builder()
-            .timeout(deadline)
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-        else {
+        let Some(client) = &self.client else {
             return TransportResult::Unreachable;
         };
         let Ok(url) = origin.join("/api/status") else {
             return TransportResult::Unreachable;
         };
-        match client.get(url).send() {
+        match client.get(url).timeout(deadline).send() {
             Ok(response) if response.status().is_success() => {
                 let mut bytes = Vec::new();
                 let mut limited = response.take((MAX_STATUS_BODY_BYTES + 1) as u64);
                 match limited.read_to_end(&mut bytes) {
                     Ok(_) if bytes.len() <= MAX_STATUS_BODY_BYTES => TransportResult::Ok(bytes),
                     Ok(_) => TransportResult::HttpFailure,
-                    Err(_) => TransportResult::Unreachable,
+                    Err(error) => {
+                        crate::logging::error(format!("read runtime status: {error}"));
+                        TransportResult::Unreachable
+                    }
                 }
             }
             Ok(_) => TransportResult::HttpFailure,
-            Err(_) => TransportResult::Unreachable,
+            Err(error) => {
+                crate::logging::error(format!("request runtime status: {error}"));
+                TransportResult::Unreachable
+            }
         }
     }
 }
@@ -130,12 +138,7 @@ impl<T> BoundProbe<T> {
 }
 
 impl<T: StatusTransport> IdentityProbe for BoundProbe<T> {
-    fn probe(
-        &self,
-        record: &DaemonRecord,
-        _home: &Path,
-        expected_child_pid: Option<u32>,
-    ) -> Identity {
+    fn probe(&self, record: &DaemonRecord, expected_child_pid: Option<u32>) -> Identity {
         let Ok(origin) = Url::parse(&format!("http://localhost:{}", record.port)) else {
             return Identity::Foreign;
         };
@@ -180,14 +183,12 @@ pub fn handshake(identity: &BoundDaemonIdentity, minimum: &VersionReq) -> Compat
         return Compatibility::SkewNewer {
             runtime,
             needed: minimum.clone(),
-            recommendation: "Update the CompozyOS app.".to_owned(),
         };
     }
     if !minimum.matches(&runtime) {
         return Compatibility::SkewOlder {
             runtime,
             needed: minimum.clone(),
-            recommendation: "Update the CompozyOS runtime through its install channel.".to_owned(),
         };
     }
     Compatibility::Compatible { runtime }
@@ -218,7 +219,7 @@ fn identity_agrees(
         && daemon.http_port == record.port
         && is_loopback_host(&daemon.http_host)
         && (daemon.started_at.timestamp() - record.started_at.timestamp()).abs()
-            <= START_TIME_TOLERANCE_SECONDS
+            <= PROCESS_START_TOLERANCE_SECONDS
 }
 
 fn is_loopback_host(host: &str) -> bool {
@@ -303,7 +304,7 @@ mod tests {
             Duration::from_secs(1),
         );
         assert!(matches!(
-            probe.probe(&fixture_record(), Path::new("/tmp/compozy"), None),
+            probe.probe(&fixture_record(), None),
             Identity::Compozy(_)
         ));
     }
@@ -318,7 +319,7 @@ mod tests {
         );
 
         assert!(matches!(
-            probe.probe(&fixture_record(), Path::new("/tmp/compozy"), None),
+            probe.probe(&fixture_record(), None),
             Identity::Compozy(_)
         ));
     }
@@ -336,10 +337,7 @@ mod tests {
                 StubTransport(TransportResultFixture::Body(body)),
                 Duration::from_secs(1),
             );
-            assert_eq!(
-                probe.probe(&fixture_record(), Path::new("/tmp/compozy"), None),
-                Identity::Foreign
-            );
+            assert_eq!(probe.probe(&fixture_record(), None), Identity::Foreign);
         }
         assert_eq!(
             identity_error(&Identity::Foreign, PathBuf::from("/tmp/compozy.log"))
@@ -355,10 +353,7 @@ mod tests {
             StubTransport(TransportResultFixture::Body(payload(serde_json::json!({})))),
             Duration::from_secs(1),
         );
-        assert_eq!(
-            probe.probe(&fixture_record(), Path::new("/tmp/compozy"), Some(99)),
-            Identity::Foreign
-        );
+        assert_eq!(probe.probe(&fixture_record(), Some(99)), Identity::Foreign);
     }
 
     #[test]
@@ -368,10 +363,7 @@ mod tests {
             TransportResultFixture::Unreachable,
         ] {
             let probe = BoundProbe::new(StubTransport(fixture), Duration::from_millis(10));
-            assert_eq!(
-                probe.probe(&fixture_record(), Path::new("/tmp/compozy"), None),
-                Identity::Unreachable
-            );
+            assert_eq!(probe.probe(&fixture_record(), None), Identity::Unreachable);
             assert_eq!(
                 identity_error(&Identity::Unreachable, PathBuf::from("/tmp/compozy.log"))
                     .expect("unreachable identity maps to an error")
@@ -398,10 +390,7 @@ mod tests {
         let observed = Arc::new(Mutex::new(None));
         let deadline = Duration::from_millis(125);
         let probe = BoundProbe::new(DeadlineTransport(Arc::clone(&observed)), deadline);
-        assert_eq!(
-            probe.probe(&fixture_record(), Path::new("/tmp/compozy"), None),
-            Identity::Unreachable
-        );
+        assert_eq!(probe.probe(&fixture_record(), None), Identity::Unreachable);
         assert_eq!(*observed.lock().expect("deadline lock"), Some(deadline));
     }
 
@@ -421,9 +410,7 @@ mod tests {
                 })))),
                 Duration::from_secs(1),
             );
-            let Identity::Compozy(identity) =
-                probe.probe(&fixture_record(), Path::new("/tmp/compozy"), None)
-            else {
+            let Identity::Compozy(identity) = probe.probe(&fixture_record(), None) else {
                 panic!("fixture should bind");
             };
             let actual = match handshake(&identity, &minimum) {
@@ -440,9 +427,7 @@ mod tests {
             })))),
             Duration::from_secs(1),
         );
-        let Identity::Compozy(identity) =
-            probe.probe(&fixture_record(), Path::new("/tmp/compozy"), None)
-        else {
+        let Identity::Compozy(identity) = probe.probe(&fixture_record(), None) else {
             panic!("versionless fixture should still bind");
         };
         assert!(matches!(

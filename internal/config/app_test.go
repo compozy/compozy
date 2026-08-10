@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -73,7 +74,17 @@ func TestAppConfigLifecycleMatchesSharedCorpus(t *testing.T) {
 				"shared-app-config.toml",
 			)
 			if decodeErr != nil {
+				if interval != "never" || !strings.Contains(decodeErr.Error(), "invalid duration") {
+					t.Fatalf(
+						"loadConfigOverlayBytes(%q) error = %v, want invalid duration only for never",
+						interval,
+						decodeErr,
+					)
+				}
 				return
+			}
+			if interval == "never" {
+				t.Fatal("loadConfigOverlayBytes(never) error = nil, want invalid duration")
 			}
 			cfg := DefaultWithHome(HomePaths{})
 			if err := overlay.Apply(&cfg); err != nil {
@@ -89,8 +100,16 @@ func TestAppConfigLifecycleMatchesSharedCorpus(t *testing.T) {
 	for _, document := range corpus.InvalidDocuments {
 		t.Run("Should reject shared invalid document "+document.Name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := loadConfigOverlayBytes([]byte(document.TOML), "shared-app-config.toml"); err == nil {
+			_, err := loadConfigOverlayBytes([]byte(document.TOML), "shared-app-config.toml")
+			if err == nil {
 				t.Fatalf("loadConfigOverlayBytes(%q) error = nil, want rejection", document.Name)
+			}
+			wantFragment := map[string]string{
+				"malformed interval": "invalid duration",
+				"unknown app key":    "unsupported",
+			}[document.Name]
+			if wantFragment == "" || !strings.Contains(err.Error(), wantFragment) {
+				t.Fatalf("loadConfigOverlayBytes(%q) error = %v, want fragment %q", document.Name, err, wantFragment)
 			}
 		})
 	}

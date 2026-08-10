@@ -1,11 +1,13 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::errors::{ShellError, ShellErrorCode};
+#[cfg(test)]
+use std::fs;
+
+use crate::errors::ShellError;
 use crate::home::CompozyHome;
 
 use super::discovery::{Discovery, ProcessTable, discover};
-use super::probe::{BoundDaemonIdentity, Identity, IdentityProbe};
+use super::probe::{BoundDaemonIdentity, Identity, IdentityProbe, identity_error};
 use super::provenance;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,7 +51,7 @@ pub struct AttachFirstResolver<'a> {
 impl RuntimeResolver for AttachFirstResolver<'_> {
     fn resolve(&self, home: &CompozyHome) -> Resolution {
         match discover(&home.daemon_info, self.processes) {
-            Discovery::Live(record) => match self.probe.probe(&record, &home.root, None) {
+            Discovery::Live(record) => match self.probe.probe(&record, None) {
                 Identity::Compozy(identity) => {
                     let owned = self
                         .processes
@@ -60,20 +62,10 @@ impl RuntimeResolver for AttachFirstResolver<'_> {
                         owned,
                     };
                 }
-                Identity::Foreign => {
+                identity @ (Identity::Foreign | Identity::Unreachable) => {
                     return Resolution::Failed {
-                        error: ShellError::from_code(
-                            ShellErrorCode::PortConflictForeign,
-                            home.app_log.clone(),
-                        ),
-                    };
-                }
-                Identity::Unreachable => {
-                    return Resolution::Failed {
-                        error: ShellError::from_code(
-                            ShellErrorCode::RuntimeUnhealthy,
-                            home.app_log.clone(),
-                        ),
+                        error: identity_error(&identity, home.app_log.clone())
+                            .expect("non-Compozy identity maps to an error"),
                     };
                 }
             },
@@ -120,29 +112,12 @@ fn first_operator_binary(
     path_binary: Option<PathBuf>,
     fallback_paths: impl IntoIterator<Item = PathBuf>,
 ) -> Option<PathBuf> {
-    if let Some(binary) = path_binary.and_then(executable_file) {
+    if let Some(binary) = path_binary.and_then(provenance::executable_file) {
         return Some(binary);
     }
-    fallback_paths.into_iter().find_map(executable_file)
-}
-
-fn executable_file(path: PathBuf) -> Option<PathBuf> {
-    if !path.is_file() {
-        return None;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        let executable = fs::metadata(&path)
-            .ok()
-            .is_some_and(|metadata| metadata.permissions().mode() & 0o111 != 0);
-        executable.then_some(path)
-    }
-    #[cfg(not(unix))]
-    {
-        Some(path)
-    }
+    fallback_paths
+        .into_iter()
+        .find_map(provenance::executable_file)
 }
 
 fn platform_probe_paths(home: &CompozyHome) -> Vec<PathBuf> {
@@ -205,12 +180,16 @@ mod tests {
         fn executable(&self, pid: u32) -> Option<PathBuf> {
             self.executables.get(&pid).cloned()
         }
+
+        fn is_descendant(&self, descendant: u32, ancestor: u32) -> bool {
+            descendant == ancestor
+        }
     }
 
     struct FakeProbe(Identity);
 
     impl IdentityProbe for FakeProbe {
-        fn probe(&self, _record: &DaemonRecord, _home: &Path, _child: Option<u32>) -> Identity {
+        fn probe(&self, _record: &DaemonRecord, _child: Option<u32>) -> Identity {
             self.0.clone()
         }
     }

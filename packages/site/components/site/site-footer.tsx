@@ -84,7 +84,7 @@ export function SiteFooter() {
           )}
         >
           <p className="text-xs text-subtle">
-            © {currentYear} {siteConfig.name} · Built by CompozyOS.
+            © {currentYear} {siteConfig.name}.
           </p>
           <a
             href={siteConfig.githubUrl}

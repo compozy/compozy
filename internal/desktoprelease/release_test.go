@@ -16,9 +16,7 @@ func TestReleasePolicy(t *testing.T) {
 	t.Run("Should refuse the reserved stable channel", func(t *testing.T) {
 		t.Parallel()
 
-		if err := ValidateDesktopChannel(ChannelStable); err == nil {
-			t.Fatal("ValidateDesktopChannel(stable) error = nil, want refusal")
-		}
+		assertErrorContains(t, ValidateDesktopChannel(ChannelStable), "stable channel is reserved")
 	})
 
 	t.Run("Should require a candidate strictly greater than the live feed", func(t *testing.T) {
@@ -27,19 +25,33 @@ func TestReleasePolicy(t *testing.T) {
 		if err := AssertStrictlyGreater("0.4.0-beta.10", "0.4.0-beta.9"); err != nil {
 			t.Fatalf("AssertStrictlyGreater(valid) error = %v", err)
 		}
-		for _, candidate := range []string{"0.4.0-beta.9", "0.4.0-beta.8"} {
-			if err := AssertStrictlyGreater(candidate, "0.4.0-beta.9"); err == nil {
-				t.Fatalf("AssertStrictlyGreater(%q) error = nil, want refusal", candidate)
-			}
+		for _, test := range []struct {
+			name      string
+			candidate string
+		}{
+			{name: "Should reject an equal candidate", candidate: "0.4.0-beta.9"},
+			{name: "Should reject an older candidate", candidate: "0.4.0-beta.8"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				assertErrorContains(
+					t,
+					AssertStrictlyGreater(test.candidate, "0.4.0-beta.9"),
+					"must be strictly greater",
+				)
+			})
 		}
 	})
 
 	t.Run("Should reject updater comparator overrides", func(t *testing.T) {
 		t.Parallel()
 
-		if err := AssertDefaultComparator("builder.version_comparator(compare)"); err == nil {
-			t.Fatal("AssertDefaultComparator(custom) error = nil, want refusal")
-		}
+		assertErrorContains(
+			t,
+			AssertDefaultComparator("builder.version_comparator(compare)"),
+			"custom updater comparator \"version_comparator\" is forbidden",
+		)
 		if err := AssertDefaultComparator("updater_builder().timeout(duration)"); err != nil {
 			t.Fatalf("AssertDefaultComparator(default) error = %v", err)
 		}
@@ -54,9 +66,8 @@ func TestManifestValidation(t *testing.T) {
 
 		manifest := validLatestManifest()
 		delete(manifest.Platforms, platformWindowsX8664)
-		if err := ValidateLatestManifest(manifest); err == nil {
-			t.Fatal("ValidateLatestManifest(missing platform) error = nil, want refusal")
-		}
+		manifest.Platforms["unsupported"] = UpdaterPlatform{}
+		assertErrorContains(t, ValidateLatestManifest(manifest), "required platform windows-x86_64 is missing")
 	})
 
 	t.Run("Should reject signatures expressed as URLs", func(t *testing.T) {
@@ -66,34 +77,78 @@ func TestManifestValidation(t *testing.T) {
 		entry := manifest.Platforms[platformLinuxX8664]
 		entry.Signature = "https://releases.compozy.com/signature.sig"
 		manifest.Platforms[platformLinuxX8664] = entry
-		if err := ValidateLatestManifest(manifest); err == nil {
-			t.Fatal("ValidateLatestManifest(signature URL) error = nil, want refusal")
-		}
+		assertErrorContains(t, ValidateLatestManifest(manifest), "signature must be non-empty content, not a URL")
 	})
 
 	t.Run("Should reject runtime manifest without digest schema heads or SemVer", func(t *testing.T) {
 		t.Parallel()
 
-		for _, mutate := range []func(*RuntimeManifest){
-			func(manifest *RuntimeManifest) {
+		for _, test := range []struct {
+			name     string
+			mutate   func(*RuntimeManifest)
+			expected string
+		}{
+			{name: "Should reject a missing digest", expected: "runtime sha256 is malformed", mutate: func(manifest *RuntimeManifest) {
 				entry := manifest.Platforms[platformDarwinAArch64]
 				entry.SHA256 = ""
 				manifest.Platforms[platformDarwinAArch64] = entry
-			},
-			func(manifest *RuntimeManifest) { delete(manifest.SchemaHeads, schemaStreamMemory) },
-			func(manifest *RuntimeManifest) { manifest.Version = "not-semver" },
+			}},
+			{name: "Should reject a missing schema head", expected: "runtime schema_heads.memory is required", mutate: func(manifest *RuntimeManifest) {
+				delete(manifest.SchemaHeads, schemaStreamMemory)
+			}},
+			{name: "Should reject an invalid version", expected: "must be strict unprefixed SemVer", mutate: func(manifest *RuntimeManifest) {
+				manifest.Version = "not-semver"
+			}},
 		} {
-			manifest := validRuntimeManifest()
-			mutate(&manifest)
-			if err := ValidateRuntimeManifest(manifest); err == nil {
-				t.Fatal("ValidateRuntimeManifest(invalid) error = nil, want refusal")
-			}
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				manifest := validRuntimeManifest()
+				test.mutate(&manifest)
+				assertErrorContains(t, ValidateRuntimeManifest(manifest), test.expected)
+			})
 		}
 	})
 }
 
 func TestBuildFeeds(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject a distribution base that is not an origin", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		desktopDir := filepath.Join(root, "desktop-artifacts")
+		runtimeDir := filepath.Join(root, "runtime-artifacts")
+		writeDesktopArtifacts(t, desktopDir, "0.4.0-beta.2")
+		writeRuntimeArtifacts(t, runtimeDir)
+		writeMigrationStreams(t, root)
+
+		for _, test := range []struct {
+			name     string
+			baseURL  string
+			expected string
+		}{
+			{name: "Should reject a path", baseURL: DistributionOrigin + "/desktop", expected: "origin must not include a path"},
+			{name: "Should reject a query", baseURL: DistributionOrigin + "?channel=beta", expected: "distribution URL must use"},
+			{name: "Should reject a fragment", baseURL: DistributionOrigin + "#beta", expected: "distribution URL must use"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := BuildFeeds(t.Context(), BuildRequest{
+					Version:     "0.4.0-beta.2",
+					PublishedAt: time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC),
+					DesktopDir:  desktopDir,
+					RuntimeDir:  runtimeDir,
+					RepoRoot:    root,
+					OutputDir:   filepath.Join(root, "feed-"+strings.ReplaceAll(test.name, " ", "-")),
+					BaseURL:     test.baseURL,
+				})
+				assertErrorContains(t, err, test.expected)
+			})
+		}
+	})
 
 	t.Run("Should generate canonical feeds with exact artifacts and schema heads", func(t *testing.T) {
 		t.Parallel()
@@ -154,7 +209,7 @@ func TestBuildFeeds(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject an extra or unsigned desktop artifact", func(t *testing.T) {
+	t.Run("Should reject a desktop artifact missing its signature", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
@@ -162,12 +217,14 @@ func TestBuildFeeds(t *testing.T) {
 		if err := os.Remove(filepath.Join(dir, "CompozyOS_0.4.0-beta.2_amd64.AppImage.sig")); err != nil {
 			t.Fatalf("os.Remove(signature) error = %v", err)
 		}
-		if err := AssertExactDesktopInventory(t.Context(), dir, "0.4.0-beta.2"); err == nil {
-			t.Fatal("AssertExactDesktopInventory(unsigned) error = nil, want refusal")
-		}
+		assertErrorContains(
+			t,
+			AssertExactDesktopInventory(t.Context(), dir, "0.4.0-beta.2"),
+			"CompozyOS_0.4.0-beta.2_amd64.AppImage.sig",
+		)
 	})
 
-	t.Run("Should reject an extra runtime artifact", func(t *testing.T) {
+	t.Run("Should reject an unexpected runtime artifact", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
@@ -175,9 +232,7 @@ func TestBuildFeeds(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "checksums.txt"), []byte("unexpected"), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(extra runtime artifact) error = %v", err)
 		}
-		if err := AssertRuntimeInventory(t.Context(), dir); err == nil {
-			t.Fatal("AssertRuntimeInventory(extra artifact) error = nil, want refusal")
-		}
+		assertErrorContains(t, AssertRuntimeInventory(t.Context(), dir), "checksums.txt")
 	})
 }
 
@@ -213,9 +268,19 @@ func TestChannelConfig(t *testing.T) {
 	})
 }
 
+func assertErrorContains(t *testing.T, err error, expected string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("error = nil, want message containing %q", expected)
+	}
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf("error = %q, want message containing %q", err, expected)
+	}
+}
+
 func validLatestManifest() LatestManifest {
-	platforms := make(map[string]UpdaterPlatform, len(PlatformKeys))
-	for _, platform := range PlatformKeys {
+	platforms := make(map[string]UpdaterPlatform, len(platformKeys))
+	for _, platform := range platformKeys {
 		platforms[platform] = UpdaterPlatform{
 			Signature: "RWQsignature",
 			URL:       DistributionOrigin + "/desktop/v/0.4.0-beta.2/artifact",
@@ -230,8 +295,8 @@ func validLatestManifest() LatestManifest {
 }
 
 func validRuntimeManifest() RuntimeManifest {
-	platforms := make(map[string]RuntimePlatform, len(PlatformKeys))
-	for _, platform := range PlatformKeys {
+	platforms := make(map[string]RuntimePlatform, len(platformKeys))
+	for _, platform := range platformKeys {
 		platforms[platform] = RuntimePlatform{
 			URL:    DistributionOrigin + "/desktop/v/runtime/0.4.0-beta.2/artifact",
 			SHA256: strings.Repeat("a", 64),
@@ -287,13 +352,13 @@ func writeMigrationStreams(t *testing.T, root string) {
 		schemaStreamSession:   "00006_schema.sql",
 		schemaStreamWorkspace: "00001_baseline.sql",
 	}
-	for stream, relativeDir := range migrationStreams {
-		dir := filepath.Join(root, relativeDir)
+	for _, stream := range schemaStreamSpecs {
+		dir := filepath.Join(root, stream.dir)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(%s migrations) error = %v", stream, err)
+			t.Fatalf("os.MkdirAll(%s migrations) error = %v", stream.name, err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, versions[stream]), []byte("-- migration"), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(%s migration) error = %v", stream, err)
+		if err := os.WriteFile(filepath.Join(dir, versions[stream.name]), []byte("-- migration"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%s migration) error = %v", stream.name, err)
 		}
 	}
 }

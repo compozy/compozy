@@ -115,8 +115,8 @@ pub fn sanitize_public_text(input: &str) -> String {
         })
         .collect();
     let redacted = CLAIM_VALUE.replace_all(&printable, REDACTED);
-    let redacted = NAMED_SECRET.replace_all(&redacted, REDACTED);
     let redacted = BEARER.replace_all(&redacted, REDACTED);
+    let redacted = NAMED_SECRET.replace_all(&redacted, REDACTED);
     let redacted = VAULT_REF.replace_all(&redacted, REDACTED);
     truncate_utf8(redacted.trim(), MAX_SAFE_MESSAGE_BYTES)
 }

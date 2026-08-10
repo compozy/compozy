@@ -233,11 +233,12 @@ impl RuntimeUpdater {
         }
         let current =
             Version::parse(&status.current_version).map_err(|_| RuntimeUpdaterError::Version)?;
+        let lock = UpdateLock::acquire(&self.home.update_lock, self.lifecycle.processes())?;
         let staged = self
             .stager
             .stage(&current)?
             .ok_or(RuntimeUpdaterError::NotAvailable)?;
-        self.apply_staged(current, staged)
+        self.apply_staged(current, staged, lock)
     }
 
     pub fn was_declined(&self, version: &str) -> bool {
@@ -252,8 +253,8 @@ impl RuntimeUpdater {
         &self,
         current: Version,
         staged: StagedRuntime,
+        lock: UpdateLock,
     ) -> Result<RuntimeUpdateEvent, RuntimeUpdaterError> {
-        let lock = UpdateLock::acquire(&self.home.update_lock, self.lifecycle.processes())?;
         let instance = self.lifecycle.probe()?;
         verify_ownership(&self.home, &instance.executable)?;
         if instance.version != current {
@@ -276,11 +277,18 @@ impl RuntimeUpdater {
         write_journal(&self.home.update_journal, &journal)?;
         let swap = match swap_binary(&self.home, &staged.binary_path) {
             Ok(swap) => swap,
-            Err(error) => {
+            Err(failure) => {
+                if let Some(swap) = failure.committed
+                    && rollback_swap(&self.home, &swap).is_err()
+                {
+                    return Ok(RuntimeUpdateEvent::RecoveryRequired {
+                        version: journal.to_version.to_string(),
+                    });
+                }
                 self.lifecycle
                     .start_and_verify(&self.home.app_binary, &journal.from_version)?;
                 clear_journal(&self.home.update_journal)?;
-                return Err(error.into());
+                return Err(failure.error.into());
             }
         };
         journal.advance(JournalPhase::Swapped)?;
@@ -304,11 +312,11 @@ impl RuntimeUpdater {
         }
         journal.advance(JournalPhase::Migrating)?;
         write_journal(&self.home.update_journal, &journal)?;
-        if self
+        if let Err(error) = self
             .lifecycle
             .start_and_verify(&self.home.app_binary, &staged.verified.version)
-            .is_err()
         {
+            crate::logging::error(format!("start migrated runtime: {error}"));
             return Ok(RuntimeUpdateEvent::RecoveryRequired {
                 version: staged.verified.version.to_string(),
             });
@@ -405,6 +413,10 @@ mod tests {
 
         fn executable(&self, _pid: u32) -> Option<PathBuf> {
             None
+        }
+
+        fn is_descendant(&self, descendant: u32, ancestor: u32) -> bool {
+            descendant == ancestor
         }
     }
 
@@ -532,7 +544,6 @@ mod tests {
         StagedRuntime {
             verified: VerifiedArtifact {
                 version: Version::parse("0.4.0").expect("version parses"),
-                target: "darwin-aarch64".to_owned(),
                 artifact: PlatformArtifact {
                     url: Url::parse("http://127.0.0.1/runtime.tar.gz")
                         .expect("artifact URL parses"),
@@ -543,6 +554,23 @@ mod tests {
             },
             binary_path: path,
         }
+    }
+
+    fn write_staged_binary(home: &CompozyHome) -> PathBuf {
+        let path = home
+            .app_binary
+            .parent()
+            .expect("binary has parent")
+            .join(".runtime-staged");
+        fs::write(&path, b"new runtime").expect("staged binary writes");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755))
+                .expect("staged binary permissions set");
+        }
+        path
     }
 
     fn owned_home() -> (tempfile::TempDir, CompozyHome) {
@@ -673,19 +701,7 @@ mod tests {
     fn should_apply_owned_update_inside_transaction_and_clear_journal() {
         let server = StatusServer::start(&status("desktop-app", true), 1);
         let (_directory, home) = owned_home();
-        let staged_path = home
-            .app_binary
-            .parent()
-            .expect("binary has parent")
-            .join(".runtime-staged");
-        fs::write(&staged_path, b"new runtime").expect("staged binary writes");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-
-            fs::set_permissions(&staged_path, fs::Permissions::from_mode(0o755))
-                .expect("staged binary permissions set");
-        }
+        let staged_path = write_staged_binary(&home);
         let updater = RuntimeUpdater::new(
             home.clone(),
             &server.origin,
@@ -717,19 +733,7 @@ mod tests {
     fn should_require_recovery_without_restarting_old_runtime_after_migration_begins() {
         let server = StatusServer::start(&status("desktop-app", true), 1);
         let (_directory, home) = owned_home();
-        let staged_path = home
-            .app_binary
-            .parent()
-            .expect("binary has parent")
-            .join(".runtime-staged");
-        fs::write(&staged_path, b"new runtime").expect("staged binary writes");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-
-            fs::set_permissions(&staged_path, fs::Permissions::from_mode(0o755))
-                .expect("staged binary permissions set");
-        }
+        let staged_path = write_staged_binary(&home);
         let mut failing_lifecycle = lifecycle(home.app_binary.clone());
         failing_lifecycle.fail_start = true;
         let updater = RuntimeUpdater::new(
@@ -795,12 +799,7 @@ mod tests {
     fn should_refuse_mutation_when_post_lock_probe_changes_ownership() {
         let server = StatusServer::start(&status("desktop-app", true), 1);
         let (_directory, home) = owned_home();
-        let staged_path = home
-            .app_binary
-            .parent()
-            .expect("binary has parent")
-            .join(".runtime-staged");
-        fs::write(&staged_path, b"new runtime").expect("staged binary writes");
+        let staged_path = write_staged_binary(&home);
         let updater = RuntimeUpdater::new(
             home.clone(),
             &server.origin,

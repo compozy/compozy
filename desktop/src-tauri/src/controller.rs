@@ -74,6 +74,9 @@ impl DesktopController {
     }
 
     pub fn check_updates(&self) -> Value {
+        if !self.updates_enabled {
+            return json!({"app": app_event_json(&AppUpdateEvent::Disabled), "runtime": null});
+        }
         let app = self.check_app_update_with(true);
         let runtime = self.check_runtime_update();
         self.present_pending_updates();
@@ -93,23 +96,24 @@ impl DesktopController {
     }
 
     pub fn check_runtime_update(&self) -> Option<Value> {
-        self.runtime_updater
+        let updater = self
+            .runtime_updater
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .as_ref()
-            .map(|updater| match updater.check() {
-                Ok(event) => {
-                    self.record_runtime_event(&event);
-                    runtime_event_json(&event)
-                }
-                Err(error) => {
-                    let event = RuntimeUpdateEvent::Failed {
-                        message: error.to_string(),
-                    };
-                    self.record_runtime_event(&event);
-                    runtime_event_json(&event)
-                }
-            })
+            .clone();
+        updater.map(|updater| match updater.check() {
+            Ok(event) => {
+                self.record_runtime_event(&event);
+                runtime_event_json(&event)
+            }
+            Err(error) => {
+                let event = RuntimeUpdateEvent::Failed {
+                    message: error.to_string(),
+                };
+                self.record_runtime_event(&event);
+                runtime_event_json(&event)
+            }
+        })
     }
 
     fn apply_update(&self, target: &str) -> Result<Value, ControlError> {

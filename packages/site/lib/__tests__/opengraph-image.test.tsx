@@ -188,7 +188,7 @@ describe("Blog OpenGraph template", () => {
     const styleValues = styleStrings(response.element);
     const types = componentTypes(response.element);
 
-    expect(copy).toContain("COMPOZY BLOG");
+    expect(copy).toContain("COMPOZYOS BLOG");
     expect(copy).toContain("Introducing CompozyOS, the first agent network protocol");
     expect(copy).toContain("APR 29, 2026");
     expect(copy).toContain("compozy.com/blog/introducing-compozyos");
@@ -209,7 +209,7 @@ describe("Blog OpenGraph template", () => {
       })
     );
     const copy = textContent(response.element);
-    expect(copy).toContain("COMPOZY BLOG");
+    expect(copy).toContain("COMPOZYOS BLOG");
     expect(copy).not.toContain("BY ");
     expect(copy).toContain("compozy.com/blog/draft-without-date");
   });

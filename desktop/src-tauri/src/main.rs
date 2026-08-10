@@ -92,9 +92,13 @@ fn register_deep_links(app: &AppHandle<Wry>, links: &Arc<LinkQueue>) {
         Err(error) => logging::error(format!("read launch deep link: {error}")),
     }
     let event_links = Arc::clone(links);
+    let event_app = app.clone();
     app.deep_link().on_open_url(move |event| {
         for url in event.urls() {
             event_links.push(url.as_str());
+        }
+        if let Err(error) = windowing::focus_existing(&event_app, &event_links) {
+            logging::error(format!("focus deep-link target: {error}"));
         }
     });
 }

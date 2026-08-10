@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::durability::sync_directory;
 use crate::home::CompozyHome;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -68,7 +69,7 @@ pub fn write_atomic(path: &Path, record: &ProvenanceRecord) -> std::io::Result<(
     file.write_all(b"\n")?;
     file.sync_all()?;
     fs::rename(&temporary, path)?;
-    File::open(parent)?.sync_all()?;
+    sync_directory(parent)?;
     Ok(())
 }
 
@@ -93,7 +94,7 @@ fn same_path(left: &Path, right: &Path) -> bool {
         .is_some_and(|(left, right)| left == right)
 }
 
-fn executable_file(path: PathBuf) -> Option<PathBuf> {
+pub(crate) fn executable_file(path: PathBuf) -> Option<PathBuf> {
     if !path.is_file() {
         return None;
     }

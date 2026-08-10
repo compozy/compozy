@@ -715,9 +715,7 @@ func TestRunDaemonDetachedReprobesAfterAcquiringUpdateLock(t *testing.T) {
 		}
 
 		_, err := runDaemonDetached(testutil.Context(t), deps)
-		if err == nil || !strings.Contains(err.Error(), "daemon already running") {
-			t.Fatalf("runDaemonDetached() error = %v, want daemon already running", err)
-		}
+		assertErrorContains(t, err, "daemon already running")
 		if spawned {
 			t.Fatal("spawnDetached() called after post-lock probe found a running daemon")
 		}

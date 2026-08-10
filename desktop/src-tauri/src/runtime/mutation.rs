@@ -8,10 +8,12 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::durability::sync_directory;
 use crate::home::CompozyHome;
 
 use super::discovery::ProcessTable;
 use super::provenance;
+use super::provision::{DOWNLOAD_NAME, STAGED_NAME};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct LockOwner {
@@ -175,10 +177,18 @@ pub struct SwapCommit {
     provenance_backup_path: PathBuf,
 }
 
+#[derive(Debug)]
+pub struct SwapFailure {
+    pub committed: Option<SwapCommit>,
+    pub error: MutationError,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RecoveryPlan {
-    pub action: RecoveryAction,
-    pub journal: Option<UpdateJournal>,
+pub enum RecoveryPlan {
+    CleanRollback,
+    ResumeNewRuntime(UpdateJournal),
+    RecoveryRequired(UpdateJournal),
+    Complete,
 }
 
 pub fn classify_recovery(journal: &UpdateJournal) -> RecoveryAction {
@@ -209,31 +219,19 @@ pub fn prepare_recovery(home: &CompozyHome) -> Result<Option<RecoveryPlan>, Muta
             }
             remove_recovery_stage(home)?;
             clear_journal(&home.update_journal)?;
-            Ok(Some(RecoveryPlan {
-                action,
-                journal: None,
-            }))
+            Ok(Some(RecoveryPlan::CleanRollback))
         }
         RecoveryAction::ResumeNewRuntime => {
             restore_new_provenance(home, &journal)?;
             journal.advance(JournalPhase::Migrating)?;
             write_journal(&home.update_journal, &journal)?;
-            Ok(Some(RecoveryPlan {
-                action,
-                journal: Some(journal),
-            }))
+            Ok(Some(RecoveryPlan::ResumeNewRuntime(journal)))
         }
-        RecoveryAction::RecoveryRequired => Ok(Some(RecoveryPlan {
-            action,
-            journal: Some(journal),
-        })),
+        RecoveryAction::RecoveryRequired => Ok(Some(RecoveryPlan::RecoveryRequired(journal))),
         RecoveryAction::Complete => {
             finalize_swap(&recovery_swap(home))?;
             clear_journal(&home.update_journal)?;
-            Ok(Some(RecoveryPlan {
-                action,
-                journal: None,
-            }))
+            Ok(Some(RecoveryPlan::Complete))
         }
     }
 }
@@ -250,70 +248,78 @@ pub fn complete_recovery(
     clear_journal(&home.update_journal)
 }
 
-pub fn swap_binary(home: &CompozyHome, staged: &Path) -> Result<SwapCommit, MutationError> {
-    let parent = home
-        .app_binary
-        .parent()
-        .ok_or(MutationError::InvalidJournal)?;
-    let backup_path = parent.join(".runtime-previous");
-    let provenance_backup_path = parent.join(".runtime-provenance-previous");
+pub fn swap_binary(home: &CompozyHome, staged: &Path) -> Result<SwapCommit, SwapFailure> {
+    let parent = home.app_binary.parent().ok_or_else(|| SwapFailure {
+        committed: None,
+        error: MutationError::InvalidJournal,
+    })?;
+    let paths = recovery_swap(home);
+    let backup_path = paths.backup_path;
+    let provenance_backup_path = paths.provenance_backup_path;
     match fs::remove_file(&backup_path) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(MutationError::JournalIo(error)),
+        Err(error) => return Err(swap_not_committed(error)),
     }
     match fs::remove_file(&provenance_backup_path) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(MutationError::JournalIo(error)),
+        Err(error) => return Err(swap_not_committed(error)),
     }
-    fs::copy(&home.provenance, &provenance_backup_path).map_err(MutationError::JournalIo)?;
+    fs::copy(&home.provenance, &provenance_backup_path).map_err(swap_not_committed)?;
     File::open(&provenance_backup_path)
         .and_then(|file| file.sync_all())
-        .map_err(MutationError::JournalIo)?;
-    fs::rename(&home.app_binary, &backup_path).map_err(MutationError::JournalIo)?;
+        .map_err(swap_not_committed)?;
+    fs::rename(&home.app_binary, &backup_path).map_err(swap_not_committed)?;
     if let Err(error) = fs::rename(staged, &home.app_binary) {
         if let Err(rollback_error) = fs::rename(&backup_path, &home.app_binary) {
-            return Err(MutationError::JournalIo(std::io::Error::other(format!(
+            return Err(swap_not_committed(std::io::Error::other(format!(
                 "swap failed: {error}; rollback failed: {rollback_error}"
             ))));
         }
         if let Err(cleanup_error) = fs::remove_file(&provenance_backup_path) {
-            return Err(MutationError::JournalIo(std::io::Error::other(format!(
+            return Err(swap_not_committed(std::io::Error::other(format!(
                 "swap failed: {error}; provenance cleanup failed: {cleanup_error}"
             ))));
         }
-        return Err(MutationError::JournalIo(error));
+        return Err(swap_not_committed(error));
     }
-    File::open(parent)
-        .and_then(|directory| directory.sync_all())
-        .map_err(MutationError::JournalIo)?;
-    Ok(SwapCommit {
+    let commit = SwapCommit {
         backup_path,
         provenance_backup_path,
-    })
+    };
+    if let Err(error) = sync_directory(parent) {
+        return Err(SwapFailure {
+            committed: Some(commit),
+            error: MutationError::JournalIo(error),
+        });
+    }
+    Ok(commit)
+}
+
+fn swap_not_committed(error: std::io::Error) -> SwapFailure {
+    SwapFailure {
+        committed: None,
+        error: MutationError::JournalIo(error),
+    }
 }
 
 pub fn rollback_swap(home: &CompozyHome, swap: &SwapCommit) -> Result<(), MutationError> {
     let marker: provenance::ProvenanceRecord = serde_json::from_slice(
         &fs::read(&swap.provenance_backup_path).map_err(MutationError::JournalIo)?,
     )
-    .map_err(|_| MutationError::InvalidJournal)?;
+    .map_err(|error| invalid_journal("decode previous runtime provenance", error))?;
     provenance::write_atomic(&home.provenance, &marker).map_err(MutationError::JournalIo)?;
     if home.app_binary.exists() {
         fs::remove_file(&home.app_binary).map_err(MutationError::JournalIo)?;
     }
     fs::rename(&swap.backup_path, &home.app_binary).map_err(MutationError::JournalIo)?;
     if let Some(parent) = home.app_binary.parent() {
-        File::open(parent)
-            .and_then(|directory| directory.sync_all())
-            .map_err(MutationError::JournalIo)?;
+        sync_directory(parent).map_err(MutationError::JournalIo)?;
     }
     fs::remove_file(&swap.provenance_backup_path).map_err(MutationError::JournalIo)?;
     if let Some(parent) = swap.provenance_backup_path.parent() {
-        File::open(parent)
-            .and_then(|directory| directory.sync_all())
-            .map_err(MutationError::JournalIo)?;
+        sync_directory(parent).map_err(MutationError::JournalIo)?;
     }
     Ok(())
 }
@@ -327,9 +333,7 @@ pub fn finalize_swap(swap: &SwapCommit) -> Result<(), MutationError> {
         }
     }
     if let Some(parent) = swap.backup_path.parent() {
-        File::open(parent)
-            .and_then(|directory| directory.sync_all())
-            .map_err(MutationError::JournalIo)?;
+        sync_directory(parent).map_err(MutationError::JournalIo)?;
     }
     Ok(())
 }
@@ -344,9 +348,7 @@ pub fn write_journal(path: &Path, journal: &UpdateJournal) -> Result<(), Mutatio
     file.write_all(b"\n").map_err(MutationError::JournalIo)?;
     file.sync_all().map_err(MutationError::JournalIo)?;
     fs::rename(&temporary, path).map_err(MutationError::JournalIo)?;
-    File::open(parent)
-        .and_then(|directory| directory.sync_all())
-        .map_err(MutationError::JournalIo)
+    sync_directory(parent).map_err(MutationError::JournalIo)
 }
 
 pub fn read_journal(path: &Path) -> Result<Option<UpdateJournal>, MutationError> {
@@ -355,12 +357,12 @@ pub fn read_journal(path: &Path) -> Result<Option<UpdateJournal>, MutationError>
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(MutationError::JournalIo(error)),
     };
-    let journal: UpdateJournal =
-        serde_json::from_slice(&bytes).map_err(|_| MutationError::InvalidJournal)?;
+    let journal: UpdateJournal = serde_json::from_slice(&bytes)
+        .map_err(|error| invalid_journal("decode runtime update journal", error))?;
     let expected_stage = path
         .parent()
         .ok_or(MutationError::InvalidJournal)?
-        .join(".runtime-staged");
+        .join(STAGED_NAME);
     if journal.staged_path != expected_stage
         || journal.schema_heads.is_empty()
         || journal.to_version <= journal.from_version
@@ -377,9 +379,7 @@ pub fn clear_journal(path: &Path) -> Result<(), MutationError> {
         Err(error) => return Err(MutationError::JournalIo(error)),
     }
     if let Some(parent) = path.parent() {
-        File::open(parent)
-            .and_then(|directory| directory.sync_all())
-            .map_err(MutationError::JournalIo)?;
+        sync_directory(parent).map_err(MutationError::JournalIo)?;
     }
     Ok(())
 }
@@ -430,7 +430,7 @@ fn restore_new_provenance(
     let previous: provenance::ProvenanceRecord = serde_json::from_slice(
         &fs::read(&swap.provenance_backup_path).map_err(MutationError::JournalIo)?,
     )
-    .map_err(|_| MutationError::InvalidJournal)?;
+    .map_err(|error| invalid_journal("decode recovery provenance", error))?;
     if previous.installed_by != "desktop-app" {
         return Err(MutationError::NotOwned);
     }
@@ -447,10 +447,7 @@ fn restore_new_provenance(
 
 fn remove_recovery_stage(home: &CompozyHome) -> Result<(), MutationError> {
     let parent = home.app_binary.parent().unwrap_or(home.root.as_path());
-    for path in [
-        parent.join(".runtime-staged"),
-        parent.join(".runtime-download"),
-    ] {
+    for path in [parent.join(STAGED_NAME), parent.join(DOWNLOAD_NAME)] {
         match fs::remove_file(path) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -458,6 +455,11 @@ fn remove_recovery_stage(home: &CompozyHome) -> Result<(), MutationError> {
         }
     }
     Ok(())
+}
+
+fn invalid_journal(context: &str, error: serde_json::Error) -> MutationError {
+    crate::logging::error(format!("{context}: {error}"));
+    MutationError::InvalidJournal
 }
 
 #[cfg(test)]
@@ -479,6 +481,10 @@ mod tests {
         fn executable(&self, _pid: u32) -> Option<PathBuf> {
             None
         }
+
+        fn is_descendant(&self, descendant: u32, ancestor: u32) -> bool {
+            descendant == ancestor
+        }
     }
 
     fn journal(home: &CompozyHome, phase: JournalPhase) -> UpdateJournal {
@@ -490,7 +496,7 @@ mod tests {
                 .app_binary
                 .parent()
                 .expect("binary has parent")
-                .join(".runtime-staged"),
+                .join(STAGED_NAME),
             schema_heads: BTreeMap::from([("global".to_owned(), 12)]),
             written_at: Utc::now(),
         }
@@ -609,7 +615,7 @@ mod tests {
         let plan = prepare_recovery(&home)
             .expect("recovery prepares")
             .expect("recovery plan exists");
-        assert_eq!(plan.action, RecoveryAction::CleanRollback);
+        assert_eq!(plan, RecoveryPlan::CleanRollback);
         assert_eq!(fs::read(&home.app_binary).expect("binary reads"), b"old");
         let restored: provenance::ProvenanceRecord =
             serde_json::from_slice(&fs::read(&home.provenance).expect("restored marker reads"))
@@ -642,11 +648,10 @@ mod tests {
         let plan = prepare_recovery(&home)
             .expect("swapped recovery prepares")
             .expect("swapped recovery plan exists");
-        assert_eq!(plan.action, RecoveryAction::ResumeNewRuntime);
-        assert_eq!(
-            plan.journal.expect("resume journal remains").phase,
-            JournalPhase::Migrating
-        );
+        let RecoveryPlan::ResumeNewRuntime(recovered_journal) = plan else {
+            panic!("swapped journal should resume the new runtime");
+        };
+        assert_eq!(recovered_journal.phase, JournalPhase::Migrating);
         assert!(provenance::owns_executable(&home, &home.app_binary));
         let recovered: provenance::ProvenanceRecord =
             serde_json::from_slice(&fs::read(&home.provenance).expect("recovered marker reads"))
@@ -662,11 +667,10 @@ mod tests {
             let plan = prepare_recovery(&home)
                 .expect("sticky recovery reads")
                 .expect("sticky plan exists");
-            assert_eq!(plan.action, RecoveryAction::RecoveryRequired);
-            assert_eq!(
-                plan.journal.expect("journal remains").phase,
-                JournalPhase::Migrating
-            );
+            let RecoveryPlan::RecoveryRequired(journal) = plan else {
+                panic!("migrating journal should require explicit recovery");
+            };
+            assert_eq!(journal.phase, JournalPhase::Migrating);
         }
     }
 

@@ -86,12 +86,13 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 	switch {
 	case state.Managed && state.Available:
 		state.Status = StatusDeferred
-		state.Message = "CompozyOS is managed by an external package manager; no local update was performed."
+		state.Message = "A newer CompozyOS release is available through its managing install surface; " +
+			"no local update was performed."
 		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case state.Managed:
 		state.Status = StatusCurrent
 		state.Message = "CompozyOS is already current on its release channel. " +
-			"Managed installs stay on the package manager path."
+			"Managed installs stay on their owning update surface."
 		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case !state.Supported && state.Available:
 		state.Status = StatusUnsupported

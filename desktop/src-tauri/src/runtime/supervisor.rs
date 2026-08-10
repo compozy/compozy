@@ -6,6 +6,9 @@ use std::time::Duration;
 
 use crate::errors::{ShellError, ShellErrorCode};
 use crate::home::CompozyHome;
+#[cfg(not(windows))]
+use sysinfo::Signal;
+use sysinfo::{Pid, ProcessesToUpdate, System};
 
 use super::probe::BoundDaemonIdentity;
 
@@ -31,6 +34,7 @@ pub enum StartResult {
 
 pub trait ProcessSpawner: Send + Sync {
     fn spawn_detached(&self, binary: &Path, home: &CompozyHome) -> io::Result<u32>;
+    fn terminate(&self, pid: u32) -> io::Result<()>;
 }
 
 pub trait ReadinessProbe: Send + Sync {
@@ -69,6 +73,22 @@ impl ProcessSpawner for SystemSpawner {
             .stderr(Stdio::from(stderr));
         configure_detached(&mut command);
         command.spawn().map(|child| child.id())
+    }
+
+    fn terminate(&self, pid: u32) -> io::Result<()> {
+        let mut system = System::new();
+        let pid = Pid::from_u32(pid);
+        system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+        let process = system
+            .process(pid)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "runtime process is absent"))?;
+        #[cfg(windows)]
+        let signaled = process.kill();
+        #[cfg(not(windows))]
+        let signaled = process.kill_with(Signal::Term) == Some(true);
+        signaled
+            .then_some(())
+            .ok_or_else(|| io::Error::other("runtime process rejected termination"))
     }
 }
 
@@ -120,7 +140,13 @@ impl<'a> Supervisor<'a> {
                     match StartLock::reclaim_if_stale(&lock_path, self.readiness) {
                         Ok(true) => continue,
                         Ok(false) => {}
-                        Err(_) => return Err(start_error(home)),
+                        Err(error) => {
+                            crate::logging::error(format!(
+                                "reclaim runtime start lock {}: {error}",
+                                lock_path.display()
+                            ));
+                            return Err(start_error(home));
+                        }
                     }
                     if let Some(identity) = self.wait_for_competing_start(&lock_path) {
                         return Ok(StartResult::Attached(identity));
@@ -130,7 +156,13 @@ impl<'a> Supervisor<'a> {
                     }
                     continue;
                 }
-                Err(_) => return Err(start_error(home)),
+                Err(error) => {
+                    crate::logging::error(format!(
+                        "acquire runtime start lock {}: {error}",
+                        lock_path.display()
+                    ));
+                    return Err(start_error(home));
+                }
             };
             if let Some(identity) = self.readiness.ready(None) {
                 lock.release();
@@ -139,7 +171,19 @@ impl<'a> Supervisor<'a> {
             attempt += 1;
             let pid = match self.spawner.spawn_detached(binary, home) {
                 Ok(pid) if pid > 0 => pid,
-                Ok(_) | Err(_) => {
+                Ok(_) => {
+                    crate::logging::error("spawned runtime returned an invalid process id");
+                    lock.release();
+                    if let Some(backoff) = ATTEMPT_BACKOFF[attempt - 1] {
+                        self.delay.sleep(backoff);
+                    }
+                    continue;
+                }
+                Err(error) => {
+                    crate::logging::error(format!(
+                        "spawn owned runtime {}: {error}",
+                        binary.display()
+                    ));
                     lock.release();
                     if let Some(backoff) = ATTEMPT_BACKOFF[attempt - 1] {
                         self.delay.sleep(backoff);
@@ -156,6 +200,23 @@ impl<'a> Supervisor<'a> {
                     break;
                 }
                 self.delay.sleep(self.poll_interval);
+            }
+            if self.readiness.process_alive(pid) {
+                if let Err(error) = self.spawner.terminate(pid) {
+                    crate::logging::error(format!("terminate unready runtime {pid}: {error}"));
+                    lock.release();
+                    return Err(start_error(home));
+                }
+                for _ in 0..poll_limit(self.readiness_deadline, self.poll_interval) {
+                    if !self.readiness.process_alive(pid) {
+                        break;
+                    }
+                    self.delay.sleep(self.poll_interval);
+                }
+                if self.readiness.process_alive(pid) {
+                    lock.release();
+                    return Err(start_error(home));
+                }
             }
             lock.release();
             if let Some(backoff) = ATTEMPT_BACKOFF[attempt - 1] {
@@ -288,31 +349,7 @@ impl Drop for StartLock {
 }
 
 fn start_error(home: &CompozyHome) -> ShellError {
-    let message = fs::read_to_string(&home.runtime_log)
-        .ok()
-        .and_then(|contents| {
-            let tail = contents
-                .lines()
-                .rev()
-                .take(8)
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect::<Vec<_>>()
-                .join(" ");
-            (!tail.trim().is_empty())
-                .then(|| format!("The runtime did not start. Recent runtime log: {tail}"))
-        })
-        .unwrap_or_else(|| {
-            ShellErrorCode::RuntimeStartFailed
-                .default_message()
-                .to_owned()
-        });
-    ShellError::new(
-        ShellErrorCode::RuntimeStartFailed,
-        message,
-        home.runtime_log.clone(),
-    )
+    ShellError::from_code(ShellErrorCode::RuntimeStartFailed, home.runtime_log.clone())
 }
 
 fn poll_limit(deadline: Duration, interval: Duration) -> usize {

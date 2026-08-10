@@ -9,22 +9,25 @@ import (
 	"strings"
 )
 
-var migrationStreams = map[string]string{
-	schemaStreamGlobal:    "internal/store/globaldb/schema/migrations",
-	schemaStreamMemory:    "internal/memory/schema/migrations",
-	schemaStreamSession:   "internal/store/sessiondb/schema/migrations",
-	schemaStreamWorkspace: "internal/store/workspacedb/schema/migrations",
+var schemaStreamSpecs = [...]struct {
+	name string
+	dir  string
+}{
+	{name: schemaStreamGlobal, dir: "internal/store/globaldb/schema/migrations"},
+	{name: schemaStreamMemory, dir: "internal/memory/schema/migrations"},
+	{name: schemaStreamSession, dir: "internal/store/sessiondb/schema/migrations"},
+	{name: schemaStreamWorkspace, dir: "internal/store/workspacedb/schema/migrations"},
 }
 
 func DiscoverSchemaHeads(ctx context.Context, repoRoot string) (map[string]uint64, error) {
-	heads := make(map[string]uint64, len(migrationStreams))
-	for stream, relativeDir := range migrationStreams {
+	heads := make(map[string]uint64, len(schemaStreamSpecs))
+	for _, stream := range schemaStreamSpecs {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("desktop release: discover schema heads: %w", err)
 		}
-		entries, err := os.ReadDir(filepath.Join(repoRoot, relativeDir))
+		entries, err := os.ReadDir(filepath.Join(repoRoot, stream.dir))
 		if err != nil {
-			return nil, fmt.Errorf("desktop release: read %s migrations: %w", stream, err)
+			return nil, fmt.Errorf("desktop release: read %s migrations: %w", stream.name, err)
 		}
 		var head uint64
 		for _, entry := range entries {
@@ -44,9 +47,9 @@ func DiscoverSchemaHeads(ctx context.Context, repoRoot string) (map[string]uint6
 			}
 		}
 		if head == 0 {
-			return nil, fmt.Errorf("desktop release: %s migration stream has no versioned SQL files", stream)
+			return nil, fmt.Errorf("desktop release: %s migration stream has no versioned SQL files", stream.name)
 		}
-		heads[stream] = head
+		heads[stream.name] = head
 	}
 	return heads, nil
 }

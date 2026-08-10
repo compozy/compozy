@@ -1,11 +1,15 @@
-use std::fs;
+use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
-const PROCESS_START_TOLERANCE_SECONDS: i64 = 2;
+use super::PROCESS_START_TOLERANCE_SECONDS;
+
+const MAX_ANCESTRY_DEPTH: usize = 256;
+const MAX_DAEMON_RECORD_BYTES: u64 = 64 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DaemonRecord {
@@ -25,9 +29,7 @@ pub trait ProcessTable: Send + Sync {
     fn start_time(&self, pid: u32) -> Option<DateTime<Utc>>;
     fn executable(&self, pid: u32) -> Option<PathBuf>;
 
-    fn is_descendant(&self, descendant: u32, ancestor: u32) -> bool {
-        descendant == ancestor
-    }
+    fn is_descendant(&self, descendant: u32, ancestor: u32) -> bool;
 }
 
 #[derive(Debug, Default)]
@@ -35,17 +37,13 @@ pub struct SystemProcessTable;
 
 impl ProcessTable for SystemProcessTable {
     fn start_time(&self, pid: u32) -> Option<DateTime<Utc>> {
-        let mut system = System::new();
-        let pid = Pid::from_u32(pid);
-        system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+        let (system, pid) = refreshed_process(pid);
         let seconds = system.process(pid)?.start_time() as i64;
         DateTime::from_timestamp(seconds, 0)
     }
 
     fn executable(&self, pid: u32) -> Option<PathBuf> {
-        let mut system = System::new();
-        let pid = Pid::from_u32(pid);
-        system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+        let (system, pid) = refreshed_process(pid);
         system.process(pid)?.exe().map(Path::to_path_buf)
     }
 
@@ -57,7 +55,7 @@ impl ProcessTable for SystemProcessTable {
         system.refresh_processes(ProcessesToUpdate::All, true);
         let ancestor = Pid::from_u32(ancestor);
         let mut current = Pid::from_u32(descendant);
-        for _ in 0..256 {
+        for _ in 0..MAX_ANCESTRY_DEPTH {
             let Some(parent) = system.process(current).and_then(sysinfo::Process::parent) else {
                 return false;
             };
@@ -73,8 +71,15 @@ impl ProcessTable for SystemProcessTable {
     }
 }
 
+fn refreshed_process(pid: u32) -> (System, Pid) {
+    let mut system = System::new();
+    let pid = Pid::from_u32(pid);
+    system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+    (system, pid)
+}
+
 pub fn discover(path: &Path, processes: &dyn ProcessTable) -> Discovery {
-    let bytes = match fs::read(path) {
+    let bytes = match read_daemon_record(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Discovery::Absent,
         Err(error) => {
@@ -100,6 +105,20 @@ pub fn discover(path: &Path, processes: &dyn ProcessTable) -> Discovery {
     Discovery::Live(record)
 }
 
+fn read_daemon_record(path: &Path) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    File::open(path)?
+        .take(MAX_DAEMON_RECORD_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_DAEMON_RECORD_BYTES {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "daemon record exceeds size limit",
+        ));
+    }
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -119,11 +138,15 @@ mod tests {
         fn executable(&self, _pid: u32) -> Option<PathBuf> {
             None
         }
+
+        fn is_descendant(&self, descendant: u32, ancestor: u32) -> bool {
+            descendant == ancestor
+        }
     }
 
     fn write_record(directory: &tempfile::TempDir, body: &str) -> PathBuf {
         let path = directory.path().join("daemon.json");
-        fs::write(&path, body).expect("fixture record writes");
+        std::fs::write(&path, body).expect("fixture record writes");
         path
     }
 

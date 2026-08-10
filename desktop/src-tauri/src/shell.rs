@@ -18,7 +18,7 @@ use crate::release::ReleaseConfig;
 use crate::runtime::artifacts::current_target;
 use crate::runtime::discovery::{Discovery, SystemProcessTable, discover};
 use crate::runtime::mutation::{
-    RecoveryAction, UpdateJournal, UpdateLock, complete_recovery, prepare_recovery, read_journal,
+    RecoveryPlan, UpdateJournal, UpdateLock, complete_recovery, prepare_recovery, read_journal,
 };
 use crate::runtime::probe::{
     BoundDaemonIdentity, BoundProbe, Compatibility, HttpStatusTransport, Identity, IdentityProbe,
@@ -48,12 +48,26 @@ pub fn setup(
     started_at: DateTime<Utc>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let settings = config::load(&home.config_file, &home);
-    if let Some(diagnostic) = &settings.diagnostic {
+    let mut startup_diagnostic = settings.diagnostic.clone();
+    if let Some(diagnostic) = &startup_diagnostic {
         logging::error(&diagnostic.safe_message);
     }
+    let release = match ReleaseConfig::compiled(app.config()) {
+        Ok(release) => release,
+        Err(error) => {
+            logging::error(format!("load release update configuration: {error:?}"));
+            if startup_diagnostic.is_none() {
+                startup_diagnostic = Some(ShellError::new(
+                    ShellErrorCode::ConfigInvalid,
+                    "The release update settings are invalid.",
+                    home.app_log.clone(),
+                ));
+            }
+            None
+        }
+    };
     let publisher =
-        AppStatePublisher::new(app.clone(), home.clone(), started_at, settings.diagnostic);
-    let release = ReleaseConfig::compiled(app.config());
+        AppStatePublisher::new(app.clone(), home.clone(), started_at, startup_diagnostic);
     let app_updater = release.as_ref().map(|release| {
         let backend = Arc::new(TauriAppUpdateBackend::new(
             app.clone(),
@@ -148,11 +162,9 @@ impl ShellCoordinator {
         }
         self.controller.set_runtime_updater(None);
         self.publisher.publish(ShellState::Resolving);
-        if !self.recover_runtime(resume_recovery) {
-            self.running.store(false, Ordering::Release);
-            return;
+        if self.recover_runtime(resume_recovery) {
+            self.resolve_loop();
         }
-        self.resolve_loop();
         self.running.store(false, Ordering::Release);
     }
 
@@ -189,21 +201,23 @@ impl ShellCoordinator {
             }
             return true;
         };
-        let should_resume = plan.action == RecoveryAction::ResumeNewRuntime
-            || (plan.action == RecoveryAction::RecoveryRequired && resume_recovery);
-        if should_resume {
-            let Some(journal) = plan.journal else {
-                self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
-                return false;
-            };
-            return self.resume_runtime(journal, lock);
+        let recovery_required = matches!(&plan, RecoveryPlan::RecoveryRequired(_));
+        match plan {
+            RecoveryPlan::ResumeNewRuntime(journal) => {
+                return self.resume_runtime(journal, lock);
+            }
+            RecoveryPlan::RecoveryRequired(journal) if resume_recovery => {
+                return self.resume_runtime(journal, lock);
+            }
+            RecoveryPlan::RecoveryRequired(_) => {}
+            RecoveryPlan::CleanRollback | RecoveryPlan::Complete => {}
         }
         if let Err(error) = lock.release() {
             logging::error(format!("release runtime recovery lock: {error}"));
             self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
             return false;
         }
-        if plan.action == RecoveryAction::RecoveryRequired {
+        if recovery_required {
             self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
             return false;
         }
@@ -234,7 +248,7 @@ impl ShellCoordinator {
     fn resolve_loop(&self) {
         for _attempt in 0..RESOLUTION_ATTEMPTS {
             let processes = SystemProcessTable;
-            let probe = BoundProbe::new(HttpStatusTransport, Duration::from_secs(2));
+            let probe = BoundProbe::new(HttpStatusTransport::default(), Duration::from_secs(2));
             let installs = SystemInstallLocator;
             let resolver = AttachFirstResolver {
                 processes: &processes,
@@ -306,7 +320,7 @@ impl ShellCoordinator {
     fn start_runtime(&self, binary: &std::path::Path, owned: bool) {
         self.publisher.publish(ShellState::Starting { attempt: 1 });
         let processes = SystemProcessTable;
-        let probe = BoundProbe::new(HttpStatusTransport, Duration::from_secs(2));
+        let probe = BoundProbe::new(HttpStatusTransport::default(), Duration::from_secs(2));
         let readiness = DaemonReadiness {
             daemon_record: &self.home.daemon_info,
             home: &self.home.root,
@@ -430,8 +444,8 @@ fn live_bound_runtime(home: &CompozyHome) -> bool {
     let Discovery::Live(record) = discover(&home.daemon_info, &processes) else {
         return false;
     };
-    let probe = BoundProbe::new(HttpStatusTransport, Duration::from_secs(2));
-    matches!(probe.probe(&record, &home.root, None), Identity::Compozy(_))
+    let probe = BoundProbe::new(HttpStatusTransport::default(), Duration::from_secs(2));
+    matches!(probe.probe(&record, None), Identity::Compozy(_))
 }
 
 fn spawn_update_cadence(controller: Arc<DesktopController>, interval: Duration) {

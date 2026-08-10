@@ -20,6 +20,16 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		redacted bool
 	}{
 		{
+			name: "Should allow desktop update check mutation",
+			path: "app.update_check",
+			kind: ConfigValueBool,
+		},
+		{
+			name: "Should allow desktop update interval mutation",
+			path: appUpdateCheckIntervalPath,
+			kind: ConfigValueDuration,
+		},
+		{
 			name: "Should allow default agent mutation",
 			path: "defaults.agent",
 			kind: ConfigValueString,

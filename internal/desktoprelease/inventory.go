@@ -8,15 +8,19 @@ import (
 )
 
 func DesktopArtifactNames(version string) []string {
+	updater := desktopUpdaterArtifactNames(version)
+	app := updater[platformDarwinAArch64]
+	linux := updater[platformLinuxX8664]
+	windows := updater[platformWindowsX8664]
 	return []string{
-		"CompozyOS_" + version + "_universal.app.tar.gz",
-		"CompozyOS_" + version + "_universal.app.tar.gz.sig",
+		app,
+		app + ".sig",
 		"CompozyOS_" + version + "_universal.dmg",
-		"CompozyOS_" + version + "_amd64.AppImage",
-		"CompozyOS_" + version + "_amd64.AppImage.sig",
+		linux,
+		linux + ".sig",
 		"CompozyOS_" + version + "_amd64.deb",
-		"CompozyOS_" + version + "_x64-setup.exe",
-		"CompozyOS_" + version + "_x64-setup.exe.sig",
+		windows,
+		windows + ".sig",
 	}
 }
 
@@ -42,15 +46,12 @@ func AssertExactDesktopInventory(ctx context.Context, dir, version string) error
 	}
 	actual := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if entry.IsDir() {
-			return fmt.Errorf("desktop release: unexpected artifact directory %q", entry.Name())
-		}
 		info, infoErr := entry.Info()
 		if infoErr != nil {
 			return fmt.Errorf("desktop release: inspect artifact %q: %w", entry.Name(), infoErr)
 		}
-		if info.Size() == 0 {
-			return fmt.Errorf("desktop release: artifact %q is empty", entry.Name())
+		if !info.Mode().IsRegular() || info.Size() == 0 {
+			return fmt.Errorf("desktop release: artifact %q is not a non-empty regular file", entry.Name())
 		}
 		actual = append(actual, entry.Name())
 	}

@@ -17,6 +17,7 @@ use url::Url;
 
 const MANIFEST_SCHEMA_VERSION: u8 = 1;
 const MAX_MANIFEST_BYTES: usize = 1024 * 1024;
+const MAX_SIGNATURE_BYTES: u64 = 64 * 1024;
 const MAX_ARCHIVE_BYTES: u64 = 512 * 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -37,7 +38,6 @@ pub struct PlatformArtifact {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedArtifact {
     pub version: Version,
-    pub target: String,
     pub artifact: PlatformArtifact,
     pub schema_heads: BTreeMap<String, u64>,
 }
@@ -78,22 +78,37 @@ pub fn verify_manifest(
     if bytes.is_empty() || bytes.len() > MAX_MANIFEST_BYTES || minisig.trim().is_empty() {
         return Err(ArtifactError::Signature);
     }
-    let key_file = BASE64
-        .decode(public_key.trim())
-        .map_err(|_| ArtifactError::Signature)?;
-    let key_file = std::str::from_utf8(&key_file).map_err(|_| ArtifactError::Signature)?;
-    let key = PublicKey::decode(key_file).map_err(|_| ArtifactError::Signature)?;
-    let signature = Signature::decode(minisig).map_err(|_| ArtifactError::Signature)?;
-    key.verify(bytes, &signature, false)
-        .map_err(|_| ArtifactError::Signature)?;
+    let key_file = BASE64.decode(public_key.trim()).map_err(|error| {
+        diagnostic("decode runtime public key", error, ArtifactError::Signature)
+    })?;
+    let key_file = std::str::from_utf8(&key_file)
+        .map_err(|error| diagnostic("read runtime public key", error, ArtifactError::Signature))?;
+    let key = PublicKey::decode(key_file)
+        .map_err(|error| diagnostic("parse runtime public key", error, ArtifactError::Signature))?;
+    let signature = Signature::decode(minisig)
+        .map_err(|error| diagnostic("parse runtime signature", error, ArtifactError::Signature))?;
+    key.verify(bytes, &signature, false).map_err(|error| {
+        diagnostic(
+            "verify runtime manifest signature",
+            error,
+            ArtifactError::Signature,
+        )
+    })?;
 
-    let value: Value = serde_json::from_slice(bytes).map_err(|_| ArtifactError::Malformed)?;
-    let canonical = canonical_json(&value).map_err(|_| ArtifactError::Malformed)?;
+    let value: Value = serde_json::from_slice(bytes)
+        .map_err(|error| diagnostic("decode runtime manifest", error, ArtifactError::Malformed))?;
+    let canonical = canonical_json(&value).map_err(|error| {
+        diagnostic(
+            "canonicalize runtime manifest",
+            error,
+            ArtifactError::Malformed,
+        )
+    })?;
     if canonical != bytes {
         return Err(ArtifactError::NonCanonical);
     }
-    let manifest: RuntimeManifest =
-        serde_json::from_value(value).map_err(|_| ArtifactError::Malformed)?;
+    let manifest: RuntimeManifest = serde_json::from_value(value)
+        .map_err(|error| diagnostic("parse runtime manifest", error, ArtifactError::Malformed))?;
     validate_manifest(&manifest)?;
     if installed.is_some_and(|current| manifest.version <= *current) {
         return Ok(None);
@@ -106,7 +121,6 @@ pub fn verify_manifest(
     validate_artifact(&artifact)?;
     Ok(Some(VerifiedArtifact {
         version: manifest.version,
-        target: target.to_owned(),
         artifact,
         schema_heads: manifest.schema_heads,
     }))
@@ -119,9 +133,24 @@ pub fn fetch_signed_manifest(
     let signature_url = Url::parse(&format!("{}.minisig", manifest_url.as_str()))
         .map_err(|_| ArtifactError::Malformed)?;
     let bytes = fetch_bounded(client, manifest_url, MAX_MANIFEST_BYTES as u64)?;
-    let signature = fetch_bounded(client, &signature_url, 64 * 1024)?;
-    let signature = String::from_utf8(signature).map_err(|_| ArtifactError::Signature)?;
+    let signature = fetch_bounded(client, &signature_url, MAX_SIGNATURE_BYTES)?;
+    let signature = String::from_utf8(signature).map_err(|error| {
+        diagnostic(
+            "decode runtime signature response",
+            error,
+            ArtifactError::Signature,
+        )
+    })?;
     Ok((bytes, signature))
+}
+
+fn diagnostic<E: std::fmt::Display>(
+    context: &str,
+    error: E,
+    public: ArtifactError,
+) -> ArtifactError {
+    crate::logging::error(format!("{context}: {error}"));
+    public
 }
 
 pub fn download_verified(

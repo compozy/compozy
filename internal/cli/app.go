@@ -188,12 +188,14 @@ func appTargetURL(raw string) (string, string, error) {
 		return "", "", newAppCommandError(invalidTargetPathCode, "the app target must be an absolute product path", nil)
 	}
 	parsed, err := url.Parse(raw)
-	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.Path == "" || strings.Contains(parsed.Path, "\\") {
+	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.Path == "" ||
+		parsed.Fragment != "" || strings.Contains(parsed.Path, "\\") {
 		return "", "", newAppCommandError(invalidTargetPathCode, "the app target is invalid", err)
 	}
 	for segment := range strings.SplitSeq(strings.TrimPrefix(parsed.EscapedPath(), "/"), "/") {
 		decoded, decodeErr := url.PathUnescape(segment)
-		if decodeErr != nil || decoded == "." || decoded == ".." || strings.Contains(decoded, "\\") {
+		if decodeErr != nil || decoded == "." || decoded == ".." ||
+			strings.ContainsAny(decoded, "/\\") || strings.Contains(decoded, "://") {
 			return "", "", newAppCommandError(invalidTargetPathCode, "the app target contains traversal", decodeErr)
 		}
 	}

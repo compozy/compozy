@@ -19,7 +19,7 @@ impl ReadinessProbe for DaemonReadiness<'_> {
         if expected_child_pid.is_some_and(|pid| !self.processes.is_descendant(record.pid, pid)) {
             return None;
         }
-        match self.probe.probe(&record, self.home, None) {
+        match self.probe.probe(&record, None) {
             Identity::Compozy(identity) => Some(*identity),
             Identity::Foreign | Identity::Unreachable => None,
         }
@@ -63,12 +63,7 @@ mod tests {
     struct FakeProbe(BoundDaemonIdentity);
 
     impl IdentityProbe for FakeProbe {
-        fn probe(
-            &self,
-            _record: &DaemonRecord,
-            _home: &Path,
-            expected_child_pid: Option<u32>,
-        ) -> Identity {
+        fn probe(&self, _record: &DaemonRecord, expected_child_pid: Option<u32>) -> Identity {
             if expected_child_pid.is_none() {
                 Identity::Compozy(Box::new(self.0.clone()))
             } else {

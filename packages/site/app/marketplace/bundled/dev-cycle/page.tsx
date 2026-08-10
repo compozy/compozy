@@ -100,7 +100,7 @@ export default function BundledDevCyclePage() {
       <div className="mt-7 rounded-lg border border-line bg-canvas-soft p-4">
         <p className="text-small-body leading-relaxed text-muted">
           <strong className="font-medium text-fg">No install needed.</strong> Dev Cycle is compiled
-          into the CompozyOS binary and enrolled the first time the daemon starts, so it is already
+          into the compozy binary and enrolled the first time the daemon starts, so it is already
           present in your runtime. Installing your own extension under the same name takes
           precedence over the bundled copy.
         </p>

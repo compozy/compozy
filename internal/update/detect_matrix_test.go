@@ -147,9 +147,10 @@ func TestDetectInstallMethods(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should recognize desktop app provenance", runDesktopProvenanceCases)
 }
 
-func TestDetectDesktopAppInstallFromProvenance(t *testing.T) {
+func runDesktopProvenanceCases(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

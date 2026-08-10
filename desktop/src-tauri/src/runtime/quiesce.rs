@@ -19,13 +19,7 @@ pub struct DrainStatus {
 
 impl DrainStatus {
     pub fn is_safe(&self) -> bool {
-        self.state == "draining"
-            && self.admission_closed
-            && self.authoritative_claims_settled
-            && self.session_execution_settled
-            && self.active_session_executions == 0
-            && self.active_task_claims == 0
-            && self.safe_to_stop
+        derived_safe(self) && self.safe_to_stop
     }
 }
 
@@ -166,16 +160,19 @@ impl Drop for QuiesceGuard<'_> {
 }
 
 fn validate_readout(status: &DrainStatus) -> Result<(), QuiesceError> {
-    let derived_safe = status.state == "draining"
+    if status.safe_to_stop != derived_safe(status) {
+        return Err(QuiesceError::InvalidReadout);
+    }
+    Ok(())
+}
+
+fn derived_safe(status: &DrainStatus) -> bool {
+    status.state == "draining"
         && status.admission_closed
         && status.authoritative_claims_settled
         && status.session_execution_settled
         && status.active_session_executions == 0
-        && status.active_task_claims == 0;
-    if status.safe_to_stop != derived_safe {
-        return Err(QuiesceError::InvalidReadout);
-    }
-    Ok(())
+        && status.active_task_claims == 0
 }
 
 #[cfg(test)]

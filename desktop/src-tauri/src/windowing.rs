@@ -1,11 +1,10 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use tauri::webview::{NewWindowResponse, PageLoadEvent};
 use tauri::{
-    AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder, Wry,
+    AppHandle, Manager, PhysicalSize, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry,
 };
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
@@ -21,6 +20,7 @@ const WINDOW_RELEASE_ATTEMPTS: usize = 100;
 const WINDOW_RELEASE_POLL: Duration = Duration::from_millis(10);
 const MAIN_MIN_WIDTH: u32 = 900;
 const MAIN_MIN_HEIGHT: u32 = 600;
+static MAIN_WINDOW_GENERATION: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(0));
 
 pub type LoadDeadlineHandler = Arc<dyn Fn(ShellError) + Send + Sync>;
 pub type ProductReadyHandler = Arc<dyn Fn() + Send + Sync>;
@@ -54,6 +54,13 @@ pub fn create_main_window(
     on_load_deadline: LoadDeadlineHandler,
     on_product_ready: ProductReadyHandler,
 ) -> tauri::Result<WebviewWindow<Wry>> {
+    let generation = {
+        let mut current = MAIN_WINDOW_GENERATION
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *current = (*current).wrapping_add(1);
+        *current
+    };
     let loaded = Arc::new(AtomicBool::new(false));
     let loaded_for_page = Arc::clone(&loaded);
     let origin_for_navigation = origin.clone();
@@ -110,9 +117,10 @@ pub fn create_main_window(
         if load_decision(LOAD_DEADLINE, loaded.load(Ordering::Acquire)) != LoadDecision::Error {
             return;
         }
-        match destroy_timed_out_product(&app_for_deadline) {
-            Ok(true) => {}
-            Ok(false) => crate::logging::error(
+        match destroy_timed_out_product(&app_for_deadline, generation) {
+            Ok(None) => return,
+            Ok(Some(true)) => {}
+            Ok(Some(false)) => crate::logging::error(
                 "timed-out product window label was not released before retry became available",
             ),
             Err(destroy_error) => {
@@ -134,15 +142,24 @@ pub fn create_main_window(
     Ok(window)
 }
 
-fn destroy_timed_out_product<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<bool> {
+fn destroy_timed_out_product<R: Runtime>(
+    app: &AppHandle<R>,
+    generation: u64,
+) -> tauri::Result<Option<bool>> {
+    let current = MAIN_WINDOW_GENERATION
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if *current != generation {
+        return Ok(None);
+    }
     let Some(main) = app.get_webview_window("main") else {
-        return Ok(true);
+        return Ok(Some(true));
     };
     main.destroy()?;
-    Ok(wait_for_window_release(
+    Ok(Some(wait_for_window_release(
         || app.get_webview_window("main").is_some(),
         || std::thread::sleep(WINDOW_RELEASE_POLL),
-    ))
+    )))
 }
 
 fn wait_for_window_release(mut is_present: impl FnMut() -> bool, mut delay: impl FnMut()) -> bool {
@@ -177,10 +194,6 @@ fn reveal_product(window: &WebviewWindow<Wry>, links: &LinkQueue) -> tauri::Resu
     if plan.recover_geometry {
         window.set_size(PhysicalSize::new(1280, 800))?;
         window.center()?;
-        window.set_position(PhysicalPosition::new(
-            window.outer_position()?.x,
-            window.outer_position()?.y,
-        ))?;
     }
     if plan.unminimize {
         window.unminimize()?;
@@ -199,8 +212,11 @@ fn navigate_pending(window: &WebviewWindow<Wry>, links: &LinkQueue) -> tauri::Re
         return Ok(());
     };
     let mut target = window.url()?;
-    target.set_path(path.split('?').next().unwrap_or("/"));
-    target.set_query(path.split_once('?').map(|(_, query)| query));
+    let (route, query) = path
+        .split_once('?')
+        .map_or((path.as_str(), None), |(route, query)| (route, Some(query)));
+    target.set_path(route);
+    target.set_query(query);
     window.navigate(target)
 }
 

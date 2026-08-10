@@ -10,6 +10,7 @@ use thiserror::Error;
 use url::Url;
 use zip::ZipArchive;
 
+use crate::durability::sync_directory;
 use crate::errors::{ShellError, ShellErrorCode};
 use crate::home::CompozyHome;
 use crate::state::ProvisionStage;
@@ -20,8 +21,8 @@ use super::artifacts::{
 };
 use super::provenance::{self, ProvenanceRecord};
 
-const DOWNLOAD_NAME: &str = ".runtime-download";
-const STAGED_NAME: &str = ".runtime-staged";
+pub(crate) const DOWNLOAD_NAME: &str = ".runtime-download";
+pub(crate) const STAGED_NAME: &str = ".runtime-staged";
 const MAX_RUNTIME_BINARY_BYTES: u64 = 256 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -167,9 +168,7 @@ pub fn install_staged(
         .map_err(|error| map_io(staged_binary, error, 0))?;
     fs::rename(staged_binary, &home.app_binary)
         .map_err(|error| map_io(&home.app_binary, error, 0))?;
-    File::open(parent)
-        .and_then(|directory| directory.sync_all())
-        .map_err(|error| map_io(parent, error, 0))?;
+    sync_directory(parent).map_err(|error| map_io(parent, error, 0))?;
     let digest = provenance::sha256_file(&home.app_binary)
         .map_err(|error| map_io(&home.app_binary, error, 0))?;
     let marker = ProvenanceRecord::desktop(

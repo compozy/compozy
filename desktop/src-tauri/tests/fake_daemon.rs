@@ -65,7 +65,7 @@ fn should_spawn_real_detached_daemon_and_leave_it_alive_on_shell_quit() {
     let home = CompozyHome::from_root(directory.path().join("home"));
     let binary = compile_fake_daemon(directory.path());
     let processes = SystemProcessTable;
-    let probe = BoundProbe::new(HttpStatusTransport, Duration::from_secs(1));
+    let probe = BoundProbe::new(HttpStatusTransport::default(), Duration::from_secs(1));
     let readiness = DaemonReadiness {
         daemon_record: &home.daemon_info,
         home: &home.root,

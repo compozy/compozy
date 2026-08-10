@@ -61,7 +61,7 @@ export function createPageMetadata({
     url: image?.url ?? resolveOGImagePath(path),
     width: image?.width ?? 1200,
     height: image?.height ?? 630,
-    alt: image?.alt ?? `${title} | CompozyOS`,
+    alt: image?.alt ?? `${title} | ${siteConfig.name}`,
   };
 
   return {

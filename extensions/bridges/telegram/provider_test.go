@@ -134,7 +134,7 @@ func TestMapTelegramEditsAndReplyContext(t *testing.T) {
 						MessageID: 9002,
 						Date:      now.Unix(),
 						EditDate:  now.Add(2 * time.Minute).Unix(),
-						Chat:      telegramChat{ID: -100123, Type: "channel", Title: "CompozyOS Updates"},
+						Chat:      telegramChat{ID: -100123, Type: "channel"},
 						SenderChat: &telegramChat{
 							ID:       -100456,
 							Type:     "channel",

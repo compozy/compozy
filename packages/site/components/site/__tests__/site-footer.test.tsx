@@ -34,9 +34,7 @@ describe("SiteFooter", () => {
     expect(logo).not.toBeNull();
     expect(logo?.getAttribute("data-variant")).toBe("logo");
     expect(logo?.getAttribute("aria-hidden")).toBe("true");
-    expect(
-      screen.getByText(`© ${new Date().getFullYear()} ${siteConfig.name} · Built by CompozyOS.`)
-    ).toBeDefined();
+    expect(screen.getByText(`© ${new Date().getFullYear()} ${siteConfig.name}.`)).toBeDefined();
     expect(screen.getByRole("link", { name: "Beta · CompozyOS on GitHub" })).toBeDefined();
   }, 15_000);
 

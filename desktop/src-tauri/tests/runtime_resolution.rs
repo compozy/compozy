@@ -141,6 +141,10 @@ impl ProcessTable for FakeProcesses {
             .contains_key(&pid)
             .then(|| PathBuf::from("/operator/compozy"))
     }
+
+    fn is_descendant(&self, descendant: u32, ancestor: u32) -> bool {
+        descendant == ancestor
+    }
 }
 
 #[derive(Default)]
@@ -194,7 +198,7 @@ fn resolve(
     processes: &FakeProcesses,
     installs: &CountingInstalls,
 ) -> Resolution {
-    let probe = BoundProbe::new(HttpStatusTransport, Duration::from_secs(1));
+    let probe = BoundProbe::new(HttpStatusTransport::default(), Duration::from_secs(1));
     AttachFirstResolver {
         processes,
         probe: &probe,
@@ -242,13 +246,12 @@ fn should_refuse_foreign_port_and_report_version_skew() {
         let Resolution::Attached { identity, .. } = resolve(&home, &processes, &installs) else {
             panic!("bound skewed daemon should attach before handshake");
         };
-        assert_eq!(
-            matches!(
-                handshake(&identity, &minimum),
-                Compatibility::SkewNewer { .. }
-            ),
-            newer
-        );
+        let compatibility = handshake(&identity, &minimum);
+        if newer {
+            assert!(matches!(compatibility, Compatibility::SkewNewer { .. }));
+        } else {
+            assert!(matches!(compatibility, Compatibility::SkewOlder { .. }));
+        }
     }
 }
 

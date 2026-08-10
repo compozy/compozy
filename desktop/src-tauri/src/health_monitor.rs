@@ -38,7 +38,7 @@ fn monitor(
 ) {
     let processes = SystemProcessTable;
     let installs = SystemInstallLocator;
-    let probe = BoundProbe::new(HttpStatusTransport, Duration::from_secs(2));
+    let probe = BoundProbe::new(HttpStatusTransport::default(), Duration::from_secs(2));
     let minimum = match VersionReq::parse(MINIMUM_RUNTIME) {
         Ok(minimum) => minimum,
         Err(error) => {
@@ -46,11 +46,11 @@ fn monitor(
             return;
         }
     };
-    let mut tracker = HealthTracker::connected(3);
+    let mut tracker = HealthTracker::with_failure_threshold(3);
     loop {
         std::thread::sleep(Duration::from_secs(2));
         let identity = match discover(&home.daemon_info, &processes) {
-            Discovery::Live(record) => match probe.probe(&record, &home.root, None) {
+            Discovery::Live(record) => match probe.probe(&record, None) {
                 Identity::Compozy(identity) => Some(*identity),
                 Identity::Foreign | Identity::Unreachable => None,
             },

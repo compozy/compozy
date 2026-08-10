@@ -215,7 +215,13 @@ func TestAppOpenUsesValidatedProductTargets(t *testing.T) {
 
 	t.Run("Should reject traversal and foreign URLs", func(t *testing.T) {
 		t.Parallel()
-		for _, target := range []string{"../evil", "http://evil.example", "/sessions/%2e%2e/admin"} {
+		for _, target := range []string{
+			"../evil",
+			"http://evil.example",
+			"/sessions/%2e%2e/admin",
+			"/sessions/%2e%2e%2fadmin",
+			"/sessions/abc#fragment",
+		} {
 			t.Run("Should reject "+target, func(t *testing.T) {
 				t.Parallel()
 				homePaths := appTestHome(t)

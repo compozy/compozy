@@ -12,7 +12,4 @@ go run ./cmd/compozy-desktop-release build-feed \
   --published-at "${published_at}" \
   --desktop-dir "${desktop_dir}" \
   --runtime-dir "${runtime_dir}" \
-  --repo-root . \
-  --output-dir "${output_dir}" \
-  --base-url https://releases.compozy.com
-
+  --output-dir "${output_dir}"

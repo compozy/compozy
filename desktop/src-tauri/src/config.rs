@@ -100,20 +100,47 @@ pub fn parse(content: &str) -> Result<Option<AppConfig>, &'static str> {
 }
 
 fn parse_duration(value: &str) -> Option<Duration> {
-    let clean = value.trim();
-    let (number, unit) = if let Some(number) = clean.strip_suffix("ms") {
-        (number, "ms")
-    } else {
-        clean.split_at_checked(clean.len().checked_sub(1)?)?
-    };
-    let amount: u64 = number.parse().ok()?;
-    match unit {
-        "ms" => Some(Duration::from_millis(amount)),
-        "s" => Some(Duration::from_secs(amount)),
-        "m" => Some(Duration::from_secs(amount.checked_mul(60)?)),
-        "h" => Some(Duration::from_secs(amount.checked_mul(60 * 60)?)),
-        _ => None,
+    let mut remaining = value.trim().strip_prefix('+').unwrap_or(value.trim());
+    if remaining == "0" {
+        return Some(Duration::ZERO);
     }
+    if remaining.is_empty() || remaining.starts_with('-') {
+        return None;
+    }
+
+    let mut nanoseconds = 0_f64;
+    while !remaining.is_empty() {
+        let number_end = remaining.char_indices().find_map(|(index, character)| {
+            (!character.is_ascii_digit() && character != '.').then_some(index)
+        })?;
+        let amount: f64 = remaining[..number_end].parse().ok()?;
+        if !amount.is_finite() || amount < 0.0 {
+            return None;
+        }
+        remaining = &remaining[number_end..];
+        let (unit, scale) = duration_unit(remaining)?;
+        nanoseconds += amount * scale;
+        if !nanoseconds.is_finite() || nanoseconds > u64::MAX as f64 {
+            return None;
+        }
+        remaining = &remaining[unit.len()..];
+    }
+    Some(Duration::from_nanos(nanoseconds as u64))
+}
+
+fn duration_unit(value: &str) -> Option<(&'static str, f64)> {
+    [
+        ("ns", 1.0),
+        ("us", 1_000.0),
+        ("µs", 1_000.0),
+        ("μs", 1_000.0),
+        ("ms", 1_000_000.0),
+        ("s", 1_000_000_000.0),
+        ("m", 60_000_000_000.0),
+        ("h", 3_600_000_000_000.0),
+    ]
+    .into_iter()
+    .find(|(unit, _)| value.starts_with(unit))
 }
 
 fn default_load() -> AppConfigLoad {
@@ -158,6 +185,23 @@ mod tests {
             .expect("app section exists");
         assert!(!config.update_check);
         assert_eq!(config.update_check_interval, Duration::from_secs(43_200));
+    }
+
+    #[test]
+    fn should_accept_the_daemon_duration_grammar() {
+        for (interval, expected) in [
+            ("1h30m", Duration::from_secs(5_400)),
+            ("0.25h", Duration::from_secs(900)),
+            ("900000ms", Duration::from_secs(900)),
+        ] {
+            let config = parse(&format!("[app]\nupdate_check_interval = \"{interval}\""))
+                .expect("config parses")
+                .expect("app section exists");
+            assert_eq!(
+                config.update_check_interval, expected,
+                "interval {interval}"
+            );
+        }
     }
 
     #[test]

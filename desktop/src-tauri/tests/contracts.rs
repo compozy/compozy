@@ -15,8 +15,11 @@ fn manifest_dir() -> PathBuf {
 }
 
 fn read_json(path: impl AsRef<Path>) -> Value {
-    serde_json::from_slice(&fs::read(path).expect("JSON contract reads"))
-        .expect("JSON contract parses")
+    let path = path.as_ref();
+    let bytes = fs::read(path)
+        .unwrap_or_else(|error| panic!("JSON contract {} reads: {error}", path.display()));
+    serde_json::from_slice(&bytes)
+        .unwrap_or_else(|error| panic!("JSON contract {} parses: {error}", path.display()))
 }
 
 #[test]
@@ -39,6 +42,15 @@ fn should_validate_shared_records_and_every_transitional_state_against_schema() 
         ShellState::Provisioning {
             stage: ProvisionStage::Verify,
         },
+        ShellState::Provisioning {
+            stage: ProvisionStage::Install,
+        },
+        ShellState::Provisioning {
+            stage: ProvisionStage::Start,
+        },
+        ShellState::Provisioning {
+            stage: ProvisionStage::Ready,
+        },
         ShellState::Starting { attempt: 2 },
         ShellState::Attaching,
         ShellState::Product {
@@ -48,13 +60,25 @@ fn should_validate_shared_records_and_every_transitional_state_against_schema() 
         ShellState::Updating {
             target: UpdateTarget::Runtime,
         },
+        ShellState::Updating {
+            target: UpdateTarget::App,
+        },
         ShellState::Disconnected {
             cause: compozyos_desktop::state::DisconnectCause::RuntimeDown,
+        },
+        ShellState::Disconnected {
+            cause: compozyos_desktop::state::DisconnectCause::HealthCheckFailed,
         },
         ShellState::Skew {
             runtime: semver::Version::new(0, 2, 0),
             needed: semver::VersionReq::parse(">=0.3.0").expect("version requirement parses"),
             newer: false,
+        },
+        ShellState::Skew {
+            runtime: semver::Version::new(1, 0, 0),
+            needed: semver::VersionReq::parse(">=0.3.0, <1.0.0")
+                .expect("version requirement parses"),
+            newer: true,
         },
         ShellState::ShellError {
             error: ShellError::from_code(
@@ -78,6 +102,23 @@ fn should_validate_shared_records_and_every_transitional_state_against_schema() 
     .expect("diagnostic record serializes");
     assert!(validator.is_valid(&value));
     assert_eq!(value["diagnostic"]["code"], "config_invalid");
+
+    let value = serde_json::to_value(
+        AppRecord::new(42, Utc::now(), ShellState::Resolving).with_metadata(
+            "0.4.0",
+            "beta",
+            compozyos_desktop::record::AppUpdateStatus {
+                app_state: compozyos_desktop::record::AppUpdatePhase::Ready,
+                runtime_state: compozyos_desktop::record::RuntimeUpdatePhase::Available,
+                app_available: Some("0.5.0".to_owned()),
+                runtime_available: Some("0.5.0".to_owned()),
+                last_checked_at: Some(Utc::now()),
+                last_error: None,
+            },
+        ),
+    )
+    .expect("update metadata record serializes");
+    assert!(validator.is_valid(&value));
 }
 
 #[derive(Deserialize)]
@@ -202,3 +243,6 @@ fn should_initialize_updater_plugin_from_base_tauri_config() {
         .build(context)
         .expect("development shell initializes updater plugin");
 }
+// Suite: desktop shared contracts
+// Invariant: every Rust-produced desktop record and shared fixture remains readable by the
+// daemon-owned schemas and preserves the Tauri capability boundary.

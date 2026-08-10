@@ -69,7 +69,7 @@ Status legend: `Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked 
 | `BUG-20260810-healthy-retry-corrupts-state` | Healthy retry replaced product with an error | verified | `f081a1e` |
 | `BUG-20260810-initial-boot-window-absent` | Startup had no boot-window owner | fixed; visual verify blocked | `f081a1e` |
 
-The canonical Rust suite passed after the fixes: 90 unit tests, 5 contract tests, 1 real-process fake-daemon test, 3 runtime-resolution tests, and 8 update-system tests.
+The canonical Rust suite passed after the fixes: 89 unit tests, 5 contract tests, 1 real-process fake-daemon test, 3 runtime-resolution tests, and 8 update-system tests.
 
 ## Paper Cuts
 
@@ -115,7 +115,7 @@ None recorded. Every observed issue affected completion or trust and was registe
 
 ## Final Status
 
-- **Exit gate (full automated suite):** pending final post-review `make gate-full`; Task 07's complete Rust suite is green.
+- **Exit gate (full automated suite):** `make gate-full` / `make verify` completed green at workstream close; `make gate-status` reports the current full-gate fingerprint and log.
 - **Issues by user impact:** 4 verified fixes; 1 fixed visual issue awaiting human verification; no open automated defect.
 - **Coverage:** 17/17 charters terminal; 1 fixed, 15 blocked-verify, 1 blocked-decision.
 - **Scenario tracker:** 13/13 APP scenarios terminal; 2 pass, 11 blocked-verify, 0 untested/fail.

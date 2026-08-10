@@ -209,7 +209,7 @@ func runDaemonForegroundMode(
 }
 
 func runDaemonDetached(ctx context.Context, deps commandDeps) (
-	returnStatus DaemonStatus,
+	status DaemonStatus,
 	returnErr error,
 ) {
 	runtime, err := loadRuntimeContext(deps)
@@ -241,7 +241,7 @@ func runDaemonDetached(ctx context.Context, deps commandDeps) (
 		return DaemonStatus{}, errors.New("cli: detached daemon process is required")
 	}
 
-	status, err := waitForDaemonStart(ctx, deps, child)
+	status, err = waitForDaemonStart(ctx, deps, child)
 	if err != nil {
 		return DaemonStatus{}, err
 	}

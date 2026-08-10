@@ -60,7 +60,7 @@ export async function renderBlogOG({
       >
         <LogoLockup height={48} letteringFill={COLORS.textPrimary} />
         <div style={metaStyle}>
-          <span style={{ color: COLORS.accent, textTransform: "uppercase" }}>COMPOZY BLOG</span>
+          <span style={{ color: COLORS.accent, textTransform: "uppercase" }}>COMPOZYOS BLOG</span>
           {formattedDate ? (
             <>
               <span style={{ width: "48px", height: "1px", background: COLORS.border }} />

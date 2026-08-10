@@ -174,7 +174,7 @@ func BuildSlackAppManifest(instance BridgeInstance, provider BridgeProvider) (Sl
 	botName := truncateSlackManifestText(normalized.DisplayName, slackBotDisplayNameMaxLength)
 	description := strings.TrimSpace(provider.Description)
 	if description == "" {
-		description = "Connect Slack messages to Compozy."
+		description = "Connect Slack messages to CompozyOS."
 	}
 	description = truncateSlackManifestText(description, slackManifestDescriptionMaxLength)
 
@@ -190,7 +190,7 @@ func BuildSlackAppManifest(instance BridgeInstance, provider BridgeProvider) (Sl
 			SlashCommands: []SlackManifestSlashCommand{{
 				Command:      "/compozy",
 				URL:          publicURL,
-				Description:  "Send a command to Compozy",
+				Description:  "Send a command to CompozyOS",
 				UsageHint:    "<command>",
 				ShouldEscape: false,
 			}},

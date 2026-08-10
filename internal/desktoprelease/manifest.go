@@ -34,7 +34,7 @@ func BuildFeeds(ctx context.Context, request BuildRequest) error {
 	if err := AssertRuntimeInventory(ctx, request.RuntimeDir); err != nil {
 		return err
 	}
-	baseURL, err := validateDistributionURL(request.BaseURL)
+	baseURL, err := validateDistributionOrigin(request.BaseURL)
 	if err != nil {
 		return err
 	}
@@ -70,15 +70,7 @@ func BuildFeeds(ctx context.Context, request BuildRequest) error {
 
 func buildLatestManifest(request BuildRequest, baseURL *url.URL) (LatestManifest, error) {
 	version := request.Version
-	appName := "CompozyOS_" + version + "_universal.app.tar.gz"
-	linuxName := "CompozyOS_" + version + "_amd64.AppImage"
-	windowsName := "CompozyOS_" + version + "_x64-setup.exe"
-	platformFiles := map[string]string{
-		platformDarwinAArch64: appName,
-		platformDarwinX8664:   appName,
-		platformLinuxX8664:    linuxName,
-		platformWindowsX8664:  windowsName,
-	}
+	platformFiles := desktopUpdaterArtifactNames(version)
 	platforms := make(map[string]UpdaterPlatform, len(platformFiles))
 	for platform, name := range platformFiles {
 		signatureBytes, err := os.ReadFile(filepath.Join(request.DesktopDir, name+".sig"))
@@ -104,7 +96,7 @@ func buildRuntimeManifest(
 	baseURL *url.URL,
 	heads map[string]uint64,
 ) (RuntimeManifest, error) {
-	platforms := make(map[string]RuntimePlatform, len(PlatformKeys))
+	platforms := make(map[string]RuntimePlatform, len(platformKeys))
 	for platform, name := range RuntimeArtifactNames() {
 		path := filepath.Join(request.RuntimeDir, name)
 		digest, size, err := digestFile(path)
@@ -170,22 +162,22 @@ func ValidateRuntimeManifest(manifest RuntimeManifest) error {
 			return fmt.Errorf("desktop release: %s runtime URL: %w", platform, err)
 		}
 	}
-	for _, stream := range schemaStreams {
-		if manifest.SchemaHeads[stream] == 0 {
-			return fmt.Errorf("desktop release: runtime schema_heads.%s is required", stream)
+	for _, stream := range schemaStreamSpecs {
+		if manifest.SchemaHeads[stream.name] == 0 {
+			return fmt.Errorf("desktop release: runtime schema_heads.%s is required", stream.name)
 		}
 	}
-	if len(manifest.SchemaHeads) != 4 {
+	if len(manifest.SchemaHeads) != len(schemaStreamSpecs) {
 		return fmt.Errorf("desktop release: runtime schema_heads contains unexpected streams")
 	}
 	return nil
 }
 
 func validateExactPlatforms[T any](platforms map[string]T) error {
-	if len(platforms) != len(PlatformKeys) {
-		return fmt.Errorf("desktop release: platform count = %d, want %d", len(platforms), len(PlatformKeys))
+	if len(platforms) != len(platformKeys) {
+		return fmt.Errorf("desktop release: platform count = %d, want %d", len(platforms), len(platformKeys))
 	}
-	for _, platform := range PlatformKeys {
+	for _, platform := range platformKeys {
 		if _, ok := platforms[platform]; !ok {
 			return fmt.Errorf("desktop release: required platform %s is missing", platform)
 		}
@@ -198,10 +190,32 @@ func validateDistributionURL(raw string) (*url.URL, error) {
 	if err != nil {
 		return nil, fmt.Errorf("desktop release: parse distribution URL: %w", err)
 	}
-	if parsed.Scheme != "https" || parsed.Host != "releases.compozy.com" || parsed.User != nil {
+	if parsed.Scheme != "https" || parsed.Host != "releases.compozy.com" || parsed.User != nil ||
+		parsed.RawQuery != "" || parsed.Fragment != "" {
 		return nil, fmt.Errorf("desktop release: distribution URL must use https://releases.compozy.com")
 	}
 	return parsed, nil
+}
+
+func validateDistributionOrigin(raw string) (*url.URL, error) {
+	parsed, err := validateDistributionURL(raw)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return nil, fmt.Errorf("desktop release: distribution origin must not include a path")
+	}
+	return parsed, nil
+}
+
+func desktopUpdaterArtifactNames(version string) map[string]string {
+	appName := "CompozyOS_" + version + "_universal.app.tar.gz"
+	return map[string]string{
+		platformDarwinAArch64: appName,
+		platformDarwinX8664:   appName,
+		platformLinuxX8664:    "CompozyOS_" + version + "_amd64.AppImage",
+		platformWindowsX8664:  "CompozyOS_" + version + "_x64-setup.exe",
+	}
 }
 
 func distributionURL(base *url.URL, segments ...string) string {

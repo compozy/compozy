@@ -16,18 +16,11 @@ const (
 	schemaStreamWorkspace = "workspace"
 )
 
-var PlatformKeys = []string{
+var platformKeys = [...]string{
 	platformDarwinAArch64,
 	platformDarwinX8664,
 	platformLinuxX8664,
 	platformWindowsX8664,
-}
-
-var schemaStreams = []string{
-	schemaStreamGlobal,
-	schemaStreamMemory,
-	schemaStreamSession,
-	schemaStreamWorkspace,
 }
 
 type UpdaterPlatform struct {

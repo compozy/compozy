@@ -1,7 +1,7 @@
 // Suite: desktop update system
-// Invariant: only signed, hash-matching runtime artifacts can become app-owned binaries.
-// Boundary IN: manifest HTTP, archive extraction, filesystem install, and provenance.
-// Boundary OUT: daemon process lifecycle and Tauri app installation.
+// Invariant: only signed, hash-matching runtime or app artifacts can become installable updates.
+// Boundary IN: feed HTTP, archive extraction, filesystem install, provenance, and Tauri updater.
+// Boundary OUT: daemon process lifecycle and platform installer execution.
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::{Read, Write};
@@ -466,12 +466,9 @@ fn should_keep_malformed_and_missing_tauri_feeds_distinct_from_up_to_date() {
     for (routes, expected) in [
         (
             HashMap::from([("/feed.json".to_owned(), b"not json".to_vec())]),
-            None,
+            AppUpdaterError::FeedInvalid.to_string(),
         ),
-        (
-            HashMap::new(),
-            Some(AppUpdaterError::FeedNotFound.to_string()),
-        ),
+        (HashMap::new(), AppUpdaterError::FeedNotFound.to_string()),
     ] {
         let server = FixtureServer::start(move |_origin| routes);
         let directory = tempfile::tempdir().expect("temp directory opens");
@@ -483,11 +480,7 @@ fn should_keep_malformed_and_missing_tauri_feeds_distinct_from_up_to_date() {
         );
 
         match updater.check(true) {
-            AppUpdateEvent::Failed { message, .. } => {
-                if let Some(expected) = expected {
-                    assert_eq!(message, expected);
-                }
-            }
+            AppUpdateEvent::Failed { message, .. } => assert_eq!(message, expected),
             event => panic!("feed failure produced {event:?}, want failed"),
         }
     }

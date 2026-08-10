@@ -9,6 +9,7 @@ use crate::runtime::probe::{DaemonStatusPayload, StatusPayload};
 
 struct FakeSpawner {
     calls: AtomicUsize,
+    terminated: AtomicUsize,
     pid: u32,
 }
 
@@ -16,6 +17,11 @@ impl ProcessSpawner for FakeSpawner {
     fn spawn_detached(&self, _binary: &Path, _home: &CompozyHome) -> io::Result<u32> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(self.pid)
+    }
+
+    fn terminate(&self, _pid: u32) -> io::Result<()> {
+        self.terminated.fetch_add(1, Ordering::SeqCst);
+        Ok(())
     }
 }
 
@@ -42,14 +48,10 @@ impl ReadinessProbe for FakeReadiness {
 }
 
 #[derive(Default)]
-struct FakeDelay {
-    calls: AtomicUsize,
-}
+struct FakeDelay;
 
 impl Delay for FakeDelay {
-    fn sleep(&self, _duration: Duration) {
-        self.calls.fetch_add(1, Ordering::SeqCst);
-    }
+    fn sleep(&self, _duration: Duration) {}
 }
 
 fn identity() -> BoundDaemonIdentity {
@@ -82,6 +84,7 @@ fn should_spawn_detached_and_poll_until_bound_ready() {
     let home = CompozyHome::from_root(directory.path().to_path_buf());
     let spawner = FakeSpawner {
         calls: AtomicUsize::new(0),
+        terminated: AtomicUsize::new(0),
         pid: 42,
     };
     let readiness = FakeReadiness {
@@ -133,6 +136,7 @@ fn should_stop_after_three_failed_spawn_attempts() {
     let home = CompozyHome::from_root(directory.path().to_path_buf());
     let spawner = FakeSpawner {
         calls: AtomicUsize::new(0),
+        terminated: AtomicUsize::new(0),
         pid: 42,
     };
     let readiness = FakeReadiness {
@@ -159,9 +163,41 @@ fn should_stop_after_three_failed_spawn_attempts() {
         .start_owned(Path::new("/tmp/compozy"), &home)
         .expect_err("runtime should fail");
     assert_eq!(error.code, ShellErrorCode::RuntimeStartFailed);
-    assert!(error.safe_message.contains("panic: failed to bind"));
+    assert_eq!(error.safe_message, "The runtime did not start.");
     assert!(!error.safe_message.contains("compozy_claim_secret"));
     assert_eq!(spawner.calls.load(Ordering::SeqCst), 3);
+}
+
+#[test]
+fn should_terminate_a_live_child_before_abandoning_startup() {
+    let directory = tempfile::tempdir().expect("temp directory opens");
+    let home = CompozyHome::from_root(directory.path().to_path_buf());
+    let spawner = FakeSpawner {
+        calls: AtomicUsize::new(0),
+        terminated: AtomicUsize::new(0),
+        pid: 42,
+    };
+    let readiness = FakeReadiness {
+        polls: AtomicUsize::new(0),
+        ready_after: usize::MAX,
+        identity: identity(),
+        alive: true,
+    };
+    let delay = FakeDelay::default();
+    let supervisor = Supervisor {
+        spawner: &spawner,
+        readiness: &readiness,
+        delay: &delay,
+        readiness_deadline: Duration::from_millis(1),
+        poll_interval: Duration::from_millis(1),
+    };
+
+    supervisor
+        .start_owned(Path::new("/tmp/compozy"), &home)
+        .expect_err("unready live runtime is rejected");
+
+    assert_eq!(spawner.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(spawner.terminated.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -172,6 +208,7 @@ fn should_reclaim_a_start_lock_owned_by_a_dead_process() {
     fs::write(home.root.join("app-start.lock"), "999999").expect("stale start lock writes");
     let spawner = FakeSpawner {
         calls: AtomicUsize::new(0),
+        terminated: AtomicUsize::new(0),
         pid: 42,
     };
     let readiness = FakeReadiness {
@@ -207,6 +244,11 @@ impl ProcessSpawner for RaceSpawner {
         self.calls.fetch_add(1, Ordering::SeqCst);
         self.running.store(true, Ordering::SeqCst);
         Ok(42)
+    }
+
+    fn terminate(&self, _pid: u32) -> io::Result<()> {
+        self.running.store(false, Ordering::SeqCst);
+        Ok(())
     }
 }
 
@@ -296,11 +338,12 @@ impl ProcessSignaler for FakeSignaler {
 }
 
 #[test]
-fn should_never_signal_on_quit_and_guard_update_stop_by_durable_ownership() {
+fn should_never_signal_or_remove_the_daemon_record_on_quit() {
     let directory = tempfile::tempdir().expect("temp directory opens");
     let home = CompozyHome::from_root(directory.path().to_path_buf());
     let spawner = FakeSpawner {
         calls: AtomicUsize::new(0),
+        terminated: AtomicUsize::new(0),
         pid: 42,
     };
     let readiness = FakeReadiness {
@@ -317,7 +360,12 @@ fn should_never_signal_on_quit_and_guard_update_stop_by_durable_ownership() {
         fs::read(&home.daemon_info).expect("daemon record remains"),
         b"durable daemon record"
     );
+}
 
+#[test]
+fn should_guard_update_stop_by_durable_ownership() {
+    let directory = tempfile::tempdir().expect("temp directory opens");
+    let home = CompozyHome::from_root(directory.path().to_path_buf());
     let signaler = FakeSignaler::default();
     let error = stop_for_update(
         42,
