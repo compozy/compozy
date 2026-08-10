@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-08-09
+## 0.3.0 - 2026-08-10
 
 ### ♻️ Refactoring
 
@@ -31,6 +31,7 @@
 - **BREAKING:** remove software-delivery; use implement-tasks without gate inputs.
 - Parent and child sessions (#327)
 - Add secure remote gateway access (#331)
+- Ship CompozyOS desktop app (#336)
 
 ### 🐛 Bug Fixes
 
@@ -56,6 +57,8 @@
 - Restore minimum-age dependencies
 - Stabilize release runtime startup
 - Start absent SSH daemon
+- Make loop goals converge reliably (#335)
+- Desktop issues
 
 ### 🧪 Testing
 
