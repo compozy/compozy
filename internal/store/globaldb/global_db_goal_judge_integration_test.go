@@ -111,6 +111,11 @@ func TestGoalJudgeAttemptLifecycleIntegration(t *testing.T) {
 			BlockingIssues: []gate.BlockingIssue{
 				{ID: "verify", Note: "verification still fails"},
 			},
+			Criteria: []gate.CriterionResult{{
+				ID: "verify", Type: "command", Outcome: gate.VerdictOutcomeRejected,
+				Stderr: "task_03 is pending",
+			}},
+			Warnings: []gate.DiagnosticWarning{{Code: "shell", Message: "inspect stderr"}},
 		}
 		if _, err := globalDB.db.ExecContext(
 			testutil.Context(t),
@@ -160,14 +165,17 @@ func TestGoalJudgeAttemptLifecycleIntegration(t *testing.T) {
 			t.Fatalf("CompleteJudgeAttempt() error = %v", err)
 		}
 		if completed.Status != "completed" || completed.Outcome != string(gate.VerdictOutcomeRejected) ||
-			!completed.TokensReported || completed.TokensUsed != 0 || len(completed.BlockingIssues) != 1 {
+			!completed.TokensReported || completed.TokensUsed != 0 || len(completed.BlockingIssues) != 1 ||
+			len(completed.Criteria) != 1 || len(completed.Warnings) != 1 {
 			t.Fatalf("completed judge = %#v, want rejected with reported zero", completed)
 		}
 		loaded, err := globalDB.GetJudgeAttempt(testutil.Context(t), key, "judge-attempt-1")
 		if err != nil {
 			t.Fatalf("GetJudgeAttempt() error = %v", err)
 		}
-		if loaded.CompletedAt == nil || !loaded.TokensReported || loaded.TokensUsed != 0 {
+		if loaded.CompletedAt == nil || !loaded.TokensReported || loaded.TokensUsed != 0 ||
+			len(loaded.Criteria) != 1 || loaded.Criteria[0].Stderr != "task_03 is pending" ||
+			len(loaded.Warnings) != 1 {
 			t.Fatalf("loaded judge = %#v, want durable terminal token truth", loaded)
 		}
 

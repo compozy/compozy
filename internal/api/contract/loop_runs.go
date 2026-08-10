@@ -84,11 +84,12 @@ type LoopRunsAggregatePayload struct {
 
 // LoopRunResponse returns one run with generation detail.
 type LoopRunResponse struct {
-	Run                LoopRunPayload           `json:"run"`
-	ExecutedDefinition *LoopDefinitionDocument  `json:"executed_definition,omitempty"`
-	Generations        []LoopGenerationPayload  `json:"generations,omitempty"`
-	NodeControls       []LoopNodeControlPayload `json:"node_controls"`
-	Waits              []LoopNodeWaitPayload    `json:"waits"`
+	Run                  LoopRunPayload           `json:"run"`
+	ExecutedDefinition   *LoopDefinitionDocument  `json:"executed_definition,omitempty"`
+	MaterializedContract LoopContract             `json:"materialized_contract"`
+	Generations          []LoopGenerationPayload  `json:"generations,omitempty"`
+	NodeControls         []LoopNodeControlPayload `json:"node_controls"`
+	Waits                []LoopNodeWaitPayload    `json:"waits"`
 	// WatchEvents is the parked watch-events read-model (present only while dormant).
 	WatchEvents *LoopWatchEventsState `json:"watch_events,omitempty"`
 }

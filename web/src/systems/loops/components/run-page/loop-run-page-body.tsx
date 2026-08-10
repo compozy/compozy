@@ -23,6 +23,7 @@ import type { LoopRunUsageRow } from "../../lib/loop-run-usage";
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import type {
   LoopDefinition,
+  LoopContract,
   LoopRunEventFrame,
   LoopRunGeneration,
   LoopRunRecord,
@@ -70,6 +71,7 @@ export type LoopRunPendingAction = "approve" | "start-new-run";
 export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "children"> {
   run: LoopRunRecord;
   definition?: LoopDefinition;
+  materializedContract: LoopContract;
   graph: LoopGraph | null;
   isLive: boolean;
   subject: string | null;
@@ -138,6 +140,7 @@ function shortDigest(digest: string): string {
 export function LoopRunPageBody({
   run,
   definition,
+  materializedContract,
   graph,
   isLive,
   subject,
@@ -184,7 +187,7 @@ export function LoopRunPageBody({
   ...divProps
 }: LoopRunPageBodyProps) {
   const status = run.status;
-  const contract = definition?.contract;
+  const contract = materializedContract;
   const nowTurnsSlot =
     story.now?.isGoalNode === true ? (
       <LoopRunTurnsDisclosure
@@ -252,7 +255,7 @@ export function LoopRunPageBody({
                 fromStatus={terminalFromStatus}
                 terminalAt={terminalAt}
                 cause={terminalCause}
-                noProgressWindow={contract?.no_progress.window}
+                noProgressWindow={contract.no_progress.window}
                 repeatedIssueIds={latestVerdict?.blockingIssues.map(issue => issue.id) ?? []}
                 onStartNewRun={onStartNewRun}
                 isStartPending={pendingAction === "start-new-run"}
@@ -260,8 +263,8 @@ export function LoopRunPageBody({
             ) : null}
             {status === "paused" ? nowCard : null}
             <LoopRunProgressPanel
-              title={contract?.goal ?? `Run ${run.loop_name}`}
-              doneWhen={contract?.definition_of_done}
+              title={contract.goal}
+              doneWhen={contract.definition_of_done}
               progress={progress}
             />
             {status !== "paused" ? nowCard : null}

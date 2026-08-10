@@ -101,13 +101,16 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 	if err != nil {
 		return goalpkg.JudgeResult{}, fmt.Errorf("daemon: load Goal judge snapshot: %w", err)
 	}
+	contract, err := looppkg.MaterializeContract(resolved.Definition.Contract, run.Inputs)
+	if err != nil {
+		return goalpkg.JudgeResult{}, fmt.Errorf("daemon: materialize Goal judge contract: %w", err)
+	}
 	usage := &loopGoalJudgeUsage{}
 	judgeGate := gate.GateFromGoalJudge(string(req.Key.NodeID), req.Criteria)
 	verdict, err := e.evaluator.Evaluate(ctx, judgeGate, gate.GateInput{
 		LoopRunID:              string(run.ID),
 		Placement:              gate.PlacementInBody,
-		Contract:               new(resolved.Definition.Contract),
-		TemplateData:           map[string]any{"goal_turn": req.Turn},
+		Contract:               &contract,
 		Revision:               req.Turn - 1,
 		BrokenJudgeStreakLimit: gate.DefaultBrokenJudgeStreakLimit,
 		ToolScope: tools.Scope{

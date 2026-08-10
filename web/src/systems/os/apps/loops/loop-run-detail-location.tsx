@@ -134,7 +134,7 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: Lo
     );
   }
 
-  if (page.runQuery.error || !page.effectiveRun || !page.progress) {
+  if (page.runQuery.error || !page.effectiveRun || !page.progress || !page.materializedContract) {
     return (
       <div
         className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
@@ -155,6 +155,7 @@ function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: Lo
       <LoopRunPageBody
         run={page.effectiveRun}
         definition={page.definition}
+        materializedContract={page.materializedContract}
         graph={page.graph}
         isLive={page.isLive}
         subject={page.subject}

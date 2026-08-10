@@ -146,6 +146,19 @@ describe("applyLoopEventFrame", () => {
           stop_reason: "end_turn",
           verdict_outcome: "rejected",
           blocking_issues: [{ id: "issue_1", note: "Missing evidence" }],
+          criteria: [
+            {
+              id: "tasks_completed",
+              type: "command",
+              outcome: "rejected",
+              passed: false,
+              exit_code: 1,
+              stdout: "checked task state",
+              stderr: "task_03 is pending",
+              warnings: [{ code: "command_output_truncated", message: "Output was truncated." }],
+            },
+          ],
+          warnings: [{ code: "judge_rejected", message: "A criterion did not pass." }],
           evidence_ref: "blob_1",
           tokens_used: 420,
         },
@@ -164,6 +177,21 @@ describe("applyLoopEventFrame", () => {
     });
     expect(completed.goalTurns[0].blockingIssues).toEqual([
       { id: "issue_1", note: "Missing evidence" },
+    ]);
+    expect(completed.goalTurns[0].criteria).toEqual([
+      {
+        id: "tasks_completed",
+        type: "command",
+        outcome: "rejected",
+        passed: false,
+        exit_code: 1,
+        stdout: "checked task state",
+        stderr: "task_03 is pending",
+        warnings: [{ code: "command_output_truncated", message: "Output was truncated." }],
+      },
+    ]);
+    expect(completed.goalTurns[0].warnings).toEqual([
+      { code: "judge_rejected", message: "A criterion did not pass." },
     ]);
   });
 

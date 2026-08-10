@@ -212,6 +212,7 @@ type LoopPlanPayload struct {
 	Generation                   int                        `json:"generation"`
 	Nodes                        []LoopPlanNodePreview      `json:"nodes"`
 	Contract                     LoopContract               `json:"contract"`
+	MaterializedContract         LoopContract               `json:"materialized_contract"`
 	EffectiveConfig              LoopEffectiveConfig        `json:"effective_config"`
 	ResolvedNetworkParticipation *participation.Spec        `json:"resolved_network_participation"`
 }

@@ -3,7 +3,6 @@ package globaldb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -193,9 +192,9 @@ func completeJudgeAttemptWithExecutor(
 	if err != nil {
 		return goal.JudgeAttempt{}, err
 	}
-	blockingJSON, err := json.Marshal(req.Verdict.BlockingIssues)
+	diagnostics, err := marshalGoalVerdictDiagnostics(&req.Verdict)
 	if err != nil {
-		return goal.JudgeAttempt{}, fmt.Errorf("store: encode goal judge blocking issues: %w", err)
+		return goal.JudgeAttempt{}, err
 	}
 	evidenceRef, err := persistGoalVerdictEvidence(ctx, exec, req.Verdict, now)
 	if err != nil {
@@ -217,7 +216,8 @@ func completeJudgeAttemptWithExecutor(
 		return goal.JudgeAttempt{}, err
 	}
 	affected, err := sqlcgen.New(exec).CompleteGoalJudgeAttempt(ctx, sqlcgen.CompleteGoalJudgeAttemptParams{
-		Outcome: goalNullableString(string(req.Verdict.Outcome)), BlockingJson: string(blockingJSON),
+		Outcome: goalNullableString(string(req.Verdict.Outcome)), BlockingJson: string(diagnostics.blockingJSON),
+		CriteriaJson: string(diagnostics.criteriaJSON), WarningsJson: string(diagnostics.warningsJSON),
 		EvidenceRef: goalNullableString(evidenceRef), TokensUsed: tokensUsed, CompletedAt: store.FormatTimestamp(now),
 		AttemptID: strings.TrimSpace(req.AttemptID), LoopRunID: string(req.Key.LoopRunID),
 	})

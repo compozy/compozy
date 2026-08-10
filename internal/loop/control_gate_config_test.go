@@ -111,14 +111,44 @@ func TestJudgeRuntimeShouldValidateWithoutTaskRules(t *testing.T) {
 				Match: RuntimeMatch{ID: "task_01"}, Runtime: RuntimeSpec{Model: "run-task-model"},
 			}},
 		}
-		input := runtimeGateInput(
+		input, err := runtimeGateInput(
 			Run{ID: "run-judge", WorkspaceID: "ws-judge"}, 1,
 			&ResolvedDefinition{Definition: dsl.Definition{}}, effective,
-			map[string]any{}, gate.PlacementInBody, nil,
+			gate.PlacementInBody, nil,
 		)
+		if err != nil {
+			t.Fatalf("runtimeGateInput() error = %v", err)
+		}
 		if input.JudgeRuntime.Provider != "codex" || input.JudgeRuntime.Model != "judge-model" ||
 			input.JudgeRuntime.Reasoning != "high" {
 			t.Fatalf("JudgeRuntime = %#v, want only runtime_defaults.judge", input.JudgeRuntime)
+		}
+	})
+}
+
+func TestRenderGateCriterionShouldMaterializeNestedInputsOnce(t *testing.T) {
+	t.Run("Should preserve direct JSON types and literal braces from input values", func(t *testing.T) {
+		t.Parallel()
+
+		criterion, err := renderGateCriterion("quality", dsl.GateCriterion{
+			ID: "extension", Type: dsl.CriterionExtension, Tool: "ext__quality__gate",
+			Inputs: map[string]any{
+				"payload": "{{ .inputs.payload }}",
+				"label":   "value={{ .inputs.literal }}",
+			},
+		}, map[string]any{"inputs": map[string]any{
+			"payload": map[string]any{"completed": true},
+			"literal": "{{ .inputs.slug }}",
+		}})
+		if err != nil {
+			t.Fatalf("renderGateCriterion() error = %v", err)
+		}
+		payload, ok := criterion.Inputs["payload"].(map[string]any)
+		if !ok || payload["completed"] != true {
+			t.Fatalf("rendered payload = %#v, want typed JSON object", criterion.Inputs["payload"])
+		}
+		if got, want := criterion.Inputs["label"], "value={{ .inputs.slug }}"; got != want {
+			t.Fatalf("rendered label = %#v, want %q", got, want)
 		}
 	})
 }

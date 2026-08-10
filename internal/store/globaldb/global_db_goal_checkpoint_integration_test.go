@@ -676,7 +676,7 @@ func TestGoalCheckpointIntentsIntegration(t *testing.T) {
 		}
 		if !found || target.Key != key || target.ExpectedControlEpoch != 5 ||
 			target.ExpectedBindingEpoch != 3 || target.PromptID != "prompt-tool-report" ||
-			target.OriginSessionID != originSessionID || target.BoundSessionID != "session-bound" {
+			target.BoundSessionID != "session-bound" {
 			t.Fatalf("FindGoalReportTarget() = %#v, found=%t", target, found)
 		}
 		resolvedOrigin, aliasFound, err := globalDB.ResolveActiveGoalOriginAlias(
@@ -816,6 +816,17 @@ func TestGoalCheckpointIntentsIntegration(t *testing.T) {
 			},
 		}); err != nil {
 			t.Fatalf("CreateCheckpoint(report) error = %v", err)
+		}
+		target, found, err := globalDB.FindGoalReportTarget(
+			testutil.Context(t),
+			"ws-goal-report",
+			"session-report",
+		)
+		if err != nil {
+			t.Fatalf("FindGoalReportTarget(catalog run) error = %v", err)
+		}
+		if !found || target.Key != key || target.BoundSessionID != "session-report" {
+			t.Fatalf("FindGoalReportTarget(catalog run) = %#v, found=%t", target, found)
 		}
 		req := goal.RecordReportIntentRequest{
 			Key:                  key,

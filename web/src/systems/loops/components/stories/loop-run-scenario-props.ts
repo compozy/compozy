@@ -40,6 +40,7 @@ export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBody
     ...view,
     run: effectiveRun,
     definition,
+    materializedContract: definition.contract,
     goalTurns: scenario.goalTurns ?? [],
     generations,
     watchEvents,

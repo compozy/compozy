@@ -9,6 +9,17 @@ import (
 )
 
 func (c *lintContext) lintContractReferences(namespace refs.Namespace) {
+	narrativeNamespace := contractNarrativeNamespace(namespace)
+	for _, item := range contractNarrativeStringFields(c.def.Contract) {
+		template, err := c.compileTemplate(item.name, item.value, narrativeNamespace)
+		if err != nil {
+			c.addRefsError("", err)
+			continue
+		}
+		if template != nil {
+			c.warnUnknownOutputReferences("", template.References, narrativeNamespace)
+		}
+	}
 	if strings.TrimSpace(c.def.Contract.StopWhen) != "" {
 		condition, err := c.compileCondition(c.def.Contract.StopWhen, namespace)
 		if err != nil {

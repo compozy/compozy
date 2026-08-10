@@ -2,6 +2,7 @@ package goal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math"
 	"slices"
@@ -154,6 +155,92 @@ func TestUsageTrackerShouldFailClosedOnOverflow(t *testing.T) {
 		}
 		if gotReported := reported.Load(); gotReported != math.MaxInt64 {
 			t.Fatalf("reported usage = %d, want %d", gotReported, int64(math.MaxInt64))
+		}
+	})
+}
+
+func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
+	t.Run("Should resolve Goal prompts and judge inputs without re-rendering input values", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("done", 1))
+		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		node := testGoalNode(1)
+		node.Params["objective"] = "Finish {{ .inputs.slug }} and preserve {{ .inputs.literal }}"
+		node.Params["judge"] = []any{map[string]any{
+			"id": "done", "type": "extension", "tool": "ext__quality__gate",
+			"inputs": map[string]any{"payload": "{{ .inputs.payload }}"},
+		}}
+		node.Params["output_schema"] = map[string]any{
+			"type": "object", "description": "{{ .inputs.slug }}",
+		}
+		input := testGoalInput(t)
+		input.Namespace = map[string]any{"inputs": map[string]any{
+			"slug":    "weather-app",
+			"literal": "{{ .inputs.slug }}",
+			"payload": map[string]any{"completed": true},
+		}}
+
+		if _, err := executor.Execute(t.Context(), node, input); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		requests := binder.preparedRequests()
+		if len(requests) != 1 || !strings.Contains(
+			requests[0].Message,
+			"Finish weather-app and preserve {{ .inputs.slug }}",
+		) {
+			t.Fatalf("prepared Goal prompt = %#v, want one-pass materialized objective", requests)
+		}
+		judge.mu.Lock()
+		defer judge.mu.Unlock()
+		if len(judge.calls) != 1 {
+			t.Fatalf("judge calls = %d, want 1", len(judge.calls))
+		}
+		payload, ok := judge.calls[0].Criteria[0].Inputs["payload"].(map[string]any)
+		if !ok || payload["completed"] != true {
+			t.Fatalf("judge payload = %#v, want typed JSON object", judge.calls[0].Criteria[0].Inputs)
+		}
+	})
+}
+
+func TestExecutorShouldSanitizeJudgeDiagnosticsBeforePersistence(t *testing.T) {
+	t.Run("Should redact evaluator output before completing the durable judge attempt", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("work", 1))
+		judge := &fakeJudge{results: []JudgeResult{{Verdict: gate.Verdict{
+			Outcome: gate.VerdictOutcomeRejected,
+			Criteria: []gate.CriterionResult{{
+				ID: "verify", Type: dsl.CriterionCommand, Outcome: gate.VerdictOutcomeRejected,
+				Stderr: "token=goal-secret", Passed: false,
+			}},
+			Warnings: []gate.DiagnosticWarning{{Code: "runner", Message: "token=warning-secret"}},
+		}}}}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		if _, err := executor.Execute(t.Context(), testGoalNode(1), testGoalInput(t)); err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+
+		store.mu.Lock()
+		defer store.mu.Unlock()
+		if len(store.judgeAttempts) != 1 {
+			t.Fatalf("judge attempts = %d, want 1", len(store.judgeAttempts))
+		}
+		for _, attempt := range store.judgeAttempts {
+			encoded, err := json.Marshal(attempt)
+			if err != nil {
+				t.Fatalf("json.Marshal(attempt) error = %v", err)
+			}
+			got := string(encoded)
+			if strings.Contains(got, "goal-secret") || strings.Contains(got, "warning-secret") {
+				t.Fatalf("persisted judge diagnostics leaked secrets: %s", got)
+			}
+			if len(attempt.Criteria) != 1 || len(attempt.Warnings) != 1 {
+				t.Fatalf("persisted judge diagnostics = %#v/%#v", attempt.Criteria, attempt.Warnings)
+			}
 		}
 	})
 }
@@ -1465,6 +1552,11 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 					ID:   "missing-proof",
 					Note: "Attach the durable verification evidence",
 				}},
+				Criteria: []gate.CriterionResult{{
+					ID: "verify", Type: dsl.CriterionCommand, Outcome: gate.VerdictOutcomeRejected,
+					ExitCode: goalTestIntPointer(1), Stderr: "task_03 is still pending",
+				}},
+				Warnings: []gate.DiagnosticWarning{{Code: "shell", Message: "check the task path"}},
 			}
 			binder := newFakeManagedBinder(store, scriptedStop(loop.ActionStopEndTurn))
 			judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 0)}}
@@ -1488,6 +1580,10 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 				"do not replay an earlier prompt blindly",
 				"Last authoritative judge outcome: rejected",
 				"[missing-proof] Attach the durable verification evidence",
+				"Previous failed criteria:",
+				"[verify] type=command outcome=rejected exit_code=1",
+				"stderr: task_03 is still pending",
+				"[shell] check the task path",
 			} {
 				if !strings.Contains(message, want) {
 					t.Fatalf("restarted prompt missing %q:\n%s", want, message)
@@ -2848,6 +2944,10 @@ func judgeResult(outcome gate.VerdictOutcome, tokens int64) JudgeResult {
 		result.TokensReported = tokens > 0
 	}
 	return result
+}
+
+func goalTestIntPointer(value int) *int {
+	return &value
 }
 
 func promptKinds(requests []loop.ActionPromptRequest) []string {

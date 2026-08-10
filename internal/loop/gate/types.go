@@ -99,7 +99,6 @@ type GateInput struct {
 	LoopRunID                string
 	Placement                Placement
 	Contract                 *dsl.Contract
-	TemplateData             map[string]any
 	Revision                 int
 	BrokenJudgeStreak        int
 	BrokenJudgeStreakLimit   int
@@ -257,6 +256,7 @@ type CommandRunner interface {
 
 // CommandRequest is one command criterion invocation.
 type CommandRequest struct {
+	WorkspaceID string
 	GateID      string
 	CriterionID string
 	Command     string

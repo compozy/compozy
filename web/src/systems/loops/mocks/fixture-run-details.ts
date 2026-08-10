@@ -1,4 +1,5 @@
 import type { LoopDetail, LoopRun, LoopRunDetail, LoopRunGeneration } from "../types";
+import { materializeContractFixture } from "./materialize-contract-fixture";
 
 function implementTasksGenerations(run: LoopRun): LoopRunGeneration[] {
   if (run.generation === 0) return [];
@@ -133,6 +134,10 @@ export function buildLoopRunDetailFixtures(
         started_origin_kind: run.started_origin_kind ?? "cli",
       },
       executed_definition: detail.definition,
+      materialized_contract: materializeContractFixture(
+        detail.definition.contract,
+        run.inputs ?? {}
+      ),
       generations:
         run.loop_name === "review-and-fix"
           ? reviewGenerations(run)

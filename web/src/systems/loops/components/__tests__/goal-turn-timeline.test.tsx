@@ -36,6 +36,19 @@ function turn(overrides: Partial<GoalTurnTimelineItem> = {}): GoalTurnTimelineIt
     reasonCode: null,
     verdictOutcome: "rejected",
     blockingIssues: [{ id: "issue_1", note: "Evidence is incomplete." }],
+    criteria: [
+      {
+        id: "tasks_completed",
+        type: "command",
+        outcome: "rejected",
+        passed: false,
+        exit_code: 1,
+        stdout: "checked 3 tasks",
+        stderr: "task_03 is still pending",
+        warnings: [{ code: "command_output_truncated", message: "Output was truncated." }],
+      },
+    ],
+    warnings: [{ code: "judge_rejected", message: "One criterion did not pass." }],
     evidenceRef: "blob_1",
     tokensUsed: 420,
     startedAt: "2026-07-10T12:00:00Z",
@@ -58,6 +71,12 @@ describe("GoalTurnTimeline", () => {
     expect(timeline).toHaveTextContent("Rejected");
     expect(timeline).toHaveTextContent("issue_1");
     expect(timeline).toHaveTextContent("Evidence is incomplete.");
+    expect(timeline).toHaveTextContent("tasks_completed");
+    expect(timeline).toHaveTextContent("exit 1");
+    expect(timeline).toHaveTextContent("checked 3 tasks");
+    expect(timeline).toHaveTextContent("task_03 is still pending");
+    expect(timeline).toHaveTextContent("command_output_truncated");
+    expect(timeline).toHaveTextContent("One criterion did not pass.");
     expect(timeline).toHaveTextContent("blob_1");
     expect(timeline).toHaveTextContent("420 tokens");
   });
@@ -80,6 +99,8 @@ describe("GoalTurnTimeline", () => {
             stopReason: null,
             verdictOutcome: null,
             blockingIssues: [],
+            criteria: [],
+            warnings: [],
             evidenceRef: null,
             tokensUsed: null,
             endedAt: null,

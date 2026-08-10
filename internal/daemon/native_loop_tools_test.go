@@ -996,8 +996,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		aliasActive := true
 		snapshot := &session.GoalSnapshot{
 			RunID: "run-goal", NodeID: "goal", Objective: "ship safely",
-			OriginSessionID: "session-origin", BoundSessionID: "session-bound",
-			Status: "complete", RunStatus: "done", TurnsUsed: 2, TurnLimit: 4,
+			BoundSessionID: "session-bound",
+			Status:         "complete", RunStatus: "done", TurnsUsed: 2, TurnLimit: 4,
 			ContractSummary: "objective satisfied", Context: session.GoalContextSnapshot{
 				State: "unknown", NudgeRatio: 0.8,
 			},
@@ -1084,7 +1084,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				NodeID: "goal", ItemIndex: 0,
 			},
 			ExpectedControlEpoch: 3, ExpectedBindingEpoch: 4,
-			PromptID: "prompt-current", OriginSessionID: "session-origin",
+			PromptID:       "prompt-current",
 			BoundSessionID: "session-bound",
 		}
 		var captured goalpkg.RecordToolReportRequest
@@ -1183,7 +1183,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						Seq: 9, Generation: 2, NodeID: "goal", ItemIndex: 1,
 						Turn: 3, PromptAttempt: 0, SessionID: "session-bound",
 						BindingHandle: "goal:handle", BindingEpoch: 4, PromptID: "prompt-9",
-						BlockingIssues: []session.GoalBlockingIssue{}, ActorKind: "agent_session",
+						BlockingIssues: []session.GoalBlockingIssue{}, Criteria: []session.GoalCriterionResult{},
+						Warnings: []session.GoalDiagnosticWarning{}, ActorKind: "agent_session",
 						ActorID: "session-bound", StartedAt: time.Date(2026, 7, 10, 20, 0, 0, 0, time.UTC),
 					}},
 					NextAfterSeq: &next,
@@ -1213,6 +1214,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, result, []byte(`"prompt_id":"prompt-9"`))
 		requireNativeStructuredContains(t, result, []byte(`"result_status":null`))
+		requireNativeStructuredContains(t, result, []byte(`"criteria":[]`))
+		requireNativeStructuredContains(t, result, []byte(`"warnings":[]`))
 		requireNativeStructuredContains(t, result, []byte(`"next_after_seq":9`))
 	})
 }

@@ -343,6 +343,10 @@ func actionExecutionInput(
 	if err != nil {
 		return ActionExecutionInput{}, err
 	}
+	contract, err := MaterializeContract(resolved.Definition.Contract, loopRun.Inputs)
+	if err != nil {
+		return ActionExecutionInput{}, err
+	}
 	input := ActionExecutionInput{
 		WorkspaceID:    loopRun.WorkspaceID,
 		LoopRunID:      loopRun.ID,
@@ -353,7 +357,7 @@ func actionExecutionInput(
 		CellEpoch:      meta.Epoch,
 		RepairFailures: actionRepairFailures(history),
 		Namespace:      namespace,
-		Contract:       &resolved.Definition.Contract,
+		Contract:       &contract,
 		ToolScope:      actionToolScope(loopRun, actor),
 		Actor:          actor,
 		CorrelationID:  strings.TrimSpace(taskRun.ID),

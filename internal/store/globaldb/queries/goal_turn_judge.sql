@@ -20,6 +20,7 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
 -- name: CompleteGoalJudgeAttempt :execrows
 UPDATE loop_goal_judge_attempts
 SET status = 'completed', outcome = sqlc.narg(outcome), blocking_json = sqlc.arg(blocking_json),
+    criteria_json = sqlc.arg(criteria_json), warnings_json = sqlc.arg(warnings_json),
     evidence_ref = sqlc.narg(evidence_ref), tokens_used = sqlc.narg(tokens_used),
     completed_at = CAST(sqlc.arg(completed_at) AS TEXT)
 WHERE attempt_id = sqlc.arg(attempt_id) AND loop_run_id = sqlc.arg(loop_run_id) AND status = 'running';
@@ -62,7 +63,8 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
 UPDATE loop_goal_turns
 SET result_status = sqlc.narg(result_status), stop_reason = sqlc.narg(stop_reason),
     reason_code = sqlc.narg(reason_code), verdict_outcome = sqlc.narg(verdict_outcome),
-    blocking_json = sqlc.arg(blocking_json), evidence_ref = sqlc.narg(evidence_ref),
+    blocking_json = sqlc.arg(blocking_json), criteria_json = sqlc.arg(criteria_json),
+    warnings_json = sqlc.arg(warnings_json), evidence_ref = sqlc.narg(evidence_ref),
     tokens_used = sqlc.narg(tokens_used), ended_at = CAST(sqlc.arg(ended_at) AS TEXT)
 WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
   AND node_id = sqlc.arg(node_id) AND item_index = sqlc.arg(item_index)
@@ -74,7 +76,7 @@ SET pause_requested = 0, control_actor_kind = NULL, control_actor_id = NULL, con
 WHERE id = sqlc.arg(id) AND pause_requested = 1;
 
 -- name: GetCompletedGoalTurn :one
-SELECT result_status, stop_reason, reason_code, verdict_outcome, blocking_json,
+SELECT result_status, stop_reason, reason_code, verdict_outcome, blocking_json, criteria_json, warnings_json,
        tokens_used, actor_kind, actor_id, binding_epoch
 FROM loop_goal_turns
 WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
@@ -124,7 +126,7 @@ WHERE loop_goal_turns.loop_run_id = sqlc.arg(loop_run_id)
 -- name: FindGoalReportTargets :many
 SELECT checkpoints.loop_run_id, checkpoints.generation, checkpoints.node_id,
        checkpoints.item_index, checkpoints.control_epoch, checkpoints.binding_epoch,
-       checkpoints.prompt_id, runs.origin_session_id, checkpoints.session_id
+       checkpoints.prompt_id, checkpoints.session_id
 FROM loop_goal_checkpoints AS checkpoints
 JOIN loop_runs AS runs ON runs.id = checkpoints.loop_run_id
 JOIN loop_session_bindings AS bindings
@@ -132,8 +134,7 @@ JOIN loop_session_bindings AS bindings
  AND bindings.handle = checkpoints.binding_handle
  AND bindings.binding_epoch = checkpoints.binding_epoch
  AND bindings.session_id = checkpoints.session_id
-WHERE runs.workspace_id = sqlc.arg(workspace_id) AND runs.origin_kind = 'session'
-  AND runs.goal_cleared_at IS NULL
+WHERE runs.workspace_id = sqlc.arg(workspace_id) AND runs.goal_cleared_at IS NULL
   AND runs.status IN ('queued','running','watching','needs-approval','paused')
   AND checkpoints.phase = 'prompting' AND checkpoints.goal_status = 'active'
   AND checkpoints.session_id = sqlc.narg(session_id) AND checkpoints.prompt_id IS NOT NULL

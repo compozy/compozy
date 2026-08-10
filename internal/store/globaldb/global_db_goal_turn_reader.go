@@ -20,7 +20,7 @@ const goalTurnSelectColumns = `
 	seq, generation, node_id, item_index, turn, session_id, binding_handle,
 	binding_epoch, prompt_id, prompt_attempt, usage_base_tokens, result_status,
 	stop_reason, reason_code, verdict_outcome, blocking_json, evidence_ref,
-	prompt_ref, tokens_used, actor_kind, actor_id, started_at, ended_at`
+	criteria_json, warnings_json, prompt_ref, tokens_used, actor_kind, actor_id, started_at, ended_at`
 
 // ListGoalTurns returns one stable run-wide sequence page.
 func (g *GoalRepo) ListGoalTurns(
@@ -164,6 +164,8 @@ func scanGoalTurn(
 		&fields.verdictOutcome,
 		&fields.blockingJSON,
 		&fields.evidenceRef,
+		&fields.criteriaJSON,
+		&fields.warningsJSON,
 		&fields.promptRef,
 		&fields.tokensUsed,
 		&turn.ActorKind,
@@ -188,6 +190,8 @@ type goalTurnScanFields struct {
 	verdictOutcome sql.NullString
 	blockingJSON   string
 	evidenceRef    sql.NullString
+	criteriaJSON   string
+	warningsJSON   string
 	promptRef      sql.NullString
 	tokensUsed     sql.NullInt64
 	startedAtRaw   any
@@ -216,6 +220,18 @@ func (fields *goalTurnScanFields) apply(turn *goal.Turn) error {
 	}
 	if turn.BlockingIssues == nil {
 		turn.BlockingIssues = []gate.BlockingIssue{}
+	}
+	if err := json.Unmarshal([]byte(fields.criteriaJSON), &turn.Criteria); err != nil {
+		return fmt.Errorf("store: decode goal turn criteria: %w", err)
+	}
+	if turn.Criteria == nil {
+		turn.Criteria = []gate.CriterionResult{}
+	}
+	if err := json.Unmarshal([]byte(fields.warningsJSON), &turn.Warnings); err != nil {
+		return fmt.Errorf("store: decode goal turn warnings: %w", err)
+	}
+	if turn.Warnings == nil {
+		turn.Warnings = []gate.DiagnosticWarning{}
 	}
 	if fields.evidenceRef.Valid {
 		value := fields.evidenceRef.String

@@ -1,4 +1,4 @@
-import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
+import type { GoalTurn, LoopRunEventFrame, LoopRunEventKind } from "../types";
 
 /**
  * The SSE contract the run page consumes (techspec §observability). The stream
@@ -63,6 +63,8 @@ export interface LoopGoalTurnLive {
   reasonCode: string | null;
   verdictOutcome: string | null;
   blockingIssues: { id: string; note: string }[];
+  criteria: GoalTurn["criteria"];
+  warnings: GoalTurn["warnings"];
   evidenceRef: string | null;
   tokensUsed: number | null;
   startedAt: string;
@@ -261,6 +263,69 @@ function blockingIssues(value: unknown): { id: string; note: string }[] {
   });
 }
 
+function goalCriterionOutcome(value: unknown): GoalTurn["criteria"][number]["outcome"] | null {
+  switch (value) {
+    case "approved":
+    case "rejected":
+    case "awaiting_approval":
+    case "blocked":
+    case "error":
+    case "timeout":
+    case "invalid_output":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function diagnosticWarnings(value: unknown): GoalTurn["warnings"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(item => {
+    const record = asRecord(item);
+    const code = str(record?.code).trim();
+    const message = str(record?.message).trim();
+    return code && message ? [{ code, message }] : [];
+  });
+}
+
+function goalCriteria(value: unknown): GoalTurn["criteria"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(item => {
+    const record = asRecord(item);
+    const id = str(record?.id).trim();
+    const type = str(record?.type).trim();
+    const outcome = goalCriterionOutcome(record?.outcome);
+    if (!id || !type || !outcome) return [];
+
+    const criterion: GoalTurn["criteria"][number] = {
+      id,
+      type,
+      outcome,
+      passed: record?.passed === true,
+    };
+    if (typeof record?.exit_code === "number" || record?.exit_code === null) {
+      criterion.exit_code = record.exit_code;
+    }
+    if (typeof record?.score === "number" || record?.score === null) {
+      criterion.score = record.score;
+    }
+    if (typeof record?.stdout === "string") criterion.stdout = record.stdout;
+    if (typeof record?.stderr === "string") criterion.stderr = record.stderr;
+    if (typeof record?.broken === "boolean") criterion.broken = record.broken;
+    if (record && Object.prototype.hasOwnProperty.call(record, "evidence")) {
+      criterion.evidence = record.evidence;
+    }
+    if (record && Object.prototype.hasOwnProperty.call(record, "payload")) {
+      criterion.payload = record.payload;
+    }
+    const issues = blockingIssues(record?.blocking_issues);
+    if (issues.length > 0) criterion.blocking_issues = issues;
+    const warnings = diagnosticWarnings(record?.warnings);
+    if (warnings.length > 0) criterion.warnings = warnings;
+    return [criterion];
+  });
+}
+
 function applyGoalTurn(
   turns: LoopGoalTurnLive[],
   frame: LoopRunEventFrame,
@@ -289,6 +354,8 @@ function applyGoalTurn(
     reasonCode: completed ? str(payload.reason_code) || null : null,
     verdictOutcome: completed ? str(payload.verdict_outcome) || null : null,
     blockingIssues: completed ? blockingIssues(payload.blocking_issues) : [],
+    criteria: completed ? goalCriteria(payload.criteria) : [],
+    warnings: completed ? diagnosticWarnings(payload.warnings) : [],
     evidenceRef: completed ? str(payload.evidence_ref) || null : null,
     tokensUsed: completed ? (num(payload.tokens_used) ?? null) : null,
     startedAt: previous?.startedAt || str(frame.at),

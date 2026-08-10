@@ -73,15 +73,18 @@ func evaluateGateNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	verdict, err := evaluator.Evaluate(ctx, runtimeGate, runtimeGateInput(
+	gateInput, err := runtimeGateInput(
 		run,
 		generation,
 		resolved,
 		effective,
-		namespace,
 		gate.PlacementInBody,
 		humanDecisions,
-	))
+	)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	verdict, err := evaluator.Evaluate(ctx, runtimeGate, gateInput)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
@@ -129,18 +132,20 @@ func runtimeGateInput(
 	generation int,
 	resolved *ResolvedDefinition,
 	effective EffectiveConfig,
-	namespace map[string]any,
 	placement gate.Placement,
 	humanDecisions map[string]gate.HumanDecision,
-) gate.GateInput {
+) (gate.GateInput, error) {
 	if humanDecisions == nil {
 		humanDecisions = map[string]gate.HumanDecision{}
+	}
+	contract, err := MaterializeContract(resolved.Definition.Contract, run.Inputs)
+	if err != nil {
+		return gate.GateInput{}, err
 	}
 	return gate.GateInput{
 		LoopRunID:            string(run.ID),
 		Placement:            placement,
-		Contract:             new(resolved.Definition.Contract),
-		TemplateData:         namespace,
+		Contract:             &contract,
 		Revision:             max(0, generation-1),
 		BestScore:            cloneFloat64(run.BestScore),
 		HumanDecisions:       humanDecisions,
@@ -150,7 +155,7 @@ func runtimeGateInput(
 			WorkspaceID: string(run.WorkspaceID),
 			ActorKind:   startLoopMetaKey,
 		},
-	}
+	}, nil
 }
 
 func loadGateDecisions(
@@ -242,6 +247,17 @@ func renderGateCriterion(
 	}
 	if criterion.Tool, err = renderGateString(prefix+".tool", criterion.Tool, namespace); err != nil {
 		return dsl.GateCriterion{}, err
+	}
+	renderedInputs, err := renderActionParam(prefix+".inputs", criterion.Inputs, namespace)
+	if err != nil {
+		return dsl.GateCriterion{}, fmt.Errorf("render gate %s.inputs: %w", prefix, err)
+	}
+	if renderedInputs != nil {
+		inputs, ok := renderedInputs.(map[string]any)
+		if !ok {
+			return dsl.GateCriterion{}, fmt.Errorf("%w: gate %s.inputs must be an object", ErrValidation, prefix)
+		}
+		criterion.Inputs = inputs
 	}
 	return criterion, nil
 }

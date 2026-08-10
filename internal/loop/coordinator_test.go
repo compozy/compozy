@@ -1114,18 +1114,19 @@ func TestCoordinatorRunnerShouldRespectContractStopWhen(t *testing.T) {
 				},
 			}},
 			dsl.Definition{
-				Graph:    graph,
-				Contract: dsl.Contract{Verification: []dsl.GateCriterion{testRouteCriterion()}},
+				Graph: graph,
+				Contract: dsl.Contract{Verification: []dsl.GateCriterion{{
+					ID: "check", Type: dsl.CriterionCommand, Check: "best={{ .best.score }}",
+				}}},
 			},
 			WithCoordinatorGateEvaluator(gateEvaluatorFunc(
-				func(_ context.Context, _ gate.Gate, input gate.GateInput) (gate.Verdict, error) {
+				func(_ context.Context, runtimeGate gate.Gate, input gate.GateInput) (gate.Verdict, error) {
 					if input.Placement == gate.PlacementDefinitionOfDone {
 						if input.BestScore == nil || *input.BestScore != score {
 							t.Fatalf("definition-of-done best score = %#v, want %.1f", input.BestScore, score)
 						}
-						best := input.TemplateData[namespaceBestKey].(map[string]any)
-						if got, want := best["score"], score; got != want {
-							t.Fatalf("definition-of-done namespace best score = %#v, want %.1f", got, want)
+						if got, want := runtimeGate.Criteria[0].Check, "best=0.9"; got != want {
+							t.Fatalf("definition-of-done rendered check = %q, want %q", got, want)
 						}
 						return gate.Verdict{
 							Outcome: gate.VerdictOutcomeApproved,
@@ -2084,6 +2085,7 @@ func TestCoordinatorRunnerShouldExposePreviousHistoryToRerunGate(t *testing.T) {
 			},
 			Edges: []dsl.Edge{{From: "draft", To: "quality"}},
 		}
+		graph.Nodes[1].Criteria[0].Check = "previous={{ .previous.nodes.draft.output.text }}"
 		run := Run{
 			ID: "looprun-previous-history", WorkspaceID: "ws-1", LoopName: "delivery",
 			Status: StatusRunning, Generation: 2, IterationCap: 3,
@@ -2107,13 +2109,9 @@ func TestCoordinatorRunnerShouldExposePreviousHistoryToRerunGate(t *testing.T) {
 			outputs,
 			dsl.Definition{Graph: graph},
 			WithCoordinatorGateEvaluator(gateEvaluatorFunc(
-				func(_ context.Context, _ gate.Gate, input gate.GateInput) (gate.Verdict, error) {
-					previous := input.TemplateData["previous"].(map[string]any)
-					nodes := previous["nodes"].(map[string]any)
-					draft := nodes["draft"].(map[string]any)
-					value := draft["output"].(map[string]any)
-					if got, want := value["text"], "previous"; got != want {
-						t.Fatalf("previous draft = %v, want %q", got, want)
+				func(_ context.Context, runtimeGate gate.Gate, _ gate.GateInput) (gate.Verdict, error) {
+					if got, want := runtimeGate.Criteria[0].Check, "previous=previous"; got != want {
+						t.Fatalf("previous draft check = %q, want %q", got, want)
 					}
 					return testRouteVerdict(gate.RouteRevise), nil
 				},

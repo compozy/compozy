@@ -113,6 +113,11 @@ func (e *Executor) executeJudgeAttempt(
 		judgeResult = brokenJudgeResult(evaluateErr)
 	}
 	judgeResult = normalizeUnexpectedJudgeOutcome(judgeResult)
+	sanitizedVerdict, err := gate.SanitizeVerdict(judgeResult.Verdict)
+	if err != nil {
+		return nil, fmt.Errorf("sanitize Goal judge verdict: %w", err)
+	}
+	judgeResult.Verdict = sanitizedVerdict
 	segment.usage.observeOperation(operationBase, judgeResult.TokensUsed, judgeResult.TokensReported)
 	completed, err := e.store.CompleteJudgeAttempt(ctx, CompleteJudgeAttemptRequest{
 		AttemptID:            attempt.AttemptID,
@@ -218,6 +223,8 @@ func (e *Executor) settleJudgeAttempt(
 	segment.checkpoint = settled
 	segment.lastVerdict = string(verdict.Outcome)
 	segment.lastBlockingIssues = append([]gate.BlockingIssue(nil), verdict.BlockingIssues...)
+	segment.lastCriteria = append([]gate.CriterionResult(nil), verdict.Criteria...)
+	segment.lastWarnings = append([]gate.DiagnosticWarning(nil), verdict.Warnings...)
 	if boundary, handled, err := e.judgeOutcomeBoundary(
 		ctx,
 		segment,
@@ -424,6 +431,8 @@ func (e *Executor) hydratePriorJudgeContext(ctx context.Context, segment *segmen
 	case judgeAttemptStatusCompleted:
 		segment.lastVerdict = strings.TrimSpace(attempt.Outcome)
 		segment.lastBlockingIssues = append([]gate.BlockingIssue(nil), attempt.BlockingIssues...)
+		segment.lastCriteria = append([]gate.CriterionResult(nil), attempt.Criteria...)
+		segment.lastWarnings = append([]gate.DiagnosticWarning(nil), attempt.Warnings...)
 		return nil
 	default:
 		return fmt.Errorf(
@@ -438,6 +447,8 @@ func verdictFromAttempt(attempt JudgeAttempt) gate.Verdict {
 	return gate.Verdict{
 		Outcome:        gate.VerdictOutcome(strings.TrimSpace(attempt.Outcome)),
 		BlockingIssues: append([]gate.BlockingIssue(nil), attempt.BlockingIssues...),
+		Criteria:       append([]gate.CriterionResult(nil), attempt.Criteria...),
+		Warnings:       append([]gate.DiagnosticWarning(nil), attempt.Warnings...),
 	}
 }
 

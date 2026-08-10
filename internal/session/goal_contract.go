@@ -1,6 +1,9 @@
 package session
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // GoalReasonCode is a stable machine-readable Goal outcome or transition cause.
 type GoalReasonCode string
@@ -9,6 +12,29 @@ type GoalReasonCode string
 type GoalBlockingIssue struct {
 	ID   string
 	Note string
+}
+
+// GoalDiagnosticWarning is one non-terminal Goal judge diagnostic.
+type GoalDiagnosticWarning struct {
+	Code    string
+	Message string
+}
+
+// GoalCriterionResult is one sanitized Goal judge criterion result.
+type GoalCriterionResult struct {
+	ID             string
+	Type           string
+	Outcome        string
+	Passed         bool
+	Broken         bool
+	ExitCode       *int
+	Stdout         string
+	Stderr         string
+	Score          *float64
+	Evidence       json.RawMessage
+	BlockingIssues []GoalBlockingIssue
+	Warnings       []GoalDiagnosticWarning
+	Payload        json.RawMessage
 }
 
 // GoalContextSnapshot is the checkpoint-pinned context telemetry projection.
@@ -64,6 +90,8 @@ type GoalTurn struct {
 	StopReason     *string
 	VerdictOutcome *string
 	BlockingIssues []GoalBlockingIssue
+	Criteria       []GoalCriterionResult
+	Warnings       []GoalDiagnosticWarning
 	EvidenceRef    *string
 	PromptRef      *string
 	TokensUsed     *int64

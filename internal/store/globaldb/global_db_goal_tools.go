@@ -51,8 +51,7 @@ func findGoalReportTargetWithExecutor(
 			Key: goal.TurnKey{WorkspaceID: workspaceID, LoopRunID: looppkg.RunID(row.LoopRunID),
 				Generation: int(row.Generation), NodeID: looppkg.NodeID(row.NodeID), ItemIndex: int(row.ItemIndex)},
 			ExpectedControlEpoch: row.ControlEpoch, ExpectedBindingEpoch: row.BindingEpoch.Int64,
-			PromptID: row.PromptID.String, OriginSessionID: row.OriginSessionID.String,
-			BoundSessionID: row.SessionID.String,
+			PromptID: row.PromptID.String, BoundSessionID: row.SessionID.String,
 		}
 		if validateErr := candidate.Validate(); validateErr != nil {
 			return goal.ToolReportTarget{}, false, validateErr
@@ -162,7 +161,6 @@ func normalizeGoalToolReportRequest(req *goal.RecordToolReportRequest) (json.Raw
 	req.Target.Key.LoopRunID = looppkg.RunID(strings.TrimSpace(string(req.Target.Key.LoopRunID)))
 	req.Target.Key.NodeID = looppkg.NodeID(strings.TrimSpace(string(req.Target.Key.NodeID)))
 	req.Target.PromptID = strings.TrimSpace(req.Target.PromptID)
-	req.Target.OriginSessionID = strings.TrimSpace(req.Target.OriginSessionID)
 	req.Target.BoundSessionID = strings.TrimSpace(req.Target.BoundSessionID)
 	req.Status = strings.TrimSpace(req.Status)
 	req.ActorKind = strings.TrimSpace(req.ActorKind)
@@ -202,7 +200,6 @@ func goalToolReportTargetEqual(left goal.ToolReportTarget, right goal.ToolReport
 		left.ExpectedControlEpoch == right.ExpectedControlEpoch &&
 		left.ExpectedBindingEpoch == right.ExpectedBindingEpoch &&
 		left.PromptID == right.PromptID &&
-		left.OriginSessionID == right.OriginSessionID &&
 		left.BoundSessionID == right.BoundSessionID
 }
 

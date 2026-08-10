@@ -17,6 +17,8 @@ type JudgeAttempt struct {
 	Status          string
 	Outcome         string
 	BlockingIssues  []gate.BlockingIssue
+	Criteria        []gate.CriterionResult
+	Warnings        []gate.DiagnosticWarning
 	EvidenceRef     string
 	TokensUsed      int64
 	TokensReported  bool

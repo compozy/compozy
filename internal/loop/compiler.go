@@ -254,6 +254,17 @@ func compileContract(
 	ctx *lintContext,
 	namespace refs.Namespace,
 ) error {
+	narrativeNamespace := contractNarrativeNamespace(namespace)
+	for _, item := range contractNarrativeStringFields(def.Contract) {
+		if strings.TrimSpace(item.value) == "" {
+			continue
+		}
+		template, err := refs.CompileTemplate(item.name, item.value, narrativeNamespace)
+		if err != nil {
+			return fmt.Errorf("compile %s: %w", item.name, err)
+		}
+		resolved.Templates[item.name] = template
+	}
 	if strings.TrimSpace(def.Contract.StopWhen) == "" {
 		return compileContractVerification(resolved, def, namespace)
 	}

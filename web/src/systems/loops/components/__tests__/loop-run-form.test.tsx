@@ -156,6 +156,10 @@ describe("LoopRunForm", () => {
     fireEvent.click(screen.getByTestId("loop-run-dry-button"));
     await waitFor(() => expect(screen.getByTestId("loop-run-plan")).toBeInTheDocument());
     expect(screen.getAllByTestId("loop-run-plan-node").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("loop-run-preview")).toHaveTextContent(
+      ".compozy/tasks/billing-webhooks"
+    );
+    expect(screen.getByTestId("loop-run-preview")).not.toHaveTextContent("{{ .inputs.slug }}");
     expect(onRunStarted).not.toHaveBeenCalled();
   });
 
@@ -173,7 +177,10 @@ describe("LoopRunForm", () => {
     const dryResponse = await fetch(
       `http://localhost/api/workspaces/${WS}/loops/implement-tasks/run?dry=true`,
       {
-        body: JSON.stringify({ network_participation: { mode: "local" } }),
+        body: JSON.stringify({
+          inputs: { slug: "snapshot-round-trip" },
+          network_participation: { mode: "local" },
+        }),
         headers: { "content-type": "application/json" },
         method: "POST",
       }
@@ -195,6 +202,7 @@ describe("LoopRunForm", () => {
       `http://localhost/api/workspaces/${WS}/loops/implement-tasks/run`,
       {
         body: JSON.stringify({
+          inputs: { slug: "snapshot-round-trip" },
           network_participation: {
             channel_id: " release-room ",
             channel_strategy: "named",

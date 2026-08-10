@@ -1489,14 +1489,14 @@ func TestNewVerdictIntent(t *testing.T) {
 func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should render contract-aware rubric with template data", func(t *testing.T) {
+	t.Run("Should append a materialized rubric to contract context", func(t *testing.T) {
 		t.Parallel()
 
 		rendered, err := RenderAgentJudgeRubric(dsl.GateCriterion{
 			ID:     "judge",
 			Type:   dsl.CriterionAgentJudge,
-			Rubric: "Check {{ .artifact }} against {{ .goal }}",
-		}, validContract(), map[string]any{"artifact": "summary"}, JudgeEvidence{})
+			Rubric: "Check summary against Ship the loop evaluator",
+		}, validContract(), JudgeEvidence{})
 		if err != nil {
 			t.Fatalf("RenderAgentJudgeRubric() error = %v", err)
 		}
@@ -1520,7 +1520,7 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 		rendered, err := RenderAgentJudgeRubric(dsl.GateCriterion{
 			ID: "judge", Type: dsl.CriterionAgentJudge, Rubric: "Score the candidate",
 			Metric: metricSpec(dsl.MetricMaximize, nil),
-		}, validContract(), nil, JudgeEvidence{})
+		}, validContract(), JudgeEvidence{})
 		if err != nil {
 			t.Fatalf("RenderAgentJudgeRubric() error = %v", err)
 		}

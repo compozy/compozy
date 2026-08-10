@@ -67,15 +67,18 @@ func evaluateDefinitionOfDone(
 	if err != nil {
 		return definitionOfDoneEvaluation{}, err
 	}
-	verdict, err := evaluator.Evaluate(ctx, runtimeGate, runtimeGateInput(
+	gateInput, err := runtimeGateInput(
 		run,
 		generation,
 		resolved,
 		effective,
-		namespace,
 		gate.PlacementDefinitionOfDone,
 		humanDecisions,
-	))
+	)
+	if err != nil {
+		return definitionOfDoneEvaluation{}, err
+	}
+	verdict, err := evaluator.Evaluate(ctx, runtimeGate, gateInput)
 	if err != nil {
 		return definitionOfDoneEvaluation{}, err
 	}

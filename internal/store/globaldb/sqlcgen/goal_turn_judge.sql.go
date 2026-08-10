@@ -106,14 +106,17 @@ func (q *Queries) ClearSettledGoalPause(ctx context.Context, id string) error {
 const completeGoalJudgeAttempt = `-- name: CompleteGoalJudgeAttempt :execrows
 UPDATE loop_goal_judge_attempts
 SET status = 'completed', outcome = ?1, blocking_json = ?2,
-    evidence_ref = ?3, tokens_used = ?4,
-    completed_at = CAST(?5 AS TEXT)
-WHERE attempt_id = ?6 AND loop_run_id = ?7 AND status = 'running'
+    criteria_json = ?3, warnings_json = ?4,
+    evidence_ref = ?5, tokens_used = ?6,
+    completed_at = CAST(?7 AS TEXT)
+WHERE attempt_id = ?8 AND loop_run_id = ?9 AND status = 'running'
 `
 
 type CompleteGoalJudgeAttemptParams struct {
 	Outcome      sql.NullString `json:"outcome"`
 	BlockingJson string         `json:"blocking_json"`
+	CriteriaJson string         `json:"criteria_json"`
+	WarningsJson string         `json:"warnings_json"`
 	EvidenceRef  sql.NullString `json:"evidence_ref"`
 	TokensUsed   sql.NullInt64  `json:"tokens_used"`
 	CompletedAt  string         `json:"completed_at"`
@@ -125,6 +128,8 @@ func (q *Queries) CompleteGoalJudgeAttempt(ctx context.Context, arg CompleteGoal
 	result, err := q.db.ExecContext(ctx, completeGoalJudgeAttempt,
 		arg.Outcome,
 		arg.BlockingJson,
+		arg.CriteriaJson,
+		arg.WarningsJson,
 		arg.EvidenceRef,
 		arg.TokensUsed,
 		arg.CompletedAt,
@@ -175,7 +180,7 @@ func (q *Queries) FinalizeAmbiguousGoalJudgeTurn(ctx context.Context, arg Finali
 const findGoalReportTargets = `-- name: FindGoalReportTargets :many
 SELECT checkpoints.loop_run_id, checkpoints.generation, checkpoints.node_id,
        checkpoints.item_index, checkpoints.control_epoch, checkpoints.binding_epoch,
-       checkpoints.prompt_id, runs.origin_session_id, checkpoints.session_id
+       checkpoints.prompt_id, checkpoints.session_id
 FROM loop_goal_checkpoints AS checkpoints
 JOIN loop_runs AS runs ON runs.id = checkpoints.loop_run_id
 JOIN loop_session_bindings AS bindings
@@ -183,8 +188,7 @@ JOIN loop_session_bindings AS bindings
  AND bindings.handle = checkpoints.binding_handle
  AND bindings.binding_epoch = checkpoints.binding_epoch
  AND bindings.session_id = checkpoints.session_id
-WHERE runs.workspace_id = ?1 AND runs.origin_kind = 'session'
-  AND runs.goal_cleared_at IS NULL
+WHERE runs.workspace_id = ?1 AND runs.goal_cleared_at IS NULL
   AND runs.status IN ('queued','running','watching','needs-approval','paused')
   AND checkpoints.phase = 'prompting' AND checkpoints.goal_status = 'active'
   AND checkpoints.session_id = ?2 AND checkpoints.prompt_id IS NOT NULL
@@ -199,15 +203,14 @@ type FindGoalReportTargetsParams struct {
 }
 
 type FindGoalReportTargetsRow struct {
-	LoopRunID       string         `json:"loop_run_id"`
-	Generation      int64          `json:"generation"`
-	NodeID          string         `json:"node_id"`
-	ItemIndex       int64          `json:"item_index"`
-	ControlEpoch    int64          `json:"control_epoch"`
-	BindingEpoch    sql.NullInt64  `json:"binding_epoch"`
-	PromptID        sql.NullString `json:"prompt_id"`
-	OriginSessionID sql.NullString `json:"origin_session_id"`
-	SessionID       sql.NullString `json:"session_id"`
+	LoopRunID    string         `json:"loop_run_id"`
+	Generation   int64          `json:"generation"`
+	NodeID       string         `json:"node_id"`
+	ItemIndex    int64          `json:"item_index"`
+	ControlEpoch int64          `json:"control_epoch"`
+	BindingEpoch sql.NullInt64  `json:"binding_epoch"`
+	PromptID     sql.NullString `json:"prompt_id"`
+	SessionID    sql.NullString `json:"session_id"`
 }
 
 func (q *Queries) FindGoalReportTargets(ctx context.Context, arg FindGoalReportTargetsParams) ([]FindGoalReportTargetsRow, error) {
@@ -227,7 +230,6 @@ func (q *Queries) FindGoalReportTargets(ctx context.Context, arg FindGoalReportT
 			&i.ControlEpoch,
 			&i.BindingEpoch,
 			&i.PromptID,
-			&i.OriginSessionID,
 			&i.SessionID,
 		); err != nil {
 			return nil, err
@@ -244,7 +246,7 @@ func (q *Queries) FindGoalReportTargets(ctx context.Context, arg FindGoalReportT
 }
 
 const getCompletedGoalTurn = `-- name: GetCompletedGoalTurn :one
-SELECT result_status, stop_reason, reason_code, verdict_outcome, blocking_json,
+SELECT result_status, stop_reason, reason_code, verdict_outcome, blocking_json, criteria_json, warnings_json,
        tokens_used, actor_kind, actor_id, binding_epoch
 FROM loop_goal_turns
 WHERE loop_run_id = ?1 AND generation = ?2
@@ -266,6 +268,8 @@ type GetCompletedGoalTurnRow struct {
 	ReasonCode     sql.NullString `json:"reason_code"`
 	VerdictOutcome sql.NullString `json:"verdict_outcome"`
 	BlockingJson   string         `json:"blocking_json"`
+	CriteriaJson   string         `json:"criteria_json"`
+	WarningsJson   string         `json:"warnings_json"`
 	TokensUsed     sql.NullInt64  `json:"tokens_used"`
 	ActorKind      string         `json:"actor_kind"`
 	ActorID        string         `json:"actor_id"`
@@ -287,6 +291,8 @@ func (q *Queries) GetCompletedGoalTurn(ctx context.Context, arg GetCompletedGoal
 		&i.ReasonCode,
 		&i.VerdictOutcome,
 		&i.BlockingJson,
+		&i.CriteriaJson,
+		&i.WarningsJson,
 		&i.TokensUsed,
 		&i.ActorKind,
 		&i.ActorID,
@@ -296,7 +302,7 @@ func (q *Queries) GetCompletedGoalTurn(ctx context.Context, arg GetCompletedGoal
 }
 
 const getGoalJudgeAttempt = `-- name: GetGoalJudgeAttempt :one
-SELECT attempt_id, loop_run_id, generation, node_id, item_index, turn, judge_digest, status, outcome, blocking_json, evidence_ref, tokens_used, usage_base_tokens, started_at, completed_at FROM loop_goal_judge_attempts
+SELECT attempt_id, loop_run_id, generation, node_id, item_index, turn, judge_digest, status, outcome, blocking_json, criteria_json, warnings_json, evidence_ref, tokens_used, usage_base_tokens, started_at, completed_at FROM loop_goal_judge_attempts
 WHERE attempt_id = ?1 AND loop_run_id = ?2
   AND generation = ?3 AND node_id = ?4
   AND item_index = ?5
@@ -330,6 +336,8 @@ func (q *Queries) GetGoalJudgeAttempt(ctx context.Context, arg GetGoalJudgeAttem
 		&i.Status,
 		&i.Outcome,
 		&i.BlockingJson,
+		&i.CriteriaJson,
+		&i.WarningsJson,
 		&i.EvidenceRef,
 		&i.TokensUsed,
 		&i.UsageBaseTokens,
@@ -386,7 +394,7 @@ func (q *Queries) GetGoalSettlementEvidenceRef(ctx context.Context, arg GetGoalS
 }
 
 const getGoalTurnByPromptID = `-- name: GetGoalTurnByPromptID :one
-SELECT loop_run_id, seq, generation, node_id, item_index, turn, session_id, binding_handle, binding_epoch, prompt_id, prompt_attempt, usage_base_tokens, result_status, stop_reason, reason_code, verdict_outcome, blocking_json, evidence_ref, prompt_ref, tokens_used, actor_kind, actor_id, started_at, ended_at FROM loop_goal_turns
+SELECT loop_run_id, seq, generation, node_id, item_index, turn, session_id, binding_handle, binding_epoch, prompt_id, prompt_attempt, usage_base_tokens, result_status, stop_reason, reason_code, verdict_outcome, blocking_json, criteria_json, warnings_json, evidence_ref, prompt_ref, tokens_used, actor_kind, actor_id, started_at, ended_at FROM loop_goal_turns
 WHERE loop_goal_turns.loop_run_id = ?1
   AND loop_goal_turns.generation = ?2
   AND loop_goal_turns.node_id = ?3
@@ -436,6 +444,8 @@ func (q *Queries) GetGoalTurnByPromptID(ctx context.Context, arg GetGoalTurnByPr
 		&i.ReasonCode,
 		&i.VerdictOutcome,
 		&i.BlockingJson,
+		&i.CriteriaJson,
+		&i.WarningsJson,
 		&i.EvidenceRef,
 		&i.PromptRef,
 		&i.TokensUsed,
@@ -574,11 +584,12 @@ const settleGoalTurn = `-- name: SettleGoalTurn :execrows
 UPDATE loop_goal_turns
 SET result_status = ?1, stop_reason = ?2,
     reason_code = ?3, verdict_outcome = ?4,
-    blocking_json = ?5, evidence_ref = ?6,
-    tokens_used = ?7, ended_at = CAST(?8 AS TEXT)
-WHERE loop_run_id = ?9 AND generation = ?10
-  AND node_id = ?11 AND item_index = ?12
-  AND prompt_id = ?13 AND result_status IS NULL
+    blocking_json = ?5, criteria_json = ?6,
+    warnings_json = ?7, evidence_ref = ?8,
+    tokens_used = ?9, ended_at = CAST(?10 AS TEXT)
+WHERE loop_run_id = ?11 AND generation = ?12
+  AND node_id = ?13 AND item_index = ?14
+  AND prompt_id = ?15 AND result_status IS NULL
 `
 
 type SettleGoalTurnParams struct {
@@ -587,6 +598,8 @@ type SettleGoalTurnParams struct {
 	ReasonCode     sql.NullString `json:"reason_code"`
 	VerdictOutcome sql.NullString `json:"verdict_outcome"`
 	BlockingJson   string         `json:"blocking_json"`
+	CriteriaJson   string         `json:"criteria_json"`
+	WarningsJson   string         `json:"warnings_json"`
 	EvidenceRef    sql.NullString `json:"evidence_ref"`
 	TokensUsed     sql.NullInt64  `json:"tokens_used"`
 	EndedAt        string         `json:"ended_at"`
@@ -604,6 +617,8 @@ func (q *Queries) SettleGoalTurn(ctx context.Context, arg SettleGoalTurnParams) 
 		arg.ReasonCode,
 		arg.VerdictOutcome,
 		arg.BlockingJson,
+		arg.CriteriaJson,
+		arg.WarningsJson,
 		arg.EvidenceRef,
 		arg.TokensUsed,
 		arg.EndedAt,

@@ -292,7 +292,7 @@ func newBootLoopCoordinatorRuntime(
 		executions:          newLoopJudgeExecutionRegistry(),
 	}
 	gateEvaluator := gate.NewEvaluator(
-		gate.WithCommandRunner(loopGateCommandRunner{}),
+		gate.WithCommandRunner(loopGateCommandRunner{workspaceResolver: workspaceResolver}),
 		gate.WithJudgeRunner(judgeRunner),
 		gate.WithToolCaller(toolRegistry),
 	)

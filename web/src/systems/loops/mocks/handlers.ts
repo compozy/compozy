@@ -26,6 +26,7 @@ import {
   loopRunFixtures,
 } from "./fixtures";
 import { lintDefinition } from "./lint-definition";
+import { materializeContractFixture } from "./materialize-contract-fixture";
 
 const catalogByName = new Map(loopCatalogFixtures.map(entry => [entry.name, entry]));
 
@@ -278,6 +279,7 @@ export const handlers: HttpHandler[] = [
             input_origins: inputs.origins,
             resolved_network_participation: resolvedParticipation,
             contract: entry.contract,
+            materialized_contract: materializeContractFixture(entry.contract, inputs.resolved),
             nodes: previewNodes(definition),
             effective_config: {
               iteration_cap: 12,

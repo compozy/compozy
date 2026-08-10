@@ -34,6 +34,7 @@ function goalTurn(overrides: Partial<GoalTurn> = {}): GoalTurn {
     binding_epoch: 1,
     binding_handle: "goal:abc",
     blocking_issues: [],
+    criteria: [],
     ended_at: null,
     evidence_ref: null,
     generation: 1,
@@ -51,6 +52,7 @@ function goalTurn(overrides: Partial<GoalTurn> = {}): GoalTurn {
     tokens_used: null,
     turn: 1,
     verdict_outcome: null,
+    warnings: [],
     ...overrides,
   };
 }
@@ -108,6 +110,11 @@ describe("loop read hooks", () => {
     const run = renderHook(() => useLoopRun(WS, "looprun_running"), { wrapper });
     await waitFor(() => expect(run.result.current.isSuccess).toBe(true));
     expect(run.result.current.data?.run.status).toBe("running");
+    expect(run.result.current.data?.executed_definition?.contract.goal).toContain(
+      "{{ .inputs.slug }}"
+    );
+    expect(run.result.current.data?.materialized_contract.goal).toContain("loops-catalog-api");
+    expect(run.result.current.data?.materialized_contract.goal).not.toContain("{{");
   });
 
   it("Should fetch an empty Goal turn page through the run-scoped infinite query", async () => {
@@ -146,6 +153,8 @@ describe("loop read hooks", () => {
       reasonCode: null,
       verdictOutcome: "approved",
       blockingIssues: [],
+      criteria: [{ id: "done", type: "command", outcome: "approved", passed: true, exit_code: 0 }],
+      warnings: [{ code: "judge_note", message: "Fresh evidence accepted." }],
       evidenceRef: "blob_1",
       tokensUsed: 120,
       startedAt: "2026-07-10T12:00:00Z",
@@ -156,6 +165,8 @@ describe("loop read hooks", () => {
         key: "goal:0:1:1:1:prompt_1",
         resultStatus: "completed",
         verdictOutcome: "approved",
+        criteria: [expect.objectContaining({ id: "done", passed: true })],
+        warnings: [{ code: "judge_note", message: "Fresh evidence accepted." }],
         evidenceRef: "blob_1",
       }),
     ]);

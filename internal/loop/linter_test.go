@@ -623,6 +623,13 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			wantCodes: []string{refs.CodeUnknownReference},
 		},
 		{
+			name: "Should restrict contract narrative templates to declared inputs",
+			mutate: func(def *dsl.Definition) {
+				def.Contract.Goal = "Ship {{ .nodes.agent.output.summary }}"
+			},
+			wantCodes: []string{refs.CodeUnknownReference},
+		},
+		{
 			name: "Should reject item references after collect barrier",
 			mutate: func(def *dsl.Definition) {
 				def.Graph.Nodes = append(def.Graph.Nodes,

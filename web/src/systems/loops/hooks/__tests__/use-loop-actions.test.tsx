@@ -157,7 +157,7 @@ describe("loop mutation hooks", () => {
     await result.current.mutateAsync({
       workspaceId: WS,
       name: "implement-tasks",
-      data: { inputs: {} },
+      data: { inputs: { slug: "hook-run" } },
     });
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
@@ -168,7 +168,7 @@ describe("loop mutation hooks", () => {
     await result.current.mutateAsync({
       workspaceId: WS,
       name: "implement-tasks",
-      data: { inputs: {} },
+      data: { inputs: { slug: "hook-run" } },
       dry: true,
     });
     await waitFor(() => {

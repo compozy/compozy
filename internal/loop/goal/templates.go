@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/loop/gate"
 )
 
 const (
@@ -121,12 +122,62 @@ func renderWorkPrompt(segment *segmentState, turn int, kind string) string {
 			prompt.WriteString(note)
 		}
 	}
+	appendPreviousCriterionDiagnostics(&prompt, segment.lastCriteria)
+	appendPreviousWarnings(&prompt, segment.lastWarnings)
 	prompt.WriteString(
 		"\n\nThe Goal engine will evaluate the pinned criteria after this turn. " +
 			"Use the Goal report tool only for an explicit complete or evidenced blocked boundary; " +
 			"reporting does not end the current prompt.",
 	)
 	return prompt.String()
+}
+
+func appendPreviousCriterionDiagnostics(prompt *strings.Builder, criteria []gate.CriterionResult) {
+	wroteHeading := false
+	for _, criterion := range criteria {
+		if criterion.Passed && !criterion.Broken {
+			continue
+		}
+		if !wroteHeading {
+			prompt.WriteString("\n\nPrevious failed criteria:")
+			wroteHeading = true
+		}
+		prompt.WriteString("\n- [")
+		prompt.WriteString(strings.TrimSpace(criterion.ID))
+		prompt.WriteString("] type=")
+		prompt.WriteString(string(criterion.Type))
+		prompt.WriteString(" outcome=")
+		prompt.WriteString(string(criterion.Outcome))
+		if criterion.ExitCode != nil {
+			fmt.Fprintf(prompt, " exit_code=%d", *criterion.ExitCode)
+		}
+		appendPreviousCriterionStream(prompt, "stdout", criterion.Stdout)
+		appendPreviousCriterionStream(prompt, "stderr", criterion.Stderr)
+	}
+}
+
+func appendPreviousCriterionStream(prompt *strings.Builder, label, value string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return
+	}
+	prompt.WriteString("\n  ")
+	prompt.WriteString(label)
+	prompt.WriteString(": ")
+	prompt.WriteString(value)
+}
+
+func appendPreviousWarnings(prompt *strings.Builder, warnings []gate.DiagnosticWarning) {
+	if len(warnings) == 0 {
+		return
+	}
+	prompt.WriteString("\n\nPrevious judge warnings:")
+	for _, warning := range warnings {
+		prompt.WriteString("\n- [")
+		prompt.WriteString(strings.TrimSpace(warning.Code))
+		prompt.WriteString("] ")
+		prompt.WriteString(strings.TrimSpace(warning.Message))
+	}
 }
 
 func renderCompactionPrompt(segment *segmentState) string {

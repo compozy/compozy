@@ -112,6 +112,7 @@ func goalTurnFromGenerated(
 	fields := goalTurnScanFields{
 		resultStatus: row.ResultStatus, stopReason: row.StopReason, reasonCode: row.ReasonCode,
 		verdictOutcome: row.VerdictOutcome, blockingJSON: row.BlockingJson, evidenceRef: row.EvidenceRef,
+		criteriaJSON: row.CriteriaJson, warningsJSON: row.WarningsJson,
 		promptRef: row.PromptRef, tokensUsed: row.TokensUsed, startedAtRaw: row.StartedAt,
 		endedAtRaw: goalOptionalTimeValue(row.EndedAt),
 	}

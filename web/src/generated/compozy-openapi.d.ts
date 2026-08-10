@@ -90953,6 +90953,186 @@ export interface operations {
                 score?: number | null;
               }[];
             }[];
+            materialized_contract: {
+              boundaries?: string[];
+              budget: {
+                /** @enum {string} */
+                on_exceeded?: "halt" | "escalate";
+                tokens: number;
+                wall_clock_sec: number;
+              };
+              constraints?: string[];
+              definition_of_done: string;
+              goal: string;
+              iteration_cap: number;
+              no_progress: {
+                hash_fields?: string[];
+                window: number;
+              };
+              on_blocked?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_canceled?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_done?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_exhausted?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_failed?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_noop?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              on_stalled?: (
+                | {
+                    emit: {
+                      kind: string;
+                      payload?: {
+                        [key: string]: unknown;
+                      };
+                    };
+                  }
+                | {
+                    tool: string;
+                    with?: {
+                      [key: string]: unknown;
+                    };
+                  }
+              )[];
+              runtime_defaults?: {
+                judge?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+                worker?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              } | null;
+              runtime_rules?: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+              }[];
+              stop_when?: string;
+              terminal_states?: string[];
+              verification?: {
+                agent?: string;
+                check?: string;
+                contains?: string;
+                expect?: string;
+                id: string;
+                inputs?: {
+                  [key: string]: unknown;
+                };
+                metric?: {
+                  /** @enum {string} */
+                  direction: "maximize" | "minimize";
+                  /** Format: double */
+                  min_delta?: number | null;
+                } | null;
+                prompt?: string;
+                rubric?: string;
+                runtime?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                };
+                tool?: string;
+                type: string;
+              }[];
+            };
             node_controls: {
               attention_flag?: string;
               attention_producer_node_id?: string;
@@ -93992,6 +94172,36 @@ export interface operations {
                 id: string;
                 note: string;
               }[];
+              criteria: {
+                blocking_issues?: {
+                  id: string;
+                  note: string;
+                }[];
+                broken?: boolean;
+                evidence?: unknown;
+                exit_code?: number | null;
+                id: string;
+                /** @enum {string} */
+                outcome:
+                  | "approved"
+                  | "rejected"
+                  | "awaiting_approval"
+                  | "blocked"
+                  | "error"
+                  | "timeout"
+                  | "invalid_output";
+                passed: boolean;
+                payload?: unknown;
+                /** Format: double */
+                score?: number | null;
+                stderr?: string;
+                stdout?: string;
+                type: string;
+                warnings?: {
+                  code: string;
+                  message: string;
+                }[];
+              }[];
               /** Format: date-time */
               ended_at: string | null;
               evidence_ref: string | null;
@@ -94065,6 +94275,10 @@ export interface operations {
                 | "timeout"
                 | "invalid_output"
                 | null;
+              warnings: {
+                code: string;
+                message: string;
+              }[];
             }[];
           };
         };
@@ -100335,6 +100549,186 @@ export interface operations {
                 [key: string]: string;
               };
               loop_name: string;
+              materialized_contract: {
+                boundaries?: string[];
+                budget: {
+                  /** @enum {string} */
+                  on_exceeded?: "halt" | "escalate";
+                  tokens: number;
+                  wall_clock_sec: number;
+                };
+                constraints?: string[];
+                definition_of_done: string;
+                goal: string;
+                iteration_cap: number;
+                no_progress: {
+                  hash_fields?: string[];
+                  window: number;
+                };
+                on_blocked?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_canceled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_done?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_exhausted?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_failed?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_noop?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_stalled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                runtime_defaults?: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                } | null;
+                runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
+                stop_when?: string;
+                terminal_states?: string[];
+                verification?: {
+                  agent?: string;
+                  check?: string;
+                  contains?: string;
+                  expect?: string;
+                  id: string;
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  metric?: {
+                    /** @enum {string} */
+                    direction: "maximize" | "minimize";
+                    /** Format: double */
+                    min_delta?: number | null;
+                  } | null;
+                  prompt?: string;
+                  rubric?: string;
+                  runtime?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  tool?: string;
+                  type: string;
+                }[];
+              };
               nodes: {
                 /** @enum {string} */
                 class: "action" | "control" | "source";
@@ -100743,6 +101137,186 @@ export interface operations {
                 [key: string]: string;
               };
               loop_name: string;
+              materialized_contract: {
+                boundaries?: string[];
+                budget: {
+                  /** @enum {string} */
+                  on_exceeded?: "halt" | "escalate";
+                  tokens: number;
+                  wall_clock_sec: number;
+                };
+                constraints?: string[];
+                definition_of_done: string;
+                goal: string;
+                iteration_cap: number;
+                no_progress: {
+                  hash_fields?: string[];
+                  window: number;
+                };
+                on_blocked?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_canceled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_done?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_exhausted?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_failed?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_noop?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                on_stalled?: (
+                  | {
+                      emit: {
+                        kind: string;
+                        payload?: {
+                          [key: string]: unknown;
+                        };
+                      };
+                    }
+                  | {
+                      tool: string;
+                      with?: {
+                        [key: string]: unknown;
+                      };
+                    }
+                )[];
+                runtime_defaults?: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                } | null;
+                runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                }[];
+                stop_when?: string;
+                terminal_states?: string[];
+                verification?: {
+                  agent?: string;
+                  check?: string;
+                  contains?: string;
+                  expect?: string;
+                  id: string;
+                  inputs?: {
+                    [key: string]: unknown;
+                  };
+                  metric?: {
+                    /** @enum {string} */
+                    direction: "maximize" | "minimize";
+                    /** Format: double */
+                    min_delta?: number | null;
+                  } | null;
+                  prompt?: string;
+                  rubric?: string;
+                  runtime?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                  };
+                  tool?: string;
+                  type: string;
+                }[];
+              };
               nodes: {
                 /** @enum {string} */
                 class: "action" | "control" | "source";

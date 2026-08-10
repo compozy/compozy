@@ -28,7 +28,7 @@ func (e *Evaluator) evaluateAgentJudge(
 		}
 	}
 	contract := gateInputContract(in.Contract)
-	rubric, err := RenderAgentJudgeRubric(criterion, contract, in.TemplateData, in.JudgeEvidence)
+	rubric, err := RenderAgentJudgeRubric(criterion, contract, in.JudgeEvidence)
 	if err != nil {
 		return CriterionResult{
 			ID:      criterion.ID,

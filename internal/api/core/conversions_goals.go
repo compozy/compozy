@@ -111,7 +111,8 @@ func goalTurnPagePayload(page session.GoalTurnPage) (contract.GoalTurnPage, erro
 func goalTurnPayload(turn session.GoalTurn) (contract.GoalTurn, error) {
 	if turn.ResultStatus == nil {
 		if turn.EndedAt != nil || turn.StopReason != nil || turn.ReasonCode != nil ||
-			turn.VerdictOutcome != nil || turn.EvidenceRef != nil || turn.TokensUsed != nil {
+			turn.VerdictOutcome != nil || len(turn.BlockingIssues) > 0 || len(turn.Criteria) > 0 ||
+			len(turn.Warnings) > 0 || turn.EvidenceRef != nil || turn.TokensUsed != nil {
 			return contract.GoalTurn{}, goalContractValidationError(
 				"open Goal turn contains terminal fields",
 			)
@@ -122,6 +123,34 @@ func goalTurnPayload(turn session.GoalTurn) (contract.GoalTurn, error) {
 	issues := make([]contract.GoalBlockingIssue, 0, len(turn.BlockingIssues))
 	for _, issue := range turn.BlockingIssues {
 		issues = append(issues, contract.GoalBlockingIssue{ID: issue.ID, Note: issue.Note})
+	}
+	criteria := make([]contract.GoalCriterionResult, 0, len(turn.Criteria))
+	for _, criterion := range turn.Criteria {
+		outcome, err := goalVerdictOutcomePayload(criterion.Outcome)
+		if err != nil {
+			return contract.GoalTurn{}, err
+		}
+		criterionIssues := make([]contract.GoalBlockingIssue, 0, len(criterion.BlockingIssues))
+		for _, issue := range criterion.BlockingIssues {
+			criterionIssues = append(criterionIssues, contract.GoalBlockingIssue{ID: issue.ID, Note: issue.Note})
+		}
+		criterionWarnings := make([]contract.GoalDiagnosticWarning, 0, len(criterion.Warnings))
+		for _, warning := range criterion.Warnings {
+			criterionWarnings = append(criterionWarnings, contract.GoalDiagnosticWarning{
+				Code: warning.Code, Message: warning.Message,
+			})
+		}
+		criteria = append(criteria, contract.GoalCriterionResult{
+			ID: criterion.ID, Type: criterion.Type, Outcome: outcome,
+			Passed: criterion.Passed, Broken: criterion.Broken, ExitCode: criterion.ExitCode,
+			Stdout: criterion.Stdout, Stderr: criterion.Stderr, Score: criterion.Score,
+			Evidence: append([]byte(nil), criterion.Evidence...), BlockingIssues: criterionIssues,
+			Warnings: criterionWarnings, Payload: append([]byte(nil), criterion.Payload...),
+		})
+	}
+	warnings := make([]contract.GoalDiagnosticWarning, 0, len(turn.Warnings))
+	for _, warning := range turn.Warnings {
+		warnings = append(warnings, contract.GoalDiagnosticWarning{Code: warning.Code, Message: warning.Message})
 	}
 	resultStatus, err := goalTurnResultStatusPayload(turn.ResultStatus)
 	if err != nil {
@@ -136,7 +165,8 @@ func goalTurnPayload(turn session.GoalTurn) (contract.GoalTurn, error) {
 		Turn: turn.Turn, PromptAttempt: turn.PromptAttempt, SessionID: turn.SessionID,
 		BindingHandle: turn.BindingHandle, BindingEpoch: turn.BindingEpoch, PromptID: turn.PromptID,
 		ResultStatus: resultStatus, VerdictOutcome: verdictOutcome,
-		BlockingIssues: issues, EvidenceRef: turn.EvidenceRef, PromptRef: turn.PromptRef,
+		BlockingIssues: issues, Criteria: criteria, Warnings: warnings,
+		EvidenceRef: turn.EvidenceRef, PromptRef: turn.PromptRef,
 		TokensUsed: turn.TokensUsed, ActorKind: turn.ActorKind, ActorID: turn.ActorID,
 		StartedAt: turn.StartedAt, EndedAt: turn.EndedAt,
 	}

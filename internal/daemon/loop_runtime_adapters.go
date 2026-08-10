@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const loopRuntimeSessionPrefix = "loop"
@@ -151,11 +152,13 @@ func loopJudgeStopCause(err error) (session.StopCause, string) {
 	return session.CauseFailed, "loop judge failed"
 }
 
-type loopGateCommandRunner struct{}
+type loopGateCommandRunner struct {
+	workspaceResolver workspacepkg.RuntimeResolver
+}
 
 var _ gate.CommandRunner = loopGateCommandRunner{}
 
-func (loopGateCommandRunner) RunCommand(
+func (r loopGateCommandRunner) RunCommand(
 	ctx context.Context,
 	req gate.CommandRequest,
 ) (gate.CommandResult, error) {
@@ -163,12 +166,32 @@ func (loopGateCommandRunner) RunCommand(
 	if command == "" {
 		return gate.CommandResult{}, fmt.Errorf("%w: command check is required", looppkg.ErrValidation)
 	}
+	workspaceID := strings.TrimSpace(req.WorkspaceID)
+	if workspaceID == "" {
+		return gate.CommandResult{}, fmt.Errorf("%w: command workspace_id is required", looppkg.ErrValidation)
+	}
+	if r.workspaceResolver == nil {
+		return gate.CommandResult{}, workspacepkg.ErrWorkspaceResolverUnavailable
+	}
+	resolved, err := r.workspaceResolver.Resolve(ctx, workspaceID)
+	if err != nil {
+		return gate.CommandResult{}, fmt.Errorf("daemon: resolve command workspace %q: %w", workspaceID, err)
+	}
+	rootDir := strings.TrimSpace(resolved.RootDir)
+	if rootDir == "" {
+		return gate.CommandResult{}, fmt.Errorf(
+			"daemon: command workspace %q: %w",
+			workspaceID,
+			workspacepkg.ErrWorkspaceRootMissing,
+		)
+	}
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Dir = rootDir
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	exitCode := 0
 	if err != nil {
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {

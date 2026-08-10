@@ -54,6 +54,22 @@ against the declared input and output schemas — there is no silent empty-strin
 In `{{ }}`, roots take a leading dot (`{{ .inputs.slug }}`, `{{ .item.title }}`); in CEL they do
 not (`inputs.slug`, `item.title`). Node IDs are identical in both.
 
+## One materialization pass
+
+Contract narrative fields — `goal`, `definition_of_done`, `constraints[]`, and `boundaries[]` —
+accept only declared `inputs` references. Compozy resolves those fields once, after effective inputs
+are known and before a Goal agent or judge receives the contract. Missing references fail before
+the Goal performs work.
+
+Goal `params` values are resolved recursively at the same execution boundary. A direct reference
+keeps its JSON type instead of becoming text, while `output_schema` remains the authored schema and
+is never treated as a template. Nested gate inputs follow the same rule.
+
+There is no second template pass inside the agent or judge. If an input value itself contains
+`{{ ... }}`, those braces remain literal data; they cannot introduce a new reference. Run details
+therefore expose both `executed_definition`, the raw authored snapshot, and
+`materialized_contract`, the input-resolved contract that governed the run.
+
 ## Effect templates
 
 Effect `with` and `emit.payload` values use a deliberately smaller namespace: declared `inputs`
