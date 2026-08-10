@@ -666,9 +666,10 @@ jobs:
   desktop-build:
     name: Desktop ${{ matrix.name }}
     needs: [release-plan, release]
-    if: |
-      needs.release.result == 'success' &&
-      needs.release.outputs.already_published != 'true'
+    # Runs for fresh staging AND for staged-draft recovery (orphaned_* states).
+    # The release job hard-fails when the GitHub Release is no longer a draft,
+    # so release.result == 'success' alone proves a draft awaits desktop assets.
+    if: needs.release.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -726,26 +727,29 @@ jobs:
             patchelf \
             xdg-utils
 
-      - name: Write App Store Connect API key
-        if: matrix.platform == 'macos'
-        env:
-          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${APPLE_API_PRIVATE_KEY:-}" ]]; then
-            echo "::error::APPLE_API_PRIVATE_KEY is required"
-            exit 1
-          fi
-          api_key_path="${RUNNER_TEMP}/AuthKey_${{ secrets.APPLE_API_KEY }}.p8"
-          printf '%s' "${APPLE_API_PRIVATE_KEY}" >"${api_key_path}"
-          chmod 600 "${api_key_path}"
-          echo "APPLE_API_KEY_PATH=${api_key_path}" >>"${GITHUB_ENV}"
-
       - name: Install Azure Artifact Signing CLI
         if: matrix.platform == 'windows'
         run: cargo install artifact-signing-cli --version 0.11.0 --locked
 
       - name: Assert signing material before build
+        if: matrix.platform != 'macos'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+        run: scripts/assert-desktop-signing-material.sh "${{ matrix.platform }}"
+
+      # macOS asserts live inline (not in the repo script) so a dispatch that
+      # recovers an older release ref keeps using the current Apple ID contract.
+      - name: Assert signing material before build (macOS)
+        if: matrix.platform == 'macos'
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -754,15 +758,20 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
-          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
-          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-        run: scripts/assert-desktop-signing-material.sh "${{ matrix.platform }}"
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
+            TAURI_SIGNING_PUBLIC_KEY APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD \
+            APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "desktop release: required signing value ${name} is missing" >&2
+              exit 1
+            fi
+          done
+          echo "desktop release signing preflight: PASS (macos)"
 
       - name: Generate release channel configuration
         shell: bash
@@ -805,19 +814,23 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
           AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
 
+      # Inline (not a repo script) so dispatch recovery of an older release
+      # ref notarizes with the current Apple ID contract.
       - name: Notarize staple and validate macOS artifacts
         if: matrix.platform == 'macos'
         env:
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
@@ -825,7 +838,22 @@ jobs:
           set -euo pipefail
           app_path="$(find desktop/src-tauri/target -type d -path '*/bundle/macos/*.app' -print -quit)"
           dmg_path="$(find desktop/src-tauri/target -type f -path '*/bundle/dmg/*.dmg' -print -quit)"
-          scripts/notarize-staple-dmg.sh "${app_path}" "${dmg_path}" "${RELEASE_VERSION}"
+          if [[ ! -d "${app_path}" || ! -s "${dmg_path}" ]]; then
+            echo "desktop release: app bundle and DMG must exist before notarization" >&2
+            exit 1
+          fi
+          bundle_version="$(/usr/libexec/PlistBuddy -c 'Print:CFBundleShortVersionString' "${app_path}/Contents/Info.plist")"
+          if [[ "${bundle_version}" != "${RELEASE_VERSION}" ]]; then
+            echo "desktop release: CFBundleShortVersionString ${bundle_version} does not match ${RELEASE_VERSION}" >&2
+            exit 1
+          fi
+          xcrun notarytool submit "${dmg_path}" \
+            --apple-id "${APPLE_ID}" \
+            --password "${APPLE_PASSWORD}" \
+            --team-id "${APPLE_TEAM_ID}" \
+            --wait
+          xcrun stapler staple "${dmg_path}"
+          xcrun stapler validate "${dmg_path}"
           gh release upload "${RELEASE_TAG}" "${dmg_path}" --clobber --repo "${GITHUB_REPOSITORY}"
 
       - name: Normalize desktop artifacts
@@ -850,8 +878,7 @@ jobs:
     needs: [release-plan, release, desktop-build]
     if: |
       needs.release.result == 'success' &&
-      needs.desktop-build.result == 'success' &&
-      needs.release.outputs.already_published != 'true'
+      needs.desktop-build.result == 'success'
     runs-on: macos-15
     timeout-minutes: 90
     steps:

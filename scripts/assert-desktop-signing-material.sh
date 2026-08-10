@@ -15,16 +15,9 @@ for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD TAURI_S
   require_value "${name}"
 done
 
+# macOS asserts live inline in .github/workflows/release.yml so dispatch
+# recovery of an older release ref keeps using the current Apple ID contract.
 case "${platform}" in
-  macos)
-    for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_PATH; do
-      require_value "${name}"
-    done
-    if [[ ! -s "${APPLE_API_KEY_PATH}" ]]; then
-      echo "desktop release: APPLE_API_KEY_PATH must name the non-empty ASC API .p8 file" >&2
-      exit 1
-    fi
-    ;;
   linux)
     ;;
   windows)
@@ -33,7 +26,7 @@ case "${platform}" in
     done
     ;;
   *)
-    echo "usage: assert-desktop-signing-material.sh <macos|linux|windows>" >&2
+    echo "usage: assert-desktop-signing-material.sh <linux|windows>" >&2
     exit 2
     ;;
 esac

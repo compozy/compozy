@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -489,17 +488,19 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			t.Fatal("desktop signing preflight must run before the Tauri build")
 		}
 		for _, snippet := range []string{
-			"APPLE_API_ISSUER",
-			"APPLE_API_KEY_PATH",
-			"scripts/notarize-staple-dmg.sh",
+			"APPLE_ID: ${{ secrets.APPLE_ID }}",
+			"APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}",
+			"APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}",
+			"xcrun notarytool submit",
+			"xcrun stapler staple",
 			"artifact-signing-cli --version 0.11.0 --locked",
 			"AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}",
 			"AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}",
 		} {
 			assertContainsText(t, "desktop release workflow", workflow, snippet)
 		}
-		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_ID:")
-		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_PASSWORD:")
+		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_API_ISSUER")
+		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_API_KEY")
 	})
 }
 
@@ -698,70 +699,6 @@ func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
 		assertContainsText(t, "normalization discovery", string(output), "failed to enumerate")
 	})
 
-	t.Run("Should reject a DMG whose embedded app has another version", func(t *testing.T) {
-		if runtime.GOOS != "darwin" {
-			t.Skip("DMG inspection requires macOS PlistBuddy")
-		}
-		t.Parallel()
-
-		appPath := filepath.Join(t.TempDir(), "CompozyOS.app")
-		infoPath := filepath.Join(appPath, "Contents", "Info.plist")
-		if err := os.MkdirAll(filepath.Dir(infoPath), 0o755); err != nil {
-			t.Fatalf("os.MkdirAll(app contents) error = %v", err)
-		}
-		plist := `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>0.4.0-beta.2</string></dict></plist>`
-		if err := os.WriteFile(infoPath, []byte(plist), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(app plist) error = %v", err)
-		}
-		dmgPath := filepath.Join(t.TempDir(), "CompozyOS.dmg")
-		if err := os.WriteFile(dmgPath, []byte("fixture"), 0o600); err != nil {
-			t.Fatalf("os.WriteFile(DMG) error = %v", err)
-		}
-		binDir := t.TempDir()
-		hdiutilStub := `#!/bin/sh
-if [ "$1" = "detach" ]; then
-  rm "$2/CompozyOS.app/Contents/Info.plist"
-  rmdir "$2/CompozyOS.app/Contents" "$2/CompozyOS.app"
-  exit 0
-fi
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "-mountpoint" ]; then
-    shift
-    mount_point="$1"
-    break
-  fi
-  shift
-done
-mkdir -p "$mount_point/CompozyOS.app/Contents"
-printf '%s' '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>9.9.9</string></dict></plist>' >"$mount_point/CompozyOS.app/Contents/Info.plist"
-`
-		if err := os.WriteFile(filepath.Join(binDir, "hdiutil"), []byte(hdiutilStub), 0o755); err != nil {
-			t.Fatalf("os.WriteFile(hdiutil stub) error = %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(binDir, "xcrun"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-			t.Fatalf("os.WriteFile(xcrun stub) error = %v", err)
-		}
-		cmd := exec.CommandContext(
-			t.Context(),
-			"bash",
-			filepath.Join(root, "scripts", "notarize-staple-dmg.sh"),
-			appPath, dmgPath, "0.4.0-beta.2",
-		)
-		cmd.Dir = root
-		cmd.Env = []string{
-			"PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
-			"APPLE_API_ISSUER=fixture",
-			"APPLE_API_KEY=fixture",
-			"APPLE_API_KEY_PATH=fixture",
-		}
-		output, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatalf("notarization accepted the wrong embedded app version: %s", output)
-		}
-		assertContainsText(t, "DMG bundle version", string(output), "DMG CFBundleShortVersionString 9.9.9")
-	})
 }
 
 func TestReleasePreflightValidatesPublishWorkspace(t *testing.T) {
