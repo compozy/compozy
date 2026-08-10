@@ -189,3 +189,16 @@ fn should_grant_no_capability_or_global_api_to_the_remote_main_window() {
     assert_eq!(capability["permissions"], serde_json::json!([]));
     assert!(capability.get("remote").is_none());
 }
+
+#[test]
+fn should_initialize_updater_plugin_from_base_tauri_config() {
+    let config = serde_json::from_value(read_json(manifest_dir().join("tauri.conf.json")))
+        .expect("base Tauri config parses");
+    let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+    *context.config_mut() = config;
+
+    tauri::test::mock_builder()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .build(context)
+        .expect("development shell initializes updater plugin");
+}

@@ -33,6 +33,10 @@
             "desktop": {
                 "schemes": ["compozyos"]
             }
+        },
+        "updater": {
+            "endpoints": [],
+            "pubkey": ""
         }
     },
     "bundle": {
