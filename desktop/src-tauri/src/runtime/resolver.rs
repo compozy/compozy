@@ -1,15 +1,12 @@
 use std::fs;
-use std::io::Read;
 use std::path::{Path, PathBuf};
-
-use serde::Deserialize;
-use sha2::{Digest, Sha256};
 
 use crate::errors::{ShellError, ShellErrorCode};
 use crate::home::CompozyHome;
 
 use super::discovery::{Discovery, ProcessTable, discover};
 use super::probe::{BoundDaemonIdentity, Identity, IdentityProbe};
+use super::provenance;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BinarySource {
@@ -103,7 +100,7 @@ pub struct SystemInstallLocator;
 
 impl InstallLocator for SystemInstallLocator {
     fn app_owned(&self, home: &CompozyHome) -> Option<PathBuf> {
-        validated_owned_binary(home)
+        provenance::validated_owned_binary(home)
     }
 
     fn operator_install(&self, home: &CompozyHome) -> Option<PathBuf> {
@@ -111,10 +108,7 @@ impl InstallLocator for SystemInstallLocator {
     }
 
     fn owns_executable(&self, home: &CompozyHome, executable: &Path) -> bool {
-        validated_owned_binary(home)
-            .and_then(|owned| fs::canonicalize(owned).ok())
-            .zip(fs::canonicalize(executable).ok())
-            .is_some_and(|(owned, actual)| owned == actual)
+        provenance::owns_executable(home, executable)
     }
 }
 
@@ -130,39 +124,6 @@ fn first_operator_binary(
         return Some(binary);
     }
     fallback_paths.into_iter().find_map(executable_file)
-}
-
-#[derive(Debug, Deserialize)]
-struct Provenance {
-    installed_by: String,
-    binary_sha256: String,
-}
-
-fn validated_owned_binary(home: &CompozyHome) -> Option<PathBuf> {
-    let marker: Provenance = serde_json::from_slice(&fs::read(&home.provenance).ok()?).ok()?;
-    if marker.installed_by != "desktop-app" {
-        return None;
-    }
-    let binary = executable_file(home.app_binary.clone())?;
-    let digest = sha256(&binary).ok()?;
-    if !digest.eq_ignore_ascii_case(&marker.binary_sha256) {
-        return None;
-    }
-    Some(binary)
-}
-
-fn sha256(path: &Path) -> std::io::Result<String> {
-    let mut file = fs::File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 32 * 1024];
-    loop {
-        let read = file.read(&mut buffer)?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn executable_file(path: PathBuf) -> Option<PathBuf> {
@@ -378,14 +339,12 @@ mod tests {
         let directory = tempfile::tempdir().expect("temp directory opens");
         let home = CompozyHome::from_root(directory.path().to_path_buf());
         write_executable(&home.app_binary, b"owned runtime");
-        let digest = sha256(&home.app_binary).expect("binary hashes");
+        let digest = provenance::sha256_file(&home.app_binary).expect("binary hashes");
+        let marker =
+            provenance::ProvenanceRecord::desktop("0.3.0", "0.3.0", "beta", Utc::now(), digest);
         fs::write(
             &home.provenance,
-            serde_json::json!({
-                "installed_by": "desktop-app",
-                "binary_sha256": digest
-            })
-            .to_string(),
+            serde_json::to_vec(&marker).expect("provenance serializes"),
         )
         .expect("provenance writes");
         let locator = SystemInstallLocator;

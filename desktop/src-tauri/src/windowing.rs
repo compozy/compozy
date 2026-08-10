@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use serde::Serialize;
 use tauri::webview::{NewWindowResponse, PageLoadEvent};
 use tauri::{
     AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow,
@@ -11,6 +10,7 @@ use tauri::{
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
+use crate::boot_window;
 use crate::errors::{ShellError, ShellErrorCode};
 use crate::links::LinkQueue;
 use crate::nav::{self, NavigationDecision};
@@ -21,6 +21,7 @@ const MAIN_MIN_WIDTH: u32 = 900;
 const MAIN_MIN_HEIGHT: u32 = 600;
 
 pub type LoadDeadlineHandler = Arc<dyn Fn(ShellError) + Send + Sync>;
+pub type ProductReadyHandler = Arc<dyn Fn() + Send + Sync>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Rect {
@@ -43,60 +44,13 @@ pub enum LoadDecision {
     Error,
 }
 
-#[derive(Serialize)]
-struct BootPayload<'a> {
-    state: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    message: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    action: Option<&'a str>,
-}
-
-pub fn render_boot(window: &WebviewWindow<Wry>, state: &ShellState) -> tauri::Result<()> {
-    let (name, message, action) = boot_copy(state);
-    let payload = serde_json::to_string(&BootPayload {
-        state: name,
-        message,
-        action,
-    })?;
-    window.eval(format!(
-        "window.__COMPOZY_BOOT__ && window.__COMPOZY_BOOT__.render({payload});"
-    ))
-}
-
-pub fn show_boot(app: &AppHandle<Wry>, state: ShellState) -> tauri::Result<()> {
-    if let Some(boot) = app.get_webview_window("boot") {
-        render_boot(&boot, &state)?;
-        boot.show()?;
-        boot.set_focus()?;
-        return Ok(());
-    }
-    let page_state = state.clone();
-    let boot = WebviewWindowBuilder::new(app, "boot", WebviewUrl::App("boot.html".into()))
-        .title("CompozyOS")
-        .inner_size(520.0, 320.0)
-        .min_inner_size(420.0, 280.0)
-        .resizable(false)
-        .center()
-        .background_color(tauri::window::Color(19, 18, 17, 255))
-        .on_page_load(move |window, payload| {
-            if payload.event() == PageLoadEvent::Finished
-                && let Err(error) = render_boot(&window, &page_state)
-            {
-                crate::logging::error(format!("render recreated boot state: {error}"));
-            }
-        })
-        .build()?;
-    boot.show()?;
-    boot.set_focus()
-}
-
 pub fn create_main_window(
     app: &AppHandle<Wry>,
     origin: Url,
     links: Arc<LinkQueue>,
     log_path: std::path::PathBuf,
     on_load_deadline: LoadDeadlineHandler,
+    on_product_ready: ProductReadyHandler,
 ) -> tauri::Result<WebviewWindow<Wry>> {
     let loaded = Arc::new(AtomicBool::new(false));
     let loaded_for_page = Arc::clone(&loaded);
@@ -142,7 +96,9 @@ pub fn create_main_window(
             loaded_for_page.store(true, Ordering::Release);
             if let Err(error) = reveal_product(&window, &links_for_page) {
                 crate::logging::error(format!("reveal product window: {error}"));
+                return;
             }
+            on_product_ready();
         })
         .build()?;
 
@@ -155,7 +111,8 @@ pub fn create_main_window(
         let error = ShellError::from_code(ShellErrorCode::LoadDeadlineExceeded, log_path);
         on_load_deadline(error.clone());
         if let Some(boot) = app_for_deadline.get_webview_window("boot") {
-            if let Err(render_error) = render_boot(&boot, &ShellState::ShellError { error }) {
+            if let Err(render_error) = boot_window::render(&boot, &ShellState::ShellError { error })
+            {
                 crate::logging::error(format!("render load deadline: {render_error}"));
             }
             if let Err(show_error) = boot.show() {
@@ -278,32 +235,6 @@ fn intersects(left: Rect, right: Rect) -> bool {
         && left_right > i64::from(right.x)
         && i64::from(left.y) < right_bottom
         && left_bottom > i64::from(right.y)
-}
-
-fn boot_copy(state: &ShellState) -> (&'static str, Option<&str>, Option<&str>) {
-    match state {
-        ShellState::Resolving => ("resolving", None, None),
-        ShellState::Provisioning { .. } => ("provisioning", None, None),
-        ShellState::Starting { .. } => ("starting", None, None),
-        ShellState::Attaching => ("attaching", None, None),
-        ShellState::Product { .. } => ("product", None, None),
-        ShellState::Updating { .. } => ("updating", None, None),
-        ShellState::Disconnected { .. } => (
-            "disconnected",
-            None,
-            Some("CompozyOS will reconnect when the runtime returns."),
-        ),
-        ShellState::Skew { newer, .. } => (
-            "skew",
-            None,
-            Some(if *newer {
-                "Update the CompozyOS app."
-            } else {
-                "Update the Compozy runtime through its install channel."
-            }),
-        ),
-        ShellState::ShellError { error } => ("error", Some(error.safe_message.as_str()), None),
-    }
 }
 
 #[cfg(test)]

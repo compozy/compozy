@@ -1,10 +1,3 @@
-<!--
-THESIS: A boot receipt makes runtime status legible before the product opens; it refuses the usual centered spinner.
-OWN-WORLD: Warm near-black canvas, one orange activity mark, restrained Geist type, a hairline grouping, and no card or decorative depth.
-STORY: The person sees whether CompozyOS is being found, prepared, started, connected, updated, or needs attention.
-FIRST VIEWPORT: A small CompozyOS identifier sits above one ruled status block on the left; the current status is the sole headline.
-FORM: Direct brief, one narrow state ledger; no seed or alternate form.
--->
 <!doctype html>
 <html lang="en">
   <head>
@@ -26,7 +19,12 @@ FORM: Direct brief, one narrow state ledger; no seed or alternate form.
         --color-muted: #9a9a9f;
         --color-subtle: oklch(0.663 0.009 286.106);
         --color-accent: #e8572a;
+        --color-accent-hover: #d14e25;
+        --color-accent-ink: #17110f;
         --color-line: rgba(255, 255, 255, 0.055);
+        --color-btn-default-fill: rgba(255, 255, 255, 0.04);
+        --color-btn-default-hover: rgba(255, 255, 255, 0.07);
+        --color-disabled: #4a4847;
         --font-sans: "Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
         --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace;
         --font-weight-normal: 400;
@@ -38,6 +36,7 @@ FORM: Direct brief, one narrow state ledger; no seed or alternate form.
         --text-item-title--line-height: 1.375rem;
         --text-small-body: 0.78125rem;
         --text-small-body--line-height: 1.125rem;
+        --text-form-input: 0.78125rem;
         --text-mono-id: 0.65625rem;
         --text-mono-id--line-height: 0.75rem;
         --tracking-body: -0.006em;
@@ -47,11 +46,17 @@ FORM: Direct brief, one narrow state ledger; no seed or alternate form.
         --spacing-transcript-turn-gap: 18px;
         --spacing-transcript-inline-gap: 7px;
         --spacing-transcript-meta-gap: 3px;
+        --spacing-traffic-light-compact-gap: 12px;
         --height-setup-head: 52px;
+        --height-button-cta: 36px;
         --size-status-dot: 7px;
         --radius-xxs: 3px;
+        --radius-sm: 5px;
         --width-detail-inspector-inline: 320px;
         --container-setting-description: 52ch;
+        --duration-fast: 100ms;
+        --ease-out: cubic-bezier(0.2, 0, 0, 1);
+        --shadow-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.5);
       }
 
       * {
@@ -150,6 +155,89 @@ FORM: Direct brief, one narrow state ledger; no seed or alternate form.
         font-weight: var(--font-weight-medium);
       }
 
+      .boot__controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--spacing-traffic-light-compact-gap);
+        margin-block-start: var(--spacing-transcript-turn-gap);
+      }
+
+      .boot__control {
+        min-block-size: var(--height-button-cta);
+        border: 0;
+        border-radius: var(--radius-sm);
+        padding-inline: var(--spacing-traffic-light-compact-gap);
+        background: var(--color-btn-default-fill);
+        color: var(--color-fg);
+        cursor: pointer;
+        font: inherit;
+        font-size: var(--text-form-input);
+        font-weight: var(--font-weight-medium);
+        letter-spacing: var(--tracking-body);
+        transition:
+          background-color var(--duration-fast) var(--ease-out),
+          color var(--duration-fast) var(--ease-out);
+      }
+
+      .boot__control:hover:not(:disabled),
+      .boot__control:active:not(:disabled) {
+        background: var(--color-btn-default-hover);
+      }
+
+      .boot__control:focus-visible {
+        box-shadow: var(--shadow-focus-ring);
+        outline: 0;
+      }
+
+      .boot__control--primary {
+        background: var(--color-accent);
+        color: var(--color-accent-ink);
+      }
+
+      .boot__control--primary:hover:not(:disabled),
+      .boot__control--primary:active:not(:disabled) {
+        background: var(--color-accent-hover);
+      }
+
+      .boot__control:disabled {
+        background: var(--color-disabled);
+        color: var(--color-muted);
+        cursor: progress;
+      }
+
+      :root[data-primary-action="true"] .boot__mark {
+        background: var(--color-muted);
+      }
+
+      .boot__result,
+      .boot__diagnostics {
+        max-inline-size: var(--container-setting-description);
+        margin: var(--spacing-transcript-turn-gap) 0 0;
+        color: var(--color-subtle);
+        font-size: var(--text-small-body);
+        line-height: var(--text-small-body--line-height);
+        overflow-wrap: anywhere;
+      }
+
+      .boot__diagnostics {
+        display: grid;
+        gap: var(--spacing-transcript-meta-gap);
+      }
+
+      .boot__diagnostics div {
+        display: grid;
+        gap: var(--spacing-transcript-meta-gap);
+      }
+
+      .boot__diagnostics dt {
+        color: var(--color-muted);
+        font-weight: var(--font-weight-medium);
+      }
+
+      .boot__diagnostics dd {
+        margin: 0;
+      }
+
       [hidden] {
         display: none;
       }
@@ -176,6 +264,32 @@ FORM: Direct brief, one narrow state ledger; no seed or alternate form.
         <h1 id="boot-title" aria-atomic="true" aria-live="polite">Looking for CompozyOS</h1>
         <p id="boot-detail" class="boot__detail" hidden></p>
         <p id="boot-action" class="boot__action" hidden></p>
+        <div
+          id="boot-controls"
+          class="boot__controls"
+          role="group"
+          aria-label="Available actions"
+          hidden
+        >
+          <button id="boot-update" class="boot__control" type="button" hidden></button>
+          <button id="boot-retry" class="boot__control" type="button" hidden></button>
+          <button id="boot-diagnose" class="boot__control" type="button" hidden></button>
+        </div>
+        <p id="boot-result" class="boot__result" aria-live="polite" hidden></p>
+        <dl id="boot-diagnostics" class="boot__diagnostics" hidden>
+          <div id="boot-app-log-row" hidden>
+            <dt>App log</dt>
+            <dd id="boot-app-log"></dd>
+          </div>
+          <div id="boot-runtime-log-row" hidden>
+            <dt>Runtime log</dt>
+            <dd id="boot-runtime-log"></dd>
+          </div>
+          <div id="boot-last-error-row" hidden>
+            <dt>Last error</dt>
+            <dd id="boot-last-error"></dd>
+          </div>
+        </dl>
       </section>
     </main>
     <script>
@@ -197,15 +311,24 @@ FORM: Direct brief, one narrow state ledger; no seed or alternate form.
             title: "CompozyOS needs an update",
             action: "Update CompozyOS, then open the app again.",
           }),
-          error: Object.freeze({
-            title: "CompozyOS could not start",
-            action: "Resolve the problem, then open CompozyOS again.",
-          }),
+          error: Object.freeze({ title: "CompozyOS could not start" }),
         });
 
         const title = document.getElementById("boot-title");
         const detail = document.getElementById("boot-detail");
         const action = document.getElementById("boot-action");
+        const controls = document.getElementById("boot-controls");
+        const updateButton = document.getElementById("boot-update");
+        const retryButton = document.getElementById("boot-retry");
+        const diagnoseButton = document.getElementById("boot-diagnose");
+        const result = document.getElementById("boot-result");
+        const diagnostics = document.getElementById("boot-diagnostics");
+        const appLogRow = document.getElementById("boot-app-log-row");
+        const appLog = document.getElementById("boot-app-log");
+        const runtimeLogRow = document.getElementById("boot-runtime-log-row");
+        const runtimeLog = document.getElementById("boot-runtime-log");
+        const lastErrorRow = document.getElementById("boot-last-error-row");
+        const lastError = document.getElementById("boot-last-error");
 
         const safeText = value => {
           if (typeof value !== "string") {
@@ -218,19 +341,145 @@ FORM: Direct brief, one narrow state ledger; no seed or alternate form.
             .slice(0, 512);
         };
 
+        const updateTarget = value => (value === "app" || value === "runtime" ? value : "");
+
+        const setResult = (message, urgent = false) => {
+          const text = safeText(message);
+          result.textContent = text;
+          result.hidden = text.length === 0;
+          result.setAttribute("aria-live", urgent ? "assertive" : "polite");
+        };
+
+        const clearDiagnostics = () => {
+          diagnostics.hidden = true;
+          for (const row of [appLogRow, runtimeLogRow, lastErrorRow]) {
+            row.hidden = true;
+          }
+          appLog.textContent = "";
+          runtimeLog.textContent = "";
+          lastError.textContent = "";
+        };
+
+        const showDiagnostics = payload => {
+          const app = safeText(payload?.app_log);
+          const runtime = safeText(payload?.runtime_log);
+          const error = safeText(payload?.last_error?.safe_message);
+          appLog.textContent = app;
+          appLogRow.hidden = app.length === 0;
+          runtimeLog.textContent = runtime;
+          runtimeLogRow.hidden = runtime.length === 0;
+          lastError.textContent = error;
+          lastErrorRow.hidden = error.length === 0;
+          diagnostics.hidden = app.length === 0 && runtime.length === 0 && error.length === 0;
+        };
+
+        const configureButton = (button, options) => {
+          button.hidden = !options.visible;
+          button.disabled = false;
+          button.removeAttribute("aria-busy");
+          button.classList.toggle("boot__control--primary", options.primary);
+          button.textContent = options.label;
+          button.dataset.label = options.label;
+        };
+
+        const invoke = (method, params) => {
+          if (typeof window.__TAURI__?.core?.invoke !== "function") {
+            return Promise.reject(new Error("The app control is unavailable."));
+          }
+
+          return window.__TAURI__.core.invoke("shell_control", { method, params });
+        };
+
+        const controlError = error => {
+          if (error !== null && typeof error === "object") {
+            return safeText(error.message) || "The requested action could not be completed.";
+          }
+
+          return safeText(error) || "The requested action could not be completed.";
+        };
+
+        const runControl = async (button, method, params, pendingLabel) => {
+          const label = button.dataset.label;
+          button.style.inlineSize = `${button.getBoundingClientRect().width}px`;
+          button.disabled = true;
+          button.setAttribute("aria-busy", "true");
+          button.textContent = pendingLabel;
+          setResult("");
+
+          try {
+            const response = await invoke(method, params);
+            if (method === "diagnose") {
+              showDiagnostics(response);
+              return;
+            }
+            setResult(method === "retry" ? "Retry accepted." : "Update started.");
+          } catch (error) {
+            setResult(controlError(error), true);
+          } finally {
+            button.disabled = false;
+            button.removeAttribute("aria-busy");
+            button.textContent = label;
+            button.style.removeProperty("inline-size");
+          }
+        };
+
+        updateButton.addEventListener("click", () => {
+          const target = updateTarget(updateButton.dataset.target);
+          if (target) {
+            void runControl(updateButton, "update.apply", { target }, `Updating ${target}\u2026`);
+          }
+        });
+
+        retryButton.addEventListener("click", () => {
+          void runControl(retryButton, "retry", {}, "Retrying\u2026");
+        });
+
+        diagnoseButton.addEventListener("click", () => {
+          void runControl(diagnoseButton, "diagnose", {}, "Loading\u2026");
+        });
+
         const render = payload => {
           const input = payload !== null && typeof payload === "object" ? payload : {};
           const state = Object.hasOwn(states, input.state) ? input.state : "error";
           const copy = states[state];
+          const target = updateTarget(input.target);
+          const showUpdate = target.length > 0 && state !== "updating";
+          const showRetry =
+            state === "error" ||
+            input.retry === true ||
+            input.recovery === true ||
+            (state === "provisioning" && input.failed === true);
+          const showDiagnose = state === "error" || input.diagnose === true;
+          const primaryAction = showUpdate || showRetry;
           const detailText = safeText(input.message);
-          const actionText = safeText(input.action) || copy.action || "";
+          const actionText = primaryAction ? "" : safeText(input.action) || copy.action || "";
 
           document.documentElement.dataset.state = state;
+          document.documentElement.dataset.primaryAction = primaryAction ? "true" : "false";
           title.textContent = copy.title;
           detail.textContent = detailText;
           detail.hidden = detailText.length === 0;
           action.textContent = actionText;
           action.hidden = actionText.length === 0;
+          configureButton(updateButton, {
+            label: target === "app" ? "Update app" : "Update runtime",
+            primary: showUpdate,
+            visible: showUpdate,
+          });
+          updateButton.dataset.target = target;
+          configureButton(retryButton, {
+            label: "Retry operation",
+            primary: showRetry && !showUpdate,
+            visible: showRetry,
+          });
+          configureButton(diagnoseButton, {
+            label: "Show diagnostics",
+            primary: false,
+            visible: showDiagnose,
+          });
+          controls.hidden = !showUpdate && !showRetry && !showDiagnose;
+          setResult("");
+          clearDiagnostics();
           title.setAttribute("aria-live", state === "error" ? "assertive" : "polite");
 
           return state;

@@ -17,6 +17,10 @@ pub struct CompozyHome {
     pub app_log: PathBuf,
     pub app_binary: PathBuf,
     pub provenance: PathBuf,
+    pub update_lock: PathBuf,
+    pub update_journal: PathBuf,
+    pub app_socket: PathBuf,
+    pub app_update_intent: PathBuf,
 }
 
 #[derive(Debug, Error)]
@@ -52,6 +56,10 @@ impl CompozyHome {
             app_log: root.join("logs").join("desktop.log"),
             app_binary: root.join("bin").join(executable),
             provenance: root.join("bin").join(".desktop-provenance.json"),
+            update_lock: root.join("update.lock"),
+            update_journal: root.join("bin").join(".update-journal.json"),
+            app_socket: root.join("app.sock"),
+            app_update_intent: root.join(".app-update-intent.json"),
             root,
         }
     }

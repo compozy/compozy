@@ -18,6 +18,12 @@ pub struct AppRecord {
     pub started_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostic: Option<ShellError>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update: Option<AppUpdateStatus>,
     #[serde(flatten)]
     pub shell: ShellState,
 }
@@ -29,6 +35,9 @@ impl AppRecord {
             pid,
             started_at,
             diagnostic: None,
+            app_version: None,
+            channel: None,
+            update: None,
             shell,
         }
     }
@@ -36,6 +45,66 @@ impl AppRecord {
     pub fn with_diagnostic(mut self, diagnostic: Option<ShellError>) -> Self {
         self.diagnostic = diagnostic;
         self
+    }
+
+    pub fn with_metadata(
+        mut self,
+        app_version: impl Into<String>,
+        channel: impl Into<String>,
+        update: AppUpdateStatus,
+    ) -> Self {
+        self.app_version = Some(app_version.into());
+        self.channel = Some(channel.into());
+        self.update = Some(update);
+        self
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AppUpdatePhase {
+    Idle,
+    Checking,
+    Downloading,
+    Ready,
+    Failed,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeUpdatePhase {
+    Idle,
+    Available,
+    Applying,
+    RecoveryRequired,
+    Failed,
+    Managed,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AppUpdateStatus {
+    pub app_state: AppUpdatePhase,
+    pub runtime_state: RuntimeUpdatePhase,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_available: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_available: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_checked_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<ShellError>,
+}
+
+impl Default for AppUpdateStatus {
+    fn default() -> Self {
+        Self {
+            app_state: AppUpdatePhase::Idle,
+            runtime_state: RuntimeUpdatePhase::Idle,
+            app_available: None,
+            runtime_available: None,
+            last_checked_at: None,
+            last_error: None,
+        }
     }
 }
 

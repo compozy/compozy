@@ -5,6 +5,7 @@ use semver::VersionReq;
 use tauri::{AppHandle, Manager, Wry};
 
 use crate::app_state::AppStatePublisher;
+use crate::controller::DesktopController;
 use crate::errors::{ShellError, ShellErrorCode};
 use crate::home::CompozyHome;
 use crate::links::LinkQueue;
@@ -15,7 +16,7 @@ use crate::runtime::probe::{
 };
 use crate::runtime::resolver::{InstallLocator, SystemInstallLocator};
 use crate::state::{DisconnectCause, ShellState};
-use crate::{logging, windowing};
+use crate::{boot_window, logging, windowing};
 
 const MINIMUM_RUNTIME: &str = ">=0.3.0";
 
@@ -24,8 +25,9 @@ pub fn spawn(
     home: CompozyHome,
     links: Arc<LinkQueue>,
     publisher: AppStatePublisher,
+    controller: Arc<DesktopController>,
 ) {
-    std::thread::spawn(move || monitor(app, home, links, publisher));
+    std::thread::spawn(move || monitor(app, home, links, publisher, controller));
 }
 
 fn monitor(
@@ -33,6 +35,7 @@ fn monitor(
     home: CompozyHome,
     links: Arc<LinkQueue>,
     publisher: AppStatePublisher,
+    controller: Arc<DesktopController>,
 ) {
     let processes = SystemProcessTable;
     let installs = SystemInstallLocator;
@@ -72,12 +75,14 @@ fn monitor(
                             owned,
                         };
                         publisher.publish(state);
+                        let update_controller = Arc::clone(&controller);
                         if let Err(error) = windowing::create_main_window(
                             &app,
                             identity.origin,
                             Arc::clone(&links),
                             home.app_log.clone(),
                             publisher.load_deadline_handler(),
+                            Arc::new(move || update_controller.present_pending_updates()),
                         ) {
                             logging::error(format!("reopen product window: {error}"));
                             let state = ShellState::ShellError {
@@ -87,7 +92,7 @@ fn monitor(
                                 ),
                             };
                             publisher.publish(state.clone());
-                            if let Err(show_error) = windowing::show_boot(&app, state) {
+                            if let Err(show_error) = boot_window::show(&app, state) {
                                 logging::error(format!("show reconnect error: {show_error}"));
                             }
                         }
@@ -120,7 +125,7 @@ fn disconnect(app: &AppHandle<Wry>, publisher: &AppStatePublisher) {
     {
         logging::error(format!("close disconnected product window: {error}"));
     }
-    if let Err(error) = windowing::show_boot(app, state) {
+    if let Err(error) = boot_window::show(app, state) {
         logging::error(format!("show disconnected boot window: {error}"));
     }
 }
@@ -138,7 +143,7 @@ fn show_skew(
         newer,
     };
     publisher.publish(state.clone());
-    if let Err(error) = windowing::show_boot(app, state) {
+    if let Err(error) = boot_window::show(app, state) {
         logging::error(format!("show reconnect skew state: {error}"));
     }
 }

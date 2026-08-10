@@ -20,6 +20,7 @@ const appCommandKey = "app"
 const (
 	appIdleState    = "idle"
 	appProductState = "product"
+	appRetryMethod  = "retry"
 )
 
 func newAppCommand(deps commandDeps) *cobra.Command {
@@ -35,7 +36,7 @@ func newAppCommand(deps commandDeps) *cobra.Command {
 		newAppOpenCommand(deps),
 		newAppStatusCommand(deps),
 		newAppUpdateCommand(deps),
-		newAppControlCommand(deps, "retry", "Retry the current desktop app operation", "retry"),
+		newAppControlCommand(deps, appRetryMethod, "Retry the current desktop app operation", appRetryMethod),
 		newAppControlCommand(deps, "diagnose", "Show desktop app diagnostics", "diagnose"),
 	)
 	return command

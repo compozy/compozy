@@ -11,11 +11,14 @@ tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
 atomicwrites = "0.4"
+base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "6"
+flate2 = "1"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 libc = "0.2"
 log = "0.4"
+minisign-verify = "0.2.5"
 percent-encoding = "2"
 regex = "1"
 reqwest = { version = "0.12", default-features = false, features = [
@@ -27,7 +30,9 @@ semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+socket2 = "0.6"
 sysinfo = "0.37"
+tar = "0.4"
 tauri = { version = "=2.11.5", features = [] }
 tauri-plugin-deep-link = "=2.4.9"
 tauri-plugin-log = "=2.9.0"
@@ -39,9 +44,12 @@ thiserror = "2"
 toml = "0.9"
 url = { version = "2", features = ["serde"] }
 which = "8"
+zip = { version = "4", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 jsonschema = "0.37"
+minisign = "0.7"
+tauri = { version = "=2.11.5", features = ["test"] }
 tempfile = "3"
 
 [features]

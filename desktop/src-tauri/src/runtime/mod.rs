@@ -1,9 +1,15 @@
+pub mod artifacts;
 pub mod discovery;
 pub mod health;
+pub mod mutation;
 pub mod probe;
+pub mod provenance;
+pub mod provision;
+pub mod quiesce;
 pub mod readiness;
 pub mod resolver;
 pub mod supervisor;
+pub mod update_lifecycle;
 
 pub use discovery::{DaemonRecord, Discovery};
 pub use probe::{BoundDaemonIdentity, Identity};

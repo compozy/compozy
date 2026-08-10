@@ -40,6 +40,8 @@ const (
 	DaemonSocketName = "daemon.sock"
 	// DaemonLockName is the daemon file-lock name.
 	DaemonLockName = "daemon.lock"
+	// UpdateLockName is the cross-process runtime mutation lock name.
+	UpdateLockName = "update.lock"
 	// DaemonInfoName is the daemon metadata filename.
 	DaemonInfoName = "daemon.json"
 	// LogFileName is the structured daemon log filename.

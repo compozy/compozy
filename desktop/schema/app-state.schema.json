@@ -65,7 +65,7 @@
                 "newer": { "type": "boolean" },
                 "diagnostic": { "$ref": "#/$defs/error" },
                 "error": { "$ref": "#/$defs/error" },
-                "update": { "type": "object" }
+                "update": { "$ref": "#/$defs/update_status" }
             },
             "allOf": [
                 {

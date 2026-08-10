@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -67,7 +68,10 @@ func newDaemonStartCommand(deps commandDeps) *cobra.Command {
   # Keep logs attached to the current terminal
   compozy daemon start --foreground`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if foreground || internalChild {
+			if internalChild {
+				return runDaemonForegroundChild(cmd.Context(), deps, exitWhenOrphaned)
+			}
+			if foreground {
 				return runDaemonForeground(cmd.Context(), deps, exitWhenOrphaned)
 			}
 			status, err := runDaemonDetached(cmd.Context(), deps)
@@ -145,12 +149,35 @@ func newDaemonStopCommand(deps commandDeps) *cobra.Command {
 }
 
 func runDaemonForeground(ctx context.Context, deps commandDeps, exitWhenOrphaned bool) error {
+	return runDaemonForegroundMode(ctx, deps, exitWhenOrphaned, true)
+}
+
+func runDaemonForegroundChild(ctx context.Context, deps commandDeps, exitWhenOrphaned bool) error {
+	return runDaemonForegroundMode(ctx, deps, exitWhenOrphaned, false)
+}
+
+func runDaemonForegroundMode(
+	ctx context.Context,
+	deps commandDeps,
+	exitWhenOrphaned bool,
+	acquireUpdateLock bool,
+) (returnErr error) {
 	runtime, err := loadRuntimeContext(deps)
 	if err != nil {
 		return err
 	}
 	if err := deps.ensureHome(runtime.HomePaths); err != nil {
 		return err
+	}
+	var updateLock *compozydaemon.UpdateLock
+	if acquireUpdateLock {
+		updateLock, err = acquireDaemonStartUpdateLock(daemonStartUpdateLockPath(runtime.HomePaths))
+		if err != nil {
+			return err
+		}
+		defer func() {
+			returnErr = errors.Join(returnErr, updateLock.Release())
+		}()
 	}
 
 	if _, running, err := daemonInfo(runtime.HomePaths, deps); err != nil {
@@ -181,7 +208,10 @@ func runDaemonForeground(ctx context.Context, deps commandDeps, exitWhenOrphaned
 	return runner.Run(ctx)
 }
 
-func runDaemonDetached(ctx context.Context, deps commandDeps) (DaemonStatus, error) {
+func runDaemonDetached(ctx context.Context, deps commandDeps) (
+	returnStatus DaemonStatus,
+	returnErr error,
+) {
 	runtime, err := loadRuntimeContext(deps)
 	if err != nil {
 		return DaemonStatus{}, err
@@ -189,6 +219,13 @@ func runDaemonDetached(ctx context.Context, deps commandDeps) (DaemonStatus, err
 	if err := deps.ensureHome(runtime.HomePaths); err != nil {
 		return DaemonStatus{}, err
 	}
+	updateLock, err := acquireDaemonStartUpdateLock(daemonStartUpdateLockPath(runtime.HomePaths))
+	if err != nil {
+		return DaemonStatus{}, err
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, updateLock.Release())
+	}()
 
 	if info, running, err := daemonInfo(runtime.HomePaths, deps); err != nil {
 		return DaemonStatus{}, err
@@ -209,6 +246,25 @@ func runDaemonDetached(ctx context.Context, deps commandDeps) (DaemonStatus, err
 		return DaemonStatus{}, err
 	}
 	return status, nil
+}
+
+func daemonStartUpdateLockPath(homePaths compozyconfig.HomePaths) string {
+	return filepath.Join(homePaths.HomeDir, compozyconfig.UpdateLockName)
+}
+
+func acquireDaemonStartUpdateLock(path string) (*compozydaemon.UpdateLock, error) {
+	startedAt, err := procutil.StartedAt(os.Getpid())
+	if err != nil {
+		return nil, fmt.Errorf("cli: resolve daemon start identity: %w", err)
+	}
+	lock, err := compozydaemon.AcquireUpdateLock(path, compozydaemon.UpdateLockOwner{
+		PID:       os.Getpid(),
+		StartedAt: startedAt,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cli: acquire daemon start mutation lock: %w", err)
+	}
+	return lock, nil
 }
 
 func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProcess) (DaemonStatus, error) {

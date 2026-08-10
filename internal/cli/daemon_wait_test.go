@@ -695,3 +695,42 @@ func TestRunDaemonDetachedIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
 		}
 	})
 }
+
+func TestRunDaemonDetachedReprobesAfterAcquiringUpdateLock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse to spawn when the post-lock probe finds a running daemon", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+		spawned := false
+		deps.spawnDetached = func(context.Context, compozyconfig.HomePaths) (daemonProcess, error) {
+			spawned = true
+			return &stubDaemonProcess{done: make(chan struct{})}, nil
+		}
+
+		_, err := runDaemonDetached(testutil.Context(t), deps)
+		if err == nil || !strings.Contains(err.Error(), "daemon already running") {
+			t.Fatalf("runDaemonDetached() error = %v, want daemon already running", err)
+		}
+		if spawned {
+			t.Fatal("spawnDetached() called after post-lock probe found a running daemon")
+		}
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		contents, err := os.ReadFile(daemonStartUpdateLockPath(homePaths))
+		if err != nil {
+			t.Fatalf("os.ReadFile(update lock) error = %v", err)
+		}
+		if len(contents) != 0 {
+			t.Fatalf("released update lock contents = %q, want empty", contents)
+		}
+	})
+}

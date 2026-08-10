@@ -14,6 +14,7 @@ import (
 const (
 	appControlSchemaVersion = 1
 	appControlTimeout       = 2 * time.Second
+	appControlUpdateTimeout = 25 * time.Second
 )
 
 type appControlCaller func(context.Context, string, string, any) (any, error)
@@ -47,7 +48,11 @@ func callAppControl(ctx context.Context, socketPath string, method string, param
 		return nil, fmt.Errorf("app control: inspect socket: %w", err)
 	}
 
-	callCtx, cancel := context.WithTimeout(ctx, appControlTimeout)
+	timeout := appControlTimeout
+	if method == "update.check" || method == "update.apply" || method == appRetryMethod {
+		timeout = appControlUpdateTimeout
+	}
+	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	connection, err := (&net.Dialer{}).DialContext(callCtx, "unix", socketPath)
 	if err != nil {
