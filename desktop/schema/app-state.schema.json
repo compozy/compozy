@@ -1,0 +1,81 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://compozy.com/schema/app-state.schema.json",
+    "title": "CompozyOS app state",
+    "type": "object",
+    "required": ["schema_version", "pid", "started_at", "state"],
+    "properties": {
+        "schema_version": { "const": 1 },
+        "pid": { "type": "integer", "minimum": 1 },
+        "started_at": { "type": "string", "format": "date-time" },
+        "state": {
+            "enum": [
+                "resolving",
+                "provisioning",
+                "starting",
+                "attaching",
+                "product",
+                "updating",
+                "disconnected",
+                "skew",
+                "error"
+            ]
+        },
+        "stage": { "enum": ["download", "verify", "install", "start", "ready"] },
+        "pct": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "attempt": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "origin": { "type": "string", "format": "uri", "pattern": "^https?://" },
+        "owned": { "type": "boolean" },
+        "target": { "enum": ["app", "runtime"] },
+        "cause": { "enum": ["runtime_down", "health_check_failed"] },
+        "runtime": { "type": "string" },
+        "needed": { "type": "string" },
+        "newer": { "type": "boolean" },
+        "diagnostic": { "$ref": "#/$defs/error" },
+        "error": { "$ref": "#/$defs/error" },
+        "update": { "type": "object" }
+    },
+    "$defs": {
+        "error": {
+            "type": "object",
+            "required": ["code", "safe_message", "log_path"],
+            "properties": {
+                "code": {
+                    "enum": [
+                        "port_conflict_foreign",
+                        "runtime_start_failed",
+                        "provision_network",
+                        "provision_disk_space",
+                        "provision_permission",
+                        "runtime_unhealthy",
+                        "handshake_failed",
+                        "load_deadline_exceeded",
+                        "update_lock_held",
+                        "quiesce_failed",
+                        "migration_recovery_required",
+                        "config_invalid",
+                        "not_owned"
+                    ]
+                },
+                "safe_message": { "type": "string", "minLength": 1, "maxLength": 512 },
+                "log_path": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+        }
+    },
+    "allOf": [
+        {
+            "if": { "properties": { "state": { "const": "error" } } },
+            "then": { "required": ["error"] }
+        },
+        {
+            "if": { "properties": { "state": { "const": "product" } } },
+            "then": { "required": ["origin", "owned"] }
+        },
+        {
+            "if": { "properties": { "state": { "const": "starting" } } },
+            "then": { "required": ["attempt"] }
+        }
+    ],
+    "additionalProperties": false
+}

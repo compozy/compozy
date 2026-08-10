@@ -1,0 +1,11 @@
+{
+    "schema_version": 1,
+    "pid": 4242,
+    "started_at": "2026-08-10T03:00:00Z",
+    "state": "error",
+    "error": {
+        "code": "runtime_unhealthy",
+        "safe_message": "The runtime is not responding.",
+        "log_path": "/tmp/compozy.log"
+    }
+}

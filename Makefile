@@ -8,7 +8,7 @@ else
 MAGE_RUN = $(MAGE)
 endif
 
-.PHONY: deps deps-check fmt fmt-check lint go-lint source-policy source-size test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed
+.PHONY: deps deps-check fmt fmt-check lint go-lint source-policy source-size test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
 
 DEMO_HOME ?= $(HOME)/.agh
 
@@ -89,6 +89,20 @@ installer-check:
 
 demo-seed:
 	@go run ./scripts/demo-seed --home "$(DEMO_HOME)" --replace
+
+# Desktop shell
+desktop-dev:
+	@cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml
+
+desktop-build:
+	@cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+
+desktop-test:
+	@cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets
+
+desktop-lint:
+	@cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+	@cargo clippy --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 
 help:
 	@$(MAGE_RUN) -l
