@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: With a healthy runtime and an active session, the app shows the identical workspace/session state the browser tab shows (same origin, same local UI state), no second daemon appears, and side-by-side actions reflect live in both surfaces.
 entry_points: dock/launcher icon with a running daemon; browser tab open side by side
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: blocked-verify
+bug_ids: BUG-20260810-desktop-runtime-stalls
+fix_status: fixed
+retest_status: blocked-verify
+fix_commits: b415f24b; b3aa3d27; bd610cfa; 02b55a46
+evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/app-control-product.txt
+last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
 overlaps:
 ---
 

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-desktop-link-driven
 expected: With the app running (including minimized or on another virtual desktop), a second launch from dock/launcher/CLI focuses the existing window per platform convention, the process count stays unchanged, and a link argument on the second launch is forwarded, never dropped.
 entry_points: second launch via dock/launcher/file manager; compozy app open while running
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: blocked-verify
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/platform-capability-blockers.txt
+last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
 overlaps:
 ---
 

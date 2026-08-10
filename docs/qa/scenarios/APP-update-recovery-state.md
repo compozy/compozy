@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-update-moment
 expected: A forced apply failure leaves the installed app intact and launchable with the failure reported and a manual-download path to the release page; a post-migration runtime boot failure surfaces sticky `recovery_required` with typed error and diagnostics, the old binary is not auto-restarted, and a later fixed signed build clears the state.
 entry_points: update surface after a forced apply failure; compozy app status / diagnose in recovery_required
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: blocked-verify
+bug_ids: BUG-20260810-healthy-retry-corrupts-state
+fix_status: fixed
+retest_status: blocked-verify
+fix_commits: f081a1e
+evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/app-control-product.txt; /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/platform-capability-blockers.txt
+last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
 overlaps: APP-agent-cli-app-verbs
 ---
 

@@ -6,13 +6,13 @@ persona: Cora
 journey: J-desktop-update-moment
 expected: Window title, dock/launcher/start-menu identity, installer and uninstall records, and the About/update surface all name CompozyOS; About shows channel beta plus versions; no stable channel selector exists anywhere; the command and machine identifiers remain `compozy`, and no shell screen uses the retired product-language name.
 entry_points: installer identity; app window and OS launch surfaces; About/update surface
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: blocked-verify
+bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-initial-boot-window-absent
+fix_status: fixed
+retest_status: blocked-verify
+fix_commits: 01a45c49; f081a1e
+evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/platform-capability-blockers.txt
+last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
 overlaps: ET-compozy-public-brand-navigation
 ---
 

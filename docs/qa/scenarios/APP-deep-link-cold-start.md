@@ -6,13 +6,13 @@ persona: Théo
 journey: J-desktop-link-driven
 expected: Activating a CompozyOS link with the app closed launches the app, runs any needed provision/start states, and renders the linked view once ready — the destination is never dropped, and exactly one navigation fires.
 entry_points: compozyos://open/<product-path> with the app not running
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: blocked-verify
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/platform-capability-blockers.txt
+last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
 overlaps:
 ---
 

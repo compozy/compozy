@@ -6,13 +6,13 @@ persona: Dora
 journey: J-desktop-attach-daily
 expected: Opening the app with the runtime installed but stopped shows visible bounded starting progress and lands in the product UI; the started runtime survives app quit and `compozy status` stays healthy.
 entry_points: dock/launcher icon with an installed, stopped runtime; compozy app open
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: blocked-verify
+bug_ids: BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent
+fix_status: fixed
+retest_status: blocked-verify
+fix_commits: b415f24b; b3aa3d27; bd610cfa; 02b55a46; f081a1e
+evidence: /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/app-control-product.txt; /Users/pedronauck/dev/qa-labs/compozy-desktop-app-release-20260810-110811-513872-lab/qa-artifacts/qa/quit-contract.txt
+last_report: docs/qa/reports/2026-08-10-desktop-app-release.md
 overlaps:
 ---
 
