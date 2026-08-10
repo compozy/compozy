@@ -1,9 +1,9 @@
 ---
 title: Build an In-Tree Bridge Provider
-description: Prove the reference adapter, then design, implement, verify, and document a trusted bridge.adapter extension inside the Compozy repository.
+description: Prove the reference adapter, then design, implement, verify, and document a trusted bridge.adapter extension inside the CompozyOS repository.
 ---
 
-This guide is for contributors adding a provider under `extensions/bridges/<provider>` to the Compozy
+This guide is for contributors adding a provider under `extensions/bridges/<provider>` to the CompozyOS
 repository. It starts with a working reference adapter, then follows one provider from contract
 decisions to manifest, ingress, delivery, conformance, and operator proof.
 
@@ -18,7 +18,7 @@ an external SDK path.
 
 ## Prerequisites
 
-- Run every command from the Compozy repository root.
+- Run every command from the CompozyOS repository root.
 - Have Go and the current `compozy` binary available.
 - Start the daemon before the install/create/verify checkpoints.
 - Create or choose a workspace with a default agent for inbound testing.
@@ -72,35 +72,35 @@ production.
 <Mermaid
   chart={`flowchart LR
 Platform[External platform] -->|authenticated webhook or poll| Provider[bridge.adapter subprocess]
-Provider -->|bridges/messages/ingest| Host[Compozy Host API]
+Provider -->|bridges/messages/ingest| Host[CompozyOS Host API]
 Host --> Router[Workspace route + session]
 Router --> Agent[ACP agent]
 Agent --> Broker[Ordered delivery broker]
 Broker -->|bridges/deliver| Provider
 Provider -->|provider API| Platform
-Daemon[Compozy extension manager] <-->|initialize / health / shutdown over JSON-RPC stdio| Provider`}
-  caption="The provider owns platform protocol truth; Compozy owns workspace routing, sessions, persistence, and ordered delivery."
+Daemon[CompozyOS extension manager] <-->|initialize / health / shutdown over JSON-RPC stdio| Provider`}
+  caption="The provider owns platform protocol truth; CompozyOS owns workspace routing, sessions, persistence, and ordered delivery."
 />
 
 The boundary is deliberate. The daemon never needs to learn a provider's signature scheme or REST
-API, and the provider never owns Compozy sessions or workspace routing.
+API, and the provider never owns CompozyOS sessions or workspace routing.
 
 ## Decide the contract before writing code
 
 Write down these decisions first:
 
-| Decision            | Questions to answer                                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Provider identity   | What lowercase key will be used for directory, extension name, platform, runtime, and schema?                             |
-| Inbound transport   | Webhook, polling, subscription, or hybrid? What owns each listener/task and its shutdown?                                 |
-| Callback contract   | What is the external acknowledgement deadline? When does the provider retry? When has Compozy durably accepted the event? |
-| Authentication      | Which exact bytes are signed? Which header/token/JWT claims are required? What is the replay window?                      |
-| Secret slots        | Which credentials are always required? Which are conditional on an auth or ingress mode?                                  |
-| Route identity      | Which provider IDs become `peer_id`, `group_id`, and `thread_id`? How are replies and edits represented?                  |
-| Delivery capability | Can the platform create, edit, delete, reply, type, react, and resume? What is the message-length unit?                   |
-| Mutation completion | Which observation proves a remote mutation committed, and which required result must be materialized locally?             |
-| Verification        | Which identity/configuration checks can run while disabled? Can Compozy register the webhook remotely?                    |
-| Data scope          | Is each new datum global, workspace, session, or agent scoped? How is `workspace_id` preserved?                           |
+| Decision            | Questions to answer                                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Provider identity   | What lowercase key will be used for directory, extension name, platform, runtime, and schema?                               |
+| Inbound transport   | Webhook, polling, subscription, or hybrid? What owns each listener/task and its shutdown?                                   |
+| Callback contract   | What is the external acknowledgement deadline? When does the provider retry? When has CompozyOS durably accepted the event? |
+| Authentication      | Which exact bytes are signed? Which header/token/JWT claims are required? What is the replay window?                        |
+| Secret slots        | Which credentials are always required? Which are conditional on an auth or ingress mode?                                    |
+| Route identity      | Which provider IDs become `peer_id`, `group_id`, and `thread_id`? How are replies and edits represented?                    |
+| Delivery capability | Can the platform create, edit, delete, reply, type, react, and resume? What is the message-length unit?                     |
+| Mutation completion | Which observation proves a remote mutation committed, and which required result must be materialized locally?               |
+| Verification        | Which identity/configuration checks can run while disabled? Can CompozyOS register the webhook remotely?                    |
+| Data scope          | Is each new datum global, workspace, session, or agent scoped? How is `workspace_id` preserved?                             |
 
 Required slots must be required in every mode. A mode-specific credential stays optional in the
 manifest and becomes a conditional requirement in runtime validation and setup documentation.
@@ -219,7 +219,7 @@ args = ["serve"]
 COMPOZY_BRIDGE_ACME_CHAT_LISTEN_ADDR = "{{env:COMPOZY_BRIDGE_ACME_CHAT_LISTEN_ADDR}}"
 ```
 
-`permissions.requires` is the single authored list; Compozy derives the `bridge:read` and
+`permissions.requires` is the single authored list; CompozyOS derives the `bridge:read` and
 `bridge:write` consent areas from it. See
 [Extension Permissions](/docs/extensions/permissions).
 
@@ -568,7 +568,7 @@ explicitly. Do not classify it as transient, fabricate an ID, or issue a second 
 
 The bridgesdk runtime converts `CommittedMutationError` into the semantic
 `committed_result_unavailable` acknowledgement. The broker writes a terminal error checkpoint and
-does not redeliver the text mutation. For progress, Compozy drops only the indeterminate progress bubble
+does not redeliver the text mutation. For progress, CompozyOS drops only the indeterminate progress bubble
 and allows later final text to continue.
 
 ### Expose discoverable targets
@@ -725,7 +725,7 @@ compozy bridge targets "$BRIDGE_ID" -o json
 
 compozy bridge send-test "$BRIDGE_ID" \
   --peer-id "$ACME_CHAT_PEER_ID" \
-  --message "Compozy bridge provider smoke test" \
+  --message "CompozyOS bridge provider smoke test" \
   --json
 ```
 
@@ -776,10 +776,10 @@ go test -race ./internal/extension \
   enable/send-test, configuration reference, limits, security, and troubleshooting.
 - Add a provider README with build/install, runtime config, transport, delivery behavior, and explicit
   unsupported operations.
-- Update the bundled Compozy skill with the provider's agent-manageable CLI/HTTP/UDS path.
+- Update the bundled CompozyOS skill with the provider's agent-manageable CLI/HTTP/UDS path.
 - Flag the new user-visible journey as `untested` in `docs/qa/state.csv`.
 - If shared contracts change, co-ship OpenAPI, generated SDK/Web types, CLI/API references, mocks,
-  native descriptors, and the canonical Compozy skill.
+  native descriptors, and the canonical CompozyOS skill.
 
 The provider catalog and secret slots are manifest-driven. The current Web setup experience still
 has provider-specific presentation metadata for in-tree providers; an unknown provider falls back to
@@ -787,7 +787,7 @@ a generic profile. Audit `web/src/systems/bridges/lib/bridge-setup.ts` and eithe
 metadata or document the generic boundary. The manifest alone does not produce a full guided Web
 setup today.
 
-Record the Compozy Impact Audit in the implementation task:
+Record the CompozyOS Impact Audit in the implementation task:
 
 - native tools and descriptors;
 - extensibility, hooks, public SDKs, extension resources, and marketplace policy;
@@ -811,7 +811,7 @@ management path.
 | Cleanup on failure, cancellation, removal, and shutdown     | Race-enabled lifecycle/failure-path cases                      |
 | Workspace and instance isolation                            | Exact cross-workspace/instance integration case                |
 | Setup names, exact slots, and public navigation             | Bridge docs conformance plus focused site MDX/typecheck        |
-| Agent-manageable operation                                  | CLI/HTTP/UDS examples and official Compozy skill audit         |
+| Agent-manageable operation                                  | CLI/HTTP/UDS examples and official CompozyOS skill audit       |
 | First real behavior                                         | Signed fake inbound event + route + fake-provider `send-test`  |
 
 Invalid auth/config must produce actionable state without leaking values. Unsupported provider

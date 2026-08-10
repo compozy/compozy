@@ -1,9 +1,9 @@
 ---
 title: Memory System
-description: How Compozy stores curated Markdown memory, captures a frozen snapshot at session start, and routes every write through the controller WAL.
+description: How CompozyOS stores curated Markdown memory, captures a frozen snapshot at session start, and routes every write through the controller WAL.
 ---
 
-Compozy memory is curated Markdown that survives across sessions. It is designed for durable facts that
+CompozyOS memory is curated Markdown that survives across sessions. It is designed for durable facts that
 future agents should be able to discover without replaying every old transcript.
 
 The current implementation is intentionally hybrid:
@@ -48,7 +48,7 @@ Files --> NextSession[Next session sees the new snapshot]`}
   caption="Every write — operator, agent, extractor, dreaming — goes through the controller. The WAL is durable before the file lands; the catalog is rebuilt from the file."
 />
 
-Memory is not streamed into an already-running process. When a session starts, Compozy captures a
+Memory is not streamed into an already-running process. When a session starts, CompozyOS captures a
 **frozen snapshot** of the resolved scopes, packages a recall block, appends the current workspace
 checkpoint, prepends the assembled memory section to the agent prompt, and hands that prompt to the
 ACP subprocess. Writes during the session are durable immediately but only become visible to the
@@ -209,7 +209,7 @@ Memory v2 document as a unit. The batch is closed to three body operations:
 
 Operations run in array order against an in-memory body. A missing or ambiguous `old_text`, an
 invalid operation shape, unsafe content, or an oversized final body rejects the whole batch before
-a decision is written. Compozy checks `[memory.file] max_lines` and `max_bytes` only against the final
+a decision is written. CompozyOS checks `[memory.file] max_lines` and `max_bytes` only against the final
 body, so one call can remove stale content and add a replacement even when the current file is at
 capacity.
 
@@ -239,7 +239,7 @@ CLI and HTTP/UDS entry-write shapes remain single-document replacements.
 
 ## Frozen Snapshot And Recall
 
-At session start, Compozy captures a **frozen snapshot** of the resolved memory context (global,
+At session start, CompozyOS captures a **frozen snapshot** of the resolved memory context (global,
 workspace, and the agent's two tiers when applicable). The snapshot includes:
 
 - the per-scope `MEMORY.md` index after staleness banners
@@ -250,7 +250,7 @@ workspace, and the agent's two tiers when applicable). The snapshot includes:
 Snapshots are cached by session boot request and memory generation. Repeating the same assembly
 request without a memory mutation returns byte-identical prefix content. A committed write,
 delete, or reindex advances the shared generation; the next assembly captures the new index once
-and then remains byte-identical at that generation. Compozy does not rewrite a system prompt already
+and then remains byte-identical at that generation. CompozyOS does not rewrite a system prompt already
 delivered to an ACP subprocess, so a running session keeps that delivered prompt and the **next**
 session receives the new snapshot. Sub-agent sessions inherit the parent snapshot read-only.
 
@@ -259,7 +259,7 @@ extractor inbox/DLQ artifacts, and dreaming output unless the caller explicitly 
 
 ## Workspace Checkpoint Continuity
 
-Compozy maintains one workspace-scoped `project` memory at
+CompozyOS maintains one workspace-scoped `project` memory at
 `<workspace>/.compozy/memory/project_checkpoint_summary.md`. After an eligible user, coordinator, or
 dream session stops, the active workspace memory provider receives a bounded transcript projection.
 The bundled local provider updates the previous checkpoint instead of regenerating it from scratch.
@@ -285,7 +285,7 @@ enter another workspace's prompt.
 
 ### Pressure compaction coverage
 
-When an ACP usage update reaches `[session.compaction].pressure_threshold`, Compozy selects only the
+When an ACP usage update reaches `[session.compaction].pressure_threshold`, CompozyOS selects only the
 complete persisted turns before the triggering turn. The active memory provider summarizes that
 sequence span into the workspace checkpoint and records hidden `(workspace, session, from, to)`
 coverage before the session store marks the rows archived. Repeating the same span is idempotent:
@@ -296,7 +296,7 @@ Archiving is non-destructive. `compozy session events` and `compozy session hist
 forensics, while degraded replay excludes archived rows so it does not re-inject context already
 covered by the checkpoint. A successful provider `session/load` keeps using provider-owned context.
 If a daemon stops after checkpoint coverage but before archive, the original events remain
-unarchived and readable; Compozy never archives first and hopes a later summary succeeds.
+unarchived and readable; CompozyOS never archives first and hopes a later summary succeeds.
 
 ## Operator And Agent Surfaces
 
@@ -365,7 +365,7 @@ the snapshot. Useful index entries are short and point to one file:
 
 | Behavior            | Current implementation                                                                                                              |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Missing `MEMORY.md` | Compozy synthesizes an index from memory-file frontmatter for that scope and warns when an existing index is stale.                 |
+| Missing `MEMORY.md` | CompozyOS synthesizes an index from memory-file frontmatter for that scope and warns when an existing index is stale.               |
 | Prompt limits       | Index injection is capped by `[memory.file] max_lines` and `max_bytes`.                                                             |
 | Write behavior      | Controller writes the file, updates the WAL, reindexes the catalog, and re-renders the scope index so new entries are discoverable. |
 | Delete behavior     | Deleting a memory file also removes index lines that link to that filename and emits `memory.write.committed` with op `delete`.     |

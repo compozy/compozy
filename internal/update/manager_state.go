@@ -60,19 +60,19 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 	switch {
 	case isDevVersion(state.CurrentVersion):
 		state.Status = StatusUnsupported
-		state.Message = "Compozy self-update is unavailable for dev builds."
-		state.Recommendation = "Install a tagged Compozy release binary or rebuild from source."
+		state.Message = "CompozyOS self-update is unavailable for dev builds."
+		state.Recommendation = "Install a tagged CompozyOS release binary or rebuild from source."
 		return state
 	case latest == nil || strings.TrimSpace(latest.Version) == "":
 		state.Status = StatusFailed
-		state.Message = "The latest Compozy release metadata for the active channel is unavailable."
+		state.Message = "The latest CompozyOS release metadata for the active channel is unavailable."
 		return state
 	}
 
 	comparison, err := compareVersions(state.CurrentVersion, latest.Version)
 	if err != nil {
 		state.Status = StatusUnsupported
-		state.Message = "The running Compozy version cannot be compared against published releases."
+		state.Message = "The running CompozyOS version cannot be compared against published releases."
 		state.LastError = err.Error()
 		return state
 	}
@@ -86,29 +86,29 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 	switch {
 	case state.Managed && state.Available:
 		state.Status = StatusDeferred
-		state.Message = "Compozy is managed by an external package manager; no local update was performed."
+		state.Message = "CompozyOS is managed by an external package manager; no local update was performed."
 		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case state.Managed:
 		state.Status = StatusCurrent
-		state.Message = "Compozy is already current on its release channel. " +
+		state.Message = "CompozyOS is already current on its release channel. " +
 			"Managed installs stay on the package manager path."
 		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case !state.Supported && state.Available:
 		state.Status = StatusUnsupported
-		state.Message = "A newer Compozy release is available on the active channel, " +
+		state.Message = "A newer CompozyOS release is available on the active channel, " +
 			"but this install method does not support in-place updates."
 		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case !state.Supported:
 		state.Status = StatusUnsupported
-		state.Message = "This Compozy install method does not support in-place self-update."
+		state.Message = "This CompozyOS install method does not support in-place self-update."
 		state.Recommendation = m.updateRecommendation(state.InstallMethod, latest)
 	case state.Available:
 		state.Status = StatusAvailable
-		state.Message = "A newer Compozy release is available on the active channel."
+		state.Message = "A newer CompozyOS release is available on the active channel."
 		state.Recommendation = "Run `compozy update`."
 	default:
 		state.Status = StatusCurrent
-		state.Message = "Compozy is already current on its release channel."
+		state.Message = "CompozyOS is already current on its release channel."
 	}
 
 	if state.InstallMethod == string(InstallMethodDirectBinary) && !supportedPlatform {
@@ -176,21 +176,21 @@ func (m *Manager) updateRecommendation(installMethod string, release *Release) s
 		if strings.TrimSpace(installMethod) == "" {
 			return ""
 		}
-		return "Use the package manager or installer that manages this Compozy binary instead of mutating it in place."
+		return "Use the package manager or installer that manages this CompozyOS binary instead of mutating it in place."
 	}
 }
 
 func manualDirectBinaryRecommendation(releaseURL string, runtimeOS string) string {
 	if runtimeOS == runtimeOSWindows {
 		if strings.TrimSpace(releaseURL) == "" {
-			return "Download the latest Compozy Windows release archive and replace `compozy.exe` manually."
+			return "Download the latest CompozyOS Windows release archive and replace `compozy.exe` manually."
 		}
-		return "Download the latest Compozy Windows release archive from " + releaseURL + " and replace `compozy.exe` manually."
+		return "Download the latest CompozyOS Windows release archive from " + releaseURL + " and replace `compozy.exe` manually."
 	}
 	if strings.TrimSpace(releaseURL) == "" {
-		return "Install the verified Compozy binary with `curl -fsSL https://compozy.com/install.sh | sh`."
+		return "Install the verified CompozyOS binary with `curl -fsSL https://compozy.com/install.sh | sh`."
 	}
-	return "Download the latest Compozy release archive from " + releaseURL + " and replace the binary manually."
+	return "Download the latest CompozyOS release archive from " + releaseURL + " and replace the binary manually."
 }
 
 func defaultRunCommand(ctx context.Context, name string, args ...string) (string, error) {

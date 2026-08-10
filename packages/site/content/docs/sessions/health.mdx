@@ -3,7 +3,7 @@ title: Session Health
 description: Metadata-only session presence, attachability, wake eligibility, and boundaries with HEARTBEAT.md policy, task leases, and network greet presence.
 ---
 
-Session health is a metadata-only runtime primitive Compozy maintains for every active session. It
+Session health is a metadata-only runtime primitive CompozyOS maintains for every active session. It
 answers four questions without ever calling the model:
 
 1. What state is this session in?
@@ -84,7 +84,7 @@ audit) and any redacted last-error context for diagnostics.
 config. The wake service rejects ineligible sessions before doing any work and returns a closed
 deterministic reason:
 
-| Reason                       | When Compozy returns it                                                                       |
+| Reason                       | When CompozyOS returns it                                                                     |
 | ---------------------------- | --------------------------------------------------------------------------------------------- |
 | `session_not_found`          | The target session id was not resolved.                                                       |
 | `session_unhealthy`          | Health is `degraded`, `stale`, `dead`, or `unknown` such that wake is unsafe.                 |

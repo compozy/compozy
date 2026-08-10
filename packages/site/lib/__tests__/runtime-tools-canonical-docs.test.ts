@@ -172,7 +172,7 @@ describe("tool-first canonical surface docs", () => {
     expectIncludesAll(bundled, [
       "`compozy`",
       "references/native-tools.md",
-      "Compozy-native tools",
+      "CompozyOS-native tools",
       "compozy__tool_search",
     ]);
   });

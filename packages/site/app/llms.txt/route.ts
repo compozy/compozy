@@ -46,7 +46,7 @@ export async function GET() {
         ]
       : []),
     docLine(
-      "Migrate from Compozy v0.2.15 to CompozyOS v0.3",
+      "Migrate from CompozyOS v0.2.15 to CompozyOS v0.3",
       "/docs/migration",
       "Hard-cut command, configuration, storage, and extension migration guidance."
     ),

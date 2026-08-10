@@ -1,9 +1,9 @@
 ---
 title: Resume Attach and Replay
-description: How Compozy attaches operators to resumable sessions, reconstructs transcripts from events, and returns deterministic recaps.
+description: How CompozyOS attaches operators to resumable sessions, reconstructs transcripts from events, and returns deterministic recaps.
 ---
 
-Resume attach and replay are related, but they are not the same thing in Compozy.
+Resume attach and replay are related, but they are not the same thing in CompozyOS.
 
 - **Resume attach** acquires a short-lived holder lease on an existing live session.
 - **Replay** reconstructs durable history from the stored event log.
@@ -23,7 +23,7 @@ eligible for an explicit holder:
 - after a browser refresh
 - after the CLI process exits while the daemon keeps running
 - after handing an active session from one control surface to another
-- after listing resumable sessions and choosing the same Compozy session ID
+- after listing resumable sessions and choosing the same CompozyOS session ID
 
 Use a new session when you want a clean slate. Use history, repair, and recap when the session is
 stopped and you need to understand what happened before either sending a normal prompt to continue
@@ -151,12 +151,12 @@ Recap is useful before attaching, after an interrupted turn, and when agents nee
 summary without parsing raw event rows.
 
 `snapshot.consistency` is a closed string. v1 returns `"persisted_reads"`, which means the recap
-was assembled from persisted event, marker, and input-queue read models with stable cursors. Compozy does
+was assembled from persisted event, marker, and input-queue read models with stable cursors. CompozyOS does
 not currently return `"read_snapshot"`.
 
 ## Transcript markers
 
-Compozy emits `transcript_marker.created` and `transcript_marker.redacted` events for operator-relevant
+CompozyOS emits `transcript_marker.created` and `transcript_marker.redacted` events for operator-relevant
 session facts such as interrupts, prompt timeouts, unhealthy state, and MCP auth prompts. Markers
 are durable event rows and appear in recap output, logs, and web activity notices.
 
@@ -165,7 +165,7 @@ diagnostic payload is redacted before it leaves the daemon when it contains sens
 
 ## Replay surfaces
 
-Compozy exposes these read paths for old work:
+CompozyOS exposes these read paths for old work:
 
 | Surface                                                             | Use it for                               |
 | ------------------------------------------------------------------- | ---------------------------------------- |
@@ -199,22 +199,22 @@ fence produces an explicit reset snapshot. The stream rejects the old `replay` q
 ### Attach after a CLI exits
 
 This is the normal path. The daemon still owns the session, and the new surface obtains a holder
-lease on the same Compozy session ID.
+lease on the same CompozyOS session ID.
 
 ### Attach after a terminal stop
 
 Attach is intentionally refused. Inspect recap, history, status, and repair output, then send a
-normal prompt when you want Compozy to restore the provider history and continue the same session.
+normal prompt when you want CompozyOS to restore the provider history and continue the same session.
 Only normal prompt dispatch triggers that restart.
 
 ### Resume does not rewrite history
 
-The per-session store is append-only for the Compozy session ID. Attach records and transcript markers
+The per-session store is append-only for the CompozyOS session ID. Attach records and transcript markers
 are additional evidence, not replacements for earlier events.
 
 The stopped-session `ledger.jsonl` is a read-only projection, not the source of truth. Before a
-stopped session resumes, Compozy removes that projection so new events cannot conflict with stale
-content. The next stop rebuilds it from the complete event store. If provider startup fails, Compozy
+stopped session resumes, CompozyOS removes that projection so new events cannot conflict with stale
+content. The next stop rebuilds it from the complete event store. If provider startup fails, CompozyOS
 restores the stopped-session ledger before returning the failure.
 
 ### The command name is historical

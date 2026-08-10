@@ -79,7 +79,7 @@ func TestOpen(t *testing.T) {
 		if !errors.Is(err, store.ErrSchemaAhead) {
 			t.Fatalf("Open(ahead schema) error = %v, want ErrSchemaAhead", err)
 		}
-		if err == nil || !strings.Contains(err.Error(), "install a newer Compozy binary") {
+		if err == nil || !strings.Contains(err.Error(), "install a newer CompozyOS binary") {
 			t.Fatalf("Open(ahead schema) error = %v, want deterministic remediation", err)
 		}
 	})

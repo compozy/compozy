@@ -1,6 +1,6 @@
-# Compozy extension examples
+# CompozyOS extension examples
 
-Runnable extensions that import **only** a published Compozy SDK:
+Runnable extensions that import **only** a published CompozyOS SDK:
 
 - TypeScript — [`@compozy/extension-sdk`](https://www.npmjs.com/package/@compozy/extension-sdk)
 - Go — `github.com/compozy/compozy/sdk/go`

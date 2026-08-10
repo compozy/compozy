@@ -1,24 +1,24 @@
 ---
 title: Bundled Skill
-description: The Compozy skill compiled into the runtime, its reference files, and how contextual loading works.
+description: The CompozyOS skill compiled into the runtime, its reference files, and how contextual loading works.
 ---
 
-The bundled `compozy` skill ships inside the Compozy binary. It is the lowest-precedence source in the skills
+The bundled `compozy` skill ships inside the CompozyOS binary. It is the lowest-precedence source in the skills
 hierarchy and is available whenever `skills.enabled` is true.
 
-Compozy currently ships one bundled skill: `compozy`. The skill lives at `skills/compozy/SKILL.md` with resource
+CompozyOS currently ships one bundled skill: `compozy`. The skill lives at `skills/compozy/SKILL.md` with resource
 files under `skills/compozy/references/`. This layout is a normal skill directory, so the same content
-can be installed outside Compozy by coding agents that want Compozy operating guidance without importing the
+can be installed outside CompozyOS by coding agents that want CompozyOS operating guidance without importing the
 runtime.
 
 ## Catalog
 
-| Skill     | Description                                              | Use when                                                                                                                                                          |
-| --------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compozy` | Operate Compozy, the local-first agent operating system. | You are working with Compozy sessions, agents, tools, skills, memory, Network channels, tasks, Loops, windows, bridges, automation, extensions, or configuration. |
+| Skill     | Description                                                | Use when                                                                                                                                                            |
+| --------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compozy` | Operate CompozyOS, the local-first agent operating system. | You are working with CompozyOS sessions, agents, tools, skills, memory, Network channels, tasks, Loops, windows, bridges, automation, extensions, or configuration. |
 
 The current runtime does not ship aliases for previous alpha `compozy-*` bundled skill names. A caller
-that needs Compozy guidance should load `compozy` and then read the reference file selected by its router.
+that needs CompozyOS guidance should load `compozy` and then read the reference file selected by its router.
 
 ## Reference files
 
@@ -60,7 +60,7 @@ The normal prompt catalog lists the bundled skill by name and description:
 
 ```xml
 <available-skills>
-  <skill name="compozy">Agent guide for operating Compozy. Use when working with Compozy sessions, agents, native tools...</skill>
+  <skill name="compozy">Agent guide for operating CompozyOS. Use when working with CompozyOS sessions, agents, native tools...</skill>
 </available-skills>
 ```
 
@@ -95,7 +95,7 @@ not in the skill text.
 
 ## Native tools and authority
 
-The bundled `compozy` skill teaches agents how to find and use Compozy-native tools, but it does not grant
+The bundled `compozy` skill teaches agents how to find and use CompozyOS-native tools, but it does not grant
 tool access. Tool visibility and invocation are enforced by the tool registry, session scope,
 toolsets, approval policy, and the owning runtime service. `compozy__*` names are canonical ToolIDs, not
 guaranteed harness invocation names. Agents should resolve canonical `compozy__tool_search`, inspect

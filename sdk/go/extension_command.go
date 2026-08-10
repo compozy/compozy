@@ -12,7 +12,7 @@ import (
 type ExtensionCommandGroupSpec = contracts.ExtensionCommandGroupSpec
 
 // CommandGroup declares help metadata for a one-segment command group.
-// Command tree validation remains authoritative in the Compozy build and load paths.
+// Command tree validation remains authoritative in the CompozyOS build and load paths.
 func (e *Extension) CommandGroup(path, summary string) error {
 	if e == nil {
 		return NewInternalError("extension is required")

@@ -1,4 +1,4 @@
-// Package main is the Compozy CLI entrypoint.
+// Package main is the CompozyOS CLI entrypoint.
 package main
 
 import (

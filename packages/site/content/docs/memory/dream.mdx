@@ -1,9 +1,9 @@
 ---
 title: Dream
-description: How Compozy gates dreaming runs, scores recall signals, promotes durable memory through the controller, and persists dreaming artifacts under `_system/`.
+description: How CompozyOS gates dreaming runs, scores recall signals, promotes durable memory through the controller, and persists dreaming artifacts under `_system/`.
 ---
 
-Dreaming is Compozy's background promotion loop. A dream session reviews recall-validated signal,
+Dreaming is CompozyOS's background promotion loop. A dream session reviews recall-validated signal,
 proposes durable curated memory through the **same controller** every other write uses, and writes
 forensic artifacts under `_system/dreaming/`.
 
@@ -25,12 +25,12 @@ gone. Use `compozy memory dream trigger` and `POST /api/memory/dreams/trigger`. 
 
 Dreaming is enabled by default when memory is enabled.
 
-| Trigger path      | Behavior                                                                                                 |
-| ----------------- | -------------------------------------------------------------------------------------------------------- |
-| Background ticker | The daemon evaluates gates on `memory.dream.check_interval` (default 30m).                               |
-| Session stop hook | When a non-dream session stops in a known workspace, Compozy queues a dream check for that workspace_id. |
-| Manual command    | `compozy memory dream trigger` evaluates gates for the resolved workspace.                               |
-| HTTP / UDS API    | `POST /api/memory/dreams/trigger` accepts an optional workspace selector.                                |
+| Trigger path      | Behavior                                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| Background ticker | The daemon evaluates gates on `memory.dream.check_interval` (default 30m).                                 |
+| Session stop hook | When a non-dream session stops in a known workspace, CompozyOS queues a dream check for that workspace_id. |
+| Manual command    | `compozy memory dream trigger` evaluates gates for the resolved workspace.                                 |
+| HTTP / UDS API    | `POST /api/memory/dreams/trigger` accepts an optional workspace selector.                                  |
 
 A trigger always re-evaluates gates. If the gates do not pass, the response is successful and
 reports the gate that blocked the run.
@@ -39,12 +39,12 @@ reports the gate that blocked the run.
 
 Gates run in this order (cheaper first, observable each step):
 
-| Gate     | Default                                                                            | Behavior                                                                                             |
-| -------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Time     | `min_hours = 24`                                                                   | Last successful run must be at least `min_hours` ago.                                                |
-| Sessions | `min_sessions = 3`                                                                 | At least `min_sessions` completed sessions since the last successful run.                            |
-| Lock     | one active runner                                                                  | Acquires the per-workspace dreaming lock; existing runners block re-entry.                           |
-| Signal   | `gates.min_unpromoted = 5`, `gates.min_recall_count = 2`, `gates.min_score = 0.75` | Inside the lock, Compozy counts unpromoted candidates with sufficient recall hits and minimum score. |
+| Gate     | Default                                                                            | Behavior                                                                                               |
+| -------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Time     | `min_hours = 24`                                                                   | Last successful run must be at least `min_hours` ago.                                                  |
+| Sessions | `min_sessions = 3`                                                                 | At least `min_sessions` completed sessions since the last successful run.                              |
+| Lock     | one active runner                                                                  | Acquires the per-workspace dreaming lock; existing runners block re-entry.                             |
+| Signal   | `gates.min_unpromoted = 5`, `gates.min_recall_count = 2`, `gates.min_score = 0.75` | Inside the lock, CompozyOS counts unpromoted candidates with sufficient recall hits and minimum score. |
 
 `Time` and `Sessions` are evaluated outside the lock. `Signal` is evaluated **after** the lock is
 acquired so anti-thrash stamps update even when no candidates qualify.
@@ -86,16 +86,16 @@ Runtime->>Lock: Release (anti-thrash stamp)`}
 caption="Dream output is not injected directly into curated memory. Promotions are real controller decisions; the synthesis report is forensic-only under `\_system/dreaming/`."
 />
 
-The dream agent runs as an ordinary Compozy session of type `dream`. It is special in two ways:
+The dream agent runs as an ordinary CompozyOS session of type `dream`. It is special in two ways:
 
-- Compozy starts it with `approve-all` permissions for the dreaming workspace context.
-- Compozy layers the dream role overlay and the versioned output-contract frame selected by
+- CompozyOS starts it with `approve-all` permissions for the dreaming workspace context.
+- CompozyOS layers the dream role overlay and the versioned output-contract frame selected by
   `memory.dream.prompt_version` on top of the selected agent's prompt.
 
 Dream-session routing lives under `[roles.dream]`. An empty `agent` selects the virtual builtin
 **`dreaming-curator`** identity; a non-empty value routes the session to that authored agent. The
-builtin contributes Compozy's embedded curator prompt. A routed catalog agent contributes its own
-`AGENT.md` body instead; Compozy still applies the role overlay and contract frame. The builtin name is
+builtin contributes CompozyOS's embedded curator prompt. A routed catalog agent contributes its own
+`AGENT.md` body instead; CompozyOS still applies the role overlay and contract frame. The builtin name is
 reserved from authoring and does not appear in public agent catalogs.
 
 ## What Lands Where

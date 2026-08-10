@@ -1,15 +1,15 @@
 ---
 id: ET-compozy-official-skill-discovery
 area: ET
-title: Discover the official Compozy runtime skill
+title: Discover the official CompozyOS runtime skill
 persona: Ada
 journey: J-validate-compozy-hard-cut
-expected: A fresh runtime discovers the bundled skill only as `compozy`; every read plane agrees, the router teaches the extension-only kit lifecycle within budget, and no retired Bundle tool, capability, reference, alias, or duplicate catalog entry remains.
+expected: A fresh runtime discovers the bundled skill only as `compozy`; every read plane agrees, the router serves the desktop reference and teaches app commands, ownership, updates, diagnostics, and recovery without a duplicate catalog entry.
 entry_points: bundled skills/compozy/SKILL.md; GET /api/skills; compozy skill list|inspect|view -o json; compozy__skill_list|view; Web /skills
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-integration-rerun.log;/Users/pedronauck/dev/qa-labs/compozy-compozy-migration-beta-20260727-135201-116083-lab/qa-artifacts/qa/gate-test-e2e-web-final-2.log;/Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-skill-slim-20260804-111531-lab/qa;/Users/pedronauck/dev/qa-labs/compozy-remote-gateway-20260807-202655-957508-lab/qa-artifacts/qa/test-cases/41-extension-template-discovery.json
 last_report: docs/qa/reports/2026-08-07-remote-gateway.md
@@ -52,3 +52,6 @@ operations. Flag only; Tasks 08–09 own the re-walk.
 QA walk 2026-08-07: a fresh isolated runtime served the new authoring and runtime-operation
 references through `skill view`; both provider templates, the provider contract, and Gateway native
 operations were present. Existing cross-plane discovery evidence remains valid for the unchanged registry.
+
+QA impact 2026-08-10: the official skill gained `references/desktop.md` and desktop routing while
+its public prose moved to CompozyOS. Reset to `untested`; Task 07 owns the cross-plane re-walk.

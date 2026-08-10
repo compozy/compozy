@@ -82,7 +82,7 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   installCommandKey,
-		Short: "Bootstrap Compozy and create the default general agent",
+		Short: "Bootstrap CompozyOS and create the default general agent",
 		Example: `  # Create ~/.compozy/config.toml and ~/.compozy/agents/general/AGENT.md
   compozy install
 
@@ -377,7 +377,7 @@ func (m *installWizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *installWizardModel) View() string {
 	var builder strings.Builder
 
-	builder.WriteString("Compozy Install\n")
+	builder.WriteString("CompozyOS Install\n")
 	builder.WriteString("===========\n\n")
 
 	switch m.step {

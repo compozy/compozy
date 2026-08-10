@@ -94,13 +94,13 @@ or turn ordinary sessions Live. Disable it with the matching `coordination disab
 
 ## Common failures
 
-| Symptom                               | Meaning or first check                                                    |
-| ------------------------------------- | ------------------------------------------------------------------------- |
-| `network_participation_unavailable`   | Network availability is disabled.                                         |
-| `not_participating`                   | The caller resolved Local; create a new explicit Live execution.          |
-| `network_bounds_exceed_ceiling`       | Requested bounds exceed `[network.live.limits]`.                          |
-| Message is durable but no turn starts | It was unaddressed, coalesced, duplicated, too deep, or bounds exhausted. |
-| Usage is `usage_unavailable`          | The provider did not report aggregate token usage; Compozy did not guess. |
+| Symptom                               | Meaning or first check                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| `network_participation_unavailable`   | Network availability is disabled.                                           |
+| `not_participating`                   | The caller resolved Local; create a new explicit Live execution.            |
+| `network_bounds_exceed_ceiling`       | Requested bounds exceed `[network.live.limits]`.                            |
+| Message is durable but no turn starts | It was unaddressed, coalesced, duplicated, too deep, or bounds exhausted.   |
+| Usage is `usage_unavailable`          | The provider did not report aggregate token usage; CompozyOS did not guess. |
 
 ## Next steps
 

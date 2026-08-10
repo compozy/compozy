@@ -4,7 +4,7 @@ description: Install or build packages that ship skills, agents, automation, lay
 ---
 
 An extension is one installable unit that ships runtime behavior and resources behind a single manifest.
-Installation is inert: Compozy publishes the package's resources only when the operator enables the
+Installation is inert: CompozyOS publishes the package's resources only when the operator enables the
 extension, and removes those live resources when the extension is disabled.
 
 Use extensions when runtime behavior or resources should travel between machines or teams with one install command.
@@ -13,7 +13,7 @@ provide surfaces, or a daemon-facing Host API service, an extension gives that p
 manifest, trust tier, enablement state, and operational lifecycle.
 
 <OperatorNote>
-  Resource-only extensions ship files Compozy already loads (skills, agents, hooks, MCP servers).
+  Resource-only extensions ship files CompozyOS already loads (skills, agents, hooks, MCP servers).
   Subprocess extensions also run code over JSON-RPC and call the daemon through the Host API after
   permission checks. The trust tier of the source determines which extensions are even eligible.
 </OperatorNote>
@@ -25,13 +25,13 @@ and `compozy extension build` generates the manifest.
 Operators start at the install page for adding, enabling, disabling, inspecting, updating, or
 removing an extension.
 
-Extensions can also publish a **`MemoryProvider`** for Memory v2. Compozy ships the bundled local
+Extensions can also publish a **`MemoryProvider`** for Memory v2. CompozyOS ships the bundled local
 provider as the reference implementation; only one external `MemoryProvider` may be active per
 workspace. The provider implements the 10-method ABC (`Initialize`, `SystemPromptBlock`, `Recall`,
 `Prefetch`, `SyncTurn`, `OnPreCompress`, `OnSessionEnd`, `OnSessionSwitch`, `OnMemoryWrite`,
-`Shutdown`), respects `_system/` injection rules, and routes every write through the Compozy
-controller. Compozy memory is **separate from** any provider-native memory or context: provider-side
-state is owned by the provider, and the Compozy controller still records `memory_events`,
+`Shutdown`), respects `_system/` injection rules, and routes every write through the CompozyOS
+controller. CompozyOS memory is **separate from** any provider-native memory or context: provider-side
+state is owned by the provider, and the CompozyOS controller still records `memory_events`,
 `memory_decisions`, and updates the catalog projection. Provider-supplied tools that collide with
 reserved names (`compozy__memory_*`) are rejected at registration with `memory.provider.collision`. The
 circuit breaker (`[memory.provider]` keys: `timeout`, `failure_threshold`, `cooldown`) falls back

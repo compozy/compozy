@@ -1,9 +1,9 @@
 ---
 title: Extension Permissions
-description: Declare the Host API methods an extension calls, read the consent areas Compozy derives from them, and understand the ceilings applied per install source.
+description: Declare the Host API methods an extension calls, read the consent areas CompozyOS derives from them, and understand the ceilings applied per install source.
 ---
 
-An extension declares **one** list: the Host API methods it calls. Compozy derives everything else —
+An extension declares **one** list: the Host API methods it calls. CompozyOS derives everything else —
 the consent summary an operator sees, the enforcement set, and the ceiling that applies to the
 install source.
 
@@ -38,7 +38,7 @@ Both SDKs export the method names as typed constants, so a typo fails before the
 
 ## Derived consent areas
 
-Compozy maps every method to one `area:access` pair and shows the deduplicated set wherever consent
+CompozyOS maps every method to one `area:access` pair and shows the deduplicated set wherever consent
 is presented. `compozy extension validate` prints exactly what an operator will be asked to accept:
 
 ```bash

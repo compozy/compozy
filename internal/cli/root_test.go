@@ -49,7 +49,7 @@ func TestRenderHumanExecutionError(t *testing.T) {
 			),
 			contains: []string{
 				"error: Daemon unavailable",
-				"Compozy daemon is not reachable at /tmp/compozy.sock",
+				"CompozyOS daemon is not reachable at /tmp/compozy.sock",
 				"try: compozy daemon start",
 			},
 		},

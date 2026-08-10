@@ -1,9 +1,9 @@
 ---
 title: SKILL.md
-description: Complete implemented SKILL.md schema, Compozy metadata, sidecar files, hook declarations, and body conventions.
+description: Complete implemented SKILL.md schema, CompozyOS metadata, sidecar files, hook declarations, and body conventions.
 ---
 
-`SKILL.md` is the portable skill file Compozy loads into the skill catalog. A skill directory contains
+`SKILL.md` is the portable skill file CompozyOS loads into the skill catalog. A skill directory contains
 the file, optional supporting resources, and optional sidecars:
 
 ```text
@@ -14,11 +14,11 @@ the file, optional supporting resources, and optional sidecars:
     resources/
 ```
 
-Compozy reads standard YAML frontmatter, then keeps the Markdown body available as procedural
+CompozyOS reads standard YAML frontmatter, then keeps the Markdown body available as procedural
 instructions for agents.
 
 <OperatorNote>
-  Compozy intentionally separates fields it reads from fields it tolerates. Unknown top-level
+  CompozyOS intentionally separates fields it reads from fields it tolerates. Unknown top-level
   frontmatter fields are logged as warnings, but they are not runtime controls.
 </OperatorNote>
 
@@ -29,7 +29,7 @@ instructions for agents.
 | `name`                         | string                      | required                 | Non-empty.                                        | Skill identity and catalog key.                                              |
 | `description`                  | string                      | empty                    | Any string.                                       | Catalog description. Missing descriptions log a warning.                     |
 | `version`                      | string                      | empty                    | Any string.                                       | Skill version metadata.                                                      |
-| `metadata`                     | object                      | empty                    | Any YAML mapping.                                 | Free-form metadata. Compozy acts on `metadata.compozy`.                      |
+| `metadata`                     | object                      | empty                    | Any YAML mapping.                                 | Free-form metadata. CompozyOS acts on `metadata.compozy`.                    |
 | `metadata.compozy.mcp_servers` | array of MCP server objects | empty                    | Each object requires `name` and `command`.        | Skill-declared MCP servers.                                                  |
 | `metadata.compozy.hooks`       | array of hook objects       | empty                    | Each object requires valid `event` and `command`. | Skill-declared runtime hooks.                                                |
 | `metadata.compozy.memory_tags` | string array                | no runtime default       | RFC-only today.                                   | Parsed as metadata only; current runtime does not consume it.                |
@@ -89,15 +89,15 @@ Return the exact file paths you used and call out any stale or conflicting sourc
 | `name`        | string | none    | Non-empty after trimming. | Required. Missing names fail parsing.                                                    |
 | `description` | string | empty   | Any string.               | Optional by code, but missing descriptions warn and make the catalog less useful.        |
 | `version`     | string | empty   | Any string.               | Stored as metadata and used by marketplace provenance/update comparisons when available. |
-| `metadata`    | object | empty   | YAML mapping.             | Free-form metadata namespace. Compozy-specific fields belong under `metadata.compozy`.   |
+| `metadata`    | object | empty   | YAML mapping.             | Free-form metadata namespace. CompozyOS-specific fields belong under `metadata.compozy`. |
 
 Unknown top-level fields such as `allowed-tools`, `user-invocable`, and `argument-hint` are
 tolerated with warnings but ignored by the current CompozyOS runtime. Do not use those fields for access
-control, invocation behavior, or permissions in Compozy.
+control, invocation behavior, or permissions in CompozyOS.
 
 ## `metadata.compozy`
 
-Compozy-specific runtime features are namespaced under `metadata.compozy` so the file remains compatible
+CompozyOS-specific runtime features are namespaced under `metadata.compozy` so the file remains compatible
 with other AgentSkills readers.
 
 | Field         | Type                        | Default | Valid values          | Description                                             |
@@ -111,12 +111,12 @@ skill parsing because hooks must be safe to register.
 
 ## `metadata.compozy.mcp_servers`
 
-| Field     | Type         | Default  | Valid values            | Description                                                             |
-| --------- | ------------ | -------- | ----------------------- | ----------------------------------------------------------------------- |
-| `name`    | string       | required | Non-empty.              | MCP server key. Missing names warn and skip the entry.                  |
-| `command` | string       | required | Non-empty.              | MCP server command. Missing commands warn and skip the entry.           |
-| `args`    | string array | empty    | Strings.                | Command arguments.                                                      |
-| `env`     | string map   | empty    | String keys and values. | Literal environment values. Compozy does not expand shell placeholders. |
+| Field     | Type         | Default  | Valid values            | Description                                                               |
+| --------- | ------------ | -------- | ----------------------- | ------------------------------------------------------------------------- |
+| `name`    | string       | required | Non-empty.              | MCP server key. Missing names warn and skip the entry.                    |
+| `command` | string       | required | Non-empty.              | MCP server command. Missing commands warn and skip the entry.             |
+| `args`    | string array | empty    | Strings.                | Command arguments.                                                        |
+| `env`     | string map   | empty    | String keys and values. | Literal environment values. CompozyOS does not expand shell placeholders. |
 
 Skill MCP behavior depends on skill source:
 
@@ -206,7 +206,7 @@ Useful skill bodies usually contain:
 | Edge cases   | Mistakes to avoid.                                            |
 | Resources    | Relative files the agent can read from the skill directory.   |
 
-Compozy scans skill content for critical prompt-injection, destructive command, and credential
+CompozyOS scans skill content for critical prompt-injection, destructive command, and credential
 extraction patterns. Critical warnings block the skill from loading. Warning-level findings are
 logged. Content over 50,000 characters produces an info warning.
 
@@ -239,7 +239,7 @@ If frontmatter and sidecar JSON declare the same server name, the sidecar replac
 frontmatter server object. See [mcp.json](/docs/configuration/mcp-json) for the shared
 JSON schema.
 
-Skill-local sidecars are loaded only when they resolve inside the skill directory. Compozy rejects
+Skill-local sidecars are loaded only when they resolve inside the skill directory. CompozyOS rejects
 `SKILL.md`, `mcp.json`, and hashed resource paths that escape the approved skill root through
 symlinks.
 
@@ -258,7 +258,7 @@ author this file.
 }
 ```
 
-All fields are required. Compozy recomputes the installed directory hash, excluding `.compozy-meta.json`,
+All fields are required. CompozyOS recomputes the installed directory hash, excluding `.compozy-meta.json`,
 and blocks marketplace skills whose stored hash does not match.
 
 ## Discovery Limits
@@ -276,7 +276,7 @@ Directories between a scan root and a skill directory are organizational groups.
 and do not need a `SKILL.md`. The frontmatter `name`, not those groups or the leaf directory name,
 is the catalog identity. Higher-precedence skills with the same `name` override lower-precedence
 skills.
-Agent-local is a final overlay after Compozy resolves the winning `AGENT.md`; it is not another scan
+Agent-local is a final overlay after CompozyOS resolves the winning `AGENT.md`; it is not another scan
 root in the base precedence table above.
 
 Live runtime-registered skills from enabled extensions are an additional overlay layer, but they are
@@ -285,15 +285,15 @@ active-registry precedence model.
 
 ## RFC 002 Drift
 
-| Field or behavior                                             | Current implementation                                           |
-| ------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `metadata.compozy.memory_tags`                                | RFC-only; current runtime does not consume it.                   |
-| `allowed-tools`                                               | Tolerated as an unknown top-level field, but ignored by Compozy. |
-| `user-invocable`                                              | Tolerated, but ignored.                                          |
-| `argument-hint`                                               | Tolerated, but ignored.                                          |
-| Legacy hook events `on_session_created`, `on_session_stopped` | Rejected. Use `session.post_create` and `session.post_stop`.     |
-| Unknown top-level fields                                      | Warn and continue.                                               |
-| Unknown hook fields                                           | Fail hook decoding.                                              |
+| Field or behavior                                             | Current implementation                                             |
+| ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `metadata.compozy.memory_tags`                                | RFC-only; current runtime does not consume it.                     |
+| `allowed-tools`                                               | Tolerated as an unknown top-level field, but ignored by CompozyOS. |
+| `user-invocable`                                              | Tolerated, but ignored.                                            |
+| `argument-hint`                                               | Tolerated, but ignored.                                            |
+| Legacy hook events `on_session_created`, `on_session_stopped` | Rejected. Use `session.post_create` and `session.post_stop`.       |
+| Unknown top-level fields                                      | Warn and continue.                                                 |
+| Unknown hook fields                                           | Fail hook decoding.                                                |
 
 ## Related Pages
 

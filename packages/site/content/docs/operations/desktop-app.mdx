@@ -1,0 +1,91 @@
+---
+title: Desktop app operations
+description: Diagnose desktop launch failures, inspect platform logs, and recover app or runtime updates safely.
+---
+
+Start with the structured status and diagnostic report:
+
+```bash
+compozy app status -o json
+compozy app diagnose -o json
+```
+
+## Log paths
+
+The app writes logs under the active `COMPOZY_HOME`. These are the default paths:
+
+| Platform | App log                                      | Runtime log                                  |
+| -------- | -------------------------------------------- | -------------------------------------------- |
+| macOS    | `~/.compozy/logs/desktop.log`                | `~/.compozy/logs/compozy.log`                |
+| Windows  | `%USERPROFILE%\\.compozy\\logs\\desktop.log` | `%USERPROFILE%\\.compozy\\logs\\compozy.log` |
+| Linux    | `~/.compozy/logs/desktop.log`                | `~/.compozy/logs/compozy.log`                |
+
+If `COMPOZY_HOME` is set, replace `~/.compozy` with that path. Both logs remain under its `logs`
+directory regardless of which surface started the runtime.
+
+## Linux launch failures
+
+Install a WebKitGTK runtime supported by your distribution before retrying. On Ubuntu and Debian,
+AppImage mounts also require `libfuse2` (`libfuse2t64` on distributions that use the time64 package
+name). When FUSE is unavailable, launch the AppImage with:
+
+```bash
+./CompozyOS.AppImage --appimage-extract-and-run
+```
+
+For NVIDIA rendering failures, enable DRM kernel mode setting first (`nvidia_drm.modeset=1`) and
+reboot. If the window is still blank, try the remaining workarounds in order and stop when the app
+opens:
+
+```bash
+__NV_DISABLE_EXPLICIT_SYNC=1 ./CompozyOS.AppImage
+WEBKIT_DISABLE_DMABUF_RENDERER=1 ./CompozyOS.AppImage
+WEBKIT_DISABLE_COMPOSITING_MODE=1 ./CompozyOS.AppImage
+```
+
+These environment settings affect only that launch. Do not add both to a global shell profile.
+
+## Recover an app update
+
+If the app cannot complete its self-update, download the current installer for your platform from
+the GitHub release page and install it over the existing app. The runtime home and session data are
+outside the application bundle and remain in place.
+
+After reinstalling, run:
+
+```bash
+compozy app status -o json
+compozy app update --check -o json
+```
+
+## Recover a runtime update
+
+When status reports `recovery_required`:
+
+1. Run `compozy app diagnose -o json` and save its recovery code and paths.
+2. Stop the desktop app. Do not delete the active runtime or staging directory.
+3. Follow the diagnostic action to restore the verified previous runtime or finish the verified staged runtime.
+4. Reopen the app and run `compozy app retry`.
+5. Confirm that `compozy app status -o json` reports a healthy runtime and no recovery state.
+
+For an operator-managed runtime, use the update command reported by diagnostics. The desktop app
+never replaces a Homebrew, npm, Go, Linux package, or other externally managed installation.
+
+## Roll forward after an interrupted release
+
+Prefer a newer signed release over hand-editing runtime markers:
+
+1. Keep the failed staging files for diagnosis.
+2. Install the next signed desktop release over the existing app.
+3. Let the new app validate the existing runtime and recovery record.
+4. Apply the offered runtime update, then confirm healthy status.
+
+If no newer signed release is available, include `compozy app diagnose -o json` and the relevant
+platform logs in a support report.
+
+## Local and remote security boundary
+
+The desktop app inherits the daemon's loopback-only local posture: it connects to the daemon on the
+same machine and does not create a second public listener. Remote access is a separate trust boundary
+and must use the authenticated [Gateway](/docs/gateway/security). Do not expose the local daemon port
+directly to a network.

@@ -1,9 +1,9 @@
 ---
 title: Memory scopes
-description: How Compozy resolves the three memory scopes — global, workspace, and agent — selects the agent tier, applies read precedence, and shadows entries by identity.
+description: How CompozyOS resolves the three memory scopes — global, workspace, and agent — selects the agent tier, applies read precedence, and shadows entries by identity.
 ---
 
-Compozy memory has three scopes:
+CompozyOS memory has three scopes:
 
 - **global** — user-wide context available across workspaces.
 - **workspace** — project context bound to a specific workspace ID.
@@ -143,12 +143,12 @@ instead of silently routing them to `global`.
 `show`, `edit`, and `delete` commands accept an explicit selector or resolve a filename within the
 current snapshot when it is unambiguous.
 
-| Case                                 | Behavior                                                   |
-| ------------------------------------ | ---------------------------------------------------------- |
-| File exists only at one scope/tier   | Compozy uses that scope/tier.                              |
-| File exists at multiple scopes/tiers | Compozy returns an ambiguity error and asks for selectors. |
-| File exists nowhere                  | Compozy returns `memory.not_found`.                        |
-| Selector points at `_system/`        | Operator-only; requires `--include-system`.                |
+| Case                                 | Behavior                                                     |
+| ------------------------------------ | ------------------------------------------------------------ |
+| File exists only at one scope/tier   | CompozyOS uses that scope/tier.                              |
+| File exists at multiple scopes/tiers | CompozyOS returns an ambiguity error and asks for selectors. |
+| File exists nowhere                  | CompozyOS returns `memory.not_found`.                        |
+| Selector points at `_system/`        | Operator-only; requires `--include-system`.                  |
 
 Use explicit selectors for repeatable automation:
 

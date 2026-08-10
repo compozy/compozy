@@ -1,13 +1,13 @@
 ---
 title: Multi-Root Workspaces
-description: How to attach additional directories to one Compozy workspace for monorepos, shared agents, and project clusters.
+description: How to attach additional directories to one CompozyOS workspace for monorepos, shared agents, and project clusters.
 ---
 
 A multi-root workspace has one primary root and zero or more additional roots. The primary root owns
 the workspace config. All roots can contribute agents and skills.
 
 Use multi-root when one session should operate from a main repository while also seeing reusable
-project-local agents or skills from nearby directories. Compozy starts the agent in the primary root and
+project-local agents or skills from nearby directories. CompozyOS starts the agent in the primary root and
 sends the additional roots to ACP as `additional_dirs`.
 
 <OperatorNote>
@@ -57,7 +57,7 @@ cwd = <workspace root>
 additional_dirs = [<additional root 1>, <additional root 2>, ...]
 ```
 
-That means provider support for `additional_dirs` depends on the ACP-compatible agent. Compozy still
+That means provider support for `additional_dirs` depends on the ACP-compatible agent. CompozyOS still
 uses the additional roots for its own agent and skill discovery before the subprocess starts.
 
 ## Precedence
@@ -66,13 +66,13 @@ Discovery order is first-wins:
 
 1. Primary workspace root
 2. Additional roots, in the order stored on the workspace
-3. Global Compozy home
+3. Global CompozyOS home
 
-For agents, the first `AGENT.md` whose parsed `name` matches wins. Compozy does not merge two agent
+For agents, the first `AGENT.md` whose parsed `name` matches wins. CompozyOS does not merge two agent
 definitions with the same name.
 
 For skills, the first declaration of the same frontmatter `name` wins. Group directories are
-organizational and do not change identity, so Compozy does not merge two `SKILL.md` files with the
+organizational and do not change identity, so CompozyOS does not merge two `SKILL.md` files with the
 same `name` even when they sit in different groups.
 
 <Mermaid
@@ -168,7 +168,7 @@ config and workspace memory.
 
 ## Nested Workspace Pattern
 
-Nested directories can be registered as separate workspaces because Compozy resolves registered rows,
+Nested directories can be registered as separate workspaces because CompozyOS resolves registered rows,
 not a Git-style nearest-parent marker.
 
 ```text
@@ -214,7 +214,7 @@ Additional roots never participate in this ownership decision.
 
 ## Path Normalization And Duplicates
 
-Compozy normalizes every root with `filepath.Abs`, `os.Stat`, and `filepath.EvalSymlinks`.
+CompozyOS normalizes every root with `filepath.Abs`, `os.Stat`, and `filepath.EvalSymlinks`.
 
 | Case                                                           | Behavior                                                                               |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -241,7 +241,7 @@ shared-agent-kit/
 
 Use global `~/.compozy/config.toml` for settings shared across workspaces. Use the primary root
 `<workspace>/.compozy/config.toml` for project-specific settings. Avoid putting shared runtime policy in
-additional roots, because Compozy will not read it for the parent workspace.
+additional roots, because CompozyOS will not read it for the parent workspace.
 
 ## Inspect A Multi-Root Workspace
 

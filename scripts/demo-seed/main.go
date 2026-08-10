@@ -38,7 +38,7 @@ func run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	}
 	flags := flag.NewFlagSet("demo-seed", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	homeDir := flags.String("home", defaultHome, "Compozy home to populate")
+	homeDir := flags.String("home", defaultHome, "CompozyOS home to populate")
 	replace := flags.Bool("replace", false, "replace only the existing Northstar Pay scenario")
 	jsonOutput := flags.Bool("json", false, "print the result as JSON")
 	if err := flags.Parse(args); err != nil {

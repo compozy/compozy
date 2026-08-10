@@ -1,6 +1,6 @@
 # Extension Authoring
 
-Write a Compozy extension. Lifecycle mechanics — generation handles, instance scoping, dev overlays,
+Write a CompozyOS extension. Lifecycle mechanics — generation handles, instance scoping, dev overlays,
 reload semantics, logs, install trust, publish credentials — live in
 `references/extensions.md`. Native tool IDs and risk flags live in
 `references/native-tools.md`. Read this file for what goes in the code.
@@ -94,7 +94,7 @@ outlives that decision may outlive `Run`. Registrations after shutdown or runtim
 validated against the closed Host API method set at build, validate, install, and load. An unknown value is a
 hard error, never a silent no-op. Both SDKs export the method names as typed constants.
 
-Compozy derives operator-facing consent areas (`area:access`, such as `sessions:read` or
+CompozyOS derives operator-facing consent areas (`area:access`, such as `sessions:read` or
 `memory:write`) from that list. Consent areas are a display and policy projection and are never
 authored. `compozy extension validate <dir> -o json` returns `consent_areas`; show that to the user
 before proposing an install.
@@ -169,7 +169,7 @@ refuses a tier outside that declared set before starting provider code. Register
 forward target, an opaque challenge path, and a deadline; return HTTPS endpoints only after the
 route forwards the challenge unchanged. `connectivity/status` reports the same tier's current
 health. `connectivity/teardown` must end forwarding within its deadline before returning
-`stopped: true`. Compozy verifies the challenge itself and advertises nothing on failure. A changed
+`stopped: true`. CompozyOS verifies the challenge itself and advertises nothing on failure. A changed
 live registry digest requires fresh consent, and only one provider may be selected per tier.
 
 The bundled `tailscale` provider requires the declared `TS_AUTHKEY` binding. Set it

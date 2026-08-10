@@ -31,9 +31,9 @@ export function MarketplaceBundledSection() {
           Ships with the runtime
         </h2>
         <p className="mt-3 text-small-body leading-relaxed text-muted">
-          These are compiled into the Compozy binary and enrolled the first time the daemon starts.
-          They carry no catalog entry and no install command because there is nothing to fetch —
-          upgrading the runtime upgrades them.
+          These are compiled into the CompozyOS binary and enrolled the first time the daemon
+          starts. They carry no catalog entry and no install command because there is nothing to
+          fetch — upgrading the runtime upgrades them.
         </p>
       </div>
 

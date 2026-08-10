@@ -95396,7 +95396,7 @@
         "operationId": "listProviderModels",
         "parameters": [
           {
-            "description": "Filter by Compozy provider id",
+            "description": "Filter by CompozyOS provider id",
             "in": "query",
             "name": "provider_id",
             "schema": {
@@ -96336,7 +96336,7 @@
         "operationId": "listProviderModelsByProvider",
         "parameters": [
           {
-            "description": "Compozy provider id",
+            "description": "CompozyOS provider id",
             "in": "path",
             "name": "provider_id",
             "required": true,
@@ -96886,7 +96886,7 @@
         "operationId": "curateProviderModel",
         "parameters": [
           {
-            "description": "Compozy provider id",
+            "description": "CompozyOS provider id",
             "in": "path",
             "name": "provider_id",
             "required": true,
@@ -97608,7 +97608,7 @@
         "operationId": "refreshProviderModelsByProvider",
         "parameters": [
           {
-            "description": "Compozy provider id",
+            "description": "CompozyOS provider id",
             "in": "path",
             "name": "provider_id",
             "required": true,
@@ -98010,7 +98010,7 @@
         "operationId": "getProviderModelStatusByProvider",
         "parameters": [
           {
-            "description": "Compozy provider id",
+            "description": "CompozyOS provider id",
             "in": "path",
             "name": "provider_id",
             "required": true,
@@ -104414,7 +104414,7 @@
         "operationId": "listOpenAIModels",
         "parameters": [
           {
-            "description": "Filter by Compozy provider id",
+            "description": "Filter by CompozyOS provider id",
             "in": "query",
             "name": "provider_id",
             "schema": {
@@ -105009,7 +105009,7 @@
         "operationId": "getProvider",
         "parameters": [
           {
-            "description": "Compozy provider id",
+            "description": "CompozyOS provider id",
             "in": "path",
             "name": "provider_id",
             "required": true,
@@ -105285,7 +105285,7 @@
         "operationId": "probeProviderAuth",
         "parameters": [
           {
-            "description": "Compozy provider id",
+            "description": "CompozyOS provider id",
             "in": "path",
             "name": "provider_id",
             "required": true,

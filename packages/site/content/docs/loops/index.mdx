@@ -55,7 +55,7 @@ The full data model lives in the [DSL reference](/docs/loops/dsl-reference).
 A Loop and a [capability](/docs/agents/capabilities) are different artifacts, and Loops do
 not replace capabilities:
 
-- A **Loop** is a **deterministic runtime program** the daemon owns and runs. It rides Compozy's
+- A **Loop** is a **deterministic runtime program** the daemon owns and runs. It rides CompozyOS's
   existing durable foundations — the work queue, sessions, [automation](/docs/automation),
   [network](/docs/network), and [memory](/docs/memory) — rather than adding a
   second execution engine.
@@ -67,7 +67,7 @@ Loop domain lives entirely in the runtime.
 
 ## Arrive and use
 
-The common path never touches a graph. On a fresh Compozy home, the bundled `dev-cycle` extension
+The common path never touches a graph. On a fresh CompozyOS home, the bundled `dev-cycle` extension
 is installed enabled, so its two first-party Loops can run directly — supply a couple of inputs and
 go:
 
@@ -78,7 +78,7 @@ go:
   artifact batches, and repeats until a new review generation returns no issues.
 
 If you disable `dev-cycle`, those Loops, their default agents, and their artifact tools leave the
-catalog together. Later daemon starts and extension updates preserve that choice; Compozy does not
+catalog together. Later daemon starts and extension updates preserve that choice; CompozyOS does not
 silently re-enable it. Enabling it restores the package.
 
 Authoring, configuring, and forking are an opt-in power ceiling, never the entry toll.

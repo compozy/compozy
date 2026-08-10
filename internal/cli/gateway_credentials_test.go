@@ -119,7 +119,7 @@ func TestGatewayCredentialStore(t *testing.T) {
 		}
 	})
 
-	t.Run("Should isolate keyring keys across Compozy homes", func(t *testing.T) {
+	t.Run("Should isolate keyring keys across CompozyOS homes", func(t *testing.T) {
 		t.Parallel()
 		keys := &memoryCredentialKeyring{values: make(map[string]string)}
 		first := gatewayCredentialStore{

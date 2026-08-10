@@ -1,14 +1,14 @@
 ---
 title: WhatsApp Setup
-description: Configure Meta's official WhatsApp Cloud API, verify its webhook, and send a real Compozy bridge message.
+description: Configure Meta's official WhatsApp Cloud API, verify its webhook, and send a real CompozyOS bridge message.
 ---
 
-This guide connects a WhatsApp Business phone number to a Compozy workspace through Meta's official
+This guide connects a WhatsApp Business phone number to a CompozyOS workspace through Meta's official
 Cloud API. It does not use WhatsApp Web, a QR code, or a personal-account session.
 
 ## How the WhatsApp bridge behaves
 
-| Surface             | Compozy behavior                                                                                                                                                                  |
+| Surface             | CompozyOS behavior                                                                                                                                                                |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Conversations       | Direct-message routing only. The WhatsApp user ID becomes the bridge `peer_id`.                                                                                                   |
 | Inbound messages    | Normalizes text, images, documents, audio, video, stickers, and locations. Media remains a provider attachment reference; the bridge does not claim to download or transcribe it. |
@@ -35,7 +35,7 @@ of this page covers that handoff and the evidence to expect.
 | Phone Number ID     | Meta App Dashboard → **WhatsApp → API Setup**, below the **From** number                  | This is Meta's 15–17 digit internal ID, not the visible phone number.       |
 | Access token        | **WhatsApp → API Setup** for testing; use an appropriate System User token for production | A dashboard test token may expire. Replace it before relying on the bridge. |
 | App secret          | **App settings → Basic → App secret**                                                     | Used for `X-Hub-Signature-256`; it is not the webhook verify token.         |
-| Verify token        | A high-entropy value you choose, or one generated once by Compozy                         | Meta sends it during the GET challenge; both sides must match exactly.      |
+| Verify token        | A high-entropy value you choose, or one generated once by CompozyOS                       | Meta sends it during the GET challenge; both sides must match exactly.      |
 | Public callback URL | Your reverse proxy or tunnel                                                              | Must be public HTTPS and include the full provider path.                    |
 
 You need a Meta Business account, a Meta app with the WhatsApp product enabled, and a WhatsApp
@@ -129,7 +129,7 @@ compozy bridge setup whatsapp --json <<'JSON'
 JSON
 ```
 
-The input rejects unknown fields and trailing objects. If `verify_token` is omitted, Compozy can generate
+The input rejects unknown fields and trailing objects. If `verify_token` is omitted, CompozyOS can generate
 one only when you explicitly request one-run disclosure:
 
 ```bash
@@ -157,15 +157,15 @@ BRIDGE_ID=brg_123
    when the token matches.
 6. Under webhook fields, select **Manage** and subscribe to `messages`.
 
-Compozy does not register these settings remotely. A successful challenge proves only the GET handshake;
+CompozyOS does not register these settings remotely. A successful challenge proves only the GET handshake;
 signed POST traffic still depends on the app secret and `messages` subscription.
 
 ### Add a development recipient
 
 While the Meta app is in development mode, add the phone numbers used for outbound testing to the
 allowed recipient list under WhatsApp API Setup. Complete Meta's verification step for each test
-number before running `send-test`. This provider-side list is separate from Compozy `dm_policy`: Meta
-controls who the app can message, while Compozy controls whose inbound messages reach the workspace agent.
+number before running `send-test`. This provider-side list is separate from CompozyOS `dm_policy`: Meta
+controls who the app can message, while CompozyOS controls whose inbound messages reach the workspace agent.
 
 ## Step 5: Restrict access before enablement
 
@@ -210,7 +210,7 @@ compozy bridge get "$BRIDGE_ID" -o json
 ```
 
 The enabled verification sends a reachability probe to the public URL. Then send a WhatsApp message
-from an allowed phone to the business number and confirm Compozy creates a route:
+from an allowed phone to the business number and confirm CompozyOS creates a route:
 
 ```bash
 compozy bridge routes "$BRIDGE_ID" -o json
@@ -220,7 +220,7 @@ Finally, make a real outbound delivery:
 
 ```bash
 compozy bridge send-test "$BRIDGE_ID" \
-  --message "Compozy WhatsApp connection check" \
+  --message "CompozyOS WhatsApp connection check" \
   --peer-id "15551234567" \
   --json
 ```
@@ -233,7 +233,7 @@ compozy bridge send-test "$BRIDGE_ID" \
 | --------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------- |
 | `api_version`                           | `v21.0`                               | Graph API version used by the in-tree provider.                                 |
 | `phone_number_id`                       | none                                  | Required Meta Phone Number ID used for inbound ownership and outbound requests. |
-| `webhook.public_url`                    | none                                  | Full public HTTPS callback used in Meta and Compozy verification.               |
+| `webhook.public_url`                    | none                                  | Full public HTTPS callback used in Meta and CompozyOS verification.             |
 | `webhook.listen_addr`                   | `COMPOZY_BRIDGE_WHATSAPP_LISTEN_ADDR` | Local listener; one address per provider process.                               |
 | `webhook.path`                          | `/whatsapp/<bridge-id>`               | Local callback path.                                                            |
 | `dm.allow_user_ids` / `paired_user_ids` | empty                                 | WhatsApp user IDs used by `allowlist` or `pairing` policy.                      |
@@ -251,7 +251,7 @@ is operator-owned process configuration, never mutable `provider_config`.
 - Group routing is not implemented; inbound events map to direct-message peers.
 - Media events preserve provider attachment references and descriptive text. They do not imply local
   media download, OCR, vision, or transcription.
-- Delivery outside Meta's allowed business-messaging window can be rejected by the Cloud API. Compozy
+- Delivery outside Meta's allowed business-messaging window can be rejected by the Cloud API. CompozyOS
   does not turn free-form text into an approved template automatically.
 
 ## Troubleshooting
@@ -259,7 +259,7 @@ is operator-owned process configuration, never mutable `provider_config`.
 | Symptom                                       | What to check                                                                                                                          |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Wizard says the Phone Number ID is invalid    | Copy the 15–17 digit ID below Meta's **From** selector, not the visible phone number.                                                  |
-| Meta says the callback could not be validated | Start the listener, confirm the proxy path, and make sure Meta's verify token matches the Compozy binding exactly.                     |
+| Meta says the callback could not be validated | Start the listener, confirm the proxy path, and make sure Meta's verify token matches the CompozyOS binding exactly.                   |
 | `provider.identity` fails                     | The access token is expired, revoked, missing access to the phone number, or paired with the wrong Phone Number ID.                    |
 | GET verification works but signed POSTs fail  | The `app_secret` binding must come from the same Meta app that sends the webhook. Do not use the verify token as the app secret.       |
 | No inbound messages arrive after verification | Subscribe the webhook to the `messages` field and confirm the sending number belongs to the configured Phone Number ID.                |
@@ -308,7 +308,7 @@ a permission-restricted file and rejects inline secret arguments; see
 - Meta accepts the verification challenge and subscribes the `messages` field.
 - Signed POSTs validate with the bound app secret.
 - The bridge reports the intended `dm_policy` and sender lists before enablement.
-- A permitted sender creates a route in the intended Compozy workspace.
+- A permitted sender creates a route in the intended CompozyOS workspace.
 - A real outbound test reaches a Meta-approved recipient and returns a `wamid`.
 - The free-form messaging window and lack of template sending are understood.
 - The bridge returns to `ready` after one restart.

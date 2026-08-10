@@ -6,7 +6,7 @@ This GitHub Release is produced by the release workflow after the release PR and
 - Release PR dry-run: `pr-release dry-run`, `make test-e2e-nightly`, and `make test-integration` run before the release commit is merged.
 - Production release: generated release assets are validated before `goreleaser release --clean` publishes the release.
 - Artifact provenance: GoReleaser signs `checksums.txt` with cosign, publishes the Sigstore bundle `checksums.txt.sigstore.json`, and generates Syft SBOMs for archives, packages, and source.
-- Installer verification: the curl installer uses a compatible local Cosign v3 verifier when present or a pinned temporary Cosign v3.1.3 verifier before checking Compozy release provenance.
+- Installer verification: the curl installer uses a compatible local Cosign v3 verifier when present or a pinned temporary Cosign v3.1.3 verifier before checking CompozyOS release provenance.
 
 Known limitation: this release text does not claim a manual post-release install smoke or live-provider QA run unless the notes above name that evidence.
 

@@ -1,6 +1,6 @@
 # Security
 
-Compozy is a local-first runtime. Its default trust boundary is the operating-system account that runs
+CompozyOS is a local-first runtime. Its default trust boundary is the operating-system account that runs
 the daemon, not an application-level tenant boundary. Treat every process with access to that
 account, `$COMPOZY_HOME`, or the daemon socket as trusted operator software.
 
@@ -8,7 +8,7 @@ account, `$COMPOZY_HOME`, or the daemon socket as trusted operator software.
 
 Report suspected vulnerabilities privately through the repository's
 [Security page](https://github.com/compozy/compozy/security). Do not put credentials, exploit payloads,
-or sensitive runtime data in a public issue. Include the Compozy version, operating system, affected
+or sensitive runtime data in a public issue. Include the CompozyOS version, operating system, affected
 surface, minimal reproduction, and expected impact.
 
 ## Execution isolation
@@ -50,7 +50,7 @@ stop the foreground relay when the client no longer needs it.
 
 ## Secret redaction
 
-Compozy always applies exact protection for claim tokens, secret references, and secrets registered by
+CompozyOS always applies exact protection for claim tokens, secret references, and secrets registered by
 the Vault or another runtime subsystem. `redact.enabled` controls an additional heuristic for likely
 credentials in free text and log messages. The daemon snapshots this setting at boot, so a change is
 restart-required. Disabling it does not disable the exact protections.

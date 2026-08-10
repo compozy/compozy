@@ -7,7 +7,7 @@ The bundled dev-cycle Loop now does one job clearly: implement authored task fil
 
 - Inputs are now `slug`, `implementer`, and `auto_commit`. The `review`, `verify`, and `approve` nodes and their edges are deleted, along with the verification contract, stale hash fields, and target-branch handling.
 - The separate bundled `review-and-fix` Loop is unchanged, and custom Loops can still declare their own command gates — `verify_command` remains part of the generic Loop DSL.
-- The catalog, Loop overview, configuration examples, migration guide, web routes, and the official Compozy skill all name `implement-tasks`.
+- The catalog, Loop overview, configuration examples, migration guide, web routes, and the official CompozyOS skill all name `implement-tasks`.
 
 Migration notes: this is a hard cut with no alias. Any config, CLI or API call, automation binding, or documentation link that says `software-delivery` must say `implement-tasks`, and the `target_branch` and `verify_command` inputs must be dropped from `[loops.inputs.*]`.
 

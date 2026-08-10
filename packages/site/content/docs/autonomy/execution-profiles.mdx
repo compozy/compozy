@@ -14,7 +14,7 @@ described in [Task Runs and Leases](/docs/autonomy/task-runs-and-leases) and
 
 <OperatorNote>
   Execution profiles are selection input first. Runtime evidence mode is the only field that can
-  affect the session permission mode, and Compozy widens it only when the same profile selects an
+  affect the session permission mode, and CompozyOS widens it only when the same profile selects an
   explicit sandbox reference.
 </OperatorNote>
 
@@ -147,10 +147,10 @@ only chooses which sandbox profile (if any) the session boots with.
 
 ### Runtime mode behavior
 
-| Mode       | Effect at session start                                                                                                                                                                                                                                                                          |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `default`  | The session uses the normal task-session runtime contract. No extra prompt guidance or permission change is applied.                                                                                                                                                                             |
-| `evidence` | The daemon adds prompt guidance for browser, simulator, local-app, and artifact capture work. Compozy sets session permissions to `approve-all` only when the same profile sets `sandbox.mode = "ref"` with a non-empty `sandbox_ref`. Otherwise, the configured permission mode stays in force. |
+| Mode       | Effect at session start                                                                                                                                                                                                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default`  | The session uses the normal task-session runtime contract. No extra prompt guidance or permission change is applied.                                                                                                                                                                               |
+| `evidence` | The daemon adds prompt guidance for browser, simulator, local-app, and artifact capture work. CompozyOS sets session permissions to `approve-all` only when the same profile sets `sandbox.mode = "ref"` with a non-empty `sandbox_ref`. Otherwise, the configured permission mode stays in force. |
 
 Evidence mode does not create task authority. The agent still has to claim the run through
 `compozy task next --wait -o json`, keep the lease alive, and complete or fail the run through the task
@@ -222,7 +222,7 @@ shapes; do not paraphrase fields. Generated TypeScript types live under
 ## Native tools for in-session agents
 
 Worker, coordinator, and reviewer sessions can manage profiles through the task toolset. The
-model-facing names live in the `tasks` toolset; Compozy registers them internally with the `compozy__`
+model-facing names live in the `tasks` toolset; CompozyOS registers them internally with the `compozy__`
 prefix so toolset routing can hide them when policy denies the call.
 
 | Model-facing name               | Internal id                              | Authority                                                                  |

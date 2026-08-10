@@ -78,7 +78,7 @@ describe("MCPServerEditor", () => {
 
     expect(screen.getByTestId("settings-mcp-editor-oauth")).toBeInTheDocument();
     expect(screen.getByTestId("settings-mcp-editor-oauth-automatic")).toHaveTextContent(
-      "Compozy discovers OAuth requirements"
+      "CompozyOS discovers OAuth requirements"
     );
     expect(screen.queryByTestId("settings-mcp-editor-stdio")).toBeNull();
   });

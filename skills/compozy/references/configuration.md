@@ -58,7 +58,7 @@ its profile stores only connection metadata.
 
 ## Marketplace Catalog
 
-`[marketplace.catalog]` controls Compozy's curated MCP server, extension, and skill feed projection.
+`[marketplace.catalog]` controls CompozyOS's curated MCP server, extension, and skill feed projection.
 `base_url` defaults to the public `compozy/compozy` catalog on `main`, `ttl` defaults to `1h`, and
 `timeout` defaults to `10s`; all three paths apply live to the next fetch. Use the structured config
 surfaces plus `compozy config reload -o json` and apply history to change or verify them. These keys do

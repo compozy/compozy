@@ -15,7 +15,7 @@ export function MarketplaceContribute() {
           Add an entry to the catalog
         </h2>
         <p className="mt-2 text-small-body leading-relaxed text-muted">
-          The catalog is a set of JSON feeds in the Compozy repository. Package your artifact with{" "}
+          The catalog is a set of JSON feeds in the CompozyOS repository. Package your artifact with{" "}
           <code>compozy-catalog package</code>, validate it with{" "}
           <code>compozy-catalog validate</code>, and open a pull request against{" "}
           <code>catalog/</code> — a future site build renders that snapshot, while a daemon picks it

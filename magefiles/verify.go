@@ -18,6 +18,7 @@ func verifySteps() []mageStep {
 		{name: "CodegenCheck", run: CodegenCheck},
 		{name: "MarkCodegenChecked", run: markCodegenChecked},
 		{name: "InstallerCheck", run: InstallerCheck},
+		{name: "ProductLanguageCheck", run: ProductLanguageCheck},
 		{name: "SourceSize", run: SourceSize},
 		{name: "BunLint", run: BunLint},
 		{name: "BunTypecheck", run: BunTypecheck},

@@ -1,9 +1,9 @@
 ---
 title: Daemon Operations
-description: Start, stop, restart, inspect, and supervise the Compozy daemon.
+description: Start, stop, restart, inspect, and supervise the CompozyOS daemon.
 ---
 
-Use this guide when you need to run Compozy as a long-lived daemon, inspect whether it is healthy, or
+Use this guide when you need to run CompozyOS as a long-lived daemon, inspect whether it is healthy, or
 install it under a service manager.
 
 <OperatorNote>
@@ -14,7 +14,7 @@ install it under a service manager.
 
 ## Start the daemon
 
-Start Compozy in the background:
+Start CompozyOS in the background:
 
 ```bash
 compozy daemon start
@@ -105,11 +105,11 @@ compozy task run recover <run-id> --reason "provider recovered" -o json
 ```
 
 Set the threshold to `0` and restart the daemon to retain status and doctor evidence without changing
-task-run state. Compozy does not restart the subprocess automatically.
+task-run state. CompozyOS does not restart the subprocess automatically.
 
 ## Drain new-work admission
 
-Drain Compozy before maintenance that should let admitted prompts and claimed task runs finish without
+Drain CompozyOS before maintenance that should let admitted prompts and claimed task runs finish without
 accepting more work:
 
 ```bash
@@ -119,7 +119,7 @@ compozy doctor --only daemon -o json
 ```
 
 `compozy drain` is idempotent and returns `{"state":"draining"}`. The same control is available as
-`POST /api/drain` over HTTP and UDS. While draining, Compozy returns HTTP 503 with `daemon is draining;
+`POST /api/drain` over HTTP and UDS. While draining, CompozyOS returns HTTP 503 with `daemon is draining;
 new work admission is closed` for new sessions, session restarts and prompts, task-run enqueue, and
 run claims. Task-run retry and recover are also rejected because they enqueue fresh child runs. Work
 admitted before the drain may finish; stop, interrupt, cancel, completion, failure, release,
@@ -156,7 +156,7 @@ compozy daemon stop
 compozy daemon start
 ```
 
-During daemon shutdown, Compozy first closes new-work admission, then stops runtime workers, extensions, automation, active sessions, HTTP,
+During daemon shutdown, CompozyOS first closes new-work admission, then stops runtime workers, extensions, automation, active sessions, HTTP,
 UDS, bridges, network runtime, hooks, and then closes persistent resources. The default daemon
 shutdown context is 10 seconds.
 
@@ -166,21 +166,21 @@ Long-running tool work can create subprocesses outside the main agent process. E
 terminals, sandbox-backed terminals, hook subprocesses, managed extension processes, and shared
 subprocess helpers.
 
-Compozy records those processes in the global database when they start, updates the record when ownership
+CompozyOS records those processes in the global database when they start, updates the record when ownership
 or state changes, and completes the record when the process exits. Each record stores bounded command
 metadata, owner IDs such as session, turn, terminal, hook, or extension, the daemon PID that created
 it, and PID start-time evidence when the process is local.
 
-On daemon boot, Compozy reconciles active process records before it starts accepting runtime work:
+On daemon boot, CompozyOS reconciles active process records before it starts accepting runtime work:
 
 - records with a PID and matching start-time evidence remain active for scoped interruption
 - records whose PID evidence no longer matches are marked `stale`
 - records without reusable local PID evidence, such as remote sandbox terminals, are retired as
   stale after restart rather than signaled by PID
 
-This prevents Compozy from killing an unrelated host process after PID reuse.
+This prevents CompozyOS from killing an unrelated host process after PID reuse.
 
-Prompt cancellation is also scoped. Compozy first sends the ACP cooperative cancel for the active prompt,
+Prompt cancellation is also scoped. CompozyOS first sends the ACP cooperative cancel for the active prompt,
 then interrupts only registered tool processes owned by the same session turn. A terminal, hook, or
 extension process can also be interrupted by its recorded process scope. This is different from
 resetting the whole session: the registry targets the matching tool process and leaves unrelated
@@ -201,7 +201,7 @@ See [File Locations](/docs/configuration/file-locations) for the full home direc
 
 ## Understand the lock file
 
-Compozy acquires `$COMPOZY_HOME/daemon.lock` before opening the global database or starting servers. The lock
+CompozyOS acquires `$COMPOZY_HOME/daemon.lock` before opening the global database or starting servers. The lock
 uses an operating-system advisory file lock and stores the daemon PID in the lock file.
 
 When another process already owns the lock, startup fails with a singleton error such as:
@@ -212,7 +212,7 @@ daemon: already running with pid 12345
 
 When the prior PID is stale, boot records that stale PID, removes the stale socket path, and tries to
 clean up orphan child processes whose parent was the old daemon PID. Do not delete `daemon.lock`
-while a daemon is alive; use `compozy daemon stop` so Compozy can shut down sessions and release the lock.
+while a daemon is alive; use `compozy daemon stop` so CompozyOS can shut down sessions and release the lock.
 
 ## Manage logs
 
@@ -252,7 +252,7 @@ Use foreground mode under systemd so systemd owns the daemon process directly:
 
 ```ini
 [Unit]
-Description=Compozy daemon
+Description=CompozyOS daemon
 After=network.target
 
 [Service]

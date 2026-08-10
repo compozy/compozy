@@ -26,7 +26,7 @@ The command returns a structured result. A successful start has `outcome: starte
 snapshot, `message_id`, and `idempotency_key`. HTTP and UDS return the same Goal result inside the
 prompt envelope, which also reports `replayed`. Retrying the exact request with both original
 identities returns the stored result and preserves its original HTTP status without running the Goal
-command again. If the session already owns a visible Goal, Compozy returns `goal_replace_required`
+command again. If the session already owns a visible Goal, CompozyOS returns `goal_replace_required`
 with the current snapshot instead of overwriting it. See [Session events and safe retries](/docs/sessions/events#prompt-identity-and-safe-retries).
 
 Read the current Goal through any of these public surfaces:
@@ -93,7 +93,7 @@ verify: generated OpenAPI has no drift
 constraints: preserve the public CLI shape
 ```
 
-Compozy stores the non-clause lines as the objective. Each `verify:` and `constraints:` line must contain
+CompozyOS stores the non-clause lines as the objective. Each `verify:` and `constraints:` line must contain
 text. The synthetic Goal always uses one canonical `agent-judge` criterion. Verification text is
 added to that judge rubric; it is never executed as a shell command. To author an actual command
 criterion, use a [`goal` node in a compozy.loop/v1 definition](/docs/loops/goal-node).
@@ -102,17 +102,17 @@ criterion, use a [`goal` node in a compozy.loop/v1 definition](/docs/loops/goal-
 
 The context gauge reports evidence from the active Goal checkpoint:
 
-| State     | Meaning                                                                                                     |
-| --------- | ----------------------------------------------------------------------------------------------------------- |
-| `known`   | The provider reported a current context window size and usage ratio.                                        |
-| `unknown` | No trustworthy report exists. Compozy does not display or infer a percentage.                               |
-| `pending` | Compaction ran, but Compozy still needs a strictly newer usage report before it can call the context fresh. |
+| State     | Meaning                                                                                                       |
+| --------- | ------------------------------------------------------------------------------------------------------------- |
+| `known`   | The provider reported a current context window size and usage ratio.                                          |
+| `unknown` | No trustworthy report exists. CompozyOS does not display or infer a percentage.                               |
+| `pending` | Compaction ran, but CompozyOS still needs a strictly newer usage report before it can call the context fresh. |
 
 `[goals].context_nudge_ratio` is pinned when the Run starts. When known usage reaches that threshold,
-Compozy requests correlated compaction. Compaction is an operational prompt, not a user-authored human
+CompozyOS requests correlated compaction. Compaction is an operational prompt, not a user-authored human
 message and not a Goal work turn.
 
-Compozy does not replay an ACP prompt after its durable start. A restart with exact terminal evidence
+CompozyOS does not replay an ACP prompt after its durable start. A restart with exact terminal evidence
 reconciles that terminal result. Missing proof becomes an `ambiguous` turn and a typed approval
 boundary. A `max_tokens` recovery starts a new continuation turn that inspects current state; it is
 not a retry of the previous prompt.

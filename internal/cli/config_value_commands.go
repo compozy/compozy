@@ -13,7 +13,7 @@ import (
 func newConfigCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   configConfigKey,
-		Short: "Inspect and mutate Compozy configuration",
+		Short: "Inspect and mutate CompozyOS configuration",
 	}
 	cmd.AddCommand(newConfigShowCommand(deps))
 	cmd.AddCommand(newConfigListCommand(deps))

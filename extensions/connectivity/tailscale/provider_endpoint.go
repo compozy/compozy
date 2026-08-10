@@ -124,7 +124,7 @@ func closeListener(listener net.Listener) error {
 func defaultStateDirectory() (string, error) {
 	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
-		return "", fmt.Errorf("tailscale: resolve Compozy home: %w", err)
+		return "", fmt.Errorf("tailscale: resolve CompozyOS home: %w", err)
 	}
 	return filepath.Join(homePaths.GatewayDir, "tailscale"), nil
 }

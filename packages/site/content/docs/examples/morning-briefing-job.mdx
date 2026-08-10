@@ -91,7 +91,7 @@ compozy automation runs --job-id "$job_id" -o json
 
 <Workflow>
   <WorkflowStep title="The scheduler owns the clock">
-    Compozy keeps durable scheduler state, so a job does not silently skip because the daemon
+    CompozyOS keeps durable scheduler state, so a job does not silently skip because the daemon
     restarted. `catch-up-policy run_once_on_catchup` runs a single make-up execution after downtime
     instead of replaying every missed fire, and the misfire grace window bounds how late a fire may
     still count.

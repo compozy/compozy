@@ -3,13 +3,13 @@ title: Discord Setup
 description: Configure an Ed25519-signed Discord endpoint, install the bot, and choose a truthful server, thread, or DM routing boundary.
 ---
 
-This guide connects a Discord application to one Compozy workspace. The in-tree provider is an HTTP
+This guide connects a Discord application to one CompozyOS workspace. The in-tree provider is an HTTP
 integration: it handles Discord interactions and Application Webhook Events, then uses Discord REST
 for outbound messages. It does not open a Discord Gateway connection.
 
 ## How the Discord bridge behaves
 
-| Surface           | Compozy behavior                                                                                                                                  |
+| Surface           | CompozyOS behavior                                                                                                                                |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inbound transport | Receives Ed25519-signed interaction payloads and Application Webhook Events over public HTTPS.                                                    |
 | Routed events     | Maps `MESSAGE_CREATE`, reaction add/remove, application commands, and message components into typed bridge events.                                |
@@ -19,7 +19,7 @@ for outbound messages. It does not open a Discord Gateway connection.
 | Long responses    | Splits terminal text at 2,000 Unicode code points with ordered, numbered continuations.                                                           |
 | Tool progress     | Defaults to `new + accumulate` with one edited progress message, typing, and phase reactions. Final text uses a separate acknowledgement anchor.  |
 
-This differs from Discord bot guides built around Gateway intents. Compozy does not need a long-lived
+This differs from Discord bot guides built around Gateway intents. CompozyOS does not need a long-lived
 Gateway socket or privileged message-content intent for its HTTP webhook path.
 
 ## Before you start
@@ -31,7 +31,7 @@ Gateway socket or privileged message-content intent for its HTTP webhook path.
 | Bot token              | yes      | Discord Developer Portal **Bot** page.                                                    |
 | Public callback URL    | yes      | Stable public HTTPS route to the Discord provider listener.                               |
 | Local listener address | yes      | `provider_config.webhook.listen_addr` or `COMPOZY_BRIDGE_DISCORD_LISTEN_ADDR`.            |
-| Compozy workspace ID   | yes      | Workspace whose default agent receives accepted Discord events.                           |
+| CompozyOS workspace ID | yes      | Workspace whose default agent receives accepted Discord events.                           |
 | Server permissions     | yes      | Permission to install an app in the test server and configure its webhook/event settings. |
 
 Keep the public key and bot token distinct. The public key verifies inbound requests; the bot token
@@ -60,7 +60,7 @@ provider](/docs/bridges/setup#install-an-in-tree-provider) first.
 5. Store the token in a secret manager. Discord shows it only at controlled reset points.
 
 Do not enable privileged Gateway intents for this bridge unless another component of the same app
-uses a Gateway connection. They are not part of Compozy's inbound contract.
+uses a Gateway connection. They are not part of CompozyOS's inbound contract.
 
 ## Step 2: Map the public and local endpoints
 
@@ -88,7 +88,7 @@ compozy bridge setup discord
 ```
 
 The interactive wizard creates a server-wide route with `include_group=true`. Every event in the
-same parent channel shares one Compozy session, and replies target that parent channel. It accepts
+same parent channel shares one CompozyOS session, and replies target that parent channel. It accepts
 ordinary guild-channel, Group DM, and server-thread events, but does not retain the thread in the
 reply target and rejects direct DMs. Choose another policy explicitly when that is not the intended
 boundary.
@@ -155,18 +155,18 @@ reply path: the daemon cannot construct a Discord peer or group delivery target 
 In the Developer Portal for the same application:
 
 1. Set **Interactions Endpoint URL** to the exact `webhook_public_url` returned by setup.
-2. Save the endpoint. Discord sends a signed PING; Compozy validates Ed25519 and returns PONG.
+2. Save the endpoint. Discord sends a signed PING; CompozyOS validates Ed25519 and returns PONG.
 3. Configure Application Webhook Events you intend to route, using the same endpoint.
 4. Select message-create and reaction add/remove event families only when your app needs them.
 
 The provider can parse application commands and message components delivered to the interaction
 endpoint, but command definitions and component-producing messages are separate Discord application
-configuration. Compozy does not fabricate a command catalog during setup.
+configuration. CompozyOS does not fabricate a command catalog during setup.
 
 <OperatorNote>
   A successful Discord endpoint validation proves signature/PING handling. It does not prove that
   the bot is installed in the target server, subscribed to an event family, permitted in a channel,
-  or accepted by Compozy's DM policy.
+  or accepted by CompozyOS's DM policy.
 </OperatorNote>
 
 ## Step 5: Install the bot
@@ -260,7 +260,7 @@ For the wizard's group-only policy, use the parent channel ID returned by the ro
 
 ```bash
 compozy bridge send-test "$BRIDGE_ID" \
-  --message "Compozy Discord connection check" \
+  --message "CompozyOS Discord connection check" \
   --group-id "123456789012345678" \
   --mode reply \
   --json
@@ -270,7 +270,7 @@ For an instance configured with group plus thread, pass both IDs from its route:
 
 ```bash
 compozy bridge send-test "$BRIDGE_ID" \
-  --message "Compozy Discord thread check" \
+  --message "CompozyOS Discord thread check" \
   --group-id "123456789012345678" \
   --thread-id "234567890123456789" \
   --mode reply \
@@ -353,18 +353,18 @@ one credential set.
 
 ## Troubleshooting
 
-| Symptom                                               | What to check                                                                                                                              |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Discord rejects the endpoint URL                      | Enable the listener, preserve raw body/signature headers, verify TLS/path forwarding, and bind the public key from the same application.   |
-| `provider.identity` reports an application mismatch   | The bot token belongs to a different application, or `application_id` is wrong. Correct the credential set together.                       |
-| Bot is installed but messages create no Compozy route | Configure the supported Application Webhook Events subscription; Gateway events are not consumed by this provider.                         |
-| Commands reach Discord but not Compozy                | Confirm the command is registered to this application and its interaction endpoint is the Compozy public URL.                              |
-| Ordinary message edits create no new turn             | This is expected: `MESSAGE_UPDATE` is outside the HTTP-only provider contract.                                                             |
-| Discord returns missing-access or missing-permission  | Check bot installation, channel overrides, requested permission bits, and the target channel/thread IDs.                                   |
-| Replies appear outside the thread                     | The wizard default is group-only. Use a group-plus-thread policy before ingest, then confirm both IDs in `compozy bridge routes`.          |
-| Long messages fail near 2,000 characters              | Check the actual prepared payload and provider response; Compozy already reserves continuation markers within each 2,000-code-point chunk. |
-| Reactions/typing fail while text still works          | Treat them as optional affordances; disable them while repairing permissions or unsupported target behavior.                               |
-| A second Discord instance degrades                    | Use one shared listener address and a distinct path per bridge instance.                                                                   |
+| Symptom                                                 | What to check                                                                                                                                |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Discord rejects the endpoint URL                        | Enable the listener, preserve raw body/signature headers, verify TLS/path forwarding, and bind the public key from the same application.     |
+| `provider.identity` reports an application mismatch     | The bot token belongs to a different application, or `application_id` is wrong. Correct the credential set together.                         |
+| Bot is installed but messages create no CompozyOS route | Configure the supported Application Webhook Events subscription; Gateway events are not consumed by this provider.                           |
+| Commands reach Discord but not CompozyOS                | Confirm the command is registered to this application and its interaction endpoint is the CompozyOS public URL.                              |
+| Ordinary message edits create no new turn               | This is expected: `MESSAGE_UPDATE` is outside the HTTP-only provider contract.                                                               |
+| Discord returns missing-access or missing-permission    | Check bot installation, channel overrides, requested permission bits, and the target channel/thread IDs.                                     |
+| Replies appear outside the thread                       | The wizard default is group-only. Use a group-plus-thread policy before ingest, then confirm both IDs in `compozy bridge routes`.            |
+| Long messages fail near 2,000 characters                | Check the actual prepared payload and provider response; CompozyOS already reserves continuation markers within each 2,000-code-point chunk. |
+| Reactions/typing fail while text still works            | Treat them as optional affordances; disable them while repairing permissions or unsupported target behavior.                                 |
+| A second Discord instance degrades                      | Use one shared listener address and a distinct path per bridge instance.                                                                     |
 
 ## Security notes
 
@@ -380,7 +380,7 @@ one credential set.
 - Discord accepts the signed PING at the exact public URL.
 - The bot token identity matches the configured application ID.
 - A direct-DM bridge reports the intended `dm_policy` and sender lists before enablement.
-- A supported webhook event or interaction creates a Compozy route.
+- A supported webhook event or interaction creates a CompozyOS route.
 - If thread-preserving routing was selected, server routes contain both parent and thread IDs.
 - `send-test` returns a Discord remote message ID.
 - Long output produces ordered messages within Discord's limit.

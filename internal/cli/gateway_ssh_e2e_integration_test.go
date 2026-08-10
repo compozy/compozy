@@ -2,7 +2,7 @@
 
 // Suite: remote SSH gateway end-to-end
 // Invariant: A real SSH connection exposes a remote loopback daemon only through its local forward, persists its profile, and stops only a daemon it started.
-// Boundary IN: Cobra connect ssh, system OpenSSH, a real Compozy binary, daemon lifecycle, and profile persistence.
+// Boundary IN: Cobra connect ssh, system OpenSSH, a real CompozyOS binary, daemon lifecycle, and profile persistence.
 // Boundary OUT: Gateway-provider publication and direct HTTPS gateway authentication, owned by gateway integration suites.
 package cli
 
@@ -134,11 +134,11 @@ func newSSHGatewayE2ERemoteHome(t *testing.T) string {
 	t.Helper()
 	home, err := os.MkdirTemp(os.TempDir(), "compozy-ssh-")
 	if err != nil {
-		t.Fatalf("os.MkdirTemp(remote Compozy home) error = %v", err)
+		t.Fatalf("os.MkdirTemp(remote CompozyOS home) error = %v", err)
 	}
 	t.Cleanup(func() {
 		if err := os.RemoveAll(home); err != nil {
-			t.Errorf("os.RemoveAll(remote Compozy home) error = %v", err)
+			t.Errorf("os.RemoveAll(remote CompozyOS home) error = %v", err)
 		}
 	})
 	return home

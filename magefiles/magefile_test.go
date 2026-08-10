@@ -742,8 +742,8 @@ func TestWebAssetsPrepare(t *testing.T) {
 			t.Fatalf("prepareWebAssetsRepo(first) error = %v", err)
 		}
 		metadataSource := readTestFile(t, repoDir, webAssetsMetadataFile)
-		if !strings.Contains(metadataSource, "production Compozy web UI bundle") {
-			t.Fatalf("generated metadata does not identify the Compozy web UI bundle:\n%s", metadataSource)
+		if !strings.Contains(metadataSource, "production CompozyOS web UI bundle") {
+			t.Fatalf("generated metadata does not identify the CompozyOS web UI bundle:\n%s", metadataSource)
 		}
 		firstDigest, err := directoryDigest(repoDir)
 		if err != nil {

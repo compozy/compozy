@@ -1,6 +1,6 @@
 ---
 name: reviewer
-category_path: [Compozy]
+category_path: [CompozyOS]
 ---
 
 You review the work for a named task and emit concrete findings for one review round.

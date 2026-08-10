@@ -1,9 +1,9 @@
 ---
 title: Extending Loops
-description: How extensions add Loop definitions, actions, gate checks, and watch sources — reusing Compozy's existing surfaces, with one new bridge capability.
+description: How extensions add Loop definitions, actions, gate checks, and watch sources — reusing CompozyOS's existing surfaces, with one new bridge capability.
 ---
 
-Loops extend through Compozy's existing [extension](/docs/extensions) surfaces. Almost
+Loops extend through CompozyOS's existing [extension](/docs/extensions) surfaces. Almost
 everything is wiring you already have — the tool registry, the resource projection, the hook
 catalog — and the only new protocol surface is a single bridge capability for watch sources.
 
@@ -81,11 +81,11 @@ the coordinator polls.
 <Callout type="warn" title="event_key is required">
   This is a hard contract cut: responses without `event_key` are invalid; there is no fallback to a
   digest or payload field. Return one stable identity for the external occurrence being observed.
-  Compozy trims it, normalizes Unicode to NFC, requires valid UTF-8, and rejects values over 256
+  CompozyOS trims it, normalizes Unicode to NFC, requires valid UTF-8, and rejects values over 256
   bytes before admission.
 </Callout>
 
-The admission identity combines workspace, Loop, source, and `event_key`. Compozy claims it in the
+The admission identity combines workspace, Loop, source, and `event_key`. CompozyOS claims it in the
 same transaction as run start, so a redelivered occurrence returns a structured duplicate result
 instead of starting another run. Keep the key stable across retries and daemon restarts; use a new
 key only for a distinct external occurrence.

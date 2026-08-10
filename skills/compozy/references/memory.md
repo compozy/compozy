@@ -2,7 +2,7 @@
 
 ## What Memory Stores
 
-Compozy memory is durable Markdown outside transient session prompts. Use it for facts that should survive across sessions: project context, user preferences, durable decisions, and reusable references.
+CompozyOS memory is durable Markdown outside transient session prompts. Use it for facts that should survive across sessions: project context, user preferences, durable decisions, and reusable references.
 
 Do not use memory as a transcript, scratchpad, or replacement for task state. If the information is temporary working state, keep it in the current task, run summary, or conversation.
 
@@ -67,7 +67,7 @@ Memory v2 document without publishing an intermediate state:
 ```
 
 `add` requires `content`; `replace` requires `old_text` and `content`; `remove` requires
-`old_text`. Replace and remove accept exactly one substring match in the staged body. Compozy rejects
+`old_text`. Replace and remove accept exactly one substring match in the staged body. CompozyOS rejects
 the complete batch when any operation fails, checks byte and line limits against the final body,
 and records one controller decision. An identical retry returns `already_applied` outcomes.
 
@@ -105,11 +105,11 @@ Use recall traces to inspect what memory entered a session turn without exposing
 
 Recall traces are diagnostic evidence. They do not authorize task state changes, review verdicts, or durable memory writes by themselves.
 
-When Compozy injects recalled memory into a live prompt, it appears in a `<turn-recall>` block above the `<user-message>` block. Treat recalled memory as supporting context only; the live user request is the content inside `<user-message>`. If no recall block is present, treat the trailing prompt text as the live user request.
+When CompozyOS injects recalled memory into a live prompt, it appears in a `<turn-recall>` block above the `<user-message>` block. Treat recalled memory as supporting context only; the live user request is the content inside `<user-message>`. If no recall block is present, treat the trailing prompt text as the live user request.
 
 ## Workspace Checkpoint Continuity
 
-Compozy maintains one workspace project memory named `project_checkpoint_summary.md`. Eligible session
+CompozyOS maintains one workspace project memory named `project_checkpoint_summary.md`. Eligible session
 stops update the prior checkpoint through the active workspace provider and the normal decision
 WAL; failed or rejected updates preserve the previous file. A new session receives the full
 checkpoint at startup, while degraded resume places it before the persisted transcript replay.
@@ -124,7 +124,7 @@ or revert it through the existing public surfaces:
 Checkpoint identity and injection are workspace-scoped. Transfer reusable facts to a wider scope
 through explicit promotion; keep the checkpoint in its workspace root.
 
-At configured session context pressure, Compozy summarizes only complete prior turns into this
+At configured session context pressure, CompozyOS summarizes only complete prior turns into this
 checkpoint, records exact workspace/session sequence coverage, and only then archives those event
 rows from degraded replay. Archive is non-destructive: session events and history retain the rows.
 Coverage is retry-safe, so an interrupted attempt can finish the archive without summarizing the

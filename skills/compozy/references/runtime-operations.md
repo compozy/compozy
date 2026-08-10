@@ -15,9 +15,9 @@
 
 ## Operating Model
 
-Compozy is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, network rooms, memory, skills, and extension resources.
+CompozyOS is a local-first daemon that starts ACP-compatible agents as managed subprocesses, records events, and exposes runtime control through CLI, HTTP/SSE, UDS, and agent tools. Treat the daemon as the source of truth for sessions, events, task state, network rooms, memory, skills, and extension resources.
 
-Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public Compozy surfaces with structured output.
+Do not manage runtime state by editing SQLite databases, process internals, or generated projections. Use public CompozyOS surfaces with structured output.
 
 ## Updating
 
@@ -33,7 +33,7 @@ Confirm drain through `.daemon.status == "draining"` in `compozy status -o json`
 
 ## Session Lifecycle
 
-Compozy sessions are daemon-owned runtimes. Common states:
+CompozyOS sessions are daemon-owned runtimes. Common states:
 
 - starting - the daemon accepted the session and is booting the provider.
 - active - the logical session accepts prompts; its runtime may be `unbound` or ready.
@@ -61,11 +61,11 @@ history, and submits the new prompt against the same session ID. Concurrent prom
 restart. Attach, queue management, steer, interrupt, and other control operations never trigger this
 restart.
 
-If ACP disconnects during a prompt, Compozy keeps every event already persisted, emits a terminal
+If ACP disconnects during a prompt, CompozyOS keeps every event already persisted, emits a terminal
 error, and stops the failed runtime with `failure.kind=process_exit`. A JSONL prompt command writes
 the frames it received, including the error frame, then exits nonzero. `compozy__session_prompt`
 returns `tool_backend_failed` with `backend_dead` instead of reporting a successful tool call. Inspect
-status, events, and the crash bundle before sending another prompt. Compozy never automatically
+status, events, and the crash bundle before sending another prompt. CompozyOS never automatically
 replays the interrupted prompt because its external effects may be indeterminate; a new explicit
 prompt is the safe restart boundary.
 
@@ -81,7 +81,7 @@ The event store and materialized transcript are the durable source of truth for 
 
 Each `events.db` is bound to one exact session and workspace. Session reads and writes through CLI,
 HTTP/UDS, or native tools must match that persisted owner. A missing or mismatched owner refuses the
-open before migration or data mutation; Compozy does not adopt, rebind, or repair the database.
+open before migration or data mutation; CompozyOS does not adopt, rebind, or repair the database.
 
 If an owner check fails, stop the daemon and preserve the complete containing `COMPOZY_HOME`, including
 the database and every SQLite sidecar. Restore a matching complete backup, or create a new session when
@@ -103,7 +103,7 @@ The HTTP/UDS stream defaults to `transcript_snapshot`, batched `transcript_delta
 ### Workspace knowledge on live turns
 
 Markdown files under `<workspace>/knowledge/` are current workspace data. On each accepted user,
-Network, or synthetic turn, Compozy reopens the tree and supplies a bounded
+Network, or synthetic turn, CompozyOS reopens the tree and supplies a bounded
 `<workspace-knowledge-snapshot>` with workspace-relative paths, current bytes, a revision digest,
 and omission metadata. Treat the newest snapshot as authoritative over earlier copies of the same
 file.
@@ -111,7 +111,7 @@ file.
 The reader accepts regular `.md` files, does not follow symbolic links, and stays inside the session
 workspace. A file change does not wake a session. The next eligible turn—including task and
 Heartbeat wakes—carries the changed bytes without an additional operator prompt. This is prompt
-context, not durable Compozy memory; use the memory tools when information must be curated or
+context, not durable CompozyOS memory; use the memory tools when information must be curated or
 searched.
 
 ## Session CLI
@@ -170,7 +170,7 @@ Both commands use `runtime.selection_revision` as a compare-and-swap fence; omit
 `--expected-revision` to let the CLI read the current value, or pass it for an explicitly fenced write.
 
 `session rewind` cuts the active conversation immediately before one durable user message, returns
-that message as `draft_text`, and starts a fresh ACP context under the same Compozy session ID. The
+that message as `draft_text`, and starts a fresh ACP context under the same CompozyOS session ID. The
 CLI reads the current transcript fences; pass all three `--expected-*` values only when retrying a
 previously fenced request. HTTP, UDS, and the native tool require the epoch, generation, and maximum
 sequence returned by the transcript API. Stale values return a conflict without changing the session.
@@ -221,18 +221,18 @@ an operator decision before doing anything else; do not blindly retry, and use n
 for an intentional new command after that decision.
 
 At a prompt boundary, a same-provider change uses live configuration when the provider supports it.
-If that is unavailable or fails, or the provider changes, Compozy replaces the ACP process and
+If that is unavailable or fails, or the provider changes, CompozyOS replaces the ACP process and
 replays the canonical durable session context before sending the newly accepted prompt. A failed live
 configuration or replacement restores the prior binding and reports the runtime failure; because the
 user event is persisted only after a runtime is ready, rollback creates no user prompt event to retry.
 Read `runtime.transition` to distinguish `initial_bind`, `live_configuration`, and
 `process_replacement`.
 
-If a Compozy-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
+If a CompozyOS-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
 
 ## Background Roles
 
-Compozy routes six daemon-owned background responsibilities through the closed `[roles]` roster:
+CompozyOS routes six daemon-owned background responsibilities through the closed `[roles]` roster:
 `coordinator`, `dream`, `checkpoint_summary`, `memory_extractor`, `auto_title`, and
 `memory_controller`. Inspect the effective global or workspace projection with structured output:
 
@@ -255,7 +255,7 @@ live `compozy__config_set` descriptor. Role writes are Live desired state at glo
 and affect later invocations without restarting the daemon. Use `config.toml` or the Settings Roles
 API/UI for the ordered `fallback_chain`, which is an array of route tables and replaces as a whole in
 a workspace overlay. A fallback may advance only at the owning invocation's pre-acceptance boundary;
-an accepted ACP session is never silently rerouted. Immediately before each fallback attempt, Compozy
+an accepted ACP session is never silently rerouted. Immediately before each fallback attempt, CompozyOS
 emits `role.fallback.used`; the event records that the route was tried, not that it succeeded.
 
 Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, and
@@ -283,7 +283,7 @@ owns subscription billing; `unknown` has no amount because rates or aggregate pr
 incompatible. Never treat `included` as a confirmed account balance or add `actual` and `estimated`.
 Sources are `agent_reported`, `catalog_config`, `models_dev`, `builtin`, or `none`.
 Configured model input, output, cache-read, cache-write, and reasoning rates affect subsequent
-estimates only; Compozy does not reprice stored token statistics after a catalog or config change. Every
+estimates only; CompozyOS does not reprice stored token statistics after a catalog or config change. Every
 nonzero bucket requires its own finite, non-negative rate. Never infer a cache rate from input or a
 reasoning rate from output.
 
@@ -491,7 +491,7 @@ proxied only to that loopback target. Webhook registration uses the live `gatewa
 available. A bridge without a gateway binding keeps its validated `webhook_public_url` and external
 proxy unchanged; its health omits gateway ingress.
 
-Terminal replies are split provider-side on natural boundaries with `(N/M)` markers. Compozy measures Slack at 40,000 UTF-16 code units, Telegram at 4,096 UTF-16 code units, Discord at 2,000 Unicode code points, Teams at 28,000 Unicode code points, Google Chat at 32,000 UTF-8 bytes, and WhatsApp at 4,096 Unicode code points. Every multi-chunk delivery acknowledges its last remote message. Edit-capable providers keep an oversized non-terminal response in one mutable preview and materialize its continuations only on the terminal update. Slack converts common Markdown to mrkdwn; Telegram sends escaped MarkdownV2 and retries a typed parse rejection as plain text.
+Terminal replies are split provider-side on natural boundaries with `(N/M)` markers. CompozyOS measures Slack at 40,000 UTF-16 code units, Telegram at 4,096 UTF-16 code units, Discord at 2,000 Unicode code points, Teams at 28,000 Unicode code points, Google Chat at 32,000 UTF-8 bytes, and WhatsApp at 4,096 Unicode code points. Every multi-chunk delivery acknowledges its last remote message. Edit-capable providers keep an oversized non-terminal response in one mutable preview and materialize its continuations only on the terminal update. Slack converts common Markdown to mrkdwn; Telegram sends escaped MarkdownV2 and retries a typed parse rejection as plain text.
 
 Configure the typed `delivery_defaults.progress` block with `tool_progress` (`off`, `new`, `all`, or `verbose`), `grouping` (`accumulate` or `separate`), `typing`, and `reactions`. Slack, Telegram, and Discord default to `new` plus `accumulate` with typing and reactions enabled; other platforms default to `off` plus `accumulate` with both affordances disabled unless the instance overrides them. `new` deduplicates consecutive starts but still emits completed and failed phases.
 
@@ -506,9 +506,9 @@ The CLI exposes the same fields on `bridge create` and `bridge update`:
 
 Use structured output to inspect the saved resource after mutation. An adapter that has not registered a progress handler acknowledges these events without a provider-side effect; final answer delivery remains independent. Progress previews are daemon-rendered and redacted before they cross the extension boundary.
 
-Supported Slack and Telegram message edits reach the agent as a typed `edit` prompt block. Slack, Telegram, and Google Chat replies include quoted parent text and author only when an embedded snapshot or the bounded workspace/instance/conversation cache has it; a miss stays empty and never triggers a provider fetch. At startup, Compozy reconciles durable in-flight delivery checkpoints before accepting new prompt or registration side effects. The ledger contains routing, sent/acknowledged sequence, remote-message, terminal, and aggregate-metric state—not streamed response or progress text. A sequence sent but not acknowledged is terminalized locally as indeterminate with no provider replay. An unfinished row without an unmatched send intent gets one write-ahead terminal error post, including on append-only providers or when its old remote anchor no longer exists.
+Supported Slack and Telegram message edits reach the agent as a typed `edit` prompt block. Slack, Telegram, and Google Chat replies include quoted parent text and author only when an embedded snapshot or the bounded workspace/instance/conversation cache has it; a miss stays empty and never triggers a provider fetch. At startup, CompozyOS reconciles durable in-flight delivery checkpoints before accepting new prompt or registration side effects. The ledger contains routing, sent/acknowledged sequence, remote-message, terminal, and aggregate-metric state—not streamed response or progress text. A sequence sent but not acknowledged is terminalized locally as indeterminate with no provider replay. An unfinished row without an unmatched send intent gets one write-ahead terminal error post, including on append-only providers or when its old remote anchor no longer exists.
 
-A bridge route reuses its active Compozy session. If that session is busy, ingress retries admission locally up to three times within roughly five seconds; it does not automatically queue, interrupt, or steer the turn. Stop the route's `session_id` with `compozy session stop` when the next accepted provider event must start a clean session; the old transcript remains history and the route rebinds to a replacement.
+A bridge route reuses its active CompozyOS session. If that session is busy, ingress retries admission locally up to three times within roughly five seconds; it does not automatically queue, interrupt, or steer the turn. Stop the route's `session_id` with `compozy session stop` when the next accepted provider event must start a clean session; the old transcript remains history and the route rebinds to a replacement.
 
 Distinguish restart recovery from a remotely committed mutation whose required result was unavailable. After a provider accepts a mutation but its response or required ID cannot be materialized, adapters return `CommittedMutationError`; bridgesdk emits `committed_result_unavailable`, and the broker records a terminal error without replay or a fabricated remote ID. `compozy bridge send-test --json` reports that status, omits `remote_message_id`, and returns a redacted error; it is a direct control probe, so branch on `status` rather than command success and do not expect a broker ledger row or health-failure metric. Inspect the provider conversation before any manual resend because the remote artifact may already exist. An indeterminate progress mutation drops only that progress bubble; later final text remains eligible.
 
@@ -537,7 +537,7 @@ Inspect `.subprocess_health` in `compozy status -o json` and run
 default `daemon.subprocess_health_escalation_threshold = 3`, three consecutive failed checks—or an
 unexpected ACP process exit—move the exact linked nonterminal task run to `needs_attention` once.
 Terminal runs stay terminal. After repairing the provider or command, use
-`compozy task run recover <run-id> --reason <reason> -o json`; Compozy never restarts the subprocess
+`compozy task run recover <run-id> --reason <reason> -o json`; CompozyOS never restarts the subprocess
 automatically. Set the threshold to `0` and restart to keep diagnostics without task mutation.
 
 For workspace-scoped MCP servers and bridges, `compozy doctor -o json` also reports durable dead-runtime
@@ -548,7 +548,7 @@ Doctor is read-only and never consumes that recovery attempt. There is no manual
 surface: use the diagnostic to repair the underlying command, configuration, permission, or
 authentication problem, then let the next due runtime access recover automatically.
 
-For `legacy_database`, stop Compozy, cold-move the complete containing `COMPOZY_HOME` or workspace `.compozy` family, and select a separate fresh home. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible Compozy binary against the stopped, intact family—the state-preserving recovery. Use a fresh home only if discarding that state is acceptable. If Compozy reports SQLite corruption, stop it and cold-copy the complete containing family before inspection. Compozy leaves the named database and its `-wal` and `-shm` sidecars unchanged instead of quarantining or recreating them; diagnose a copy, then restore a complete known-good family or select a fresh home only when discarding the retained state is acceptable. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `compozy doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents. Its `runtime.memory` item reports the latest daemon-owned heap, goroutine, uptime, and resident-memory snapshot. Treat `resident_memory_kind=peak` as a high-water mark, not current use. When `enabled=false`, set `daemon.memory_report_interval` above zero and restart the daemon; there is no native doctor tool.
+For `legacy_database`, stop CompozyOS, cold-move the complete containing `COMPOZY_HOME` or workspace `.compozy` family, and select a separate fresh home. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible CompozyOS binary against the stopped, intact family—the state-preserving recovery. Use a fresh home only if discarding that state is acceptable. If CompozyOS reports SQLite corruption, stop it and cold-copy the complete containing family before inspection. CompozyOS leaves the named database and its `-wal` and `-shm` sidecars unchanged instead of quarantining or recreating them; diagnose a copy, then restore a complete known-good family or select a fresh home only when discarding the retained state is acceptable. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `compozy doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents. Its `runtime.memory` item reports the latest daemon-owned heap, goroutine, uptime, and resident-memory snapshot. Treat `resident_memory_kind=peak` as a high-water mark, not current use. When `enabled=false`, set `daemon.memory_report_interval` above zero and restart the daemon; there is no native doctor tool.
 
 `compozy logs --follow -o jsonl` streams redacted runtime logs over SSE. Use filters such as `--session`, `--workspace`, `--run`, `--actor kind:id`, `--provider`, `--component`, `--outcome`, and `--error-only` before broad log reads.
 
@@ -563,8 +563,8 @@ structural rather than heuristic candidates.
 
 ## Runtime Boundaries
 
-Compozy must remain agent-manageable. Any runtime capability that affects state should have a deterministic CLI, HTTP/UDS, or tool path with machine-readable output. UI-only management is incomplete.
+CompozyOS must remain agent-manageable. Any runtime capability that affects state should have a deterministic CLI, HTTP/UDS, or tool path with machine-readable output. UI-only management is incomplete.
 
-Management flows involving daemon lifecycle, raw secrets, OAuth, trust roots, provider bootstrap, destructive repair, and cross-session terminal-state mutation stay on control surfaces unless Compozy explicitly exposes a scoped tool for them.
+Management flows involving daemon lifecycle, raw secrets, OAuth, trust roots, provider bootstrap, destructive repair, and cross-session terminal-state mutation stay on control surfaces unless CompozyOS explicitly exposes a scoped tool for them.
 
 Marketplace catalog configuration is global-only because its projection and refresh service are global. `compozy__config_set` and `compozy__config_unset` may change `marketplace.catalog.ttl` and `marketplace.catalog.timeout` at global scope; each mutation runs the daemon settings apply lifecycle and returns the real `applied`, `apply_record_id`, `active_generation`, `next_action`, and reconciliation diagnostics. `marketplace.catalog.base_url` is a trust root and remains operator-only through global `compozy config set`. Workspace overlays and workspace-scoped writes are rejected.

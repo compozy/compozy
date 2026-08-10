@@ -72,7 +72,7 @@ func requireUnmanagedForMutation(deps commandDeps, action string) error {
 		return nil
 	}
 	return fmt.Errorf(
-		"cli: Compozy is managed by %s; refusing to %s through this binary. %s",
+		"cli: CompozyOS is managed by %s; refusing to %s through this binary. %s",
 		state.Manager,
 		strings.TrimSpace(action),
 		managedRecommendation(state.Manager, action),
@@ -83,7 +83,7 @@ func managedRecommendation(manager string, action string) string {
 	normalizedManager := strings.ToLower(strings.TrimSpace(manager))
 	normalizedAction := strings.ToLower(strings.TrimSpace(action))
 	if normalizedAction == "" {
-		normalizedAction = "change Compozy"
+		normalizedAction = "change CompozyOS"
 	}
 
 	switch {
@@ -105,17 +105,17 @@ func managedRecommendation(manager string, action string) string {
 		}
 		return "Use `scoop update compozy`."
 	case strings.Contains(normalizedManager, "nix"):
-		return "Update or remove Compozy through your Nix configuration and run `nixos-rebuild switch`."
+		return "Update or remove CompozyOS through your Nix configuration and run `nixos-rebuild switch`."
 	case strings.Contains(normalizedManager, "apt"), strings.Contains(normalizedManager, "deb"):
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
-			return "Use `sudo apt remove compozy` or the package name used to install Compozy."
+			return "Use `sudo apt remove compozy` or the package name used to install CompozyOS."
 		}
-		return "Use `sudo apt update && sudo apt upgrade compozy` or the package name used to install Compozy."
+		return "Use `sudo apt update && sudo apt upgrade compozy` or the package name used to install CompozyOS."
 	case strings.Contains(normalizedManager, "dnf"), strings.Contains(normalizedManager, "rpm"):
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
-			return "Use `sudo dnf remove compozy` or the package name used to install Compozy."
+			return "Use `sudo dnf remove compozy` or the package name used to install CompozyOS."
 		}
-		return "Use `sudo dnf upgrade compozy` or the package name used to install Compozy."
+		return "Use `sudo dnf upgrade compozy` or the package name used to install CompozyOS."
 	default:
 		return "Use the package manager that set COMPOZY_MANAGED instead of mutating this install directly."
 	}
@@ -129,7 +129,7 @@ func newUninstallCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   lifecycleUninstallKey,
-		Short: "Stop Compozy and remove runtime launch artifacts",
+		Short: "Stop CompozyOS and remove runtime launch artifacts",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			state := detectManagedState(deps)
@@ -139,14 +139,14 @@ func newUninstallCommand(deps commandDeps) *cobra.Command {
 					Managed:        state.Managed,
 					Manager:        state.Manager,
 					Status:         lifecycleStatusDeferred,
-					Message:        "Compozy is managed by an external package manager; no local uninstall changes were made.",
-					Recommendation: managedRecommendation(state.Manager, "uninstall Compozy"),
+					Message:        "CompozyOS is managed by an external package manager; no local uninstall changes were made.",
+					Recommendation: managedRecommendation(state.Manager, "uninstall CompozyOS"),
 				}
 				return writeCommandOutput(cmd, lifecycleBundle("Uninstall", record))
 			}
 
 			if purge && !force {
-				return errors.New("cli: --purge requires --force to remove Compozy home data")
+				return errors.New("cli: --purge requires --force to remove CompozyOS home data")
 			}
 
 			runtime, err := loadRuntimeContext(deps)
@@ -175,21 +175,21 @@ func newUninstallCommand(deps commandDeps) *cobra.Command {
 
 			if purge {
 				if err := os.RemoveAll(runtime.HomePaths.HomeDir); err != nil {
-					return fmt.Errorf("cli: purge Compozy home %q: %w", runtime.HomePaths.HomeDir, err)
+					return fmt.Errorf("cli: purge CompozyOS home %q: %w", runtime.HomePaths.HomeDir, err)
 				}
 				record.Purged = true
 			}
 
 			record.Status = lifecycleStatusUninstalled
-			record.Message = "Compozy runtime launch artifacts were removed; persistent data was preserved."
+			record.Message = "CompozyOS runtime launch artifacts were removed; persistent data was preserved."
 			if record.Purged {
-				record.Message = "Compozy runtime launch artifacts and Compozy home data were removed."
+				record.Message = "CompozyOS runtime launch artifacts and CompozyOS home data were removed."
 			}
 			return writeCommandOutput(cmd, lifecycleBundle("Uninstall", record))
 		},
 	}
-	cmd.Flags().BoolVar(&purge, "purge", false, "Remove the Compozy home directory after stopping runtime artifacts")
-	cmd.Flags().BoolVar(&force, "force", false, "Confirm destructive purge of Compozy home data")
+	cmd.Flags().BoolVar(&purge, "purge", false, "Remove the CompozyOS home directory after stopping runtime artifacts")
+	cmd.Flags().BoolVar(&force, "force", false, "Confirm destructive purge of CompozyOS home data")
 	return cmd
 }
 

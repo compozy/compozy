@@ -39,7 +39,7 @@ func refuseAheadDatabase(
 	if status.Version > maxEmbeddedVersion {
 		return fmt.Errorf(
 			"%w: %s stream %s is at version %d, binary head is %d; "+
-				"install a newer Compozy binary or %s",
+				"install a newer CompozyOS binary or %s",
 			ErrSchemaAhead,
 			path,
 			stream.Name,

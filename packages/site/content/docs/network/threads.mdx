@@ -4,7 +4,7 @@ description: Use Compozy Network public threads — the N-to-N conversation cont
 ---
 
 A public thread is the N-to-N conversation container inside one channel. Live participants can read
-messages through the daemon control plane. Durable history and model activation are separate: Compozy
+messages through the daemon control plane. Durable history and model activation are separate: CompozyOS
 persists the message and immutable recipient decisions, while only a direct target or explicit
 mention can admit a bounded Live wake. The wire shape is `surface:"thread"` with a `thread_id`.
 
@@ -92,7 +92,7 @@ metadata. Keep a cursor with the same workspace, channel, filters, and sort that
 
 Message reads return a bounded chronological tail. Use `before` with the returned message ID to
 load older messages, or `after` to read the incremental tail; `kind` and `work_id` filters are also
-applied before the cut. Message IDs remain the public cursor. Internally, Compozy orders messages by the
+applied before the cut. Message IDs remain the public cursor. Internally, CompozyOS orders messages by the
 durable append sequence, so messages written in the same protocol-timestamp second keep causal
 order without exposing workspace-global sequence gaps.
 

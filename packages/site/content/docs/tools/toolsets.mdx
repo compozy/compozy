@@ -1,9 +1,9 @@
 ---
 title: Toolsets
-description: How Compozy groups registry tools into named exposure sets for discovery, policy, and session startup.
+description: How CompozyOS groups registry tools into named exposure sets for discovery, policy, and session startup.
 ---
 
-Toolsets group related tools so Compozy can expose a coherent operating surface without forcing every
+Toolsets group related tools so CompozyOS can expose a coherent operating surface without forcing every
 agent or operator to reason about hundreds of individual tool IDs first.
 
 Use toolsets when you need to understand why a session can see one family of tools, why a tool is
@@ -27,7 +27,7 @@ Inspect one expansion:
 compozy toolsets info compozy__catalog -o json
 ```
 
-What happened: Compozy resolved the toolset through the registry and returned the expanded tool IDs plus
+What happened: CompozyOS resolved the toolset through the registry and returned the expanded tool IDs plus
 diagnostics. Use diagnostics when an expected tool is missing or unavailable in the current scope.
 
 ## Bootstrap and catalog shape
@@ -53,7 +53,7 @@ the returned tool reference. `compozy__tool_list` shows the currently callable p
 
 ## Operational toolsets
 
-Compozy groups runtime capabilities by owning subsystem. These toolsets are canonical IDs that can be
+CompozyOS groups runtime capabilities by owning subsystem. These toolsets are canonical IDs that can be
 granted through agent definitions or inspected through `compozy toolsets info`.
 
 | Toolset                    | Includes                                                                       |

@@ -7,7 +7,7 @@ import { captureRouteState } from "../browser-artifact-session";
 describe("captureRouteState", () => {
   it("captures network shell context with the channel-pivot information architecture", async () => {
     window.history.replaceState({}, "", "/network/builders/threads");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <div data-testid="network-shell">
         <aside data-testid="network-channel-rail">
@@ -42,7 +42,7 @@ describe("captureRouteState", () => {
 
     expect(routeState).toMatchObject({
       pathname: "/network/builders/threads",
-      title: "Compozy",
+      title: "CompozyOS",
       chat_view_visible: false,
       message_count: 0,
       network_view_visible: true,
@@ -61,7 +61,7 @@ describe("captureRouteState", () => {
 
   it("captures disabled and no-channel network route states for launch diagnostics", async () => {
     window.history.replaceState({}, "", "/network");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <div data-testid="network-shell">
         <section data-testid="network-no-channels-state"></section>
@@ -85,7 +85,7 @@ describe("captureRouteState", () => {
 
   it("captures the selected thread overlay container id without leaking direct fields", async () => {
     window.history.replaceState({}, "", "/network/builders/threads/thread_launch_command");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <div data-testid="network-shell">
         <main data-testid="network-main-pane">
@@ -111,7 +111,7 @@ describe("captureRouteState", () => {
 
   it("captures the selected direct room container id without leaking thread fields", async () => {
     window.history.replaceState({}, "", "/network/builders/directs/direct_abc123");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <div data-testid="network-shell">
         <main data-testid="network-main-pane">
@@ -136,7 +136,7 @@ describe("captureRouteState", () => {
 
   it("captures automation detail route context, topbar title, and session-link state", async () => {
     window.history.replaceState({}, "", "/jobs/job_daily_review");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <header><h1 data-testid="topbar-title-text">deploy-review</h1></header>
       <section data-testid="automation-detail-panel">
@@ -160,7 +160,7 @@ describe("captureRouteState", () => {
 
     expect(routeState).toMatchObject({
       pathname: "/jobs/job_daily_review",
-      title: "Compozy",
+      title: "CompozyOS",
       automation_view_visible: true,
       automation_active_tab: "jobs",
       automation_delete_visible: true,
@@ -180,7 +180,7 @@ describe("captureRouteState", () => {
 
   it("captures bridge detail route context, topbar title, and dialog state", async () => {
     window.history.replaceState({}, "", "/bridges/brg_ops");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <header><h1 data-testid="topbar-title-text">Telegram Bridge Ops</h1></header>
       <section data-testid="bridge-detail-panel">
@@ -198,7 +198,7 @@ describe("captureRouteState", () => {
 
     expect(routeState).toMatchObject({
       pathname: "/bridges/brg_ops",
-      title: "Compozy",
+      title: "CompozyOS",
       bridge_view_visible: true,
       bridge_item_count: 0,
       bridge_selected_item: "Telegram Bridge Ops",
@@ -211,7 +211,7 @@ describe("captureRouteState", () => {
 
   it("captures task route context, selected run, and graph/review counts", async () => {
     window.history.replaceState({}, "", "/tasks/task_launch/runs/run_launch");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <div data-testid="tasks-dashboard-view">
         <a data-testid="tasks-mode-dashboard" href="/tasks?mode=dashboard"></a>
@@ -264,7 +264,7 @@ describe("captureRouteState", () => {
 
   it("captures knowledge route scope, dialogs, decisions, and selected item", async () => {
     window.history.replaceState({}, "", "/knowledge");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <main data-testid="knowledge-shell">
         <button data-testid="tab-global" aria-pressed="false"></button>
@@ -309,7 +309,7 @@ describe("captureRouteState", () => {
 
   it("captures the installed Skills catalog and unified detail state", async () => {
     window.history.replaceState({}, "", "/marketplace/skills");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <main data-testid="marketplace-kind-skill">
         <input data-testid="marketplace-kind-search-skill" value="browser-context" />
@@ -358,7 +358,7 @@ describe("captureRouteState", () => {
 
   it("captures sandbox route profile counts, dialogs, and restart state", async () => {
     window.history.replaceState({}, "", "/sandbox");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <main data-testid="sandbox-shell">
         <p data-testid="sandbox-page-total">2 profiles</p>
@@ -400,7 +400,7 @@ describe("captureRouteState", () => {
 
   it("captures Settings route section, provider, restart, and route-independent vault state", async () => {
     window.history.replaceState({}, "", "/settings/network");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <main data-testid="settings-shell">
         <nav data-testid="settings-section-nav">
@@ -454,7 +454,7 @@ describe("captureRouteState", () => {
 
   it("captures clean Settings section state without modal or restart affordances", async () => {
     window.history.replaceState({}, "", "/settings/general");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <main data-testid="settings-shell">
         <nav data-testid="settings-section-nav">
@@ -486,7 +486,7 @@ describe("captureRouteState", () => {
 
   it("captures the current Home overview route context", async () => {
     window.history.replaceState({}, "", "/");
-    document.title = "Compozy";
+    document.title = "CompozyOS";
     document.body.innerHTML = `
       <main data-testid="home-body">
         <div data-testid="home-connection-indicator" data-status="connected"></div>

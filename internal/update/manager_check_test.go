@@ -232,7 +232,7 @@ func TestManagerCheck(t *testing.T) {
 		if state.Status != StatusUnsupported {
 			t.Fatalf("state.Status = %q, want %q", state.Status, StatusUnsupported)
 		}
-		if !strings.Contains(state.Recommendation, "tagged Compozy release") {
+		if !strings.Contains(state.Recommendation, "tagged CompozyOS release") {
 			t.Fatalf("state.Recommendation = %q, want tagged release guidance", state.Recommendation)
 		}
 	})

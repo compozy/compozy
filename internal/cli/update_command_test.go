@@ -36,7 +36,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 						LatestVersion:  "v1.1.0",
 						Available:      true,
 						Status:         compozyupdate.StatusAvailable,
-						Message:        "A newer stable Compozy release is available.",
+						Message:        "A newer stable CompozyOS release is available.",
 					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 				},
 				applyFn: func(_ context.Context, release *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {
@@ -137,7 +137,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 						LatestVersion:  "v1.1.0",
 						Available:      true,
 						Status:         compozyupdate.StatusAvailable,
-						Message:        "A newer stable Compozy release is available.",
+						Message:        "A newer stable CompozyOS release is available.",
 					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 				},
 				applyFn: func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {
@@ -201,7 +201,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 						LatestVersion:  "v1.1.0",
 						Available:      false,
 						Status:         compozyupdate.StatusCurrent,
-						Message:        "Compozy is already on the latest stable release.",
+						Message:        "CompozyOS is already on the latest stable release.",
 					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 				},
 				applyFn: func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {

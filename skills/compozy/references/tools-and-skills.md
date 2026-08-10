@@ -11,18 +11,18 @@
 - Session command catalog
 - Bundled skill resources
 - Skill provenance and shadows
-- Native Compozy tool map
+- Native CompozyOS tool map
 - Management-surface exceptions
 
 ## Tool-First Operating Model
 
-Compozy exposes runtime capabilities through a policy-filtered tool registry. Prefer native Compozy tools over equivalent compozy shell commands when a dedicated tool is callable. Tool calls are structured, policy-aware, observable, and easier to redact and audit.
+CompozyOS exposes runtime capabilities through a policy-filtered tool registry. Prefer native CompozyOS tools over equivalent compozy shell commands when a dedicated tool is callable. Tool calls are structured, policy-aware, observable, and easier to redact and audit.
 
-Use shell commands for repository work, explicit operator requests, and management flows Compozy keeps outside the normal tool-call loop.
+Use shell commands for repository work, explicit operator requests, and management flows CompozyOS keeps outside the normal tool-call loop.
 
 ## Discovery Loop
 
-Use this sequence for Compozy-native work:
+Use this sequence for CompozyOS-native work:
 
 1. Resolve canonical `compozy__tool_search`, then search using the runtime domain or action.
 2. Resolve canonical `compozy__tool_info`, then inspect the selected ToolID before first invocation.
@@ -31,7 +31,7 @@ Use this sequence for Compozy-native work:
 
 `compozy__*` names are canonical IDs, not harness call names. Use them for registry, policy, CLI, descriptors, and `tool_id`; call only the reference the harness returns.
 
-Hosted MCP projects the full availability-gated callable catalog for a bare managed session. Compozy no
+Hosted MCP projects the full availability-gated callable catalog for a bare managed session. CompozyOS no
 longer caps that projection to bootstrap/catalog tools unless the agent definition or session
 lineage explicitly narrows it. Use `compozy__tool_search` and `compozy__tool_info` to diagnose known but
 denied tools; use `compozy__tool_list` when you need only the currently callable set.
@@ -58,7 +58,7 @@ does not promise a durable artifact; inspect the partial result and do not fabri
 
 Descriptor presentation is optional and workspace-scoped. Extension manifests use
 `friendly_verb` and `preview` under `[resources.tools.<name>]`; MCP tool `_meta` uses
-`compozy/friendly_verb` and `compozy/preview`. Compozy resolves the active descriptor through the current
+`compozy/friendly_verb` and `compozy/preview`. CompozyOS resolves the active descriptor through the current
 workspace's registry projection.
 
 `friendly_verb` is one line and at most 80 runes. `preview` accepts only `auto`, `none`, `command`,
@@ -198,7 +198,7 @@ Bundled `dev-cycle` globally publishes exactly `cy-create-prd`, `cy-create-techs
 
 Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier, and installed-from metadata identifies extension ownership when present.
 
-When multiple declarations use the same skill name, Compozy keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
+When multiple declarations use the same skill name, CompozyOS keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
 
     compozy skill where <name> --workspace <ref> --for-agent <agent>
     GET /api/skills/{name}/shadows?workspace=<ref>&for_agent=<agent>
@@ -219,13 +219,13 @@ Treat each `operation` as a cleanup warning, not as rollback or permission to re
 keeps the structured array; human and TOON output list the operations. Inspect the named cleanup step
 and local staging state before performing manual cleanup.
 
-## Native Compozy Tool Map
+## Native CompozyOS Tool Map
 
-Inside Compozy, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `compozy__*` IDs, but parameters and availability come from the live descriptor returned by canonical `compozy__tool_info`.
+Inside CompozyOS, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `compozy__*` IDs, but parameters and availability come from the live descriptor returned by canonical `compozy__tool_info`.
 
 ## Management-Surface Exceptions
 
-Keep these on operator CLI, HTTP, or UDS surfaces unless Compozy explicitly exposes a scoped tool:
+Keep these on operator CLI, HTTP, or UDS surfaces unless CompozyOS explicitly exposes a scoped tool:
 
 - daemon lifecycle, sockets, host/port, sandbox, provider bootstrap, and destructive repair
 - creating, stopping, or mutating arbitrary sessions outside scoped authority

@@ -6,21 +6,21 @@ Canonical vocabulary for CompozyOS and Compozy Network. When the corpus is ambig
 
 ## Core Concepts
 
-### Compozy / CompozyOS
+### CompozyOS and `compozy`
 
-**Compozy** is the public product name used in ordinary prose, UI, commands, packages, and calls to action.
+**CompozyOS** is the public product name used in ordinary prose, UI, package descriptions, calls to action, and formal category language. It names the complete agent operating system: the daemon-owned runtime, sessions and work model, memory, permissions, automation, OS shell, extensibility, and coordination.
 
-**CompozyOS** is the formal name for the complete agent operating system: the daemon-owned runtime, sessions and work model, memory, permissions, automation, OS shell, extensibility, and coordination. Use it when the category or the integrated system matters. Do not use `Compozy Runtime` as a separate product name.
+**`compozy`** is the command identifier. The binary, `COMPOZY_*` environment variables, Go module path, `@compozy/*` packages, Homebrew formula, socket names, config paths, and `compozy__*` native tool IDs keep this spelling. CompozyOS is the product; `compozy` is its command. Do not use `CompozyOS Runtime` as a separate product name; `CompozyOS runtime` is descriptive prose when the runtime specifically matters.
 
 ### Compozy Network
 
 The agent-to-agent coordination subsystem inside CompozyOS. It lets sessions participate as peers, discover capabilities, exchange typed envelopes, and return receipts. The current protocol/version name is `compozy-network/v0`.
 
-Compozy Network is not the product category, a federation protocol, or a synonym for CompozyOS. Its wire format remains implementable outside Compozy.
+Compozy Network is not the product category, a federation protocol, or a synonym for CompozyOS. Its wire format remains implementable outside CompozyOS.
 
 ### Capability
 
-The single canonical name for **reusable agent artifacts** that describe transferable delegation offers, network discovery shapes, and Compozy artifacts shipped between peers.
+The single canonical name for **reusable agent artifacts** that describe transferable delegation offers, network discovery shapes, and CompozyOS artifacts shipped between peers.
 
 A capability is **interpretive**, not deterministic — it tells an agent what is available, not how to execute a deterministic program.
 
@@ -42,7 +42,7 @@ The closed set of **runtime interfaces an extension implements**, declared as `c
 
 Public set: `tool.provider`, `memory.backend`, `model.source`, `loop.watch_source`, `connectivity.provider`. `bridge.adapter` exists in the daemon but is excluded from the public surface (ADR-006) — an installed third-party manifest declaring it is rejected.
 
-Each provide binds the extension to the Compozy → extension service methods the daemon will call (for example `memory.backend` → `memory/store`, `memory/recall`, `memory/forget`). Validation is closed-set membership, not shape: an unknown value fails manifest load rather than loading as a silent no-op.
+Each provide binds the extension to the CompozyOS → extension service methods the daemon will call (for example `memory.backend` → `memory/store`, `memory/recall`, `memory/forget`). Validation is closed-set membership, not shape: an unknown value fails manifest load rather than loading as a silent no-op.
 
 **Say:** "provide surface", "the extension provides `tool.provider`". **Do not say:** "the extension's capabilities" when you mean this — see the [Capability](#capability) disambiguation.
 
@@ -52,7 +52,7 @@ Each provide binds the extension to the Compozy → extension service methods th
 
 The single authored list of **Host API methods an extension may call**, declared as `permissions.requires` in the extension manifest.
 
-The list is validated against a closed 95-method set at build, validate, install, and daemon load. Compozy **derives** the operator-facing consent areas from it (`sessions:read`, `memory:write`, …) — consent areas are a display and policy projection, never an authored field.
+The list is validated against a closed 95-method set at build, validate, install, and daemon load. CompozyOS **derives** the operator-facing consent areas from it (`sessions:read`, `memory:write`, …) — consent areas are a display and policy projection, never an authored field.
 
 Enforcement is per call against the effective grant, which is the declared list narrowed by the install source tier. Published sources (`curated`, `github`, `git`) run under the marketplace ceiling; local-path installs and dev links carry no ceiling.
 
@@ -62,7 +62,7 @@ Enforcement is per call against the effective grant, which is the declared list 
 
 ### Extension Kit
 
-The static resources shipped by one extension: skills, agents and their sidecars, Loops, automation, layouts, and MCP sidecars. Marketplace and local installs leave the kit inert; enable publishes resources owned by that extension instance, and disable removes them. The bundled `dev-cycle` extension is enabled on a fresh Compozy home, while later boot and update paths preserve the operator's explicit enabled or disabled state. Use **extension kit**, never **Bundle**, for this product concept.
+The static resources shipped by one extension: skills, agents and their sidecars, Loops, automation, layouts, and MCP sidecars. Marketplace and local installs leave the kit inert; enable publishes resources owned by that extension instance, and disable removes them. The bundled `dev-cycle` extension is enabled on a fresh CompozyOS home, while later boot and update paths preserve the operator's explicit enabled or disabled state. Use **extension kit**, never **Bundle**, for this product concept.
 
 ### Extension Secret Binding
 
@@ -78,27 +78,27 @@ Explicit operator consent to the exact digest of an extension's normalized Netwo
 
 The **deterministic runtime program the daemon owns and executes**, defined by the contract **goal → act → verify → stop** plus a fixed set of named terminal outcomes (ADR-001). A Loop's body is a static DAG of typed nodes; iteration is simply what happens when verification says "not done." A single-pass linear pipeline is still a Loop — one that finished on its first pass — and it still carries the contract (definition-of-done, verification gate, terminal states, budget), which is the value no plain DAG engine delivers.
 
-Loops ride Compozy's existing durable foundations (work queue, sessions, automation, network, memory) — they are **not** a second execution engine. The serialized definition is `compozy.loop/v1` YAML; the resolved form is what the coordinator runs.
+Loops ride CompozyOS's existing durable foundations (work queue, sessions, automation, network, memory) — they are **not** a second execution engine. The serialized definition is `compozy.loop/v1` YAML; the resolved form is what the coordinator runs.
 
 **Loop vs Capability:** a Loop is deterministic and runtime-owned; a [capability](#capability) is interpretive and network-shipped. Loops do not replace capabilities, and loop execution never travels over the network wire.
 
 **Terminal outcomes:** `done`, `no-op`, `blocked`, `failed`, `exhausted`, `stalled`, `canceled`. Live states: `queued`, `running`, `watching`, `needs-approval`, `paused`.
 
-**Not to be conflated with:** the historical "workflow" positioning. Compozy is a runtime with a Loop domain; the Compozy Network protocol remains not a workflow engine.
+**Not to be conflated with:** the historical "workflow" positioning. CompozyOS is a runtime with a Loop domain; the Compozy Network protocol remains not a workflow engine.
 
 ---
 
 ### Skill
 
-A **bundled procedural instruction** that a Compozy session can activate before doing work. Skills are local to Compozy (loaded via `internal/skills`), governed by `metadata.compozy.*` frontmatter, scanned via `VerifyContent`, and may declare MCP servers and lifecycle hooks.
+A **bundled procedural instruction** that a CompozyOS session can activate before doing work. Skills are local to CompozyOS (loaded via `internal/skills`), governed by `metadata.compozy.*` frontmatter, scanned via `VerifyContent`, and may declare MCP servers and lifecycle hooks.
 
-**Skills vs. Capabilities:** Skills live inside a Compozy instance and govern an agent's behavior locally. Capabilities cross Compozy instances over the network and describe what an agent offers to peers. A skill could be exposed as a capability, but they are not the same artifact.
+**Skills vs. Capabilities:** Skills live inside a CompozyOS instance and govern an agent's behavior locally. Capabilities cross CompozyOS instances over the network and describe what an agent offers to peers. A skill could be exposed as a capability, but they are not the same artifact.
 
 ---
 
 ### Sandbox
 
-The Compozy execution boundary selected for a workspace or session. A sandbox profile is configured under `[sandboxes.<name>]`, selected by `sandbox_ref` or runtime flags, and carried through the session lifecycle as sandbox metadata.
+The CompozyOS execution boundary selected for a workspace or session. A sandbox profile is configured under `[sandboxes.<name>]`, selected by `sandbox_ref` or runtime flags, and carried through the session lifecycle as sandbox metadata.
 
 Implemented providers are `local` and `daytona`. Provider lifecycle surfaces use `sandbox.prepare`, `sandbox.ready`, `sandbox.sync.before`, `sandbox.sync.after`, and `sandbox.stop` hooks, plus the extension Host API methods `sandbox/list`, `sandbox/info`, and `sandbox/exec`.
 
@@ -122,7 +122,7 @@ Operator access is not cross-workspace access — operators are not governed by 
 
 ### AGENT.md (frontmatter format)
 
-Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The current runtime portability unit is the Compozy agent directory rooted at `$COMPOZY_HOME/agents/<name>/` for global scope and `.compozy/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.
+Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The current runtime portability unit is the CompozyOS agent directory rooted at `$COMPOZY_HOME/agents/<name>/` for global scope and `.compozy/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.
 
 **Status:** Partially shipped from RFC 001. The runtime now parses `AGENT.md` frontmatter,
 including agent-local `skills/` overlays and `skills.disabled`. Draft fields such as
@@ -131,7 +131,7 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 **vs AGENTS.md (project file)**:
 
 - `AGENTS.md` = project-level instructions (industry convention, plain Markdown).
-- `AGENT.md` = single-agent definition (Compozy proposal, structured frontmatter).
+- `AGENT.md` = single-agent definition (CompozyOS proposal, structured frontmatter).
 - Different filenames, different purposes. Do not conflate.
 - The standardization path (extension to AGENTS.md under AAIF, vs. standalone) is open per RFC 001 §6.6.
 
@@ -140,9 +140,9 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 ### Peer Card
 
 The Compozy Network discovery artifact: a peer's identity and `peer_card.capabilities` index, optionally
-with `peer_card.ext["compozy.capabilities_brief"]` for Compozy-specific projection.
+with `peer_card.ext["compozy.capabilities_brief"]` for CompozyOS-specific projection.
 
-**vs A2A Agent Card:** A2A Agent Cards are an external industry standard. Peer Cards are Compozy-Network specific but could be generated FROM an AGENT.md definition (RFC 001 §3.3 is open on the mapping). Today they are not unified.
+**vs A2A Agent Card:** A2A Agent Cards are an external industry standard. Peer Cards are specific to Compozy Network but could be generated FROM an AGENT.md definition (RFC 001 §3.3 is open on the mapping). Today they are not unified.
 
 ---
 
@@ -160,7 +160,7 @@ The verified-format identity in Compozy Network v1. `nickname` matches `[a-z0-9_
 
 ### Caller Identity (operational)
 
-Inside Compozy, agent-facing CLI commands resolve identity from `COMPOZY_SESSION_ID` / `COMPOZY_AGENT` through `internal/agentidentity`. **Operator endpoints MUST NOT infer agent identity from environment variables.** Agent → identity-implicit. Operator → identity-explicit.
+Inside CompozyOS, agent-facing CLI commands resolve identity from `COMPOZY_SESSION_ID` / `COMPOZY_AGENT` through `internal/agentidentity`. **Operator endpoints MUST NOT infer agent identity from environment variables.** Agent → identity-implicit. Operator → identity-explicit.
 
 ---
 
@@ -247,7 +247,7 @@ Bounded replay window via `id`. Recommended 300-second clock-skew rejection when
 
 ### Memory Types (taxonomy)
 
-Per RFC 002 / Claude Code AutoDream / Compozy `internal/memory/consolidation/`:
+Per RFC 002 / Claude Code AutoDream / CompozyOS `internal/memory/consolidation/`:
 
 - `user` — persona, role, preferences, knowledge.
 - `feedback` — rules and corrections from past interactions.
@@ -258,7 +258,7 @@ Per RFC 002 / Claude Code AutoDream / Compozy `internal/memory/consolidation/`:
 
 - `agent` — local to a specific agent definition.
 - `workspace` — shared across agents within a workspace.
-- `global` — shared across workspaces in the Compozy installation.
+- `global` — shared across workspaces in the CompozyOS installation.
 
 Default write scope is declared per agent in `memory.scope`.
 
@@ -298,7 +298,7 @@ The single authoritative claim primitive. Lives in `internal/task`. The mechanic
 
 ### Coordinator
 
-A managed Compozy session whose semantic role is to orchestrate executable workspace runs. Auto-spawn
+A managed CompozyOS session whose semantic role is to orchestrate executable workspace runs. Auto-spawn
 is conservative: a run must be enqueued, coordinator auto-start enabled, no healthy active
 coordinator present, and spawn caps available. Network participation is not a bootstrap condition.
 
@@ -416,19 +416,19 @@ Regenerate / verify drift on `openapi/compozy.json`, `web/src/generated/compozy-
 
 ### Real-Scenario QA
 
-The practice of validating Compozy the way real users experience it, owned by the `qa-report` (planning, living docs) + `qa-execution` (persona-driven sessions, evidence) pair over the committed `docs/qa/` tree (`state.csv`, `bugs/BUG-NNNN` registry, journeys, charters, dated reports). For release-grade validation of the multi-agent runtime, the `eng-real-scenario-qa` skill adds the playbook harness: an isolated lab (via `eng-qa-bootstrap`), one in-persona operator kickoff, read-only runtime observation, and a strict deliverable/collaboration audit — exercising CLI + Web + API surfaces end-to-end.
+The practice of validating CompozyOS the way real users experience it, owned by the `qa-report` (planning, living docs) + `qa-execution` (persona-driven sessions, evidence) pair over the committed `docs/qa/` tree (`state.csv`, `bugs/BUG-NNNN` registry, journeys, charters, dated reports). For release-grade validation of the multi-agent runtime, the `eng-real-scenario-qa` skill adds the playbook harness: an isolated lab (via `eng-qa-bootstrap`), one in-persona operator kickoff, read-only runtime observation, and a strict deliverable/collaboration audit — exercising CLI + Web + API surfaces end-to-end.
 
 ---
 
-## "What Compozy Is Not"
+## "What CompozyOS Is Not"
 
 For positioning consistency on the marketing site and in docs:
 
-- **Compozy Network is not a workflow engine.** Capabilities are interpretive, not deterministic programs, and envelopes never carry loop execution. (The Compozy *runtime* does own a deterministic [Loop](#loop) domain — but it stays off the network wire, per ADR-001.)
-- Compozy is **not a federation protocol**. Compozy Network v1 is a self-certified pairwise envelope, not a federated trust system.
-- Compozy is **not an MCP replacement**. MCP integrates _into_ Compozy skills via `metadata.compozy.mcp_servers`.
-- Compozy is **not an A2A replacement**. Compozy Network is a peer-to-peer envelope; A2A is an industry standard. They can coexist.
-- Compozy **competes on runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol.** Compozy Network must remain implementable outside Compozy.
+- **Compozy Network is not a workflow engine.** Capabilities are interpretive, not deterministic programs, and envelopes never carry loop execution. (The CompozyOS *runtime* does own a deterministic [Loop](#loop) domain — but it stays off the network wire, per ADR-001.)
+- CompozyOS is **not a federation protocol**. Compozy Network v1 is a self-certified pairwise envelope, not a federated trust system.
+- CompozyOS is **not an MCP replacement**. MCP integrates _into_ CompozyOS skills via `metadata.compozy.mcp_servers`.
+- CompozyOS is **not an A2A replacement**. Compozy Network is a peer-to-peer envelope; A2A is an industry standard. They can coexist.
+- CompozyOS **competes on runtime, SDK, observability, DX, and integration depth — NOT the open agent network protocol.** Compozy Network must remain implementable outside CompozyOS.
 
 ---
 

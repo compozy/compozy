@@ -14,6 +14,7 @@ import (
 var expectedCompozyReferences = []string{
 	"references/agent-definitions.md",
 	"references/configuration.md",
+	"references/desktop.md",
 	"references/extension-authoring.md",
 	"references/extensions.md",
 	"references/loops.md",

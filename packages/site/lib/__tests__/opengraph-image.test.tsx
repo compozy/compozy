@@ -103,7 +103,7 @@ describe("Landing OpenGraph image (root)", () => {
 
     expect(copy).toContain("The only true OS for AI agents.");
     expect(copy).toContain(
-      "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one built to pass it."
+      "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and CompozyOS is the only one built to pass it."
     );
     expect(copy).toContain("COMPOZYOS / BETA");
     expect(copy).toContain("OPERATING SYSTEM FOR AI AGENTS");
@@ -132,7 +132,7 @@ describe("Docs OpenGraph template", () => {
       await renderDocsOG({
         variant: "docs",
         title: "Sessions and lifecycle",
-        description: "How Compozy durably runs ACP-compatible agents end to end.",
+        description: "How CompozyOS durably runs ACP-compatible agents end to end.",
         path: "docs/sessions/lifecycle",
       })
     );
@@ -143,7 +143,7 @@ describe("Docs OpenGraph template", () => {
     expect(copy).toContain("COMPOZYOS DOCS");
     expect(copy).toContain("docs/sessions/lifecycle");
     expect(copy).toContain("Sessions and lifecycle");
-    expect(copy).toContain("How Compozy durably runs ACP-compatible agents end to end.");
+    expect(copy).toContain("How CompozyOS durably runs ACP-compatible agents end to end.");
     expect(copy).toContain("DOCS");
     expect(copy).toContain("COMPOZYOS");
     expect(copy).toContain("compozy.com");
@@ -176,9 +176,9 @@ describe("Blog OpenGraph template", () => {
     const { renderBlogOG } = await import("@/lib/og/templates/blog");
     const response = asMockImageResponse(
       await renderBlogOG({
-        title: "Introducing Compozy, the first agent network protocol",
+        title: "Introducing CompozyOS, the first agent network protocol",
         description:
-          "Compozy gives every agent CLI a durable home and a shared protocol to coordinate with peers.",
+          "CompozyOS gives every agent CLI a durable home and a shared protocol to coordinate with peers.",
         slug: "introducing-compozyos",
         date: "2026-04-29",
         author: "pnauck",
@@ -189,7 +189,7 @@ describe("Blog OpenGraph template", () => {
     const types = componentTypes(response.element);
 
     expect(copy).toContain("COMPOZY BLOG");
-    expect(copy).toContain("Introducing Compozy, the first agent network protocol");
+    expect(copy).toContain("Introducing CompozyOS, the first agent network protocol");
     expect(copy).toContain("APR 29, 2026");
     expect(copy).toContain("compozy.com/blog/introducing-compozyos");
     expect(copy).toContain("BY pnauck");

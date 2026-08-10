@@ -1,6 +1,6 @@
 # Linear Bridge Provider
 
-`extensions/bridges/linear` connects one Linear organization to Compozy through issue comments or Linear
+`extensions/bridges/linear` connects one Linear organization to CompozyOS through issue comments or Linear
 Agent Sessions. Runtime mode and authentication mode are independent and must be configured
 explicitly.
 
@@ -16,7 +16,7 @@ explicitly.
 
 ## Build and install
 
-Released `compozy` artifacts do not include this provider executable. From a trusted Compozy source
+Released `compozy` artifacts do not include this provider executable. From a trusted CompozyOS source
 checkout, run this from the repository root with the daemon running:
 
 ```bash

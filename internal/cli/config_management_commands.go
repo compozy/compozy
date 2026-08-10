@@ -20,7 +20,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   configPathKey,
-		Short: "Show resolved Compozy config paths",
+		Short: "Show resolved CompozyOS config paths",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			scope, err := parseWriteScope(scopeRaw)
@@ -110,7 +110,7 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 	var repairEnv bool
 	cmd := &cobra.Command{
 		Use:   name,
-		Short: "Validate Compozy configuration",
+		Short: "Validate CompozyOS configuration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			workspace, resolved, err := resolveContextualConfigWorkspaceRoot(cmd, deps, workspaceRoot)

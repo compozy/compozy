@@ -1,9 +1,9 @@
 ---
 title: Agent Capabilities
-description: Author capability catalogs, validate supported layouts, and understand how Compozy projects each capability into discovery and transfer.
+description: Author capability catalogs, validate supported layouts, and understand how CompozyOS projects each capability into discovery and transfer.
 ---
 
-Compozy uses one capability model end to end. A capability is authored locally in the agent directory,
+CompozyOS uses one capability model end to end. A capability is authored locally in the agent directory,
 normalized by the runtime, advertised briefly in `greet`, returned richly through explicit `whois`,
 and transferred explicitly through `kind:"capability"` when a peer shares a portable capability
 document. There is no separate authoring format: the same structured capability is the authoring
@@ -35,7 +35,7 @@ implementation details stay private.
 
 ## Supported layouts
 
-Use exactly one of these layouts per agent directory. Compozy never merges layouts or formats.
+Use exactly one of these layouts per agent directory. CompozyOS never merges layouts or formats.
 
 | Layout      | Path                                                   | Best for                               |
 | ----------- | ------------------------------------------------------ | -------------------------------------- |
@@ -71,12 +71,12 @@ Authoring and normalization rules:
 
 - `id` should use a stable slug. Capability IDs only need to be unique inside one agent directory;
   on the network, the effective identifier is `peer_id + capability_id`.
-- Compozy trims surrounding whitespace in scalar strings and list entries before validation.
+- CompozyOS trims surrounding whitespace in scalar strings and list entries before validation.
 - `version` is optional, but if authored it must not normalize to blank.
-- `requirements` targets other `capability.id` values. Compozy validates the list syntactically but
+- `requirements` targets other `capability.id` values. CompozyOS validates the list syntactically but
   does not require every referenced ID to exist in the same local catalog, because referenced
   capabilities may belong to another daemon-local peer.
-- `requirements` entries must be non-empty and unique after normalization. Compozy canonicalizes them
+- `requirements` entries must be non-empty and unique after normalization. CompozyOS canonicalizes them
   before computing the runtime digest.
 - `digest` is runtime-owned. Authors do not write it in TOML or JSON files, and strict parsing
   rejects unknown fields such as `digest`.
@@ -167,7 +167,7 @@ Directory-mode rules:
 
 ## Validation rules
 
-Compozy normalizes surrounding whitespace in every string field and list entry before checking the
+CompozyOS normalizes surrounding whitespace in every string field and list entry before checking the
 rules. After normalization:
 
 | Rule                             | Violation                                                                          |
@@ -189,7 +189,7 @@ validation error is a hard failure at load time. There is no warning mode.
 
 ## Runtime digest
 
-Compozy computes the `digest` field itself after normalization. The runtime canonicalizes the structured
+CompozyOS computes the `digest` field itself after normalization. The runtime canonicalizes the structured
 capability document — trimmed scalars, canonicalized `requirements`, stable field ordering — and
 hashes it into a content-addressed identifier. Two capability files with the same normalized content
 produce the same `digest`; any meaningful change produces a new one.
@@ -224,7 +224,7 @@ directory:
 
 ## How capabilities surface on the network
 
-The local catalog is the runtime source of truth. Compozy projects it into three distinct wire roles
+The local catalog is the runtime source of truth. CompozyOS projects it into three distinct wire roles
 using the same structured capability document — detail levels differ, but the concept does not.
 
 | Role                | Where it appears                                                           | What it carries                                        |
@@ -301,7 +301,7 @@ version = "1.2.0"
 requirements = ["collect-failing-tests"]
 ```
 
-Compozy loads the catalog, trims and validates the fields, canonicalizes `requirements`, and computes
+CompozyOS loads the catalog, trims and validates the fields, canonicalizes `requirements`, and computes
 a runtime `digest` for `fix-go-migration-tests`.
 
 ### Ask another peer for its full catalog
@@ -364,7 +364,7 @@ capability participates in the same lifecycle rules as a directed `say` envelope
 
 - [Agent Definitions](/docs/agents/definitions) covers the `AGENT.md` sibling of a
   capability catalog.
-- [AGENT.md](/docs/configuration/agent-md) lists the sidecars Compozy recognizes
+- [AGENT.md](/docs/configuration/agent-md) lists the sidecars CompozyOS recognizes
   alongside an agent directory.
 - [Peer Discovery](/docs/network/protocol/peer-discovery) covers how `PeerCard` carries capability IDs and the
   brief projection on the wire.

@@ -5,7 +5,7 @@ import "github.com/spf13/cobra"
 func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   sessionSessionKey,
-		Short: "Manage Compozy sessions",
+		Short: "Manage CompozyOS sessions",
 	}
 
 	cmd.AddCommand(newSessionCreateCommand(deps))

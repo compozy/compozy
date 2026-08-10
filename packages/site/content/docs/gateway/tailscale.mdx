@@ -3,12 +3,12 @@ title: Tailscale extension
 description: Set up and operate the bundled Tailscale connectivity extension — auth key, tailnet prerequisites, Funnel for public delivery, state, and clean removal.
 ---
 
-The Tailscale extension is the first-party connectivity provider that ships inside Compozy. It is
+The Tailscale extension is the first-party connectivity provider that ships inside CompozyOS. It is
 what carries traffic from your other devices — and, when you choose, from the internet — to the
 gateway's local listeners.
 
-It runs the Tailscale node inside the Compozy process (through `tsnet`), against **your** Tailscale
-account. You do not install or run a separate Tailscale client on the daemon machine, and Compozy
+It runs the Tailscale node inside the CompozyOS process (through `tsnet`), against **your** Tailscale
+account. You do not install or run a separate Tailscale client on the daemon machine, and CompozyOS
 operates no relay, server, or account on your behalf. The extension is installed automatically;
 you only enable it and give it a key.
 
@@ -49,7 +49,7 @@ Create an auth key in the admin console under **Settings → Keys**. Bind it thr
 compozy extension secrets set tailscale --env TS_AUTHKEY
 ```
 
-The extension manifest declares only the variable name; Compozy stores the value through the
+The extension manifest declares only the variable name; CompozyOS stores the value through the
 extension secret-binding surface and never returns it in status or diagnostics. Replace a rotated
 key by running the same command again; remove the binding with
 `compozy extension secrets unset tailscale --env TS_AUTHKEY`.

@@ -39,7 +39,7 @@ function task(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
     id: "task-1",
     title: "Approve deploy",
-    identifier: "Compozy-42",
+    identifier: "CompozyOS-42",
     status: "ready",
     scope: "workspace",
     origin: { kind: "web", ref: "operator" },
@@ -145,7 +145,7 @@ describe("OS attention model", () => {
         kind: "task",
         id: "task-1",
         title: "Approve deploy",
-        identifier: "Compozy-42",
+        identifier: "CompozyOS-42",
       },
     ]);
   });

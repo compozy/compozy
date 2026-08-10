@@ -186,7 +186,7 @@ pub fn handshake(identity: &BoundDaemonIdentity, minimum: &VersionReq) -> Compat
         return Compatibility::SkewOlder {
             runtime,
             needed: minimum.clone(),
-            recommendation: "Update the Compozy runtime through its install channel.".to_owned(),
+            recommendation: "Update the CompozyOS runtime through its install channel.".to_owned(),
         };
     }
     Compatibility::Compatible { runtime }

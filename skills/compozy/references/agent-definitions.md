@@ -14,11 +14,11 @@
 
 ## Files And Precedence
 
-Compozy agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. User-authored global agents live under $COMPOZY_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.compozy/agents/<name>/AGENT.md. Extension-provided agents participate as global candidates while keeping their extension-local AGENT.md as the effective authored definition.
+CompozyOS agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. User-authored global agents live under $COMPOZY_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.compozy/agents/<name>/AGENT.md. Extension-provided agents participate as global candidates while keeping their extension-local AGENT.md as the effective authored definition.
 
 Runtime configuration starts from $COMPOZY_HOME/config.toml, then workspace configuration can overlay it with <workspace>/.compozy/config.toml. Agent-local skills and MCP sidecars are resolved after the effective agent definition is chosen.
 
-Workspace definitions shadow same-name global definitions; Compozy never merges them. Structured reads expose `origin`, `workspace_id`, `skills`, and `definition_digest`, so use the daemon result instead of guessing precedence from paths.
+Workspace definitions shadow same-name global definitions; CompozyOS never merges them. Structured reads expose `origin`, `workspace_id`, `skills`, and `definition_digest`, so use the daemon result instead of guessing precedence from paths.
 
 ## Minimal AGENT.md
 
@@ -31,7 +31,7 @@ Workspace definitions shadow same-name global definitions; Compozy never merges 
     ---
     You are a reliable software engineering agent.
 
-The prompt body is required. Compozy rejects an agent definition with no prompt.
+The prompt body is required. CompozyOS rejects an agent definition with no prompt.
 
 ## Fields
 
@@ -59,7 +59,7 @@ be limited to that explicit runtime surface.
 
 ## Managed Bundled Agent
 
-Compozy ensures one managed agent definition exists on first boot and during `compozy install`:
+CompozyOS ensures one managed agent definition exists on first boot and during `compozy install`:
 
 - `general` — the default public general-purpose agent (`defaults.agent`). It is the agent operators see in public agent lists and the workspace sidebar unless a workspace-local `general` overrides it.
 
@@ -67,7 +67,7 @@ It is recreated only when missing; operator edits are preserved.
 
 ## Reserved Background-Role Identities
 
-`coordinator` and `dreaming-curator` are virtual Compozy-owned identities, not managed or authored
+`coordinator` and `dreaming-curator` are virtual CompozyOS-owned identities, not managed or authored
 agent definitions. They resolve for the coordinator, dream, and checkpoint-summary roles without an
 `AGENT.md`, use embedded fixed prompts, and stay absent from public fleet/catalog reads.
 
@@ -85,7 +85,7 @@ or `compozy roles show <role>` before diagnosing provider or model behavior.
 
 Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kiro, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers.
 
-Agent `model` and `reasoning_effort` values are applied through active ACP `configOptions` before the first prompt. Compozy applies model first, replaces the option snapshot from that response, then applies effort. Empty effort sends no RPC; explicit `none` does when advertised. Exact model IDs are required: unavailable models fail with `model_unavailable`; missing or unsupported reasoning fails with `reasoning_option_missing` or `reasoning_effort_unsupported`. Compozy never aliases an unknown model or falls back to the provider default.
+Agent `model` and `reasoning_effort` values are applied through active ACP `configOptions` before the first prompt. CompozyOS applies model first, replaces the option snapshot from that response, then applies effort. Empty effort sends no RPC; explicit `none` does when advertised. Exact model IDs are required: unavailable models fail with `model_unavailable`; missing or unsupported reasoning fails with `reasoning_option_missing` or `reasoning_effort_unsupported`. CompozyOS never aliases an unknown model or falls back to the provider default.
 
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
 
@@ -122,9 +122,9 @@ The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:
 3. Keep frontmatter small and put behavior in the Markdown body.
 4. Add only the toolsets and MCP servers the agent actually needs.
 5. Reconcile desired config with runtime truth after config edits, using `compozy config reload -o json` when the daemon is running.
-6. Validate with Compozy CLI/API rather than guessing from file shape.
+6. Validate with CompozyOS CLI/API rather than guessing from file shape.
 
-If Compozy rejects the agent, inspect missing name, invalid permissions, empty prompt body, malformed mcp_servers, or a directory/name mismatch first.
+If CompozyOS rejects the agent, inspect missing name, invalid permissions, empty prompt body, malformed mcp_servers, or a directory/name mismatch first.
 
 ## Provider Aliases And Settings Apply
 

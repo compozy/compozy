@@ -1,9 +1,9 @@
 ---
 title: Workspace Config Overlays
-description: How workspace config.toml and mcp.json layer over global Compozy configuration without making project copies brittle.
+description: How workspace config.toml and mcp.json layer over global CompozyOS configuration without making project copies brittle.
 ---
 
-Workspace config lets one project change runtime behavior without changing every Compozy session on the
+Workspace config lets one project change runtime behavior without changing every CompozyOS session on the
 machine. The loader starts from built-in defaults, applies global config, then applies the resolved
 workspace root overlay.
 
@@ -210,7 +210,7 @@ Effective result for the workspace:
 
 ## `.env` And `COMPOZY_HOME`
 
-If a workspace root contains `.env`, Compozy loads it before resolving the Compozy home layout for that
+If a workspace root contains `.env`, CompozyOS loads it before resolving the CompozyOS home layout for that
 config load. That means a workspace can set `COMPOZY_HOME` for sessions that resolve that workspace:
 
 ```dotenv

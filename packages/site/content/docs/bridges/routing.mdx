@@ -1,13 +1,13 @@
 ---
 title: Bridge Routing
-description: How bridge routing policies map platform messages to Compozy sessions and delivery targets.
+description: How bridge routing policies map platform messages to CompozyOS sessions and delivery targets.
 ---
 
-Bridge routing is the boundary between platform identity and Compozy session identity. An adapter sends
-Compozy a normalized inbound envelope with platform dimensions such as peer, group, and thread. Compozy then
+Bridge routing is the boundary between platform identity and CompozyOS session identity. An adapter sends
+CompozyOS a normalized inbound envelope with platform dimensions such as peer, group, and thread. CompozyOS then
 uses the bridge instance routing policy to decide which dimensions belong to the canonical route key.
 
-The result is a durable bridge route: one platform conversation identity mapped to one Compozy session.
+The result is a durable bridge route: one platform conversation identity mapped to one CompozyOS session.
 See [Bridge conversations](./conversations) for the conceptual model behind platform conversations,
 routes, and session history. This page defines the routing and delivery contracts.
 
@@ -30,7 +30,7 @@ Every bridge instance carries this policy:
 | `include_group`  | Include the platform group identity in the route key.  | Shared containers such as Slack channels, Discord channels, Telegram groups, or Telegram supergroups. |
 
 `include_thread` cannot be the only enabled dimension. A thread must be anchored by either a peer or
-a group, otherwise Compozy rejects the instance configuration with `bridges: routing policy cannot
+a group, otherwise CompozyOS rejects the instance configuration with `bridges: routing policy cannot
 include thread without peer or group`.
 
 Every enabled routing dimension is required on inbound events. That means one bridge instance usually
@@ -40,7 +40,7 @@ traffic, create separate bridge instances with different policies.
 
 ## Route key construction
 
-When a provider calls `bridges/messages/ingest`, Compozy builds a key from:
+When a provider calls `bridges/messages/ingest`, CompozyOS builds a key from:
 
 - `scope`
 - `workspace_id`
@@ -50,7 +50,7 @@ When a provider calls `bridges/messages/ingest`, Compozy builds a key from:
 - `group_id`, if `include_group` is true
 
 The key is serialized in a stable JSON shape and hashed with SHA-256. The hash is stored with the
-route and is what lets Compozy reuse the same session for the next message in the same routed
+route and is what lets CompozyOS reuse the same session for the next message in the same routed
 conversation.
 
 | Policy           | Message dimensions                     | Session behavior                            |
@@ -90,12 +90,12 @@ workspace default agent, and route separation comes from these dimensions.
 
 ## Session resolution
 
-After the route key is built, Compozy follows one of three paths:
+After the route key is built, CompozyOS follows one of three paths:
 
-1. If an active route already exists, Compozy submits the inbound content to that route's session.
-2. If the route exists but the session is missing or inactive, Compozy creates a replacement session and
+1. If an active route already exists, CompozyOS submits the inbound content to that route's session.
+2. If the route exists but the session is missing or inactive, CompozyOS creates a replacement session and
    updates the route.
-3. If no route exists, Compozy creates a new workspace session, stores the route, and submits the inbound
+3. If no route exists, CompozyOS creates a new workspace session, stores the route, and submits the inbound
    content.
 
 An active route keeps reusing its session. A missing or inactive session does not make the route
@@ -113,13 +113,13 @@ compozy workspace add /Users/you/src/support-bot \
 ```
 
 The inbound session path requires a workspace ID on the bridge instance. A global bridge instance can
-exist, but it cannot currently create a new Compozy session from inbound messages because there is no
+exist, but it cannot currently create a new CompozyOS session from inbound messages because there is no
 workspace to resolve.
 
 ### When the routed session is busy
 
 Bridge ingress makes up to three local submission attempts when an active routed session reports that
-a prompt is already in progress. Between attempts, Compozy watches that session for an availability
+a prompt is already in progress. Between attempts, CompozyOS watches that session for an availability
 window of about five seconds. If the session remains busy, the Host returns the prompt-in-progress
 error to the adapter.
 
@@ -131,12 +131,12 @@ The callback result is adapter-specific. A synchronous adapter can expose the Ho
 platform. Discord interactions instead return a deferred acknowledgement before asynchronous Host
 ingestion. An adapter with positive inbound batching acknowledges after placing the event in an
 in-memory batch; a later flush failure cannot reach the platform, and the pending batch is not durable
-across adapter restarts. Compozy has no shared durable queue or automatic readmission path behind either
+across adapter restarts. CompozyOS has no shared durable queue or automatic readmission path behind either
 early acknowledgement.
 
 ## Inbound envelope
 
-The provider sends Compozy the normalized envelope, not the raw platform webhook payload.
+The provider sends CompozyOS the normalized envelope, not the raw platform webhook payload.
 
 ```json
 {
@@ -176,7 +176,7 @@ conversation-scoped caches. An embedded parent snapshot takes precedence when th
 one. A cache miss leaves the optional reply fields empty; ingest never performs an on-demand provider
 fetch.
 
-Compozy renders the envelope into a prompt that includes the event family, platform message ID, sender,
+CompozyOS renders the envelope into a prompt that includes the event family, platform message ID, sender,
 peer, thread, group, body text, and attachment list. Edits and quoted reply context use distinct
 blocks so the current replacement text cannot be mistaken for historical content. That prompt is
 persisted in the session event store before it is handed to the agent.
@@ -186,7 +186,7 @@ persisted in the session event store before it is handed to the agent.
 Providers must send an `idempotency_key`. The daemon writes its durable deduplication record only
 after the inbound prompt has been submitted successfully. The record remains active for 24 hours
 after the later of `received_at` and daemon time. If the adapter submits the same event during that
-window and the route still exists, Compozy suppresses duplicate prompt submission and returns the
+window and the route still exists, CompozyOS suppresses duplicate prompt submission and returns the
 existing session and routing key.
 
 Adapters also have a separate, in-process deduplication cache. Its shared default TTL is five minutes,
@@ -205,7 +205,7 @@ proof of durable prompt admission.
 Inbound prompts register a delivery target with `mode: "reply"` so response events go back to the
 platform conversation that produced the prompt.
 
-For explicit outbound delivery checks, Compozy can also resolve a target from bridge defaults plus
+For explicit outbound delivery checks, CompozyOS can also resolve a target from bridge defaults plus
 request overrides:
 
 ```json
@@ -249,7 +249,7 @@ The bridge target directory lets operators resolve bridge targets by stable prov
 the names adapters report. Resolution is read-only; it never sends a message.
 
 Adapters can report target snapshots from the platform. When an adapter does not implement native
-target enumeration, Compozy falls back to the operator-declared delivery defaults for that bridge
+target enumeration, CompozyOS falls back to the operator-declared delivery defaults for that bridge
 instance. The daemon owns validation, persistence, and freshness either way. Rows are keyed by
 canonical provider route, refresh on bridge connect and periodically while the adapter is connected,
 and remain in the directory when a later snapshot omits them so operators can distinguish stale cache
@@ -267,7 +267,7 @@ The resolver checks in this order:
 4. Prefix match.
 
 Ambiguous matches return `target_ambiguous` with candidate targets. Unknown names return
-`target_unknown`. Compozy does not pick a winner for an ambiguous friendly name.
+`target_unknown`. CompozyOS does not pick a winner for an ambiguous friendly name.
 
 List the current directory and resolve names from the CLI:
 
@@ -285,7 +285,7 @@ The API surfaces are:
 
 ## Delivery guarantees
 
-Compozy preserves order per route. The delivery broker runs workers by route, projects session events
+CompozyOS preserves order per route. The delivery broker runs workers by route, projects session events
 into delivery events, and asks the adapter to acknowledge each delivery request.
 
 The event types are:
@@ -311,11 +311,11 @@ or recover the required remote message identity. The broker closes that delivery
 without a resume or replay, and it never fabricates a remote message ID. This avoids repeating a
 mutation that may already be visible at the provider.
 
-When this outcome belongs only to a progress update, Compozy drops that indeterminate progress event under
+When this outcome belongs only to a progress update, CompozyOS drops that indeterminate progress event under
 `progress_delivery_indeterminate`. It does not close the response's text delivery, so a later final
 text event can still continue through the normal delivery path.
 
-Compozy keeps a durable checkpoint ledger for in-flight response delivery. It records route ownership,
+CompozyOS keeps a durable checkpoint ledger for in-flight response delivery. It records route ownership,
 sent and acknowledged sequence numbers, remote-message identity, and terminal transitions. Before a
 durable `start`, `resume`, `final`, `error`, or `delete` mutation reaches the provider, the broker
 writes its sequence as sent. A successful provider acknowledgement advances the acknowledged
@@ -324,13 +324,13 @@ leaving the acknowledged sequence unchanged. Streamed delta text and tool-progre
 stored in this ledger. Rows and durable metrics carry direct scope and workspace ownership, so startup
 reconciliation never lists or handles another workspace's delivery.
 
-At daemon startup, Compozy reconciles unfinished rows before the broker admits new registrations or
+At daemon startup, CompozyOS reconciles unfinished rows before the broker admits new registrations or
 inbound prompt side effects. A row whose sent sequence is ahead of its acknowledged sequence may have
-committed remotely before the daemon stopped. Compozy terminalizes that row locally as indeterminate and
+committed remotely before the daemon stopped. CompozyOS terminalizes that row locally as indeterminate and
 does not call the provider again. When no unmatched send intent exists, the checkpoint-only ledger
 still has no response text to reconstruct, so reconciliation first writes a new intent and then
 fails open as a visible terminal `error` post with the standard session-stopped message. When a live
-session stops normally, Compozy uses the same write-ahead rule for terminal `error` delivery before the
+session stops normally, CompozyOS uses the same write-ahead rule for terminal `error` delivery before the
 bridge notifier finishes the stop path.
 
 ## Error handling
@@ -341,7 +341,7 @@ bridge notifier finishes the stop path.
 | Status `starting`, `auth_required`, or `error`                           | Ingest is rejected until the provider reports a usable state.                                                                                                                                     |
 | Status `ready` or `degraded`                                             | Ingest is accepted. Degradation metadata remains visible in health output.                                                                                                                        |
 | Secret binding is missing, invalid, or points to an empty env var        | The provider reports degraded, auth-required, or error state depending on the adapter classification.                                                                                             |
-| Webhook signature or token validation fails                              | The adapter rejects the platform request before calling Compozy ingest.                                                                                                                           |
+| Webhook signature or token validation fails                              | The adapter rejects the platform request before calling CompozyOS ingest.                                                                                                                         |
 | Provider config has duplicate webhook paths for the same adapter process | The adapter marks the affected instance configuration invalid.                                                                                                                                    |
 | Routed session remains busy                                              | Host ingest returns prompt-in-progress after bounded local attempts. The daemon creates no queue or durable dedup record; an adapter-local mark may already suppress an immediate platform retry. |
 | Pre-commit delivery transport or adapter call fails                      | The broker records the failure and can retry with a resume snapshot.                                                                                                                              |

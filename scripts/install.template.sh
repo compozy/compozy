@@ -20,7 +20,7 @@ fi
 
 usage() {
   cat <<'USAGE'
-Compozy installer
+CompozyOS installer
 
 Usage:
   curl -fsSL https://compozy.com/install.sh | sh
@@ -150,7 +150,7 @@ case "$(uname -s)" in
     OS="darwin"
     ;;
   *)
-    fail "unsupported operating system: $(uname -s). Compozy installer supports macOS and Linux."
+    fail "unsupported operating system: $(uname -s). CompozyOS installer supports macOS and Linux."
     ;;
 esac
 
@@ -162,7 +162,7 @@ case "$(uname -m)" in
     ARCH="arm64"
     ;;
   *)
-    fail "unsupported architecture: $(uname -m). Compozy installer supports x86_64 and arm64."
+    fail "unsupported architecture: $(uname -m). CompozyOS installer supports x86_64 and arm64."
     ;;
 esac
 
@@ -205,7 +205,7 @@ fi
 
 TARGET="${INSTALL_DIR}/compozy"
 
-log "Compozy installer"
+log "CompozyOS installer"
 log "  release: ${RELEASE_REPO} ${VERSION}"
 log "  platform: ${OS}/${ARCH}"
 log "  archive: ${ARCHIVE_URL}"

@@ -28,7 +28,7 @@ type ExtensionContext struct {
 	Logf      func(format string, args ...any)
 }
 
-// ExtensionHandler handles one custom Compozy -> extension service request.
+// ExtensionHandler handles one custom CompozyOS -> extension service request.
 type ExtensionHandler func(context.Context, ExtensionContext, json.RawMessage) (any, error)
 
 type registeredTool struct {
@@ -37,7 +37,7 @@ type registeredTool struct {
 	sensitiveInputFields []string
 }
 
-// Extension is a subprocess-hosted Compozy extension runtime.
+// Extension is a subprocess-hosted CompozyOS extension runtime.
 type Extension struct {
 	definition ExtensionDefinition
 	transport  Transport
@@ -119,7 +119,7 @@ func NewExtension(definition ExtensionDefinition, options ...Option) *Extension 
 	return extension
 }
 
-// Handle registers one custom Compozy -> extension service method.
+// Handle registers one custom CompozyOS -> extension service method.
 func (e *Extension) Handle(method string, handler ExtensionHandler) error {
 	if e == nil {
 		return NewInternalError("extension is required")

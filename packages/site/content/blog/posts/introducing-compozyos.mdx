@@ -1,6 +1,6 @@
 ---
 title: "Introducing CompozyOS"
-description: "Compozy v0.3 brings sessions, work, memory, permissions, automation, coordination, and an OS shell into one extensible local-first runtime."
+description: "CompozyOS v0.3 brings sessions, work, memory, permissions, automation, coordination, and an OS shell into one extensible local-first runtime."
 date: 2026-07-27
 category: runtime
 tags:
@@ -25,19 +25,19 @@ featured: true
 > the [installation guide](/docs/getting-started/installation) and
 > [changelog](/changelog).
 
-Compozy v0.3 is the point where the product becomes CompozyOS: one system for running agent work,
+CompozyOS v0.3 is the point where the product becomes CompozyOS: one system for running agent work,
 keeping its state, governing what it can do, and connecting it to the people and agents that move it
 forward.
 
 ## The only true OS for AI agents
 
 A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions,
-connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one
+connects agents to each other — and lets you build on it. That's the test, and CompozyOS is the only one
 built to pass it.
 
 The claim is about integration. A task can start a durable session. A loop can coordinate the work.
 Permissions stay attached to execution. Memory stays scoped to the right workspace. The OS shell,
-CLI, HTTP/SSE, Unix domain socket, and agent tools inspect the same daemon-owned state. Compozy
+CLI, HTTP/SSE, Unix domain socket, and agent tools inspect the same daemon-owned state. CompozyOS
 Network lets sessions become peers inside that system instead of adding a separate coordination
 product beside it.
 
@@ -47,7 +47,7 @@ That connection is the release. The shell is how people see it; the runtime is w
 
 The v0.3 line replaces the old product boundary instead of wrapping it in compatibility layers.
 
-- The product, binary, package, environment, storage, API, and native-tool namespaces are Compozy.
+- The product, binary, package, environment, storage, API, and native-tool namespaces are CompozyOS.
 - Sessions, tasks, loops, memory, permissions, automation, hooks, extensions, bridges, tools, and
   Compozy Network operate through one daemon.
 - The `review-and-fix` loop is agent-authored. A reviewer produces structured issues, fixer agents
@@ -65,12 +65,12 @@ surface, and explains the clean-state transition.
 
 ## Built to be built on
 
-An operating system is useful because other things can become part of it. Compozy exposes that
+An operating system is useful because other things can become part of it. CompozyOS exposes that
 boundary through extensions, typed hooks, skills, capabilities, bridge adapters, SDK contracts, MCP,
 native tools, and daemon-owned registries.
 
 The same rule applies to management. A feature is incomplete when it only works through a private Go
-call or a human-only screen. Compozy capabilities expose structured CLI output, HTTP or UDS routes,
+call or a human-only screen. CompozyOS capabilities expose structured CLI output, HTTP or UDS routes,
 and agent-callable tools where the runtime contract permits them. Agents don't just run on the OS.
 They can run it within the same permission ceiling people set.
 
@@ -80,7 +80,7 @@ other extensions use.
 
 ## Durable work, not terminal lifetime
 
-Agent work should not disappear when a terminal tab closes. The Compozy daemon owns sessions and
+Agent work should not disappear when a terminal tab closes. The CompozyOS daemon owns sessions and
 their event history in local SQLite state. Workspaces keep project context scoped. Tasks and loops
 make longer work visible and recoverable. Memory remains file-backed and inspectable instead of
 living only inside a model conversation.

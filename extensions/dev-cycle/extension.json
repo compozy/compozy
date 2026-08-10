@@ -17,8 +17,8 @@
         "agents": ["agents"],
         "tools": {
             "import_tasks": {
-                "display_title": "Import Compozy task files",
-                "description": "Parse a Compozy task manifest and task markdown files into ordered pending task payloads.",
+                "display_title": "Import CompozyOS task files",
+                "description": "Parse a CompozyOS task manifest and task markdown files into ordered pending task payloads.",
                 "handler": "import_tasks",
                 "risk": "read",
                 "read_only": true,

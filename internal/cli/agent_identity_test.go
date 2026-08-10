@@ -221,7 +221,7 @@ func TestAgentCommandErrorRendering(t *testing.T) {
 		for _, want := range []string{
 			"error: Agent identity error",
 			"COMPOZY_SESSION_ID is required for agent commands",
-			"try: run this command from a Compozy-managed agent session",
+			"try: run this command from a CompozyOS-managed agent session",
 		} {
 			if !strings.Contains(stderr, want) {
 				t.Fatalf("executeRootCommandWithExit() stderr = %q, want %q", stderr, want)

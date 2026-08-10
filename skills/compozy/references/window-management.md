@@ -10,7 +10,7 @@
 - Raw layout recovery
 - Configuration and hooks
 
-Compozy manages persistent virtual desktops, tiled groups, tab stacks, floating windows, and layout
+CompozyOS manages persistent virtual desktops, tiled groups, tab stacks, floating windows, and layout
 history as one daemon-authoritative workspace topology. Never edit internal client-state keys or
 invent window fractions. Use semantic desktop, window, and layout operations; the daemon validates,
 normalizes, and commits the complete topology atomically.
@@ -311,7 +311,7 @@ atomic replacement. There is no raw key-value fallback.
 A tiled return anchor in an exported document carries `return_anchor.source_group`, the daemon's
 validated deep capture of its source group. For Zoom, an unchanged live source residue lets unzoom
 restore that exact group identity, node order, weights, placement, and active stack member. If the
-source changed while the window was zoomed, Compozy keeps those edits and uses the structural anchor
+source changed while the window was zoomed, CompozyOS keeps those edits and uses the structural anchor
 fallback. Treat `source_group` as daemon-owned recovery state: preserve it during raw document round
 trips, and use `compozy window zoom` or `compozy__window_zoom` instead of fabricating or editing it.
 

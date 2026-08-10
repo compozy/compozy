@@ -31,7 +31,7 @@ runtime_root = "~"
 The local backend runs through the host process. It is still a sandbox profile so session metadata,
 workspace resolution, hooks, and extension Host APIs all use one vocabulary.
 
-Use a local profile when you want Compozy's session metadata and hooks, but the host workspace already
+Use a local profile when you want CompozyOS's session metadata and hooks, but the host workspace already
 has the right dependencies and isolation boundary.
 
 ## Daytona profile
@@ -62,7 +62,7 @@ auto_stop = "30m"
 auto_archive = "24h"
 ```
 
-When both `snapshot` and `image` are set, Compozy resolves startup from `snapshot` and preserves `image`
+When both `snapshot` and `image` are set, CompozyOS resolves startup from `snapshot` and preserves `image`
 as profile metadata.
 
 ## Resolution order
@@ -79,7 +79,7 @@ as profile metadata.
   caption="Sandbox resolution starts from explicit session or spawn input, then falls back through workspace and default profile settings."
 />
 
-Compozy resolves the workspace sandbox first, then `[defaults].sandbox`, then the local backend fallback.
+CompozyOS resolves the workspace sandbox first, then `[defaults].sandbox`, then the local backend fallback.
 The selected profile is copied into the session metadata so later status, events, hooks, and Host API
 calls describe the environment that actually launched the agent.
 
@@ -90,7 +90,7 @@ compozy workspace add /Users/you/project --name project --sandbox daytona-dev
 compozy workspace edit project --sandbox local
 ```
 
-If no workspace sandbox is set, Compozy uses `[defaults].sandbox`. If that is empty, the local backend is
+If no workspace sandbox is set, CompozyOS uses `[defaults].sandbox`. If that is empty, the local backend is
 used.
 
 ## Safe spawn grants

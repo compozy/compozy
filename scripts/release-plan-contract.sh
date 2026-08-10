@@ -80,7 +80,7 @@ repo_dir="${contract_root}/repo"
 git init --bare "$remote_dir" >/dev/null
 git init --initial-branch=main "$repo_dir" >/dev/null
 cd "$repo_dir"
-git config user.name "Compozy Release Contract"
+git config user.name "CompozyOS Release Contract"
 git config user.email "release-contract@compozy.com"
 git remote add origin "$remote_dir"
 

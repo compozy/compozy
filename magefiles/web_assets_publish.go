@@ -185,7 +185,7 @@ func publishWebAssetsModule(
 		); err != nil {
 			return "", fmt.Errorf("stage web assets module update: %w", err)
 		}
-		message := fmt.Sprintf("build: sync Compozy web assets %s", shortCommit(metadata.SourceCommit))
+		message := fmt.Sprintf("build: sync CompozyOS web assets %s", shortCommit(metadata.SourceCommit))
 		if err := runCommandInDir(ctx, assetsRepoDir, "git", "commit", "-m", message); err != nil {
 			return "", fmt.Errorf("commit web assets module update: %w", err)
 		}
@@ -207,7 +207,7 @@ func publishWebAssetsModule(
 		"-a",
 		nextTag,
 		"-m",
-		"Compozy web assets "+metadata.SourceCommit,
+		"CompozyOS web assets "+metadata.SourceCommit,
 	); err != nil {
 		return "", fmt.Errorf("tag web assets module %s: %w", nextTag, err)
 	}

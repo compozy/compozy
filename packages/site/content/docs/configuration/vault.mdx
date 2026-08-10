@@ -1,9 +1,9 @@
 ---
 title: Vault
-description: Store Compozy-managed encrypted secrets with redacted CLI, HTTP, UDS, web, and session-scoped metadata surfaces.
+description: Store CompozyOS-managed encrypted secrets with redacted CLI, HTTP, UDS, web, and session-scoped metadata surfaces.
 ---
 
-The Vault is Compozy's encrypted store for daemon-managed secret material. Use it when Compozy should own
+The Vault is CompozyOS's encrypted store for daemon-managed secret material. Use it when CompozyOS should own
 the value lifecycle instead of reading a value from the daemon process environment.
 
 <OperatorNote>
@@ -13,12 +13,12 @@ the value lifecycle instead of reading a value from the daemon process environme
 
 ## Ref Model
 
-Compozy accepts two secret ref families:
+CompozyOS accepts two secret ref families:
 
-| Ref family                 | Owner                | Runtime behavior                                                                                                              |
-| -------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `env:NAME`                 | Operator environment | Compozy reads `NAME` from the daemon process environment when a runtime boundary needs it.                                    |
-| `vault:<namespace>/<path>` | Compozy Vault        | Compozy stores the secret encrypted, resolves it only at internal launch/materialization boundaries, and redacts diagnostics. |
+| Ref family                 | Owner                | Runtime behavior                                                                                                                |
+| -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `env:NAME`                 | Operator environment | CompozyOS reads `NAME` from the daemon process environment when a runtime boundary needs it.                                    |
+| `vault:<namespace>/<path>` | CompozyOS Vault      | CompozyOS stores the secret encrypted, resolves it only at internal launch/materialization boundaries, and redacts diagnostics. |
 
 Supported Vault namespaces are:
 
@@ -33,12 +33,12 @@ Supported Vault namespaces are:
 | `sandbox`    | `vault:sandbox/daytona-dev/api-token`                                                      |
 | `sessions`   | `vault:sessions/sess_123/github-token`                                                     |
 
-Session Vault entries are normal Vault records under the `sessions` namespace. Compozy filters them by
+Session Vault entries are normal Vault records under the `sessions` namespace. CompozyOS filters them by
 the deterministic prefix `vault:sessions/<session_id>/`; there is no separate session-secret table.
 
 ## Public Surfaces
 
-Vault is agent-manageable through the same daemon surfaces as the rest of Compozy:
+Vault is agent-manageable through the same daemon surfaces as the rest of CompozyOS:
 
 | Surface           | Operations                                             | Notes                                                                                                             |
 | ----------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
@@ -78,7 +78,7 @@ namespace.
 | Global        | `vault:mcp/global/<server>/env/<KEY>`                 |
 | Workspace     | `vault:mcp/ws/<workspace-segment>/<server>/env/<KEY>` |
 
-OAuth client secrets use the same owner prefix with `oauth/client-secret`. Compozy encodes workspace
+OAuth client secrets use the same owner prefix with `oauth/client-secret`. CompozyOS encodes workspace
 IDs that do not fit the Vault ref grammar, so two workspaces installing the same server do not
 share credential identity.
 
@@ -128,7 +128,7 @@ compozy vault delete vault:sessions/sess_123/github-token
 `compozy vault put` intentionally does not have a `--value` flag. Passing secret values through argv can
 leak them through shell history or process inspection.
 
-When `--kind` is omitted during rotation, Compozy preserves the existing kind metadata for that ref.
+When `--kind` is omitted during rotation, CompozyOS preserves the existing kind metadata for that ref.
 
 ## API Usage
 
@@ -155,7 +155,7 @@ The daemon validates the ref grammar, namespace, and non-empty `secret_value`. A
 write it returns the persisted metadata row. The submitted value is registered with dynamic
 redaction before storage, then unregistered when the same ref is deleted or replaced.
 
-HTTP Vault routes are intended for the local web UI and local integrations, so Compozy applies the
+HTTP Vault routes are intended for the local web UI and local integrations, so CompozyOS applies the
 privileged loopback guard to metadata reads and mutations. Agents and local tools can use the UDS
 surface for the same route shapes without exposing the HTTP listener.
 
@@ -176,7 +176,7 @@ Session pages include a Vault tab in the inspector. It shows only entries below
 
 ## Operational Notes
 
-`COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, Compozy creates
+`COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, CompozyOS creates
 `$COMPOZY_HOME/vault.key` with `0600` permissions the first time the Vault needs to encrypt or decrypt a
 secret.
 

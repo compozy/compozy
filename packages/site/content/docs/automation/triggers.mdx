@@ -1,14 +1,14 @@
 ---
 title: Triggers
-description: Configure Compozy automation triggers that react to runtime events, filters, and prompt templates.
+description: Configure CompozyOS automation triggers that react to runtime events, filters, and prompt templates.
 ---
 
 Triggers start an Agent or Loop in response to events. They are useful when the next run should
-depend on something that happened inside Compozy, such as a session stopping, a memory consolidation
+depend on something that happened inside CompozyOS, such as a session stopping, a memory consolidation
 completing, or a webhook delivery arriving.
 
 Triggers do not bind to jobs by ID. A trigger is its own automation definition with an event,
-filters, target, retry policy, and fire limit. When a matching event arrives, Compozy uses the same
+filters, target, retry policy, and fire limit. When a matching event arrives, CompozyOS uses the same
 dispatcher and run history model that scheduled jobs use.
 
 Triggers can come from TOML config, package-provided definitions, or the dynamic store. Config and
@@ -101,7 +101,7 @@ native tool, HTTP, or UDS when an existing trigger must switch between Agent and
 
 ## Event types
 
-Compozy stores trigger events as strings. The current runtime emits these built-in event names:
+CompozyOS stores trigger events as strings. The current runtime emits these built-in event names:
 
 | Event                        | Source                       | Typical use                                                                |
 | ---------------------------- | ---------------------------- | -------------------------------------------------------------------------- |
@@ -112,7 +112,7 @@ Compozy stores trigger events as strings. The current runtime emits these built-
 | `webhook`                    | Signed HTTP webhook ingress  | React to CI, deploy, incident, or repository events from external systems. |
 | `ext.*`                      | Extension trigger API        | Let an extension publish its own automation event family.                  |
 
-The event name must be non-empty. Compozy does not restrict custom extension event names beyond the
+The event name must be non-empty. CompozyOS does not restrict custom extension event names beyond the
 extension ingress contract.
 
 ## Matching and filters
@@ -241,7 +241,7 @@ runs:
 
 - job or trigger pre-fire hooks can rewrite the prompt
 - pre-fire hooks can cancel the run, which records the run as `canceled`
-- run-failed hooks receive retry metadata, including whether Compozy will retry
+- run-failed hooks receive retry metadata, including whether CompozyOS will retry
 
 Hooks are part of the same runtime flow, so cancellation and prompt changes are visible in run
 history.

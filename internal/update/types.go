@@ -65,7 +65,7 @@ const (
 	StatusFailed      Status = "failed"
 )
 
-// InstallMethod reports how the running Compozy binary was installed.
+// InstallMethod reports how the running CompozyOS binary was installed.
 type InstallMethod string
 
 const (
@@ -165,7 +165,7 @@ type installInfo struct {
 	Managed bool
 }
 
-// Manager owns the Compozy self-update flow for the current runtime.
+// Manager owns the CompozyOS self-update flow for the current runtime.
 type Manager struct {
 	homePaths      compozyconfig.HomePaths
 	currentVersion string

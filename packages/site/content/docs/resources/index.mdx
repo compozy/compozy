@@ -1,10 +1,10 @@
 ---
 title: Desired-State Resources
-description: How Compozy stores extensible runtime resources, validates mutations, and reconciles projected runtime state.
+description: How CompozyOS stores extensible runtime resources, validates mutations, and reconciles projected runtime state.
 ---
 
-Resources are Compozy's desired-state layer for runtime objects that must be extensible and
-agent-manageable. Instead of letting every subsystem invent its own private storage shape, Compozy writes
+Resources are CompozyOS's desired-state layer for runtime objects that must be extensible and
+agent-manageable. Instead of letting every subsystem invent its own private storage shape, CompozyOS writes
 canonical resource records, validates their specs through registered codecs, and reconciles them into
 runtime state.
 
@@ -85,9 +85,9 @@ Content-Type: application/json
 
 What happens:
 
-1. Compozy validates the path kind and id.
-2. Compozy validates the scope binding.
-3. If a codec is registered for that kind, Compozy canonicalizes the `spec`.
+1. CompozyOS validates the path kind and id.
+2. CompozyOS validates the scope binding.
+3. If a codec is registered for that kind, CompozyOS canonicalizes the `spec`.
 4. The record is written with an owner, source, version, and timestamps.
 5. Reconcile is triggered for that kind.
 

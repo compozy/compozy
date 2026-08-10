@@ -1,7 +1,7 @@
 // Semantic summary of a settled tool run — the collapsed `.tgroup-sum` label
 // ("Ran 2 commands · Edited 3 files"). Port of synara's `toolCallGroup.logic.ts`
 // summarizer onto `SessionTimelineToolPart`: fixed category order, distinct-file
-// counts for Edited/Read, and a 2+ minimum before a run may fold. Compozy's data
+// counts for Edited/Read, and a 2+ minimum before a run may fold. CompozyOS's data
 // layer stays authoritative — categories derive from the registered tool name,
 // file identity from the tool args the renderers already read.
 

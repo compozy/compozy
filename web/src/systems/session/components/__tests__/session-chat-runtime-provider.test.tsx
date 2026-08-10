@@ -1121,7 +1121,7 @@ describe("SessionChatRuntimeProvider", () => {
 
   it("Should preserve the first Goal transport and local cancellation across StrictMode replay", async () => {
     const prompt =
-      '/goal Reply in exactly one sentence: "Compozy keeps agent work local-first and durable."';
+      '/goal Reply in exactly one sentence: "CompozyOS keeps agent work local-first and durable."';
     const promptResponse = createDeferred<Response>();
     const onCancelPrompt = vi.fn();
     const sources: FakeSessionEventSource[] = [];

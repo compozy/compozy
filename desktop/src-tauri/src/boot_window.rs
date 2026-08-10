@@ -146,7 +146,7 @@ fn boot_copy(state: &ShellState) -> (&'static str, Option<&str>, Option<&str>) {
             Some(if *newer {
                 "Update the CompozyOS app."
             } else {
-                "Update the Compozy runtime through its install channel."
+                "Update the CompozyOS runtime through its install channel."
             }),
         ),
         ShellState::ShellError { error } => ("error", Some(error.safe_message.as_str()), None),

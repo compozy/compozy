@@ -319,7 +319,7 @@ func verifyRemoteCompozy(ctx context.Context, executor sshExecutor, target sshTa
 		}
 		return &gatewayClientError{
 			code: sshInstallRequiredCode, statusCode: http.StatusNotFound,
-			message: "Compozy is not installed on the remote host",
+			message: "CompozyOS is not installed on the remote host",
 			cause:   err,
 		}
 	}
@@ -337,7 +337,7 @@ func verifyRemoteCompozy(ctx context.Context, executor sshExecutor, target sshTa
 			code:       sshVersionMismatchCode,
 			statusCode: http.StatusConflict,
 			message: fmt.Sprintf(
-				"remote Compozy version %s is incompatible with local version %s",
+				"remote CompozyOS version %s is incompatible with local version %s",
 				remoteVersion,
 				localVersion,
 			),
@@ -349,12 +349,12 @@ func verifyRemoteCompozy(ctx context.Context, executor sshExecutor, target sshTa
 func parseRemoteVersion(output []byte) (string, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(output, &payload); err != nil {
-		return "", fmt.Errorf("cli: decode remote Compozy version: %w", err)
+		return "", fmt.Errorf("cli: decode remote CompozyOS version: %w", err)
 	}
 	for _, key := range []string{versionKey, versionValue} {
 		if value, ok := payload[key].(string); ok && strings.TrimSpace(value) != "" {
 			return strings.TrimSpace(value), nil
 		}
 	}
-	return "", errors.New("cli: remote Compozy version response is incomplete")
+	return "", errors.New("cli: remote CompozyOS version response is incomplete")
 }

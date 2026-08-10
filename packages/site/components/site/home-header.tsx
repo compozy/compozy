@@ -53,7 +53,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
       <div className="mx-auto flex h-14 w-full max-w-site-layout-width items-center gap-3 lg:gap-5">
         <Link
           href="/"
-          aria-label="Compozy home"
+          aria-label="CompozyOS home"
           className="inline-flex shrink-0 items-center gap-3"
         >
           <Logo variant="logo" decorative className="h-8 w-auto" />
@@ -100,7 +100,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
               href={baseOptions.githubUrl}
               target="_blank"
               rel="noreferrer noopener"
-              aria-label="Compozy on GitHub"
+              aria-label="CompozyOS on GitHub"
               className={cn(
                 buttonVariants({
                   variant: "ghost",

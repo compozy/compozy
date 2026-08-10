@@ -27,7 +27,7 @@ export function selectCurrentReleaseTag(releases: Array<{ version: string }>): s
 }
 
 /**
- * Resolves the latest published Compozy release from the GitHub Releases API
+ * Resolves the latest published CompozyOS release from the GitHub Releases API
  * (cached with the changelog's five-minute revalidation window). Falls back to
  * the committed FALLBACK_RELEASE_TAG when the API is unavailable, so builds
  * stay hermetic and the public install surfaces never break.

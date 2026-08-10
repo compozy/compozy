@@ -1,6 +1,6 @@
 # GitHub Bridge Provider
 
-`extensions/bridges/github` connects one GitHub repository per bridge instance to Compozy. It accepts
+`extensions/bridges/github` connects one GitHub repository per bridge instance to CompozyOS. It accepts
 signed issue-comment and pull-request review-comment webhooks and delivers replies through GitHub
 REST.
 
@@ -15,7 +15,7 @@ REST.
 
 ## Build and install
 
-Released `compozy` artifacts do not include this provider executable. From a trusted Compozy source
+Released `compozy` artifacts do not include this provider executable. From a trusted CompozyOS source
 checkout, run this from the repository root with the daemon running:
 
 ```bash

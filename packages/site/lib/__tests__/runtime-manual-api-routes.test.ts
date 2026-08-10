@@ -149,7 +149,7 @@ function isCoveredByRegisteredRoute(
 }
 
 describe("manual API route references", () => {
-  it("points documented Compozy /api routes at implemented HTTP or UDS handlers", () => {
+  it("points documented CompozyOS /api routes at implemented HTTP or UDS handlers", () => {
     const registeredRoutes = implementedRoutes();
     const violations = listManualDocs(contentRoot).flatMap(doc =>
       extractDocumentedAPIRoutes(doc.content)

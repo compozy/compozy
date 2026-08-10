@@ -26,7 +26,7 @@ const mockedContent = vi.hoisted(() => ({
       slug: "posts/introducing-site-search",
       title: "Introducing Site Search",
       description:
-        "Restore Compozy search from the home shell and the docs shell with one runtime API.",
+        "Restore CompozyOS search from the home shell and the docs shell with one runtime API.",
       excerpt:
         "Search now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
       toc: [
@@ -76,7 +76,7 @@ const mockedContent = vi.hoisted(() => ({
       url: "/docs/api/sessions",
       data: {
         title: "Sessions",
-        description: "Compozy Sessions HTTP endpoints.",
+        description: "CompozyOS Sessions HTTP endpoints.",
         structuredData: { headings: [{ content: "List sessions" }] },
       },
     },
@@ -84,7 +84,7 @@ const mockedContent = vi.hoisted(() => ({
       url: "/docs/sessions",
       data: {
         title: "Sessions",
-        description: "The durable runtime unit Compozy creates, attaches, audits, and governs.",
+        description: "The durable runtime unit CompozyOS creates, attaches, audits, and governs.",
         structuredData: { headings: [{ content: "Browse the session catalog" }] },
       },
     },
@@ -108,7 +108,7 @@ const mockedContent = vi.hoisted(() => ({
       url: "/docs/how-to-use-these-docs",
       data: {
         title: "How to Use These Docs",
-        description: "Choose the right Compozy documentation path for your goal.",
+        description: "Choose the right CompozyOS documentation path for your goal.",
         structuredData: { headings: [{ content: "Choose a path" }] },
       },
     },
@@ -167,7 +167,7 @@ describe("public search index", () => {
           id: "/blog/introducing-site-search",
           title: "Introducing Site Search",
           description:
-            "Restore Compozy search from the home shell and the docs shell with one runtime API.",
+            "Restore CompozyOS search from the home shell and the docs shell with one runtime API.",
           breadcrumbs: ["Blog"],
           tag: "Blog",
           structuredData: {
@@ -179,7 +179,7 @@ describe("public search index", () => {
               {
                 heading: undefined,
                 content:
-                  "Restore Compozy search from the home shell and the docs shell with one runtime API.\n\nSearch now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
+                  "Restore CompozyOS search from the home shell and the docs shell with one runtime API.\n\nSearch now spans runtime docs, protocol docs, blog entries, and changelog receipts.",
               },
               {
                 heading: "why-the-search-broke",
@@ -213,7 +213,7 @@ describe("public search index", () => {
         },
         {
           title: "Sessions",
-          description: "Compozy Sessions HTTP endpoints.",
+          description: "CompozyOS Sessions HTTP endpoints.",
           structuredData: { headings: [{ content: "List sessions" }] },
           id: "/docs/api/sessions",
           url: "/docs/api/sessions",
@@ -231,7 +231,7 @@ describe("public search index", () => {
         },
         {
           title: "How to Use These Docs",
-          description: "Choose the right Compozy documentation path for your goal.",
+          description: "Choose the right CompozyOS documentation path for your goal.",
           structuredData: { headings: [{ content: "Choose a path" }] },
           id: "/docs/how-to-use-these-docs",
           url: "/docs/how-to-use-these-docs",
@@ -258,7 +258,7 @@ describe("public search index", () => {
         },
         {
           title: "Sessions",
-          description: "The durable runtime unit Compozy creates, attaches, audits, and governs.",
+          description: "The durable runtime unit CompozyOS creates, attaches, audits, and governs.",
           structuredData: { headings: [{ content: "Browse the session catalog" }] },
           id: "/docs/sessions",
           url: "/docs/sessions",

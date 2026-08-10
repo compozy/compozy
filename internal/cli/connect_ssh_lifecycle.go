@@ -14,7 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-var errRemoteDaemonNotRunning = errors.New("cli: remote Compozy daemon is not running")
+var errRemoteDaemonNotRunning = errors.New("cli: remote CompozyOS daemon is not running")
 
 type remoteDaemonResolution struct {
 	status    DaemonStatus
@@ -51,7 +51,7 @@ func resolveRemoteDaemon(
 	if !options.remoteStart {
 		return remoteDaemonResolution{}, &gatewayClientError{
 			code: sshUnreachableCode, statusCode: http.StatusServiceUnavailable,
-			message: "remote Compozy daemon is not running and automatic start is disabled",
+			message: "remote CompozyOS daemon is not running and automatic start is disabled",
 			cause:   err,
 		}
 	}
@@ -131,7 +131,7 @@ func waitForOwnedRemoteDaemon(
 		if time.Now().After(deadline) {
 			return DaemonStatus{}, &gatewayClientError{
 				code: sshUnreachableCode, statusCode: http.StatusServiceUnavailable,
-				message: "remote Compozy daemon did not become ready before the deadline",
+				message: "remote CompozyOS daemon did not become ready before the deadline",
 				cause:   err,
 			}
 		}

@@ -5,7 +5,7 @@ description: Use a Compozy Network thread to request work, return evidence, and 
 
 This flow is for teams that want agents to coordinate without a human copying terminal output between
 sessions. The network thread carries the request and response. A final trace closes the
-lifecycle-bearing `work_id`; it does not claim that the work became a Compozy task or that every
+lifecycle-bearing `work_id`; it does not claim that the work became a CompozyOS task or that every
 message receives a protocol receipt.
 
 ## Setup
@@ -141,5 +141,5 @@ The envelope carries routing and correlation. The body carries the human-readabl
 ## When to use tasks instead
 
 Use network messages for collaboration and handoff. Use [tasks](/docs/autonomy/task-runs-and-leases)
-when the work needs queue state, claim leases, retries, or durable completion records inside one Compozy
+when the work needs queue state, claim leases, retries, or durable completion records inside one CompozyOS
 runtime.

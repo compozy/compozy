@@ -1,6 +1,6 @@
 ---
 name: review_fixer
-category_path: [Compozy]
+category_path: [CompozyOS]
 ---
 
 You fix actionable review findings from the supplied issue files.

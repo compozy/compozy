@@ -25,7 +25,7 @@ describe("SiteFooter", () => {
     render(<SiteFooter />);
 
     const footer = screen.getByRole("contentinfo");
-    const homeLink = screen.getByRole("link", { name: "Compozy home" });
+    const homeLink = screen.getByRole("link", { name: "CompozyOS home" });
     const logo = homeLink.querySelector('[data-slot="logo"]');
 
     expect(footer).toBeDefined();
@@ -35,9 +35,9 @@ describe("SiteFooter", () => {
     expect(logo?.getAttribute("data-variant")).toBe("logo");
     expect(logo?.getAttribute("aria-hidden")).toBe("true");
     expect(
-      screen.getByText(`© ${new Date().getFullYear()} ${siteConfig.name} · Built by Compozy.`)
+      screen.getByText(`© ${new Date().getFullYear()} ${siteConfig.name} · Built by CompozyOS.`)
     ).toBeDefined();
-    expect(screen.getByRole("link", { name: "Beta · Compozy on GitHub" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Beta · CompozyOS on GitHub" })).toBeDefined();
   }, 15_000);
 
   it("renders every configured footer column as accessible navigation", () => {
@@ -69,6 +69,6 @@ describe("SiteFooter", () => {
       expect(link.getAttribute("rel")).toContain("noreferrer");
     }
 
-    expect(screen.getByRole("link", { name: "Compozy on GitHub" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "CompozyOS on GitHub" })).toBeDefined();
   });
 });

@@ -11,7 +11,7 @@ describe("site global styles", () => {
     expect(globalCSS).not.toContain("box-shadow: none !important;");
   });
 
-  it("maps Fumadocs semantic tokens to the Compozy signal palette in dark mode", () => {
+  it("maps Fumadocs semantic tokens to the CompozyOS signal palette in dark mode", () => {
     expect(globalCSS).toContain("--color-fd-info: var(--color-info);");
     expect(globalCSS).toContain("--color-fd-warning: var(--color-warning);");
     expect(globalCSS).toContain("--color-fd-error: var(--color-danger);");

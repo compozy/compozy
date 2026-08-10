@@ -187,7 +187,7 @@ function emitFrontmatter() {
     "# by scripts/sync-design-md.mjs.",
     "# Do not edit by hand. Run make codegen to refresh.",
     "spec_version: 1",
-    "name: Compozy",
+    "name: CompozyOS",
     "tokens:",
     "  runtime:",
     yamlMap("colors", namespaceMap(runtimeTheme, "color"), 4),

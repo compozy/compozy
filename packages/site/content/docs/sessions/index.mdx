@@ -1,14 +1,14 @@
 ---
 title: Sessions
-description: The durable runtime unit Compozy creates, attaches, audits, and governs.
+description: The durable runtime unit CompozyOS creates, attaches, audits, and governs.
 ---
 
-A session is the durable logical unit Compozy manages. Creation returns it `active` and unbound:
-it has a workspace, permission policy, event store, and attach record under one stable Compozy
+A session is the durable logical unit CompozyOS manages. Creation returns it `active` and unbound:
+it has a workspace, permission policy, event store, and attach record under one stable CompozyOS
 session ID, but no ACP process. The first prompt binds a provider runtime snapshot and starts ACP.
 
 Live session events are written to `events.db` while the session runs. After the session stops,
-Compozy materializes a read-only forensic JSONL ledger at
+CompozyOS materializes a read-only forensic JSONL ledger at
 `$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl` (or
 `$COMPOZY_HOME/sessions/_unbound/<session_id>/ledger.jsonl` when no workspace is resolved). The ledger
 is content-addressed and idempotent on rerun, never accepted as a memory scope, and never read by
@@ -56,7 +56,7 @@ event must invalidate only keys owned by its `workspace_id`.
 The reading order follows the lifecycle. Start with lifecycle for state names and stop
 classification, move to events when you need the durable record, then use resume attach and
 permissions for the two most common operator questions: "can I re-enter this live session?" and
-"why did Compozy ask before acting?"
+"why did CompozyOS ask before acting?"
 
 ## In this section
 
@@ -65,7 +65,7 @@ permissions for the two most common operator questions: "can I re-enter this liv
     href="/docs/sessions/lifecycle"
     label="Lifecycle"
     title="Create, activate, stop, and classify sessions"
-    description="Use this page for the state machine, stop behavior, timeout boundaries, and what Compozy persists across the session lifetime."
+    description="Use this page for the state machine, stop behavior, timeout boundaries, and what CompozyOS persists across the session lifetime."
     meta="State model"
   />
   <RouteRow

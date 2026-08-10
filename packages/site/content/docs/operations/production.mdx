@@ -1,15 +1,15 @@
 ---
 title: Production checklist
-description: Prepare Compozy for persistent unattended operation with clear pass and fail checks.
+description: Prepare CompozyOS for persistent unattended operation with clear pass and fail checks.
 ---
 
-Use this checklist before running Compozy as a persistent daemon for real work. It is written for local
+Use this checklist before running CompozyOS as a persistent daemon for real work. It is written for local
 or self-managed production-like environments where one service user owns one `COMPOZY_HOME`.
 
 <OperatorNote>
-  Run Compozy under a service manager with `compozy daemon start --foreground`. The default detached
-  command is convenient for interactive use, but foreground mode gives systemd or launchd direct
-  ownership of the daemon process.
+  Run CompozyOS under a service manager with `compozy daemon start --foreground`. The default
+  detached command is convenient for interactive use, but foreground mode gives systemd or launchd
+  direct ownership of the daemon process.
 </OperatorNote>
 
 ## 1. Pin the daemon identity and home
@@ -27,7 +27,7 @@ Example:
 sudo install -d -o compozy -g compozy -m 0750 /var/lib/compozy
 ```
 
-Compozy creates its standard subdirectories with normal directory permissions, and the live UDS socket is
+CompozyOS creates its standard subdirectories with normal directory permissions, and the live UDS socket is
 chmodded to `0600`.
 
 ## 2. Harden configuration
@@ -65,7 +65,7 @@ max_concurrent_agents = 20
 
 | Check         | Pass condition                                                                                                                        |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| HTTP bind     | `[http].host` is `localhost` unless Compozy is intentionally protected by a reverse proxy or host firewall.                           |
+| HTTP bind     | `[http].host` is `localhost` unless CompozyOS is intentionally protected by a reverse proxy or host firewall.                         |
 | UDS path      | `[daemon].socket` is inside a directory owned by the daemon user.                                                                     |
 | Log level     | `[log].level` is `info` or `warn` for unattended operation; use `debug` only for short investigations.                                |
 | Limits        | Agent concurrency limits and host resource expectations match the host capacity.                                                      |
@@ -86,7 +86,7 @@ For concrete service files, see [Daemon Operations](/docs/operations/daemon).
 
 ## 4. Configure log retention
 
-Compozy writes structured logs to `$COMPOZY_HOME/logs/compozy.log`. Detached daemon startup also appends child
+CompozyOS writes structured logs to `$COMPOZY_HOME/logs/compozy.log`. Detached daemon startup also appends child
 stdout and stderr there. The daemon rotates this file directly from the LogSink configured under
 `[log]`; no external `logrotate` rule is required for the default file.
 
@@ -101,7 +101,7 @@ compress_backups = false
 
 | Check        | Pass condition                                                                                      |
 | ------------ | --------------------------------------------------------------------------------------------------- |
-| Retention    | `max_size_mb * (max_backups + 1)` fits the filesystem budget for the Compozy home.                  |
+| Retention    | `max_size_mb * (max_backups + 1)` fits the filesystem budget for the CompozyOS home.                |
 | Access       | Only operators who need runtime logs can read `$COMPOZY_HOME/logs/` and downloaded support bundles. |
 | Error review | Recent `error` lines are reviewed during incident response and before upgrades.                     |
 
@@ -155,16 +155,16 @@ stopped, use SQLite `.backup` instead of copying only the main database files.
 
 ## 7. Reserve host resources
 
-Compozy starts real ACP-compatible agent CLIs as child processes. Size the host for the agent binaries
+CompozyOS starts real ACP-compatible agent CLIs as child processes. Size the host for the agent binaries
 you run, not only the daemon.
 
-| Check            | Pass condition                                                                                  |
-| ---------------- | ----------------------------------------------------------------------------------------------- |
-| Disk             | `COMPOZY_HOME`, logs, and session event databases have room to grow.                            |
-| File descriptors | The service limit is high enough for concurrent sessions, sockets, logs, and SQLite handles.    |
-| Process count    | The service user can run the daemon plus expected agent child processes.                        |
-| PATH             | Provider commands such as `npx`, `codex`, or `gemini` are available to the service environment. |
-| Shutdown         | The service manager gives Compozy time to stop sessions and close databases before killing it.  |
+| Check            | Pass condition                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| Disk             | `COMPOZY_HOME`, logs, and session event databases have room to grow.                             |
+| File descriptors | The service limit is high enough for concurrent sessions, sockets, logs, and SQLite handles.     |
+| Process count    | The service user can run the daemon plus expected agent child processes.                         |
+| PATH             | Provider commands such as `npx`, `codex`, or `gemini` are available to the service environment.  |
+| Shutdown         | The service manager gives CompozyOS time to stop sessions and close databases before killing it. |
 
 For systemd, set resource limits in the service file when needed:
 

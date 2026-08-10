@@ -213,12 +213,12 @@ and/or route to one authored node. Without `expires`, the wait remains parked in
 
 ### Source nodes
 
-| Kind           | Purpose                                      | Key fields                                   |
-| -------------- | -------------------------------------------- | -------------------------------------------- |
-| `input`        | Expose a declared input to the graph         | `input_ref`                                  |
-| `file-import`  | Materialize a finite collection from files   | `pattern`, `parse: json \| text`, `produces` |
-| `watch-source` | Wait for an external signal, then tick       | `watch` (spec)                               |
-| `watch-events` | Wake on an internal Compozy event, then tick | `events` (subscription list)                 |
+| Kind           | Purpose                                        | Key fields                                   |
+| -------------- | ---------------------------------------------- | -------------------------------------------- |
+| `input`        | Expose a declared input to the graph           | `input_ref`                                  |
+| `file-import`  | Materialize a finite collection from files     | `pattern`, `parse: json \| text`, `produces` |
+| `watch-source` | Wait for an external signal, then tick         | `watch` (spec)                               |
+| `watch-events` | Wake on an internal CompozyOS event, then tick | `events` (subscription list)                 |
 
 A definition that contains a `watch-source` node is a **watch Loop** — it defaults to
 `iteration_cap: 0` and holds the `watching` state between ticks.
@@ -226,10 +226,10 @@ See [extending Loops](/docs/loops/extensions#watch-sources).
 
 ### Watch-events source
 
-A `watch-events` node parks the Loop at zero cost and wakes it when an **internal Compozy event**
+A `watch-events` node parks the Loop at zero cost and wakes it when an **internal CompozyOS event**
 commits — a task status transition, a task-run outcome, a loop terminal. It is the event-driven
 sibling of `watch-source`: `watch-source` polls an _external_ signal through an extension, while
-`watch-events` observes Compozy's own durable ledgers. Hook dispatch is only the doorbell; the matched
+`watch-events` observes CompozyOS's own durable ledgers. Hook dispatch is only the doorbell; the matched
 batch is always re-derived from the append-only ledger at wake, so a subscription survives daemon
 downtime and dropped hooks.
 
@@ -393,7 +393,7 @@ start:
 ```
 
 Available kinds: `manual`, `cli`, `http`, `uds`, `native_tool`, `schedule`, `trigger`, `webhook`,
-`network`, `extension`. Hands-free starts (`schedule`, `trigger`, `webhook`) ride Compozy's existing
+`network`, `extension`. Hands-free starts (`schedule`, `trigger`, `webhook`) ride CompozyOS's existing
 [automation](/docs/automation) primitives — a `Trigger` or `Job` targets the Loop with
 typed inputs. A watch-source is a body-node concept, **never** a start binding.
 

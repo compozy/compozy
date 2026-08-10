@@ -26,9 +26,9 @@ import {
 } from "./marketplace-kind-meta";
 
 const TIER_HINTS: Record<ExtensionEntry["tier"], string> = {
-  official: "First-party, shipped from the Compozy repository.",
+  official: "First-party, shipped from the CompozyOS repository.",
   community: "Community-published; review the repository before installing.",
-  unverified: "Not reviewed by Compozy; verify the artifact yourself.",
+  unverified: "Not reviewed by CompozyOS; verify the artifact yourself.",
 };
 
 function SectionHead({

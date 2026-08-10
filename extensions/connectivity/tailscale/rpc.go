@@ -82,7 +82,7 @@ func providerDefinition() compozysdk.ExtensionDefinition {
 	return compozysdk.ExtensionDefinition{
 		Name:        Name,
 		Version:     "0.1.0",
-		Description: "First-party private tailnet and public Funnel connectivity for Compozy gateways.",
+		Description: "First-party private tailnet and public Funnel connectivity for CompozyOS gateways.",
 		RequiresEnv: []string{"TS_AUTHKEY"},
 		Capabilities: compozysdk.CapabilitiesConfig{
 			Provides: []string{compozysdk.CapabilityProvideConnectivityProvider},

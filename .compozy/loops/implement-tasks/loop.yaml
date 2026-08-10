@@ -2,7 +2,7 @@ apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: implement-tasks
-  description: Implement pending Compozy task files for one slug.
+  description: Implement pending CompozyOS task files for one slug.
   catalog:
     use_when: "You have authored tasks under .compozy/tasks/<slug> and want them implemented in dependency order."
     keywords: [tasks, implement, engineering]

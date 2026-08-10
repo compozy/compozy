@@ -4,7 +4,7 @@ Production Microsoft Teams bridge provider built on `internal/bridgesdk`.
 
 ## Build and install
 
-Released `compozy` artifacts do not include this provider executable. From a trusted Compozy source
+Released `compozy` artifacts do not include this provider executable. From a trusted CompozyOS source
 checkout, run this from the repository root with the daemon running:
 
 ```bash

@@ -80,7 +80,7 @@ describe("Hero", () => {
     ).toBeDefined();
     expect(
       screen.getByText(
-        "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one built to pass it."
+        "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and CompozyOS is the only one built to pass it."
       )
     ).toBeDefined();
     const install = screen.getByText("Install the beta");

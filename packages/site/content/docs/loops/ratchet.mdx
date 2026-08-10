@@ -4,7 +4,7 @@ description: Keep the best scored generation, reject regressions, and restore th
 ---
 
 A ratchet helps you improve one measurable quality without building on a regression. Add a metric
-to one machine gate criterion; Compozy records each finite score, keeps the best eligible
+to one machine gate criterion; CompozyOS records each finite score, keeps the best eligible
 generation, and uses that baseline when a rejected candidate routes to targeted repair.
 
 Use a ratchet when one scalar has a clear direction: increase an evaluation score, reduce latency,
@@ -58,8 +58,8 @@ graph:
     - { from: improve, to: quality }
 ```
 
-An approved score updates `best` before Compozy evaluates `stop_when`. While the condition is
-false, Compozy starts a fresh full-body generation with `origin: stop_when`; when the accepted best
+An approved score updates `best` before CompozyOS evaluates `stop_when`. While the condition is
+false, CompozyOS starts a fresh full-body generation with `origin: stop_when`; when the accepted best
 reaches `0.9`, the run ends `done`. A rejected regression takes the explicit `revise` route instead.
 
 `minimize` uses the same contract with the comparison reversed. Without `min_delta`, the default is
@@ -81,7 +81,7 @@ score does not create a best. Missing, non-numeric, `NaN`, and infinite required
 
 ## Restore from best
 
-When a metric candidate regresses and `fail` routes to `revise`, Compozy starts a targeted repair:
+When a metric candidate regresses and `fail` routes to `revise`, CompozyOS starts a targeted repair:
 
 - producers of the route-causing gate, the gate, and their dependents re-run;
 - carried outputs seed from the best generation, not the rejected generation;
@@ -90,7 +90,7 @@ When a metric candidate regresses and `fail` routes to `revise`, Compozy starts 
   diagnosis even though its baseline comes from somewhere older.
 
 If no eligible best exists yet, revision seeds from the previous generation and records
-`gate_revise`; Compozy never invents a baseline. If the gate maps failure to `next_generation`
+`gate_revise`; CompozyOS never invents a baseline. If the gate maps failure to `next_generation`
 instead, the distinct route starts a fresh full-body pass with `gate_next_generation` (or
 `dod_retry` for definition-of-done verification), so it carries no prior output seed.
 

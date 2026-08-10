@@ -118,7 +118,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   preflight:
-    name: Preflight (codegen, installer)
+    name: Preflight (codegen, installer, product language)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: changes
@@ -150,6 +150,9 @@ jobs:
 
       - name: Verify installer artifacts
         run: make installer-check
+
+      - name: Verify product language
+        run: make product-language-check
 
   frontend:
     name: Frontend (lint, typecheck, test, build)

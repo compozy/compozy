@@ -37,7 +37,7 @@ function MessageTextFragment({ text, streaming }: { text: string; streaming: boo
   );
 }
 
-/** Compozy-owned directive registry for persisted session invocation metadata. */
+/** CompozyOS-owned directive registry for persisted session invocation metadata. */
 export function SessionDirectiveText({
   text,
   directives,

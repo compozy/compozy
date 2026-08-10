@@ -1,0 +1,71 @@
+---
+title: Desktop app
+description: Start CompozyOS from the desktop, attach to an existing runtime, and understand app-owned updates and recovery.
+---
+
+The desktop app is the primary interactive way to run CompozyOS. It uses the same local daemon,
+configuration, workspaces, and session history as the `compozy` command.
+
+## First run
+
+The app resolves the runtime in this order:
+
+1. Attach to a healthy daemon already running on this machine.
+2. Start an installed runtime when no healthy daemon is available.
+3. Download, verify, and install an app-owned runtime when neither path is available.
+
+Provisioning reports each stage. If a download or verification fails, the failed stage stays
+visible. Select **Retry** after fixing the cause. The app resumes from safe local state and never
+treats a partial download as an installed runtime.
+
+## Runtime ownership
+
+Attaching does not transfer ownership. Quitting the app never stops the runtime, including a runtime
+the app started or provisioned. Use the runtime's own control surface when you intend to stop it.
+
+Ownership controls binary updates instead: the app can update a runtime it provisioned and can still
+prove it owns. It never replaces an operator-managed or inconclusively owned runtime.
+
+You can inspect the same state from a terminal:
+
+```bash
+compozy app status -o json
+compozy app open
+compozy app open /workspaces
+```
+
+## Updates
+
+App and runtime updates are separate:
+
+- **App update:** the desktop app asks for consent before applying the update and restarting.
+- **App-owned runtime update:** the app verifies and installs the runtime, then restarts the process it owns.
+- **Operator-managed runtime:** the app reports the detected install method and the exact update command. It does not replace that binary.
+
+Check or apply updates from a terminal:
+
+```bash
+compozy app update --check -o json
+compozy app update --apply app
+compozy app update --apply runtime
+```
+
+## Recovery required
+
+`recovery_required` means the app could not prove that an interrupted update completed or rolled
+back safely. The app will not start another update operation while this state is active.
+
+Open diagnostics, follow the reported recovery action, then retry:
+
+```bash
+compozy app diagnose -o json
+compozy app retry
+```
+
+For platform log paths and manual recovery, see
+[Desktop app operations](/docs/operations/desktop-app).
+
+## Next step
+
+Continue to [Quick Start](/docs/getting-started/quick-start) to create a real session, or open the
+same runtime in the [Web UI](/docs/getting-started/web-ui).

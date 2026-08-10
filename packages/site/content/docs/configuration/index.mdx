@@ -1,9 +1,9 @@
 ---
 title: Configuration Overview
-description: Decide which Compozy file, overlay, or environment variable should change when you need to configure one machine, one workspace, one agent, or one skill.
+description: Decide which CompozyOS file, overlay, or environment variable should change when you need to configure one machine, one workspace, one agent, or one skill.
 ---
 
-Configuration is where Compozy stops being generic and starts matching one machine, one workspace, one
+Configuration is where CompozyOS stops being generic and starts matching one machine, one workspace, one
 team default, or one agent role. The key to using this section well is choosing the right surface
 for the change you actually want.
 
@@ -17,10 +17,10 @@ for the change you actually want.
 | One agent's advertised capabilities | [capability catalog](/docs/agents/capabilities) next to `AGENT.md`                             | Other peers need outcome-oriented discovery metadata about what that agent can do.                                                                             |
 | One skill                           | `SKILL.md`                                                                                     | You are defining reusable instructions, optional MCP metadata, or skill-owned hooks.                                                                           |
 | MCP server configuration            | `mcp.json`                                                                                     | MCP declarations are easier to manage as JSON sidecars than inline frontmatter.                                                                                |
-| Encrypted Compozy-managed secrets   | [Vault](/docs/configuration/vault)                                                             | Store write-only `vault:<namespace>/...` values and inspect redacted metadata through CLI, HTTP, UDS, web, or session-scoped views.                            |
+| Encrypted CompozyOS-managed secrets | [Vault](/docs/configuration/vault)                                                             | Store write-only `vault:<namespace>/...` values and inspect redacted metadata through CLI, HTTP, UDS, web, or session-scoped views.                            |
 | Provider authentication             | provider settings, native CLI login, `credential_slots`, or Vault                              | Let native ACP providers use their own CLI login state, and bind API-key providers to `env:` or encrypted `vault:providers/<provider>/<slot>` refs.            |
 | Remote gateway access               | [Gateway](/docs/gateway) section + [`[gateway]` keys](/docs/configuration/config-toml#gateway) | Expose selected private or public surfaces while the daemon keeps tier listeners on loopback.                                                                  |
-| Filesystem locations and precedence | file-locations reference                                                                       | You need to know where Compozy looks for agents, skills, sessions, memory, or overlays.                                                                        |
+| Filesystem locations and precedence | file-locations reference                                                                       | You need to know where CompozyOS looks for agents, skills, sessions, memory, or overlays.                                                                      |
 
 ## Read in this order
 
@@ -34,7 +34,7 @@ for the change you actually want.
 8. [mcp.json](/docs/configuration/mcp-json)
 9. [Environment Variables](/docs/configuration/env-vars)
 
-That order mirrors how operators usually troubleshoot Compozy: global defaults first, then
+That order mirrors how operators usually troubleshoot CompozyOS: global defaults first, then
 lifecycle, secret storage, path resolution, file formats, and agent sidecars. Remote access is
 configured through explicit gateway transitions rather than config keys — the
 [Gateway](/docs/gateway) section owns that flow, and the
@@ -74,5 +74,5 @@ Status values are intentionally small:
 | `failed`        | Validation or a subsystem reload failed; diagnostics describe the retry path. |
 
 `next_action` tells operators what to do next: `none`, `restart-daemon`, `new-session`, or `retry`.
-Compozy does not roll back `config.toml` after a reload failure; the apply record is the audit surface
+CompozyOS does not roll back `config.toml` after a reload failure; the apply record is the audit surface
 that explains why the active generation did or did not advance.

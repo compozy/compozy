@@ -1,6 +1,6 @@
 ---
 title: Debug a failed or stuck session
-description: Diagnose Compozy sessions by checking daemon health, session status, event history, repair output, and stored runtime files.
+description: Diagnose CompozyOS sessions by checking daemon health, session status, event history, repair output, and stored runtime files.
 ---
 
 This guide gets you from "the session is not behaving" to evidence you can act on. It starts with
@@ -24,7 +24,7 @@ For machine-readable output:
 compozy status -o json
 ```
 
-What happened: Compozy checked the background daemon through the local runtime control path. If this
+What happened: CompozyOS checked the background daemon through the local runtime control path. If this
 fails, debug the daemon before debugging the session.
 
 Useful follow-up pages:
@@ -73,7 +73,7 @@ Check:
 - created and updated timestamps
 
 What happened: the daemon returned the current session record, not a reconstructed transcript. Use
-this to learn what Compozy thinks the session is doing right now.
+this to learn what CompozyOS thinks the session is doing right now.
 
 ## 5. Read the durable event stream
 
@@ -87,7 +87,7 @@ Follow live events when the session is still active:
 compozy session events sess_1234 --follow
 ```
 
-What happened: Compozy read the append-only session event database. This is the best evidence for
+What happened: CompozyOS read the append-only session event database. This is the best evidence for
 prompt submission, permission requests, provider messages, tool calls, errors, and stop behavior.
 The CLI follow mode reads raw persisted events; browser live-tail clients use transcript SSE frames
 when they need assembled UI messages.
@@ -139,7 +139,7 @@ and retained transcript:
 compozy session prompt sess_1234 "Continue from the persisted output. Do not repeat completed actions."
 ```
 
-Compozy does not automatically replay the interrupted prompt because its external effects may be
+CompozyOS does not automatically replay the interrupted prompt because its external effects may be
 indeterminate. Create another session only when you intentionally want a separate history or the
 stopped session is archived or not a user session.
 Read [Resume Attach and Replay](/docs/sessions/resume) before treating attach refusal as a
@@ -167,7 +167,7 @@ compozy session status sess_1234 -o json
 compozy session repair sess_1234 --dry-run -o json
 ```
 
-Do not include raw secrets, provider API keys, OAuth tokens, or claim tokens in bug reports. Compozy
+Do not include raw secrets, provider API keys, OAuth tokens, or claim tokens in bug reports. CompozyOS
 redacts sensitive runtime fields in the bundle, but copied terminal context and session transcripts
 may still contain private project or prompt content.
 

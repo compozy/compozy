@@ -1,4 +1,4 @@
-// Package extensiontest provides public conformance helpers for Compozy extensions.
+// Package extensiontest provides public conformance helpers for CompozyOS extensions.
 package extensiontest
 
 import (

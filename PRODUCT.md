@@ -4,7 +4,7 @@
 
 product
 
-> Default register is `product` — the CompozyOS runtime UI in `web/` + `packages/ui`, where design SERVES the product. Compozy also ships a brand surface at `compozy.com` through the Fumadocs site in `packages/site`, where design IS the product. When a task targets that site, override the register to `brand` for that task. PRODUCT.md keeps `product` as the standing default.
+> Default register is `product` — the CompozyOS runtime UI in `web/` + `packages/ui`, where design SERVES the product. CompozyOS also ships a brand surface at `compozy.com` through the Fumadocs site in `packages/site`, where design IS the product. When a task targets that site, override the register to `brand` for that task. PRODUCT.md keeps `product` as the standing default.
 
 ## Users
 
@@ -12,7 +12,7 @@ product
 
 **Secondary — Agent/runtime developers.** Engineers extending CompozyOS against daemon contracts: extensions, hooks, skills, capabilities, bridges, and SDKs. They need the UI to expose the same structured surfaces the daemon exposes, not a UI-only shortcut.
 
-**Also first-class — Agents themselves.** Agents operate Compozy through structured surfaces (CLI `-o json`, HTTP/SSE, UDS, tool registry). The UI is one view over state that agents can equally drive; it is never the only path to a capability.
+**Also first-class — Agents themselves.** Agents operate CompozyOS through structured surfaces (CLI `-o json`, HTTP/SSE, UDS, tool registry). The UI is one view over state that agents can equally drive; it is never the only path to a capability.
 
 ## Product Purpose
 
@@ -27,7 +27,7 @@ People-first, plain-spoken, calm-confident. (COPY.md §5 is the authority; this 
 - **Calm, not cute.** Plain, not vague. Confident, not inflated.
 - Everyday words carry the message; the mechanism stays one step away as proof, never as an entry fee.
 - Prefer nouns and outcomes over adjectives; lead with what happened, then how, then the evidence.
-- The product is usually the subject — "Compozy keeps...", "Agents continue..." — not "we" or "you" as a sales hook.
+- The product is usually the subject — "CompozyOS keeps...", "Agents continue..." — not "we" or "you" as a sales hook.
 - No emoji, no exclamation marks, no fake urgency, no fabricated stats or maturity claims.
 - Emotional goal: the steadiness of a well-run workplace. The person should feel informed and in control — never marketed to, and never required to be an engineer to understand what is happening.
 
@@ -35,7 +35,7 @@ People-first, plain-spoken, calm-confident. (COPY.md §5 is the authority; this 
 
 This must NOT look like:
 
-- **Operator cockpits.** Compozy's own early direction, now retired: control-room density, walls of metrics, colored badges on every row, mono ids in primary positions, panels competing for attention. Expert texture is not a virtue; it is a failure of hierarchy.
+- **Operator cockpits.** CompozyOS's own early direction, now retired: control-room density, walls of metrics, colored badges on every row, mono ids in primary positions, panels competing for attention. Expert texture is not a virtue; it is a failure of hierarchy.
 - **Generic SaaS dashboards.** Hero-metric templates (big number + gradient accent), identical icon-heading-text card grids, decorative glassmorphism. (Glass is banned as content decoration; the tokenized OS-shell chrome glass — menubar, dock, rail, shell popovers, window frames — is sanctioned per DESIGN.md §5, never on window content.)
 - **Chat skins that hide the work.** Approachable never means opaque: sessions are durable, inspectable objects with real state, not an ephemeral bubble stream. Friendly and truthful, not friendly instead of truthful.
 - **Hype copy.** `AI-powered`, `revolutionary`, `next-generation`, `supercharge`, `unleash`, `seamless`, `10x`, `cutting-edge` — banned per COPY.md §6.

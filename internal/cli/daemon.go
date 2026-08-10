@@ -43,7 +43,7 @@ type daemonProcess interface {
 func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   daemonDaemonKey,
-		Short: "Manage the Compozy daemon",
+		Short: "Manage the CompozyOS daemon",
 	}
 
 	cmd.AddCommand(newDaemonStartCommand(deps))
@@ -61,8 +61,8 @@ func newDaemonStartCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   daemonStartKey,
-		Short: "Start the Compozy daemon",
-		Example: `  # Start Compozy in the background and wait for readiness
+		Short: "Start the CompozyOS daemon",
+		Example: `  # Start CompozyOS in the background and wait for readiness
   compozy daemon start
 
   # Keep logs attached to the current terminal
@@ -118,7 +118,7 @@ func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
 func newDaemonStopCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   daemonStopKey,
-		Short: "Stop the Compozy daemon",
+		Short: "Stop the CompozyOS daemon",
 		Example: `  # Ask the running daemon to stop
   compozy daemon stop`,
 		RunE: func(cmd *cobra.Command, _ []string) error {

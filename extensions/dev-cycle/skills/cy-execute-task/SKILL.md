@@ -9,7 +9,7 @@ Execute one PRD task from exploration through tracking updates — **uninterrupt
 
 ## Uninterrupted execution
 
-Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
+CompozyOS runs tasks in a loop. Pausing for clarification breaks the loop.
 
 - Never ask the user a question, present option menus, or wait for confirmation while executing a task.
 - Never stop because TechSpec, ADRs, task file, or sibling catalogs disagree — resolve the conflict with the Authority and Contract Precedence rules below, record the chosen interpretation, and continue.

@@ -5,7 +5,7 @@ import { GatewayIngressStatus } from "@/systems/gateway";
 import type { BridgeSummary } from "../types";
 
 /**
- * Whether this bridge's inbound callbacks actually reach Compozy.
+ * Whether this bridge's inbound callbacks actually reach CompozyOS.
  *
  * Only bridges bound to the gateway carry `gateway_ingress`; a bridge fronted
  * by the operator's own proxy has none, and this section stays silent rather

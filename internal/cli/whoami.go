@@ -19,7 +19,7 @@ const (
 func newWhoamiCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "whoami",
-		Short: "Print the current Compozy agent identity from environment variables",
+		Short: "Print the current CompozyOS agent identity from environment variables",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			identity := IdentityRecord{
 				SessionID: deps.getenv(envSessionID),

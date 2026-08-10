@@ -29,7 +29,7 @@ The build emits `dist/index.js`, which is used by both the persistent subprocess
 
 ## Using it outside this repository
 
-The only Compozy import in this example is the published package
+The only CompozyOS import in this example is the published package
 [`@compozy/extension-sdk`](https://www.npmjs.com/package/@compozy/extension-sdk). Inside the
 repository it resolves through the `workspace:*` dependency so the example always tracks the
 in-tree SDK.
@@ -42,7 +42,7 @@ dependency with the published version matching your daemon:
 ```
 
 Then `bun install` inside the copied directory so the runtime dependency is materialized under the
-extension root. Compozy's managed installer rejects dependency symlinks that escape the package
+extension root. CompozyOS's managed installer rejects dependency symlinks that escape the package
 boundary, which is what a repository `workspace:*` link produces.
 
 ## Declaration summary

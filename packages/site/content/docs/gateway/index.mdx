@@ -1,16 +1,16 @@
 ---
 title: Gateway
-description: Reach your Compozy daemon from your other devices, give webhook senders a public delivery address, and take it all back — one explicit switch at a time.
+description: Reach your CompozyOS daemon from your other devices, give webhook senders a public delivery address, and take it all back — one explicit switch at a time.
 ---
 
-A fresh Compozy install is reachable only from the machine it runs on. That is the permanent
+A fresh CompozyOS install is reachable only from the machine it runs on. That is the permanent
 default. The gateway is how you change it: pair your phone or laptop for access from anywhere, give
 GitHub a public address to deliver events to, or operate a remote daemon from your CLI — each behind
 its own switch, each off until you turn it on, each reversible with one command.
 
 ## What you can do with it
 
-- **Use Compozy from your other devices.** Your phone and laptop reach the full web UI and API over
+- **Use CompozyOS from your other devices.** Your phone and laptop reach the full web UI and API over
   your own private Tailscale network. Follow the [quickstart](/docs/gateway/quickstart).
 - **Let a repository push start work on your machine.** GitHub delivers signed events to a stable
   public URL that serves deliveries and nothing else. Follow
@@ -39,7 +39,7 @@ last asked for and never re-enables something you turned off.
 1. The daemon never listens on a public address itself. Gateway listeners bind only to loopback —
    the address that is reachable from this machine alone.
 2. A connectivity extension — the bundled [Tailscale extension](/docs/gateway/tailscale) — carries
-   outside traffic to that local listener using your own Tailscale account. Compozy operates no
+   outside traffic to that local listener using your own Tailscale account. CompozyOS operates no
    relay, server, or account on your behalf.
 3. Before an address is shown to you or handed to a sender, the daemon proves it works: it fetches a
    one-time challenge through that address and requires its own answer back. An address that cannot
@@ -59,7 +59,7 @@ last asked for and never re-enables something you turned off.
     href="/docs/gateway/quickstart"
     label="Start"
     title="Gateway quickstart"
-    description="Reach Compozy from your phone or laptop in about ten minutes, end to end."
+    description="Reach CompozyOS from your phone or laptop in about ten minutes, end to end."
     meta="Tutorial"
   />
   <RouteRow
@@ -104,12 +104,12 @@ last asked for and never re-enables something you turned off.
 Know these before you build on the gateway:
 
 - **No store-and-forward.** Deliveries sent while the daemon or its connectivity provider is down
-  are lost from Compozy's side. Configure retries at the sender.
+  are lost from CompozyOS's side. Configure retries at the sender.
 - **Public delivery is rate limited.** 60 requests per minute per endpoint and source; rejected
   requests carry a `Retry-After` header.
 - **One connectivity provider per tier.** Replacing the provider is an explicit operation.
 - **Some operations never leave this machine.** The agent kernel, hosted MCP, task mutations, and
   resource mutations refuse from any remote connection. Use SSH or local access for those.
 
-Exposing Compozy to an MCP client on the same machine is a separate, local-only feature — see
-[Expose Compozy over MCP](/docs/operations/mcp-serve).
+Exposing CompozyOS to an MCP client on the same machine is a separate, local-only feature — see
+[Expose CompozyOS over MCP](/docs/operations/mcp-serve).

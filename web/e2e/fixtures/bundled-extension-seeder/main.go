@@ -23,7 +23,7 @@ func main() {
 func run(ctx context.Context, args []string) (err error) {
 	flags := flag.NewFlagSet("bundled-extension-seeder", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	homeDir := flags.String("home", "", "isolated Compozy home")
+	homeDir := flags.String("home", "", "isolated CompozyOS home")
 	sourceDir := flags.String("source", "", "bundled extension source directory")
 	if err := flags.Parse(args); err != nil {
 		return err
