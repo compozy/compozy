@@ -53,6 +53,17 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - Inspect and the definition page preserved raw authored templates and operator facts; the browser
   console had no errors.
 
+### Review hardening — shell-safe command values
+
+- An unsafe command fixture failed validation with the typed `unsafe_command_interpolation` code.
+- The safe fixture retained authored shell control flow but required the runtime value to end in
+  `| shellQuote`.
+- Run `looprun-ddf316dc14fc8f31` accepted `qa'; touch qa-injected; #'` as one value, reached `done`,
+  and did not create the injection marker.
+- CLI, HTTP, and runtime evidence agreed on the run, gate, criterion, and materialized contract.
+- The targeted strict audit passed with 0 blockers and 0 warnings. Teardown reported `clean: true`
+  and no surviving processes.
+
 ## What Was Fixed
 
 - `BUG-20260808-goal-command-judge-unavailable` is fixed and verified in a fresh isolated Run.
@@ -88,6 +99,7 @@ None.
 ## Final Status
 
 - **Targeted real-scenario audit:** PASS — 0 blockers, 0 warnings
+- **Review hardening audit:** PASS — CLI/API/runtime, 0 blockers, 0 warnings
 - **Teardown:** PASS — `teardown.json` reports `clean: true` and no survivors
 - **Repository full gate:** runs once after the final tracked mutation, outside this QA lab
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0

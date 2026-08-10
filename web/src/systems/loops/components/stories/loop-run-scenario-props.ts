@@ -5,6 +5,7 @@ import {
 } from "../../lib/loop-events";
 import { buildNodeNowLines } from "../../lib/loop-node-now-view";
 import { projectLoopRunPageView } from "../../lib/loop-run-page-view";
+import { materializeContractFixture } from "../../mocks/materialize-contract-fixture";
 import type { LoopRunPageBodyProps } from "../run-page/loop-run-page-body";
 import type { LoopRunStoryScenario } from "./loop-run-scenario-types";
 import { STORY_NOW } from "./loop-run-page-fixture-world";
@@ -40,7 +41,7 @@ export function buildScenarioProps(scenario: LoopRunStoryScenario): ScenarioBody
     ...view,
     run: effectiveRun,
     definition,
-    materializedContract: definition.contract,
+    materializedContract: materializeContractFixture(definition.contract, run.inputs ?? {}),
     goalTurns: scenario.goalTurns ?? [],
     generations,
     watchEvents,

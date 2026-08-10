@@ -259,7 +259,7 @@ func compileContract(
 		if strings.TrimSpace(item.value) == "" {
 			continue
 		}
-		template, err := refs.CompileTemplate(item.name, item.value, narrativeNamespace)
+		template, err := compileNamedStringTemplate(item, narrativeNamespace)
 		if err != nil {
 			return fmt.Errorf("compile %s: %w", item.name, err)
 		}
@@ -287,7 +287,7 @@ func compileContractVerification(
 			if strings.TrimSpace(item.value) == "" {
 				continue
 			}
-			template, err := refs.CompileTemplate(item.name, item.value, namespace)
+			template, err := compileNamedStringTemplate(item, namespace)
 			if err != nil {
 				return fmt.Errorf("compile %s: %w", item.name, err)
 			}
@@ -323,7 +323,8 @@ func compileNode(
 			continue
 		}
 		key := fmt.Sprintf("nodes.%s.%s", node.ID, item.name)
-		template, err := refs.CompileTemplate(key, item.value, namespace)
+		item.name = key
+		template, err := compileNamedStringTemplate(item, namespace)
 		if err != nil {
 			return fmt.Errorf("compile %s: %w", key, err)
 		}

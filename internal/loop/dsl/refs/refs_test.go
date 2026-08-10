@@ -144,6 +144,42 @@ func TestTemplateShouldValidateReferencesAgainstNamespace(t *testing.T) {
 	})
 }
 
+func TestCommandTemplateShouldQuoteRuntimeValuesAsShellData(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an unquoted runtime value", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := refs.CompileCommandTemplate(
+			"command",
+			`test -f .compozy/tasks/{{ .inputs.slug }}/task.md`,
+			namespace(false),
+		)
+		if err == nil || !strings.Contains(err.Error(), "must end with | shellQuote") {
+			t.Fatalf("CompileCommandTemplate() error = %v, want shellQuote requirement", err)
+		}
+	})
+
+	t.Run("Should render shell metacharacters inside one quoted value", func(t *testing.T) {
+		t.Parallel()
+
+		raw := `test -f .compozy/tasks/{{ .inputs.slug | shellQuote }}/task.md`
+		if _, err := refs.CompileCommandTemplate("command", raw, namespace(false)); err != nil {
+			t.Fatalf("CompileCommandTemplate() error = %v", err)
+		}
+		rendered, err := refs.RenderCommandTemplateString("command", raw, map[string]any{
+			"inputs": map[string]any{"slug": `weather'; touch /tmp/injected; #'`},
+		})
+		if err != nil {
+			t.Fatalf("RenderCommandTemplateString() error = %v", err)
+		}
+		want := `test -f .compozy/tasks/'weather'"'"'; touch /tmp/injected; #'"'"''/task.md`
+		if rendered != want {
+			t.Fatalf("RenderCommandTemplateString() = %q, want %q", rendered, want)
+		}
+	})
+}
+
 func TestTemplateShouldRejectNonAllowlistedFunctions(t *testing.T) {
 	t.Parallel()
 

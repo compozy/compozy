@@ -11,7 +11,7 @@ import (
 func (c *lintContext) lintContractReferences(namespace refs.Namespace) {
 	narrativeNamespace := contractNarrativeNamespace(namespace)
 	for _, item := range contractNarrativeStringFields(c.def.Contract) {
-		template, err := c.compileTemplate(item.name, item.value, narrativeNamespace)
+		template, err := c.compileStringField(item, narrativeNamespace)
 		if err != nil {
 			c.addRefsError("", err)
 			continue
@@ -31,7 +31,7 @@ func (c *lintContext) lintContractReferences(namespace refs.Namespace) {
 	for idx, criterion := range c.def.Contract.Verification {
 		prefix := fmt.Sprintf("verification[%d]", idx)
 		for _, item := range criterionStringFields(prefix, criterion) {
-			template, err := c.compileTemplate(item.name, item.value, namespace)
+			template, err := c.compileStringField(item, namespace)
 			if err != nil {
 				c.addRefsError("", err)
 				continue
@@ -74,7 +74,7 @@ func startAllowsTrigger(kind dsl.StartKind) bool {
 func (c *lintContext) lintNodeReferences(node dsl.Node, namespace refs.Namespace) {
 	c.lintTransformReferences(node, namespace)
 	for _, item := range nodeStringFields(node) {
-		template, err := c.compileTemplate(item.name, item.value, namespace)
+		template, err := c.compileStringField(item, namespace)
 		if err != nil {
 			c.addRefsError(node.ID, err)
 			continue
@@ -135,8 +135,9 @@ func isFanOutCollection(node dsl.Node, name string) bool {
 }
 
 type namedString struct {
-	name  string
-	value string
+	name         string
+	value        string
+	shellCommand bool
 }
 
 func nodeStringFields(node dsl.Node) []namedString {
@@ -193,7 +194,10 @@ func nodeParamStringFields(node dsl.Node) []namedString {
 
 func criterionStringFields(prefix string, criterion dsl.GateCriterion) []namedString {
 	fields := []namedString{
-		{name: prefix + ".check", value: criterion.Check},
+		{
+			name: prefix + ".check", value: criterion.Check,
+			shellCommand: criterion.Type == dsl.CriterionCommand,
+		},
 		{name: prefix + ".contains", value: criterion.Contains},
 		{name: prefix + ".agent", value: criterion.Agent},
 		{name: prefix + ".rubric", value: criterion.Rubric},
@@ -201,6 +205,27 @@ func criterionStringFields(prefix string, criterion dsl.GateCriterion) []namedSt
 		{name: prefix + ".tool", value: criterion.Tool},
 	}
 	return append(fields, paramsStringFields(prefix+".inputs", criterion.Inputs)...)
+}
+
+func compileNamedStringTemplate(item namedString, namespace refs.Namespace) (*refs.Template, error) {
+	if item.shellCommand {
+		return refs.CompileCommandTemplate(item.name, item.value, namespace)
+	}
+	return refs.CompileTemplate(item.name, item.value, namespace)
+}
+
+func (c *lintContext) compileStringField(
+	item namedString,
+	namespace refs.Namespace,
+) (*refs.Template, error) {
+	if strings.TrimSpace(item.value) == "" {
+		return nil, nil
+	}
+	template, err := compileNamedStringTemplate(item, namespace)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", item.name, err)
+	}
+	return template, nil
 }
 
 func paramsStringFields(prefix string, values map[string]any) []namedString {

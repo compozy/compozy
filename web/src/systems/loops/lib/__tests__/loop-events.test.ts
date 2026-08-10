@@ -195,6 +195,49 @@ describe("applyLoopEventFrame", () => {
     ]);
   });
 
+  it("Should reject Goal criteria without a boolean passed field", () => {
+    const state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("goal_turn_completed", {
+        seq: 1,
+        generation: 1,
+        node_id: "goal",
+        item_index: 0,
+        turn: 1,
+        prompt_id: "prompt_missing_passed",
+        result_status: "completed",
+        verdict_outcome: "approved",
+        criteria: [{ id: "verify", type: "command", outcome: "approved" }],
+      })
+    );
+
+    expect(state.goalTurns).toHaveLength(1);
+    expect(state.goalTurns[0].criteria).toEqual([]);
+  });
+
+  it.each([null, "false", 0])(
+    "Should reject Goal criteria with a non-boolean passed value %p",
+    passed => {
+      const state = applyLoopEventFrame(
+        emptyLoopRunLiveState(),
+        frame("goal_turn_completed", {
+          seq: 1,
+          generation: 1,
+          node_id: "goal",
+          item_index: 0,
+          turn: 1,
+          prompt_id: "prompt_invalid_passed",
+          result_status: "completed",
+          verdict_outcome: "approved",
+          criteria: [{ id: "verify", type: "command", outcome: "approved", passed }],
+        })
+      );
+
+      expect(state.goalTurns).toHaveLength(1);
+      expect(state.goalTurns[0].criteria).toEqual([]);
+    }
+  );
+
   it("Should retain a goal_status_changed frame without inventing a turn", () => {
     const state = applyLoopEventFrame(
       emptyLoopRunLiveState(),

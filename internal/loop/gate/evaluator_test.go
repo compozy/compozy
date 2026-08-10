@@ -1514,6 +1514,21 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve literal template-shaped text in a materialized rubric", func(t *testing.T) {
+		t.Parallel()
+
+		literal := `Check the materialized value {{ .inputs.literal }} verbatim`
+		rendered, err := RenderAgentJudgeRubric(dsl.GateCriterion{
+			ID: "judge", Type: dsl.CriterionAgentJudge, Rubric: literal,
+		}, validContract(), JudgeEvidence{})
+		if err != nil {
+			t.Fatalf("RenderAgentJudgeRubric() error = %v", err)
+		}
+		if !stringsContains(rendered, literal) || strings.Count(rendered, "{{ .inputs.literal }}") != 1 {
+			t.Fatalf("rendered rubric changed literal template-shaped text:\n%s", rendered)
+		}
+	})
+
 	t.Run("Should require a finite score in every metric verdict", func(t *testing.T) {
 		t.Parallel()
 

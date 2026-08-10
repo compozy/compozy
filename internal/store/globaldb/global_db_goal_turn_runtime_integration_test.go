@@ -620,9 +620,19 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		if !ok || len(criteria) != 1 {
 			t.Fatalf("completed criteria = %#v, want one result", completedEvent["criteria"])
 		}
+		criterion, ok := criteria[0].(map[string]any)
+		if !ok || criterion["id"] != "verify" || criterion["type"] != "command" ||
+			criterion["outcome"] != "approved" || criterion["passed"] != true ||
+			criterion["stdout"] != "all tasks completed" {
+			t.Fatalf("completed criterion = %#v, want serialized fixture values", criteria[0])
+		}
 		warnings, ok := completedEvent["warnings"].([]any)
 		if !ok || len(warnings) != 1 {
 			t.Fatalf("completed warnings = %#v, want one warning", completedEvent["warnings"])
+		}
+		warning, ok := warnings[0].(map[string]any)
+		if !ok || warning["code"] != "cached" || warning["message"] != "result reused safely" {
+			t.Fatalf("completed warning = %#v, want serialized fixture values", warnings[0])
 		}
 		if _, err := globalDB.CompleteTurn(ctx, completeReq); err != nil {
 			t.Fatalf("CompleteTurn(idempotent) error = %v", err)

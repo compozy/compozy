@@ -185,6 +185,8 @@ func (r loopGateCommandRunner) RunCommand(
 			workspacepkg.ErrWorkspaceRootMissing,
 		)
 	}
+	// #nosec G204 -- shell composition is the authored command contract. Runtime values can reach
+	// this boundary only through command templates whose emitted actions end in shellQuote.
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = rootDir
 	var stdout bytes.Buffer

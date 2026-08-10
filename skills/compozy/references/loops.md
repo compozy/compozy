@@ -274,6 +274,11 @@ materialize recursively at their execution boundary; direct references retain JS
 agents and judges do not run a second template pass. Run detail exposes raw `executed_definition`
 beside the input-resolved `materialized_contract`.
 
+`command` criteria keep the exact shell program written by the Loop author. Every runtime template
+value emitted inside `check` must end with `| shellQuote`; compilation rejects unquoted substitutions.
+This preserves authored pipes, redirects, and chaining while preventing inputs, trigger payloads, or
+node outputs from introducing shell syntax.
+
 Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`, `item`/`index`
 (fan-out scope only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`
 `events[].filter` scope only), `generation`, plus these read-only history roots:

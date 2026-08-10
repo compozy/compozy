@@ -4,14 +4,14 @@ area: LP
 title: Start a templated parent Loop after dry-run
 persona: Ada
 journey: J-01
-expected: A templated parent Loop validates and dry-runs with resolved inputs, then its persisted Run exposes the raw authored executed definition beside a one-pass materialized contract while every Goal agent receives resolved text and literal braces inside input values remain literal.
+expected: A templated parent Loop validates and dry-runs with resolved inputs, then its persisted Run exposes the raw authored executed definition beside a one-pass materialized contract while every Goal agent receives resolved text, literal braces inside input values remain literal, and command templates require explicit shell quoting for runtime values.
 entry_points: compozy loop validate; compozy loop run --dry-run; compozy loop run; compozy loop status over UDS; POST /api/workspaces/:workspace_id/loops/:name/run over HTTP
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/evidence/run-proof.json; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/qa-audit-report.md
+evidence: docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/evidence/run-proof.json; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/qa-audit-report.md; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-template-safety-20260810-055235-722905-lab/qa-artifacts/qa/evidence/shell-template-proof.json; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-template-safety-20260810-055235-722905-lab/qa-artifacts/qa/qa-audit-report.md; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-template-safety-20260810-055235-722905-lab/qa-artifacts/qa/teardown.json
 last_report: docs/qa/reports/2026-08-10-loop-convergence.md
 overlaps: LP-006; TA-068
 ---
@@ -40,3 +40,14 @@ QA result 2026-08-10: Ada dry-ran `qa-goal-convergence` and confirmed that no Ru
 `slug` resolved to `weather-app`, and the literal input `{{ .inputs.shadow }}` remained literal. The
 real Run preserved `{{ .inputs.slug }}` in `executed_definition`, exposed the resolved Goal in
 `materialized_contract`, and reached `done` with the same one-pass result.
+
+QA impact 2026-08-10 (review hardening): reset because command criteria now reject runtime template
+values unless the final pipeline function is `shellQuote`. The walk must prove the author can still
+use shell syntax around those values while malicious input remains data.
+
+QA result 2026-08-10 (review hardening): the unsafe fixture failed validation with
+`unsafe_command_interpolation`, and the safe fixture accepted `qa'; touch qa-injected; #'` through
+`| shellQuote`. Run `looprun-ddf316dc14fc8f31` reached `done`; CLI, HTTP, and runtime evidence agreed
+that the criterion passed with exit code 0, the raw template remained authored, and `qa-injected`
+was never created. The strict audit passed with 0 blockers and 0 warnings, and teardown reported
+`clean: true` with no survivors.

@@ -295,13 +295,14 @@ function goalCriteria(value: unknown): GoalTurn["criteria"] {
     const id = str(record?.id).trim();
     const type = str(record?.type).trim();
     const outcome = goalCriterionOutcome(record?.outcome);
-    if (!id || !type || !outcome) return [];
+    const passed = record?.passed;
+    if (!id || !type || !outcome || typeof passed !== "boolean") return [];
 
     const criterion: GoalTurn["criteria"][number] = {
       id,
       type,
       outcome,
-      passed: record?.passed === true,
+      passed,
     };
     if (typeof record?.exit_code === "number" || record?.exit_code === null) {
       criterion.exit_code = record.exit_code;

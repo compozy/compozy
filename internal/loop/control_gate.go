@@ -237,7 +237,7 @@ func renderGateCriterion(
 ) (dsl.GateCriterion, error) {
 	var err error
 	prefix := fmt.Sprintf("nodes.%s.criteria.%s", nodeID, criterion.ID)
-	if criterion.Check, err = renderGateString(prefix+".check", criterion.Check, namespace); err != nil {
+	if criterion.Check, err = renderCommandGateString(prefix+".check", criterion.Check, namespace); err != nil {
 		return dsl.GateCriterion{}, err
 	}
 	if criterion.Contains, err = renderGateString(prefix+".contains", criterion.Contains, namespace); err != nil {
@@ -274,6 +274,17 @@ func renderGateString(name string, raw string, namespace map[string]any) (string
 		return raw, nil
 	}
 	rendered, err := refs.RenderTemplateString(name, raw, namespace)
+	if err != nil {
+		return "", fmt.Errorf("render gate %s: %w", name, err)
+	}
+	return rendered, nil
+}
+
+func renderCommandGateString(name string, raw string, namespace map[string]any) (string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return raw, nil
+	}
+	rendered, err := refs.RenderCommandTemplateString(name, raw, namespace)
 	if err != nil {
 		return "", fmt.Errorf("render gate %s: %w", name, err)
 	}
