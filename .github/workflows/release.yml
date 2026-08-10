@@ -781,17 +781,19 @@ jobs:
           AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
         run: |
           set -euo pipefail
-          azure_args=()
+          # Args stay non-empty so macOS bash 3.2 + set -u never sees an
+          # empty-array expansion.
+          args=(
+            --version "${{ needs.release-plan.outputs.release_version }}"
+            --channel "${{ needs.release-plan.outputs.release_channel }}"
+            --public-key "${TAURI_SIGNING_PUBLIC_KEY}"
+            --previous-public-key "${TAURI_SIGNING_PUBLIC_KEY_PREVIOUS:-}"
+            --output desktop/src-tauri/tauri.channel.conf.json
+          )
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            azure_args=(--azure-endpoint "${AZURE_ARTIFACT_SIGNING_ENDPOINT}")
+            args+=(--azure-endpoint "${AZURE_ARTIFACT_SIGNING_ENDPOINT}")
           fi
-          go run ./cmd/compozy-desktop-release channel-config \
-            --version "${{ needs.release-plan.outputs.release_version }}" \
-            --channel "${{ needs.release-plan.outputs.release_channel }}" \
-            --public-key "${TAURI_SIGNING_PUBLIC_KEY}" \
-            --previous-public-key "${TAURI_SIGNING_PUBLIC_KEY_PREVIOUS:-}" \
-            --output desktop/src-tauri/tauri.channel.conf.json \
-            "${azure_args[@]}"
+          go run ./cmd/compozy-desktop-release channel-config "${args[@]}"
 
       - name: Build signed desktop bundle
         uses: tauri-apps/tauri-action@v1
