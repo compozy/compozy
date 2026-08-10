@@ -139,12 +139,12 @@ the resulting state and real provider behavior, not the command name used to rel
 
 ## Rotate a credential
 
-Plan the provider and Compozy changes as one operation. Avoid a window where a live bridge accepts
+Plan the provider and CompozyOS changes as one operation. Avoid a window where a live bridge accepts
 events signed with a value different from its bound secret.
 
 1. Disable the bridge.
 2. Create the replacement credential in the provider console.
-3. Update the Compozy binding.
+3. Update the CompozyOS binding.
 4. Update the provider-side webhook/signature secret when the credential is shared across both sides.
 5. Restart or enable the bridge so the provider receives fresh launch material.
 6. Verify identity/configuration and public reachability.
@@ -178,7 +178,7 @@ command.
 ### Remove a retired binding
 
 Delete a binding only after the provider no longer accepts the credential it references. Deleting
-the Compozy record does not revoke a token, signing secret, or application grant at the provider.
+the CompozyOS record does not revoke a token, signing secret, or application grant at the provider.
 
 ```bash
 compozy bridge disable "$BRIDGE_ID"
@@ -194,9 +194,9 @@ proof. After deletion, confirm both the binding list and the provider-side revoc
 ## Move or expose a callback
 
 <OperatorNote>
-  Compozy Gateway can own the public ingress boundary and project a confirmed delivery URL for each
-  bridge. Use that URL when Gateway is enabled; use the tunnel or reverse-proxy options below when
-  an external boundary owns reachability. See [Bridge callbacks over the
+  CompozyOS Gateway can own the public ingress boundary and project a confirmed delivery URL for
+  each bridge. Use that URL when Gateway is enabled; use the tunnel or reverse-proxy options below
+  when an external boundary owns reachability. See [Bridge callbacks over the
   gateway](/docs/gateway/webhooks#bridge-callbacks-use-the-same-ingress).
 </OperatorNote>
 
@@ -291,7 +291,7 @@ The proxy must preserve:
 - provider signature or authorization headers.
 
 Do not use `handle_path` or another prefix-stripping rule unless the bridge's configured local path
-is changed to match. Do not expose the Compozy daemon API on port `2123` as a substitute for a provider
+is changed to match. Do not expose the CompozyOS daemon API on port `2123` as a substitute for a provider
 listener. They are separate surfaces.
 
 ### Change an existing URL
@@ -418,7 +418,7 @@ compozy bridge routes "$BRIDGE_ID" -o json
 
 # Use the peer/group/thread identifiers saved from the real inbound route.
 compozy bridge send-test "$BRIDGE_ID" \
-  --message "Compozy provider upgrade check" \
+  --message "CompozyOS provider upgrade check" \
   --group-id "<route-group-id>" \
   --json
 ```
@@ -526,7 +526,7 @@ and `progress`; additional provider-owned defaults must be strings. Pass `null` 
 compozy bridge update "$BRIDGE_ID" --delivery-defaults null -o json
 ```
 
-When raw defaults and typed `--delivery-progress*` flags appear in the same update, Compozy applies the
+When raw defaults and typed `--delivery-progress*` flags appear in the same update, CompozyOS applies the
 typed progress changes to the supplied object before validation. Confirm the canonical stored result
 with `compozy bridge get`.
 
@@ -546,7 +546,7 @@ targets returned and rejects negative values; it is a response cap, not a cursor
 agent-operated calls so target discovery cannot produce unbounded context, then use `resolve` to
 prove the intended name without sending.
 
-Resolver ambiguity is returned as structured diagnostics; Compozy does not silently choose a target.
+Resolver ambiguity is returned as structured diagnostics; CompozyOS does not silently choose a target.
 Provider guides name the identity units to use for real delivery.
 
 Changing route dimensions changes how future inbound identities select sessions. Treat that as a
@@ -710,7 +710,7 @@ rather than deleting the resource.
 
 `committed_result_unavailable` means a provider mutation may have crossed its commit boundary and a
 commit cannot be ruled out. The adapter could not reliably read or validate the response or obtain the
-required remote message ID. For broker-managed response delivery, Compozy terminalizes the delivery
+required remote message ID. For broker-managed response delivery, CompozyOS terminalizes the delivery
 without replay and records a delivery failure. It does not invent an ID or assume that the remote
 message is absent.
 
@@ -725,7 +725,7 @@ Do not resend the content first. Inspect both sides before taking another mutati
 1. Preserve the originating evidence. For broker delivery, capture the bridge, route,
    `delivery_failures_total`, `last_error`, and `last_error_at`. For `send-test`, save its status,
    delivery ID, target, and redacted error instead; broker health does not record that direct probe.
-2. Read provider-specific Compozy logs around `last_error_at` for broker delivery, or around the saved
+2. Read provider-specific CompozyOS logs around `last_error_at` for broker delivery, or around the saved
    command timestamp and delivery ID for `send-test`, without exposing bound secrets.
 3. Inspect the exact remote conversation identified by the route. Search around the same timestamp
    for the expected post, edit, reaction, comment, or activity.
@@ -752,19 +752,19 @@ compozy logs --provider "$PROVIDER" --since 10m -o jsonl
 ```
 
 For an indeterminate progress mutation, health can instead show the
-`progress_delivery_indeterminate` drop reason. Compozy discards that progress update, but final text can
+`progress_delivery_indeterminate` drop reason. CompozyOS discards that progress update, but final text can
 still be delivered. Check for a final message before attempting any manual follow-up.
 
 ## Recover after a daemon restart
 
-Compozy persists sent and acknowledged sequence checkpoints for in-flight bridge delivery, not streamed
+CompozyOS persists sent and acknowledged sequence checkpoints for in-flight bridge delivery, not streamed
 response or progress text. Before each durable provider mutation, it records a write-ahead send
 intent. Startup reconciliation therefore has two explicit paths before new registrations are
 admitted:
 
 - If the sent sequence is ahead of the acknowledged sequence, the prior mutation may already exist at
-  the provider. Compozy closes the delivery locally as indeterminate and makes no provider call.
-- If there is no unmatched intent, Compozy records a new intent and posts one visible terminal error with
+  the provider. CompozyOS closes the delivery locally as indeterminate and makes no provider call.
+- If there is no unmatched intent, CompozyOS records a new intent and posts one visible terminal error with
   the standard session-stopped message. It never reconstructs or replays the partial answer.
 
 The first path is commit ambiguity, not proof that the provider mutated anything. The daemon may have

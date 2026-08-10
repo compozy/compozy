@@ -99,13 +99,13 @@ describe("SettingsEditorDialog", () => {
   });
 
   it("Should render the footer consequence hint", () => {
-    const props = { ...baseProps(), hint: "Stored write-only; Compozy returns presence only." };
+    const props = { ...baseProps(), hint: "Stored write-only; only presence is returned." };
     render(
       <SettingsEditorDialog {...props}>
         <div />
       </SettingsEditorDialog>
     );
-    expect(screen.getByText("Stored write-only; Compozy returns presence only.")).toBeVisible();
+    expect(screen.getByText("Stored write-only; only presence is returned.")).toBeVisible();
   });
 
   it("Should omit the feedback region entirely when there is nothing to report", () => {

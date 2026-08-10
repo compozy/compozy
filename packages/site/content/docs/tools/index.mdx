@@ -1,9 +1,9 @@
 ---
 title: Tool Registry
-description: How Compozy exposes daemon-owned tools to operators and managed agents through one policy-checked registry.
+description: How CompozyOS exposes daemon-owned tools to operators and managed agents through one policy-checked registry.
 ---
 
-The tool registry is the runtime surface that lets Compozy expose structured actions without turning
+The tool registry is the runtime surface that lets CompozyOS expose structured actions without turning
 every capability into a one-off prompt convention. Tools have stable IDs, JSON schemas,
 availability diagnostics, policy checks, redaction rules, and invocation events.
 
@@ -11,16 +11,16 @@ Use this page when you need to understand what a tool is, how agents discover to
 operator CLI relates to the session-bound MCP tool surface.
 
 <OperatorNote label="Agent-manageable surface">
-  Tools are the canonical path for agents to manage Compozy from inside a session. The web UI can
+  Tools are the canonical path for agents to manage CompozyOS from inside a session. The web UI can
   show state, but agents should discover and invoke tools through structured registry surfaces.
 </OperatorNote>
 
 ## In one sentence
 
-An Compozy tool is a daemon-owned action with a typed input schema, a typed result, policy enforcement,
+An CompozyOS tool is a daemon-owned action with a typed input schema, a typed result, policy enforcement,
 and an audit trail.
 
-## Why Compozy has tools
+## Why CompozyOS has tools
 
 Agent sessions need more than text prompts. They need to inspect runtime state, claim work, extend
 leases, read memory, search skills, inspect hooks, and report progress without scraping prose or
@@ -45,7 +45,7 @@ The registry gives those actions one shape:
     compozy tool search memory --limit 5 -o json
     ```
 
-    What happened: Compozy returned operator-visible descriptors and availability diagnostics for the
+    What happened: CompozyOS returned operator-visible descriptors and availability diagnostics for the
     current scope.
 
   </WorkflowStep>
@@ -55,7 +55,7 @@ The registry gives those actions one shape:
     compozy tool info compozy__skill_view -o json
     ```
 
-    What happened: Compozy returned the descriptor, input schema, output shape, policy requirements, and
+    What happened: CompozyOS returned the descriptor, input schema, output shape, policy requirements, and
     diagnostics for one tool ID.
 
   </WorkflowStep>
@@ -65,7 +65,7 @@ The registry gives those actions one shape:
     compozy tool invoke compozy__tool_info --input '{"tool_id":"compozy__skill_view"}' -o json
     ```
 
-    What happened: Compozy validated JSON input, applied policy, dispatched the daemon-owned tool, and
+    What happened: CompozyOS validated JSON input, applied policy, dispatched the daemon-owned tool, and
     returned a structured result.
 
   </WorkflowStep>
@@ -92,13 +92,13 @@ agents orient and inspect the registry:
 - `compozy__skill_search`
 - `compozy__skill_view`
 
-For a bare managed session, hosted MCP projects the full availability-gated callable catalog. Compozy
+For a bare managed session, hosted MCP projects the full availability-gated callable catalog. CompozyOS
 does not add an automatic bootstrap/catalog allowlist over that hosted projection. Agent
 definitions, session lineage, disabled sources, denylists, and approval/risk gates still narrow or
 block invocation.
 
 An agent or delegated session that requires specific tools cannot start without that hosted
-projection. Compozy returns an availability diagnostic before provider startup if hosted MCP is
+projection. CompozyOS returns an availability diagnostic before provider startup if hosted MCP is
 missing, cannot launch, or is disabled by the provider. Unrestricted sessions may still start
 without hosted tools when their contract does not require them.
 
@@ -107,7 +107,7 @@ without hosted tools when their contract does not require them.
 an agent can explain whether a tool is absent, unavailable, or policy-denied before falling back to
 CLI or HTTP.
 
-These are canonical Compozy ToolIDs. They are stable for registry, policy, CLI, and descriptor use, but
+These are canonical CompozyOS ToolIDs. They are stable for registry, policy, CLI, and descriptor use, but
 the active agent harness owns the actual invocation name. Managed agents should search or load by
 capability plus canonical ID, then call the tool reference surfaced by the harness exactly as
 returned.

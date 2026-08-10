@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-description: Diagnose and resolve common Compozy daemon, socket, agent, session, and database issues.
+description: Diagnose and resolve common CompozyOS daemon, socket, agent, session, and database issues.
 ---
 
 Use this guide when an operational command fails or the daemon is not behaving as expected. Each
@@ -54,19 +54,19 @@ Fix the error reported by foreground mode, then start normally:
 compozy daemon start
 ```
 
-## Compozy refuses an incompatible database
+## CompozyOS refuses an incompatible database
 
-| Field      | What to check                                                                                                                                                                                                                                                                                                                                  |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | A daemon-global refusal stops boot and names `$COMPOZY_HOME/compozy.db`. A per-session refusal can instead appear after Compozy is ready when `compozy session history <id> -o json` or the HTTP/UDS session-history route opens that session's `events.db`.                                                                                   |
-| Diagnosis  | `legacy_database` means the file predates Compozy's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global and memory streams, not every lazily opened per-session stream.                               |
-| Resolution | For `schema_ahead`, run a newer compatible Compozy binary against the stopped, intact database family—the preferred state-preserving path. For `legacy_database`, cold-move the complete `COMPOZY_HOME` or workspace `.compozy` family and select a separate fresh home. Never edit a version table or move one database/sidecar in isolation. |
+| Field      | What to check                                                                                                                                                                                                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | A daemon-global refusal stops boot and names `$COMPOZY_HOME/compozy.db`. A per-session refusal can instead appear after CompozyOS is ready when `compozy session history <id> -o json` or the HTTP/UDS session-history route opens that session's `events.db`.                                                                                   |
+| Diagnosis  | `legacy_database` means the file predates CompozyOS's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global and memory streams, not every lazily opened per-session stream.                               |
+| Resolution | For `schema_ahead`, run a newer compatible CompozyOS binary against the stopped, intact database family—the preferred state-preserving path. For `legacy_database`, cold-move the complete `COMPOZY_HOME` or workspace `.compozy` family and select a separate fresh home. Never edit a version table or move one database/sidecar in isolation. |
 
 Stopped-daemon provider-auth, extension, and MCP-auth commands return the same refusal as one structured error
 document under `-o json`. Match `diagnostic.code` as `legacy_database` or `schema_ahead`; the diagnostic evidence
 includes the direct-open surface and canonical offending path.
 
-When a fresh home is the chosen hard-cut path, stop Compozy and preserve the complete old home first:
+When a fresh home is the chosen hard-cut path, stop CompozyOS and preserve the complete old home first:
 
 ```bash
 export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
@@ -131,7 +131,7 @@ curl -s http://localhost:2123/api/status | jq '.daemon'
 ```
 
 The default HTTP bind is `localhost:2123`. For local production use, keep the host on `localhost`
-unless you intentionally place Compozy behind a protected reverse proxy.
+unless you intentionally place CompozyOS behind a protected reverse proxy.
 
 ## Agent fails to spawn
 
@@ -174,7 +174,7 @@ from provider status, doctor, Settings, HTTP, or UDS.
 
 `compozy provider auth login` executes the configured login command locally and attaches the terminal
 when stdin, stdout, and stderr are TTYs, so provider prompts and OAuth URLs stay visible. For isolated
-provider homes, it uses Compozy's provider home without displaying the environment setup. The command
+provider homes, it uses CompozyOS's provider home without displaying the environment setup. The command
 returns the redacted provider status and its safe `login` descriptor: configured state, the
 `auth_login_command` source, executable basename, `present`/`missing`/`unknown` presence, and a
 recommended action (`install_cli`, `login`, `bind_secret`, `retry`, `inspect`, or `no_retry`). Use
@@ -186,11 +186,11 @@ See [Spawning](/docs/agents/spawning) for the exact launch and ACP negotiation f
 
 ## Session is stuck after a crash
 
-| Field      | What to check                                                                                                               |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | A session appears to stay in `starting`, `active`, or `stopping` after a daemon or agent crash.                             |
-| Diagnosis  | The metadata on disk may describe an in-flight state from a previous daemon process.                                        |
-| Resolution | Restart the daemon, then list or inspect the session. Compozy repairs stale session metadata during boot and session reads. |
+| Field      | What to check                                                                                                                 |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | A session appears to stay in `starting`, `active`, or `stopping` after a daemon or agent crash.                               |
+| Diagnosis  | The metadata on disk may describe an in-flight state from a previous daemon process.                                          |
+| Resolution | Restart the daemon, then list or inspect the session. CompozyOS repairs stale session metadata during boot and session reads. |
 
 Commands:
 
@@ -237,7 +237,7 @@ compozy daemon stop
 sqlite3 -readonly "/path/to/cold-backup/compozy.db" "pragma integrity_check;"
 ```
 
-Compozy does not rename or recreate a database after classifying corruption. For cold backup, family
+CompozyOS does not rename or recreate a database after classifying corruption. For cold backup, family
 preservation, and restore details, see [Database Operations](/docs/operations/database).
 
 ## Permission errors in COMPOZY_HOME
@@ -245,7 +245,7 @@ preservation, and restore details, see [Database Operations](/docs/operations/da
 | Field      | What to check                                                                                                                          |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Symptoms   | Startup logs show errors creating the home layout, lock file, log file, socket parent, or database directory.                          |
-| Diagnosis  | The daemon user does not own `COMPOZY_HOME`, or a service manager starts Compozy with a different home path than the CLI.              |
+| Diagnosis  | The daemon user does not own `COMPOZY_HOME`, or a service manager starts CompozyOS with a different home path than the CLI.            |
 | Resolution | Use one stable `COMPOZY_HOME`, ensure the daemon user owns it, and run the CLI with the same `COMPOZY_HOME` when managing that daemon. |
 
 Commands:

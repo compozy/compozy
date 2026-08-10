@@ -2,9 +2,11 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -27,6 +31,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -563,6 +568,12 @@ type stubSettingsUpdateManager struct {
 	checkFn func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
 }
 
+type settingsUpdateRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f settingsUpdateRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
 func (s stubSettingsUpdateManager) Check(
 	ctx context.Context,
 	opts compozyupdate.CheckOptions,
@@ -574,6 +585,97 @@ func (s stubSettingsUpdateManager) Check(
 }
 
 func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
+	t.Run("Should expose desktop provenance through the settings HTTP handler", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		binDir := filepath.Join(homePaths.HomeDir, "bin")
+		if err := os.MkdirAll(binDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(bin) error = %v", err)
+		}
+		binaryPath := filepath.Join(binDir, "compozy")
+		binary := []byte("desktop-managed-runtime")
+		if err := os.WriteFile(binaryPath, binary, 0o700); err != nil {
+			t.Fatalf("WriteFile(runtime binary) error = %v", err)
+		}
+		digest := sha256.Sum256(binary)
+		marker := fmt.Sprintf(
+			`{"installed_by":"desktop-app","binary_sha256":"%x"}`,
+			digest,
+		)
+		if err := os.WriteFile(filepath.Join(binDir, ".desktop-provenance.json"), []byte(marker), 0o600); err != nil {
+			t.Fatalf("WriteFile(desktop provenance) error = %v", err)
+		}
+		releasePayload := `{
+			"tag_name":"v1.1.0",
+			"html_url":"https://example.com/v1.1.0",
+			"published_at":"2026-08-10T03:00:00Z",
+			"assets":[
+				{"name":"compozy_linux_x86_64.tar.gz","browser_download_url":"https://example.com/archive"},
+				{"name":"checksums.txt","browser_download_url":"https://example.com/checksums"},
+				{"name":"checksums.txt.sigstore.json","browser_download_url":"https://example.com/bundle"}
+			]
+		}`
+
+		releaseTransport := settingsUpdateRoundTripFunc(
+			func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(releasePayload)),
+				}, nil
+			},
+		)
+		releaseClient := &http.Client{Transport: releaseTransport}
+		manager, err := compozyupdate.NewManager(compozyupdate.Config{
+			HomePaths:       homePaths,
+			CurrentVersion:  "v1.0.0",
+			ExecutablePath:  func() (string, error) { return binaryPath, nil },
+			ResolveSymlinks: func(path string) (string, error) { return path, nil },
+			Getenv:          func(string) string { return "" },
+			RuntimeOS:       "linux",
+			RuntimeArch:     "amd64",
+			HTTPClient:      releaseClient,
+		})
+		if err != nil {
+			t.Fatalf("update.NewManager() error = %v", err)
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:  "api-core-http",
+			SettingsUpdate: settingsUpdateController{manager: manager},
+			HomePaths:      homePaths,
+			Logger:         testutil.DiscardLogger(),
+		})
+		engine := gin.New()
+		engine.GET("/api/settings/update", handlers.GetSettingsUpdate)
+		response := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/api/settings/update",
+			http.NoBody,
+		)
+		engine.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("GET /api/settings/update status = %d body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.SettingsUpdateResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal(settings update response) error = %v", err)
+		}
+		if payload.InstallMethod != string(compozyupdate.InstallMethodDesktopApp) ||
+			!payload.Managed ||
+			payload.Recommendation != "Update via the CompozyOS desktop app." {
+			t.Fatalf("settings update response = %#v, want managed desktop app", payload)
+		}
+	})
+
 	t.Run("Should translate the cached update snapshot from the shared manager", func(t *testing.T) {
 		t.Parallel()
 

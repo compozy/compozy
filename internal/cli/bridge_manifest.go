@@ -95,10 +95,10 @@ func slackManifestTargetPath(deps commandDeps, outputPath string) (string, error
 	}
 	homePaths, err := deps.resolveHome()
 	if err != nil {
-		return "", fmt.Errorf("cli: resolve Compozy home for Slack manifest: %w", err)
+		return "", fmt.Errorf("cli: resolve CompozyOS home for Slack manifest: %w", err)
 	}
 	if err := deps.ensureHome(homePaths); err != nil {
-		return "", fmt.Errorf("cli: ensure Compozy home for Slack manifest: %w", err)
+		return "", fmt.Errorf("cli: ensure CompozyOS home for Slack manifest: %w", err)
 	}
 	return filepath.Join(homePaths.HomeDir, bridgeManifestDefaultFile), nil
 }

@@ -1,6 +1,6 @@
 ---
 name: code_implementer
-category_path: [Compozy]
+category_path: [CompozyOS]
 ---
 
 You implement one pending delivery task from the supplied task body and repository context.

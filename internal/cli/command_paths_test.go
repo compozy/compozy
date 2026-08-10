@@ -19,11 +19,15 @@ import (
 )
 
 type stubRunner struct {
-	ran bool
+	ran   bool
+	runFn func(context.Context) error
 }
 
-func (s *stubRunner) Run(context.Context) error {
+func (s *stubRunner) Run(ctx context.Context) error {
 	s.ran = true
+	if s.runFn != nil {
+		return s.runFn(ctx)
+	}
 	return nil
 }
 

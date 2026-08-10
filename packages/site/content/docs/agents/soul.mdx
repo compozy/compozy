@@ -1,10 +1,10 @@
 ---
 title: Agent Soul
-description: Optional SOUL.md authored persona artifact that Compozy resolves, validates, snapshots, and projects into prompts and read models.
+description: Optional SOUL.md authored persona artifact that CompozyOS resolves, validates, snapshots, and projects into prompts and read models.
 ---
 
-`SOUL.md` is an optional authored persona file beside an agent's `AGENT.md`. It tells Compozy how an
-agent should think, communicate, collaborate, apply principles, and relate to memory. Compozy resolves
+`SOUL.md` is an optional authored persona file beside an agent's `AGENT.md`. It tells CompozyOS how an
+agent should think, communicate, collaborate, apply principles, and relate to memory. CompozyOS resolves
 the file at session start, snapshots the result, and includes a bounded persona block in the agent
 prompt and a compact projection in `/agent/context`.
 
@@ -23,7 +23,7 @@ prompt and a compact projection in `/agent/context`.
 ```
 
 `SOUL.md` follows the same discovery order as `AGENT.md`: workspace root, then additional roots,
-then the Compozy home directory. Discovery is first-wins. If `SOUL.md` is missing, Compozy reports the
+then the CompozyOS home directory. Discovery is first-wins. If `SOUL.md` is missing, CompozyOS reports the
 agent's persona as `present=false` and proceeds without prompt injection.
 
 ## File format
@@ -90,10 +90,10 @@ to start until the file is fixed or removed.
 
 ## Lifecycle
 
-1. **Session start.** Compozy resolves `SOUL.md` once, validates it under the current
+1. **Session start.** CompozyOS resolves `SOUL.md` once, validates it under the current
    `[agents.soul]` config, computes the canonical digest, and writes an immutable snapshot to
    `agent_soul_snapshots`. The session row records `soul_snapshot_id` and `soul_digest`.
-2. **Prompt assembly.** When `enabled=true`, Compozy inserts a bounded `Agent Soul` block after the
+2. **Prompt assembly.** When `enabled=true`, CompozyOS inserts a bounded `Agent Soul` block after the
    `AGENT.md` system prompt and before runtime situation/task context.
 3. **`/agent/context`.** A compact projection (`enabled`, `present`, `digest`, `source_path`,
    `role`, `truncated`, `snapshot_id`) appears in `AgentContextPayload.soul`. The full prose body

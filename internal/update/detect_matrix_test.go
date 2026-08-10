@@ -2,8 +2,14 @@ package update
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestDetectInstallMethods(t *testing.T) {
@@ -141,4 +147,74 @@ func TestDetectInstallMethods(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should recognize desktop app provenance", runDesktopProvenanceCases)
+}
+
+func runDesktopProvenanceCases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		marker      func(string) []byte
+		wantMethod  InstallMethod
+		wantManaged bool
+	}{
+		{
+			name: "Should detect matching desktop app provenance",
+			marker: func(digest string) []byte {
+				return []byte(`{"installed_by":"desktop-app","binary_sha256":"` + digest + `"}`)
+			},
+			wantMethod:  InstallMethodDesktopApp,
+			wantManaged: true,
+		},
+		{
+			name: "Should fall through when desktop provenance hash mismatches",
+			marker: func(string) []byte {
+				return []byte(`{"installed_by":"desktop-app","binary_sha256":"deadbeef"}`)
+			},
+			wantMethod: InstallMethodDirectBinary,
+		},
+		{
+			name: "Should fall through when desktop provenance is corrupt",
+			marker: func(string) []byte {
+				return []byte(`{"installed_by":`)
+			},
+			wantMethod: InstallMethodDirectBinary,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			binaryPath := filepath.Join(homePaths.HomeDir, "bin", compozyBinaryName)
+			if err := os.MkdirAll(filepath.Dir(binaryPath), 0o700); err != nil {
+				t.Fatalf("MkdirAll() error = %v", err)
+			}
+			binary := []byte("desktop-owned-compozy")
+			if err := os.WriteFile(binaryPath, binary, 0o700); err != nil {
+				t.Fatalf("WriteFile(binary) error = %v", err)
+			}
+			digest := sha256.Sum256(binary)
+			markerPath := filepath.Join(filepath.Dir(binaryPath), desktopProvenanceFileName)
+			if err := os.WriteFile(markerPath, tc.marker(hex.EncodeToString(digest[:])), 0o600); err != nil {
+				t.Fatalf("WriteFile(marker) error = %v", err)
+			}
+			manager := testManager(t, Config{
+				HomePaths:      homePaths,
+				RuntimeOS:      runtimeOSLinux,
+				ExecutablePath: func() (string, error) { return binaryPath, nil },
+			})
+			info, err := manager.detectInstall(t.Context())
+			if err != nil {
+				t.Fatalf("detectInstall() error = %v", err)
+			}
+			if info.Method != string(tc.wantMethod) || info.Managed != tc.wantManaged {
+				t.Fatalf("detectInstall() = %#v, want method=%q managed=%t", info, tc.wantMethod, tc.wantManaged)
+			}
+		})
+	}
 }

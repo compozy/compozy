@@ -1,0 +1,152 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://compozy.com/schema/app-state.schema.json",
+    "title": "CompozyOS app state",
+    "oneOf": [{ "$ref": "#/$defs/app_record" }, { "$ref": "#/$defs/status_report" }],
+    "$defs": {
+        "state": {
+            "enum": [
+                "resolving",
+                "provisioning",
+                "starting",
+                "attaching",
+                "product",
+                "updating",
+                "disconnected",
+                "skew",
+                "error"
+            ]
+        },
+        "error": {
+            "type": "object",
+            "required": ["code", "safe_message", "log_path"],
+            "properties": {
+                "code": {
+                    "enum": [
+                        "port_conflict_foreign",
+                        "runtime_start_failed",
+                        "provision_network",
+                        "provision_disk_space",
+                        "provision_permission",
+                        "runtime_unhealthy",
+                        "handshake_failed",
+                        "load_deadline_exceeded",
+                        "update_lock_held",
+                        "quiesce_failed",
+                        "migration_recovery_required",
+                        "config_invalid",
+                        "not_owned"
+                    ]
+                },
+                "safe_message": { "type": "string", "minLength": 1, "maxLength": 512 },
+                "log_path": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+        },
+        "app_record": {
+            "type": "object",
+            "required": ["schema_version", "pid", "started_at", "state"],
+            "properties": {
+                "schema_version": { "const": 1 },
+                "pid": { "type": "integer", "minimum": 1 },
+                "started_at": { "type": "string", "format": "date-time" },
+                "app_version": { "type": "string" },
+                "channel": { "type": "string" },
+                "state": { "$ref": "#/$defs/state" },
+                "stage": { "enum": ["download", "verify", "install", "start", "ready"] },
+                "pct": { "type": "integer", "minimum": 0, "maximum": 100 },
+                "attempt": { "type": "integer", "minimum": 1, "maximum": 3 },
+                "origin": { "type": "string", "format": "uri", "pattern": "^https?://" },
+                "owned": { "type": "boolean" },
+                "target": { "enum": ["app", "runtime"] },
+                "cause": { "enum": ["runtime_down", "health_check_failed"] },
+                "runtime": { "type": "string" },
+                "needed": { "type": "string" },
+                "newer": { "type": "boolean" },
+                "diagnostic": { "$ref": "#/$defs/error" },
+                "error": { "$ref": "#/$defs/error" },
+                "update": { "$ref": "#/$defs/update_status" }
+            },
+            "allOf": [
+                {
+                    "if": { "properties": { "state": { "const": "error" } } },
+                    "then": { "required": ["error"] }
+                },
+                {
+                    "if": { "properties": { "state": { "const": "product" } } },
+                    "then": { "required": ["origin", "owned"] }
+                },
+                {
+                    "if": { "properties": { "state": { "const": "starting" } } },
+                    "then": { "required": ["attempt"] }
+                }
+            ],
+            "additionalProperties": false
+        },
+        "runtime_status": {
+            "type": "object",
+            "required": ["attached", "owned"],
+            "properties": {
+                "attached": { "type": "boolean" },
+                "owned": { "type": "boolean" },
+                "version": { "type": "string" }
+            },
+            "additionalProperties": false
+        },
+        "update_status": {
+            "type": "object",
+            "required": ["app_state", "runtime_state"],
+            "properties": {
+                "app_state": { "enum": ["idle", "checking", "downloading", "ready", "failed"] },
+                "app_available": { "type": "string" },
+                "runtime_state": {
+                    "enum": [
+                        "idle",
+                        "available",
+                        "applying",
+                        "recovery_required",
+                        "failed",
+                        "managed"
+                    ]
+                },
+                "runtime_available": { "type": "string" },
+                "last_checked_at": { "type": "string", "format": "date-time" },
+                "last_error": { "$ref": "#/$defs/error" }
+            },
+            "additionalProperties": false
+        },
+        "status_report": {
+            "type": "object",
+            "required": ["schema_version", "installed", "running", "runtime", "update"],
+            "properties": {
+                "schema_version": { "const": 1 },
+                "installed": { "type": "boolean" },
+                "app_version": { "type": "string" },
+                "channel": { "type": "string" },
+                "running": { "type": "boolean" },
+                "pid": { "type": "integer", "minimum": 1 },
+                "state": { "$ref": "#/$defs/state" },
+                "error": { "$ref": "#/$defs/error" },
+                "runtime": { "$ref": "#/$defs/runtime_status" },
+                "update": { "$ref": "#/$defs/update_status" }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": { "running": { "const": true } },
+                        "required": ["running"]
+                    },
+                    "then": { "required": ["pid", "state"] }
+                },
+                {
+                    "if": {
+                        "properties": { "state": { "const": "error" } },
+                        "required": ["state"]
+                    },
+                    "then": { "required": ["error"] }
+                }
+            ],
+            "additionalProperties": false
+        }
+    }
+}

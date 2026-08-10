@@ -12,7 +12,7 @@ func generateLifecycleMatrixMDX() []byte {
 	out.WriteString("---\n")
 	out.WriteString("title: Config Lifecycle Matrix\n")
 	out.WriteString(
-		"description: Generated Compozy config lifecycle matrix for live apply, " +
+		"description: Generated CompozyOS config lifecycle matrix for live apply, " +
 			"session rebind, and restart-required changes.\n",
 	)
 	out.WriteString("---\n\n")

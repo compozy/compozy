@@ -134,11 +134,11 @@ func TestMapTelegramEditsAndReplyContext(t *testing.T) {
 						MessageID: 9002,
 						Date:      now.Unix(),
 						EditDate:  now.Add(2 * time.Minute).Unix(),
-						Chat:      telegramChat{ID: -100123, Type: "channel", Title: "Compozy Updates"},
+						Chat:      telegramChat{ID: -100123, Type: "channel"},
 						SenderChat: &telegramChat{
 							ID:       -100456,
 							Type:     "channel",
-							Title:    "Compozy Updates",
+							Title:    "CompozyOS Updates",
 							Username: "compozy_updates",
 						},
 						Caption: "corrected channel post",
@@ -188,7 +188,7 @@ func TestMapTelegramEditsAndReplyContext(t *testing.T) {
 					if got, want := envelope.Sender.ID, "-100456"; got != want {
 						t.Fatalf("channel edit sender id = %q, want %q", got, want)
 					}
-					if got, want := envelope.Sender.DisplayName, "Compozy Updates"; got != want {
+					if got, want := envelope.Sender.DisplayName, "CompozyOS Updates"; got != want {
 						t.Fatalf("channel edit sender display name = %q, want %q", got, want)
 					}
 				}

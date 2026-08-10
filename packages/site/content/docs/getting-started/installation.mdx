@@ -1,22 +1,23 @@
 ---
 title: Installation
-description: Install the Compozy binary, verify it works, and bootstrap the local runtime before you start the daemon.
+description: Install the CompozyOS desktop app or the compozy command and prepare the local runtime.
 ---
 
-This page gets Compozy onto one machine and prepares the local runtime for real work. By the end, you
-will have a working `compozy` binary, a bootstrapped `~/.compozy` home, and the prerequisites needed for
-your first durable session.
+Use the desktop app for the primary interactive setup. Use the `compozy` command when you want a
+terminal-managed runtime, headless operation, or automation. Both surfaces use the same local runtime
+and `~/.compozy` home.
 
 ## Before You Begin
 
-Make sure you have:
+The desktop app supports macOS on Apple silicon and Intel, Windows on x64, and Linux on x64. Before
+installing either surface, make sure you have:
 
-- **macOS or Linux**. Compozy currently targets local-first Unix-like environments.
-- **An install method that fits your machine**. During the v0.3 beta, use the verified installer,
+- **An install method that fits your machine**. For the desktop app, use the signed installer from
+  GitHub Releases. For the `compozy` command during the v0.3 beta, use the verified installer,
   npm's `beta` channel, or the explicit Go beta version. Homebrew returns with v0.3.0 stable.
   The verified binary installer requires `curl`, `tar`, and either `sha256sum` or `shasum`. It uses
   a local `cosign` when available; otherwise it downloads a pinned temporary cosign verifier before
-  checking Compozy release provenance.
+  checking CompozyOS release provenance.
 - **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
   ACP-compatible agent runtime you already use.
 - **At least one provider authenticated in its native way**. Direct ACP providers such as Claude
@@ -32,7 +33,26 @@ Example for a built-in wrapped provider:
 export OPENROUTER_API_KEY="..."
 ```
 
-## Install the Binary
+## Install the desktop app
+
+Download the current signed installer from the CompozyOS GitHub release page:
+
+- **macOS:** open the universal `.dmg`, then drag CompozyOS to Applications.
+- **Windows:** run the x64 NSIS `.exe` installer.
+- **Linux:** install the x64 `.deb` package or run the `.AppImage`.
+
+AppImage mounting requires FUSE 2. On Ubuntu and Debian, install `libfuse2`; newer distributions may
+name the package `libfuse2t64`. If FUSE is unavailable, use the built-in extraction fallback:
+
+```bash
+./CompozyOS.AppImage --appimage-extract-and-run
+```
+
+Open the app after installation. It first attaches to a healthy runtime already running on the
+machine. Otherwise it starts an installed runtime or downloads and verifies an app-owned runtime.
+Continue with [Desktop app](/docs/getting-started/desktop-app).
+
+## Install the `compozy` command
 
 ### Option 1: verified binary installer
 
@@ -85,7 +105,7 @@ against `checksums.txt`, then install it with your distribution package manager.
 
 ### Option 5: build from a repository checkout
 
-Use this when you are already working from the Compozy source tree or want a local build artifact you
+Use this when you are already working from the CompozyOS source tree or want a local build artifact you
 control explicitly. This path requires Go 1.26.4 or later.
 
 ```bash
@@ -95,7 +115,7 @@ go build -o ./bin/compozy .
 export PATH="$PWD/bin:$PATH"
 ```
 
-## Verify the Install
+## Verify the command install
 
 Confirm that the binary is available:
 
@@ -105,7 +125,7 @@ compozy version
 
 If your shell reports `command not found`, fix `PATH` first. Do that before you continue.
 
-## Bootstrap the Compozy Home
+## Bootstrap the command-managed home
 
 The verified binary installer runs this step automatically when it can access an interactive
 terminal. If you used `--skip-bootstrap`, a managed install, a Linux package, or a source build, run
@@ -122,9 +142,9 @@ This creates or updates:
 
 The bootstrap flow lets you pick a default provider and model for the built-in `general` agent.
 
-## Manage the Install
+## Manage the command install
 
-Use `compozy config path` to inspect the exact global and workspace config files Compozy will read, and use
+Use `compozy config path` to inspect the exact global and workspace config files CompozyOS will read, and use
 `compozy config validate` after manual edits. `compozy config show`, `compozy config list`, and
 `compozy config get <path>` always redact environment-backed MCP and config values before printing.
 From the project tree, use `compozy config validate --repair-env` when a workspace `.env` needs a
@@ -151,7 +171,8 @@ Before moving to Quick Start, verify these four things:
    command first; for `bound_secret` providers, make sure the daemon can resolve the configured
    `env:` or `vault:` secret.
 
-## Next Step
+## Next step
 
-Continue to [Quick Start](/docs/getting-started/quick-start). That tutorial assumes the
-binary works, `~/.compozy` exists, and your selected provider is authenticated.
+Desktop users should continue to [Desktop app](/docs/getting-started/desktop-app). Command users can
+continue to [Quick Start](/docs/getting-started/quick-start), which assumes the binary works,
+`~/.compozy` exists, and the selected provider is authenticated.

@@ -1,9 +1,9 @@
 ---
 title: Policy and Invocation
-description: How Compozy validates tool input, applies daemon policy, handles approvals, redacts sensitive fields, and records invocation evidence.
+description: How CompozyOS validates tool input, applies daemon policy, handles approvals, redacts sensitive fields, and records invocation evidence.
 ---
 
-Tool invocation is a runtime operation, not a direct function call from an agent. Compozy validates the
+Tool invocation is a runtime operation, not a direct function call from an agent. CompozyOS validates the
 input, applies policy, dispatches the tool, redacts sensitive fields, and returns a structured
 result.
 
@@ -96,7 +96,7 @@ them as short-lived credentials.
 ### Remembered native-tool decisions
 
 When a managed session answers a native-tool approval prompt with `allow-always` or
-`reject-always`, Compozy remembers the decision in the workspace database. The remembered key is exact:
+`reject-always`, CompozyOS remembers the decision in the workspace database. The remembered key is exact:
 workspace, agent, tool ID, and the SHA-256 digest of the authored input must all match. A different
 agent or input prompts again.
 
@@ -105,7 +105,7 @@ agent and tool across every input; tool scope matches the tool across every agen
 workspace. This management path never accepts an input digest, so it cannot fabricate an exact
 prompt-origin decision.
 
-Compozy checks a supplied single-use approval token first. Without one, it checks the remembered
+CompozyOS checks a supplied single-use approval token first. Without one, it checks the remembered
 decision before opening another prompt. A remembered allow continues to dispatch; a remembered
 reject blocks the invocation. These decisions survive daemon restarts and remain workspace-scoped.
 They do not broaden sandbox, ACP, or workspace policy.
@@ -150,7 +150,7 @@ compozy tool invoke <tool-id> \
   -o json
 ```
 
-What happened: Compozy still received the input needed by the handler, but the specified field is
+What happened: CompozyOS still received the input needed by the handler, but the specified field is
 treated as sensitive in diagnostic and event surfaces.
 
 ## Common failures

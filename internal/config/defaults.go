@@ -14,6 +14,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
 		Daemon:        defaultDaemonConfig(homePaths),
 		HTTP:          HTTPConfig{Host: "localhost", Port: 2123},
+		App:           defaultAppConfig(),
 		WindowManager: DefaultWindowManagerConfig(),
 		Defaults: DefaultsConfig{
 			Agent: DefaultAgentName,

@@ -158,7 +158,7 @@ There are two timeout layers:
 | Application timeout | Local runtime policy                       | A runtime may mark a work unit failed or canceled if no progress arrives in time. |
 
 Senders SHOULD set `expires_at` on time-sensitive requests. Receivers MUST reject expired messages.
-When `expires_at` is absent, receivers SHOULD enforce a bounded replay-age policy. The Compozy
+When `expires_at` is absent, receivers SHOULD enforce a bounded replay-age policy. The CompozyOS
 reference implementation defaults to 300 seconds.
 
 The protocol does not define a global work timeout. Runtimes MAY apply local deadlines and report

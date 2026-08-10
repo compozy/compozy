@@ -14,7 +14,7 @@ Use it when you have authored tasks under `.compozy/tasks/<slug>` and want them 
 
 ## The artifact
 
-This is the complete definition, exactly as it ships in the Compozy repository at
+This is the complete definition, exactly as it ships in the CompozyOS repository at
 `extensions/dev-cycle/loops/implement-tasks/loop.yaml`. It runs against a current release.
 
 ```yaml title="extensions/dev-cycle/loops/implement-tasks/loop.yaml"
@@ -22,7 +22,7 @@ apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: implement-tasks
-  description: Implement pending Compozy task files for one slug.
+  description: Implement pending CompozyOS task files for one slug.
   catalog:
     use_when: "You have authored tasks under .compozy/tasks/<slug> and want them implemented in dependency order."
     keywords: [tasks, implement, engineering]

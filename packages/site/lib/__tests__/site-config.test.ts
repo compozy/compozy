@@ -30,13 +30,13 @@ describe("site config metadata helpers", () => {
         title: "Runtime Overview",
         description: siteConfig.description,
         url: "https://compozy.com/docs/",
-        siteName: "Compozy",
+        siteName: "CompozyOS",
         images: [
           {
             url: "/og/docs/image.png",
             width: 1200,
             height: 630,
-            alt: "Runtime Overview | Compozy",
+            alt: "Runtime Overview | CompozyOS",
           },
         ],
       },
@@ -50,13 +50,13 @@ describe("site config metadata helpers", () => {
   });
 
   it("falls back to static OG image for the home page", () => {
-    const metadata = createPageMetadata({ title: "Compozy", path: "/" });
+    const metadata = createPageMetadata({ title: "CompozyOS", path: "/" });
     expect(metadata.openGraph.images).toEqual([
       {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Compozy | Compozy",
+        alt: "CompozyOS | CompozyOS",
       },
     ]);
   });
@@ -73,24 +73,24 @@ describe("site config metadata helpers", () => {
   it("preserves page descriptions and custom social images", () => {
     const metadata = createPageMetadata({
       title: "Launch Post",
-      description: "A public alpha announcement for Compozy.",
+      description: "A public alpha announcement for CompozyOS.",
       path: "/blog/launch",
       image: {
         url: "/static/blog/launch.png",
-        alt: "Compozy launch cover",
+        alt: "CompozyOS launch cover",
         width: 1600,
         height: 1000,
       },
     });
 
-    expect(metadata.description).toBe("A public alpha announcement for Compozy.");
+    expect(metadata.description).toBe("A public alpha announcement for CompozyOS.");
     expect(metadata.alternates.canonical).toBe("/blog/launch/");
-    expect(metadata.openGraph.description).toBe("A public alpha announcement for Compozy.");
+    expect(metadata.openGraph.description).toBe("A public alpha announcement for CompozyOS.");
     expect(metadata.openGraph.url).toBe("https://compozy.com/blog/launch/");
     expect(metadata.openGraph.images).toEqual([
       {
         url: "/static/blog/launch.png",
-        alt: "Compozy launch cover",
+        alt: "CompozyOS launch cover",
         width: 1600,
         height: 1000,
       },

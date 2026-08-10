@@ -54,7 +54,7 @@ export function BundledExtensionCard({
       <CatalogCard.Meta className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-small-body text-muted">
         <span className="font-mono text-badge text-subtle">{inventory}</span>
         <span aria-hidden className="h-0.5 w-0.5 rounded-full bg-subtle" />
-        <span>Requires Compozy ≥ {minCompozyVersion}</span>
+        <span>Requires CompozyOS ≥ {minCompozyVersion}</span>
       </CatalogCard.Meta>
       <CatalogCard.Actions className="mt-1 flex flex-wrap items-center gap-3">
         <MarketplaceInstallCommand command={statusCommand} className="min-w-0 flex-1 basis-64" />

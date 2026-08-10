@@ -57,7 +57,7 @@ matching bytes and `outcome=failure` for mismatches.
 
 Read the persisted decision with `compozy extension provenance <name> -o json`,
 `GET /api/extensions/{name}/provenance`, or `compozy__extensions_provenance`; `installed_from` is
-`bundled` for an extension shipped with Compozy, or `marketplace_registry`, `github`, `git_url`, or
+`bundled` for an extension shipped with CompozyOS, or `marketplace_registry`, `github`, `git_url`, or
 `local_path` for a separately installed extension. Bundled extensions carry the `official` registry
 tier and verified checksum evidence without unverified-install consent.
 

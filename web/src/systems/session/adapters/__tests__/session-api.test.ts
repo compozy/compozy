@@ -1025,7 +1025,7 @@ describe("fetchSessionTranscript", () => {
     });
   });
 
-  it("returns Compozy errored tool parts with raw output payloads", async () => {
+  it("returns CompozyOS errored tool parts with raw output payloads", async () => {
     const blockedTranscript = {
       epoch: 1,
       generation: 1,

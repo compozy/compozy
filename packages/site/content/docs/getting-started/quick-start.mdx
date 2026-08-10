@@ -1,15 +1,15 @@
 ---
 title: Quick Start
-description: Start the Compozy daemon, create a real session, attach while it is active, inspect its durable history, and stop it during cleanup.
+description: Start the CompozyOS daemon, create a real session, attach while it is active, inspect its durable history, and stop it during cleanup.
 ---
 
-This tutorial takes you from a bootstrapped Compozy install to one durable session you can inspect,
+This tutorial takes you from a bootstrapped CompozyOS install to one durable session you can inspect,
 attach to while it is active, and stop without deleting its history. It is intentionally
-repository-aware: you will create the session from the project you actually want Compozy to manage.
+repository-aware: you will create the session from the project you actually want CompozyOS to manage.
 
 **Before you begin:** Complete [Installation](/docs/getting-started/installation), make
 sure your selected provider is authenticated, and `cd` into a repository you want the session to
-use. For native ACP providers, use the provider's own login command before starting Compozy. For
+use. For native ACP providers, use the provider's own login command before starting CompozyOS. For
 API-key providers, make sure the configured `env:` or `vault:` credential is available to the
 daemon.
 
@@ -33,7 +33,7 @@ compozy status
 
 ## 2. Register the current repository as a workspace
 
-Compozy can use the current directory directly, but registering the workspace gives you a stable name
+CompozyOS can use the current directory directly, but registering the workspace gives you a stable name
 you can reuse in later commands.
 
 ```bash
@@ -87,7 +87,7 @@ Use a prompt that makes the workspace matter:
 compozy session prompt sess_1234 "Summarize the top-level structure of this repository and tell me what I should read first."
 ```
 
-Compozy records the prompt, the agent response, tool calls, permission decisions, and usage events in
+CompozyOS records the prompt, the agent response, tool calls, permission decisions, and usage events in
 the per-session event store.
 
 ## 6. Follow the live event stream
@@ -96,7 +96,7 @@ the per-session event store.
 compozy session events sess_1234 --follow
 ```
 
-This is the fastest way to see what Compozy means by a durable session: every important step appears as
+This is the fastest way to see what CompozyOS means by a durable session: every important step appears as
 an event instead of disappearing into one terminal transcript.
 
 When you are done following, press `Ctrl+C`.
@@ -140,7 +140,7 @@ provider with the same history, or create a new session when you want a clean sl
 
 ## What you just proved
 
-You verified that Compozy can:
+You verified that CompozyOS can:
 
 1. run a local daemon
 2. attach work to one explicit repository
@@ -154,4 +154,4 @@ You verified that Compozy can:
   workspace-scoped `AGENT.md`.
 - [Web UI](/docs/getting-started/web-ui) shows how to inspect the same daemon state in the
   browser.
-- [Session Lifecycle](/docs/sessions/lifecycle) explains what Compozy is storing and why.
+- [Session Lifecycle](/docs/sessions/lifecycle) explains what CompozyOS is storing and why.

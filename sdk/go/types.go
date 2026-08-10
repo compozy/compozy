@@ -21,10 +21,10 @@ const SDKName = "github.com/compozy/compozy/sdk/go"
 // SDKVersion is the public SDK protocol implementation version.
 const SDKVersion = "0.1.0"
 
-// ProtocolVersion is the Compozy extension subprocess protocol version.
+// ProtocolVersion is the CompozyOS extension subprocess protocol version.
 const ProtocolVersion = "1"
 
-// MinCompozyVersion is the oldest Compozy daemon supported by this SDK release.
+// MinCompozyVersion is the oldest CompozyOS daemon supported by this SDK release.
 const MinCompozyVersion = "0.3.0-beta.1"
 
 // CapabilityToolProvider is the provide surface for executable extension-host tools.
@@ -65,7 +65,7 @@ var segmentedIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(?:__[a-z][a-z0-9_]
 // ToolID is the canonical public tool identity.
 type ToolID string
 
-// Validate ensures the tool id follows the canonical Compozy grammar.
+// Validate ensures the tool id follows the canonical CompozyOS grammar.
 func (id ToolID) Validate() error {
 	value := string(id)
 	switch {
@@ -142,7 +142,7 @@ type PermissionsConfig struct {
 	Requires []HostAPIMethod `json:"requires,omitempty"`
 }
 
-// InitializeRequest is the Compozy -> extension session contract request.
+// InitializeRequest is the CompozyOS -> extension session contract request.
 type InitializeRequest struct {
 	ProtocolVersion           string                 `json:"protocol_version"`
 	SupportedProtocolVersions []string               `json:"supported_protocol_versions"`
@@ -184,7 +184,7 @@ type InitializeRuntime struct {
 	Bridge                json.RawMessage `json:"bridge,omitempty"`
 }
 
-// InitializeResponse is the extension -> Compozy initialize acknowledgment.
+// InitializeResponse is the extension -> CompozyOS initialize acknowledgment.
 type InitializeResponse struct {
 	ProtocolVersion      string                  `json:"protocol_version"`
 	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`
@@ -285,7 +285,7 @@ type ExtensionProvideToolsResponse struct {
 	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
 }
 
-// ExtensionToolCallRequest is sent by Compozy for tools/call.
+// ExtensionToolCallRequest is sent by CompozyOS for tools/call.
 type ExtensionToolCallRequest struct {
 	ToolID           ToolID                       `json:"tool_id"`
 	Handler          string                       `json:"handler"`
@@ -319,7 +319,7 @@ type ExtensionToolCallResponse struct {
 // WatchSourceOptions reserves future watch-source registration options.
 type WatchSourceOptions struct{}
 
-// WatchPollRequest is sent by Compozy for watch/poll.
+// WatchPollRequest is sent by CompozyOS for watch/poll.
 type WatchPollRequest struct {
 	Spec                json.RawMessage `json:"spec"`
 	ExpectedStateDigest string          `json:"expected_state_digest,omitempty"`
@@ -328,7 +328,7 @@ type WatchPollRequest struct {
 // WatchPollResponse is returned by a watch-source handler.
 type WatchPollResponse struct {
 	Ready bool `json:"ready"`
-	// EventKey is the required stable delivery identity. Compozy trims it, normalizes it to UTF-8 NFC,
+	// EventKey is the required stable delivery identity. CompozyOS trims it, normalizes it to UTF-8 NFC,
 	// and rejects empty values or values longer than 256 bytes.
 	EventKey    string          `json:"event_key"`
 	StateDigest string          `json:"state_digest,omitempty"`

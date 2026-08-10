@@ -11,7 +11,7 @@ metadata:
   homepage: "https://compozy.com"
   description: "A local-first operating system for agent work."
   maintainers:
-    - "Compozy Team"
+    - "CompozyOS Team"
 
 env:
   - GO111MODULE=on
@@ -76,9 +76,9 @@ nfpms:
     ids:
       - compozy
     if: '{{ eq .Os "linux" }}'
-    vendor: Compozy
+    vendor: CompozyOS
     homepage: "https://compozy.com"
-    maintainer: "Compozy Team"
+    maintainer: "CompozyOS Team"
     description: "A local-first operating system for agent work."
     license: "MIT"
     bindir: /usr/bin
@@ -183,7 +183,7 @@ release:
   target_commitish: "{{ .Commit }}"
   name_template: "CompozyOS {{ .Version }} — {{ .Env.RELEASE_CHANNEL }}"
   mode: replace
-  draft: false
+  draft: true
   # This field does not support templates. The release planner enforces that
   # beta versions carry prerelease data while stable and legacy versions do not.
   prerelease: auto

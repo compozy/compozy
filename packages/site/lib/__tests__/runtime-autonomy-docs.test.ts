@@ -63,7 +63,7 @@ describe("runtime autonomy docs", () => {
 
     expectIncludesAll(leases, [
       "`claim_token_hash`",
-      "The raw bearer lease token is internal to Compozy",
+      "The raw bearer lease token is internal to CompozyOS",
       "the calling session plus `run_id`",
       "One active lease per session",
       "Stale holders fail",
@@ -236,7 +236,7 @@ describe("runtime review-gate docs", () => {
       "task.run_review_timeout",
       "task.run_review_invalid_output",
       "task.run_review_retry_enqueued",
-      "Compozy skill expectations",
+      "CompozyOS skill expectations",
       "Config lifecycle",
       "[task.orchestration.review]",
     ]);
@@ -340,8 +340,8 @@ describe("runtime notification cursor docs", () => {
   });
 });
 
-describe("bundled Compozy skill docs", () => {
-  it("describes the Compozy skill as instructional only and lists contextual references", () => {
+describe("bundled CompozyOS skill docs", () => {
+  it("describes the CompozyOS skill as instructional only and lists contextual references", () => {
     const bundled = readRuntimeDoc("skills/bundled.mdx");
 
     expectIncludesAll(bundled, [

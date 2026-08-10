@@ -1108,40 +1108,42 @@ func TestStatusForSettingsError(t *testing.T) {
 }
 
 func TestGetSettingsUpdateReturnsCurrentSnapshot(t *testing.T) {
-	t.Parallel()
+	t.Run("Should return the current update snapshot", func(t *testing.T) {
+		t.Parallel()
 
-	fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
-	fixture.Update.GetFn = func(context.Context) (core.SettingsUpdateStatus, error) {
-		checkedAt := time.Date(2026, 5, 3, 19, 0, 0, 0, time.UTC)
-		return core.SettingsUpdateStatus{
-			Supported:      true,
-			Managed:        false,
-			InstallMethod:  "direct-binary",
-			CurrentVersion: "v1.0.0",
-			LatestVersion:  "v1.1.0",
-			Available:      true,
-			Status:         "available",
-			Recommendation: "Run `compozy update`.",
-			ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
-			CheckedAt:      &checkedAt,
-		}, nil
-	}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+		fixture.Update.GetFn = func(context.Context) (core.SettingsUpdateStatus, error) {
+			checkedAt := time.Date(2026, 5, 3, 19, 0, 0, 0, time.UTC)
+			return core.SettingsUpdateStatus{
+				Supported:      true,
+				Managed:        false,
+				InstallMethod:  "direct-binary",
+				CurrentVersion: "v1.0.0",
+				LatestVersion:  "v1.1.0",
+				Available:      true,
+				Status:         "available",
+				Recommendation: "Run `compozy update`.",
+				ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
+				CheckedAt:      &checkedAt,
+			}, nil
+		}
 
-	resp := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/update", nil)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("GET /api/settings/update status = %d, want 200", resp.Code)
-	}
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/update", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("GET /api/settings/update status = %d, want 200", resp.Code)
+		}
 
-	var payload contract.SettingsUpdateResponse
-	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(update response) error = %v", err)
-	}
-	if payload.Status != contract.SettingsUpdateStatusAvailable || payload.InstallMethod != "direct-binary" {
-		t.Fatalf("update payload = %#v, want available direct-binary", payload)
-	}
-	if fixture.Update.GetCalls != 1 {
-		t.Fatalf("GetCalls = %d, want 1", fixture.Update.GetCalls)
-	}
+		var payload contract.SettingsUpdateResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(update response) error = %v", err)
+		}
+		if payload.Status != contract.SettingsUpdateStatusAvailable || payload.InstallMethod != "direct-binary" {
+			t.Fatalf("update payload = %#v, want available direct-binary", payload)
+		}
+		if fixture.Update.GetCalls != 1 {
+			t.Fatalf("GetCalls = %d, want 1", fixture.Update.GetCalls)
+		}
+	})
 }
 
 func TestSettingsSectionAndCollectionConversions(t *testing.T) {

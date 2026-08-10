@@ -217,7 +217,7 @@ func newTaskBlockCommand(deps commandDeps) *cobra.Command {
 		&input.AsAgent,
 		"as-agent",
 		false,
-		"Block using the current Compozy-managed agent session identity",
+		"Block using the current CompozyOS-managed agent session identity",
 	)
 	mustMarkFlagRequired(cmd, taskKindKey)
 	mustMarkFlagRequired(cmd, taskReasonKey)
@@ -264,7 +264,7 @@ func newTaskUnblockCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&blockID, "block", "", "Task block ID")
 	cmd.Flags().StringVar(&note, "note", "", "Optional clear note")
-	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Clear using the current Compozy-managed agent session identity")
+	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Clear using the current CompozyOS-managed agent session identity")
 	mustMarkFlagRequired(cmd, "block")
 	return cmd
 }

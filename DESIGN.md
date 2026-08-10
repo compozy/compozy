@@ -5,7 +5,7 @@
 # by scripts/sync-design-md.mjs.
 # Do not edit by hand. Run make codegen to refresh.
 spec_version: 1
-name: Compozy
+name: CompozyOS
 tokens:
   runtime:
     colors:
@@ -469,9 +469,9 @@ tokens:
       bento-overlay-extensibility: "linear-gradient( 180deg, color-mix(in srgb, var(--color-rail) 92%, transparent) 0%, color-mix(in srgb, var(--color-rail) 66%, transparent) 26%, transparent 58% )"
 ---
 
-# Design System: Compozy
+# Design System: CompozyOS
 
-Compozy uses one visual language across the runtime UI, the shared UI kit, and the
+CompozyOS uses one visual language across the runtime UI, the shared UI kit, and the
 marketing/docs site. The token source of truth is
 `packages/ui/src/tokens.css`. This document explains why the system is shaped
 this way, which semantic contracts components must preserve, and which
@@ -485,7 +485,7 @@ generated token regions by hand. Change the CSS source, then run
 
 ## 1. Visual theme and atmosphere
 
-Compozy is an agent operating system for everyone who works with AI agents — not
+CompozyOS is an agent operating system for everyone who works with AI agents — not
 an expert-only console. The product should feel quiet, calm, and intentional:
 a warm near-black canvas, restrained text, flat depth, and a single action
 accent. It is not a marketing-gradient system, not a generic SaaS blue-gray
@@ -984,7 +984,7 @@ Use Lucide icons through the shared icon helpers when possible. The default
 stroke width is 1.75; extra-small icons can use 2. Icons in buttons need
 tooltips or accessible labels when the command is not obvious.
 
-The Compozy wordmark is official SVG geometry from the logo sources. It never
+The CompozyOS wordmark is official SVG geometry from the logo sources. It never
 uses a `<text>` node or font fallback; product and provider marks still come
 from the logo package or their official assets, never generic substitute logos.
 

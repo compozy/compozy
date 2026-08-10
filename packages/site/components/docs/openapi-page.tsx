@@ -13,7 +13,7 @@ import { createOpenAPIPage } from "fumadocs-openapi/ui";
 
 export type { OpenAPIPageProps_Preloaded } from "fumadocs-openapi/ui";
 
-// Compozy's operator stack: curl for anyone, JS/TS for bridge SDK users, Go
+// CompozyOS's operator stack: curl for anyone, JS/TS for bridge SDK users, Go
 // for runtime developers, Python for agent tooling. The full default registry
 // (7 languages) overflows the example column and adds noise.
 function goString(value: string): string {
@@ -34,7 +34,7 @@ function goJSON(value: unknown): string {
 
 /**
  * The stock Fumadocs Go generator ignores request and transport errors, then
- * dereferences a possibly nil response. The Compozy API is JSON-only, so this
+ * dereferences a possibly nil response. The CompozyOS API is JSON-only, so this
  * focused generator can produce a complete, safe, current standard-library sample.
  */
 export const compozyGo: CodeUsageGenerator = {

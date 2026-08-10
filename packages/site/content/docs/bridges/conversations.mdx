@@ -1,9 +1,9 @@
 ---
 title: Bridge Conversations and Sessions
-description: Understand how accepted platform events reuse Compozy sessions, what happens when a session is busy, and when a new routed session is created.
+description: Understand how accepted platform events reuse CompozyOS sessions, what happens when a session is busy, and when a new routed session is created.
 ---
 
-An accepted bridge event does not create an isolated agent turn by default. Compozy converts the
+An accepted bridge event does not create an isolated agent turn by default. CompozyOS converts the
 platform identity into a route key, binds that route to one daemon-owned session, and reuses the
 session for later events with the same key.
 
@@ -12,13 +12,13 @@ threads, workspaces, and bridge instances isolated according to the instance's r
 
 ## Conversation lifecycle
 
-| Situation                                              | Runtime behavior                                                                                           |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| No route exists for the key                            | Compozy creates a session with the bridge workspace's default agent and persists the route.                |
-| The route points to an active session                  | Compozy submits the event to that session and preserves its prior transcript context.                      |
-| The route's session is missing or inactive             | Compozy creates a replacement session and rebinds the route. The old session remains available as history. |
-| A selected route dimension changes                     | Compozy resolves a different key and therefore a different session.                                        |
-| Another bridge instance receives the same platform IDs | The bridge instance ID keeps the route and session distinct.                                               |
+| Situation                                              | Runtime behavior                                                                                             |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| No route exists for the key                            | CompozyOS creates a session with the bridge workspace's default agent and persists the route.                |
+| The route points to an active session                  | CompozyOS submits the event to that session and preserves its prior transcript context.                      |
+| The route's session is missing or inactive             | CompozyOS creates a replacement session and rebinds the route. The old session remains available as history. |
+| A selected route dimension changes                     | CompozyOS resolves a different key and therefore a different session.                                        |
+| Another bridge instance receives the same platform IDs | The bridge instance ID keeps the route and session distinct.                                                 |
 
 The exact key is explained in [Message routing](/docs/bridges/routing). A routing policy is
 conjunctive: every selected dimension must be present on every event accepted by that bridge
@@ -44,7 +44,7 @@ compozy session history "$SESSION_ID" --last 20
 compozy session events "$SESSION_ID" --follow
 ```
 
-Do not infer the active session from a platform message ID or from the most recently created Compozy
+Do not infer the active session from a platform message ID or from the most recently created CompozyOS
 session. The route record is the ownership source of truth.
 
 ## When the routed session is busy
@@ -75,7 +75,7 @@ message was queued or admitted.
 
 ## Chat text is not a common control language
 
-Compozy does not define shared `help`, `status`, `reset`, `stop`, or `new` commands inside bridge
+CompozyOS does not define shared `help`, `status`, `reset`, `stop`, or `new` commands inside bridge
 conversations. Unless a provider guide documents a typed platform action, those words are ordinary
 prompt text.
 
@@ -99,5 +99,5 @@ Stopping the routed session is the public way to make the next accepted event st
 session. Follow the complete procedure in
 [Start a fresh routed session](/docs/bridges/operations#start-a-fresh-routed-session).
 
-The previous session remains in Compozy history. The next supported event creates and binds a new
+The previous session remains in CompozyOS history. The next supported event creates and binds a new
 session; it does not erase the prior transcript or mutate the platform conversation.

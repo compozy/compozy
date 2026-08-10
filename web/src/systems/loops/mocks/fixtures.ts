@@ -368,7 +368,7 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
     name: "implement-tasks",
     source: "marketplace",
     version: 0,
-    description: "Implement pending Compozy task files for one slug.",
+    description: "Implement pending CompozyOS task files for one slug.",
     catalog: {
       category: "Engineering",
       use_when:

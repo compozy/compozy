@@ -4,7 +4,7 @@ description: Review workspace-scoped Job proposals, create the useful ones, and 
 ---
 
 Automation suggestions provide prefilled scheduled Jobs for one workspace. The shipped catalog
-emitter proposes provider-neutral Jobs using the workspace's default agent. Compozy does not create or
+emitter proposes provider-neutral Jobs using the workspace's default agent. CompozyOS does not create or
 run a proposed Job until an operator or agent accepts it.
 
 Open the Jobs page to review pending suggestions, or use a structured surface:
@@ -14,7 +14,7 @@ compozy automation suggestions --workspace /absolute/path/to/workspace -o json
 ```
 
 The first list for a workspace idempotently seeds the starter catalog. Each proposal contains the
-exact Job payload Compozy will validate at acceptance time, including its agent, prompt, schedule, catch-up
+exact Job payload CompozyOS will validate at acceptance time, including its agent, prompt, schedule, catch-up
 policy, and workspace ownership.
 
 ## Create a suggested Job
@@ -29,7 +29,7 @@ compozy automation suggestions accept <suggestion-id> \
 ```
 
 The lifecycle-command guard runs before consent is persisted. A proposed prompt that asks an agent to
-restart, stop, or kill the Compozy daemon is rejected and remains pending; no Job is created. Concurrent
+restart, stop, or kill the CompozyOS daemon is rejected and remains pending; no Job is created. Concurrent
 acceptance is compare-and-swap protected, so only one caller creates the Job.
 
 ## Dismiss a suggestion
@@ -43,7 +43,7 @@ compozy automation suggestions dismiss <suggestion-id> \
 ```
 
 Dismissal is durable. The `(workspace_id, dedup_key)` latch prevents the same catalog proposal from
-returning on later lists. Compozy keeps at most five pending suggestions per workspace by default. Set a
+returning on later lists. CompozyOS keeps at most five pending suggestions per workspace by default. Set a
 different positive cap in `config.toml` when a workspace needs a tighter or wider review queue:
 
 ```toml

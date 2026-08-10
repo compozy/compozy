@@ -62,7 +62,7 @@ describe("static public route metadata", () => {
       expect(metadata.applicationName).toBe(siteConfig.name);
       expect(metadata.title).toEqual({
         default: siteConfig.name,
-        template: "%s | Compozy",
+        template: "%s | CompozyOS",
       });
       expect(metadata.description).toBe(siteConfig.description);
       expect(metadata.alternates?.canonical).toBe("/");

@@ -3,13 +3,13 @@ title: Slack Setup
 description: Create a signed Events API integration, route Slack channels safely, and understand how the /compozy prompt command is delivered.
 ---
 
-This guide connects one Slack app to one route-specific Compozy workspace bridge. The Compozy-generated
+This guide connects one Slack app to one route-specific CompozyOS workspace bridge. The CompozyOS-generated
 manifest is the recommended path: it derives request URLs, bot events, OAuth scopes, interactivity,
 and the `/compozy` command from the same runtime contract that verifies the installed app.
 
 ## How the Slack bridge behaves
 
-| Surface           | Compozy behavior                                                                                                                                                                   |
+| Surface           | CompozyOS behavior                                                                                                                                                                 |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inbound transport | Receives Events API JSON plus Slack command and interaction form posts over public HTTPS. Socket Mode is not used.                                                                 |
 | Authentication    | Verifies `X-Slack-Signature` over the exact request body and rejects request timestamps outside a five-minute window.                                                              |
@@ -23,7 +23,7 @@ must use distinct webhook paths.
 
 ## Choose one route shape per bridge
 
-Compozy requires every routing dimension selected on a bridge to exist on each inbound event. A Slack
+CompozyOS requires every routing dimension selected on a bridge to exist on each inbound event. A Slack
 channel event has a group target, while a direct message has a peer target. Do not require both on
 one bridge.
 
@@ -38,21 +38,21 @@ Both omit `--include-thread` because a slash-command payload has no parent messa
 current provider cannot deliver a threaded `/compozy` answer safely.
 
 A Slack app has one Events API request URL. To run both route shapes at the same time, use separate
-Slack apps or an operator-owned request dispatcher that forwards each payload to the correct Compozy
+Slack apps or an operator-owned request dispatcher that forwards each payload to the correct CompozyOS
 webhook.
 
 ## Before you start
 
 Collect or decide these values:
 
-| Value                    | Required | Where it comes from                                                                                                           |
-| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Compozy workspace ID     | yes      | `compozy workspace list -o json`; this workspace's default agent receives new routed messages.                                |
-| Public callback URL      | yes      | Confirmed Compozy Gateway delivery URL, or a stable external HTTPS URL that forwards to the Slack provider listener and path. |
-| Local listener address   | yes      | `provider_config.webhook.listen_addr` or `COMPOZY_BRIDGE_SLACK_LISTEN_ADDR` in the daemon environment.                        |
-| Bot User OAuth token     | yes      | Slack app **OAuth & Permissions** after installation; use the bot token, not a user token.                                    |
-| App signing secret       | yes      | Slack app **Basic Information → App Credentials**.                                                                            |
-| Slack app administration | yes      | Permission to create and install an app in the target Slack workspace.                                                        |
+| Value                    | Required | Where it comes from                                                                                                             |
+| ------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| CompozyOS workspace ID   | yes      | `compozy workspace list -o json`; this workspace's default agent receives new routed messages.                                  |
+| Public callback URL      | yes      | Confirmed CompozyOS Gateway delivery URL, or a stable external HTTPS URL that forwards to the Slack provider listener and path. |
+| Local listener address   | yes      | `provider_config.webhook.listen_addr` or `COMPOZY_BRIDGE_SLACK_LISTEN_ADDR` in the daemon environment.                          |
+| Bot User OAuth token     | yes      | Slack app **OAuth & Permissions** after installation; use the bot token, not a user token.                                      |
+| App signing secret       | yes      | Slack app **Basic Information → App Credentials**.                                                                              |
+| Slack app administration | yes      | Permission to create and install an app in the target Slack workspace.                                                          |
 
 The provider needs no Slack app-level token. Keep Socket Mode disabled.
 
@@ -74,7 +74,7 @@ provider](/docs/bridges/setup#install-an-in-tree-provider) first.
 
 Choose a stable callback before generating the manifest:
 
-When Compozy Gateway owns public ingress, use the delivery URL projected for this bridge after its
+When CompozyOS Gateway owns public ingress, use the delivery URL projected for this bridge after its
 binding is confirmed. Otherwise, use an operator-owned proxy or tunnel as shown below. See [Bridge
 callbacks over the gateway](/docs/gateway/webhooks#bridge-callbacks-use-the-same-ingress) for that flow.
 
@@ -158,7 +158,7 @@ Without `--write`, the command prints the manifest to stdout. With `--write` and
 writes to `$COMPOZY_HOME/slack-manifest.json`.
 
 The manifest contains the persisted bridge instance's public callback. If you change that URL,
-update the bridge first and generate a new manifest. Do not hand-patch an old copy while Compozy retains
+update the bridge first and generate a new manifest. Do not hand-patch an old copy while CompozyOS retains
 a different configuration.
 
 ## Step 4: Create the Slack app from the manifest
@@ -197,7 +197,7 @@ The generated manifest also enables interactivity and configures `/compozy` agai
 callback. Keep Socket Mode disabled because the provider is an HTTP webhook receiver.
 
 <OperatorNote>
-  Slack can accept the app configuration before the Compozy listener is running, but its URL
+  Slack can accept the app configuration before the CompozyOS listener is running, but its URL
   challenge and event deliveries will fail until the bridge is enabled and the public route reaches
   the local provider path.
 </OperatorNote>
@@ -210,7 +210,7 @@ The generated slash command is a prompt entry point:
 /compozy <text to send to the agent>
 ```
 
-Compozy preserves `/compozy` as the command name and passes all following text to the routed agent as
+CompozyOS preserves `/compozy` as the command name and passes all following text to the routed agent as
 arguments. It does not parse administrative subcommands. Names such as `/compozy status`, `/compozy new`,
 `/compozy reset`, and `/compozy help` have no built-in behavior; their trailing words are ordinary prompt
 text.
@@ -222,7 +222,7 @@ above, every member invoking `/compozy` in the same channel reaches the same rou
 
 ### Access and response visibility
 
-Slack request signing authenticates the app request. For channel invocations, Compozy applies no
+Slack request signing authenticates the app request. For channel invocations, CompozyOS applies no
 additional sender or channel allowlist after signature verification. Any workspace member who can
 invoke the installed command can submit a prompt to that channel route. The `dm_policy` described
 below applies only to direct messages.
@@ -244,9 +244,9 @@ Slack requires a message timestamp. Keep `--include-thread` off any bridge that 
 Normal message-event bridges can preserve threads when the inbound event supplies a real
 `thread_ts`.
 
-Slack requires slash-command endpoints to acknowledge within three seconds. Compozy currently
+Slack requires slash-command endpoints to acknowledge within three seconds. CompozyOS currently
 dispatches the envelope before returning `OK`, and session-busy retries can outlast that deadline.
-Slack can therefore show a timeout even when Compozy subsequently accepts the prompt. Inspect
+Slack can therefore show a timeout even when CompozyOS subsequently accepts the prompt. Inspect
 `compozy bridge routes` and the target session before sending the same prompt again.
 
 See Slack's [slash-command contract](https://docs.slack.dev/interactivity/implementing-slash-commands/)
@@ -331,7 +331,7 @@ The enabled verification probes the public callback. For the channel route:
 3. Run `/compozy summarize the last message` from that channel.
 4. Confirm the response appears as a top-level bot message in the same channel.
 
-Inspect the route Compozy created:
+Inspect the route CompozyOS created:
 
 ```bash
 compozy bridge routes "$BRIDGE_ID" -o json
@@ -341,7 +341,7 @@ Use its group target for a real outbound check:
 
 ```bash
 compozy bridge send-test "$BRIDGE_ID" \
-  --message "Compozy Slack connection check" \
+  --message "CompozyOS Slack connection check" \
   --group-id "C0123456789" \
   --json
 ```
@@ -350,7 +350,7 @@ For a peer-only bridge, use the `peer_id` from its inbound route instead:
 
 ```bash
 compozy bridge send-test "$BRIDGE_ID" \
-  --message "Compozy Slack direct-message check" \
+  --message "CompozyOS Slack direct-message check" \
   --peer-id "D0123456789" \
   --json
 ```
@@ -449,7 +449,7 @@ you are not changing.
 | A `scope.*` check fails                               | Add that bot scope, reinstall the app to the workspace, copy the new bot token if Slack rotated it, and verify again.                 |
 | Signed events return unauthorized                     | Confirm the signing secret comes from the same Slack app and the proxy preserves body bytes and signature headers.                    |
 | Events work but `/compozy` or actions fail            | Confirm slash-command and interactivity Request URLs match `webhook.public_url` and form bodies are forwarded without transformation. |
-| Slack shows a `/compozy` timeout                      | Compozy may have accepted the prompt after Slack's three-second deadline. Inspect routes and the target session before retrying.      |
+| Slack shows a `/compozy` timeout                      | CompozyOS may have accepted the prompt after Slack's three-second deadline. Inspect routes and the target session before retrying.    |
 | `/compozy` is accepted but its bot reply fails        | Remove `--include-thread` from the bridge; a slash command has no valid parent message timestamp for `thread_ts`.                     |
 | Channel messages are silent                           | Invite the app, subscribe to the matching message event, and confirm the app installation has the corresponding history scope.        |
 | Normal message replies appear in the wrong thread     | Inspect `compozy bridge routes` and confirm an inbound message supplied the Slack `thread_ts` stored on that route.                   |

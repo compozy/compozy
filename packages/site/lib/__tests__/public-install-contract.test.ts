@@ -475,7 +475,7 @@ describe("public install contract", () => {
     expect(defaultDryRun.stdout).toContain("dry run complete");
 
     expect(pinnedDryRun.status).toBe(0);
-    expect(pinnedDryRun.stdout).toContain("Compozy installer");
+    expect(pinnedDryRun.stdout).toContain("CompozyOS installer");
     expect(pinnedDryRun.stdout).toContain("release: compozy/compozy v0.1.0");
     expect(pinnedDryRun.stdout).toContain(
       "archive: https://github.com/compozy/compozy/releases/download/v0.1.0/"
@@ -724,7 +724,7 @@ exit 23
     expect(launchPost).toContain("[installation guide](/docs/getting-started/installation)");
   });
 
-  it("keeps release collateral on the Compozy beta identity", () => {
+  it("keeps release collateral on the CompozyOS beta identity", () => {
     const readme = readSiteFile(readmePath);
     const header = readSiteFile(releaseHeaderPath);
     const footer = readSiteFile(releaseFooterPath);

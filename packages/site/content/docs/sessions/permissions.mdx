@@ -1,30 +1,30 @@
 ---
 title: Permissions
-description: How Compozy applies static permission modes, workspace boundaries, and interactive approvals during session execution.
+description: How CompozyOS applies static permission modes, workspace boundaries, and interactive approvals during session execution.
 ---
 
-Compozy applies permissions in two layers:
+CompozyOS applies permissions in two layers:
 
 1. a daemon-side static policy for built-in ACP tool surfaces
 2. an interactive approval flow for ACP `session/request_permission`
 
 Both layers are scoped to the session workspace. `approve-all` never means "full machine access".
 
-When provider-native tool interception is active, Compozy may keep the upstream ACP session in an
-approval-mediated mode so provider-native tool calls return through the Compozy execution gateway
+When provider-native tool interception is active, CompozyOS may keep the upstream ACP session in an
+approval-mediated mode so provider-native tool calls return through the CompozyOS execution gateway
 before any real side effect. That does not change the configured policy outcome:
 `approve-all` still auto-allows, `approve-reads` still auto-allows reads only, and `deny-all`
 still auto-rejects at the execution boundary.
 
 ## Permission modes
 
-Compozy supports three static modes:
+CompozyOS supports three static modes:
 
-| Mode            | Static behavior                                                                       | Cross-workspace requests                                       |
-| --------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `deny-all`      | Compozy auto-allows none of the built-in file or terminal operations.                 | Denied everywhere, with no prompt.                             |
-| `approve-reads` | Compozy auto-allows `fs/read_text_file` only.                                         | Asks at the native-tool boundary; every other boundary denies. |
-| `approve-all`   | Compozy auto-allows `fs/read_text_file`, `fs/write_text_file`, and `terminal/create`. | Allowed without asking.                                        |
+| Mode            | Static behavior                                                                         | Cross-workspace requests                                       |
+| --------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `deny-all`      | CompozyOS auto-allows none of the built-in file or terminal operations.                 | Denied everywhere, with no prompt.                             |
+| `approve-reads` | CompozyOS auto-allows `fs/read_text_file` only.                                         | Asks at the native-tool boundary; every other boundary denies. |
+| `approve-all`   | CompozyOS auto-allows `fs/read_text_file`, `fs/write_text_file`, and `terminal/create`. | Allowed without asking.                                        |
 
 The same mode decides both columns. [Cross-workspace access](#cross-workspace-access) explains what
 that means for a session that asks for another workspace.
@@ -46,7 +46,7 @@ falls back to `approve-reads` instead of launching with an empty policy.
 
 ## What the static policy actually covers
 
-These are the built-in operations Compozy checks directly:
+These are the built-in operations CompozyOS checks directly:
 
 | Operation            | `deny-all` | `approve-reads` | `approve-all` |
 | -------------------- | ---------- | --------------- | ------------- |
@@ -54,21 +54,21 @@ These are the built-in operations Compozy checks directly:
 | `fs/write_text_file` | blocked    | blocked         | allowed       |
 | `terminal/create`    | blocked    | blocked         | allowed       |
 
-Static auto-allow is only one part of the full story. Compozy still enforces workspace scoping and
+Static auto-allow is only one part of the full story. CompozyOS still enforces workspace scoping and
 network-turn restrictions after the mode check passes.
 
 ## Workspace boundaries
 
 Every permission decision is evaluated relative to the session workspace root.
 
-Compozy resolves paths carefully:
+CompozyOS resolves paths carefully:
 
 - absolute paths are checked directly
 - relative paths are resolved under the workspace root
 - existing paths are resolved through symlinks
 - missing paths are resolved through the first existing ancestor
 
-If the final path escapes the workspace root, Compozy rejects it with a path-outside-workspace error.
+If the final path escapes the workspace root, CompozyOS rejects it with a path-outside-workspace error.
 
 ## Cross-workspace access
 
@@ -77,11 +77,11 @@ names another `workspace`, an agent identity lookup, a task claim, a spawn, or a
 coordination command — the daemon sends that request through a single policy, and the session's own
 permission mode decides it:
 
-| Session mode    | Cross-workspace outcome                                                                      |
-| --------------- | -------------------------------------------------------------------------------------------- |
-| `approve-all`   | Allowed. The session crosses without being asked.                                            |
-| `approve-reads` | Asks at the native-tool boundary when the session is running; every other boundary denies.   |
-| `deny-all`      | Denied at every boundary, including the native-tool one. Compozy never prompts for crossing. |
+| Session mode    | Cross-workspace outcome                                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `approve-all`   | Allowed. The session crosses without being asked.                                              |
+| `approve-reads` | Asks at the native-tool boundary when the session is running; every other boundary denies.     |
+| `deny-all`      | Denied at every boundary, including the native-tool one. CompozyOS never prompts for crossing. |
 
 Operators are not governed by this policy — it applies to agent sessions. Extensions, automation,
 network peers, and the daemon itself keep the behavior they have today; a permissive mode never
@@ -109,7 +109,7 @@ Native tool denials carry the `workspace_access_denied` reason code alongside th
 ### The prompt in `approve-reads`
 
 In `approve-reads`, a cross-workspace native tool call from a running session becomes a pending
-permission request instead of an immediate denial. Compozy computes the option set:
+permission request instead of an immediate denial. CompozyOS computes the option set:
 
 | Option ID        | Label                   | Effect                                                                           |
 | ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
@@ -163,10 +163,10 @@ Agents can also ask for permission explicitly with ACP `session/request_permissi
 That flow behaves like this:
 
 1. the agent sends a permission request with one or more offered outcomes
-2. Compozy checks the workspace boundary first
-3. Compozy either auto-selects an outcome or records a pending permission event
+2. CompozyOS checks the workspace boundary first
+3. CompozyOS either auto-selects an outcome or records a pending permission event
 4. a client approves or rejects it
-5. Compozy returns the selected ACP outcome to the agent
+5. CompozyOS returns the selected ACP outcome to the agent
 
 ### Auto decisions vs pending decisions
 
@@ -211,14 +211,14 @@ Success response:
 ### Approval timeout
 
 Pending interactive permission requests wait up to 5 minutes by default. If no approval arrives,
-Compozy resolves the request as `reject-once`.
+CompozyOS resolves the request as `reject-once`.
 
 ### What `allow-always` and `reject-always` mean
 
-For a generic ACP permission request, Compozy picks the closest option offered by the agent and returns
+For a generic ACP permission request, CompozyOS picks the closest option offered by the agent and returns
 it. The agent runtime owns the long-lived meaning of "always" for that request.
 
-Native tools routed through Compozy's approval gateway have an additional daemon-owned contract.
+Native tools routed through CompozyOS's approval gateway have an additional daemon-owned contract.
 Selecting `allow-always` or `reject-always` stores an exact workspace + agent + tool + input-digest
 decision. The next matching invocation uses that decision before prompting, and the decision
 survives daemon restart. Operators and agents can inspect or revoke these records through Web,
@@ -259,7 +259,7 @@ yet. The resolved decision appears when approval completes.
 
 ## Current transport status
 
-Interactive approval is exposed differently across Compozy transports today:
+Interactive approval is exposed differently across CompozyOS transports today:
 
 | Transport | Status                                                                           |
 | --------- | -------------------------------------------------------------------------------- |

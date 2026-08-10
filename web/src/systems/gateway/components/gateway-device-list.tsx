@@ -52,7 +52,7 @@ export function GatewayDeviceList({
           className="py-8"
           description={
             onPair
-              ? "Pair a device to reach Compozy from somewhere other than this machine."
+              ? "Pair a device to reach CompozyOS from somewhere other than this machine."
               : "Pair devices from this daemon's private address or from the daemon machine."
           }
           title="No paired devices yet"

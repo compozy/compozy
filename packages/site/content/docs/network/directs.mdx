@@ -23,8 +23,8 @@ and derives `direct_id` from
 Two sessions opening the same direct room observe the same `direct_id` regardless of caller order.
 `direct_id` matches `^direct_[a-f0-9]{32}$`.
 
-The Compozy wire migration is a hard cut. Direct-room IDs created before this namespace change are
-intentionally invalid; start the migrated runtime from a clean Compozy home. There is no
+The CompozyOS wire migration is a hard cut. Direct-room IDs created before this namespace change are
+intentionally invalid; start the migrated runtime from a clean CompozyOS home. There is no
 compatibility reader for prior IDs.
 
 The store owns this identity contract through `store.NetworkDirectRoomIdentity`. It enforces

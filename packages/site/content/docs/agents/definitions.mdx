@@ -1,9 +1,9 @@
 ---
 title: Agent Definitions
-description: The current AGENT.md format, discovery order, runtime defaults, and parser edge cases used by Compozy.
+description: The current AGENT.md format, discovery order, runtime defaults, and parser edge cases used by CompozyOS.
 ---
 
-An agent definition tells Compozy which agent to start and what startup prompt to give it. The
+An agent definition tells CompozyOS which agent to start and what startup prompt to give it. The
 definition is a directory with an `AGENT.md` file and optional sidecars:
 
 ```text
@@ -18,9 +18,9 @@ directory) declares the unified capability catalog the runtime projects into bri
 discovery, and explicit `kind:"capability"` transfer. See
 [Agent Capabilities](/docs/agents/capabilities) for the catalog format.
 
-`AGENT.md` is a Markdown file with required frontmatter and a required body. Compozy parses the
+`AGENT.md` is a Markdown file with required frontmatter and a required body. CompozyOS parses the
 frontmatter into runtime configuration, then uses the Markdown body as the agent-owned role portion
-of the assembled startup prompt. The runtime adds its own Compozy envelope and context around that body
+of the assembled startup prompt. The runtime adds its own CompozyOS envelope and context around that body
 when it starts a session.
 
 <OperatorNote>
@@ -50,9 +50,9 @@ validation error.
 
 ## Discovery paths
 
-Compozy resolves agents from the workspace snapshot attached to the session.
+CompozyOS resolves agents from the workspace snapshot attached to the session.
 
-| Scope           | Directory Compozy scans                                                       | Applies when                                                 |
+| Scope           | Directory CompozyOS scans                                                     | Applies when                                                 |
 | --------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | Workspace root  | `<workspace>/.compozy/agents/<name>/AGENT.md`                                 | The session is created in that workspace.                    |
 | Additional root | `<additional-dir>/.compozy/agents/<name>/AGENT.md`                            | The workspace has additional roots registered.               |
@@ -62,9 +62,9 @@ Discovery order is first-wins:
 
 1. Workspace root
 2. Additional roots, in the registered order
-3. Global Compozy home
+3. Global CompozyOS home
 
-If two definitions use the same `name`, Compozy keeps the first one it found. It does not merge or
+If two definitions use the same `name`, CompozyOS keeps the first one it found. It does not merge or
 inherit from the lower-precedence definition.
 
 Extensions can also provide global agent candidates. Those agents keep their extension-local
@@ -82,7 +82,7 @@ authored fields. Use those fields instead of inferring the winner or runtime fro
 
 A workspace definition shadows a global definition with the same name. Updates, duplicates, and
 deletes target the effective winner. Deleting the workspace winner can therefore reveal the global
-definition immediately; the delete response reports that transition in `unshadowed_origin`. Compozy
+definition immediately; the delete response reports that transition in `unshadowed_origin`. CompozyOS
 does not merge either definition before or after the delete.
 
 ## Browse a workspace fleet
@@ -115,7 +115,7 @@ and UDS expose the same catalog contract.
 ## Edit with compare-and-swap
 
 Read the current definition before editing and retain its `definition_digest`. A full-definition
-update sends that value as `expected_digest`; Compozy returns `409 Conflict` if another writer changed
+update sends that value as `expected_digest`; CompozyOS returns `409 Conflict` if another writer changed
 the definition first. Reload the current definition, reapply the intended edit, and retry with the
 new digest. Do not retry a stale payload unchanged.
 
@@ -178,15 +178,15 @@ Tool discovery works the same way. The `tools` and `toolsets` frontmatter fields
 means no agent-local allowlist. For a bare managed session, hosted MCP projects the full
 availability-gated callable catalog. Populate `tools` or `toolsets` only when the agent should be
 limited to that explicit surface.
-When an agent definition or delegated session policy requires specific tools, Compozy must project
+When an agent definition or delegated session policy requires specific tools, CompozyOS must project
 hosted MCP before provider startup. If that projection is unavailable or the provider disables
 session MCP, session creation fails with an availability diagnostic instead of starting an agent
 that cannot follow its tool contract.
-Discovery-only policies can still name `compozy__bootstrap` and `compozy__catalog`; Compozy just no longer
+Discovery-only policies can still name `compozy__bootstrap` and `compozy__catalog`; CompozyOS just no longer
 injects those toolsets as a default cap for every bare hosted session. Denies, session lineage,
 disabled sources, and approval/risk gates still narrow or block invocation.
 Agents resolve canonical `compozy__tool_search` and inspect canonical `compozy__tool_info`.
-Invoke the harness-returned tool reference for Compozy-native capabilities.
+Invoke the harness-returned tool reference for CompozyOS-native capabilities.
 Skill loading resolves canonical `compozy__skill_search` and `compozy__skill_view`.
 Operator-only management — daemon lifecycle, MCP OAuth login/logout, trust-root config, raw secret
 writes, and cross-session terminal-state mutation — stays on the CLI/HTTP/UDS surfaces and is
@@ -201,7 +201,7 @@ These are the frontmatter fields accepted by the current `internal/config` parse
 | `name`             | string                      | yes      | none                                                 | Must be non-empty. `LoadAgentDef(name)` also requires the parsed name to match the requested directory/name. No lowercase or hyphen pattern is enforced today.                                                                               |
 | `provider`         | string                      | no       | `defaults.provider`                                  | Provider ID such as `claude`, `codex`, or a custom configured provider. Required at resolution time unless `defaults.provider` is set.                                                                                                       |
 | `command`          | string                      | no       | provider `command`                                   | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                                                                                                         |
-| `model`            | string                      | no       | provider `models.default`                            | Exact model preference. After ACP session creation/load, Compozy applies it through the advertised model option and never aliases or falls back from an unknown ID.                                                                          |
+| `model`            | string                      | no       | provider `models.default`                            | Exact model preference. After ACP session creation/load, CompozyOS applies it through the advertised model option and never aliases or falls back from an unknown ID.                                                                        |
 | `reasoning_effort` | string                      | no       | curated model default, then provider/adapter default | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; session creation overrides the agent value.                                                                                                                                   |
 | `tools`            | string array                | no       | empty                                                | Optional agent-local allowlist of exact canonical ToolIDs such as `compozy__skill_view`, or namespace-prefix wildcards such as `compozy__skill_*` and `mcp__github__*`. Empty leaves the hosted projection uncapped by the agent definition. |
 | `toolsets`         | string array                | no       | empty                                                | Optional agent-local allowlist of canonical ToolsetIDs such as `compozy__tasks` or `linear__read`. Empty leaves the hosted projection uncapped by the agent definition.                                                                      |
@@ -214,10 +214,10 @@ These are the frontmatter fields accepted by the current `internal/config` parse
 
 The parser accepts YAML frontmatter first. If YAML parsing fails, it tries TOML frontmatter. In
 both formats, unknown fields fail validation.
-`category_path` has one canonical shape: an array of path segments. Compozy rejects `categories` and
+`category_path` has one canonical shape: an array of path segments. CompozyOS rejects `categories` and
 slash-string values such as `"Marketing/Sales"`.
 
-ACP session creation/load happens first. Compozy then applies the resolved model through the advertised
+ACP session creation/load happens first. CompozyOS then applies the resolved model through the advertised
 model option, replaces its option snapshot with the response, and applies the resolved reasoning
 effort before the first prompt. Empty effort sends no RPC; explicit `none` does when advertised.
 
@@ -259,7 +259,7 @@ Sidecar behavior is precise:
 
 - `mcp.json` may use either `mcp_servers` or `mcpServers`.
 - Server names are map keys in `mcp.json`.
-- `env` values are sent as literal strings; Compozy does not expand shell placeholders inside MCP
+- `env` values are sent as literal strings; CompozyOS does not expand shell placeholders inside MCP
   server definitions.
 - When an inline server and sidecar server have the same name, the sidecar replaces the whole
   server object.

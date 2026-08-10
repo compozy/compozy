@@ -29,7 +29,8 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       web: ${{ steps.filter.outputs.web }}
-      relevant: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.web == 'true' }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+      relevant: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.web == 'true' || steps.filter.outputs.desktop == 'true' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -48,11 +49,13 @@ jobs:
 
           backend=false
           web=false
+          desktop=false
           zero_sha='0000000000000000000000000000000000000000'
 
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             backend=true
             web=true
+            desktop=true
           else
             if [[ "$EVENT_NAME" == "pull_request" && -n "$PR_BASE_SHA" && -n "$PR_HEAD_SHA" ]]; then
               changed_files=$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")
@@ -93,22 +96,29 @@ jobs:
                   web=true
                   ;;
               esac
+
+              case "$file" in
+                desktop/*|Makefile|.github/workflows/ci.yml)
+                  desktop=true
+                  ;;
+              esac
             done <<< "$changed_files"
           fi
 
           relevant=false
-          if [[ "$backend" == "true" || "$web" == "true" ]]; then
+          if [[ "$backend" == "true" || "$web" == "true" || "$desktop" == "true" ]]; then
             relevant=true
           fi
 
           {
             echo "backend=$backend"
             echo "web=$web"
+            echo "desktop=$desktop"
             echo "relevant=$relevant"
           } >> "$GITHUB_OUTPUT"
 
   preflight:
-    name: Preflight (codegen, installer)
+    name: Preflight (codegen, installer, product language)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: changes
@@ -140,6 +150,9 @@ jobs:
 
       - name: Verify installer artifacts
         run: make installer-check
+
+      - name: Verify product language
+        run: make product-language-check
 
   frontend:
     name: Frontend (lint, typecheck, test, build)
@@ -293,11 +306,41 @@ jobs:
         env:
           CGO_ENABLED: 0
 
+  desktop:
+    name: Desktop (format, lint, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Run desktop verification
+        run: |
+          make desktop-lint
+          make desktop-test
+          make desktop-build
+
   verify:
     name: Verify (fmt, lint, unit, build)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes, preflight, frontend, go-static, go-test, go-build, go-peer-darwin]
+    needs: [changes, preflight, frontend, go-static, go-test, go-build, go-peer-darwin, desktop]
     if: always() && needs.changes.outputs.relevant == 'true'
     steps:
       - name: Require every verification lane
@@ -308,9 +351,10 @@ jobs:
           GO_TEST_RESULT: ${{ needs.go-test.result }}
           GO_BUILD_RESULT: ${{ needs.go-build.result }}
           GO_PEER_DARWIN_RESULT: ${{ needs.go-peer-darwin.result }}
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
         run: |
           set -euo pipefail
-          for result in "$PREFLIGHT_RESULT" "$FRONTEND_RESULT" "$GO_STATIC_RESULT" "$GO_TEST_RESULT" "$GO_BUILD_RESULT" "$GO_PEER_DARWIN_RESULT"; do
+          for result in "$PREFLIGHT_RESULT" "$FRONTEND_RESULT" "$GO_STATIC_RESULT" "$GO_TEST_RESULT" "$GO_BUILD_RESULT" "$GO_PEER_DARWIN_RESULT" "$DESKTOP_RESULT"; do
             if [[ "$result" != "success" ]]; then
               echo "Verification lane finished with result: $result"
               exit 1

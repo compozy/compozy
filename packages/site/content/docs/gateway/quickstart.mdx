@@ -1,17 +1,17 @@
 ---
 title: Gateway quickstart
-description: Reach Compozy from your phone or laptop in about ten minutes — enable the gateway, pair a device, and open the web UI from anywhere.
+description: Reach CompozyOS from your phone or laptop in about ten minutes — enable the gateway, pair a device, and open the web UI from anywhere.
 ---
 
 At the end of this page you will have one address, `https://compozy-gateway.<your-tailnet>.ts.net:8443`,
-that opens the full Compozy web UI from your phone or laptop — from anywhere, over your own private
+that opens the full CompozyOS web UI from your phone or laptop — from anywhere, over your own private
 Tailscale network. Nothing becomes reachable from the public internet.
 
 Expect about ten minutes, most of it waiting for the first certificate.
 
 ## Before you start
 
-- The Compozy daemon is running on this machine (`compozy status`).
+- The CompozyOS daemon is running on this machine (`compozy status`).
 - You have a [Tailscale](https://tailscale.com) account. The free plan is enough.
 - In the Tailscale admin console, **MagicDNS and HTTPS certificates are enabled** for your tailnet
   (under **DNS**). The gateway serves HTTPS and cannot start without a certificate domain.
@@ -44,7 +44,7 @@ value is typed into a hidden prompt and never appears in your shell history, log
 compozy extension secrets set tailscale --env TS_AUTHKEY
 ```
 
-The Tailscale extension ships inside Compozy and uses your account only. There is nothing else to
+The Tailscale extension ships inside CompozyOS and uses your account only. There is nothing else to
 install — details on the [Tailscale extension](/docs/gateway/tailscale) page.
 
 ## Step 3: Turn the extension on
@@ -54,7 +54,7 @@ compozy extension enable tailscale
 ```
 
 The first enable refuses with a network requirement digest — the extension declares that it carries
-gateway traffic, and Compozy asks you to confirm exactly that. The refusal prints the exact command
+gateway traffic, and CompozyOS asks you to confirm exactly that. The refusal prints the exact command
 to run, in the shape:
 
 ```bash

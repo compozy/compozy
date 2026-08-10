@@ -94,7 +94,7 @@ func observeOverviewBundle(overview *contract.ObserveOverviewPayload) outputBund
 		jsonl: func(cmd *cobra.Command) error {
 			if err := writeJSONLine(cmd, map[string]any{
 				observeSectionKey: observeSectionMeta,
-				"schema_version":  overview.SchemaVersion,
+				cliSchemaVersion:  overview.SchemaVersion,
 				"generated_at":    overview.GeneratedAt,
 			}); err != nil {
 				return err

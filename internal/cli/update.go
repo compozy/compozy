@@ -53,9 +53,9 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   updateUpdateKey,
-		Short: "Check for and apply updates on the active Compozy release channel",
+		Short: "Check for and apply updates on the active CompozyOS release channel",
 		Long: strings.TrimSpace(`
-Check GitHub Releases for the latest Compozy build on the active release channel and apply it when
+Check GitHub Releases for the latest CompozyOS build on the active release channel and apply it when
 this install supports self-update. Managed installs return the exact package-manager upgrade path
 instead of mutating files directly.
 		`),
@@ -161,7 +161,7 @@ func finishLocalUpdate(
 	}
 	record.Status = string(compozyupdate.StatusUpdated)
 	record.CurrentVersion = strings.TrimSpace(release.Version)
-	record.Message = "Updated Compozy to " + strings.TrimSpace(release.Version) + "."
+	record.Message = "Updated CompozyOS to " + strings.TrimSpace(release.Version) + "."
 	return writeCommandOutput(cmd, updateBundle(record))
 }
 
@@ -241,7 +241,7 @@ func restartDaemonAfterUpdate(
 	record.Status = string(compozyupdate.StatusUpdated)
 	record.CurrentVersion = strings.TrimSpace(release.Version)
 	record.DaemonRestarted = true
-	record.Message = "Updated Compozy to " + strings.TrimSpace(release.Version) + " and restarted the daemon."
+	record.Message = "Updated CompozyOS to " + strings.TrimSpace(release.Version) + " and restarted the daemon."
 	return writeCommandOutput(cmd, updateBundle(record))
 }
 

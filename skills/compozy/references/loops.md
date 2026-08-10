@@ -1,8 +1,8 @@
 # Loops
 
-Agent operation guidance for Compozy Loops — deterministic goal → verify → settle programs the daemon
+Agent operation guidance for CompozyOS Loops — deterministic goal → verify → settle programs the daemon
 owns and runs. Use this reference when you author, configure, run, observe, approve, or control a Loop
-from inside Compozy. Prefer the native `compozy__loop_*` tools; fall back to `compozy loop` CLI or HTTP with
+from inside CompozyOS. Prefer the native `compozy__loop_*` tools; fall back to `compozy loop` CLI or HTTP with
 structured output. Never guess a schema — resolve `compozy__tool_info` for the exact descriptor first.
 
 ## Contents
@@ -57,7 +57,7 @@ Use `compozy loop list --workspace <ref> -o json`, HTTP/UDS `GET /api/workspaces
 
 The response is `loops`, exact self-filtered `facets` (`kinds`, `categories`, `statuses`), and counted `page` (`total`, normalized `limit`, `has_more`, `next_cursor`). Self-filtered means each facet omits its own active filter while respecting search and every other filter. Pages default to 50 and cap at 200.
 
-Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. Compozy computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run and includes `best_generation`/`best_score` when the run has a scored best candidate; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
+Opaque cursors bind workspace, search, kind, category, status, and sort; limit may change. Stable order is read-only before workspace, then normalized name and ID. CompozyOS computes the cut from lean records and loads definition YAML only for selected rows. `last_run` is the all-time latest run and includes `best_generation`/`best_score` when the run has a scored best candidate; only `aggregate_30d` and `success_rate_30d` use the 30-day window.
 
 `compozy loop runs` / `compozy__loop_runs` is a different, non-cursor contract: it returns `runs` plus aggregates, defaults to 100 rows, caps at 500, and does not expose `has_more` or `next_cursor`.
 Each run summary exposes `best_generation`/`best_score` but never embeds generation history.
@@ -118,7 +118,7 @@ is rejected.
 Missing `session` compiles to `mode: continuous`. An isolated session is the other valid strategy;
 the two cannot be combined. Operational retry uses `retry.max_attempts`, which counts total
 pre-submission attempts including the first. `on_failure: fresh_session` requires continuous mode
-and at least two attempts. It applies only when Compozy proves the prompt effect never started. Compozy
+and at least two attempts. It applies only when CompozyOS proves the prompt effect never started. CompozyOS
 never replays a prompt after durable start; recovery continuation is a new turn.
 
 Authenticated Web/HTTP/UDS/CLI session prompt ingress recognizes this closed grammar:
@@ -442,7 +442,7 @@ automation run.
 
 ## Watch-Events Behavior
 
-A `watch-events` source node makes a Loop react to an **internal Compozy event** (unlike `watch-source`,
+A `watch-events` source node makes a Loop react to an **internal CompozyOS event** (unlike `watch-source`,
 which polls an external signal through an extension). The node carries a typed `events` list; each
 subscription is `{ kind, filter }` where `kind` is a supported hook-event name and `filter` is an
 optional CEL condition over `event`, `inputs`, and `nodes`. Multiple subscriptions OR together; an

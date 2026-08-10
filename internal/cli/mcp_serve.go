@@ -33,7 +33,7 @@ func newMCPServeCommand(deps commandDeps) *cobra.Command {
 	opts := mcpServeOptions{}
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Serve the workspace-bound Compozy Host API over MCP",
+		Short: "Serve the workspace-bound CompozyOS Host API over MCP",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			opts.Stdin = cmd.InOrStdin()

@@ -1,0 +1,32 @@
+{
+    "cases": [
+        {
+            "name": "absolute",
+            "compozy_home": "/tmp/compozy",
+            "user_home": "/home/operator",
+            "cwd": "/work",
+            "want": "/tmp/compozy"
+        },
+        {
+            "name": "relative",
+            "compozy_home": "relative/home",
+            "user_home": "/home/operator",
+            "cwd": "/work",
+            "want": "/work/relative/home"
+        },
+        {
+            "name": "tilde",
+            "compozy_home": "~/custom",
+            "user_home": "/home/operator",
+            "cwd": "/work",
+            "want": "/home/operator/custom"
+        },
+        {
+            "name": "unset",
+            "compozy_home": null,
+            "user_home": "/home/operator",
+            "cwd": "/work",
+            "want": "/home/operator/.compozy"
+        }
+    ]
+}

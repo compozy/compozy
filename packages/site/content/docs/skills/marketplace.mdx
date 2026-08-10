@@ -1,9 +1,9 @@
 ---
 title: Skills Marketplace
-description: How to discover, install, update, and remove marketplace skills with Compozy.
+description: How to discover, install, update, and remove marketplace skills with CompozyOS.
 ---
 
-Compozy can install community skills from a marketplace registry into the same local skill hierarchy as
+CompozyOS can install community skills from a marketplace registry into the same local skill hierarchy as
 manual skills. The default registry adapter is ClawHub.
 
 Marketplace operations are available through the CLI and the daemon API. The web Skills page shows
@@ -11,7 +11,7 @@ installed skills; use the discovery CLI or API when you need the remote catalog.
 CLI can perform its registry operations without requiring the daemon to be running.
 
 <OperatorNote>
-  Marketplace skills are installed into `$COMPOZY_HOME/skills/`. Compozy marks them as
+  Marketplace skills are installed into `$COMPOZY_HOME/skills/`. CompozyOS marks them as
   marketplace-sourced by writing `.compozy-meta.json` next to `SKILL.md`.
 </OperatorNote>
 
@@ -24,7 +24,7 @@ The default marketplace registry is `clawhub`. You can leave it implicit, or set
 registry = "clawhub"
 ```
 
-Use `base_url` only when you are pointing Compozy at a compatible mirror or test registry:
+Use `base_url` only when you are pointing CompozyOS at a compatible mirror or test registry:
 
 ```toml
 [skills.marketplace]
@@ -34,12 +34,12 @@ base_url = "https://clawhub.ai/api/v1"
 
 Validation rules:
 
-| Setting                           | Behavior                                                                   |
-| --------------------------------- | -------------------------------------------------------------------------- |
-| no `[skills.marketplace]` section | Compozy uses the built-in ClawHub default when a marketplace command runs. |
-| `base_url` without `registry`     | Invalid. The registry name is required when overriding the URL.            |
-| registry other than `clawhub`     | Invalid today.                                                             |
-| `base_url` scheme                 | Must be `http` or `https`, and must include a host.                        |
+| Setting                           | Behavior                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------- |
+| no `[skills.marketplace]` section | CompozyOS uses the built-in ClawHub default when a marketplace command runs. |
+| `base_url` without `registry`     | Invalid. The registry name is required when overriding the URL.              |
+| registry other than `clawhub`     | Invalid today.                                                               |
+| `base_url` scheme                 | Must be `http` or `https`, and must include a host.                          |
 
 ## Search
 
@@ -73,7 +73,7 @@ compozy skill install @author/refactor-checklist
 
 Install behavior:
 
-1. Compozy resolves the configured registry.
+1. CompozyOS resolves the configured registry.
 2. It fetches marketplace detail for the slug.
 3. It downloads the archive into a temporary staging directory under `$COMPOZY_HOME/skills/`.
 4. It verifies the archive shape and scans content before install.
@@ -84,10 +84,10 @@ Install behavior:
 Installed marketplace skills then load from the global registry. If the same skill name already
 exists in a lower source, the higher-precedence source wins according to the normal skill hierarchy.
 
-When installation runs through the daemon API, Compozy refreshes the global skills registry before
+When installation runs through the daemon API, CompozyOS refreshes the global skills registry before
 returning so `/api/skills` and the web Installed tab can reflect the new skill immediately.
 
-After writing the files, Compozy verifies that skill discovery can resolve the installed skill as a
+After writing the files, CompozyOS verifies that skill discovery can resolve the installed skill as a
 marketplace skill with matching provenance and an enabled state. If that verification fails, the CLI
 returns a classified marketplace unavailable error and the daemon API returns an unavailable
 response. Treat this as a local state problem, not a retry signal: enable a disabled skill, remove or
@@ -137,7 +137,7 @@ Marketplace provenance looks like this:
 }
 ```
 
-All fields are required. Compozy recomputes the installed directory hash on load. If the hash differs,
+All fields are required. CompozyOS recomputes the installed directory hash on load. If the hash differs,
 the skill is treated as unsafe and does not enter the registry.
 
 Marketplace content also goes through the same load-time scanner as local skills:
@@ -204,9 +204,9 @@ Update behavior:
 | Case                                | Behavior                                                                          |
 | ----------------------------------- | --------------------------------------------------------------------------------- |
 | skill has no `.compozy-meta.json`   | It is not treated as marketplace-installed and cannot be updated by this command. |
-| `--check`                           | Compozy reports whether an update is available but does not replace files.        |
+| `--check`                           | CompozyOS reports whether an update is available but does not replace files.      |
 | no update                           | Status is `already up to date`.                                                   |
-| update available and not check-only | Compozy installs the latest version through the same install pipeline.            |
+| update available and not check-only | CompozyOS installs the latest version through the same install pipeline.          |
 
 ## Version Pinning
 
@@ -216,7 +216,7 @@ Use `--version` to request a specific marketplace archive version:
 compozy skill install @author/refactor-checklist --version 1.2.0
 ```
 
-Compozy records the installed version in `.compozy-meta.json` for audit and update checks. Version suffixes
+CompozyOS records the installed version in `.compozy-meta.json` for audit and update checks. Version suffixes
 are still not accepted in slugs; keep the slug as `@author/name` and pass the version with the flag.
 
 ## Remove
@@ -262,14 +262,14 @@ Read one resource file inside the skill directory:
 compozy skill view refactor-checklist --file references/review-template.md
 ```
 
-Resource reads must stay inside the skill directory. Compozy rejects traversal and symlink escape
+Resource reads must stay inside the skill directory. CompozyOS rejects traversal and symlink escape
 attempts.
 
 ## Related Pages
 
 - [Unified Marketplace](/docs/marketplace) covers cross-kind discovery and per-kind install flows.
 - [SKILL.md Format](/docs/skills/skill-md) documents `.compozy-meta.json`, MCP declarations, and hooks.
-- [Bundled Skill](/docs/skills/bundled) documents the trusted `compozy` skill shipped with Compozy.
+- [Bundled Skill](/docs/skills/bundled) documents the trusted `compozy` skill shipped with CompozyOS.
 - [Skill CLI Reference](/docs/cli/skill) lists every generated skill command.
 - [Skill Search Reference](/docs/cli/skill/search) shows generated search flags.
 - [Skill Install Reference](/docs/cli/skill/install) shows generated install syntax.

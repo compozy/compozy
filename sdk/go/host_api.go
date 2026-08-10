@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// HostAPIMethod identifies one extension -> Compozy Host API request.
+// HostAPIMethod identifies one extension -> CompozyOS Host API request.
 type HostAPIMethod string
 
 const (

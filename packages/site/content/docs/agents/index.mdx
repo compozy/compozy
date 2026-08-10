@@ -1,14 +1,14 @@
 ---
 title: Agents
-description: How Compozy resolves agent definitions, advertises capabilities, launches providers, and supervises ACP subprocesses.
+description: How CompozyOS resolves agent definitions, advertises capabilities, launches providers, and supervises ACP subprocesses.
 ---
 
-Agents are the executable unit Compozy manages. A definition file declares the agent identity, the
+Agents are the executable unit CompozyOS manages. A definition file declares the agent identity, the
 provider that runs it, the permissions it inherits, and the capabilities it advertises. At session
-start Compozy resolves that definition into an ACP subprocess, injects environment, negotiates the
+start CompozyOS resolves that definition into an ACP subprocess, injects environment, negotiates the
 session, and supervises it through stop.
 
-Use this section when you need to answer which agent will run, which provider command Compozy will
+Use this section when you need to answer which agent will run, which provider command CompozyOS will
 execute, what capabilities the agent advertises to the network, or why a session did not launch the
 way you expected. Agent docs sit between configuration and sessions: configuration explains the
 files, sessions explain live runtime state, and this section explains the handoff from definition to
@@ -38,7 +38,7 @@ discover about the agent, not how the process starts.
     href="/docs/agents/capabilities"
     label="Catalog"
     title="Capability catalog and projection"
-    description="Use this page when authoring capability catalogs and seeing how Compozy projects them into greet, whois, and capability transfer."
+    description="Use this page when authoring capability catalogs and seeing how CompozyOS projects them into greet, whois, and capability transfer."
     meta="Discovery"
   />
   <RouteRow

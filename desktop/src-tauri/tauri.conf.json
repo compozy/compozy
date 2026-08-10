@@ -1,0 +1,55 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "CompozyOS",
+    "version": "0.3.0",
+    "identifier": "com.compozy.os",
+    "build": {
+        "frontendDist": "pages"
+    },
+    "app": {
+        "withGlobalTauri": false,
+        "windows": [
+            {
+                "label": "boot",
+                "title": "CompozyOS",
+                "url": "boot.html",
+                "width": 520,
+                "height": 320,
+                "minWidth": 420,
+                "minHeight": 280,
+                "resizable": false,
+                "center": true,
+                "visible": true,
+                "backgroundColor": "#131211"
+            }
+        ],
+        "security": {
+            "capabilities": ["boot"],
+            "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+        }
+    },
+    "plugins": {
+        "deep-link": {
+            "desktop": {
+                "schemes": ["compozyos"]
+            }
+        },
+        "updater": {
+            "endpoints": [],
+            "pubkey": ""
+        }
+    },
+    "bundle": {
+        "active": true,
+        "createUpdaterArtifacts": true,
+        "icon": ["../../web/public/icon-512.png"],
+        "category": "Productivity",
+        "shortDescription": "CompozyOS desktop shell",
+        "longDescription": "The native desktop shell for the CompozyOS agent operating system.",
+        "windows": {
+            "nsis": {
+                "installMode": "currentUser"
+            }
+        }
+    }
+}

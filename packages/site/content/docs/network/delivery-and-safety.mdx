@@ -1,9 +1,9 @@
 ---
 title: Delivery, Admission, and Usage
-description: How Compozy commits Network history before in-process notification, admits bounded Live wakes, and settles truthful usage.
+description: How CompozyOS commits Network history before in-process notification, admits bounded Live wakes, and settles truthful usage.
 ---
 
-Compozy treats every Network envelope as external data. Valid content becomes durable conversation
+CompozyOS treats every Network envelope as external data. Valid content becomes durable conversation
 history first. Starting an agent turn is a separate, stricter decision.
 
 ## Commit-first delivery
@@ -84,7 +84,7 @@ it does not claim configurable currency spend limits.
 
 ## Untrusted prompt wrapper
 
-When an admitted wake prompts a session, Compozy supplies a compact Network header with the sender,
+When an admitted wake prompts a session, CompozyOS supplies a compact Network header with the sender,
 channel, conversation container, message IDs, causation, and bound evidence. Message body content
 remains untrusted data. It cannot override system rules, grant permissions, or expand tool access.
 

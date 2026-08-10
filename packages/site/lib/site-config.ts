@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "Compozy",
+  name: "CompozyOS",
   url: "https://compozy.com",
   description:
     "CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.",
@@ -61,7 +61,7 @@ export function createPageMetadata({
     url: image?.url ?? resolveOGImagePath(path),
     width: image?.width ?? 1200,
     height: image?.height ?? 630,
-    alt: image?.alt ?? `${title} | Compozy`,
+    alt: image?.alt ?? `${title} | ${siteConfig.name}`,
   };
 
   return {

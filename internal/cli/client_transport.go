@@ -316,7 +316,7 @@ func newDaemonUnavailableError(socketPath string, method string, path string, er
 		Category: contract.CategoryDaemon,
 		Title:    "Daemon unavailable",
 		Message: fmt.Sprintf(
-			"Compozy daemon is not reachable at %s while requesting %s %s.",
+			"CompozyOS daemon is not reachable at %s while requesting %s %s.",
 			socketPath,
 			method,
 			path,

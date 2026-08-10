@@ -1,10 +1,10 @@
 ---
 title: Release Readiness Sweep
-description: Use Compozy tasks and sessions to run release checks with durable ownership and completion evidence.
+description: Use CompozyOS tasks and sessions to run release checks with durable ownership and completion evidence.
 ---
 
 A release sweep is a set of checks that should not disappear into chat: docs, build health,
-integration status, migration notes, and operator risk. Compozy models that work as tasks, task runs,
+integration status, migration notes, and operator risk. CompozyOS models that work as tasks, task runs,
 and attached sessions.
 
 The model is simple:
@@ -40,7 +40,7 @@ compozy task create \
 <Mermaid
   chart={`flowchart TD
     Task[Operator creates release task] --> Enqueue[Operator enqueues run]
-    Enqueue --> Session[Operator starts Compozy session]
+    Enqueue --> Session[Operator starts CompozyOS session]
     Session --> Claim[Agent session claims exact run]
     Claim --> Work[Agent runs checks and collects evidence]
     Work --> Decision{Ready?}

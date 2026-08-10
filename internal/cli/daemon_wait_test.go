@@ -581,8 +581,18 @@ func TestRunDaemonForegroundRunsDaemonWhenNotAlreadyRunning(t *testing.T) {
 	t.Run("Should run daemon when no daemon is already running", func(t *testing.T) {
 		t.Parallel()
 
-		runner := &stubRunner{}
 		deps := newTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		runner := &stubRunner{runFn: func(context.Context) error {
+			lock, err := acquireDaemonStartUpdateLock(daemonStartUpdateLockPath(homePaths))
+			if err != nil {
+				return err
+			}
+			return lock.Release()
+		}}
 		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
 			return compozydaemon.Info{}, os.ErrNotExist
 		}
@@ -692,6 +702,43 @@ func TestRunDaemonDetachedIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
 		}
 		if status.Status != "ready" || status.PID != 84 {
 			t.Fatalf("runDaemonDetached() status = %#v, want ready pid 84", status)
+		}
+	})
+}
+
+func TestRunDaemonDetachedReprobesAfterAcquiringUpdateLock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse to spawn when the post-lock probe finds a running daemon", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+		spawned := false
+		deps.spawnDetached = func(context.Context, compozyconfig.HomePaths) (daemonProcess, error) {
+			spawned = true
+			return &stubDaemonProcess{done: make(chan struct{})}, nil
+		}
+
+		_, err := runDaemonDetached(testutil.Context(t), deps)
+		assertErrorContains(t, err, "daemon already running")
+		if spawned {
+			t.Fatal("spawnDetached() called after post-lock probe found a running daemon")
+		}
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		contents, err := os.ReadFile(daemonStartUpdateLockPath(homePaths))
+		if err != nil {
+			t.Fatalf("os.ReadFile(update lock) error = %v", err)
+		}
+		if len(contents) != 0 {
+			t.Fatalf("released update lock contents = %q, want empty", contents)
 		}
 	})
 }

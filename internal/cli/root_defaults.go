@@ -133,6 +133,12 @@ func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
 	if d.openBrowser == nil {
 		d.openBrowser = openBrowser
 	}
+	if d.resolveAppInstallation == nil {
+		d.resolveAppInstallation = resolvePlatformAppInstallation
+	}
+	if d.callAppControl == nil {
+		d.callAppControl = callAppControl
+	}
 	if d.inputIsTerminal == nil {
 		d.inputIsTerminal = supportBundleInputIsTerminal
 	}

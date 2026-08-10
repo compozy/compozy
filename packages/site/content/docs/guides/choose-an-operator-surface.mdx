@@ -3,8 +3,8 @@ title: Choose a control surface
 description: Choose among the CLI, web UI, HTTP/SSE, UDS, native tools, and MCP by actor and trust boundary.
 ---
 
-This guide helps you choose the Compozy surface for the actor in front of you: a human operator, a
-script, a managed Compozy agent, a trusted external MCP client, or a browser integration. Start with
+This guide helps you choose the CompozyOS surface for the actor in front of you: a human operator, a
+script, a managed CompozyOS agent, a trusted external MCP client, or a browser integration. Start with
 the actor and its trust boundary; the surfaces are not interchangeable authority shortcuts.
 
 <OperatorNote label="Runtime truth">
@@ -19,7 +19,7 @@ the actor and its trust boundary; the surfaces are not interchangeable authority
 | ------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
 | Human on the daemon host                    | The OS account and selected `COMPOZY_HOME` carry operator authority.          | CLI                      | You need an explicit command, shell pipeline, or `-o json` result.                       |
 | Human in the browser                        | The daemon's HTTP listener defines who can reach the UI and API.              | Web UI                   | You need to scan current runtime state visually.                                         |
-| Managed Compozy agent                       | Session identity, workspace binding, tool policy, and capability gates apply. | Native `compozy__*` tool | You need a structured, policy-filtered runtime operation inside the managed session.     |
+| Managed CompozyOS agent                     | Session identity, workspace binding, tool policy, and capability gates apply. | Native `compozy__*` tool | You need a structured, policy-filtered runtime operation inside the managed session.     |
 | Trusted external MCP client                 | The relay binds the client to one workspace and delegates operator authority. | `compozy mcp serve`      | An external agent client needs the approved Host API subset over stdio or loopback HTTP. |
 | Local process on the daemon host            | Filesystem access to the UDS socket controls local reach.                     | UDS                      | You need daemon APIs without exposing another TCP listener.                              |
 | Browser or intentionally remote integration | The configured TCP listener is part of the deployment's network boundary.     | HTTP/SSE                 | You need request/response APIs or ordered live events over Server-Sent Events.           |
@@ -46,7 +46,7 @@ Use [CLI Reference](/docs/cli) for exact commands,
 
   </WorkflowStep>
 
-  <WorkflowStep title="A managed agent needs to inspect or mutate Compozy">
+  <WorkflowStep title="A managed agent needs to inspect or mutate CompozyOS">
     Prefer a callable native tool. Resolve `compozy__tool_search`, inspect the selected descriptor
     through `compozy__tool_info`, then invoke the returned tool reference with that live schema.
     Availability and risk policy are part of the result.
@@ -56,7 +56,7 @@ Use [CLI Reference](/docs/cli) for exact commands,
 
   </WorkflowStep>
 
-  <WorkflowStep title="A trusted external agent client needs Compozy">
+  <WorkflowStep title="A trusted external agent client needs CompozyOS">
     Run a foreground MCP relay bound to the intended workspace:
 
     ```bash
@@ -71,7 +71,7 @@ Use [CLI Reference](/docs/cli) for exact commands,
   </WorkflowStep>
 
   <WorkflowStep title="A browser or integration needs live updates">
-    Use HTTP plus SSE. Polling hides ordering and makes recovery harder; Compozy events are already
+    Use HTTP plus SSE. Polling hides ordering and makes recovery harder; CompozyOS events are already
     append-only runtime records.
 
     ```bash
@@ -134,7 +134,7 @@ compozy session events sess_1234 --follow
 For the lifecycle model behind those commands, read
 [Session Lifecycle](/docs/sessions/lifecycle).
 
-### Let another system watch Compozy
+### Let another system watch CompozyOS
 
 Use HTTP/SSE. The API route map lists the implemented route families and marks which routes are
 generated from OpenAPI today; the guides explain when a route is the right tool.

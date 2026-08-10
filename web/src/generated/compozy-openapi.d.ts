@@ -29502,6 +29502,12 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_session_executions: number;
+            active_task_claims: number;
+            admission_closed: boolean;
+            authoritative_claims_settled: boolean;
+            safe_to_stop: boolean;
+            session_execution_settled: boolean;
             /** @enum {string} */
             state: "active" | "draining";
           };
@@ -40213,7 +40219,7 @@ export interface operations {
   listProviderModels: {
     parameters: {
       query?: {
-        /** @description Filter by Compozy provider id */
+        /** @description Filter by CompozyOS provider id */
         provider_id?: string;
         /** @description Catalog view; defaults to curated */
         view?: "curated" | "all";
@@ -40591,7 +40597,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        /** @description Compozy provider id */
+        /** @description CompozyOS provider id */
         provider_id: string;
       };
       cookie?: never;
@@ -40795,7 +40801,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        /** @description Compozy provider id */
+        /** @description CompozyOS provider id */
         provider_id: string;
       };
       cookie?: never;
@@ -41076,7 +41082,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        /** @description Compozy provider id */
+        /** @description CompozyOS provider id */
         provider_id: string;
       };
       cookie?: never;
@@ -41234,7 +41240,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        /** @description Compozy provider id */
+        /** @description CompozyOS provider id */
         provider_id: string;
       };
       cookie?: never;
@@ -43672,7 +43678,7 @@ export interface operations {
   listOpenAIModels: {
     parameters: {
       query?: {
-        /** @description Filter by Compozy provider id */
+        /** @description Filter by CompozyOS provider id */
         provider_id?: string;
       };
       header?: never;
@@ -43918,7 +43924,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        /** @description Compozy provider id */
+        /** @description CompozyOS provider id */
         provider_id: string;
       };
       cookie?: never;
@@ -44030,7 +44036,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        /** @description Compozy provider id */
+        /** @description CompozyOS provider id */
         provider_id: string;
       };
       cookie?: never;
@@ -85939,6 +85945,12 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_session_executions: number;
+            active_task_claims: number;
+            admission_closed: boolean;
+            authoritative_claims_settled: boolean;
+            safe_to_stop: boolean;
+            session_execution_settled: boolean;
             /** @enum {string} */
             state: "active" | "draining";
           };

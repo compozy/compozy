@@ -79,7 +79,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional metadata JSON")
 	cmd.Flags().
-		BoolVar(&asAgent, "as-agent", false, "Create using the current Compozy-managed agent session identity")
+		BoolVar(&asAgent, "as-agent", false, "Create using the current CompozyOS-managed agent session identity")
 	cmd.Flags().
 		BoolVar(&autoEnqueue, taskAutoEnqueueOnReadyFlag, false, "Auto-enqueue the run once blocking dependencies complete")
 	cmd.Flags().

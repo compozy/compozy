@@ -89,6 +89,8 @@ type commandDeps struct {
 	lookPath                    func(string) (string, error)
 	removeFile                  func(string) error
 	openBrowser                 func(context.Context, string) error
+	resolveAppInstallation      func(context.Context, compozyconfig.HomePaths) (appInstallation, error)
+	callAppControl              appControlCaller
 	now                         func() time.Time
 	pollInterval                time.Duration
 	startTimeout                time.Duration
@@ -102,7 +104,7 @@ type commandDeps struct {
 	runMCPServe                 mcpServeRunner
 }
 
-// NewRootCommand constructs the Compozy v1 CLI command tree.
+// NewRootCommand constructs the CompozyOS v1 CLI command tree.
 func NewRootCommand() *cobra.Command {
 	return newRootCommand(commandDeps{})
 }
@@ -112,7 +114,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   rootCompozyKey,
-		Short: "Compozy — agent operating system",
+		Short: "CompozyOS — agent operating system",
 		Example: `  # Start the daemon and create a session in the current workspace
   compozy daemon start
   compozy session new --agent general
@@ -181,13 +183,14 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newResourceCommand(deps), newMemoryCommand(deps), newVaultCommand(deps), newToolCommand(deps),
 		newToolsetsCommand(deps), newMCPCommand(deps), newLogsCommand(deps), newWhoamiCommand(deps),
 		newOpenCommand(deps), newDocCommand(), newInternalCommand(),
+		newAppCommand(deps),
 	)
 }
 
 func newVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   rootVersionKey,
-		Short: "Print the Compozy version",
+		Short: "Print the CompozyOS version",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return writeCommandOutput(cmd, outputBundle{
 				jsonValue: version.Current(),
@@ -265,6 +268,9 @@ func renderHumanExecutionError(err error) (string, bool) {
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
+	if appErr, ok := errors.AsType[*appCommandError](err); ok {
+		return marshalAppCommandExecutionError(args, appErr)
+	}
 	if extensionErr, ok := errors.AsType[interface {
 		error
 		extensionOperationErrorPayload() contract.ExtensionOperationErrorPayload

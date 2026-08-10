@@ -9,7 +9,7 @@ request, poll, and download that daemon-built archive.
 
 ## Create A Bundle
 
-Use the CLI when you are on the machine that owns the Compozy home:
+Use the CLI when you are on the machine that owns the CompozyOS home:
 
 ```bash
 compozy support bundle
@@ -67,8 +67,8 @@ metadata.
 | `sessions.json`             | Session summary metadata without transcripts.                      |
 | `config-redacted.json`      | Effective config after diagnostics redaction.                      |
 | `logs-tail.txt`             | Recent `compozy.log` tail after diagnostics redaction.             |
-| `versions.json`             | Compozy version, build, OS, and architecture metadata.             |
-| `home-tree.json`            | Metadata-only Compozy home tree; no file contents.                 |
+| `versions.json`             | CompozyOS version, build, OS, and architecture metadata.           |
+| `home-tree.json`            | Metadata-only CompozyOS home tree; no file contents.               |
 
 The v1 contract excludes transcripts and per-session event databases. Support bundles are for
 operational triage, not prompt-content export.
@@ -76,7 +76,7 @@ operational triage, not prompt-content export.
 ## Caps And Redaction
 
 The daemon enforces a 25 MiB archive cap before compression. Most artifacts cap at 1 MiB, the log
-tail caps at 2 MiB, and event summaries cap at 5 MiB. When a source exceeds its cap, Compozy writes a
+tail caps at 2 MiB, and event summaries cap at 5 MiB. When a source exceeds its cap, CompozyOS writes a
 truncated artifact and records that truncation in `manifest.json`.
 
 Every JSON artifact flows through the diagnostics redaction layer. Log tails use bounded redaction,
@@ -91,7 +91,7 @@ and cleaned up after the support-bundle retention window. Archive files remain u
 
 ## Log Rotation
 
-Support bundles depend on recent `compozy.log` content, so Compozy rotates that file natively through the
+Support bundles depend on recent `compozy.log` content, so CompozyOS rotates that file natively through the
 `[log]` config block:
 
 ```toml

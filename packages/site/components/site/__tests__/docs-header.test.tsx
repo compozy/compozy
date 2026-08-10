@@ -109,8 +109,8 @@ describe("DocsHeader", () => {
       </button>
     );
     const NavTitle = ({ className }: SlotComponentProps) => (
-      <a className={className} href="/" aria-label="Compozy docs home">
-        Compozy
+      <a className={className} href="/" aria-label="CompozyOS docs home">
+        CompozyOS
       </a>
     );
     const SearchFull = ({ className }: SlotComponentProps) => (
@@ -176,7 +176,9 @@ describe("DocsHeader", () => {
     );
     expect(screen.getByRole("searchbox", { name: "Search docs" })).toBeDefined();
     expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "Compozy docs home" }).getAttribute("href")).toBe("/");
+    expect(screen.getByRole("link", { name: "CompozyOS docs home" }).getAttribute("href")).toBe(
+      "/"
+    );
   });
 
   it("never renders a sub-tab bar, even when the layout still provides tabs (D3)", () => {

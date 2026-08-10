@@ -1,4 +1,4 @@
-name: Compozy CodeQL configuration
+name: CompozyOS CodeQL configuration
 
 disable-default-queries: false
 

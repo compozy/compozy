@@ -62,7 +62,7 @@ func inspectSSHDaemonOwnership(
 func newSSHBusyError() error {
 	return &gatewayClientError{
 		code: sshBusyCode, statusCode: http.StatusConflict,
-		message: "another SSH connection owns this remote Compozy home; retry after it disconnects",
+		message: "another SSH connection owns this remote CompozyOS home; retry after it disconnects",
 	}
 }
 

@@ -3,7 +3,7 @@ title: Cursor models come from your account
 type: feature
 ---
 
-Cursor used to look curated in Compozy but was not truthful to the account that was signed in: a small hand-written list stood in for the real catalog and, worse, acted as an allowlist that rejected valid model ids before Cursor ever saw them. Compozy now reads the account catalog from `cursor-agent models` before a session exists, and exact provider model ids are forwarded unchanged. (#320)
+Cursor used to look curated in CompozyOS but was not truthful to the account that was signed in: a small hand-written list stood in for the real catalog and, worse, acted as an allowlist that rejected valid model ids before Cursor ever saw them. CompozyOS now reads the account catalog from `cursor-agent models` before a session exists, and exact provider model ids are forwarded unchanged. (#320)
 
 - The first catalog read bootstraps Cursor discovery once and persists the outcome; later reads serve the cache, and explicit refresh is the refresh boundary. In the QA account this surfaced 193 real models, including `composer-2.5`.
 - Only `id - display name` rows are parsed. Headings, tips, duplicates, and empty output can never become invented models.

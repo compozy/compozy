@@ -3,7 +3,7 @@ title: SKILL.md Format
 description: The accepted SKILL.md frontmatter schema, Markdown body rules, MCP sidecars, hooks, and complete examples.
 ---
 
-`SKILL.md` is the authoring contract for Compozy skills. The file starts with YAML frontmatter, then a
+`SKILL.md` is the authoring contract for CompozyOS skills. The file starts with YAML frontmatter, then a
 Markdown body with procedural instructions for the agent.
 
 ```text
@@ -23,27 +23,27 @@ Missing descriptions are allowed by code but logged as a warning and are poor ca
 
 ## Top-level Frontmatter
 
-Compozy currently maps these top-level fields into the runtime skill model.
+CompozyOS currently maps these top-level fields into the runtime skill model.
 
 | Field         | Type   | Required                        | Current behavior                                                                                                                        |
 | ------------- | ------ | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`        | string | yes                             | Trimmed and used as the unique skill identifier. Missing names fail parsing.                                                            |
 | `description` | string | no in code, yes for useful docs | Trimmed and injected into the prompt catalog. Descriptions over 200 runes are truncated in prompts. Missing descriptions log a warning. |
 | `version`     | string | no                              | Stored as metadata and used for marketplace provenance/update comparisons when available.                                               |
-| `metadata`    | object | no                              | Free-form metadata. Compozy currently acts on `metadata.compozy.when`, `metadata.compozy.mcp_servers`, and `metadata.compozy.hooks`.    |
+| `metadata`    | object | no                              | Free-form metadata. CompozyOS currently acts on `metadata.compozy.when`, `metadata.compozy.mcp_servers`, and `metadata.compozy.hooks`.  |
 
 Unknown top-level fields are logged as warnings but do not fail parsing. Avoid relying on that
 leniency for portable skills.
 
 Common AgentSkills or Claude-style fields such as `allowed-tools`, `user-invocable`, and
-`argument-hint` are examples of that leniency today. Compozy may load a file that contains them, but the
+`argument-hint` are examples of that leniency today. CompozyOS may load a file that contains them, but the
 current runtime does not use those fields for tool permissions, invocation, or catalog behavior.
-Use `metadata.compozy.mcp_servers`, `metadata.compozy.hooks`, and normal Compozy configuration for behavior Compozy
+Use `metadata.compozy.mcp_servers`, `metadata.compozy.hooks`, and normal CompozyOS configuration for behavior CompozyOS
 must enforce.
 
-## Compozy Metadata
+## CompozyOS Metadata
 
-Compozy-specific runtime behavior lives under `metadata.compozy` so the file remains compatible with plain
+CompozyOS-specific runtime behavior lives under `metadata.compozy` so the file remains compatible with plain
 AgentSkills readers.
 
 | Field                          | Type                        | Required | Current behavior                                                                                                          |
@@ -70,12 +70,12 @@ metadata:
       requires_capabilities: [browser.operate]
 ```
 
-| Gate                    | Match rule | Runtime input                                                                                                                             |
-| ----------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `platforms`             | any        | The current Go operating system (`darwin`, `linux`, or another canonical `runtime.GOOS` value). Compozy does not accept platform aliases. |
-| `environments`          | any        | An explicit activation environment context. The current daemon does not provide one, so a non-empty gate fails closed.                    |
-| `requires_tools`        | all        | Tool IDs callable for the current workspace, agent, and session. Availability is resolved when the catalog is built.                      |
-| `requires_capabilities` | all        | Capabilities authored on the effective agent. Network or extension capabilities are not merged into this gate.                            |
+| Gate                    | Match rule | Runtime input                                                                                                                               |
+| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `platforms`             | any        | The current Go operating system (`darwin`, `linux`, or another canonical `runtime.GOOS` value). CompozyOS does not accept platform aliases. |
+| `environments`          | any        | An explicit activation environment context. The current daemon does not provide one, so a non-empty gate fails closed.                      |
+| `requires_tools`        | all        | Tool IDs callable for the current workspace, agent, and session. Availability is resolved when the catalog is built.                        |
+| `requires_capabilities` | all        | Capabilities authored on the effective agent. Network or extension capabilities are not merged into this gate.                              |
 
 Different gate families compose with AND: every declared family must pass. Values are trimmed,
 lowercased, deduplicated, and kept in author order. Every gate value must be a non-empty string;
@@ -92,12 +92,12 @@ restart is required.
 
 Each MCP server object accepts:
 
-| Field     | Type         | Required | Behavior                                                                                     |
-| --------- | ------------ | -------- | -------------------------------------------------------------------------------------------- |
-| `name`    | string       | yes      | Used for deduplication and merge replacement. Missing names skip that server.                |
-| `command` | string       | yes      | Launched directly by the ACP runtime path. Missing commands skip that server.                |
-| `args`    | string array | no       | Passed as process arguments.                                                                 |
-| `env`     | string map   | no       | Passed as literal environment values. Compozy does not perform shell expansion in the value. |
+| Field     | Type         | Required | Behavior                                                                                       |
+| --------- | ------------ | -------- | ---------------------------------------------------------------------------------------------- |
+| `name`    | string       | yes      | Used for deduplication and merge replacement. Missing names skip that server.                  |
+| `command` | string       | yes      | Launched directly by the ACP runtime path. Missing commands skip that server.                  |
+| `args`    | string array | no       | Passed as process arguments.                                                                   |
+| `env`     | string map   | no       | Passed as literal environment values. CompozyOS does not perform shell expansion in the value. |
 
 ```yaml
 metadata:
@@ -150,7 +150,7 @@ copy. A useful skill body usually includes:
 | Edge cases   | Mistakes the skill should prevent.                                                                                        |
 | Resources    | Relative files a managed agent reads with `compozy__skill_view`; operators use `compozy skill view <name> --file <path>`. |
 
-Compozy scans the body for critical prompt-injection, destructive command, and credential-extraction
+CompozyOS scans the body for critical prompt-injection, destructive command, and credential-extraction
 patterns. Critical findings block the skill from loading. Warning findings are logged but allowed.
 Content over 50,000 characters creates an info warning.
 
@@ -193,7 +193,7 @@ file by hand.
 }
 ```
 
-All fields are required. Compozy recomputes the installed directory hash at load time and blocks the
+All fields are required. CompozyOS recomputes the installed directory hash at load time and blocks the
 marketplace skill if it does not match the stored hash.
 
 ## Complete Example: Simple Skill

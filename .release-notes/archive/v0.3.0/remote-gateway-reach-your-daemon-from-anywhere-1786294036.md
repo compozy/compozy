@@ -18,7 +18,7 @@ public operator access for devices that cannot join the overlay. (#331)
 - `compozy gateway status|audit`, `compozy pair`, `compozy device`, and `compozy connect` (HTTPS
   profiles plus zero-exposure SSH) operate everything, with the same state in **Settings → Gateway**
   and the `compozy__gateway` native tool.
-- Public delivery verifies Compozy's timestamped HMAC contract on every request, with replay
+- Public delivery verifies CompozyOS's timestamped HMAC contract on every request, with replay
   protection and per-source rate limits. There is no store-and-forward while the daemon is offline —
   senders own retries.
 

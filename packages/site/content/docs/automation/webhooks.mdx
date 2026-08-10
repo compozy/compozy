@@ -1,6 +1,6 @@
 ---
 title: Webhooks
-description: Set up signed Compozy webhook triggers for CI, deployment, and external event integrations.
+description: Set up signed CompozyOS webhook triggers for CI, deployment, and external event integrations.
 ---
 
 Webhooks are the external ingress path for automation. They accept signed HTTP requests, normalize
@@ -29,7 +29,7 @@ The webhook ID starts with `wbh_`.
 | Global    | `POST /api/webhooks/global/<endpoint_slug>--<webhook_id>`                    |
 | Workspace | `POST /api/webhooks/workspaces/<workspace_id>/<endpoint_slug>--<webhook_id>` |
 
-Compozy returns a result object with the number of matched triggers and the runs created from the
+CompozyOS returns a result object with the number of matched triggers and the runs created from the
 delivery.
 
 ```json
@@ -50,9 +50,9 @@ delivery.
 ## Configure a webhook trigger
 
 Config-backed webhook triggers need an endpoint slug and a `webhook_secret_ref`. Use `env:NAME` for
-operator-managed environment variables or a `vault:automation/...` ref for Compozy-managed encrypted
-secret storage. Compozy resolves the secret only when validating signed webhook requests. Store
-Compozy-managed values with `compozy vault put`, the Vault page, or the write-only API before enabling the
+operator-managed environment variables or a `vault:automation/...` ref for CompozyOS-managed encrypted
+secret storage. CompozyOS resolves the secret only when validating signed webhook requests. Store
+CompozyOS-managed values with `compozy vault put`, the Vault page, or the write-only API before enabling the
 trigger.
 
 ```toml
@@ -71,7 +71,7 @@ fire_limit = { max = 6, window = "1h" }
 ```
 
 Dynamic webhook triggers can be created with the CLI by passing the secret directly. The secret is
-write-only through the API surface: Compozy uses it for signature validation, but it is not returned by
+write-only through the API surface: CompozyOS uses it for signature validation, but it is not returned by
 read endpoints.
 
 ```bash
@@ -121,8 +121,8 @@ scope. If the public address changes, the endpoint generation changes and the tr
 
 <OperatorNote>
   Public ingress forwards requests only while the daemon and its connectivity provider are running.
-  It does not queue deliveries while Compozy is offline. Configure retries at the sender and treat a
-  connection failure as a failed delivery.
+  It does not queue deliveries while CompozyOS is offline. Configure retries at the sender and treat
+  a connection failure as a failed delivery.
 </OperatorNote>
 
 ## Authentication
@@ -145,18 +145,18 @@ The signature message is:
 ```
 
 Use Unix seconds for the timestamp header unless your integration has a reason to send RFC3339.
-When Compozy receives RFC3339, it parses the timestamp and validates the signature against the parsed
+When CompozyOS receives RFC3339, it parses the timestamp and validates the signature against the parsed
 Unix seconds value.
 
 ## Payload format
 
 Request bodies are limited to `1MiB`.
 
-If the body is a JSON object, Compozy exposes its fields under `.Data` for filters and prompt
-templates. If the JSON object does not already include `payload`, Compozy also adds the raw request body
+If the body is a JSON object, CompozyOS exposes its fields under `.Data` for filters and prompt
+templates. If the JSON object does not already include `payload`, CompozyOS also adds the raw request body
 as `.Data.payload`.
 
-Compozy adds webhook metadata to every delivery:
+CompozyOS adds webhook metadata to every delivery:
 
 | Data key        | Meaning                                              |
 | --------------- | ---------------------------------------------------- |
@@ -166,7 +166,7 @@ Compozy adds webhook metadata to every delivery:
 | `delivery_id`   | Sender delivery ID, also stored in the run metadata. |
 | `timestamp`     | Parsed delivery timestamp.                           |
 
-If the body is empty or not a JSON object, Compozy exposes the raw body as `.Data.payload` alongside
+If the body is empty or not a JSON object, CompozyOS exposes the raw body as `.Data.payload` alongside
 the metadata fields.
 
 ## Send a signed request
@@ -187,18 +187,18 @@ curl -sS -X POST "http://localhost:2123/api/webhooks/workspaces/ws_123/deploy--w
   --data "$body"
 ```
 
-With the trigger above, Compozy only dispatches when both filters match:
+With the trigger above, CompozyOS only dispatches when both filters match:
 
 - `data.action = deploy`
 - `data.branch = main`
 
 ## Worked example: CI deployment review
 
-This GitHub Actions step notifies Compozy after a deployment run reaches the point where an agent
+This GitHub Actions step notifies CompozyOS after a deployment run reaches the point where an agent
 should validate the deployment request.
 
 ```yaml
-name: Notify Compozy deployment automation
+name: Notify CompozyOS deployment automation
 
 on:
   workflow_dispatch:
@@ -241,7 +241,7 @@ https://gateway.example.com/api/webhooks/workspaces/ws_123/deploy--wbh_abc123
 
 ## Errors
 
-| Status | When Compozy returns it                                                                                            |
+| Status | When CompozyOS returns it                                                                                          |
 | ------ | ------------------------------------------------------------------------------------------------------------------ |
 | `400`  | Invalid endpoint shape, missing required webhook headers, oversized body, or missing webhook secret configuration. |
 | `401`  | Stale timestamp, future timestamp, or invalid webhook signature.                                                   |

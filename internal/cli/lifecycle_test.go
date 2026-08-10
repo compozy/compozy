@@ -79,7 +79,7 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 					Available:      true,
 					Status:         compozyupdate.StatusDeferred,
 					Recommendation: "Use `brew upgrade compozy`.",
-					Message:        "Compozy is managed by an external package manager; no local update was performed.",
+					Message:        "CompozyOS is managed by an external package manager; no local update was performed.",
 				}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 			},
 		}, nil
@@ -128,12 +128,12 @@ func TestManagedRecommendationReportsNPMCommands(t *testing.T) {
 	t.Run("Should report npm lifecycle commands for npm-managed installs", func(t *testing.T) {
 		t.Parallel()
 
-		update := managedRecommendation("npm", "update Compozy")
+		update := managedRecommendation("npm", "update CompozyOS")
 		if !strings.Contains(update, "npm install -g @compozy/cli@beta") {
 			t.Fatalf("managedRecommendation(update) = %q, want npm update command", update)
 		}
 
-		uninstall := managedRecommendation("nodejs", "uninstall Compozy")
+		uninstall := managedRecommendation("nodejs", "uninstall CompozyOS")
 		if !strings.Contains(uninstall, "npm uninstall -g @compozy/cli") {
 			t.Fatalf("managedRecommendation(uninstall) = %q, want npm uninstall command", uninstall)
 		}
@@ -226,7 +226,7 @@ func TestUpdateCheckReportsAvailableReleaseForDirectBinaryInstall(t *testing.T) 
 					LatestVersion:  "v1.1.0",
 					Available:      true,
 					Status:         compozyupdate.StatusAvailable,
-					Message:        "A newer stable Compozy release is available.",
+					Message:        "A newer stable CompozyOS release is available.",
 				}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 			},
 		}, nil
@@ -274,7 +274,7 @@ func TestUpdateAppliesReleaseAndRestartsDaemonWhenRunning(t *testing.T) {
 					LatestVersion:  "v1.1.0",
 					Available:      true,
 					Status:         compozyupdate.StatusAvailable,
-					Message:        "A newer stable Compozy release is available.",
+					Message:        "A newer stable CompozyOS release is available.",
 				}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 			},
 			applyFn: func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {

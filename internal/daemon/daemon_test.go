@@ -251,6 +251,89 @@ func TestAcquireLockReclaimsStalePID(t *testing.T) {
 	}
 }
 
+func TestUpdateLock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a concurrent runtime mutation", func(t *testing.T) {
+		t.Parallel()
+
+		lockPath := filepath.Join(t.TempDir(), "update.lock")
+		startedAt, err := procutil.StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatalf("procutil.StartedAt() error = %v", err)
+		}
+		owner := UpdateLockOwner{PID: os.Getpid(), StartedAt: startedAt}
+		first, err := AcquireUpdateLock(lockPath, owner)
+		if err != nil {
+			t.Fatalf("AcquireUpdateLock(first) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := first.Release(); err != nil {
+				t.Fatalf("first.Release() error = %v", err)
+			}
+		})
+
+		second, err := AcquireUpdateLock(lockPath, owner)
+		if second != nil {
+			t.Fatalf("AcquireUpdateLock(second) lock = %#v, want nil", second)
+		}
+		if !errors.Is(err, ErrRuntimeMutationInProgress) {
+			t.Fatalf("AcquireUpdateLock(second) error = %v, want ErrRuntimeMutationInProgress", err)
+		}
+	})
+
+	t.Run("Should replace a stale owner with the caller identity", func(t *testing.T) {
+		t.Parallel()
+
+		lockPath := filepath.Join(t.TempDir(), "update.lock")
+		stale := UpdateLockOwner{
+			PID:       999_999_999,
+			StartedAt: time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC),
+		}
+		data, err := json.Marshal(stale)
+		if err != nil {
+			t.Fatalf("json.Marshal(stale owner) error = %v", err)
+		}
+		if err := os.WriteFile(lockPath, append(data, '\n'), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(update lock) error = %v", err)
+		}
+		startedAt, err := procutil.StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatalf("procutil.StartedAt() error = %v", err)
+		}
+		owner := UpdateLockOwner{PID: os.Getpid(), StartedAt: startedAt}
+		lock, err := AcquireUpdateLock(lockPath, owner)
+		if err != nil {
+			t.Fatalf("AcquireUpdateLock() error = %v", err)
+		}
+
+		if got := lock.StaleOwner(); got == nil || got.PID != stale.PID || !got.StartedAt.Equal(stale.StartedAt) {
+			t.Fatalf("StaleOwner() = %#v, want %#v", got, stale)
+		}
+		contents, err := os.ReadFile(lockPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(update lock) error = %v", err)
+		}
+		var persisted UpdateLockOwner
+		if err := json.Unmarshal(contents, &persisted); err != nil {
+			t.Fatalf("json.Unmarshal(update lock) error = %v", err)
+		}
+		if persisted.PID != owner.PID || !persisted.StartedAt.Equal(owner.StartedAt) {
+			t.Fatalf("persisted owner = %#v, want %#v", persisted, owner)
+		}
+		if err := lock.Release(); err != nil {
+			t.Fatalf("lock.Release() error = %v", err)
+		}
+		contents, err = os.ReadFile(lockPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(released lock) error = %v", err)
+		}
+		if len(contents) != 0 {
+			t.Fatalf("released lock contents = %q, want empty", contents)
+		}
+	})
+}
+
 func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "daemon.json")
 	now := time.Date(2026, 4, 3, 12, 30, 0, 0, time.UTC)

@@ -79,7 +79,7 @@ func (sshExecutorStub) StartTunnel(context.Context, sshTarget, string, int) (ssh
 }
 
 func TestConnectSSHFailureTaxonomy(t *testing.T) {
-	t.Run("Should require a remote Compozy installation without bootstrapping [UT-110]", func(t *testing.T) {
+	t.Run("Should require a remote CompozyOS installation without bootstrapping [UT-110]", func(t *testing.T) {
 		runs := 0
 		executor := sshExecutorStub{run: func(context.Context, sshTarget, []string) ([]byte, error) {
 			runs++

@@ -524,7 +524,7 @@ describe("BridgeCreateDialog", () => {
   it("Should render the committed Slack manifest with copy and dashboard handoff", async () => {
     const user = userEvent.setup();
     const manifestJSON = JSON.stringify(
-      { display_information: { name: "Compozy Support" } },
+      { display_information: { name: "CompozyOS Support" } },
       null,
       2
     );
@@ -567,7 +567,7 @@ describe("BridgeCreateDialog", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Set up Slack app" })).toBeInTheDocument();
-    expect(screen.getByTestId("bridge-manifest-json")).toHaveTextContent("Compozy Support");
+    expect(screen.getByTestId("bridge-manifest-json")).toHaveTextContent("CompozyOS Support");
     expect(screen.getByRole("link", { name: "Open Slack app dashboard" })).toHaveAttribute(
       "href",
       "https://api.slack.com/apps"

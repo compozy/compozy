@@ -9,7 +9,7 @@ export function MCPEditorOAuthSection() {
   return (
     <FormSection data-testid="settings-mcp-editor-oauth" title="Authorization">
       <p className="text-form-hint text-muted" data-testid="settings-mcp-editor-oauth-automatic">
-        Compozy discovers OAuth requirements when you authorize this server. Provider credentials
+        CompozyOS discovers OAuth requirements when you authorize this server. Provider credentials
         and authorization codes are not stored in this form.
       </p>
     </FormSection>

@@ -1,15 +1,15 @@
 ---
 title: Microsoft Teams Setup
-description: Provision a Teams bot app, connect its Bot Framework endpoint, and verify a route-specific Compozy bridge.
+description: Provision a Teams bot app, connect its Bot Framework endpoint, and verify a route-specific CompozyOS bridge.
 ---
 
-This guide connects a Microsoft Teams bot to one Compozy workspace route. The finished connection
+This guide connects a Microsoft Teams bot to one CompozyOS workspace route. The finished connection
 receives authenticated Bot Framework activities, routes them to the workspace's default agent, and
 sends replies back to the originating conversation.
 
 ## How the Teams bridge behaves
 
-| Surface                  | Compozy behavior                                                                                                                                                              |
+| Surface                  | CompozyOS behavior                                                                                                                                                            |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Direct messages          | Routes the base Bot Framework conversation as `peer_id`. The sender's Bot Framework user ID is separate and is used for DM access or a proactive DM.                          |
 | Channels and group chats | Routes the Bot Framework conversation as `group_id` and preserves the encoded reply reference as `thread_id`.                                                                 |
@@ -17,11 +17,11 @@ sends replies back to the originating conversation.
 | Outbound messages        | Creates, updates, and deletes Bot Framework activities. Long terminal replies split at 28,000 Unicode code points.                                                            |
 | Tool progress            | Off by default. When enabled, one markdown activity is updated in place and typing can be emitted; progress reactions and an explicit typing-clear operation are unavailable. |
 
-Compozy uses Bot Framework APIs, not Microsoft Graph, for this bridge.
+CompozyOS uses Bot Framework APIs, not Microsoft Graph, for this bridge.
 
 Keep the Teams identities separate:
 
-| Purpose                          | Compozy field or surface         | Teams value                                                                                      |
+| Purpose                          | CompozyOS field or surface       | Teams value                                                                                      |
 | -------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------ |
 | Sender identity and DM allowlist | `sender.id`, `dm.allow_user_ids` | `activity.from.id`, commonly a `29:...` Bot Framework user ID.                                   |
 | Direct-message route             | `peer_id`                        | Base `activity.conversation.id`, not the sender's user ID.                                       |
@@ -31,7 +31,7 @@ Keep the Teams identities separate:
 
 ## Choose one route shape per bridge
 
-Compozy requires every routing dimension selected on a bridge to exist on each inbound event. A Teams
+CompozyOS requires every routing dimension selected on a bridge to exist on each inbound event. A Teams
 direct message has a conversation-derived peer target, while a channel or group chat has a
 conversation-derived group target. One bridge therefore cannot require both `peer_id` and `group_id`.
 
@@ -45,7 +45,7 @@ Create one of these route shapes:
 If you need both shapes, create two bridge instances. Each Microsoft bot registration has one
 messaging endpoint, so the direct-message and shared-conversation instances also need separate
 Teams app and bot registrations unless an operator-owned dispatcher routes requests to the correct
-Compozy webhook.
+CompozyOS webhook.
 
 ## Before you start
 
@@ -59,7 +59,7 @@ Collect or decide these values:
 | Teams app ID                | yes                      | Teams Developer CLI output or the `id` in a manually authored Teams app manifest.                               |
 | Public messaging endpoint   | yes                      | Stable HTTPS URL that forwards to this bridge's provider listener and path.                                     |
 | Local listener address      | yes                      | `provider_config.webhook.listen_addr` or `COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR` in the daemon environment.          |
-| Compozy workspace ID        | yes for inbound sessions | The workspace whose default agent receives new routed Teams messages.                                           |
+| CompozyOS workspace ID      | yes for inbound sessions | The workspace whose default agent receives new routed Teams messages.                                           |
 | Teams app administration    | yes                      | Permission to create or upload an app and install it in the target tenant.                                      |
 | Azure subscription/resource | path-dependent           | Required when the CLI provisions Azure resources or when you create an Azure Bot in the portal.                 |
 
@@ -172,11 +172,11 @@ teams status -v
 Use the CLI's [installation guide](https://microsoft.github.io/teams-sdk/cli/getting-started/installation/)
 and `teams --version` to confirm the command available on the operator host.
 
-Create the app against the exact public URL stored on the Compozy bridge:
+Create the app against the exact public URL stored on the CompozyOS bridge:
 
 ```bash
 teams app create \
-  --name "Compozy Teams support" \
+  --name "CompozyOS Teams support" \
   --endpoint "https://bridge.example.com/teams/shared" \
   --color-icon ./color.png \
   --outline-icon ./outline.png
@@ -192,7 +192,7 @@ To provision the Azure Bot resources in a specific subscription and resource gro
 
 ```bash
 teams app create \
-  --name "Compozy Teams support" \
+  --name "CompozyOS Teams support" \
   --azure \
   --subscription "<AZURE_SUBSCRIPTION_ID>" \
   --resource-group "<AZURE_RESOURCE_GROUP>" \
@@ -203,7 +203,7 @@ teams app create \
 
 Replace the endpoint with the direct-message URL when configuring that route shape. Save the
 `CLIENT_ID`, `CLIENT_SECRET`, and `TENANT_ID` from the command output. The client secret is shown
-once. Use `CLIENT_ID` as the Compozy `app_id` binding.
+once. Use `CLIENT_ID` as the CompozyOS `app_id` binding.
 
 List the imported apps and record the identifier for the app you just created:
 
@@ -228,7 +228,7 @@ root.
 2. Record its **Application (client) ID** and **Directory (tenant) ID**.
 3. Open **Certificates & secrets → New client secret**. Copy the secret value immediately.
 4. Create an **Azure Bot** resource that uses this app registration. Choose the matching tenant
-   model; the optional Compozy `app_tenant_id` must match a single-tenant registration.
+   model; the optional CompozyOS `app_tenant_id` must match a single-tenant registration.
 5. Open **Settings → Channels** on the Azure Bot and enable **Microsoft Teams**.
 
 Do not add Microsoft Graph scopes. The provider obtains a Bot Framework client-credentials token for
@@ -260,7 +260,7 @@ printf '%s' "$TEAMS_TENANT_ID" | compozy bridge secret-bindings put "$BRIDGE_ID"
 ```
 
 <OperatorNote>
-  `--secret-value-stdin` keeps credential values out of the Compozy process arguments. For values already
+  `--secret-value-stdin` keeps credential values out of the CompozyOS process arguments. For values already
   stored in a permission-restricted file, use `--secret-value-file <path>` instead. See [Bridge
   operations](/docs/bridges/operations#rotate-a-credential).
 </OperatorNote>
@@ -278,7 +278,7 @@ or after changing the bridge URL:
 
 Microsoft's [Bot Service settings reference](https://learn.microsoft.com/en-us/azure/bot-service/bot-service-manage-settings?view=azure-bot-service-4.0)
 documents the messaging-endpoint field. The path does not need to use Microsoft's conventional Bot
-Framework callback; it must match the Compozy public URL exactly.
+Framework callback; it must match the CompozyOS public URL exactly.
 
 ## Step 6: Install the Teams app
 
@@ -313,12 +313,12 @@ Create `manifest.json` with the Teams manifest schema `1.24`:
     "termsOfUseUrl": "<HTTPS_TERMS_URL>"
   },
   "name": {
-    "short": "Compozy",
-    "full": "Compozy Teams bridge"
+    "short": "CompozyOS",
+    "full": "CompozyOS Teams bridge"
   },
   "description": {
-    "short": "Connect Microsoft Teams conversations to Compozy.",
-    "full": "Connect Microsoft Teams conversations to one route-specific Compozy workspace bridge."
+    "short": "Connect Microsoft Teams conversations to CompozyOS.",
+    "full": "Connect Microsoft Teams conversations to one route-specific CompozyOS workspace bridge."
   },
   "icons": {
     "outline": "outline.png",
@@ -336,7 +336,7 @@ Create `manifest.json` with the Teams manifest schema `1.24`:
 }
 ```
 
-Replace every placeholder. `botId` must equal the Application ID bound to Compozy as `app_id`. The
+Replace every placeholder. `botId` must equal the Application ID bound to CompozyOS as `app_id`. The
 top-level `id` identifies the Teams app package and must be a GUID. The two fields are separate
 manifest contracts; use the values assigned by your registration flow. This example serves the
 shared-conversation route. For a direct-message bridge, set `scopes` to `["personal"]` instead. Do
@@ -355,7 +355,7 @@ unzip -l compozy-teams-app.zip
 ```
 
 The package needs no Microsoft Graph scopes, resource-specific consent, tab, SSO, calling, or video
-declarations. `supportsFiles` remains false because the Compozy provider does not implement the Teams
+declarations. `supportsFiles` remains false because the CompozyOS provider does not implement the Teams
 file-consent flow.
 
 Upload the package:
@@ -433,7 +433,7 @@ For a channel or group chat, reuse the returned group and thread targets:
 
 ```bash
 compozy bridge send-test "$BRIDGE_ID" \
-  --message "Compozy Teams connection check" \
+  --message "CompozyOS Teams connection check" \
   --group-id "<group-id-from-route>" \
   --thread-id "<thread-id-from-route>" \
   --mode reply \
@@ -444,7 +444,7 @@ For a direct message, reuse the peer and thread targets:
 
 ```bash
 compozy bridge send-test "$BRIDGE_ID" \
-  --message "Compozy Teams direct-message check" \
+  --message "CompozyOS Teams direct-message check" \
   --peer-id "<peer-id-from-route>" \
   --thread-id "<thread-id-from-route>" \
   --mode reply \
@@ -462,16 +462,16 @@ configuration.
 
 ## Configuration reference
 
-| Field                                     | Default / fallback                 | Purpose                                                                                 |
-| ----------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------- |
-| `webhook.public_url`                      | none                               | Full public HTTPS messaging endpoint used by Azure Bot and Compozy reachability checks. |
-| `webhook.listen_addr`                     | `COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR` | Local provider listener. One address per provider process.                              |
-| `webhook.path`                            | `/teams/<bridge-id>`               | Local path; it must be unique within the provider process.                              |
-| `batching.delay_ms`                       | `0`                                | Batches inbound items when positive; zero dispatches immediately.                       |
-| `batching.split_delay_ms`                 | `delay_ms`                         | Delay used when the batching split threshold is crossed.                                |
-| `batching.split_threshold`                | `0`                                | Provider batching split threshold.                                                      |
-| `dm.allow_user_ids` / `paired_user_ids`   | empty                              | Bot Framework IDs admitted by bridge `dm_policy`.                                       |
-| `dm.allow_usernames` / `paired_usernames` | empty                              | Normalized display-name fallbacks for DM policy. IDs are safer.                         |
+| Field                                     | Default / fallback                 | Purpose                                                                                   |
+| ----------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| `webhook.public_url`                      | none                               | Full public HTTPS messaging endpoint used by Azure Bot and CompozyOS reachability checks. |
+| `webhook.listen_addr`                     | `COMPOZY_BRIDGE_TEAMS_LISTEN_ADDR` | Local provider listener. One address per provider process.                                |
+| `webhook.path`                            | `/teams/<bridge-id>`               | Local path; it must be unique within the provider process.                                |
+| `batching.delay_ms`                       | `0`                                | Batches inbound items when positive; zero dispatches immediately.                         |
+| `batching.split_delay_ms`                 | `delay_ms`                         | Delay used when the batching split threshold is crossed.                                  |
+| `batching.split_threshold`                | `0`                                | Provider batching split threshold.                                                        |
+| `dm.allow_user_ids` / `paired_user_ids`   | empty                              | Bot Framework IDs admitted by bridge `dm_policy`.                                         |
+| `dm.allow_usernames` / `paired_usernames` | empty                              | Normalized display-name fallbacks for DM policy. IDs are safer.                           |
 
 Credential-bearing service, OpenID metadata, and OAuth token URLs are not instance settings. Use the
 operator-owned `COMPOZY_BRIDGE_TEAMS_*` environment variables only for a trusted sovereign deployment
@@ -479,21 +479,21 @@ or integration lab.
 
 ## Troubleshooting
 
-| Symptom                                                              | What to check                                                                                                                             |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `provider.identity` names `app_id` or `app_password`                 | The slot is missing. Bind the credential value, not an Entra object ID or secret ID.                                                      |
-| Token acquisition returns unauthorized                               | Confirm the Application ID, client secret value, tenant model, and optional `app_tenant_id` belong to the same registration.              |
-| Verify passes while disabled, but Teams says the bot did not respond | Save the Azure Bot messaging endpoint, enable the Teams channel, install the Teams app package, then verify again after enabling Compozy. |
-| Public verification reports a missing route                          | Confirm the proxy forwards the complete path to the configured local listener and does not strip the bridge's webhook path.               |
-| Direct messages fail routing                                         | Use a bridge created with `--include-peer --include-thread`; do not also require `group_id`.                                              |
-| Channel or group messages fail routing                               | Use a bridge created with `--include-group --include-thread`; do not also require `peer_id`.                                              |
-| Proactive DM fails                                                   | Use the Bot Framework user ID and provide tenant context. First receive a DM if you do not bind `app_tenant_id`.                          |
-| A second Teams bridge degrades at startup                            | All Teams instances in one process must share `listen_addr`; give each one a distinct `webhook.path`.                                     |
-| Responses arrive in the wrong conversation                           | Inspect `compozy bridge routes`; `send-test` must reuse the conversation and reply identifiers from the intended route.                   |
+| Symptom                                                              | What to check                                                                                                                               |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider.identity` names `app_id` or `app_password`                 | The slot is missing. Bind the credential value, not an Entra object ID or secret ID.                                                        |
+| Token acquisition returns unauthorized                               | Confirm the Application ID, client secret value, tenant model, and optional `app_tenant_id` belong to the same registration.                |
+| Verify passes while disabled, but Teams says the bot did not respond | Save the Azure Bot messaging endpoint, enable the Teams channel, install the Teams app package, then verify again after enabling CompozyOS. |
+| Public verification reports a missing route                          | Confirm the proxy forwards the complete path to the configured local listener and does not strip the bridge's webhook path.                 |
+| Direct messages fail routing                                         | Use a bridge created with `--include-peer --include-thread`; do not also require `group_id`.                                                |
+| Channel or group messages fail routing                               | Use a bridge created with `--include-group --include-thread`; do not also require `peer_id`.                                                |
+| Proactive DM fails                                                   | Use the Bot Framework user ID and provide tenant context. First receive a DM if you do not bind `app_tenant_id`.                            |
+| A second Teams bridge degrades at startup                            | All Teams instances in one process must share `listen_addr`; give each one a distinct `webhook.path`.                                       |
+| Responses arrive in the wrong conversation                           | Inspect `compozy bridge routes`; `send-test` must reuse the conversation and reply identifiers from the intended route.                     |
 
 ## Security notes
 
-- Treat `app_password` as a password and rotate it through Entra plus the Compozy binding.
+- Treat `app_password` as a password and rotate it through Entra plus the CompozyOS binding.
 - Keep the bridge disabled until identity checks pass.
 - Restrict DMs with `dm_policy` and ID allowlists before broad tenant distribution.
 - Inbound bearer tokens are checked against Bot Framework signing keys, issuer, audience, and the
@@ -506,13 +506,13 @@ Create the new Entra client secret before the old value expires. Disable the bri
 real delivery before deleting the old Entra secret.
 
 If the tenant model or Application ID changes, treat it as an identity migration: update the Azure
-Bot, Teams app package, and all Compozy bindings together rather than changing only one value.
+Bot, Teams app package, and all CompozyOS bindings together rather than changing only one value.
 
 ## Completion checklist
 
 - The Teams extension is installed, enabled, and healthy in the provider catalog.
 - The bridge requires exactly the dimensions emitted by its selected Teams conversation type.
-- The Azure Bot, Teams app manifest `botId`, and Compozy `app_id` binding use the same Application ID.
+- The Azure Bot, Teams app manifest `botId`, and CompozyOS `app_id` binding use the same Application ID.
 - `provider.identity` passes Bot Framework token acquisition.
 - The app package contains manifest `1.24` plus both required icons at the ZIP root.
 - A direct-message bridge reports the intended `dm_policy` and sender lists before enablement.

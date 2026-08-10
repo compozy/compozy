@@ -234,7 +234,7 @@ async function main(): Promise<void> {
     frontmatter: (title, description) => {
       const frontmatter: Record<string, unknown> = {
         title,
-        description: description ?? `Compozy ${title} HTTP endpoints.`,
+        description: description ?? `CompozyOS ${title} HTTP endpoints.`,
         full: true,
         _generated: "fumadocs-openapi",
       };

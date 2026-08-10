@@ -1,6 +1,6 @@
-# Copy System: Compozy
+# Copy System: CompozyOS
 
-One product language across Compozy marketing, documentation, runtime UI, CLI help, release copy, package metadata, OpenGraph metadata, examples, and launch material.
+One product language across CompozyOS marketing, documentation, runtime UI, CLI help, release copy, package metadata, OpenGraph metadata, examples, and launch material.
 
 `COPY.md` is the verbal counterpart to `DESIGN.md`.
 
@@ -41,17 +41,17 @@ CompozyOS is an agent operating system for real work: it runs agent sessions, ke
 
 ### Short Pitch
 
-Compozy turns the agent CLIs people already use into durable work that can outlive a terminal tab. Sessions, tasks, loops, memory, permissions, automation, and the OS shell share one daemon-owned state; people and agents can operate that state through web, CLI, HTTP/SSE, UDS, and tools. Compozy Network adds agent-to-agent coordination inside the same system.
+CompozyOS turns the agent CLIs people already use into durable work that can outlive a terminal tab. Sessions, tasks, loops, memory, permissions, automation, and the OS shell share one daemon-owned state; people and agents can operate that state through web, CLI, HTTP/SSE, UDS, and tools. Compozy Network adds agent-to-agent coordination inside the same system.
 
 ### Product Category
 
-Use `agent operating system` as the category descriptor. Use **CompozyOS** when naming the complete system or making the category explicit; use **Compozy** in normal product prose. The OS claim rests on integrated completeness and extensibility, not on a desktop metaphor or a collection of disconnected features.
+Use `agent operating system` as the category descriptor and **CompozyOS** whenever naming the product. Use `compozy` only for the command and its technical identifier family. The OS claim rests on integrated completeness and extensibility, not on a desktop metaphor or a collection of disconnected features.
 
 ### Launch Hero Lock
 
 > **The only true OS for AI agents.**
 >
-> A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and Compozy is the only one built to pass it.
+> A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and CompozyOS is the only one built to pass it.
 
 Use the headline and definition together, verbatim, on the landing hero. Never use `only` or `true`
 as a standalone product claim without the definition or adjacent named-system proof.
@@ -71,16 +71,16 @@ Lead with the system, then prove it through the connected parts:
 5. **Bounded autonomy:** task runs, claim tokens, leases, safe spawn, memory scopes, and coordinator handoff make multi-agent work observable and recoverable.
 6. **Compozy Network:** sessions can become peers, exchange typed envelopes, and return receipts inside the same runtime that owns their work, state, permissions, and memory.
 
-### What Compozy Is Not
+### What CompozyOS Is Not
 
 Use the glossary as the authority. In public copy, keep these boundaries clear:
 
-- Compozy is not a desktop shell placed over an agent CLI. The shell is one surface over a daemon-owned operating system.
-- Compozy is not a workflow engine. Capabilities are interpretive, not deterministic programs.
-- Compozy is not a federation protocol. Compozy Network is a self-contained agent coordination layer, not an organization-level trust system.
-- Compozy is not an MCP replacement. MCP integrates into Compozy.
-- Compozy is not an A2A replacement. Compozy Network and A2A can coexist.
-- Compozy does not compete on owning a wire protocol. It competes on the integrated runtime, extension surface, observability, and depth of coordination.
+- CompozyOS is not a desktop shell placed over an agent CLI. The shell is one surface over a daemon-owned operating system.
+- CompozyOS is not a workflow engine. Capabilities are interpretive, not deterministic programs.
+- CompozyOS is not a federation protocol. Compozy Network is a self-contained agent coordination layer, not an organization-level trust system.
+- CompozyOS is not an MCP replacement. MCP integrates into CompozyOS.
+- CompozyOS is not an A2A replacement. Compozy Network and A2A can coexist.
+- CompozyOS does not compete on owning a wire protocol. It competes on the integrated runtime, extension surface, observability, and depth of coordination.
 
 ## 3. Message Architecture
 
@@ -94,7 +94,7 @@ CompozyOS ties execution, state, governance, coordination, and presentation into
 
 Built to be built on.
 
-Compozy exposes extensions, hooks, skills, capabilities, bridges, SDKs, MCP, native tools, and structured control surfaces as parts of the operating system. Agents do not only run on the system; they can operate it through the same contracts people use.
+CompozyOS exposes extensions, hooks, skills, capabilities, bridges, SDKs, MCP, native tools, and structured control surfaces as parts of the operating system. Agents do not only run on the system; they can operate it through the same contracts people use.
 
 ### Network Mode Naming
 
@@ -129,19 +129,19 @@ Every major copy surface should draw from one or more proof pillars.
 
 ## 4. Audience & Surface Intent
 
-| Audience                  | Reader Job                                                                                      | Proof They Need                                                                                               | CTA Style                                                            |
-| ------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| People running agent work | Start, watch, guide, resume, and finish agent work — technical or not.                          | A clear install path, visible session state, plain-language docs; commands and event history one step deeper. | `Install the runtime`, `Start the daemon`, `Open the runtime docs`.  |
-| Agent/runtime developers  | Understand extension points and daemon contracts.                                               | APIs, SDKs, tool registry, hooks, capabilities, generated references.                                         | `Build an extension`, `Read the Host API`, `View the tool registry`. |
-| Protocol implementers     | Implement or inspect `compozy-network/v0` outside Compozy.                                      | Envelope shape, message kinds, trust model, conformance guidance.                                             | `Read the compozy-network/v0 spec`, `Send a minimal message`.        |
-| Contributors              | Work safely in the repo and preserve product semantics.                                         | Glossary, AGENTS/CLAUDE instructions, tests, task specs.                                                      | `Read the contributor path`, `Run the verification gate`.            |
-| Evaluators                | Decide whether Compozy is different from local CLIs, harnesses, MCP, A2A, and workflow engines. | Sharp positioning, named constraints, honest maturity, sourced comparison.                                    | `Compare the runtime`, `See what ships today`.                       |
+| Audience                  | Reader Job                                                                                        | Proof They Need                                                                                               | CTA Style                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| People running agent work | Start, watch, guide, resume, and finish agent work — technical or not.                            | A clear install path, visible session state, plain-language docs; commands and event history one step deeper. | `Install the runtime`, `Start the daemon`, `Open the runtime docs`.  |
+| Agent/runtime developers  | Understand extension points and daemon contracts.                                                 | APIs, SDKs, tool registry, hooks, capabilities, generated references.                                         | `Build an extension`, `Read the Host API`, `View the tool registry`. |
+| Protocol implementers     | Implement or inspect `compozy-network/v0` outside CompozyOS.                                      | Envelope shape, message kinds, trust model, conformance guidance.                                             | `Read the compozy-network/v0 spec`, `Send a minimal message`.        |
+| Contributors              | Work safely in the repo and preserve product semantics.                                           | Glossary, AGENTS/CLAUDE instructions, tests, task specs.                                                      | `Read the contributor path`, `Run the verification gate`.            |
+| Evaluators                | Decide whether CompozyOS is different from local CLIs, harnesses, MCP, A2A, and workflow engines. | Sharp positioning, named constraints, honest maturity, sourced comparison.                                    | `Compare the runtime`, `See what ships today`.                       |
 
 The primary audience spans non-technical and technical people. Default public prose to plain language; keep the exact mechanism one step away — a linked reference, expandable detail, or secondary text — not in the first sentence.
 
 ## 5. Voice & Editorial Rules
 
-Compozy copy is people-first, plain-spoken, and calm-confident. It writes for anyone who runs agent work — technical or not. Everyday words carry the claim; the mechanism stays one step away as proof, never as an entry fee.
+CompozyOS copy is people-first, plain-spoken, and calm-confident. It writes for anyone who runs agent work — technical or not. Everyday words carry the claim; the mechanism stays one step away as proof, never as an entry fee.
 
 ### Voice
 
@@ -150,7 +150,7 @@ Compozy copy is people-first, plain-spoken, and calm-confident. It writes for an
 - Plain, not vague.
 - Confident, not inflated.
 - Person-first: speak to the person whose work the agents are doing — founder, writer, analyst, or engineer — never to an abstract "user," and never through protocol jargon.
-- Product-led: Compozy, CompozyOS runtime, and Compozy Network are usually the subject.
+- Product-led: CompozyOS and Compozy Network are usually the subject.
 
 ### Style Rules
 
@@ -161,7 +161,7 @@ Compozy copy is people-first, plain-spoken, and calm-confident. It writes for an
 - Define a runtime term at first use on end-user surfaces; reference docs may assume it.
 - Use second person in docs and how-to copy when it helps the reader act.
 - Use `you` sparingly in marketing. It should sharpen the reader's job, not turn every line into sales copy.
-- Do not use `we` or `our` in marketing body copy. Use the product as the subject: `Compozy does...`, `Compozy Network gives...`, `The runtime keeps...`.
+- Do not use `we` or `our` in marketing body copy. Use the product as the subject: `CompozyOS does...`, `Compozy Network gives...`, `The runtime keeps...`.
 - No emoji, exclamation marks, or hype punctuation.
 - No fake urgency.
 - No fabricated testimonials, logos, stats, benchmarks, or maturity claims.
@@ -169,7 +169,7 @@ Compozy copy is people-first, plain-spoken, and calm-confident. It writes for an
 
 ### Copy Rhythm
 
-Good Compozy copy often has this shape:
+Good CompozyOS copy often has this shape:
 
 1. Name the reader's problem.
 2. State the product capability.
@@ -177,7 +177,7 @@ Good Compozy copy often has this shape:
 
 Example:
 
-> Agents should not stop working when a terminal tab closes. Compozy keeps them in durable sessions — with saved history, resumable state, and the same view from CLI, API, and web.
+> Agents should not stop working when a terminal tab closes. CompozyOS keeps them in durable sessions — with saved history, resumable state, and the same view from CLI, API, and web.
 
 ## 6. Vocabulary & Naming
 
@@ -185,12 +185,12 @@ The glossary is authoritative. This section lists the terms most likely to appea
 
 ### Product Names
 
-| Term                 | Use                                                                                                                                                                             |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Compozy`            | The public product name in normal prose, UI, commands, package descriptions, and calls to action.                                                                               |
-| `CompozyOS`          | The complete agent operating system — runtime, daemon, work model, memory, automation, permissions, OS shell, extensibility, and coordination — in category or formal contexts. |
-| `Compozy Network`    | The agent-to-agent coordination subsystem and public network concept. It is part of CompozyOS, not the product category.                                                        |
-| `compozy-network/v0` | The protocol/version name. Use lowercase and monospace in UI/docs when possible.                                                                                                |
+| Term                 | Use                                                                                                                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CompozyOS`          | The public product name in prose, UI, package descriptions, calls to action, and formal category language. It names the complete system: runtime, daemon, work model, memory, automation, permissions, OS shell, extensibility, and coordination. |
+| `compozy`            | The CLI command and technical identifier family. Keep the binary, `COMPOZY_*` environment variables, module path, `@compozy/*` packages, formula, sockets, config paths, and `compozy__*` tool IDs unchanged.                                     |
+| `Compozy Network`    | The agent-to-agent coordination subsystem and public network concept. It is part of CompozyOS, not the product category.                                                                                                                          |
+| `compozy-network/v0` | The protocol/version name. Use lowercase and monospace in UI/docs when possible.                                                                                                                                                                  |
 
 ### Canonical Example Trio
 
@@ -198,16 +198,16 @@ When public copy needs to name 2–3 specific agent CLIs as examples (hero subhe
 
 > Claude Code, OpenClaw, and Hermes.
 
-Why this trio: these are the most recognizable ACP-compatible CLIs in the current Compozy ecosystem. Older copy used Claude Code, Codex, Gemini CLI, or Pi as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
+Why this trio: these are the most recognizable ACP-compatible CLIs in the current CompozyOS ecosystem. Older copy used Claude Code, Codex, Gemini CLI, or Pi as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
 
 The full enumeration of supported drivers lives in `packages/site/components/landing/provider-data.ts` (`SUPPORTED_AGENT_PROVIDERS`). When public copy needs the total count, derive it from `SUPPORTED_AGENT_COUNT` instead of hardcoding a number.
 
 ### Factory Vocabulary
 
-"Software factory" / "agent factory" name the workload people build on top of Compozy — a standing, mostly-autonomous pipeline that turns outside signals into shipped software, with humans at chosen gates. Rules:
+"Software factory" / "agent factory" name the workload people build on top of CompozyOS — a standing, mostly-autonomous pipeline that turns outside signals into shipped software, with humans at chosen gates. Rules:
 
-- Factory describes what runs **on** CompozyOS, never Compozy itself. Approved bridge line: "The OS your agent factory runs on." CTA form: "Build your factory on it."
-- Never adopt `Factory` as a Compozy product or feature name. The noun is occupied in this space (Factory.ai claims the "software factory" category; Mastra ships "Mastra Factory").
+- Factory describes what runs **on** CompozyOS, never the product itself. Approved bridge line: "The OS your agent factory runs on." CTA form: "Build your factory on it."
+- Never adopt `Factory` as a CompozyOS product or feature name. The noun is occupied in this space (Factory.ai claims the "software factory" category; Mastra ships "Mastra Factory").
 - Never write `AI factory`. That phrase is NVIDIA's and means a datacenter that manufactures intelligence, not a software process.
 - Keep the anti-cage framing: an OS gives agents general capability with safe boundaries; a factory built on it is not a rigid assembly line. (Context: Garry Tan's "Foxconn factories for your agents" critique, 2026-06.)
 
@@ -228,7 +228,7 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 ### Agent Artifact Terms
 
 - `capability`: the canonical term for reusable agent artifacts advertised or transferred between peers.
-- `skill`: local procedural instruction loaded by Compozy.
+- `skill`: local procedural instruction loaded by CompozyOS.
 - `AGENT.md`: single-agent definition format.
 - `AGENTS.md`: project-level agent instruction file.
 
@@ -248,7 +248,7 @@ Use those words only when discussing external systems or historical migration co
 - `claim_token_hash`: safe public form.
 - `lease`: bounded ownership interval.
 - `safe spawn`: daemon-managed child-session creation with TTL, caps, and permission narrowing.
-- `coordinator`: managed Compozy session that orchestrates coordinated work.
+- `coordinator`: managed CompozyOS session that orchestrates coordinated work.
 
 ### OS Shell Terms
 
@@ -377,7 +377,7 @@ Avoid:
 
 ### Protocol Docs
 
-Goal: help implementers understand `compozy-network/v0` without adopting Compozy internals.
+Goal: help implementers understand `compozy-network/v0` without adopting CompozyOS internals.
 
 Use:
 
@@ -387,7 +387,7 @@ Use:
 
 Avoid:
 
-- implying Compozy ownership is required to implement the protocol.
+- implying CompozyOS ownership is required to implement the protocol.
 - confusing MCP, A2A, and Compozy Network roles.
 
 ### Blog / Launch Posts
@@ -517,7 +517,7 @@ Weak:
 ```text
 Eyebrow: Innovation
 Title: Seamless agent collaboration
-Description: Compozy unlocks the future of autonomous teamwork.
+Description: CompozyOS unlocks the future of autonomous teamwork.
 ```
 
 ### Docs Overview
@@ -585,7 +585,7 @@ Avoid:
 
 ## 10. Examples & Anti-Patterns
 
-### Strong Compozy Copy
+### Strong CompozyOS Copy
 
 ```text
 Real commands, not docs-ware.
@@ -600,12 +600,12 @@ No Docker. No Postgres. compozy daemon start.
 Why it works: concrete local-first proof.
 
 ```text
-Orca, Paperclip, Smithers, Hermes, OpenClaw, Synara, and T3 each prove demand for part of the system. Compozy connects those operating-system responsibilities in one runtime.
+Orca, Paperclip, Smithers, Hermes, OpenClaw, Synara, and T3 each prove demand for part of the system. CompozyOS connects those operating-system responsibilities in one runtime.
 ```
 
 Why it works: names the comparison set and frames the difference as integration rather than an unsupported ranking.
 
-### Weak Compozy Copy
+### Weak CompozyOS Copy
 
 ```text
 An AI-powered platform to supercharge agent workflows.
@@ -650,7 +650,7 @@ Use COPY.md, DESIGN.md, and the Task 11 launch contract. Do not invent, duplicat
 ### Write a Docs Intro
 
 ```text
-Use COPY.md, docs/_memory/glossary.md, and the generated CLI/API reference for this surface. Start with the reader's task, then the Compozy surface used to complete it, then constraints. Do not paraphrase generated flags or endpoints if a generated reference exists.
+Use COPY.md, docs/_memory/glossary.md, and the generated CLI/API reference for this surface. Start with the reader's task, then the CompozyOS surface used to complete it, then constraints. Do not paraphrase generated flags or endpoints if a generated reference exists.
 ```
 
 ### Write a Feature Card
@@ -682,7 +682,7 @@ Check runtime truth, glossary vocabulary, claim maturity, CTA specificity, forbi
 Before shipping copy or product-facing text, verify:
 
 - Runtime truth is checked against current code, generated references, docs, tests, or release artifacts.
-- The copy uses `Compozy`, `CompozyOS`, `Compozy Network`, and `compozy-network/v0` correctly.
+- The copy uses `CompozyOS`, `compozy`, `Compozy Network`, and `compozy-network/v0` correctly.
 - Glossary terms are applied, especially `capability`, `skill`, `bridge`, `channel`, `AGENT.md`, and `AGENTS.md`.
 - Inline example lists of agent CLIs use the canonical trio (Claude Code, OpenClaw, and Hermes) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.

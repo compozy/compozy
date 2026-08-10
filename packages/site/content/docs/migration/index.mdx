@@ -3,7 +3,7 @@ title: Migrate from v0.2.15
 description: Complete command, configuration, extension, SDK, and clean-state migration guide for CompozyOS v0.3.
 ---
 
-# Migrate from Compozy v0.2.15 to CompozyOS v0.3
+# Migrate from CompozyOS v0.2.15 to CompozyOS v0.3
 
 CompozyOS v0.3 is a hard cut, not an in-place compatibility release. It keeps the `compozy` binary
 and the `.compozy/tasks/` task format, but replaces the workflow runner with a daemon-owned agent
@@ -45,7 +45,7 @@ The primary delivery mappings are:
 | `--task-runtime type=frontend,ide=codex,model=gpt-5.5-codex,reasoning-effort=xhigh` | `--runtime type=frontend:codex/gpt-5.5-codex@xhigh`                               | `--runtime` is repeatable. It also accepts `worker=`, `judge=`, `id=`, and `complexity=` selectors.                                                                                                             |
 | `--dry-run`                                                                         | `--dry-run`                                                                       | The v0.3 plan reports effective input values and origins and creates no run.                                                                                                                                    |
 | `--auto-commit`                                                                     | `--input auto_commit=true`                                                        | Supported by both bundled dev-cycle Loops. Neither Loop pushes.                                                                                                                                                 |
-| `compozy reviews fix <task>`                                                        | `compozy loop run --name review-and-fix --input task_name=<task>`                 | Run from the project tree. A Compozy reviewer agent authors a new round before fixers run; provider-fetched rounds are not imported.                                                                            |
+| `compozy reviews fix <task>`                                                        | `compozy loop run --name review-and-fix --input task_name=<task>`                 | Run from the project tree. A CompozyOS reviewer agent authors a new round before fixers run; provider-fetched rounds are not imported.                                                                          |
 | `compozy reviews watch <task> --pr <N>`                                             | Same `review-and-fix` command above                                               | Semantic change: there is no PR polling, CodeRabbit fetch, thread resolution, or push tail. `--pr` and `--provider` have no replacement.                                                                        |
 | `compozy exec "prompt"`                                                             | `compozy session new --agent <name>`, then `compozy session prompt <id> "prompt"` | Run from the project tree. v0.3 makes the durable session explicit. Use `resume` only to attach another client while the session is live; after `stop`, a normal prompt continues the same session and history. |
 | `compozy agents list` / `agents inspect <name>`                                     | `compozy agent list` / `compozy agent info <name>`                                | v0.3 agent definitions are daemon-managed resources, not setup assets.                                                                                                                                          |
@@ -212,7 +212,7 @@ loader, or hidden fallback ships in v0.3.
 | TUI cockpit, `runs attach`, and `--attach ui`                                                  | Removed                       | Use the web run page, structured CLI, HTTP/UDS, and SSE.                                                 |
 | `tasks validate`                                                                               | Removed                       | No substitute. `loop validate` is a different invariant.                                                 |
 | `reviews fetch/list/show/fix/watch` verb family                                                | Removed as commands           | `review-and-fix` is the only bundled review journey; inspect its `reviews-NNN/` files and run status.    |
-| External review fetch/resolve, CodeRabbit/nitpicks, provider provenance, PR polling, auto-push | Removed                       | Reviews are authored by a Compozy reviewer agent. Push manually or from an outer Loop after review.      |
+| External review fetch/resolve, CodeRabbit/nitpicks, provider provenance, PR polling, auto-push | Removed                       | Reviews are authored by a CompozyOS reviewer agent. Push manually or from an outer Loop after review.    |
 | Legacy review-provider extension abstraction and hooks                                         | Removed                       | No v0.3 external review-provider API.                                                                    |
 | Recovery agent and recovery flags/config                                                       | Removed                       | Use Loop retry/no-progress/terminal outcomes and an explicit rerun or operator intervention.             |
 | Cost-aware task budgets                                                                        | Deferred                      | Loop token/wall-clock budgets exist, but no legacy cost-aware per-task compatibility mapping exists.     |
@@ -290,7 +290,7 @@ pipeline-era sections have no empty heading stub; their disposition is explicit 
 
 ## 6. License metadata correction
 
-Compozy remained MIT-licensed. Some old distribution metadata incorrectly stamped artifacts as
+CompozyOS remained MIT-licensed. Some old distribution metadata incorrectly stamped artifacts as
 `BSL-1.1`; v0.3 corrects that metadata to match the repository's MIT license. This is a distribution
 metadata correction, **not a relicense**.
 

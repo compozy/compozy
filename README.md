@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="packages/site/public/icon-512.png" alt="Compozy" width="96" height="96">
+  <img src="packages/site/public/icon-512.png" alt="CompozyOS" width="96" height="96">
   <h1>CompozyOS</h1>
   <p><strong>A local-first operating system for agent work.</strong></p>
   <p>
@@ -184,13 +184,13 @@ compozy extension logs <name> --follow
 - [Extensions](https://compozy.com/docs/extensions)
 - [Publish an extension](https://compozy.com/docs/extensions/publish)
 - [Capabilities and extension kits](https://compozy.com/docs/extensions)
-- [Official Compozy skill](skills/compozy/)
+- [Official CompozyOS skill](skills/compozy/)
 - [Migration guide](MIGRATION_GUIDE.md)
 
 ## 🚀 Quick Start
 
 Bootstrap the home, start the daemon, enter the repository you want agents to work in, and create one
-durable session. Compozy infers and registers the workspace from the current directory; use
+durable session. CompozyOS infers and registers the workspace from the current directory; use
 `--workspace <id|name|path>` only when you need an override.
 
 ```bash
@@ -221,7 +221,7 @@ artifacts; they are not imported as hidden runtime state.
 
 ### 🤖 Supported Agents
 
-Compozy runs ACP-compatible agent CLIs and adapters. The active provider catalog and each agent's
+CompozyOS runs ACP-compatible agent CLIs and adapters. The active provider catalog and each agent's
 runtime settings are runtime truth; inspect them before selecting a model or reasoning mode. See the
 [provider guide](https://compozy.com/docs/agents/providers) for authentication and
 provider-home policies.
@@ -282,7 +282,7 @@ private security channel, not a public issue.
 
 ## Contributors
 
-Thanks to everyone who has contributed to Compozy.
+Thanks to everyone who has contributed to CompozyOS.
 
 <a href="https://github.com/compozy/compozy/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=compozy/compozy" alt="Contributors" />
@@ -290,4 +290,4 @@ Thanks to everyone who has contributed to Compozy.
 
 ## 📄 License
 
-Compozy is distributed under the [MIT License](LICENSE).
+CompozyOS is distributed under the [MIT License](LICENSE).

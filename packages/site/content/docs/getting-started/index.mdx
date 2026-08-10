@@ -1,11 +1,10 @@
 ---
 title: Getting Started
-description: Install Compozy, run a real session end to end, add your own agent definition, and see the same runtime state from the browser.
+description: Install CompozyOS, choose the desktop app or command path, run a real session end to end, and inspect the same runtime state from the browser.
 ---
 
-Getting started is four ordered steps. Each one leaves behind state the next one uses, so work
-through them in order the first time: install the binary, start the daemon and drive one real
-session, add a custom agent definition, then open the same session in the web UI.
+Start by choosing the desktop app or the `compozy` command. Both operate the same daemon and durable
+runtime state, so you can move between them without creating a second installation.
 
 <OperatorNote>
   Every step operates on the same local daemon and the same SQLite-backed history. Nothing here is a
@@ -19,9 +18,16 @@ session, add a custom agent definition, then open the same session in the web UI
   <RouteRow
     href="/docs/getting-started/installation"
     label="Install"
-    title="Install the Compozy binary"
-    description="Use this page to install Compozy, verify the binary, and bootstrap the local runtime before you start the daemon."
+    title="Install CompozyOS"
+    description="Install the desktop app for an interactive setup, or install the compozy command for a terminal-managed runtime."
     meta="Step 1"
+  />
+  <RouteRow
+    href="/docs/getting-started/desktop-app"
+    label="Desktop"
+    title="Start with the desktop app"
+    description="Attach to an existing runtime or let the app provision and manage one, then learn the update and recovery paths."
+    meta="Interactive"
   />
   <RouteRow
     href="/docs/getting-started/quick-start"
@@ -34,7 +40,7 @@ session, add a custom agent definition, then open the same session in the web UI
     href="/docs/getting-started/first-agent"
     label="Author"
     title="Your first custom agent"
-    description="Use this page to create one minimal AGENT.md definition, store it in the correct runtime path, and verify that Compozy resolves it for the current workspace."
+    description="Use this page to create one minimal AGENT.md definition, store it in the correct runtime path, and verify that CompozyOS resolves it for the current workspace."
     meta="Step 3"
   />
   <RouteRow

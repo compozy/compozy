@@ -11,7 +11,7 @@ caps, workspace inheritance, permission narrowing, and cleanup.
 
 | Constraint              | Behavior                                                                                                                      |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Valid parent identity   | The caller must be a Compozy-managed session resolved from daemon-issued identity.                                            |
+| Valid parent identity   | The caller must be a CompozyOS-managed session resolved from daemon-issued identity.                                          |
 | TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                                       |
 | Depth cap               | The MVP default max spawn depth is `1`.                                                                                       |
 | Child cap               | The MVP default max children per parent is `5`.                                                                               |
@@ -113,7 +113,7 @@ What crossing does and does not change:
 ## Cleanup and active leases
 
 The reaper wins over active leases. If TTL expiry or parent-stop cleanup terminates a spawned
-session, Compozy first releases active task-run leases owned by that session with a structured reason,
+session, CompozyOS first releases active task-run leases owned by that session with a structured reason,
 then stops the child. Stale child claim tokens cannot complete or heartbeat recovered work.
 
 ## Hooks

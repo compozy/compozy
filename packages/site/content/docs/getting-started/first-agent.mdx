@@ -1,6 +1,6 @@
 ---
 title: Your first custom agent
-description: Create one minimal AGENT.md definition, store it in the correct runtime path, and verify that Compozy resolves it for the current workspace.
+description: Create one minimal AGENT.md definition, store it in the correct runtime path, and verify that CompozyOS resolves it for the current workspace.
 ---
 
 In [Quick Start](/docs/getting-started/quick-start), you used the built-in `general` agent.
@@ -8,7 +8,7 @@ In this tutorial, you will create a second agent with its own system prompt and 
 store it in the correct runtime path, and launch a session with it.
 
 **Before you begin:** Run these steps from the repository root where you want the agent to be
-visible. The current Compozy runtime uses `<workspace>/.compozy/agents/<name>/AGENT.md` for workspace-local
+visible. The current CompozyOS runtime uses `<workspace>/.compozy/agents/<name>/AGENT.md` for workspace-local
 agents.
 
 ## 1. Create the workspace-local agent directory
@@ -39,14 +39,14 @@ This tutorial intentionally keeps the file small. The important pieces are:
 
 | Field         | Why it matters in this tutorial                                                                                    |
 | ------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `name`        | The identifier Compozy uses for discovery and selection.                                                           |
-| `provider`    | Tells Compozy which provider configuration to resolve for this agent.                                              |
+| `name`        | The identifier CompozyOS uses for discovery and selection.                                                         |
+| `provider`    | Tells CompozyOS which provider configuration to resolve for this agent.                                            |
 | `permissions` | This is the enforced session boundary today. `approve-reads` auto-allows read operations and prompts for the rest. |
 | Markdown body | Becomes the agent's startup prompt.                                                                                |
 
 For the full implemented schema, use [AGENT.md](/docs/configuration/agent-md).
 
-## 3. Verify that Compozy can see the agent
+## 3. Verify that CompozyOS can see the agent
 
 ```bash
 compozy agent list
@@ -58,7 +58,7 @@ Inspect the resolved definition:
 compozy agent info code-reviewer
 ```
 
-This is the right moment to catch path mistakes. If the agent does not appear here, Compozy will not be
+This is the right moment to catch path mistakes. If the agent does not appear here, CompozyOS will not be
 able to start a session with it.
 
 ## 4. Start a session with the custom agent

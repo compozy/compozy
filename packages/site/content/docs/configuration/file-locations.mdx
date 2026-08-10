@@ -1,16 +1,16 @@
 ---
 title: File Locations
-description: All Compozy global, workspace, agent, skill, database, log, socket, memory, and extension paths.
+description: All CompozyOS global, workspace, agent, skill, database, log, socket, memory, and extension paths.
 ---
 
-Compozy uses one global home directory plus optional workspace-local `.compozy/` directories. The global
+CompozyOS uses one global home directory plus optional workspace-local `.compozy/` directories. The global
 home defaults to `~/.compozy` and can be changed with `COMPOZY_HOME`.
 
 ## Quick Reference
 
 | Path                                                                     | Scope                  | Purpose                                                                                            |
 | ------------------------------------------------------------------------ | ---------------------- | -------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME`                                                          | Global                 | Compozy home root. Defaults to `~/.compozy`.                                                       |
+| `$COMPOZY_HOME`                                                          | Global                 | CompozyOS home root. Defaults to `~/.compozy`.                                                     |
 | `$COMPOZY_HOME/config.toml`                                              | Global                 | Global runtime config.                                                                             |
 | `$COMPOZY_HOME/mcp.json`                                                 | Global                 | Global top-level MCP sidecar.                                                                      |
 | `$COMPOZY_HOME/compozy.db`                                               | Global                 | Global SQLite catalog.                                                                             |
@@ -77,10 +77,10 @@ directories. Individual files are created by the features that own them.
 
 ## Provider Home Files
 
-When a provider sets `home_policy = "isolated"`, Compozy creates a private provider home under
+When a provider sets `home_policy = "isolated"`, CompozyOS creates a private provider home under
 `$COMPOZY_HOME/providers/<provider>` with `0700` permissions. The launch environment points `HOME`,
 `PROVIDER_HOME`, XDG directories, and known provider-specific variables such as
-`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `OPENCODE_CONFIG_DIR` at that directory. Compozy never copies
+`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, and `OPENCODE_CONFIG_DIR` at that directory. CompozyOS never copies
 credentials from the operator home into an isolated provider home.
 
 The default `home_policy = "operator"` does not create this directory and lets native ACP CLIs use
@@ -88,7 +88,7 @@ their existing login/session state.
 
 ## Session Files
 
-Live sessions own a directory under `$COMPOZY_HOME/sessions/<session-id>/`. After session stop, Compozy
+Live sessions own a directory under `$COMPOZY_HOME/sessions/<session-id>/`. After session stop, CompozyOS
 materializes a read-only forensic JSONL ledger under
 `$COMPOZY_HOME/sessions/<workspace_id>/<session_id>/ledger.jsonl`. Unbound sessions (no resolved
 workspace) materialize under `$COMPOZY_HOME/sessions/_unbound/<session_id>/`.
@@ -117,7 +117,7 @@ controller write target — it is operator-readable history only. After material
 `events.db` rows for the same session are purged once `[memory.session] events_purge_grace`
 elapses.
 
-When a stopped session resumes, Compozy removes its materialized ledger before accepting new
+When a stopped session resumes, CompozyOS removes its materialized ledger before accepting new
 events. The append-only `events.db` remains the source of truth, and the next stop writes a new
 ledger with the complete history. A failed provider resume restores the stopped projection.
 
@@ -154,7 +154,7 @@ register runtime-owned skills into the live registry. Those overlays do not come
 path, so they are documented in [Skills Overview](/docs/skills) rather than in this
 file-path table.
 
-Every `<group>/.../` segment above is optional and organizational. Compozy discovers skill leaves at
+Every `<group>/.../` segment above is optional and organizational. CompozyOS discovers skill leaves at
 any depth, and the `name` in each leaf's frontmatter remains its resolver identity.
 
 ## Workspace Files
@@ -183,7 +183,7 @@ my-project/
 | `<workspace>/.compozy/skills/`        | Workspace skill definitions.                                                                         |
 | `<workspace>/.compozy/memory/`        | Workspace-scoped memory files plus `_system/` for machine-managed artifacts.                         |
 
-Compozy only loads the `.compozy/config.toml` for the resolved primary workspace root. Additional roots are
+CompozyOS only loads the `.compozy/config.toml` for the resolved primary workspace root. Additional roots are
 resource discovery roots for agents and skills; they do not contribute config overlays.
 
 ## Memory Files
@@ -268,4 +268,4 @@ config file.
 
 - [config.toml](/docs/configuration/config-toml) documents the schema for global and workspace config files.
 - [mcp.json](/docs/configuration/mcp-json) documents JSON sidecars.
-- [Workspace Resolver](/docs/workspaces/resolver) explains how Compozy finds the primary workspace root.
+- [Workspace Resolver](/docs/workspaces/resolver) explains how CompozyOS finds the primary workspace root.

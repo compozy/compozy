@@ -2,7 +2,7 @@
     "name": "@compozy/extension-sdk",
     "version": "0.1.0",
     "private": false,
-    "description": "TypeScript SDK for building Compozy subprocess extensions",
+    "description": "TypeScript SDK for building CompozyOS subprocess extensions",
     "homepage": "https://compozy.com",
     "bugs": "https://github.com/compozy/compozy/issues",
     "license": "MIT",

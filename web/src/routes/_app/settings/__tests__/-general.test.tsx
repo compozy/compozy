@@ -355,7 +355,7 @@ describe("GeneralSettingsPage", () => {
       available: true,
       status: "unsupported",
       recommendation:
-        "Download the latest Compozy Windows release archive and replace `compozy.exe` manually.",
+        "Download the latest CompozyOS Windows release archive and replace `compozy.exe` manually.",
       release_url: "https://github.com/compozy/compozy/releases/tag/v1.1.0",
       checked_at: "2026-05-03T19:00:00Z",
       last_error: "cached refresh failed",

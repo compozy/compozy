@@ -21,7 +21,7 @@ const (
 func newMarketplaceCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   marketplaceSkillSource,
-		Short: "Discover installable Compozy capabilities",
+		Short: "Discover installable CompozyOS capabilities",
 	}
 	cmd.AddCommand(newMarketplaceSearchCommand(deps))
 	cmd.AddCommand(newMarketplaceInfoCommand(deps))
@@ -201,7 +201,7 @@ func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) 
 			"Entry ID",
 			automationNameValue,
 			versionValue,
-			"Installed",
+			cliInstalledValue,
 			authoredContextSourceValue,
 		},
 		marketplaceSkillSource,

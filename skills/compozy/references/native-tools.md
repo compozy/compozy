@@ -18,7 +18,7 @@
 
 ## Operating Rule
 
-Inside Compozy, prefer callable daemon-native tools over shelling out. They are policy-filtered, structured, auditable, and redaction-aware. Use shell only when a native tool is absent, denied, too narrow, or explicitly requested.
+Inside CompozyOS, prefer callable daemon-native tools over shelling out. They are policy-filtered, structured, auditable, and redaction-aware. Use shell only when a native tool is absent, denied, too narrow, or explicitly requested.
 
 `compozy__*` strings are canonical ToolIDs for registry, policy, CLI, descriptors, and `tool_id`; harnesses may wrap call names. Resolve by capability plus canonical ID, then call the returned reference exactly.
 
@@ -33,7 +33,7 @@ Management-only surfaces include diagnostics, support bundles, scheduler control
 - Toolset `compozy__bootstrap`: `compozy__tool_list`, `compozy__tool_search`, `compozy__tool_info`.
 - Toolset `compozy__catalog`: command and skill catalog access plus bootstrap tools.
 
-Bare managed sessions receive the full availability-gated callable catalog through hosted MCP. Compozy
+Bare managed sessions receive the full availability-gated callable catalog through hosted MCP. CompozyOS
 does not add an automatic bootstrap/catalog allowlist over the hosted projection. Explicit agent
 `tools`, `toolsets`, `deny_tools`, session lineage, disabled sources, and approval/risk gates still
 apply.
@@ -62,7 +62,7 @@ rollback rule in `references/runtime-operations.md`; inspect `compozy__session_s
 `compozy__session_rewind` is a destructive conversation-only mutation. Pass the durable user
 `message_id`, an idempotency key, and the transcript epoch, generation, and maximum sequence returned
 by the read API. The tool cuts before that message, restarts a fresh ACP context under the same
-Compozy session ID, and returns the selected text as `draft_text`. It never rolls back files, tool or
+CompozyOS session ID, and returns the selected text as `draft_text`. It never rolls back files, tool or
 network effects, memory, or external provider actions. Resolve its descriptor and obtain approval
 before calling it.
 
@@ -124,7 +124,7 @@ Provider authentication is a management surface. Write `providers.<id>.auth_logi
 A call that names a workspace other than the bound session's is a cross-workspace request. The session's effective permission mode decides it, and there is no separate toggle, grant, or config key:
 
 - `approve-all`: allowed at every seam.
-- `deny-all`: denied at every seam, including native tools. Compozy never prompts for crossing under this mode.
+- `deny-all`: denied at every seam, including native tools. CompozyOS never prompts for crossing under this mode.
 - `approve-reads`: the native-tool seam prompts the operator while the session is running; the agent-identity, task, spawn, and workspace-coordination seams deny.
 
 Denied native calls return `workspace_access_denied` with this exact hint:
@@ -179,7 +179,7 @@ normal registry read. Use exactly one source-qualified `command_id` from `compoz
 the operator selected a slash skill; `command_id` requires a session-bound caller and never switches
 to another skill source.
 
-Resolve canonical `compozy__skill_view`, then use its returned tool reference with a file/resource argument when reading `skills/compozy/references/*.md` from inside Compozy.
+Resolve canonical `compozy__skill_view`, then use its returned tool reference with a file/resource argument when reading `skills/compozy/references/*.md` from inside CompozyOS.
 
 Memory tools: `compozy__memory_list`, `compozy__memory_show`, `compozy__memory_search`, `compozy__memory_propose`, `compozy__memory_note`.
 
@@ -264,7 +264,7 @@ batch-update outcomes, kit lifecycle, and cleanup warnings live in `references/e
 
 The `compozy__automation_jobs_create` and `compozy__automation_jobs_update` descriptors expose the complete recurring schedule shape, including `catch_up_policy` and `misfire_grace_seconds`. Resolve the live descriptor instead of guessing the enum or sending catch-up fields to a one-time `at` schedule.
 
-`compozy__automation_jobs_create` and `compozy__automation_jobs_update` reject Agent prompts and Task descriptions containing command-shaped Compozy daemon restart, stop, or kill instructions before persistence, including resource-applied definitions. The tool error names `compozy_daemon`, `process_signal`, or `service_manager`; remove the lifecycle command before retrying. There is no bypass.
+`compozy__automation_jobs_create` and `compozy__automation_jobs_update` reject Agent prompts and Task descriptions containing command-shaped CompozyOS daemon restart, stop, or kill instructions before persistence, including resource-applied definitions. The tool error names `compozy_daemon`, `process_signal`, or `service_manager`; remove the lifecycle command before retrying. There is no bypass.
 
 Resource tools live under `compozy__resources_*` for list/info/snapshot of desired-state resources.
 
@@ -272,7 +272,7 @@ MCP diagnostics are `compozy__mcp_status` and `compozy__mcp_auth_status`. A
 workspace-scoped server with five consecutive confirmed permanent failures reports `state: "dead"`
 from `compozy__mcp_status`; its nested runtime reason is `backend_dead`. During the same daemon lifetime,
 resolve its last-known tools through `compozy__tool_info`, which retains their unavailable descriptors
-and diagnostic instead of hiding them. Do not retry a dead tool blindly or invent a revive call: Compozy
+and diagnostic instead of hiding them. Do not retry a dead tool blindly or invent a revive call: CompozyOS
 admits at most one automatic recovery probe after the 60-second window and clears the mark when that
 probe succeeds. Browser/OAuth login, raw auth material, and any required credential repair remain
 management-surface operations.

@@ -196,11 +196,11 @@ describe("useSlackBridgeManifest", () => {
         _metadata: { major_version: 1, minor_version: 1 },
         display_information: {
           background_color: "#E8572A",
-          description: "Compozy Slack bridge",
-          name: "Compozy",
+          description: "CompozyOS Slack bridge",
+          name: "CompozyOS",
         },
         features: {
-          bot_user: { always_online: false, display_name: "Compozy" },
+          bot_user: { always_online: false, display_name: "CompozyOS" },
           slash_commands: [],
         },
         oauth_config: { scopes: { bot: ["app_mentions:read"] } },
@@ -225,7 +225,7 @@ describe("useSlackBridgeManifest", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.data?.manifest.display_information.name).toBe("Compozy");
+      expect(result.current.data?.manifest.display_information.name).toBe("CompozyOS");
     });
     expect(getSlackBridgeManifest).toHaveBeenCalledWith(" brg_slack ", expect.any(AbortSignal));
   });

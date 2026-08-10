@@ -4,14 +4,14 @@ description: Optional HEARTBEAT.md authored wake/reentry policy plus runtime ses
 ---
 
 `HEARTBEAT.md` is an optional authored wake/reentry policy beside an agent's `AGENT.md`. It guides
-how an already eligible session should reorient when Compozy delivers a synthetic wake. It is not
+how an already eligible session should reorient when CompozyOS delivers a synthetic wake. It is not
 liveness, not task ownership, not a scheduler, and not a durable work queue.
 
 `HEARTBEAT.md` always coexists with two separate runtime authorities:
 
 - **Session health.** Metadata-only presence, attachability, and wake eligibility maintained by
   the daemon. It never injects prompts or renews task leases.
-- **Compozy Heartbeat wake service.** Evaluates the latest valid `HEARTBEAT.md` snapshot plus session
+- **CompozyOS Heartbeat wake service.** Evaluates the latest valid `HEARTBEAT.md` snapshot plus session
   health, applies cooldown and coalescing, and dispatches one synthetic wake prompt. It never
   creates, claims, completes, fails, releases, or renews `task_runs`.
 
@@ -43,7 +43,7 @@ guidance only.
 ---
 version: 1
 enabled: true
-summary: "Reorient, inspect assignments, and claim only through Compozy task APIs."
+summary: "Reorient, inspect assignments, and claim only through CompozyOS task APIs."
 preferences:
   min_interval: "30m"
   active_hours:
@@ -62,7 +62,7 @@ context:
     - inbox_summary
 ---
 
-When Compozy wakes you, inspect `/agent/context` and your inbox before acting.
+When CompozyOS wakes you, inspect `/agent/context` and your inbox before acting.
 Use `compozy task next` to obtain claim authority; do not assume work is owned.
 If nothing is claimable, return a concise no-op summary.
 ```
@@ -132,7 +132,7 @@ authored and is the only authority for whether an idle session is wake-eligible.
 | `updated_at`           | Last health write.                                           |
 
 Health updates never inject prompts, never renew task leases, and never call the model. On daemon
-restart, Compozy recomputes health from runtime/session state before any wake consumer runs; stale
+restart, CompozyOS recomputes health from runtime/session state before any wake consumer runs; stale
 rows alone cannot make a session wake-eligible.
 
 `compozy session health`, `compozy session status`, and `compozy session inspect` expose this state with

@@ -57,7 +57,7 @@ type localExtensionRegistry interface {
 func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   extensionExtensionKey,
-		Short: "Manage Compozy extensions",
+		Short: "Manage CompozyOS extensions",
 	}
 
 	cmd.AddCommand(newExtensionSearchCommand(deps))

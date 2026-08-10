@@ -1,6 +1,6 @@
 ---
 title: Event Streaming
-description: How Compozy records session events, streams them over SSE, and persists them in per-session SQLite databases.
+description: How CompozyOS records session events, streams them over SSE, and persists them in per-session SQLite databases.
 ---
 
 Events are the durable record of a session. They drive:
@@ -11,12 +11,12 @@ Events are the durable record of a session. They drive:
 - token usage tracking
 - permission audit trails
 
-Compozy stores session events in a per-session SQLite database and exposes them through both query and
+CompozyOS stores session events in a per-session SQLite database and exposes them through both query and
 SSE surfaces.
 
 ## Two event surfaces
 
-Compozy exposes two different streaming models for session work:
+CompozyOS exposes two different streaming models for session work:
 
 | Surface                  | Endpoint                                                         | What you get                                                                                |
 | ------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -33,7 +33,7 @@ Every prompt and steer request requires two caller-provided values:
 
 - `message_id` identifies the authored user message. It is the durable `UIMessage.id` for that
   transcript entry, so clients must keep it when they reconnect or reconcile optimistic state.
-- `idempotency_key` identifies this submission. It lets Compozy decide whether a request is the
+- `idempotency_key` identifies this submission. It lets CompozyOS decide whether a request is the
   same command or a conflicting reuse of an existing command identity.
 
 For an AI SDK request, `message_id` must equal the latest user message's `id`; if top-level
@@ -41,7 +41,7 @@ For an AI SDK request, `message_id` must equal the latest user message's `id`; i
 identity with `400`.
 
 Repeat an uncertain request with the exact same `message_id`, `idempotency_key`, operation, and
-payload. When its durable result is available, Compozy returns the same wrapped prompt result:
+payload. When its durable result is available, CompozyOS returns the same wrapped prompt result:
 
 ```json
 {
@@ -109,41 +109,41 @@ Every stored event row is returned as `SessionEventPayload`:
 
 Two IDs matter here:
 
-- outer `session_id`: the stable Compozy session ID
+- outer `session_id`: the stable CompozyOS session ID
 - inner `content.session_id`: the ACP runtime session ID carried by the underlying event payload
 
 Those IDs can diverge after a resume that falls back to a fresh ACP session.
 
 ## Event type catalog
 
-The persisted event `type` values currently emitted by Compozy are:
+The persisted event `type` values currently emitted by CompozyOS are:
 
-| Type                         | When it is recorded                                                                             | Key `content` fields                                                                           |
-| ---------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `user_message`               | After Compozy has bound or reconfigured the selected runtime, before it submits a prompt to ACP | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`, `message_id`, `prompt_runtime` |
-| `agent_message`              | Agent text chunk                                                                                | `text`, plus the shared canonical fields                                                       |
-| `thought`                    | Agent reasoning chunk                                                                           | `text`, plus the shared canonical fields                                                       |
-| `tool_call`                  | Tool call started or updated before completion                                                  | `title`, `tool_name`, `tool_kind`, `tool_call_id`, optional `tool_input`, optional `raw`       |
-| `tool_result`                | Tool call completed or failed                                                                   | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                       |
-| `plan`                       | ACP plan update                                                                                 | optional `raw`; Compozy stores the canonical envelope even when the payload is sparse          |
-| `permission`                 | ACP permission request or resolved decision                                                     | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`                 |
-| `usage`                      | Token or context usage update                                                                   | `usage` with token counts, context counts, cost fields, and `timestamp`                        |
-| `runtime_progress`           | Low-frequency long-running prompt progress update                                               | `text`, `runtime` activity payload                                                             |
-| `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                        | `text`, `runtime` activity payload, optional `raw`                                             |
-| `session.compaction_fired`   | Pressure compaction admitted for a complete prior-turn sequence span                            | `raw` with workspace/session/turn IDs, sequence bounds, usage, pressure, strategy              |
-| `transcript_marker.created`  | Durable runtime evidence added to the transcript                                                | marker kind, summary, occurrence time, and optional evidence                                   |
-| `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                                           | marker kind, summary, occurrence time, and redaction metadata                                  |
-| `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates                   | `title`, optional `raw`                                                                        |
-| `done`                       | End of a prompt turn                                                                            | `stop_reason`, optional `usage`, optional `raw`                                                |
-| `error`                      | Prompt processing error                                                                         | `error`, optional `raw`                                                                        |
-| `session_stopped`            | Session finalization                                                                            | `stop_reason`, optional `failure`, optional `error`, optional `text`                           |
+| Type                         | When it is recorded                                                                               | Key `content` fields                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `user_message`               | After CompozyOS has bound or reconfigured the selected runtime, before it submits a prompt to ACP | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`, `message_id`, `prompt_runtime` |
+| `agent_message`              | Agent text chunk                                                                                  | `text`, plus the shared canonical fields                                                       |
+| `thought`                    | Agent reasoning chunk                                                                             | `text`, plus the shared canonical fields                                                       |
+| `tool_call`                  | Tool call started or updated before completion                                                    | `title`, `tool_name`, `tool_kind`, `tool_call_id`, optional `tool_input`, optional `raw`       |
+| `tool_result`                | Tool call completed or failed                                                                     | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                       |
+| `plan`                       | ACP plan update                                                                                   | optional `raw`; CompozyOS stores the canonical envelope even when the payload is sparse        |
+| `permission`                 | ACP permission request or resolved decision                                                       | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`                 |
+| `usage`                      | Token or context usage update                                                                     | `usage` with token counts, context counts, cost fields, and `timestamp`                        |
+| `runtime_progress`           | Low-frequency long-running prompt progress update                                                 | `text`, `runtime` activity payload                                                             |
+| `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                          | `text`, `runtime` activity payload, optional `raw`                                             |
+| `session.compaction_fired`   | Pressure compaction admitted for a complete prior-turn sequence span                              | `raw` with workspace/session/turn IDs, sequence bounds, usage, pressure, strategy              |
+| `transcript_marker.created`  | Durable runtime evidence added to the transcript                                                  | marker kind, summary, occurrence time, and optional evidence                                   |
+| `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                                             | marker kind, summary, occurrence time, and redaction metadata                                  |
+| `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates                     | `title`, optional `raw`                                                                        |
+| `done`                       | End of a prompt turn                                                                              | `stop_reason`, optional `usage`, optional `raw`                                                |
+| `error`                      | Prompt processing error                                                                           | `error`, optional `raw`                                                                        |
+| `session_stopped`            | Session finalization                                                                              | `stop_reason`, optional `failure`, optional `error`, optional `text`                           |
 
 ### Runtime supervision events
 
 `runtime_progress` and `runtime_warning` are separate from `agent_message`. They are progress
 projections for clients and bridges, not assistant-authored text to append to the final answer.
 
-Compozy does not write heartbeat ticks into the event log. Heartbeats update session liveness metadata;
+CompozyOS does not write heartbeat ticks into the event log. Heartbeats update session liveness metadata;
 only lower-frequency progress, warning, and timeout notices become stored events.
 
 Example `runtime_progress` content:
@@ -171,8 +171,8 @@ Example `runtime_progress` content:
 ```
 
 `runtime_warning` is emitted once when `session.supervision.inactivity_warning_after` is crossed.
-If `session.supervision.inactivity_timeout` is crossed, Compozy cancels the active prompt
-cooperatively. If the prompt does not finish within `timeout_cancel_grace`, Compozy stops the session
+If `session.supervision.inactivity_timeout` is crossed, CompozyOS cancels the active prompt
+cooperatively. If the prompt does not finish within `timeout_cancel_grace`, CompozyOS stops the session
 with stop reason `timeout` and stop detail `activity_timeout`.
 
 ### Shared canonical fields inside `content`
@@ -195,7 +195,7 @@ The stored canonical envelope can include these fields when they apply:
 | `tool_call_id`   | Stable tool correlation ID                                                                                     |
 | `tool_input`     | Structured tool input when present                                                                             |
 | `tool_result`    | Structured tool output (`stdout`, `stderr`, `file_path`, `content`, `structured_patch`, `error`, `raw_output`) |
-| `tool_error`     | Whether Compozy classified the tool result as failed                                                           |
+| `tool_error`     | Whether CompozyOS classified the tool result as failed                                                         |
 | `stop_reason`    | Turn or session termination reason                                                                             |
 | `failure`        | Typed lifecycle failure object with `kind`, redacted `summary`, and optional `crash_bundle_path`               |
 | `action`         | Permission action name                                                                                         |
@@ -205,14 +205,14 @@ The stored canonical envelope can include these fields when they apply:
 | `usage`          | Token and cost payload                                                                                         |
 | `runtime`        | Long-running prompt activity payload with current tool, last activity, progress, idle, and elapsed fields      |
 | `prompt_runtime` | Immutable prompt-bound runtime snapshot: `provider`, `model`, `reasoning_effort`, and `speed`                  |
-| `raw`            | Raw ACP update payload Compozy preserved                                                                       |
+| `raw`            | Raw ACP update payload CompozyOS preserved                                                                     |
 
 `prompt_runtime` is carried by every persisted turn event, including the authored `user_message`.
 It records the runtime that was accepted for that prompt, not the session's current binding at read
 time. Queue and interrupt inputs preserve their accepted snapshot until dispatch. If runtime binding,
-replacement, or rollback fails, Compozy does not persist the authored `user_message`.
+replacement, or rollback fails, CompozyOS does not persist the authored `user_message`.
 
-Compozy records the admitted local user input itself. It drops ACP-provider `user_message_chunk`
+CompozyOS records the admitted local user input itself. It drops ACP-provider `user_message_chunk`
 echoes before they reach the persisted event stream or transcript, so a provider echo cannot create
 a second user message. Steering is a daemon-owned replacement prompt fenced to the expected active
 turn; it is not injected into a provider tool-result boundary.
@@ -221,7 +221,7 @@ turn; it is not injected into a provider tool-result boundary.
 
 Read a session's aggregate token usage from
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage`. Token counts and monetary status
-are independent: Compozy keeps counting tokens when cost is included in a subscription or cannot be
+are independent: CompozyOS keeps counting tokens when cost is included in a subscription or cannot be
 determined.
 
 For agent-managed inspection over UDS, run `compozy session usage <session-id> -o json`. The command
@@ -229,23 +229,23 @@ returns the same usage payload; omit `-o json` for the operator-readable panel.
 
 The response uses `cost_status` to say what `total_cost` means:
 
-| Status      | Meaning                                                                 | Amount                       |
-| ----------- | ----------------------------------------------------------------------- | ---------------------------- |
-| `actual`    | The agent reported the cost.                                            | Present when reported        |
-| `estimated` | Compozy multiplied reported token counts by merged model-catalog rates. | Present with `cost_currency` |
-| `included`  | A `native_cli` provider owns subscription billing.                      | Omitted                      |
-| `unknown`   | A required rate is missing or aggregate provenance/currency conflicts.  | Omitted                      |
+| Status      | Meaning                                                                   | Amount                       |
+| ----------- | ------------------------------------------------------------------------- | ---------------------------- |
+| `actual`    | The agent reported the cost.                                              | Present when reported        |
+| `estimated` | CompozyOS multiplied reported token counts by merged model-catalog rates. | Present with `cost_currency` |
+| `included`  | A `native_cli` provider owns subscription billing.                        | Omitted                      |
+| `unknown`   | A required rate is missing or aggregate provenance/currency conflicts.    | Omitted                      |
 
 `cost_source` identifies `agent_reported`, `catalog_config`, `models_dev`, `builtin`, or `none`.
-Compozy never adds an agent-reported amount to an estimate. Aggregates keep a monetary amount only when
+CompozyOS never adds an agent-reported amount to an estimate. Aggregates keep a monetary amount only when
 status, source, and currency agree; token totals continue even when the monetary aggregate becomes
 `unknown`.
 
 Estimates price input, output, cache-read, cache-write, and reasoning tokens independently. Every
-nonzero bucket requires its own finite, non-negative catalog rate; Compozy never substitutes an input
+nonzero bucket requires its own finite, non-negative catalog rate; CompozyOS never substitutes an input
 rate for cache tokens or an output rate for reasoning tokens.
 
-`included` is a billing classification, not a provider account-balance check. Compozy does not read
+`included` is a billing classification, not a provider account-balance check. CompozyOS does not read
 native CLI credential stores or expose provider subscription quotas.
 
 ## Querying stored events
@@ -380,7 +380,7 @@ curl -N \
   'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream?epoch=3&generation=7&limit=200'
 ```
 
-`Last-Event-ID` must be a non-negative numeric transcript cursor. With matching fences, Compozy emits
+`Last-Event-ID` must be a non-negative numeric transcript cursor. With matching fences, CompozyOS emits
 bounded `transcript_delta` batches. A missing or stale fence, or a cursor beyond the current
 projection, produces a `transcript_snapshot` with `reset: true` and one of these reasons:
 `fence_missing`, `epoch_mismatch`, `generation_mismatch`, or `sequence_reset`. Replace only that
@@ -388,17 +388,17 @@ session's cached transcript when an explicit reset arrives. A new stream without
 a bounded snapshot with `reset: false`.
 
 The old `replay` query is rejected. Raw mode remains a separate stored-event contract: with
-`frames=raw`, Compozy resumes persisted rows after `Last-Event-ID` and then follows new rows. Raw cursors
+`frames=raw`, CompozyOS resumes persisted rows after `Last-Event-ID` and then follows new rows. Raw cursors
 do not carry transcript projection fences.
 
-If the session is already stopped and no new stored rows arrive, Compozy emits a terminal synthetic
+If the session is already stopped and no new stored rows arrive, CompozyOS emits a terminal synthetic
 `session_stopped` SSE event and closes the stream. When the stopped session has failure
 diagnostics, that terminal payload includes the same `failure` object stored in session metadata.
 
 ### File mutation verification marker
 
-Compozy reduces persisted `edit` tool events within one turn. When a failed file mutation has no later
-successful mutation for the same path and the turn persisted assistant text, Compozy appends one
+CompozyOS reduces persisted `edit` tool events within one turn. When a failed file mutation has no later
+successful mutation for the same path and the turn persisted assistant text, CompozyOS appends one
 `transcript_marker.file_mutation_unverified` marker after the turn completes. Its evidence carries
 the bounded affected paths and total `failure_count`; `paths_truncated = true` reports that more
 than 32 unresolved paths existed.
@@ -456,7 +456,7 @@ active rows. Pass `archive=archived` to inspect only a discarded suffix or `arch
 both archived and active rows. Daemon degraded replay requests only active rows after the workspace
 checkpoint has durably covered the archived sequence range.
 
-Queries are returned in ascending sequence order. If you request `limit`, Compozy selects the newest
+Queries are returned in ascending sequence order. If you request `limit`, CompozyOS selects the newest
 matching rows first and then re-sorts them ascending before returning them.
 
 ## Relationship to replay
@@ -472,7 +472,7 @@ The [resume attach and replay](/docs/sessions/resume) path depends on this store
 ### Pressure compaction ordering
 
 At context pressure, `context.pre_compact` runs before checkpoint coverage. If it allows the work,
-Compozy writes idempotent checkpoint coverage before marking the selected event range archived, then
+CompozyOS writes idempotent checkpoint coverage before marking the selected event range archived, then
 runs `context.post_compact`. A summary, provider, archive, or pre-hook failure leaves the original
 rows available for replay and arms the configured failure cooldown. `session.compaction_fired`
 provides durable correlation for the admitted attempt and its exact sequence bounds; it does not

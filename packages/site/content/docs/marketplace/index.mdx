@@ -56,8 +56,8 @@ catalog.
 Single-kind responses return `next_cursor` when more rows remain. Treat it as opaque and pass it
 unchanged with the same kind, query, scope, and workspace; grouped search does not accept a cursor.
 Curated cursors fence the source projection. Remote skill registries do not expose a
-snapshot revision, so Compozy validates the prior page boundary with one bounded look-behind row. If
-that boundary changes, Compozy rejects the continuation; restart from the first page instead of
+snapshot revision, so CompozyOS validates the prior page boundary with one bounded look-behind row. If
+that boundary changes, CompozyOS rejects the continuation; restart from the first page instead of
 combining shifted pages.
 `total` is the exact filtered total when the source can determine it. A source that cannot determine
 an exact total omits it while still returning `next_cursor`.
@@ -103,7 +103,7 @@ compozy extension install compozy/repository-orientation -o json
 compozy extension provenance repository-orientation -o json
 ```
 
-For a curated entry, Compozy downloads the feed's exact HTTPS `artifact_url`, pins its version and
+For a curated entry, CompozyOS downloads the feed's exact HTTPS `artifact_url`, pins its version and
 SHA-256 digest, verifies the download before extraction, and records the catalog entry, archive
 digest, extracted-tree checksum, registry tier, and trust report separately. Manual registry
 installs still resolve GitHub releases. A digest mismatch returns
@@ -172,7 +172,7 @@ Start the daemon-owned PKCE flow after an OAuth catalog install:
 compozy mcp auth login linear --scope global
 ```
 
-Compozy returns a live, copyable authorization URL and may open it in a browser. For a remote operator,
+CompozyOS returns a live, copyable authorization URL and may open it in a browser. For a remote operator,
 or when the daemon HTTP bind is not loopback, use manual completion and paste the full redirect URL:
 
 ```bash

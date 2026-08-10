@@ -1,6 +1,6 @@
 # Telegram Bridge Provider
 
-`extensions/bridges/telegram` is the production Telegram bridge provider for Compozy. It runs as a provider-scoped subprocess on top of `internal/bridgesdk` and multiplexes one or more owned `BridgeInstance` records inside a single Telegram runtime.
+`extensions/bridges/telegram` is the production Telegram bridge provider for CompozyOS. It runs as a provider-scoped subprocess on top of `internal/bridgesdk` and multiplexes one or more owned `BridgeInstance` records inside a single Telegram runtime.
 
 It implements:
 
@@ -12,7 +12,7 @@ It implements:
 
 ## Build and install
 
-Released `compozy` artifacts do not include this provider executable. From a trusted Compozy source
+Released `compozy` artifacts do not include this provider executable. From a trusted CompozyOS source
 checkout, run this from the repository root with the daemon running:
 
 ```bash

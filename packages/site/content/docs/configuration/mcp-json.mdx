@@ -1,9 +1,9 @@
 ---
 title: mcp.json
-description: Configure, authorize, inspect, edit, and repair local and remote MCP servers across Compozy scopes.
+description: Configure, authorize, inspect, edit, and repair local and remote MCP servers across CompozyOS scopes.
 ---
 
-`mcp.json` is an optional JSON sidecar for MCP server declarations. Compozy accepts it at global,
+`mcp.json` is an optional JSON sidecar for MCP server declarations. CompozyOS accepts it at global,
 workspace, agent, and skill scopes.
 
 ## Quick Reference
@@ -90,18 +90,18 @@ If both top-level keys are present in the same file and both define the same ser
 
 ## Server Object
 
-| Field             | Type         | Default             | Valid values                                            | Description                                                                                                          |
-| ----------------- | ------------ | ------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Map key           | string       | required            | Non-empty after trimming. Duplicate trimmed names fail. | Server `name`.                                                                                                       |
-| `transport`       | string       | inferred            | `stdio` or `http`.                                      | Local command servers default to `stdio`; URL servers default to `http`.                                             |
-| `command`         | string       | required for stdio  | Non-empty after trimming.                               | Executable command. Only valid with `stdio` transport.                                                               |
-| `url`             | string URL   | required for remote | Absolute URL.                                           | Remote MCP endpoint. Required for `http`; invalid for `stdio`.                                                       |
-| `auth`            | object       | empty               | OAuth config listed below.                              | Remote MCP auth configuration. Only valid for remote transports.                                                     |
-| `args`            | string array | empty               | Strings on `stdio` only.                                | Process arguments for stdio servers.                                                                                 |
-| `env`             | string map   | empty               | String keys and values on `stdio` only.                 | Literal environment values. Compozy does not expand `$VAR`, `~`, or shell syntax. Management reads expose keys only. |
-| `secret_env`      | string map   | empty               | `env:NAME` or `vault:mcp/**` refs on `stdio` only.      | Secret bindings resolved at launch. Management reads expose configured keys only.                                    |
-| `catalog_entry`   | string       | empty               | Compozy-managed catalog entry ID.                       | Provenance stamped by catalog install. Generic settings replacement clears it.                                       |
-| `catalog_version` | string       | empty               | Compozy-managed catalog version.                        | Provenance stamped with `catalog_entry`. Do not author these fields manually.                                        |
+| Field             | Type         | Default             | Valid values                                            | Description                                                                                                            |
+| ----------------- | ------------ | ------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Map key           | string       | required            | Non-empty after trimming. Duplicate trimmed names fail. | Server `name`.                                                                                                         |
+| `transport`       | string       | inferred            | `stdio` or `http`.                                      | Local command servers default to `stdio`; URL servers default to `http`.                                               |
+| `command`         | string       | required for stdio  | Non-empty after trimming.                               | Executable command. Only valid with `stdio` transport.                                                                 |
+| `url`             | string URL   | required for remote | Absolute URL.                                           | Remote MCP endpoint. Required for `http`; invalid for `stdio`.                                                         |
+| `auth`            | object       | empty               | OAuth config listed below.                              | Remote MCP auth configuration. Only valid for remote transports.                                                       |
+| `args`            | string array | empty               | Strings on `stdio` only.                                | Process arguments for stdio servers.                                                                                   |
+| `env`             | string map   | empty               | String keys and values on `stdio` only.                 | Literal environment values. CompozyOS does not expand `$VAR`, `~`, or shell syntax. Management reads expose keys only. |
+| `secret_env`      | string map   | empty               | `env:NAME` or `vault:mcp/**` refs on `stdio` only.      | Secret bindings resolved at launch. Management reads expose configured keys only.                                      |
+| `catalog_entry`   | string       | empty               | CompozyOS-managed catalog entry ID.                     | Provenance stamped by catalog install. Generic settings replacement clears it.                                         |
+| `catalog_version` | string       | empty               | CompozyOS-managed catalog version.                      | Provenance stamped with `catalog_entry`. Do not author these fields manually.                                          |
 
 Both `env` and `secret_env` reject process-injection keys such as `NODE_OPTIONS`, `PYTHONPATH`,
 `PYTHONHOME`, `LD_PRELOAD`, and `DYLD_*`. Literal `env` also rejects secret-like names; place those
@@ -124,7 +124,7 @@ metadata and client settings; access tokens, refresh tokens, authorization codes
 and client-secret values are stored or handled by the auth subsystem and are never written to
 `mcp.json`.
 
-Compozy-managed MCP secret refs live in the Vault under the `mcp` namespace. Catalog and settings
+CompozyOS-managed MCP secret refs live in the Vault under the `mcp` namespace. Catalog and settings
 writes create scope-qualified refs:
 
 - global: `vault:mcp/global/<server>/env/<KEY>` and
@@ -132,13 +132,13 @@ writes create scope-qualified refs:
 - workspace: `vault:mcp/ws/<workspace-segment>/<server>/env/<KEY>` and
   `vault:mcp/ws/<workspace-segment>/<server>/oauth/client-secret`
 
-The workspace segment is the workspace ID when it already fits the Vault grammar; otherwise Compozy
+The workspace segment is the workspace ID when it already fits the Vault grammar; otherwise CompozyOS
 encodes it deterministically. A catalog install can also bind any existing, present `vault:mcp/**`
 ref without taking ownership of that ref.
 
-When a later install replaces an owned canonical ref, Compozy deletes it only after the new binding is
+When a later install replaces an owned canonical ref, CompozyOS deletes it only after the new binding is
 persisted and only when the replacement no longer references it. Shared and retained refs remain
-untouched. If cleanup fails and Compozy can restore every deleted secret, it restores the prior MCP
+untouched. If cleanup fails and CompozyOS can restore every deleted secret, it restores the prior MCP
 definition and returns an error. If secret restoration is partial, or the prior definition cannot
 be restored, the replacement remains committed and the mutation returns a warning describing the
 residual cleanup state.
@@ -151,13 +151,13 @@ residual cleanup state.
 | `client_secret_ref` | string       | empty       | `vault:mcp/**`.                 | Optional client secret for `pre_registered` only.                         |
 | `scopes`            | string array | empty       | Unique non-empty strings.       | Requested OAuth scopes.                                                   |
 
-For `registration = "auto"`, Compozy resolves protected-resource metadata, uses the provider's
+For `registration = "auto"`, CompozyOS resolves protected-resource metadata, uses the provider's
 client metadata document support when available, and otherwise makes one Dynamic Client Registration
 attempt. A pre-registered entry must provide both `issuer_url` and `client_id`.
 
 ## Client metadata identity
 
-By default, Compozy identifies itself to compatible authorization servers with the public client
+By default, CompozyOS identifies itself to compatible authorization servers with the public client
 metadata document at `https://compozy.com/.well-known/mcp-client.json`. It lists the default loopback
 callback `http://127.0.0.1:2123/api/mcp/oauth/callback`.
 
@@ -171,7 +171,7 @@ client_metadata_url = "https://compozy.example/.well-known/mcp-client.json"
 redirect_uri = "https://compozy.example/api/mcp/oauth/callback"
 ```
 
-Compozy skips CIMD when the active redirect URI is not listed in the document and can use the one
+CompozyOS skips CIMD when the active redirect URI is not listed in the document and can use the one
 available Dynamic Client Registration fallback instead. A provider that supports neither path fails
 authorization with a typed diagnostic; do not work around that by adding a secret to the catalog.
 
@@ -221,7 +221,7 @@ JSON body containing the full `redirect_url` only, and success requires redacted
 
 Each pending session and issued token is bound to the exact scoped server definition. Editing or
 deleting the server invalidates pending completion. If the transport, remote URL, or OAuth settings
-change, Compozy keeps the previous token record but does not report it as authenticated, refresh it,
+change, CompozyOS keeps the previous token record but does not report it as authenticated, refresh it,
 revoke it against the replacement provider, or send its bearer to that provider. Authorize the new
 definition again. Tokens created before definition binding was introduced also require one new login.
 
@@ -276,7 +276,7 @@ compozy mcp auth status -o json
 compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o json
 ```
 
-Inside a Compozy session, `compozy__mcp_status` and `compozy__mcp_auth_status` expose the corresponding
+Inside a CompozyOS session, `compozy__mcp_status` and `compozy__mcp_auth_status` expose the corresponding
 redacted status. They do not return OAuth codes, tokens, PKCE verifiers, or secret values.
 
 The web repair action appears only for OAuth-capable HTTP servers that need their first login,
@@ -299,7 +299,7 @@ and, for workspace definitions, `workspace_id` according to the generated
 `catalog_entry` and `catalog_version` because the resulting definition is operator-managed.
 
 Deleting or replacing one scoped definition does not mutate a same-name definition in another
-workspace or at global scope. OAuth tokens and Compozy-owned Vault refs use scope-qualified identities
+workspace or at global scope. OAuth tokens and CompozyOS-owned Vault refs use scope-qualified identities
 for the same reason.
 
 ## Repair Authorization
@@ -420,7 +420,7 @@ Use this when the tool belongs to one agent.
 
 Use this when the tool belongs to one skill. Marketplace skill MCP servers are blocked unless the
 skill is explicitly allowlisted in `[skills].allowed_marketplace_mcp`. Skill-local `mcp.json`
-symlinks must resolve inside the skill directory; Compozy rejects sidecars that escape the approved
+symlinks must resolve inside the skill directory; CompozyOS rejects sidecars that escape the approved
 skill root.
 
 ## Related Pages

@@ -4,7 +4,7 @@ description: Build and install an in-tree provider, follow its operator guide, a
 ---
 
 Bridge setup has two boundaries: the external platform and the CompozyOS runtime. A complete setup proves
-both. The platform must authenticate and deliver an event to the provider extension; Compozy must route
+both. The platform must authenticate and deliver an event to the provider extension; CompozyOS must route
 that event into the intended workspace and deliver the agent response back to the same platform
 target.
 
@@ -43,7 +43,7 @@ console is delivering events.
 | Linear          | Generic CLI                          | Signed comment or Agent Session webhooks            | [Set up Linear](/docs/bridges/setup-linear)         |
 
 Only WhatsApp, Telegram, and Discord have `compozy bridge setup <provider>` commands. Slack needs a
-persisted disabled instance before Compozy can generate its app manifest. Teams, Google Chat, GitHub,
+persisted disabled instance before CompozyOS can generate its app manifest. Teams, Google Chat, GitHub,
 and Linear use `compozy bridge create` followed by explicit secret bindings.
 
 <OperatorNote>
@@ -53,8 +53,8 @@ and Linear use `compozy bridge create` followed by explicit secret bindings.
 
 ## Install an in-tree provider
 
-The Compozy source repository contains these eight provider implementations, but released `compozy`
-artifacts do not include their executables or install them automatically. Start from a trusted Compozy
+The CompozyOS source repository contains these eight provider implementations, but released `compozy`
+artifacts do not include their executables or install them automatically. Start from a trusted CompozyOS
 source checkout with the Go toolchain available, then build and install the provider from the
 repository root:
 
@@ -78,7 +78,7 @@ compozy extension status "$PROVIDER" -o json
 
 `--allow-unverified` is the explicit trust decision for a local source directory. `--yes` makes that
 decision non-interactive when structured output is requested. The install copies the provider into
-the Compozy extension home and enables it; run `compozy extension enable "$PROVIDER" -o json` only if it was
+the CompozyOS extension home and enables it; run `compozy extension enable "$PROVIDER" -o json` only if it was
 disabled later.
 
 `GET /api/bridges/providers` returns installed extensions that declare `bridge.adapter`, including
@@ -95,7 +95,7 @@ bridge instance. Presence in the catalog does not mean the provider is enabled o
 
 ## Prerequisites
 
-- The Compozy daemon is running.
+- The CompozyOS daemon is running.
 - The destination workspace exists and has a default agent.
 - The selected in-tree provider passes the install and status checks above.
 - You can administer the external app, bot, webhook, or repository integration.
@@ -139,7 +139,7 @@ The listener must use a literal loopback IP and a fixed port. Confirming the bri
 to the current public endpoint generation; an address change requires confirmation again.
 
 An existing external proxy remains supported. Leave the bridge without a gateway binding and keep
-its complete callback in `provider_config.webhook.public_url`. Compozy does not rewrite or disable
+its complete callback in `provider_config.webhook.public_url`. CompozyOS does not rewrite or disable
 that path.
 
 One provider subprocess can own multiple bridge instances. Those instances share the provider's
@@ -293,7 +293,7 @@ Use identifiers from the real inbound route:
 
 ```bash
 compozy bridge send-test "$BRIDGE_ID" \
-  --message "Compozy bridge connection check" \
+  --message "CompozyOS bridge connection check" \
   --group-id "<group-from-route>" \
   --thread-id "<thread-from-route>" \
   --mode reply \

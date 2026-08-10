@@ -19,7 +19,7 @@ type rootPackageManifest struct {
 }
 
 func main() {
-	version := flag.String("version", "", "stamped Compozy version")
+	version := flag.String("version", "", "stamped CompozyOS version")
 	flag.Parse()
 	if err := run(strings.TrimSpace(*version)); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -45,10 +45,10 @@ func run(version string) error {
 			return fmt.Errorf("manifest-version gate: load %q: %w", path, err)
 		}
 		if err := extensionpkg.ValidateManifestForCompozyVersion(manifest, version); err != nil {
-			return fmt.Errorf("manifest-version gate: %q is incompatible with Compozy %s: %w", path, version, err)
+			return fmt.Errorf("manifest-version gate: %q is incompatible with CompozyOS %s: %w", path, version, err)
 		}
 	}
-	fmt.Printf("manifest-version gate: %d manifests support Compozy %s\n", len(paths), version)
+	fmt.Printf("manifest-version gate: %d manifests support CompozyOS %s\n", len(paths), version)
 	return nil
 }
 

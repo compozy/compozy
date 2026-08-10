@@ -4,29 +4,29 @@ description: Configure and operate the implemented Daytona sandbox backend.
 ---
 
 The Daytona backend prepares a remote sandbox, syncs workspace files, opens the provider tool host,
-and starts the ACP agent through Compozy's sandbox launcher.
+and starts the ACP agent through CompozyOS's sandbox launcher.
 
 <Mermaid
   chart={`sequenceDiagram
     participant Operator
-    participant Compozy
+    participant CompozyOS
     participant Daytona
     participant Runtime as Remote runtime
-    Operator->>Compozy: compozy session new --workspace project
-    Compozy->>Compozy: Resolve sandbox profile
-    Compozy->>Daytona: Create or find labeled sandbox
-    Daytona-->>Compozy: Instance id and provider state
-    Compozy->>Runtime: Sync workspace files
-    Compozy->>Runtime: Launch sandbox tool host and ACP agent
-    Runtime-->>Compozy: Session events and tool output
-    Compozy->>Runtime: Sync back on stop or crash
-    Compozy->>Daytona: Delete, archive, or retain instance`}
+    Operator->>CompozyOS: compozy session new --workspace project
+    CompozyOS->>CompozyOS: Resolve sandbox profile
+    CompozyOS->>Daytona: Create or find labeled sandbox
+    Daytona-->>CompozyOS: Instance id and provider state
+    CompozyOS->>Runtime: Sync workspace files
+    CompozyOS->>Runtime: Launch sandbox tool host and ACP agent
+    Runtime-->>CompozyOS: Session events and tool output
+    CompozyOS->>Runtime: Sync back on stop or crash
+    CompozyOS->>Daytona: Delete, archive, or retain instance`}
   caption="The Daytona provider creates or reuses a remote runtime, syncs workspace files, launches the agent, and applies the configured persistence mode."
 />
 
 ## Required credential
 
-Set `DAYTONA_API_KEY` in the daemon environment before starting Compozy:
+Set `DAYTONA_API_KEY` in the daemon environment before starting CompozyOS:
 
 ```bash
 export DAYTONA_API_KEY="..."
@@ -36,7 +36,7 @@ compozy daemon start
 The key is used by the Daytona SDK and SSH access flow. Do not put the raw token in session prompts,
 channel messages, logs, or extension payloads.
 
-Compozy requests Daytona SSH access during launch. The credential belongs in the daemon environment, not
+CompozyOS requests Daytona SSH access during launch. The credential belongs in the daemon environment, not
 in `config.toml`, because config can be printed, edited, and shared by agents.
 
 ## Profile example
@@ -81,11 +81,11 @@ sync details.
 
 ## Persistence
 
-| Value       | Behavior                                                   |
-| ----------- | ---------------------------------------------------------- |
-| `transient` | Delete the Daytona sandbox when Compozy stops the session. |
-| `archive`   | Archive the sandbox on stop.                               |
-| `reuse`     | Leave the sandbox available for reattachment.              |
+| Value       | Behavior                                                     |
+| ----------- | ------------------------------------------------------------ |
+| `transient` | Delete the Daytona sandbox when CompozyOS stops the session. |
+| `archive`   | Archive the sandbox on stop.                                 |
+| `reuse`     | Leave the sandbox available for reattachment.                |
 
 Daemon restart reconciliation uses `sandbox_id`, provider state, and Daytona labels to reattach or
 clean up recoverable remote sandboxes.

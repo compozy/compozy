@@ -1,17 +1,17 @@
 ---
 title: Session lifecycle
-description: How Compozy creates, activates, stops, and classifies one durable runtime session.
+description: How CompozyOS creates, activates, stops, and classifies one durable runtime session.
 ---
 
-A session is the runtime object Compozy manages. It ties together:
+A session is the runtime object CompozyOS manages. It ties together:
 
 - one logical agent session, which can bind an ACP-compatible agent subprocess when a prompt runs
 - one workspace boundary
 - one per-session SQLite event store
 - one permission policy
-- one durable Compozy session ID
+- one durable CompozyOS session ID
 
-That Compozy session ID identifies one durable lifecycle and its retained record.
+That CompozyOS session ID identifies one durable lifecycle and its retained record.
 
 <OperatorNote>
   Creation is promptless. It returns an `active` logical session with `runtime.status: "unbound"`;
@@ -30,15 +30,15 @@ starting --> active: runtime restored
 active --> stopping: stop requested
 active --> stopping: shutdown or process exit
 stopping --> stopped: finalization complete`}
-  caption="Compozy creates an active logical session without starting ACP. Its first prompt binds a runtime; stopping normally finalizes the session through `stopping`."
+  caption="CompozyOS creates an active logical session without starting ACP. Its first prompt binds a runtime; stopping normally finalizes the session through `stopping`."
 />
 
-| State      | Meaning                                                                                                                                                                            | Valid live transition |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `starting` | A prompt to a stopped session is restoring the ACP process and durable provider history.                                                                                           | `starting -> active`  |
-| `active`   | Compozy has durably allocated the session ID, prepared its storage, and accepts prompts. Before the first prompt, its runtime is `unbound`; after binding, it can emit ACP events. | `active -> stopping`  |
-| `stopping` | Compozy has accepted a stop request and is draining the session toward a stopped state.                                                                                            | `stopping -> stopped` |
-| `stopped`  | Final metadata is written and the recorder is closed. Reads remain available, and a normal user prompt can restore the runtime against the same session ID and transcript.         | `stopped -> starting` |
+| State      | Meaning                                                                                                                                                                              | Valid live transition |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
+| `starting` | A prompt to a stopped session is restoring the ACP process and durable provider history.                                                                                             | `starting -> active`  |
+| `active`   | CompozyOS has durably allocated the session ID, prepared its storage, and accepts prompts. Before the first prompt, its runtime is `unbound`; after binding, it can emit ACP events. | `active -> stopping`  |
+| `stopping` | CompozyOS has accepted a stop request and is draining the session toward a stopped state.                                                                                            | `stopping -> stopped` |
+| `stopped`  | Final metadata is written and the recorder is closed. Reads remain available, and a normal user prompt can restore the runtime against the same session ID and transcript.           | `stopped -> starting` |
 
 ## Creating a session
 
@@ -63,7 +63,7 @@ curl -X POST http://localhost:2123/api/sessions \
   }'
 ```
 
-`name` is optional for user sessions. With `roles.auto_title.enabled = true`, Compozy starts one bounded
+`name` is optional for user sessions. With `roles.auto_title.enabled = true`, CompozyOS starts one bounded
 title pass after the first assistant response is persisted, then stores a successful title in
 session metadata and the catalog. An explicit name always wins any race. If generation is disabled
 or fails, the session remains unnamed; daemon-managed session types are never eligible. Configure
@@ -74,7 +74,7 @@ The request must include exactly one of:
 - `workspace`: a registered workspace name or ID
 - `workspace_path`: an absolute filesystem path
 
-Behind that request, Compozy:
+Behind that request, CompozyOS:
 
 1. Resolves the workspace and agent definition.
 2. Creates `~/.compozy/sessions/<session-id>/`.
@@ -84,7 +84,7 @@ Behind that request, Compozy:
 6. Returns HTTP/UDS `201 Created` with `state: "active"` and no ACP process or ACP session ID.
 
 Creation never accepts a prompt or runtime selector. It only creates the durable logical session.
-The agent definition supplies the defaults that the first prompt can use, but Compozy does not launch
+The agent definition supplies the defaults that the first prompt can use, but CompozyOS does not launch
 ACP or negotiate provider options until that prompt arrives.
 
 ### Creation provenance
@@ -141,16 +141,16 @@ Two operational details matter here:
   submission. Keep both values and reuse them together only when retrying the exact same request.
 - `runtime` is a prompt-bound snapshot of `provider`, `model`, `reasoning_effort`, and `speed`. The
   accepted snapshot is retained with the turn and is not rewritten by later runtime changes.
-- If a snapshot keeps the same provider, Compozy configures the existing ACP session in place when
+- If a snapshot keeps the same provider, CompozyOS configures the existing ACP session in place when
   the provider exposes the needed live options. A provider or harness change replaces the process
   and replays the canonical stored transcript into the replacement ACP session.
-- Compozy records `user_message` only after runtime binding or reconfiguration succeeds. If binding,
+- CompozyOS records `user_message` only after runtime binding or reconfiguration succeeds. If binding,
   replacement, or its rollback fails, the authored message is not persisted as a user turn.
 - One session processes one prompt turn at a time. Stop logic waits for in-flight prompt setup to finish before it asks the ACP driver to stop the subprocess.
-- Long-running prompts stay healthy through runtime activity supervision. Compozy updates
+- Long-running prompts stay healthy through runtime activity supervision. CompozyOS updates
   `activity.last_activity_at` on real ACP events and metadata-only waiting heartbeats, then emits
   lower-frequency `runtime_progress` and `runtime_warning` events for clients.
-- Compozy also maintains a separate metadata-only [session health](/docs/sessions/health)
+- CompozyOS also maintains a separate metadata-only [session health](/docs/sessions/health)
   record (`state`, `health`, `attachable`, `eligible_for_wake`). Activity supervision feeds
   health, but the two are distinct authorities — supervision owns timers and persisted progress
   events, health is consumed by `HEARTBEAT.md` wake decisions and the
@@ -158,7 +158,7 @@ Two operational details matter here:
 
 ### When the provider disconnects during a prompt
 
-Compozy persists each accepted agent event before forwarding it. If the ACP subprocess disconnects
+CompozyOS persists each accepted agent event before forwarding it. If the ACP subprocess disconnects
 after sending part of an answer, the stored assistant chunks remain in events and transcript reads.
 The prompt stream ends with an error instead of `done`, and the session stops with
 `failure.kind: "process_exit"`. HTTP and UDS clients receive the terminal error frame because the
@@ -174,9 +174,9 @@ compozy session status sess-1234 -o json
 compozy session events sess-1234 --last 20 -o json
 ```
 
-Compozy does not automatically retry the interrupted prompt. Its tool or external effects may have
+CompozyOS does not automatically retry the interrupted prompt. Its tool or external effects may have
 completed before the disconnect. A later, explicit prompt restarts the stopped runtime under the
-same Compozy session ID and retained transcript. Send a new continuation only after deciding whether
+same CompozyOS session ID and retained transcript. Send a new continuation only after deciding whether
 the interrupted work is safe to repeat.
 
 ### Selecting the next runtime
@@ -203,22 +203,22 @@ revision returns `409`; read the session again before deciding what to save.
 ### Workspace knowledge on live turns
 
 Put workspace-owned reference material under `<workspace>/knowledge/` as Markdown files. Before an
-accepted user, Network, or synthetic turn reaches the agent, Compozy reopens that tree and adds a
+accepted user, Network, or synthetic turn reaches the agent, CompozyOS reopens that tree and adds a
 bounded `<workspace-knowledge-snapshot>` to the prompt. The snapshot carries the current file bytes,
 workspace-relative paths, a revision digest, and omission metadata when a safety limit is reached.
 
-Compozy reads regular `.md` files only and does not follow symbolic links. The read stays inside the
+CompozyOS reads regular `.md` files only and does not follow symbolic links. The read stays inside the
 session workspace. A file change does not wake a session by itself; the next eligible turn receives
 the new snapshot. This includes task, task-creator, and Heartbeat wakes, so an active worker does not
 need a second operator prompt to observe a knowledge change.
 
-The snapshot is prompt context, not durable Compozy memory. Use the [memory
+The snapshot is prompt context, not durable CompozyOS memory. Use the [memory
 system](/docs/memory/system) when the information must be curated, searched, or retained across
 workspaces and sessions.
 
 ### Busy input modes
 
-An active session still processes one prompt turn at a time, but Compozy accepts explicit busy-input
+An active session still processes one prompt turn at a time, but CompozyOS accepts explicit busy-input
 modes so operators and agents do not have to guess what happens when a prompt is already running.
 `session.busy_input.default_mode` defaults to `queue`; `session.busy_input.queue_cap` bounds
 the persisted queue.
@@ -273,7 +273,7 @@ affect a newer turn.
 Activity supervision is designed for prompts that may run for hours. It treats inactivity as the
 failure mode, not total elapsed time.
 
-For each active prompt turn, Compozy tracks:
+For each active prompt turn, CompozyOS tracks:
 
 - turn ID and source
 - turn start time
@@ -287,15 +287,15 @@ enter the persisted event stream. `runtime_progress` events are persisted only a
 `session.supervision.progress_notify_interval`, and `runtime_warning` is persisted once when
 `session.supervision.inactivity_warning_after` is crossed.
 
-When `session.supervision.inactivity_timeout` is crossed, Compozy cancels the prompt cooperatively. If
+When `session.supervision.inactivity_timeout` is crossed, CompozyOS cancels the prompt cooperatively. If
 the prompt does not finish within `session.supervision.timeout_cancel_grace`, the session is stopped
 with stop reason `timeout`.
 
 ## Rewinding a conversation
 
 Rewind an idle user session when you want to retry from an earlier prompt without creating another
-Compozy session. The selected durable user message and every later active event are removed from the
-active transcript. Compozy returns the selected text as `draft_text`, keeps the same session ID, and
+CompozyOS session. The selected durable user message and every later active event are removed from the
+active transcript. CompozyOS returns the selected text as `draft_text`, keeps the same session ID, and
 starts a fresh ACP context from the retained prefix.
 
 ```bash
@@ -349,7 +349,7 @@ The stop path is cooperative first and forceful only when needed:
 
 Stopping preserves the session directory, catalog row, metadata, events, and selected runtime. It
 ends attach eligibility. A later normal prompt restores the provider history and continues under the
-same Compozy session ID; attach, queue, steer, interrupt, and other control operations do not restart it.
+same CompozyOS session ID; attach, queue, steer, interrupt, and other control operations do not restart it.
 
 ## Archiving a stopped session
 
@@ -381,36 +381,36 @@ session record should be deleted.
 
 ### Timeout behavior
 
-Compozy has separate timeout concepts:
+CompozyOS has separate timeout concepts:
 
-| Timeout                                    | What it protects                                                                            |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| `session.limits.timeout`                   | Optional wall-clock session limit. `0s` disables it.                                        |
-| `session.supervision.inactivity_timeout`   | Prompt inactivity limit. Long-running prompts remain healthy if activity continues.         |
-| `session.supervision.timeout_cancel_grace` | Grace period after inactivity timeout cancel before Compozy stops the session as `timeout`. |
-| ACP driver stop timeout                    | Subprocess shutdown escalation after cooperative stop.                                      |
-| Session lifecycle timeout                  | Recorder close and final cleanup work during stop.                                          |
+| Timeout                                    | What it protects                                                                              |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `session.limits.timeout`                   | Optional wall-clock session limit. `0s` disables it.                                          |
+| `session.supervision.inactivity_timeout`   | Prompt inactivity limit. Long-running prompts remain healthy if activity continues.           |
+| `session.supervision.timeout_cancel_grace` | Grace period after inactivity timeout cancel before CompozyOS stops the session as `timeout`. |
+| ACP driver stop timeout                    | Subprocess shutdown escalation after cooperative stop.                                        |
+| Session lifecycle timeout                  | Recorder close and final cleanup work during stop.                                            |
 
 The important distinction is that inactivity timeout is not wall-clock timeout. A long prompt can
-run beyond `inactivity_timeout` as long as Compozy keeps observing real activity or controlled waiting
+run beyond `inactivity_timeout` as long as CompozyOS keeps observing real activity or controlled waiting
 heartbeats.
 
 ## Stop reasons
 
 The session manager currently emits these persisted stop classifications:
 
-| Stop reason       | When Compozy uses it                                                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `completed`       | The agent finished normally.                                                                                                          |
-| `user_canceled`   | A normal user stop request.                                                                                                           |
-| `max_iterations`  | A user stop request carried `max_iterations` detail.                                                                                  |
-| `loop_detected`   | A user stop request carried `loop_detected` detail.                                                                                   |
-| `budget_exceeded` | A user stop request carried `budget_exceeded` detail.                                                                                 |
-| `timeout`         | Runtime supervision detected inactivity, prompt cancel did not complete within the configured grace, and Compozy stopped the session. |
-| `error`           | Start or stop failed, or the process exited unexpectedly without a crash wait error.                                                  |
-| `agent_crashed`   | The subprocess exited with a wait error, or Compozy repaired stale `active`/`stopping` metadata after a daemon crash.                 |
-| `hook_stopped`    | A required lifecycle hook denied continuation.                                                                                        |
-| `shutdown`        | The daemon shut the session down.                                                                                                     |
+| Stop reason       | When CompozyOS uses it                                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `completed`       | The agent finished normally.                                                                                                            |
+| `user_canceled`   | A normal user stop request.                                                                                                             |
+| `max_iterations`  | A user stop request carried `max_iterations` detail.                                                                                    |
+| `loop_detected`   | A user stop request carried `loop_detected` detail.                                                                                     |
+| `budget_exceeded` | A user stop request carried `budget_exceeded` detail.                                                                                   |
+| `timeout`         | Runtime supervision detected inactivity, prompt cancel did not complete within the configured grace, and CompozyOS stopped the session. |
+| `error`           | Start or stop failed, or the process exited unexpectedly without a crash wait error.                                                    |
+| `agent_crashed`   | The subprocess exited with a wait error, or CompozyOS repaired stale `active`/`stopping` metadata after a daemon crash.                 |
+| `hook_stopped`    | A required lifecycle hook denied continuation.                                                                                          |
+| `shutdown`        | The daemon shut the session down.                                                                                                       |
 
 Inspect the current session state and stop classification at any time:
 
@@ -433,17 +433,17 @@ curl -X DELETE http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234
 Removal stops an active session first, deletes its durable catalog row and session directory, and
 emits a workspace-scoped catalog deletion signal. After a successful removal, later status or detail
 reads return session not found. If deletion fails before the directory is removed,
-Compozy preserves or restores catalog truth instead of reporting a partially deleted session.
+CompozyOS preserves or restores catalog truth instead of reporting a partially deleted session.
 
 ## Failure diagnostics
 
-Stop reasons answer "why did the Compozy session stop?" Failure diagnostics answer "what kind of
-lifecycle failure did Compozy classify, and what evidence is available?" When a lifecycle failure occurs,
-Compozy persists a `failure` object with:
+Stop reasons answer "why did the CompozyOS session stop?" Failure diagnostics answer "what kind of
+lifecycle failure did CompozyOS classify, and what evidence is available?" When a lifecycle failure occurs,
+CompozyOS persists a `failure` object with:
 
 - `kind`: stable machine-readable failure kind
 - `summary`: bounded redacted diagnostic text
-- `crash_bundle_path`: path to a redacted crash bundle when Compozy captured one
+- `crash_bundle_path`: path to a redacted crash bundle when CompozyOS captured one
 
 The same failure object is exposed through session status, session list JSON, session SSE terminal
 events, and `compozy status`.
@@ -454,19 +454,19 @@ compozy session status sess-1234 -o json | jq '.session.failure'
 
 Current failure kinds are:
 
-| Failure kind           | Meaning                                                                           |
-| ---------------------- | --------------------------------------------------------------------------------- |
-| `startup_failure`      | Compozy could not finish preparing, launching, or initializing the provider.      |
-| `handshake_failure`    | The subprocess launched but ACP initialization did not complete.                  |
-| `load_session_failure` | An internal daemon-owned provider reload path failed. This is not resume attach.  |
-| `protocol_failure`     | ACP returned a structured protocol/request error outside a prompt-specific path.  |
-| `prompt_failure`       | ACP prompt submission or prompt streaming failed.                                 |
-| `cancellation`         | The operation was canceled by user action or context cancellation.                |
-| `permission_failure`   | A lifecycle hook or permission boundary denied continuation.                      |
-| `process_exit`         | The provider subprocess exited unexpectedly or returned a wait error.             |
-| `transport_failure`    | The ACP stdio transport closed or failed while Compozy expected protocol traffic. |
-| `timeout`              | Runtime supervision or lifecycle timeout expired.                                 |
-| `unknown_failure`      | Compozy had an error but no more specific kind was available.                     |
+| Failure kind           | Meaning                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `startup_failure`      | CompozyOS could not finish preparing, launching, or initializing the provider.      |
+| `handshake_failure`    | The subprocess launched but ACP initialization did not complete.                    |
+| `load_session_failure` | An internal daemon-owned provider reload path failed. This is not resume attach.    |
+| `protocol_failure`     | ACP returned a structured protocol/request error outside a prompt-specific path.    |
+| `prompt_failure`       | ACP prompt submission or prompt streaming failed.                                   |
+| `cancellation`         | The operation was canceled by user action or context cancellation.                  |
+| `permission_failure`   | A lifecycle hook or permission boundary denied continuation.                        |
+| `process_exit`         | The provider subprocess exited unexpectedly or returned a wait error.               |
+| `transport_failure`    | The ACP stdio transport closed or failed while CompozyOS expected protocol traffic. |
+| `timeout`              | Runtime supervision or lifecycle timeout expired.                                   |
+| `unknown_failure`      | CompozyOS had an error but no more specific kind was available.                     |
 
 Crash bundles are written under `~/.compozy/logs/crash-bundles/` by default. They are JSON documents
 with schema `compozy.session_crash_bundle.v2`, session identity, provider identity, failure kind,
@@ -477,7 +477,7 @@ permissions.
 
 ## Crash classification and transcript repair
 
-Compozy repairs stale persisted metadata the next time it reads a session after an unclean daemon
+CompozyOS repairs stale persisted metadata the next time it reads a session after an unclean daemon
 exit.
 That classification keeps status, list, history, and repair consistent after a crash:
 
@@ -485,10 +485,10 @@ That classification keeps status, list, history, and repair consistent after a c
 - stale `stopping` becomes `stopped` with `agent_crashed`, `process_exit`, and detail `stop did not complete`
 - stale `starting` becomes `stopped` with `error`, `startup_failure`, and detail `start did not complete`
 
-During daemon boot, Compozy also inspects stopped sessions whose stop reason is `agent_crashed` or
-`error`. If the final persisted turn was interrupted, Compozy appends repair events to terminalize the
+During daemon boot, CompozyOS also inspects stopped sessions whose stop reason is `agent_crashed` or
+`error`. If the final persisted turn was interrupted, CompozyOS appends repair events to terminalize the
 transcript: dangling tool calls receive interrupted tool results, then the turn receives a terminal
-error event. The repair is append-only; Compozy does not truncate, delete, or resequence session events.
+error event. The repair is append-only; CompozyOS does not truncate, delete, or resequence session events.
 
 Operators and agents can inspect or run the same append-only transcript repair explicitly:
 
@@ -511,13 +511,13 @@ the other reads remain useful after terminal stop.
 
 ## Session types
 
-Compozy records why a session exists:
+CompozyOS records why a session exists:
 
 | Type          | Meaning                                                                  |
 | ------------- | ------------------------------------------------------------------------ |
 | `user`        | Normal interactive work created by a person or client.                   |
 | `dream`       | Background memory consolidation work.                                    |
-| `system`      | Internal Compozy-managed work.                                           |
+| `system`      | Internal CompozyOS-managed work.                                         |
 | `coordinator` | Managed autonomy coordinator for workspace-scoped coordinated task runs. |
 | `spawned`     | Child session created by an agent through safe spawn.                    |
 
@@ -525,7 +525,7 @@ Dream sessions are special for permissions: they always start with `approve-all`
 
 Coordinator sessions are root lineage rows. They are created only after executable coordinated work
 is enqueued, not when a task is merely created. Spawned sessions record parent, root, depth, role,
-TTL, and permission metadata so Compozy can reap children when their TTL expires or their parent stops.
+TTL, and permission metadata so CompozyOS can reap children when their TTL expires or their parent stops.
 
 ## Next steps
 

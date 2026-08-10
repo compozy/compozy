@@ -1,9 +1,9 @@
 ---
 title: config.toml
-description: Complete Compozy config.toml schema, defaults, valid values, merge behavior, and annotated examples.
+description: Complete CompozyOS config.toml schema, defaults, valid values, merge behavior, and annotated examples.
 ---
 
-`config.toml` is the main CompozyOS runtime desired-state file. Compozy loads the built-in defaults, then
+`config.toml` is the main CompozyOS runtime desired-state file. CompozyOS loads the built-in defaults, then
 overlays global and workspace files when they exist. The daemon only treats a change as runtime
 truth after `ConfigApplyService` advances the active generation and writes a `config_apply_records`
 audit row.
@@ -19,7 +19,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 `[sandboxes.<name>]` for session execution boundaries.
 
 <OperatorNote>
-  Workspace `.env` files are loaded before Compozy resolves `$COMPOZY_HOME`. This means
+  Workspace `.env` files are loaded before CompozyOS resolves `$COMPOZY_HOME`. This means
   `<workspace>/.env` can set `COMPOZY_HOME` for that workspace before the global config file path is
   chosen.
 </OperatorNote>
@@ -31,6 +31,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.  | `socket = "$COMPOZY_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
 | `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.         | providers `5s`, MCP `10s`, bridges `30s`                                                              |
 | `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                                   |
+| `[app]`                              | Desktop app update-check policy.                                                     | checks enabled every 6 hours                                                                          |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
@@ -50,11 +51,11 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                             | 30 seconds                                                                                            |
 | `[tools.clarify]`                    | Timeout for one live agent clarification question.                                   | 5 minutes                                                                                             |
 | `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.                | external tools disabled, 120 second approval timeout, no trusted sources                              |
-| `[mcp.oauth]`                        | Global MCP OAuth client metadata and callback identity.                              | Compozy public CIMD; loopback callback on port `2123`                                                 |
+| `[mcp.oauth]`                        | Global MCP OAuth client metadata and callback identity.                              | CompozyOS public CIMD; loopback callback on port `2123`                                               |
 | `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                              | empty list                                                                                            |
 | `[providers.<name>]`                 | Built-in provider override or custom provider definition.                            | empty map plus built-ins                                                                              |
 | `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                     | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
-| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                  | Compozy `main` catalog, 1 h TTL, 10 s timeout                                                         |
+| `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                  | CompozyOS `main` catalog, 1 h TTL, 10 s timeout                                                       |
 | `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                                 | local backend when no profile is selected                                                             |
 | `[observability]`                    | Event summary retention and global byte cap.                                         | enabled, 7 days, 1 GiB                                                                                |
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                       | enabled, 1 MiB segments, 256 MiB per session                                                          |
@@ -119,7 +120,7 @@ global and workspace MCP sidecars for session and runtime resolution.
 # ~/.compozy/config.toml
 
 [daemon]
-# Path to the Unix domain socket used by Compozy CLI commands.
+# Path to the Unix domain socket used by CompozyOS CLI commands.
 socket = "~/.compozy/daemon.sock"
 # Emit daemon process-memory snapshots every five minutes. Set to "0s" to disable.
 memory_report_interval = "5m"
@@ -139,6 +140,12 @@ bridges = "30s"
 # HTTP/SSE API bind address.
 host = "localhost"
 port = 2123
+
+[app]
+# Check for desktop app and app-owned runtime updates.
+update_check = true
+# Check cadence. Valid range: 15m to 168h.
+update_check_interval = "6h"
 
 [window_manager]
 new_window_policy = "floating"
@@ -242,7 +249,7 @@ progress_notify_interval = "10m"
 inactivity_warning_after = "15m"
 # 0 disables inactivity timeout.
 inactivity_timeout = "30m"
-# Grace period after cooperative prompt cancel before Compozy stops the session as timeout.
+# Grace period after cooperative prompt cancel before CompozyOS stops the session as timeout.
 timeout_cancel_grace = "30s"
 
 [session.compaction]
@@ -296,7 +303,7 @@ mode = "approve-all"
 [tools]
 # Disables registry dispatch and hosted MCP exposure when false.
 enabled = true
-# Enables Compozy-hosted local MCP projection for session-visible tools.
+# Enables CompozyOS-hosted local MCP projection for session-visible tools.
 hosted_mcp_enabled = true
 # Default result cap for tool descriptors that do not set a smaller cap.
 default_max_result_bytes = 262144
@@ -850,11 +857,11 @@ public_dns_resolver = "1.1.1.1:853"
 
 ## `[daemon]`
 
-| Field                                    | Type        | Default                     | Valid values                               | Description                                                                                                               |
-| ---------------------------------------- | ----------- | --------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `socket`                                 | string path | `$COMPOZY_HOME/daemon.sock` | Non-empty path. `~` is expanded.           | Unix domain socket used by CLI IPC and the UDS API server.                                                                |
-| `memory_report_interval`                 | duration    | `5m`                        | `0s` to disable, or any positive duration. | Cadence for daemon process-memory snapshots in logs and `runtime.memory`.                                                 |
-| `subprocess_health_escalation_threshold` | integer     | `3`                         | `0` or a positive integer.                 | Failed health checks before Compozy moves a task-bound nonterminal run to `needs_attention`; `0` disables the transition. |
+| Field                                    | Type        | Default                     | Valid values                               | Description                                                                                                                 |
+| ---------------------------------------- | ----------- | --------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `socket`                                 | string path | `$COMPOZY_HOME/daemon.sock` | Non-empty path. `~` is expanded.           | Unix domain socket used by CLI IPC and the UDS API server.                                                                  |
+| `memory_report_interval`                 | duration    | `5m`                        | `0s` to disable, or any positive duration. | Cadence for daemon process-memory snapshots in logs and `runtime.memory`.                                                   |
+| `subprocess_health_escalation_threshold` | integer     | `3`                         | `0` or a positive integer.                 | Failed health checks before CompozyOS moves a task-bound nonterminal run to `needs_attention`; `0` disables the transition. |
 
 The daemon captures a baseline snapshot at startup, periodic snapshots at this cadence, and one
 final snapshot during joined shutdown. Each `[memory]` log record and the `runtime.memory` item from
@@ -864,7 +871,7 @@ memory from the peak value available on macOS. Setting the interval to `0s` star
 worker; doctor reports the feature as disabled. Changing this field is restart-required.
 
 `subprocess_health_escalation_threshold` consumes the health verdict exposed by an active ACP
-subprocess. At the configured consecutive-failure count, Compozy moves the exact task run bound to that
+subprocess. At the configured consecutive-failure count, CompozyOS moves the exact task run bound to that
 session from `queued`, `claimed`, `starting`, or `running` to `needs_attention`. Repeated failed
 verdicts do not emit another transition, and a completed, failed, or canceled run remains terminal.
 An unexpected ACP process exit triggers the same transition immediately when the value is positive.
@@ -877,6 +884,13 @@ Changing this field is restart-required.
 | ------ | ------- | ----------- | ------------------------------- | --------------------- |
 | `host` | string  | `localhost` | Non-empty host or bind address. | HTTP/SSE server host. |
 | `port` | integer | `2123`      | `1` through `65535`             | HTTP/SSE server port. |
+
+## `[app]`
+
+| Field                   | Type     | Default | Valid values    | Description                                           |
+| ----------------------- | -------- | ------- | --------------- | ----------------------------------------------------- |
+| `update_check`          | boolean  | `true`  | `true`, `false` | Checks for desktop app and app-owned runtime updates. |
+| `update_check_interval` | duration | `6h`    | `15m` to `168h` | Time between desktop update checks.                   |
 
 ## `[window_manager]`
 
@@ -952,7 +966,7 @@ every workspace unless the selected workspace's `.compozy/config.toml` overlays 
 | `auto_title`         | on      | invoking context           | none                                                      |
 | `memory_controller`  | on      | not applicable             | call timeout, candidate count, prompt version, output cap |
 
-`coordinator` and `dreaming-curator` are Compozy-owned virtual identities. They resolve without an
+`coordinator` and `dreaming-curator` are CompozyOS-owned virtual identities. They resolve without an
 authored `AGENT.md`, do not appear in public agent catalogs, and are reserved from create, update,
 duplicate, and extension agent publication. Their embedded prompts are fixed; selecting a custom
 `agent` changes routing, not the builtin prompt.
@@ -972,8 +986,8 @@ These fields apply to `coordinator`, `dream`, `checkpoint_summary`, `memory_extr
 | `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                 | Ordered fallback routes; each entry may also set `reasoning_effort`.                                       |
 
 Fallback chains replace as a whole when a workspace overlay declares them. A session-backed
-consumer may advance only before ACP accepts a session; Compozy never silently reroutes work after
-acceptance. Immediately before each fallback attempt, Compozy emits `role.fallback.used` with the role,
+consumer may advance only before ACP accepts a session; CompozyOS never silently reroutes work after
+acceptance. Immediately before each fallback attempt, CompozyOS emits `role.fallback.used` with the role,
 the fallback's one-based `attempt`, provider, and model. The event records an attempt, not success.
 
 ```toml
@@ -1037,24 +1051,24 @@ authored agent remains visible as `role_agent_not_found`; an unknown role return
 ## `[session.supervision]`
 
 Session supervision keeps long-running prompts observable without turning every heartbeat into a
-stored event. Compozy updates session metadata on short heartbeats and only writes durable events for
+stored event. CompozyOS updates session metadata on short heartbeats and only writes durable events for
 lower-frequency progress, warnings, and timeout classification.
 
-This timeout is based on inactivity, not total runtime. A prompt can run for hours as long as Compozy
+This timeout is based on inactivity, not total runtime. A prompt can run for hours as long as CompozyOS
 continues to observe runtime activity or controlled waiting heartbeats.
 
-| Field                         | Type     | Default | Valid values                  | Description                                                                                    |
-| ----------------------------- | -------- | ------- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
-| `activity_heartbeat_interval` | duration | `30s`   | Positive Go duration.         | Cadence for metadata-only activity heartbeats while a prompt is waiting on ACP/provider work.  |
-| `progress_notify_interval`    | duration | `10m`   | Zero or positive Go duration. | Cadence for persisted `runtime_progress` events. Zero disables periodic progress events.       |
-| `inactivity_warning_after`    | duration | `15m`   | Zero or positive Go duration. | Idle age before Compozy emits one `runtime_warning`. Zero disables the warning.                |
-| `inactivity_timeout`          | duration | `30m`   | Zero or positive Go duration. | Idle age before Compozy cancels the prompt cooperatively. Zero disables inactivity timeout.    |
-| `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration.         | Grace period after timeout cancel before Compozy stops the session with stop reason `timeout`. |
+| Field                         | Type     | Default | Valid values                  | Description                                                                                      |
+| ----------------------------- | -------- | ------- | ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| `activity_heartbeat_interval` | duration | `30s`   | Positive Go duration.         | Cadence for metadata-only activity heartbeats while a prompt is waiting on ACP/provider work.    |
+| `progress_notify_interval`    | duration | `10m`   | Zero or positive Go duration. | Cadence for persisted `runtime_progress` events. Zero disables periodic progress events.         |
+| `inactivity_warning_after`    | duration | `15m`   | Zero or positive Go duration. | Idle age before CompozyOS emits one `runtime_warning`. Zero disables the warning.                |
+| `inactivity_timeout`          | duration | `30m`   | Zero or positive Go duration. | Idle age before CompozyOS cancels the prompt cooperatively. Zero disables inactivity timeout.    |
+| `timeout_cancel_grace`        | duration | `30s`   | Positive Go duration.         | Grace period after timeout cancel before CompozyOS stops the session with stop reason `timeout`. |
 
 ## `[session.compaction]`
 
 `[session.compaction]` bounds daemon-owned compaction of completed persisted turns when an ACP
-usage update reports context pressure. Compozy first updates the workspace checkpoint with durable
+usage update reports context pressure. CompozyOS first updates the workspace checkpoint with durable
 sequence coverage, then marks that exact event range archived. Archived rows remain queryable in
 session events and history; only degraded transcript replay excludes them. The triggering turn is
 never included in its own compaction span.
@@ -1078,11 +1092,11 @@ limits, compact projection budget, and the `enabled` toggle. `SOUL.md` cannot re
 these keys, and forbidden operational fields in `SOUL.md` are rejected. See
 [Agent Soul](/docs/agents/soul).
 
-| Field                      | Type    | Default | Valid values                                   | Description                                                                                                                                    |
-| -------------------------- | ------- | ------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`                  | boolean | `true`  | `true` or `false`                              | When false, Compozy stops injecting Soul into prompts and `/agent/context` but keeps inspect/validate/write/delete/history/rollback available. |
-| `max_body_bytes`           | integer | `32768` | Positive integer.                              | Maximum normalized `SOUL.md` body size. Files beyond this fail validation with `oversized_body`.                                               |
-| `context_projection_bytes` | integer | `2048`  | Positive integer; must be `<= max_body_bytes`. | Compact `/agent/context.soul` projection budget.                                                                                               |
+| Field                      | Type    | Default | Valid values                                   | Description                                                                                                                                      |
+| -------------------------- | ------- | ------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`                  | boolean | `true`  | `true` or `false`                              | When false, CompozyOS stops injecting Soul into prompts and `/agent/context` but keeps inspect/validate/write/delete/history/rollback available. |
+| `max_body_bytes`           | integer | `32768` | Positive integer.                              | Maximum normalized `SOUL.md` body size. Files beyond this fail validation with `oversized_body`.                                                 |
+| `context_projection_bytes` | integer | `2048`  | Positive integer; must be `<= max_body_bytes`. | Compact `/agent/context.soul` projection budget.                                                                                                 |
 
 Workspace overlay merges scalar fields predictably; setting any key zero-clamps to the validated
 positive value or fails with a typed validation error. Disabling at runtime does not clear stored
@@ -1097,7 +1111,7 @@ authored files express bounded preferences only. See
 
 | Field                              | Type     | Default | Valid values                                         | Description                                                                                                                  |
 | ---------------------------------- | -------- | ------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`                          | boolean  | `true`  | `true` or `false`                                    | When false, Compozy disables wake decisions but keeps managed authoring available so operators can repair a broken policy.   |
+| `enabled`                          | boolean  | `true`  | `true` or `false`                                    | When false, CompozyOS disables wake decisions but keeps managed authoring available so operators can repair a broken policy. |
 | `max_body_bytes`                   | integer  | `32768` | Positive integer; capped at the runtime hard limit.  | Maximum normalized `HEARTBEAT.md` body size; oversized files fail validation.                                                |
 | `context_projection_bytes`         | integer  | `4096`  | Positive integer; must be `<= max_body_bytes`.       | Compact projection budget for status responses.                                                                              |
 | `min_interval`                     | duration | `5m`    | Positive Go duration; must be `<= default_interval`. | Hard floor for authored `preferences.min_interval`. Files below this are clamped with `heartbeat_preference_clamped`.        |
@@ -1139,15 +1153,15 @@ a bare managed session receives the full availability-gated callable catalog unl
 policy narrows it. The startup prompt and hosted MCP metadata still teach the `search → info →
 invoke` loop through canonical discovery tools.
 
-| Field                      | Type    | Default  | Valid values            | Description                                                                    |
-| -------------------------- | ------- | -------- | ----------------------- | ------------------------------------------------------------------------------ |
-| `enabled`                  | boolean | `true`   | `true` or `false`.      | When false, disables Compozy-owned registry dispatch and hosted MCP exposure.  |
-| `hosted_mcp_enabled`       | boolean | `true`   | `true` or `false`.      | Allows Compozy to expose the local hosted MCP proxy for session-visible tools. |
-| `default_max_result_bytes` | integer | `262144` | `0` through `16777216`. | Result cap used when a descriptor does not specify a smaller limit.            |
+| Field                      | Type    | Default  | Valid values            | Description                                                                      |
+| -------------------------- | ------- | -------- | ----------------------- | -------------------------------------------------------------------------------- |
+| `enabled`                  | boolean | `true`   | `true` or `false`.      | When false, disables CompozyOS-owned registry dispatch and hosted MCP exposure.  |
+| `hosted_mcp_enabled`       | boolean | `true`   | `true` or `false`.      | Allows CompozyOS to expose the local hosted MCP proxy for session-visible tools. |
+| `default_max_result_bytes` | integer | `262144` | `0` through `16777216`. | Result cap used when a descriptor does not specify a smaller limit.              |
 
 ## `[tools.artifacts]`
 
-When a post-hook, redacted tool result exceeds its effective result cap, Compozy retains the canonical
+When a post-hook, redacted tool result exceeds its effective result cap, CompozyOS retains the canonical
 JSON envelope and returns a bounded preview plus an opaque artifact URI. Retention is global across
 the daemon, while every read remains bound to the workspace that produced the result. The daemon
 snapshots these settings at boot; config changes require a restart.
@@ -1169,9 +1183,9 @@ snapshots these settings at boot; config changes require a restart.
 The daemon snapshots this global setting at boot. A structured config write records desired state
 with `lifecycle="restart-required"`; it does not change a question already waiting for an answer.
 
-| Field     | Type     | Default | Valid values       | Description                                                                |
-| --------- | -------- | ------- | ------------------ | -------------------------------------------------------------------------- |
-| `timeout` | duration | `5m`    | `1s` through `24h` | Maximum wait before Compozy returns `{choice:null,text:"",fallback:true}`. |
+| Field     | Type     | Default | Valid values       | Description                                                                  |
+| --------- | -------- | ------- | ------------------ | ---------------------------------------------------------------------------- |
+| `timeout` | duration | `5m`    | `1s` through `24h` | Maximum wait before CompozyOS returns `{choice:null,text:"",fallback:true}`. |
 
 ## `[tools.policy]`
 
@@ -1186,7 +1200,7 @@ and hosted MCP bind nonces are transient session launch state.
 
 ## `[mcp.oauth]`
 
-These global values identify Compozy to authorization servers that support a client metadata document.
+These global values identify CompozyOS to authorization servers that support a client metadata document.
 They are restart-required because an in-flight authorization is bound to its callback identity.
 
 | Field                 | Type       | Default                                           | Description                                                             |
@@ -1194,9 +1208,9 @@ They are restart-required because an in-flight authorization is bound to its cal
 | `client_metadata_url` | string URL | `https://compozy.com/.well-known/mcp-client.json` | Public client metadata document used for CIMD.                          |
 | `redirect_uri`        | string URL | `http://127.0.0.1:2123/api/mcp/oauth/callback`    | Optional override for the callback URI used by new authorization flows. |
 
-The published Compozy document lists the default callback only. If you change the daemon port or
+The published CompozyOS document lists the default callback only. If you change the daemon port or
 use a self-hosted callback, publish a matching metadata document and configure both fields together.
-When the active callback is not listed, Compozy skips CIMD and may use the provider's one DCR fallback.
+When the active callback is not listed, CompozyOS skips CIMD and may use the provider's one DCR fallback.
 
 ## `[[mcp_servers]]`
 
@@ -1211,10 +1225,10 @@ They can point at local stdio processes or remote Streamable HTTP MCP endpoints.
 | `url`        | string URL   | required for remote | Absolute URL.                      | Remote MCP endpoint for `http`. Invalid for `stdio`.                                                                        |
 | `auth`       | object       | empty               | OAuth 2.1 PKCE settings.           | Remote auth metadata and client settings. Invalid for `stdio`.                                                              |
 | `args`       | string array | empty               | Strings.                           | Process arguments passed to the command.                                                                                    |
-| `env`        | string map   | empty               | String keys and values.            | Literal environment values passed to the MCP server. Compozy does not perform shell expansion.                              |
+| `env`        | string map   | empty               | String keys and values.            | Literal environment values passed to the MCP server. CompozyOS does not perform shell expansion.                            |
 | `secret_env` | string map   | empty               | `env:NAME` or `vault:mcp/**` refs. | Scope-qualified secret environment bindings for stdio servers. Values are resolved at launch and redacted from diagnostics. |
 
-OAuth-enabled remote servers store only metadata in config. Token material is encrypted in the Compozy
+OAuth-enabled remote servers store only metadata in config. Token material is encrypted in the CompozyOS
 Vault and is exposed through API, settings, CLI, logs, and the agent-callable `compozy__mcp_status` /
 `compozy__mcp_auth_status` tools only as redacted status. Authorization and logout are daemon-mediated
 operator flows available through CLI, HTTP, and UDS. The browser callback is HTTP-only and enabled
@@ -1228,7 +1242,7 @@ only when the daemon binds to a loopback host.
 | `client_secret_ref` | string       | no          | Scope-qualified `vault:mcp/**/oauth/client-secret` ref for `pre_registered`. |
 | `scopes`            | string array | no          | Unique requested OAuth scopes.                                               |
 
-With `registration = "auto"`, Compozy resolves protected-resource metadata, then CIMD, then makes
+With `registration = "auto"`, CompozyOS resolves protected-resource metadata, then CIMD, then makes
 one Dynamic Client Registration fallback attempt. A pre-registered server must include `issuer_url`
 and `client_id`. Authenticate with:
 
@@ -1254,7 +1268,7 @@ tools are omitted from callable discovery while status/probe output explains the
 For workspace-scoped servers, five consecutive confirmed permanent discovery failures mark the MCP
 runtime as `dead`. Settings, status, doctor, and `compozy__mcp_status` expose the redacted diagnostic;
 last-known tool descriptors remain visible through `compozy__tool_info` with reason `backend_dead`
-during the same daemon lifetime instead of disappearing from the catalog. Compozy suppresses ordinary
+during the same daemon lifetime instead of disappearing from the catalog. CompozyOS suppresses ordinary
 attempts while the mark is active. After 60 seconds, the next runtime MCP status or discovery access
 may run one recovery probe; a successful probe clears the mark without restarting the daemon.
 Doctor reads the durable mark without starting that probe. Recovery is automatic, so there is no
@@ -1276,13 +1290,13 @@ Provider keys override built-ins with the same name or create a custom provider.
 | `runtime_provider`    | string                      | Provider key.                                                                     | Harness-specific provider id.                              | Downstream provider id used by Pi and other harnesses.                                                                              |
 | `transport`           | string                      | empty.                                                                            | Harness-specific string.                                   | Optional Pi models override transport/API family.                                                                                   |
 | `base_url`            | string                      | empty.                                                                            | URL string.                                                | Optional Pi models override base URL for custom gateways.                                                                           |
-| `auth_mode`           | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.                      | Declares whether auth belongs to the provider CLI, Compozy secret binding, or no auth.                                              |
+| `auth_mode`           | string                      | `bound_secret` only when credential slots are configured; otherwise `native_cli`. | `native_cli`, `bound_secret`, `none`.                      | Declares whether auth belongs to the provider CLI, CompozyOS secret binding, or no auth.                                            |
 | `none_security`       | string                      | `local_transport`.                                                                | `local_transport`, `external_identity`, `public_readonly`. | Safety rationale required for `auth_mode = "none"`.                                                                                 |
 | `env_policy`          | string                      | `filtered`.                                                                       | `filtered`, `isolated`.                                    | Controls which daemon environment variables the provider subprocess inherits.                                                       |
-| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                                    | Controls whether native CLI state comes from the operator home or a Compozy provider home.                                          |
+| `home_policy`         | string                      | `operator`.                                                                       | `operator`, `isolated`.                                    | Controls whether native CLI state comes from the operator home or a CompozyOS provider home.                                        |
 | `auth_status_command` | string                      | empty.                                                                            | Shell-style command string.                                | Optional status probe run by `compozy provider auth status <provider>`.                                                             |
 | `auth_login_command`  | string                      | empty unless a built-in provider defines one.                                     | Shell-style command string.                                | Write-only login command executed locally by `compozy provider auth login <provider>`. Reads return only its safe login descriptor. |
-| `session_mcp`         | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                           | Enables Compozy session MCP injection for providers that support it.                                                                |
+| `session_mcp`         | boolean                     | `true` unless a provider disables it.                                             | `true`, `false`.                                           | Enables CompozyOS session MCP injection for providers that support it.                                                              |
 | `credential_slots`    | array                       | empty.                                                                            | See below.                                                 | Bound secret refs injected into provider subprocess environment variables at launch.                                                |
 | `mcp_servers`         | array of MCP server objects | empty.                                                                            | Same shape as `[[mcp_servers]]`.                           | Provider-specific MCP servers merged after top-level config and before agent MCP servers.                                           |
 
@@ -1308,7 +1322,7 @@ rows preserve that canonical value.
 The old `providers.<id>.aliases` config key was removed for v1. Reference providers by canonical
 name only; config files that set `aliases = [...]` under a provider are rejected during load.
 
-`auth_mode = "none"` means `No auth required` and is only valid when the provider needs no Compozy or
+`auth_mode = "none"` means `No auth required` and is only valid when the provider needs no CompozyOS or
 provider-owned credential. Set `none_security` to state why that is safe: local-only transport,
 external identity enforcement, or public read-only access. No-auth providers cannot define
 `credential_slots`, `auth_status_command`, or `auth_login_command`; those keys are rejected during
@@ -1372,7 +1386,7 @@ on builtin/config rows plus the optional `models.dev` enrichment.
 Top-level `[model_catalog.sources.models_dev]` controls the cross-provider `models.dev` enrichment
 source documented in the next section.
 
-`models.reasoning.apply = "none"` means Compozy does not apply a reasoning level for the provider; it
+`models.reasoning.apply = "none"` means CompozyOS does not apply a reasoning level for the provider; it
 is different from explicit effort `none`. For a custom provider with provider-controlled reasoning:
 
 ```toml
@@ -1380,12 +1394,12 @@ is different from explicit effort `none`. For a custom provider with provider-co
 apply = "none"
 ```
 
-Selectable effort lists come only from config/catalog/live truth. Compozy does not infer them from GPT
+Selectable effort lists come only from config/catalog/live truth. CompozyOS does not infer them from GPT
 or Claude name prefixes, and it never substitutes the provider default for an unknown model ID.
 
 `env_policy = "filtered"` preserves ordinary operator context such as `PATH`, `HOME`, and locale
 while stripping secret-shaped daemon variables before launch. `env_policy = "isolated"` starts from
-a small operational allowlist and then adds only Compozy session metadata, provider-home variables, and
+a small operational allowlist and then adds only CompozyOS session metadata, provider-home variables, and
 explicit `bound_secret` slots. `home_policy = "operator"` lets native CLIs reuse existing login
 state. `home_policy = "isolated"` creates `$COMPOZY_HOME/providers/<provider>` with private
 permissions, sets `PROVIDER_HOME`, XDG directories, and known provider-specific home variables such
@@ -1406,7 +1420,7 @@ required = true
 ```
 
 `secret_ref` supports `env:NAME` for operator-managed environment variables and
-`vault:providers/<provider>/<slot>` for Compozy-managed encrypted provider credentials written through
+`vault:providers/<provider>/<slot>` for CompozyOS-managed encrypted provider credentials written through
 the settings API, `compozy vault`, or web provider editor. The `vault:` form accepts lowercase
 provider/slot identifiers only, with letters, numbers, hyphens, underscores, or dots; arbitrary
 vault paths are not valid provider credential refs.
@@ -1415,7 +1429,7 @@ The slot `required` flag is enforced at session start for both `env:` and `vault
 `credential_slots` are valid only when `auth_mode = "bound_secret"`. Direct ACP built-ins and the
 direct `pi` provider use `native_cli` by default and do not preflight provider API keys. Pi-backed
 API-key wrappers such as OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral,
-and Groq default to Compozy-managed `bound_secret` slots while Compozy runs Pi under the hood.
+and Groq default to CompozyOS-managed `bound_secret` slots while CompozyOS runs Pi under the hood.
 
 | Built-in            | Harness  | Runtime provider    | `models.default`            | Auth mode      | Credential target    |
 | ------------------- | -------- | ------------------- | --------------------------- | -------------- | -------------------- |
@@ -1467,7 +1481,7 @@ timeout = "10s"
 ```
 
 `models.dev` rows write provider-scoped status: a single `models.dev` refresh records one
-`(source_id="models_dev", provider_id)` status row per Compozy provider mapped, never a global
+`(source_id="models_dev", provider_id)` status row per CompozyOS provider mapped, never a global
 empty-provider sentinel. Disabled sources still expose status but skip outbound calls. Refresh
 lifetime is daemon-owned: requests trigger refreshes but the daemon detaches the work, applies an
 explicit deadline, and joins outstanding refresh workers during shutdown.
@@ -1479,9 +1493,9 @@ Cursor's default command is `cursor-agent models`; setting `command` overrides t
 
 ## `[marketplace.catalog]`
 
-Compozy fetches the curated MCP server, extension, and skill documents from this base URL. Each kind is
+CompozyOS fetches the curated MCP server, extension, and skill documents from this base URL. Each kind is
 validated independently and projected into the global database. If a fetch fails after a successful
-projection, Compozy keeps serving the prior rows with stale status instead of replacing them with an
+projection, CompozyOS keeps serving the prior rows with stale status instead of replacing them with an
 invalid or incomplete document.
 
 This section is global-only because the projection and refresh service are global. Put it in
@@ -1560,7 +1574,7 @@ writer on the next start.
 | `enabled` | boolean | `true`  | `true` or `false` | Enables additive heuristics for likely credentials in agent-visible content and runtime logs. |
 
 The daemon snapshots this value during boot, so changing `redact.enabled` is restart-required.
-When enabled, Compozy redacts matching content before appending it to the global event ledger or a
+When enabled, CompozyOS redacts matching content before appending it to the global event ledger or a
 session's `events.db`; SSE, history, and replay consume that stored redacted form. Structured
 correlation fields such as session and run IDs, hashes, digests, and fingerprints remain intact.
 
@@ -1650,12 +1664,12 @@ survives.
 ## `[memory.extractor]`
 
 The extractor consumes the `session.message_persisted` hook and writes structured proposals via the
-controller. `inbox_path` and `dlq_path` are validation-locked to the canonical Compozy-managed
+controller. `inbox_path` and `dlq_path` are validation-locked to the canonical CompozyOS-managed
 locations.
 
 | Field                | Type     | Default                                           | Valid values          | Description                                                                                                       |
 | -------------------- | -------- | ------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `mode`               | string   | `post_message`                                    | `post_message`        | Extraction mode. Compozy currently supports only post-message extraction.                                         |
+| `mode`               | string   | `post_message`                                    | `post_message`        | Extraction mode. CompozyOS currently supports only post-message extraction.                                       |
 | `throttle_turns`     | integer  | `1`                                               | Positive integer.     | Minimum same-session queued turns to coalesce before launching another extraction; drain flushes pending content. |
 | `deadline`           | duration | `60s`                                             | Positive Go duration. | Per-extraction deadline before the runtime drops the candidate.                                                   |
 | `sandbox_inbox_only` | boolean  | `true`                                            | `true` or `false`     | Restricts extractor writes to `_inbox/` until the controller accepts them.                                        |
@@ -1911,7 +1925,7 @@ Triggers are appended by overlays; they do not replace earlier triggers with the
 | `webhook_secret_ref` | string     | empty                                                              | Required when `event = "webhook"`; must be `env:NAME` or `vault:automation/...`; empty otherwise. | Secret ref used to validate webhook requests. |
 
 See [Vault](/docs/configuration/vault) for the CLI, HTTP, UDS, web, and session-scoped
-surfaces that store and inspect encrypted Compozy-managed secret refs.
+surfaces that store and inspect encrypted CompozyOS-managed secret refs.
 
 ## `[loops.defaults.*]`
 

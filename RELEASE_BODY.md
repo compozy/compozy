@@ -94,7 +94,7 @@ The bundled dev-cycle Loop now does one job clearly: implement authored task fil
 
 - Inputs are now `slug`, `implementer`, and `auto_commit`. The `review`, `verify`, and `approve` nodes and their edges are deleted, along with the verification contract, stale hash fields, and target-branch handling.
 - The separate bundled `review-and-fix` Loop is unchanged, and custom Loops can still declare their own command gates — `verify_command` remains part of the generic Loop DSL.
-- The catalog, Loop overview, configuration examples, migration guide, web routes, and the official Compozy skill all name `implement-tasks`.
+- The catalog, Loop overview, configuration examples, migration guide, web routes, and the official CompozyOS skill all name `implement-tasks`.
 
 Migration notes: this is a hard cut with no alias. Any config, CLI or API call, automation binding, or documentation link that says `software-delivery` must say `implement-tasks`, and the `target_branch` and `verify_command` inputs must be dropped from `[loops.inputs.*]`.
 
@@ -112,13 +112,13 @@ auto_commit = false
 
 ##### The OS Release
 
-Compozy v0.3 is a new operating system boundary for agent work. Sessions, tasks, loops, memory,
+CompozyOS v0.3 is a new operating system boundary for agent work. Sessions, tasks, loops, memory,
 permissions, automation, the OS shell, and Compozy Network now share one daemon-owned state model.
 People can start and inspect that work from the web, CLI, HTTP/SSE, or UDS. Agents can operate the
 same runtime through structured tools and extension contracts.
 
 This is a breaking beta. The command, package, environment, storage, API, and tool namespaces move
-to Compozy, and several v0.2 surfaces have deliberate replacements or removals. Follow the
+to CompozyOS, and several v0.2 surfaces have deliberate replacements or removals. Follow the
 [v0.3 migration guide](https://compozy.com/runtime/migration/) before replacing an existing install.
 The maintained v0.2 line and its collateral remain on `legacy/v0.2`.
 
@@ -134,8 +134,8 @@ it does not relicense the code.
 ##### Bundled Tailscale connectivity extension
 
 Gateway reachability ships with a first-party provider. The `tailscale` extension runs a Tailscale
-node inside the Compozy process through `tsnet`, against the operator's own account — nothing else
-to install, and Compozy operates no relay, server, or account on anyone's behalf. The private tier
+node inside the CompozyOS process through `tsnet`, against the operator's own account — nothing else
+to install, and CompozyOS operates no relay, server, or account on anyone's behalf. The private tier
 serves `https://compozy-gateway.<tailnet>.ts.net:8443` on the tailnet; the public tier serves the
 same hostname over Tailscale Funnel on 443. (#331)
 
@@ -165,7 +165,7 @@ Migration notes: `compozy loop stop` is deleted — the CLI verb, the HTTP route
 
 ##### Cursor models come from your account
 
-Cursor used to look curated in Compozy but was not truthful to the account that was signed in: a small hand-written list stood in for the real catalog and, worse, acted as an allowlist that rejected valid model ids before Cursor ever saw them. Compozy now reads the account catalog from `cursor-agent models` before a session exists, and exact provider model ids are forwarded unchanged. (#320)
+Cursor used to look curated in CompozyOS but was not truthful to the account that was signed in: a small hand-written list stood in for the real catalog and, worse, acted as an allowlist that rejected valid model ids before Cursor ever saw them. CompozyOS now reads the account catalog from `cursor-agent models` before a session exists, and exact provider model ids are forwarded unchanged. (#320)
 
 - The first catalog read bootstraps Cursor discovery once and persists the outcome; later reads serve the cache, and explicit refresh is the refresh boundary. In the QA account this surfaced 193 real models, including `composer-2.5`.
 - Only `id - display name` rows are parsed. Headings, tips, duplicates, and empty output can never become invented models.
@@ -178,7 +178,7 @@ Migration notes: the curated Cursor allowlist and its session preflight are dele
 
 ##### Grouped skill directories
 
-Compozy now discovers `SKILL.md` definitions at any depth below each skill root, so teams can organize capabilities under folders such as `marketing/content/` without changing frontmatter identity or normal precedence. `compozy skill create <name> --group <relative/path>` now scaffolds grouped workspace skills safely.
+CompozyOS now discovers `SKILL.md` definitions at any depth below each skill root, so teams can organize capabilities under folders such as `marketing/content/` without changing frontmatter identity or normal precedence. `compozy skill create <name> --group <relative/path>` now scaffolds grouped workspace skills safely.
 
 ##### Feedback semantics for durable Loops
 
@@ -208,7 +208,7 @@ public operator access for devices that cannot join the overlay. (#331)
 - `compozy gateway status|audit`, `compozy pair`, `compozy device`, and `compozy connect` (HTTPS
   profiles plus zero-exposure SSH) operate everything, with the same state in **Settings → Gateway**
   and the `compozy__gateway` native tool.
-- Public delivery verifies Compozy's timestamped HMAC contract on every request, with replay
+- Public delivery verifies CompozyOS's timestamped HMAC contract on every request, with replay
   protection and per-source rate limits. There is no store-and-forward while the daemon is offline —
   senders own retries.
 
@@ -227,7 +227,7 @@ Migration notes: existing sessions are unarchived, so nothing changes until you 
 
 ##### Rewind a session to an earlier checkpoint
 
-You can now rewind an idle session back to one of your earlier messages instead of starting over. The selected message and everything after it leave the active transcript, the message text comes back as a composer draft, and the session continues under the same session ID with a fresh agent context rebuilt only from the part you kept. Rewind touches the conversation only — it does not undo file edits, tool effects, network activity, saved memory, or anything the provider already did outside Compozy — and the discarded events stay archived for audit. (#310)
+You can now rewind an idle session back to one of your earlier messages instead of starting over. The selected message and everything after it leave the active transcript, the message text comes back as a composer draft, and the session continues under the same session ID with a fresh agent context rebuilt only from the part you kept. Rewind touches the conversation only — it does not undo file edits, tool effects, network activity, saved memory, or anything the provider already did outside CompozyOS — and the discarded events stay archived for audit. (#310)
 
 - `compozy session rewind <session-id>` picks the cut point with `--message-id` and reads the current transcript fences for you; scripts retrying a known request pass `--expected-generation`, `--expected-epoch`, and `--expected-max-sequence` together with the original `--idempotency-key`. Agents get `compozy__session_rewind`.
 - Retrying the same rewind with the same idempotency key returns the original result, and the response carries the `draft_text` that goes back into the composer.
@@ -255,7 +255,7 @@ Migration notes: two CLI verbs were renamed and their old spellings removed — 
 
 ##### Window tabs in the OS shell
 
-The OS shell now groups windows into first-class tab frames instead of assuming one window per app. Tabs carry ordered members, an active member, per-tab navigation stacks, pinning, scoped close and reopen, and bounded history. The same topology is exposed through Web, CLI, HTTP, UDS, native tools, streams, hooks, resources, layout profiles, and the bundled Compozy skill, so agents operate windows with the same semantics people see. (#287)
+The OS shell now groups windows into first-class tab frames instead of assuming one window per app. Tabs carry ordered members, an active member, per-tab navigation stacks, pinning, scoped close and reopen, and bounded history. The same topology is exposed through Web, CLI, HTTP, UDS, native tools, streams, hooks, resources, layout profiles, and the bundled CompozyOS skill, so agents operate windows with the same semantics people see. (#287)
 
 - Run multiple instances of the same app, discover their tabs from the dock and the command palette, and drag to group, reorder, or tear out a tab.
 - Move, swap, and zoom by frame instead of by single window, and adjust Window Manager behavior directly from Settings.
@@ -269,12 +269,12 @@ Migration notes: persisted window layouts move to v3 as a hard cut — v2 layout
 
 When an agent process disconnected mid-answer, the stream simply ended — and everything downstream read that silence as success. A CLI consumer reached end of file and exited zero, `compozy__session_prompt` returned a result, and the only evidence left behind was stderr with no exit code. Streams are now fail-closed: success requires an explicit completion event, and disconnect, terminal error, and process exit stay three distinct outcomes. (#315, #319)
 
-- Chunks already received stay persisted and visible. Compozy never synthesizes a completion for them.
+- Chunks already received stay persisted and visible. CompozyOS never synthesizes a completion for them.
 - A stream that ends after partial output without a completion event fails the CLI with a clear non-zero exit, and terminal error frames are forwarded before the error is returned so machine-readable diagnostics survive.
 - `compozy__session_prompt` classifies a subprocess exit as `tool_backend_failed` with `backend_dead` instead of reporting success; the partial events remain readable in the session transcript.
 - Crash evidence now carries the subprocess exit code and, where the operating system exposes it, the terminating signal.
 - Fatal cleanup gives the process a bounded grace period to exit on its own before being stopped, so the real exit result is no longer lost to a race with forced teardown.
-- Compozy does not replay a prompt automatically, because a prompt may already have caused external side effects. Sending the next prompt restarts the agent process and continues the same session and transcript.
+- CompozyOS does not replay a prompt automatically, because a prompt may already have caused external side effects. Sending the next prompt restarts the agent process and continues the same session and transcript.
 
 Migration notes: crash bundles move to `compozy.session_crash_bundle.v2` with structured `exit_code` and `signal`, with no v1 branch. Any consumer that treated a closed stream as success will now correctly see a failure unless a completion event was sent.
 
@@ -357,7 +357,7 @@ Migration notes: the managed CLI transport is deleted — the socket, `COMPOZY_A
 
 ##### One owner per Loop run, and cancellation that sticks
 
-Loop action runs now have exactly one daemon-owned worker, cancellation survives a restart, and a session that needs Compozy tools fails before the provider starts instead of running without them. Fresh Compozy homes also start with the bundled `dev-cycle` extension already enabled, while a home that has been booted before keeps whatever you chose. (#321, #322, #326)
+Loop action runs now have exactly one daemon-owned worker, cancellation survives a restart, and a session that needs CompozyOS tools fails before the provider starts instead of running without them. Fresh CompozyOS homes also start with the bundled `dev-cycle` extension already enabled, while a home that has been booted before keeps whatever you chose. (#321, #322, #326)
 
 - Coordinators and ordinary task-role sessions can no longer activate or bootstrap a run that the dedicated `loop-action` executor already owns.
 - When the effective agent or lineage policy requires concrete tools and hosted MCP cannot provide them, session startup fails closed with `ErrHostedMCPUnavailable` before the provider process is launched.
@@ -371,7 +371,7 @@ Loop action runs now have exactly one daemon-owned worker, cancellation survives
 
 compozy.com gains a dedicated Gateway section written for first-time operators: a ten-minute
 quickstart from `gateway.enabled` to a paired phone, a step-by-step "Receive GitHub webhooks"
-tutorial verified end to end — including why a native repository webhook cannot sign Compozy's
+tutorial verified end to end — including why a native repository webhook cannot sign CompozyOS's
 generic trigger contract and the GitHub Actions workflow that can — a Tailscale extension page
 covering tailnet prerequisites through clean removal, a remote CLI/SSH/public-access guide, a
 devices-audit-teardown runbook, and a plain-language security page. (#331)
@@ -383,7 +383,7 @@ Migration notes: `/docs/operations/remote-gateway`, `/docs/operations/gateway-th
 
 CompozyOS beta expands how people and agents configure the runtime across MCP, sessions, extensions, workspace boundaries, and the session UI.
 
-- Install, authorize, repair, inspect, and remove curated MCP servers through the CLI, HTTP/UDS APIs, Web, and the official Compozy skill. The catalog now uses manifest version 2, the runtime uses the official MCP SDK, and public MCP transport no longer accepts SSE. (#284)
+- Install, authorize, repair, inspect, and remove curated MCP servers through the CLI, HTTP/UDS APIs, Web, and the official CompozyOS skill. The catalog now uses manifest version 2, the runtime uses the official MCP SDK, and public MCP transport no longer accepts SSE. (#284)
 - Choose the provider, model, reasoning effort, and speed for each session prompt, switch runtime within a session, and create sessions before their first prompt. (#283)
 - Create, build, validate, develop, distribute, install, and inspect extensions through the daemon, CLI, APIs, native tools, Web, and SDK contracts. Extension manifests now use version 2. (#278)
 - Apply existing session permission modes to explicitly targeted cross-workspace agent access, including session-scoped consent where a native-tool prompt is available. (#275)

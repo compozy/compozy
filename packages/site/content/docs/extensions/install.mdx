@@ -3,11 +3,11 @@ title: Install Extensions
 description: Install extensions from curated, GitHub, git, or local sources; understand trust and consent; update, enable, disable, remove, and inspect provenance.
 ---
 
-Extensions are installable packages that add static resources or runtime behavior to Compozy. An
+Extensions are installable packages that add static resources or runtime behavior to CompozyOS. An
 extension can ship skills, agent definitions with authored-context sidecars, automation, layouts,
 hooks, loops, MCP servers, memory backends, model sources, and subprocess tools.
 
-Compozy stores installed extensions in the global registry and copies managed installs into
+CompozyOS stores installed extensions in the global registry and copies managed installs into
 `<COMPOZY_HOME>/extensions/<name>`.
 
 <OperatorNote>
@@ -185,7 +185,7 @@ A batch update stops at the first failing target **without discarding earlier pr
 response is `200` and carries every completed item plus the failed one, whose `status` is `failed`
 with `extension_update_failed`. Targets after the failure are not attempted.
 
-The runtime activation is the commit point. If the new version is active but Compozy cannot remove a
+The runtime activation is the commit point. If the new version is active but CompozyOS cannot remove a
 staging directory or backup, the result is still `status: "updated"` with an
 `extension_update_cleanup_failed` warning naming the residual path.
 
@@ -246,7 +246,7 @@ min_compozy_version = "0.3.0-beta.1"
 requires_env = ["DAYTONA_API_KEY", "DAYTONA_ORGANIZATION_ID"]
 ```
 
-Compozy validates `requires_env` at install and status load. Diagnostics report names, never values.
+CompozyOS validates `requires_env` at install and status load. Diagnostics report names, never values.
 An unset or empty variable surfaces through `missing_env` in `list`, `status`, the API, and the
 settings page.
 

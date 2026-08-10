@@ -18,7 +18,7 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create <name>",
 		Short: "Create a global or workspace-local agent definition",
-		Long:  "Create a global or workspace-local agent definition through a running Compozy daemon.",
+		Long:  "Create a global or workspace-local agent definition through a running CompozyOS daemon.",
 		Example: `  compozy agent create pricing_strategist \
     --workspace ~/dev/ad8 \
     --provider claude \

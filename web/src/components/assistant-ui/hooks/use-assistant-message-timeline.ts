@@ -66,7 +66,7 @@ function deriveWorkingPart(
 
 // The runtime signals an operator stop through a data-event `stop_reason`; map it
 // to the message's turn so the fold labels the interruption and stays expanded.
-// The runtime normalizes Compozy event parts to `{ type: "data", name: "compozy-event" }`.
+// The runtime normalizes CompozyOS event parts to `{ type: "data", name: "compozy-event" }`.
 const INTERRUPT_STOP_REASONS = new Set([
   "cancelled",
   "canceled",

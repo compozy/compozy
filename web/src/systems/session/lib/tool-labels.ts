@@ -52,8 +52,8 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
 };
 
 /**
- * Icon per Compozy native tool family (`compozy__<family>_<verb>` → icon). Derived from
- * Compozy's own `compozy__*` tool taxonomy. Unmapped families fall through to the
+ * Icon per CompozyOS native tool family (`compozy__<family>_<verb>` → icon). Derived from
+ * CompozyOS's own `compozy__*` tool taxonomy. Unmapped families fall through to the
  * generic tool fallback.
  */
 const COMPOZY_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
@@ -75,7 +75,7 @@ const COMPOZY_NATIVE_PREFIX = "compozy__";
 const MCP_PREFIX = "mcp__";
 
 /**
- * Extract the family segment of a Compozy native tool id (`compozy__memory_note` →
+ * Extract the family segment of a CompozyOS native tool id (`compozy__memory_note` →
  * `memory`). Returns null for non-native ids or an empty family segment.
  */
 function compozyNativeFamily(toolName: string): string | null {
@@ -86,7 +86,7 @@ function compozyNativeFamily(toolName: string): string | null {
 
 /**
  * Resolve a tool icon by name. Order: exact builtin map → MCP bridge tools →
- * Compozy native tool family → semantic input fallbacks → generic tool glyph.
+ * CompozyOS native tool family → semantic input fallbacks → generic tool glyph.
  */
 export function getToolIcon(toolName: string, toolInput?: Record<string, unknown>): LucideIcon {
   const direct = TOOL_ICONS[toolName];

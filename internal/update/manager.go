@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// NewManager binds the update flow to the current Compozy runtime.
+// NewManager binds the update flow to the current CompozyOS runtime.
 func NewManager(cfg Config) (*Manager, error) {
 	executablePath := cfg.ExecutablePath
 	if executablePath == nil {
@@ -91,7 +91,7 @@ func NewManager(cfg Config) (*Manager, error) {
 		manager.bundleVerifier = sigstoreBundleVerifier{cachePath: manager.sigstoreCachePath()}
 	}
 	if strings.TrimSpace(manager.homePaths.HomeDir) == "" {
-		return nil, errors.New("update: Compozy home directory is required")
+		return nil, errors.New("update: CompozyOS home directory is required")
 	}
 	return manager, nil
 }
@@ -148,7 +148,7 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 		if err != nil {
 			state := m.composeState(install, latest, checkedAt)
 			state.LastError = err.Error()
-			state.Message = "Failed to check for a newer Compozy release on the active channel."
+			state.Message = "Failed to check for a newer CompozyOS release on the active channel."
 			if latest != nil && opts.AllowCachedOnFailure {
 				return state, latest, nil
 			}

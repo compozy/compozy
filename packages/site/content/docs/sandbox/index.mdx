@@ -1,18 +1,18 @@
 ---
 title: Sandbox
-description: How Compozy runs sessions on the host or inside provider-backed sandboxes.
+description: How CompozyOS runs sessions on the host or inside provider-backed sandboxes.
 ---
 
-Sandbox is the execution boundary Compozy uses for agent sessions. A workspace can keep the default
+Sandbox is the execution boundary CompozyOS uses for agent sessions. A workspace can keep the default
 local sandbox, or it can point at a named sandbox profile that prepares a provider-backed runtime
 before the ACP agent starts.
 
 The implemented providers are:
 
-| Backend   | Use when                                                                  | Status      |
-| --------- | ------------------------------------------------------------------------- | ----------- |
-| `local`   | The session should run on the host with Compozy's normal local tool host. | Implemented |
-| `daytona` | The session should run in a Daytona cloud sandbox with file sync enabled. | Implemented |
+| Backend   | Use when                                                                    | Status      |
+| --------- | --------------------------------------------------------------------------- | ----------- |
+| `local`   | The session should run on the host with CompozyOS's normal local tool host. | Implemented |
+| `daytona` | The session should run in a Daytona cloud sandbox with file sync enabled.   | Implemented |
 
 Use a sandbox when the runtime boundary matters as much as the agent prompt: dependency isolation,
 repeatable build environments, risky filesystem operations, or long-running agent work that should
@@ -41,7 +41,7 @@ payloads, while extensions can use the sandbox lifecycle hooks and Host API meth
   caption="A sandboxed session resolves a profile, prepares a runtime, syncs files, launches the agent, and reconciles provider state after stop or restart."
 />
 
-| Phase     | What Compozy does                                                                         |
+| Phase     | What CompozyOS does                                                                       |
 | --------- | ----------------------------------------------------------------------------------------- |
 | Prepare   | Resolves the workspace sandbox profile, allocates `sandbox_id`, and prepares the backend. |
 | Sync      | Moves files between host and runtime according to the profile's sync mode.                |

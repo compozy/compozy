@@ -111,7 +111,7 @@ describe("loop node schema", () => {
     const raw: RawLoopNode = { id: "load", class: "source", kind: "file-import", pattern: "" };
     const parse = buildNodeFields(raw).find(f => "key" in f && f.key === "parse");
     // The Markdown-task parse value left the core: file-import parses only the two
-    // structured formats now (ADR-002 — the extension owns Compozy task import).
+    // structured formats now (ADR-002 — the extension owns CompozyOS task import).
     expect(parse).toMatchObject({ type: "select", path: ["parse"], options: ["json", "text"] });
   });
 

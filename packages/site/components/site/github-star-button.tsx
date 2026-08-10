@@ -23,7 +23,7 @@ export function GitHubStarButton() {
             href={GITHUB_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Star Compozy on GitHub"
+            aria-label="Star CompozyOS on GitHub"
           />
         }
         variant="outline"

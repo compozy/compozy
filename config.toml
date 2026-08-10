@@ -5,6 +5,10 @@ socket = "~/.compozy/daemon.sock"
 host = "localhost"
 port = 2123
 
+[app]
+update_check = true
+update_check_interval = "6h"
+
 [window_manager]
 new_window_policy = "floating"
 small_viewport_policy = "stack"

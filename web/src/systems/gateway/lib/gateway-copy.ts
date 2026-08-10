@@ -39,7 +39,7 @@ export const PUBLIC_OPERATOR_CONSENT_DISCLOSURE: readonly string[] = [
 
 /** Shown wherever a public delivery URL is displayed. */
 export const DELIVERY_DURABILITY_NOTE =
-  "Deliveries reach Compozy only while the daemon and its connectivity provider are running. There is no queue for messages sent while it is offline — configure retries at the sender.";
+  "Deliveries reach CompozyOS only while the daemon and its connectivity provider are running. There is no queue for messages sent while it is offline — configure retries at the sender.";
 
 export const TIER_LABEL: Record<GatewayTier, string> = {
   private: "Private overlay",
@@ -66,7 +66,7 @@ export const REACHABILITY_COPY: Record<
   pending: {
     label: "Establishing",
     tone: "info",
-    detail: "Waiting for the connectivity provider to publish an address Compozy can verify.",
+    detail: "Waiting for the connectivity provider to publish an address CompozyOS can verify.",
   },
   degraded: {
     label: "Degraded",

@@ -4,7 +4,7 @@ description: The exact compozy.loop/v1 Goal action schema, judge contract, sessi
 ---
 
 A `goal` action advances a durable convergence cycle: one managed agent session works toward an
-objective, one or more judges evaluate the current result, and Compozy either completes the node,
+objective, one or more judges evaluate the current result, and CompozyOS either completes the node,
 starts another turn, or records a typed control boundary. Use this page when you author or review a
 Goal node. For the rest of the Loop document, see the
 [compozy.loop/v1 DSL reference](/docs/loops/dsl-reference).
@@ -88,7 +88,7 @@ Run starts so runtime data remains one shell value instead of becoming executabl
 template action outside authored single quotes, double quotes, and backslash escapes because
 `shellQuote` supplies the complete quoting context. Dynamic command templates also reject actions
 inside shell comments and `<<` constructs such as heredocs and here-strings.
-Text entered through a conversational `/goal` `verify:` clause is different: Compozy adds that text to
+Text entered through a conversational `/goal` `verify:` clause is different: CompozyOS adds that text to
 the synthetic agent-judge rubric and never converts it into a command. See
 [Operate a Goal from a session](/docs/loops/goals#verification-and-constraints).
 
@@ -99,10 +99,10 @@ context usage, the checkpoint records `known`; absent telemetry is `unknown`; a 
 that still needs a newer report is `pending`. These states are runtime evidence, not authored
 values.
 
-`retry.on_failure: fresh_session` is a bounded pre-submission policy. It applies only when Compozy proves
+`retry.on_failure: fresh_session` is a bounded pre-submission policy. It applies only when CompozyOS proves
 that the external prompt effect did not start, such as a failed session preparation or prompt-slot
 admission. Each rejection consumes one attempt and advances `prompt_attempt`. Once the durable work
-claim starts, Compozy never retries or replays that prompt. Recovery after context exhaustion creates a
+claim starts, CompozyOS never retries or replays that prompt. Recovery after context exhaustion creates a
 new continuation turn that inspects current state.
 
 Continuous Goal nodes cannot run beneath a `fan-out` ancestor whose `max_parallel` is greater than

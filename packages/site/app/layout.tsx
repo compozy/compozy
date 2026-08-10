@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   applicationName: siteConfig.name,
   title: {
     default: siteConfig.name,
-    template: "%s | Compozy",
+    template: "%s | CompozyOS",
   },
   description: siteConfig.description,
   alternates: {

@@ -35,7 +35,7 @@ describe("getToolIcon", () => {
     }
   });
 
-  it("Should map Compozy native tool families from the compozy__ taxonomy", () => {
+  it("Should map CompozyOS native tool families from the compozy__ taxonomy", () => {
     expect(getToolIcon("compozy__edit")).toBe(FileEdit);
     expect(getToolIcon("compozy__memory_note")).toBe(Brain);
     expect(getToolIcon("compozy__memory_search")).toBe(Brain);

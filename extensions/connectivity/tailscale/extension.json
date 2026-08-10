@@ -2,7 +2,7 @@
     "extension": {
         "name": "tailscale",
         "version": "0.1.0",
-        "description": "First-party private tailnet and public Funnel connectivity for Compozy gateways.",
+        "description": "First-party private tailnet and public Funnel connectivity for CompozyOS gateways.",
         "min_compozy_version": "0.3.0-beta.1"
     },
     "network_participation": {

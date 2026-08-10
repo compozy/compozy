@@ -5,7 +5,7 @@ description: Give GitHub a public delivery URL on your own machine — expose de
 
 Webhook senders need a URL they can reach from the internet, and your daemon runs on a machine that
 usually is not. This page closes that gap: at the end, a push to your repository delivers a signed
-event to `https://compozy-gateway.<your-tailnet>.ts.net`, and Compozy dispatches an automation run
+event to `https://compozy-gateway.<your-tailnet>.ts.net`, and CompozyOS dispatches an automation run
 on your machine. The public address serves deliveries and nothing else — no UI, no API, no pairing.
 
 ## Before you start
@@ -110,18 +110,18 @@ Confirming before the surface is live refuses honestly —
 surface and wait for a verified address` — so run steps 1–3 first.
 
 <OperatorNote>
-  Deliveries reach Compozy only while the daemon and its connectivity provider are running. There is
-  no store-and-forward queue: configure retries at the sender and treat a connection failure as a
+  Deliveries reach CompozyOS only while the daemon and its connectivity provider are running. There
+  is no store-and-forward queue: configure retries at the sender and treat a connection failure as a
   failed delivery.
 </OperatorNote>
 
 ## Step 5: Add the sender in GitHub
 
 <OperatorNote label="Why not a plain repository webhook?">
-  GitHub's native repository webhooks sign requests with `X-Hub-Signature-256`. Compozy's generic
-  webhook triggers deliberately require Compozy's own timestamped `X-Compozy-*` signature, so a
+  GitHub's native repository webhooks sign requests with `X-Hub-Signature-256`. CompozyOS's generic
+  webhook triggers deliberately require CompozyOS's own timestamped `X-Compozy-*` signature, so a
   plain repository webhook pointed at this URL is rejected. Send from a GitHub Actions workflow that
-  signs the Compozy contract, as below. The [GitHub bridge](/docs/bridges/setup-github) is the
+  signs the CompozyOS contract, as below. The [GitHub bridge](/docs/bridges/setup-github) is the
   exception: it verifies GitHub's native signature itself.
 </OperatorNote>
 
@@ -133,7 +133,7 @@ In your repository, add two Actions secrets under **Settings → Secrets and var
 Then commit `.github/workflows/notify-compozy.yml`:
 
 ```yaml
-name: Notify Compozy on push
+name: Notify CompozyOS on push
 
 on:
   push:
@@ -193,7 +193,7 @@ compozy automation runs --last 5
 
 Compare the delivery ID in the Actions log (`push-<run-id>-<attempt>`) with the run metadata from
 `compozy automation runs` — they should match. To retry a delivery, re-run the workflow from the
-Actions tab; Compozy rejects replays of the same delivery ID inside the freshness window, so a
+Actions tab; CompozyOS rejects replays of the same delivery ID inside the freshness window, so a
 re-run gets a new ID from `$GITHUB_RUN_ATTEMPT`.
 
 That is the whole loop: a push on GitHub became an automation run on your machine, over an address

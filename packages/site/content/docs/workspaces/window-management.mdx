@@ -3,7 +3,7 @@ title: Window Management
 description: Persistent virtual desktops, semantic window placement, revision-safe layouts, connected clients, and recovery.
 ---
 
-Compozy stores one authoritative window topology per workspace. Persistent virtual desktops own tiled
+CompozyOS stores one authoritative window topology per workspace. Persistent virtual desktops own tiled
 groups and floating windows; clients project that same normalized topology into their own viewport.
 The daemon, not the browser, validates membership, layout trees, weights, history, and revisions.
 
@@ -111,7 +111,7 @@ Resources cannot execute code or receive pointer events.
 A tiled return anchor in an exported document carries `return_anchor.source_group`, the daemon's
 validated deep capture of its source group. For Zoom, an unchanged source residue lets unzoom restore
 the exact group and node identities, order, weights, placement, and active stack member. If the source
-changed in the meantime, Compozy preserves those edits and uses the structural anchor fallback. Preserve
+changed in the meantime, CompozyOS preserves those edits and uses the structural anchor fallback. Preserve
 `source_group` during raw document round trips; use the semantic Zoom operation instead of
 constructing or editing this recovery state.
 

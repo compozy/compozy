@@ -7,7 +7,7 @@ export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
       <>
-        <span className="sr-only">Compozy home</span>
+        <span className="sr-only">{siteConfig.name} home</span>
         <Logo variant="logo" decorative className="h-8 w-auto" />
         <span aria-hidden className="hidden sm:inline-flex">
           <Eyebrow className="flex items-center gap-1.5 text-muted">

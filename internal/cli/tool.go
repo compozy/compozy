@@ -37,7 +37,7 @@ func newToolMCPCommand(deps commandDeps) *cobra.Command {
 	var bindNonce string
 	cmd := &cobra.Command{
 		Use:    toolMCPKey,
-		Short:  "Serve session-bound Compozy tools over MCP stdio",
+		Short:  "Serve session-bound CompozyOS tools over MCP stdio",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			sessionID = strings.TrimSpace(sessionID)
@@ -53,7 +53,7 @@ func newToolMCPCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if err := deps.ensureHome(runtime.HomePaths); err != nil {
-				return fmt.Errorf("cli: ensure Compozy home: %w", err)
+				return fmt.Errorf("cli: ensure CompozyOS home: %w", err)
 			}
 			client, err := deps.newClient(runtime.Target)
 			if err != nil {

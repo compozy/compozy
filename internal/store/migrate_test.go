@@ -145,7 +145,7 @@ func TestApplyMigrationStream(t *testing.T) {
 		if !errors.Is(err, ErrSchemaAhead) {
 			t.Fatalf("Apply() error = %v, want ErrSchemaAhead", err)
 		}
-		if !strings.Contains(err.Error(), "install a newer Compozy binary") ||
+		if !strings.Contains(err.Error(), "install a newer CompozyOS binary") ||
 			!strings.Contains(err.Error(), migrationFamilyRecoveryInstruction) {
 			t.Fatalf("Apply() error = %q, want newer-binary or whole-family recovery remediation", err)
 		}

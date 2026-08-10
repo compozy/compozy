@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 
 	"github.com/compozy/compozy/internal/procutil"
@@ -42,7 +43,7 @@ type daemonProcess interface {
 func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   daemonDaemonKey,
-		Short: "Manage the Compozy daemon",
+		Short: "Manage the CompozyOS daemon",
 	}
 
 	cmd.AddCommand(newDaemonStartCommand(deps))
@@ -60,14 +61,17 @@ func newDaemonStartCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   daemonStartKey,
-		Short: "Start the Compozy daemon",
-		Example: `  # Start Compozy in the background and wait for readiness
+		Short: "Start the CompozyOS daemon",
+		Example: `  # Start CompozyOS in the background and wait for readiness
   compozy daemon start
 
   # Keep logs attached to the current terminal
   compozy daemon start --foreground`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if foreground || internalChild {
+			if internalChild {
+				return runDaemonForegroundChild(cmd.Context(), deps, exitWhenOrphaned)
+			}
+			if foreground {
 				return runDaemonForeground(cmd.Context(), deps, exitWhenOrphaned)
 			}
 			status, err := runDaemonDetached(cmd.Context(), deps)
@@ -114,7 +118,7 @@ func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
 func newDaemonStopCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   daemonStopKey,
-		Short: "Stop the Compozy daemon",
+		Short: "Stop the CompozyOS daemon",
 		Example: `  # Ask the running daemon to stop
   compozy daemon stop`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -145,12 +149,37 @@ func newDaemonStopCommand(deps commandDeps) *cobra.Command {
 }
 
 func runDaemonForeground(ctx context.Context, deps commandDeps, exitWhenOrphaned bool) error {
+	return runDaemonForegroundMode(ctx, deps, exitWhenOrphaned, true)
+}
+
+func runDaemonForegroundChild(ctx context.Context, deps commandDeps, exitWhenOrphaned bool) error {
+	return runDaemonForegroundMode(ctx, deps, exitWhenOrphaned, false)
+}
+
+func runDaemonForegroundMode(
+	ctx context.Context,
+	deps commandDeps,
+	exitWhenOrphaned bool,
+	acquireUpdateLock bool,
+) (returnErr error) {
 	runtime, err := loadRuntimeContext(deps)
 	if err != nil {
 		return err
 	}
 	if err := deps.ensureHome(runtime.HomePaths); err != nil {
 		return err
+	}
+	var updateLock *compozydaemon.UpdateLock
+	if acquireUpdateLock {
+		updateLock, err = acquireDaemonStartUpdateLock(daemonStartUpdateLockPath(runtime.HomePaths))
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if updateLock != nil {
+				returnErr = errors.Join(returnErr, updateLock.Release())
+			}
+		}()
 	}
 
 	if _, running, err := daemonInfo(runtime.HomePaths, deps); err != nil {
@@ -162,6 +191,12 @@ func runDaemonForeground(ctx context.Context, deps commandDeps, exitWhenOrphaned
 	runner, err := deps.newDaemon()
 	if err != nil {
 		return err
+	}
+	if updateLock != nil {
+		if err := updateLock.Release(); err != nil {
+			return err
+		}
+		updateLock = nil
 	}
 
 	// A harness-launched daemon self-terminates gracefully when its launcher
@@ -181,7 +216,10 @@ func runDaemonForeground(ctx context.Context, deps commandDeps, exitWhenOrphaned
 	return runner.Run(ctx)
 }
 
-func runDaemonDetached(ctx context.Context, deps commandDeps) (DaemonStatus, error) {
+func runDaemonDetached(ctx context.Context, deps commandDeps) (
+	status DaemonStatus,
+	returnErr error,
+) {
 	runtime, err := loadRuntimeContext(deps)
 	if err != nil {
 		return DaemonStatus{}, err
@@ -189,6 +227,13 @@ func runDaemonDetached(ctx context.Context, deps commandDeps) (DaemonStatus, err
 	if err := deps.ensureHome(runtime.HomePaths); err != nil {
 		return DaemonStatus{}, err
 	}
+	updateLock, err := acquireDaemonStartUpdateLock(daemonStartUpdateLockPath(runtime.HomePaths))
+	if err != nil {
+		return DaemonStatus{}, err
+	}
+	defer func() {
+		returnErr = errors.Join(returnErr, updateLock.Release())
+	}()
 
 	if info, running, err := daemonInfo(runtime.HomePaths, deps); err != nil {
 		return DaemonStatus{}, err
@@ -204,11 +249,30 @@ func runDaemonDetached(ctx context.Context, deps commandDeps) (DaemonStatus, err
 		return DaemonStatus{}, errors.New("cli: detached daemon process is required")
 	}
 
-	status, err := waitForDaemonStart(ctx, deps, child)
+	status, err = waitForDaemonStart(ctx, deps, child)
 	if err != nil {
 		return DaemonStatus{}, err
 	}
 	return status, nil
+}
+
+func daemonStartUpdateLockPath(homePaths compozyconfig.HomePaths) string {
+	return filepath.Join(homePaths.HomeDir, compozyconfig.UpdateLockName)
+}
+
+func acquireDaemonStartUpdateLock(path string) (*compozydaemon.UpdateLock, error) {
+	startedAt, err := procutil.StartedAt(os.Getpid())
+	if err != nil {
+		return nil, fmt.Errorf("cli: resolve daemon start identity: %w", err)
+	}
+	lock, err := compozydaemon.AcquireUpdateLock(path, compozydaemon.UpdateLockOwner{
+		PID:       os.Getpid(),
+		StartedAt: startedAt,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cli: acquire daemon start mutation lock: %w", err)
+	}
+	return lock, nil
 }
 
 func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProcess) (DaemonStatus, error) {

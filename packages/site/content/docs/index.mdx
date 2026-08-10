@@ -57,7 +57,7 @@ pages are always one link away.
   <PathCard
     label="Protocol implementers"
     title="Implement compozy-network/v0"
-    description="The wire format for agent-to-agent coordination: envelopes, message kinds, delivery, and receipts — implementable without adopting Compozy internals."
+    description="The wire format for agent-to-agent coordination: envelopes, message kinds, delivery, and receipts — implementable without adopting CompozyOS internals."
   >
     <PathLink href="/docs/network/protocol" icon="Network" cta>
       Read the compozy-network/v0 spec
@@ -127,7 +127,7 @@ two rows until you need them.
     [Loops](/docs/loops), and chat [bridges](/docs/bridges).
   </GroupRow>
   <GroupRow name="Compozy Network">
-    [Using the network from Compozy](/docs/network), with the [compozy-network/v0 protocol
+    [Using the network from CompozyOS](/docs/network), with the [compozy-network/v0 protocol
     spec](/docs/network/protocol) nested one level deeper for implementers.
   </GroupRow>
   <GroupRow name="Extensibility">
@@ -145,7 +145,7 @@ two rows until you need them.
   </GroupRow>
 </GroupIndex>
 
-## The problem Compozy solves
+## The problem CompozyOS solves
 
 Most agent CLIs are excellent at doing work inside one session, but weak at everything around the
 session:
@@ -156,14 +156,14 @@ session:
 - coordinating multiple specialized agents turns into custom glue code
 - operators end up stitching together scripts, logs, and dashboards that never become a product
 
-Compozy fills that gap with a local-first runtime that keeps work durable and observable without asking
+CompozyOS fills that gap with a local-first runtime that keeps work durable and observable without asking
 you to abandon the agent CLIs you already use.
 
 ## What the CompozyOS runtime adds
 
 ### Run real agent CLIs as durable work
 
-Compozy does not reimplement agent logic behind API wrappers. It orchestrates real agent CLIs as
+CompozyOS does not reimplement agent logic behind API wrappers. It orchestrates real agent CLIs as
 managed sessions, so Claude Code stays Claude Code, OpenClaw stays OpenClaw, and Hermes stays
 Hermes.
 
@@ -176,12 +176,12 @@ Each session becomes a durable unit of work. While it is active, another client 
 attach lease with `compozy session resume`. After it stops, its status, recap, event history, and
 transcript remain available, and a normal prompt can restart the provider against the same history.
 
-Instead of losing the context after a crash, restart, or handoff, Compozy keeps the operational record
+Instead of losing the context after a crash, restart, or handoff, CompozyOS keeps the operational record
 around the work itself.
 
 ### Standardize behavior per workspace
 
-Compozy layers configuration, memory, and skills around the workspace, so each project can carry its
+CompozyOS layers configuration, memory, and skills around the workspace, so each project can carry its
 own defaults without forcing one global setup to fit every team and repository.
 
 That gives operators a cleaner way to keep agent behavior consistent without rebuilding prompts and
@@ -205,11 +205,11 @@ system. Agents can publish
 [capability catalogs](/docs/agents/capabilities) so peers discover outcomes instead of
 internal tool names.
 
-Under the hood, Compozy runs as a single local daemon that manages sessions, persists events, and
+Under the hood, CompozyOS runs as a single local daemon that manages sessions, persists events, and
 talks to compatible agents through a standardized protocol layer. The operating model matters more
 than the internals — head into [Sessions](/docs/sessions) when you want the package-level view.
 
-## Why Compozy vs. other models
+## Why CompozyOS vs. other models
 
 The AI agent ecosystem is crowded. The useful question is not "which project exists," but "which
 operating model are you actually buying into?"
@@ -232,9 +232,9 @@ custom orchestration, or protocol for tool access. CompozyOS connects those oper
 around one daemon-owned state model, while Compozy Network supplies the optional coordination
 boundary for explicitly Live work.
 
-### When Compozy is the right choice
+### When CompozyOS is the right choice
 
-Compozy is a strong fit when you:
+CompozyOS is a strong fit when you:
 
 - run real agent CLIs and need them to behave like durable work instead of ephemeral chat
 - want replay, auditability, and observability without bolting on external control planes
@@ -250,10 +250,10 @@ Compozy is a strong fit when you:
 - Choose a protocol-only layer if the problem is tool connectivity, not runtime control or coordination.
 
 CompozyOS exists for the gap between those categories: an integrated, extensible operating system
-around real agent work, with a coordination wire boundary that does not have to stay Compozy-only.
+around real agent work, with a coordination wire boundary that does not have to stay CompozyOS-only.
 
-## What Compozy is not
+## What CompozyOS is not
 
-- **Not an agent framework.** Compozy does not ask you to rebuild your agents as chains, graphs, or wrapper abstractions.
+- **Not an agent framework.** CompozyOS does not ask you to rebuild your agents as chains, graphs, or wrapper abstractions.
 - **Not an API wrapper.** The point is to keep real agent CLIs intact, not to flatten them into thin model calls.
-- **Not a hosted control plane.** Compozy is local-first. The runtime lives on your machine and keeps data close to the workspace.
+- **Not a hosted control plane.** CompozyOS is local-first. The runtime lives on your machine and keeps data close to the workspace.

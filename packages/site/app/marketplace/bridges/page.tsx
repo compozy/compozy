@@ -67,9 +67,9 @@ export default function MarketplaceBridgesPage() {
             Build a provider from source
           </h2>
           <p className="mt-3 max-w-[68ch] text-small-body leading-relaxed text-muted">
-            Run this from the root of a trusted Compozy source checkout with the daemon running. The
-            local install is an explicit trust decision: it copies the provider into your extension
-            home and enables it.
+            Run this from the root of a trusted CompozyOS source checkout with the daemon running.
+            The local install is an explicit trust decision: it copies the provider into your
+            extension home and enables it.
           </p>
           <div className="mt-5 overflow-x-auto rounded-lg border border-line bg-canvas p-4">
             <pre className="m-0 font-mono text-small-body leading-relaxed text-fg">

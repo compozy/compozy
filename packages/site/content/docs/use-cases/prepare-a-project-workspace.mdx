@@ -1,9 +1,9 @@
 ---
 title: Prepare a project workspace
-description: Turn an existing repository into a Compozy workspace that agents can inspect, remember, and operate through durable sessions.
+description: Turn an existing repository into a CompozyOS workspace that agents can inspect, remember, and operate through durable sessions.
 ---
 
-This flow is for a maintainer who already has a repository and wants Compozy to run repeatable agent
+This flow is for a maintainer who already has a repository and wants CompozyOS to run repeatable agent
 work against it. The goal is not just "start an agent"; it is to make the project discoverable,
 give the agent a local operating brief, and leave evidence that the runtime is using the intended
 workspace.
@@ -49,7 +49,7 @@ built-in provider key, not because the workspace model depends on that provider.
     compozy workspace info checkout-api -o json
     ```
 
-    What happened: Compozy registered the current directory and will resolve workspace-scoped agents,
+    What happened: CompozyOS registered the current directory and will resolve workspace-scoped agents,
     skills, memory, config overlays, and sandbox settings from this root.
 
   </WorkflowStep>
@@ -80,7 +80,7 @@ built-in provider key, not because the workspace model depends on that provider.
     Return blocking findings first with file paths and concrete reproduction evidence.
     ```
 
-    Then confirm Compozy resolves the file you just created:
+    Then confirm CompozyOS resolves the file you just created:
 
     ```bash
     compozy agent info reviewer --workspace checkout-api -o json
@@ -104,7 +104,7 @@ built-in provider key, not because the workspace model depends on that provider.
     compozy memory list --scope workspace --workspace checkout-api -o json
     ```
 
-    What happened: Compozy wrote a workspace-scoped Markdown memory and refreshed the index so future
+    What happened: CompozyOS wrote a workspace-scoped Markdown memory and refreshed the index so future
     sessions can discover it.
 
   </WorkflowStep>

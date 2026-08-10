@@ -31,7 +31,7 @@ describe("artifact collector", () => {
     const routeState: BrowserRouteState = {
       url: "http://127.0.0.1/session/sess_browser_01",
       pathname: "/session/sess_browser_01",
-      title: "Compozy",
+      title: "CompozyOS",
       chat_view_visible: true,
       message_count: 2,
       network_channel_count: 0,

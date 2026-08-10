@@ -3,7 +3,7 @@ title: Tool progress in bridges
 description: Configure daemon-rendered tool progress for bridge-delivered agent turns.
 ---
 
-Tool-heavy turns can otherwise look idle until the final answer arrives. Compozy can project ACP tool
+Tool-heavy turns can otherwise look idle until the final answer arrives. CompozyOS can project ACP tool
 calls into typed bridge delivery events so an adapter can show what the agent is doing without
 putting presentation chrome into the session transcript.
 
@@ -110,14 +110,14 @@ the elapsed time from the first observed start to the terminal phase. Failed eve
 a short, one-line `error`; the daemon redacts and caps it before delivery. Bridge adapters receive
 rendered presentation data and never need raw tool arguments to build a line.
 
-Native Compozy tools use the daemon's tool presentation registry. Extension and MCP descriptors may
+Native CompozyOS tools use the daemon's tool presentation registry. Extension and MCP descriptors may
 declare `friendly_verb` and a declarative `preview` strategy. Unknown tools use their raw tool ID
 with a safe scalar preview when one is available.
 
 ## Publish tool presentation metadata
 
 Tool descriptors can customize the rendered verb and tell the daemon how to select a preview. They
-cannot supply a template, executable expression, or pre-rendered progress line. Compozy still owns
+cannot supply a template, executable expression, or pre-rendered progress line. CompozyOS still owns
 argument selection, one-line normalization, redaction, and the 160-rune preview cap used by `new`
 and `all` modes.
 
@@ -159,12 +159,12 @@ most 80 Unicode runes. `preview` is optional and accepts only these declarative 
 | `arg:<field>` | One string or number from the exact, case-sensitive input field.                             |
 
 An `arg:<field>` name starts with an ASCII letter and may contain up to 63 more letters, digits,
-underscores, dots, or hyphens. Compozy rejects names classified as sensitive, including token, secret,
+underscores, dots, or hyphens. CompozyOS rejects names classified as sensitive, including token, secret,
 password, private-key, and API-key fields. Objects, arrays, and booleans do not render as scalar
 previews. Prefer `command`, `path`, `delegate`, or `query` when the input matches one of those
 shapes; each specialized strategy exposes less data than selecting the raw field directly.
 
-Descriptor resolution is workspace-scoped. For each delivery, Compozy looks up the descriptor in the
+Descriptor resolution is workspace-scoped. For each delivery, CompozyOS looks up the descriptor in the
 tool registry projection for the route's `workspace_id`; a workspace-only descriptor never supplies
 presentation metadata to another workspace. Metadata already attached to the source tool event
 takes precedence over the registry lookup. The selected label and preview still pass through the
@@ -192,7 +192,7 @@ Adapters without those affordances use no-op hooks.
 
 ## Redaction and transcript boundaries
 
-Progress previews are bridge-delivered platform messages, so Compozy applies the same secret boundary
+Progress previews are bridge-delivered platform messages, so CompozyOS applies the same secret boundary
 used for other display surfaces before the payload crosses from the daemon to an adapter. The
 canonical redactor covers claim tokens, MCP auth tokens, OAuth authorization codes, PKCE verifiers,
 secret bindings, provider token shapes, authorization headers, and generic secret key/value forms.

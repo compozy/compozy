@@ -65,14 +65,14 @@ External delivery remains at-least-once: a process crash after external delivery
 `config.toml`, and there are no `notifications.presets.*` config keys. Built-in presets are seeded
 disabled and keep their default metadata in the row:
 
-| Field                      | Meaning                                                                      |
-| -------------------------- | ---------------------------------------------------------------------------- |
-| `default_version`          | Version of the built-in default Compozy seeded.                              |
-| `default_hash`             | Stable hash of the seeded mutable fields.                                    |
-| `user_modified`            | True when the row's mutable fields no longer match `default_hash`.           |
-| `default_update_available` | True when Compozy has a newer built-in default but the operator changed row. |
+| Field                      | Meaning                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| `default_version`          | Version of the built-in default CompozyOS seeded.                              |
+| `default_hash`             | Stable hash of the seeded mutable fields.                                      |
+| `user_modified`            | True when the row's mutable fields no longer match `default_hash`.             |
+| `default_update_available` | True when CompozyOS has a newer built-in default but the operator changed row. |
 
-Seed reconciliation preserves operator edits. Compozy may insert missing built-ins or refresh untouched
+Seed reconciliation preserves operator edits. CompozyOS may insert missing built-ins or refresh untouched
 built-ins, but it never treats `config.toml` as the preset authority and never overwrites a
 user-modified preset silently.
 
@@ -88,7 +88,7 @@ Event patterns use canonical registry names. Suffix wildcards are limited to a p
 so `task.run_*` matches notification-eligible task run events such as `task.run_completed`,
 `task.run_failed`, and `task.run_operator_retry` without matching session or provider events.
 Optional filters support the documented comparison grammar over event fields such as `severity`,
-`workspace`, `agent`, `provider`, and `event_type`; Compozy rejects arbitrary CEL or script
+`workspace`, `agent`, `provider`, and `event_type`; CompozyOS rejects arbitrary CEL or script
 expressions.
 
 Preset fanout uses one cursor per concrete target occurrence. The cursor is scoped by the event's
@@ -278,7 +278,7 @@ Managed agents use the same bridge subscription contract through the `compozy__t
 | `compozy__task_notification_delete`    | Remove the active subscription target.                  |
 
 `subscription_id` is optional on subscribe. When present, the daemon preserves it as the
-idempotency key; when omitted, Compozy generates the `bts-*` identifier. Subscribe and list accept
+idempotency key; when omitted, CompozyOS generates the `bts-*` identifier. Subscribe and list accept
 the exact opaque workspace identity in `workspace_id`; the removed `workspace` input is not an
 alias. Native task-notification `task_id`, `subscription_id`, `bridge_instance_id`, `workspace_id`,
 `peer_id`, `group_id`, and `thread_id` values are valid UTF-8 identities and are never trimmed,

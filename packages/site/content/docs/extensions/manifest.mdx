@@ -13,7 +13,7 @@ manifest by hand means editing a file the next build overwrites — change the c
 You write `extension.toml` by hand only for **resource-only** extensions: packages that ship skills,
 agents, automation, layouts, hooks, or MCP servers and run no code of their own.
 
-Compozy reads `extension.toml` first and `extension.json` second. Both formats carry the same schema.
+CompozyOS reads `extension.toml` first and `extension.json` second. Both formats carry the same schema.
 
 ## Generated example
 
@@ -59,7 +59,7 @@ stable ordering. That is what makes `dist/gen-<hash>` a content-addressed identi
 
 ## `[extension]`
 
-Core metadata. Compozy also accepts these keys at the document root; do not set the same field in
+Core metadata. CompozyOS also accepts these keys at the document root; do not set the same field in
 both places with different values.
 
 | Field                 | Required | Notes                                                                                                                                 |
@@ -84,7 +84,7 @@ compatibility its SDK does not have.
 `provides` is a closed set. Registering a tool through the SDK adds `tool.provider` automatically, so
 most authors never write this block.
 
-| Provide                 | Compozy calls the extension with                                         | Public |
+| Provide                 | CompozyOS calls the extension with                                       | Public |
 | ----------------------- | ------------------------------------------------------------------------ | ------ |
 | `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
 | `memory.backend`        | `memory/store`, `memory/recall`, `memory/forget`                         | yes    |
@@ -231,7 +231,7 @@ channel_scopes = ["builders", "release"]
 | `mode`           | yes      | Must be `"live"` when the requirement is enabled.                                |
 | `channel_scopes` | no       | Trimmed, deduplicated, sorted, and included in the extension requirement digest. |
 
-Compozy hashes the normalized block into the extension's Network requirement digest. Enable requires
+CompozyOS hashes the normalized block into the extension's Network requirement digest. Enable requires
 explicit confirmation of that exact digest. Update compares the candidate digest before swapping any
 files and refuses a changed, unconfirmed requirement without changing installed state. Declared
 channels remain inventory — confirmation does not enroll an execution into Live.

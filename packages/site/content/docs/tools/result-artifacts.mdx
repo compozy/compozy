@@ -4,7 +4,7 @@ description: Open, page, and retain exact tool results that exceed the active re
 ---
 
 Tool calls keep a bounded result in the transcript. When the final post-hook, redacted result is
-larger than its effective byte budget, Compozy also retains the exact canonical JSON envelope and
+larger than its effective byte budget, CompozyOS also retains the exact canonical JSON envelope and
 returns an opaque workspace-scoped artifact reference.
 
 Use this guide when a tool card says the result is truncated or a structured result contains
@@ -21,7 +21,7 @@ Use this guide when a tool card says the result is truncated or a structured res
 2. Select **Open full result** on the tool-result card.
 3. Select **Load more** while the server returns another byte offset.
 
-Compozy combines the exact page bytes before decoding the JSON, so a multi-byte character split across
+CompozyOS combines the exact page bytes before decoding the JSON, so a multi-byte character split across
 two pages remains intact. Closing or reopening the viewer does not change the retained bytes.
 
 ## Read a result from the CLI
@@ -84,14 +84,14 @@ max_bytes = 1073741824
 max_age = "720h"
 ```
 
-Compozy applies count, byte, and age cleanup deterministically. These settings are
+CompozyOS applies count, byte, and age cleanup deterministically. These settings are
 `restart-required`; a config update changes desired state, and the restarted daemon owns the new
 retention envelope. See [Configuration Reference](/docs/configuration/config-toml) for the
 complete field contract.
 
 ## Persistence failures
 
-If Compozy cannot retain an oversized result, the tool call returns the typed
+If CompozyOS cannot retain an oversized result, the tool call returns the typed
 `result_persistence_failed` error with a bounded partial result. No durable artifact is promised in
 that response. Keep the partial result as evidence and fix the storage or retention failure before
 invoking the original mutating tool again; a retry could repeat an already committed side effect.

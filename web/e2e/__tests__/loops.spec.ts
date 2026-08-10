@@ -359,7 +359,7 @@ const runtimeSourceLabels: Record<string, string> = {
   agent: "agent definition",
 };
 
-test("Compozy migration E2E-015: run page lifecycle controls and node inventories", async ({
+test("CompozyOS migration E2E-015: run page lifecycle controls and node inventories", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -482,7 +482,7 @@ test("Compozy migration E2E-015: run page lifecycle controls and node inventorie
   await browserArtifacts.captureScreenshot("loop-node-inventory-quarantined-empty", appPage);
 });
 
-test("Compozy migration E2E-016: author retry + on_error in the editor, publish, and run it", async ({
+test("CompozyOS migration E2E-016: author retry + on_error in the editor, publish, and run it", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -563,7 +563,7 @@ test("Compozy migration E2E-016: author retry + on_error in the editor, publish,
   await browserArtifacts.captureScreenshot("loop-editor-authored-run-retrying", appPage);
 });
 
-test("Compozy migration E2E-004: loop run renders API runtime provenance without controls", async ({
+test("CompozyOS migration E2E-004: loop run renders API runtime provenance without controls", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -679,7 +679,7 @@ test("Compozy migration E2E-004: loop run renders API runtime provenance without
   await browserArtifacts.captureScreenshot("loop-run-runtime-provenance", appPage);
 });
 
-test("Compozy migration E2E-006: exhausted run renders score, best, restore, and best link", async ({
+test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, and best link", async ({
   appPage,
   browserArtifacts,
   runtime,

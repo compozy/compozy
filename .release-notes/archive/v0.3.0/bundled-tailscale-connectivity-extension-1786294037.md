@@ -4,8 +4,8 @@ type: feature
 ---
 
 Gateway reachability ships with a first-party provider. The `tailscale` extension runs a Tailscale
-node inside the Compozy process through `tsnet`, against the operator's own account — nothing else
-to install, and Compozy operates no relay, server, or account on anyone's behalf. The private tier
+node inside the CompozyOS process through `tsnet`, against the operator's own account — nothing else
+to install, and CompozyOS operates no relay, server, or account on anyone's behalf. The private tier
 serves `https://compozy-gateway.<tailnet>.ts.net:8443` on the tailnet; the public tier serves the
 same hostname over Tailscale Funnel on 443. (#331)
 

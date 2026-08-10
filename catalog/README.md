@@ -1,6 +1,6 @@
 # Curated Marketplace Catalog
 
-The three JSON documents in this directory are Compozy's default discovery feeds. Each feed must remain
+The three JSON documents in this directory are CompozyOS's default discovery feeds. Each feed must remain
 non-empty and pass the same schema parser used by the daemon.
 
 Extension entries point to one exact HTTPS `.tar.gz` artifact and pin its SHA-256 digest. Keep the

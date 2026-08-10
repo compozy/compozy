@@ -63,7 +63,7 @@ that set further; it cannot make another class transient.
 ```
 
 `timeout` bounds one attempt. `deadline` bounds all attempts and backoff for the node. Both are
-opt-in; Compozy has no hidden duration limit. `timeout` must not exceed `deadline`. If a scheduled
+opt-in; CompozyOS has no hidden duration limit. `timeout` must not exceed `deadline`. If a scheduled
 retry would cross the deadline, the failure becomes `budget_exhausted` instead of starting work that
 cannot finish.
 
@@ -137,7 +137,7 @@ subject to the Loop's budgets and stop limits.
 
 ## Liveness is evidence, not elapsed time
 
-Compozy never declares a node dead because it has run for a long time. Stream activity, an in-flight
+CompozyOS never declares a node dead because it has run for a long time. Stream activity, an in-flight
 tool, and transport presence are evidence of life. Prolonged silence raises the `silence` attention
 flag; it does not pause, cancel, or fail the node. Confirmed process or transport death is different:
 the daemon resumes from recorded progress through one atomic authority, bounded by the configured

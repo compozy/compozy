@@ -1,5 +1,5 @@
 name: "Setup Release Tools"
-description: "Sets up GoReleaser, git-cliff, Syft, Cosign, and optionally Docker buildx for the Compozy release pipeline"
+description: "Sets up GoReleaser, git-cliff, Syft, Cosign, and optionally Docker buildx for the CompozyOS release pipeline"
 
 inputs:
   goreleaser-version:

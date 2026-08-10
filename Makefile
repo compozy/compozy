@@ -8,7 +8,7 @@ else
 MAGE_RUN = $(MAGE)
 endif
 
-.PHONY: deps deps-check fmt fmt-check lint go-lint source-policy source-size test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed
+.PHONY: deps deps-check fmt fmt-check lint go-lint source-policy source-size product-language-check test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build build-go cross-build-windows boundaries verify help bun-lint bun-typecheck bun-test installer-check demo-seed desktop-dev desktop-build desktop-test desktop-lint
 
 DEMO_HOME ?= $(HOME)/.agh
 
@@ -35,6 +35,9 @@ source-policy:
 
 source-size:
 	@$(MAGE_RUN) sourceSize
+
+product-language-check:
+	@$(MAGE_RUN) productLanguageCheck
 
 test:
 	@$(MAGE_RUN) test
@@ -89,6 +92,27 @@ installer-check:
 
 demo-seed:
 	@go run ./scripts/demo-seed --home "$(DEMO_HOME)" --replace
+
+# Desktop shell
+#
+# `desktop-dev` runs the whole desktop stack with one command: it refreshes the
+# web bundle, starts the daemon under Air (Go hot reload) serving that bundle,
+# waits for readiness, then launches the desktop shell attached to the daemon
+# through the active COMPOZY_HOME. Quitting the app or pressing Ctrl-C tears
+# the stack down. Shell-only iteration against an already-running daemon:
+# `cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml`.
+desktop-dev: codegen web-build
+	@AIR_VERSION="$(AIR_VERSION)" bash scripts/desktop-dev.sh
+
+desktop-build:
+	@cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
+
+desktop-test:
+	@cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets
+
+desktop-lint:
+	@cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+	@cargo clippy --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 
 help:
 	@$(MAGE_RUN) -l

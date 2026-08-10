@@ -232,7 +232,7 @@ func TestManagerCheck(t *testing.T) {
 		if state.Status != StatusUnsupported {
 			t.Fatalf("state.Status = %q, want %q", state.Status, StatusUnsupported)
 		}
-		if !strings.Contains(state.Recommendation, "tagged Compozy release") {
+		if !strings.Contains(state.Recommendation, "tagged CompozyOS release") {
 			t.Fatalf("state.Recommendation = %q, want tagged release guidance", state.Recommendation)
 		}
 	})
@@ -387,6 +387,11 @@ func TestManagerCheck(t *testing.T) {
 			method InstallMethod
 			want   string
 		}{
+			{
+				name:   "Should route desktop-owned installs through the app",
+				method: InstallMethodDesktopApp,
+				want:   "Update via the CompozyOS desktop app.",
+			},
 			{
 				name:   "Should recommend npm global update for npm installs",
 				method: InstallMethodNPM,

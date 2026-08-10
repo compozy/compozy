@@ -160,7 +160,7 @@ func windowManagerWindowListBundle(snapshot contract.WindowManagerSnapshot) outp
 		},
 		"windows",
 		[]string{
-			"id", "app", windowManagerDesktopID, "placement", "pathname", "stack_id", "member_order",
+			"id", appCommandKey, windowManagerDesktopID, "placement", "pathname", "stack_id", "member_order",
 			windowManagerActiveField, "pinned", "nav_depth",
 		},
 		windowManagerWindowRow,

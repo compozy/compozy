@@ -1,24 +1,24 @@
 ---
 title: Hook Declaration Format
-description: Reference for declaring Compozy hooks, matchers, subprocess executors, ordering, and runtime execution behavior.
+description: Reference for declaring CompozyOS hooks, matchers, subprocess executors, ordering, and runtime execution behavior.
 ---
 
 A hook declaration binds one event to one executor. The matcher decides whether the hook is eligible;
-the executor receives the payload and writes a patch. Compozy normalizes declarations from config files,
+the executor receives the payload and writes a patch. CompozyOS normalizes declarations from config files,
 agent definitions, skills, and extension manifests into one deterministic pipeline.
 
 <OperatorNote>
   Current executor kinds are `subprocess`, `native`, and reserved `wasm`. There is no first-class
   `http` or `agent` executor in this implementation. Wrap HTTP calls in a subprocess command, or
-  build an extension subprocess when the hook needs Compozy Host API access.
+  build an extension subprocess when the hook needs CompozyOS Host API access.
 </OperatorNote>
 
 ## Declaration Sources
 
 | Source             | Where to declare                                              | Notes                                                                                                                                                   |
 | ------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config`           | `[[hooks.declarations]]` in Compozy config TOML               | Global and workspace config declarations are loaded through workspace resolution.                                                                       |
-| `agent_definition` | `hooks:` YAML or `[[hooks]]` TOML frontmatter in `AGENT.md`   | Compozy scopes the matcher to that agent name. A conflicting `matcher.agent_name` is rejected.                                                          |
+| `config`           | `[[hooks.declarations]]` in CompozyOS config TOML             | Global and workspace config declarations are loaded through workspace resolution.                                                                       |
+| `agent_definition` | `hooks:` YAML or `[[hooks]]` TOML frontmatter in `AGENT.md`   | CompozyOS scopes the matcher to that agent name. A conflicting `matcher.agent_name` is rejected.                                                        |
 | `skill`            | `metadata.compozy.hooks` in `SKILL.md` frontmatter            | Marketplace skill hooks are blocked unless allowed by `skills.allowed_marketplace_hooks`.                                                               |
 | `extension`        | `[[resources.hooks]]` in `extension.toml` or `extension.json` | Extension hooks run from the extension root and receive `metadata.extension`. Generated from the SDK's supported hook events for subprocess extensions. |
 | `native`           | Daemon code only                                              | Used by built-in runtime hooks with Go executors. Users should not declare `native` hooks.                                                              |
@@ -35,12 +35,12 @@ agent definitions, skills, and extension manifests into one deterministic pipeli
 | `timeout`                                           | no                        | Go duration such as `5s` or `250ms`. Subprocess hooks default to `5s`.                              |
 | `matcher`                                           | no                        | Family-specific filters. Empty matcher fields match all values.                                     |
 | `command`                                           | subprocess hooks          | Executable name or path. Inferred executor kind is `subprocess` when `command` is set.              |
-| `args`                                              | no                        | Arguments passed directly to the executable. Compozy does not implicitly run a shell.               |
+| `args`                                              | no                        | Arguments passed directly to the executable. CompozyOS does not implicitly run a shell.             |
 | `env`                                               | no                        | Extra environment variables for the hook process.                                                   |
 | `executor.kind`                                     | no for subprocess command | Explicit executor kind. Use `subprocess` for user-declared hooks.                                   |
 | `executor.command`, `executor.args`, `executor.env` | no                        | Nested executor form. Do not mix nested executor fields with top-level `command`, `args`, or `env`. |
 
-The `source` and `skill_source` values in catalog output are assigned by Compozy from the declaration
+The `source` and `skill_source` values in catalog output are assigned by CompozyOS from the declaration
 location. They are not fields you normally write.
 
 ## Execution Model
@@ -63,7 +63,7 @@ Sync-->>Runtime: return patched payload or denial error`}
 caption="Sync hooks can mutate the runtime payload. Async hooks observe the sync-patched payload and record outcomes without applying patches back to the caller."
 />
 
-Compozy orders hooks by source, then priority, then name:
+CompozyOS orders hooks by source, then priority, then name:
 
 1. Source order: `native`, `config`, `extension`, `agent_definition`, `skill`.
 2. Higher `priority` runs before lower `priority`.
@@ -89,7 +89,7 @@ event. Async hooks are queued only after the sync chain completes without a deni
 failure. Async execution defaults to `4` workers, queue capacity `64`, and `10s` shutdown drain
 timeout. If the async queue is full, the hook run is recorded as `dropped`.
 
-Compozy limits nested hook dispatch depth to `3`. A sync dispatch beyond that depth fails with a
+CompozyOS limits nested hook dispatch depth to `3`. A sync dispatch beyond that depth fails with a
 dispatch-depth error. Async hooks beyond the depth limit are recorded as `skipped`.
 
 ## Matchers
@@ -161,12 +161,12 @@ with the immutable committed snapshot. Both events honor `workspace_id`, `channe
 
 Subprocess details:
 
-- Compozy resolves the command with `exec.LookPath`; bare commands use `PATH`.
+- CompozyOS resolves the command with `exec.LookPath`; bare commands use `PATH`.
 - The command is not run through a shell unless you explicitly use `sh`, `bash`, or another shell as
   the command.
 - Environment is restricted to a safe allowlist plus explicit `env` entries.
 - Stdout and stderr capture is capped at `8 KiB`; truncated output ends with `...[truncated]`.
-- A timed-out process gets a graceful termination window before Compozy kills it.
+- A timed-out process gets a graceful termination window before CompozyOS kills it.
 
 ## Complete Example: Config Tool Gate
 
@@ -213,7 +213,7 @@ esac
 
 ## Complete Example: Agent Prompt Hook
 
-Agent definition hooks live in `AGENT.md` frontmatter. Compozy automatically scopes them to the agent
+Agent definition hooks live in `AGENT.md` frontmatter. CompozyOS automatically scopes them to the agent
 name, so this declaration behaves as if `matcher.agent_name = "reviewer"` were set.
 
 ```text
@@ -289,11 +289,11 @@ JSON object to stdout. A separate long-running extension subprocess is optional 
 
 HTTP and agent executors are not implemented hook kinds today. Use one of these patterns instead:
 
-| Need                                                  | Current pattern                                                                                                    |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Call an HTTP endpoint from a hook                     | Use a `subprocess` hook that runs `curl`, `node`, `python`, or another client.                                     |
-| Start or inspect Compozy sessions from extension code | Build a subprocess extension and request Host API actions such as `sessions/list` or `sessions/create`.            |
-| Run a long-lived platform integration                 | Build an extension subprocess; keep hooks as short stdin/stdout commands when they need to patch runtime payloads. |
+| Need                                                    | Current pattern                                                                                                    |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Call an HTTP endpoint from a hook                       | Use a `subprocess` hook that runs `curl`, `node`, `python`, or another client.                                     |
+| Start or inspect CompozyOS sessions from extension code | Build a subprocess extension and request Host API actions such as `sessions/list` or `sessions/create`.            |
+| Run a long-lived platform integration                   | Build an extension subprocess; keep hooks as short stdin/stdout commands when they need to patch runtime payloads. |
 
 Example HTTP wrapper:
 

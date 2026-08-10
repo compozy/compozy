@@ -74,10 +74,10 @@ describe("HomeHeader", () => {
     };
   });
 
-  it("renders the shared full Compozy logo in the home link", () => {
+  it("renders the shared full CompozyOS logo in the home link", () => {
     render(<HomeHeader />);
 
-    const link = screen.getByRole("link", { name: "Compozy home" });
+    const link = screen.getByRole("link", { name: "CompozyOS home" });
     const logo = link.querySelector('[data-slot="logo"]');
 
     expect(link.getAttribute("href")).toBe("/");
@@ -138,7 +138,7 @@ describe("HomeHeader", () => {
     expect(screen.getByRole("searchbox", { name: "Search docs" })).toBeDefined();
     expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(1);
 
-    const githubLink = screen.getByRole("link", { name: "Compozy on GitHub" });
+    const githubLink = screen.getByRole("link", { name: "CompozyOS on GitHub" });
     expect(githubLink.getAttribute("href")).toBe("https://github.com/compozy");
     expect(githubLink.getAttribute("target")).toBe("_blank");
     expect(githubLink.getAttribute("rel")).toContain("noopener");

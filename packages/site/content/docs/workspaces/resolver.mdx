@@ -1,9 +1,9 @@
 ---
 title: Workspace Resolver
-description: How Compozy registers workspace roots, resolves the active workspace, and discovers project-local runtime resources.
+description: How CompozyOS registers workspace roots, resolves the active workspace, and discovers project-local runtime resources.
 ---
 
-A workspace is a registered project root with a stable identity. Compozy stores the registration in
+A workspace is a registered project root with a stable identity. CompozyOS stores the registration in
 the global database, but the filesystem remains the source of truth. Each session starts by
 resolving a workspace snapshot: the canonical root directory, optional additional roots, the
 durable `workspace_id`, effective configuration, visible agents, and visible skill directories.
@@ -27,10 +27,10 @@ travel with it.
 
 <OperatorNote>
   `compozy workspace add` registers a directory. It does not create or own the directory, and `compozy
-  workspace remove` leaves your project files on disk. It removes the registration and Compozy's
+  workspace remove` leaves your project files on disk. It removes the registration and CompozyOS's
   persisted history for stopped sessions in that workspace, plus workspace-scoped MCP OAuth token
   rows and their encrypted Vault values. Global credentials and credentials owned by other
-  workspaces are preserved. Active sessions must be stopped or removed first. Compozy creates
+  workspaces are preserved. Active sessions must be stopped or removed first. CompozyOS creates
   `<workspace>/.compozy/workspace.toml` on first daemon touch when
   `[memory.workspace] auto_create = true`; commit it to git so collaborators share the same
   workspace identity.
@@ -43,7 +43,7 @@ project roots that should have their own stable names, agents, skills, or config
 
 ## What Gets Stored
 
-Compozy stores workspace registrations in the global catalog database at `~/.compozy/compozy.db`. The
+CompozyOS stores workspace registrations in the global catalog database at `~/.compozy/compozy.db`. The
 `workspaces` table stores:
 
 | Field                      | Meaning                                                    |
@@ -55,7 +55,7 @@ Compozy stores workspace registrations in the global catalog database at `~/.com
 | `default_agent`            | Optional workspace default agent override.                 |
 | `created_at`, `updated_at` | Registration timestamps.                                   |
 
-The ID is random and stable. The default name comes from the root directory basename, and Compozy adds
+The ID is random and stable. The default name comes from the root directory basename, and CompozyOS adds
 numeric suffixes such as `repo-2` when another workspace already has the same name.
 
 ## Typical `.compozy/` Layout
@@ -101,7 +101,7 @@ of by the workspace resolver.
 
 ## Resolution Inputs
 
-Compozy resolves a workspace reference from three forms:
+CompozyOS resolves a workspace reference from three forms:
 
 | Input          | Example                                | Lookup                                                             |
 | -------------- | -------------------------------------- | ------------------------------------------------------------------ |
@@ -157,7 +157,7 @@ back.
 
 ## Auto-Registration
 
-Compozy can also register a workspace on demand:
+CompozyOS can also register a workspace on demand:
 
 ```bash
 compozy session new --cwd /Users/you/src/checkout-api --agent reviewer
@@ -215,7 +215,7 @@ produces this cascade:
 
 1. `checkout-api` is looked up as a registered workspace name.
 2. The stored `root_dir` is checked with `os.Stat`.
-3. The root is canonicalized again with `EvalSymlinks`. If the canonical target changed, Compozy updates
+3. The root is canonicalized again with `EvalSymlinks`. If the canonical target changed, CompozyOS updates
    the stored `root_dir`.
 4. Config is loaded as built-in defaults, then `~/.compozy/config.toml`, then `~/.compozy/mcp.json`, then
    `<workspace>/.compozy/config.toml`, then `<workspace>/.compozy/mcp.json`.
@@ -293,14 +293,14 @@ documents the full mapping, the prompt options, and the session-scoped answers.
 
 Your own access is unchanged. Operator commands, global reads such as `GET /api/sessions`, and the
 workspace catalog reach every registered workspace. In Web, a session deep link that belongs to
-another workspace asks before it moves you: Compozy resolves only the owning workspace's id and name,
+another workspace asks before it moves you: CompozyOS resolves only the owning workspace's id and name,
 shows a confirmation, and switches the active workspace and its windows only when you confirm.
 Cancelling keeps you where you are, and a link to a session that exists nowhere still resolves to the
 not-found state.
 
 ### What This Boundary Covers Today
 
-Compozy is in beta, and this boundary is honest about its limits. It constrains agent requests at the
+CompozyOS is in beta, and this boundary is honest about its limits. It constrains agent requests at the
 runtime boundaries listed above and attempts a best-effort audit append for every policy evaluation.
 It is not a sandbox around the agent process.
 

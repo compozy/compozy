@@ -54,7 +54,7 @@ export function Comparison() {
         align="start"
         eyebrow="The market is proving the layers"
         title="The layer is not the operating system."
-        description="The category already values agent orchestration, durable runs, assistants, and coding interfaces. The newest layer even has a name — the software factory. Factories are the machines; an OS is the floor they run on. Compozy brings the operating responsibilities together: run, memory, permissions, connection, and extensibility."
+        description="The category already values agent orchestration, durable runs, assistants, and coding interfaces. The newest layer even has a name — the software factory. Factories are the machines; an OS is the floor they run on. CompozyOS brings the operating responsibilities together: run, memory, permissions, connection, and extensibility."
       />
 
       <div className="mt-10 overflow-hidden rounded-diagram border border-line bg-canvas-soft">

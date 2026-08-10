@@ -1,9 +1,9 @@
 ---
-title: Expose Compozy over MCP
-description: Connect a trusted MCP client to the workspace-bound Compozy Host API over stdio or authenticated loopback HTTP.
+title: Expose CompozyOS over MCP
+description: Connect a trusted MCP client to the workspace-bound CompozyOS Host API over stdio or authenticated loopback HTTP.
 ---
 
-Use `compozy mcp serve` when an external MCP client needs to operate one Compozy workspace through the
+Use `compozy mcp serve` when an external MCP client needs to operate one CompozyOS workspace through the
 daemon's existing Host API. The command is a foreground relay: start the daemon first, keep the
 relay process alive while the client is connected, and stop it when the client no longer needs
 access.
@@ -56,7 +56,7 @@ Connect the MCP client to `http://127.0.0.1:3210/mcp` and send the token as
 HTTP startup fails if the listener is not loopback or if the token environment variable is empty.
 The default variable is `COMPOZY_MCP_SERVE_TOKEN`; select another variable name with `--token-env`.
 There is intentionally no command-line token value or `config.toml` key, so the credential does not
-enter process arguments or persistent Compozy configuration.
+enter process arguments or persistent CompozyOS configuration.
 
 ## Understand the published tools
 

@@ -1,13 +1,13 @@
 ---
 title: Database Operations
-description: Back up, inspect, and clean up Compozy's SQLite databases.
+description: Back up, inspect, and clean up CompozyOS's SQLite databases.
 ---
 
-Use this guide when you need to back up Compozy state, inspect stored sessions, or retire old session
+Use this guide when you need to back up CompozyOS state, inspect stored sessions, or retire old session
 directories.
 
 <OperatorNote>
-  Compozy uses SQLite in WAL mode. A live filesystem copy must include the database file and its
+  CompozyOS uses SQLite in WAL mode. A live filesystem copy must include the database file and its
   `-wal` and `-shm` sidecar files, or use SQLite's backup command. The simplest safe backup is a
   cold backup while the daemon is stopped.
 </OperatorNote>
@@ -23,7 +23,7 @@ export COMPOZY_HOME="${COMPOZY_HOME:-$HOME/.compozy}"
 | Path                                            | Purpose                                                                                                                                                                               |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `$COMPOZY_HOME/compozy.db`                      | Global catalog for workspaces, sessions, event summaries, token totals, permission logs, automation, bridges, extensions, tasks, tool process checkpoints, and network audit records. |
-| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one Compozy session.                                                                                                                                             |
+| `$COMPOZY_HOME/sessions/<session-id>/events.db` | Full event store for one CompozyOS session.                                                                                                                                           |
 | `$COMPOZY_HOME/sessions/<session-id>/meta.json` | Session metadata used for listing, status, resume, and boot reconciliation.                                                                                                           |
 
 The global database is an index and catalog. The per-session `events.db` files hold the detailed
@@ -35,7 +35,7 @@ Each `events.db` contains one immutable owner record with its exact session ID a
 session read and write must match that record. This prevents a database copied from another session or
 workspace from being relabeled by the caller and exposed through history, events, replay, or SSE.
 
-If the owner record is missing or does not match, Compozy refuses the open before migration or data
+If the owner record is missing or does not match, CompozyOS refuses the open before migration or data
 mutation. It does not adopt, rebind, or repair the database, and it leaves the database, `-wal`, `-shm`,
 and rollback-journal files unchanged.
 
@@ -60,7 +60,7 @@ or replace database ownership.
   One --> Meta["meta.json session metadata"]
   Global --> Summary["session rows and summaries"]
   Events --> Replay["events, token usage, hook runs"]`}
-  caption="Compozy separates global catalog state from per-session event history."
+  caption="CompozyOS separates global catalog state from per-session event history."
 />
 
 ## Back up while the daemon is stopped
@@ -142,7 +142,7 @@ ordered event stream for one session.
 
 ## Schema migration discipline
 
-Compozy versions each SQLite authority as an independent Goose migration stream:
+CompozyOS versions each SQLite authority as an independent Goose migration stream:
 
 | Stream      | Database family                                  | Version table                |
 | ----------- | ------------------------------------------------ | ---------------------------- |
@@ -151,7 +151,7 @@ Compozy versions each SQLite authority as an independent Goose migration stream:
 | `session`   | Per-session `events.db`                          | `goose_db_version_session`   |
 | `workspace` | Workspace-local `.compozy/compozy.db`            | `goose_db_version_workspace` |
 
-Before Compozy runs pending SQL migrations, it rejects pre-Goose markers, validates the embedded
+Before CompozyOS runs pending SQL migrations, it rejects pre-Goose markers, validates the embedded
 `atlas.sum`, and refuses a recorded version newer than the binary. The runtime does not edit a
 version table to repair drift and does not read an incompatible database as a fallback.
 
@@ -205,7 +205,7 @@ limit 20;
 ## Clean up old session directories
 
 `compozy session archive` removes a stopped session from default listings but does not reclaim its
-disk space. Compozy does not currently expose a prune command for old session directories. If you
+disk space. CompozyOS does not currently expose a prune command for old session directories. If you
 must move a directory, use the conservative filesystem procedure below instead of deleting it in place.
 
 1. List stopped sessions:
@@ -238,14 +238,14 @@ must move a directory, use the conservative filesystem procedure below instead o
    compozy session list --all --include-archived
    ```
 
-At boot, Compozy reconciles the global catalog with the session directories on disk. Sessions missing
-from disk are marked `orphaned` in the global catalog; Compozy does not physically purge the global
+At boot, CompozyOS reconciles the global catalog with the session directories on disk. Sessions missing
+from disk are marked `orphaned` in the global catalog; CompozyOS does not physically purge the global
 session row.
 
 ## Handle corrupt database files
 
-When Compozy classifies a SQLite database as corrupt, it stops the open and reports the database path.
-Compozy leaves the database and its `-wal` and `-shm` sidecars unchanged. It does not rename, remove,
+When CompozyOS classifies a SQLite database as corrupt, it stops the open and reports the database path.
+CompozyOS leaves the database and its `-wal` and `-shm` sidecars unchanged. It does not rename, remove,
 repair, or replace any member of the database family automatically.
 
 If this happens:

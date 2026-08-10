@@ -1,10 +1,10 @@
 ---
 title: Providers
-description: Built-in provider IDs, launch commands, config overrides, and custom provider setup for Compozy agents.
+description: Built-in provider IDs, launch commands, config overrides, and custom provider setup for CompozyOS agents.
 ---
 
-A provider is the ACP-compatible command Compozy launches for an agent. The provider owns the actual
-LLM integration. Compozy owns definition resolution, process lifecycle, workspace boundaries,
+A provider is the ACP-compatible command CompozyOS launches for an agent. The provider owns the actual
+LLM integration. CompozyOS owns definition resolution, process lifecycle, workspace boundaries,
 permissions, MCP server wiring, and event persistence.
 
 Provider IDs appear in `AGENT.md`:
@@ -61,27 +61,27 @@ The built-in registry lives in `internal/config/provider.go`.
 <OperatorNote>
   `pi` is the direct Pi provider and owns authentication through Pi `/login` and Pi's auth file.
   OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq are wrapped
-  providers: Compozy exposes them as first-class providers, launches Pi under the hood, and injects
-  the provider key through a session-local Pi config.
+  providers: CompozyOS exposes them as first-class providers, launches Pi under the hood, and
+  injects the provider key through a session-local Pi config.
 </OperatorNote>
 
 ## Authentication modes
 
-Provider authentication is explicit. Compozy does not infer that every provider needs a Compozy-managed
+Provider authentication is explicit. CompozyOS does not infer that every provider needs a CompozyOS-managed
 API key.
 
-| Mode           | Owner                             | Runtime behavior                                                                                      |
-| -------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `native_cli`   | The provider CLI                  | Compozy launches the provider without preflight key checks. The CLI uses its own login/session store. |
-| `bound_secret` | Compozy config or Compozy Vault   | Compozy resolves `credential_slots` and injects the bound values into the provider subprocess.        |
-| `none`         | No authentication at Compozy side | Compozy launches the provider without native auth diagnostics or secret injection.                    |
+| Mode           | Owner                               | Runtime behavior                                                                                        |
+| -------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `native_cli`   | The provider CLI                    | CompozyOS launches the provider without preflight key checks. The CLI uses its own login/session store. |
+| `bound_secret` | CompozyOS config or CompozyOS Vault | CompozyOS resolves `credential_slots` and injects the bound values into the provider subprocess.        |
+| `none`         | No authentication at CompozyOS side | CompozyOS launches the provider without native auth diagnostics or secret injection.                    |
 
 Direct ACP providers and the direct `pi` provider default to `native_cli`. Pi-backed API-key
 wrappers default to `bound_secret` because their public provider contract is an API key managed by
-Compozy. Custom providers with `credential_slots` default to `bound_secret`; custom providers without
+CompozyOS. Custom providers with `credential_slots` default to `bound_secret`; custom providers without
 slots default to `native_cli` unless `auth_mode = "none"` is set explicitly.
 
-`native_cli` providers cannot define `credential_slots`. If you intentionally want Compozy to inject a
+`native_cli` providers cannot define `credential_slots`. If you intentionally want CompozyOS to inject a
 key into a native ACP command, set `auth_mode = "bound_secret"` in the provider override and define
 the slots there. This keeps secret injection opt-in and prevents daemon shell variables from
 silently overriding a provider's own login state.
@@ -96,7 +96,7 @@ Provider overrides and custom providers are configured in `config.toml`.
 | `display_name`        | string | no                       | Operator-facing label shown in settings and provider pickers.                                                                                 |
 | `models`              | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".                                    |
 | `harness`             | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`.                                 |
-| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the Compozy provider id.                                                     |
+| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the CompozyOS provider id.                                                   |
 | `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                                                              |
 | `base_url`            | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                                                      |
 | `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                                                           |
@@ -112,10 +112,10 @@ Provider overrides and custom providers are configured in `config.toml`.
 `none_security` to describe why the provider is safe without credentials: `local_transport` for
 local-only transports, `external_identity` when another system authenticates the caller, or
 `public_readonly` for public read-only providers. No-auth providers cannot define
-`credential_slots`, `auth_status_command`, or `auth_login_command`; Compozy rejects those combinations
+`credential_slots`, `auth_status_command`, or `auth_login_command`; CompozyOS rejects those combinations
 at config load time.
 
-Compozy overlays provider config on top of a built-in provider when the name matches. Unknown provider
+CompozyOS overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
 
 ### Configure and inspect native login
@@ -187,16 +187,16 @@ reasoning controls inside a running session.
 | `models.discovery.endpoint`                     | string  | required for some providers | Side-effect-free discovery endpoint URL.                                                                                          |
 | `models.discovery.timeout`                      | string  | no                          | Per-discovery timeout duration (defaults to the model catalog timeout).                                                           |
 
-Rate changes apply to subsequent usage updates. Compozy does not reprice stored token statistics, and
+Rate changes apply to subsequent usage updates. CompozyOS does not reprice stored token statistics, and
 an agent-reported actual amount always takes precedence over catalog estimation. Every nonzero
 input, output, cache-read, cache-write, or reasoning bucket requires its own finite, non-negative
-rate. Compozy does not substitute input rates for cache tokens or output rates for reasoning tokens.
+rate. CompozyOS does not substitute input rates for cache tokens or output rates for reasoning tokens.
 
 Provider Settings PUTs distinguish omission from an explicit membership change. If
-`models.curated` is omitted, Compozy preserves the server-owned raw membership even when catalog sources
+`models.curated` is omitted, CompozyOS preserves the server-owned raw membership even when catalog sources
 are temporarily unavailable. A present empty array is an explicit membership clear and fails with
-`503 Service Unavailable` when Compozy cannot enumerate the current catalog sources. For a present array,
-Compozy compares every entry with the current effective catalog projection and persists only explicit
+`503 Service Unavailable` when CompozyOS cannot enumerate the current catalog sources. For a present array,
+CompozyOS compares every entry with the current effective catalog projection and persists only explicit
 deltas, including the five pricing fields, without copying unchanged catalog enrichment into
 `config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
 change is limited to `hidden`, `featured`, `deprecated`, or a default reasoning effort.
@@ -207,7 +207,7 @@ back to stale or lower-priority rows; session creation never depends on a succes
 Cursor has a built-in safe path: `cursor-agent models` runs once on the first catalog read when no
 Cursor discovery status exists. It uses the operator home required by Cursor's native login, caches
 the exact account model IDs, and runs again only through an explicit catalog refresh.
-Changes under `models.discovery` apply live: Compozy atomically rebinds and refreshes only the changed
+Changes under `models.discovery` apply live: CompozyOS atomically rebinds and refreshes only the changed
 provider source. Model metadata edits do not invoke provider discovery, and a failed live refresh
 keeps prior rows stale instead of rejecting the config write.
 
@@ -223,7 +223,7 @@ Catalog/config/live observations are the only sources; model-name prefixes never
 levels. `supports_reasoning=true` with an empty effort list is valid and means the provider decides.
 
 Claude and Codex built-ins use `models.reasoning.apply = "acp_option"`; custom and `pi_acp`
-providers default to `none` unless explicitly configured. Strategy `none` means Compozy has no effort
+providers default to `none` unless explicitly configured. Strategy `none` means CompozyOS has no effort
 application strategy. It is distinct from explicit effort `none`, which is sent through ACP when
 the active model advertises it.
 
@@ -240,15 +240,15 @@ See [Provider Model Catalog](/docs/agents/model-catalog) for the curated Claude/
 curated/all views, curation surfaces, and error codes.
 
 Native provider auth state belongs to the provider. Run the provider's own login command, such as
-`claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside Compozy or through
+`claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside CompozyOS or through
 a configured `auth_login_command`. The built-in `claude`, `codex`, `opencode`, and `pi` providers
 expose those login commands through `compozy provider auth login <provider>`. That CLI command executes
 the configured login command locally and attaches the terminal when stdin, stdout, and stderr are TTYs,
 so OAuth URLs and provider prompts remain visible. It then returns the redacted provider status and
 safe login descriptor. Use `--no-tty` for deterministic non-interactive runs and `--timeout` when
 scripts need a bounded login attempt; these are its only flags. When a provider uses
-`home_policy = "isolated"`, Compozy runs the native login with its provider home so credentials land
-where Compozy will use them, without displaying the environment prefix or resolved command. HTTP and UDS
+`home_policy = "isolated"`, CompozyOS runs the native login with its provider home so credentials land
+where CompozyOS will use them, without displaying the environment prefix or resolved command. HTTP and UDS
 never execute login commands; they only run non-interactive `auth_status_command` probes. Wrapped API-key
 providers use their configured `credential_slots` instead of Pi login. Custom providers should set
 `auth_mode` to match the runtime's real authentication contract.
@@ -292,9 +292,9 @@ Only non-empty scalar fields replace the built-in values. MCP servers merge by `
 ## Configure wrapped API-key providers
 
 OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, and Groq are built-in
-wrapped providers. Operators select them directly, and Compozy uses Pi only as the underlying ACP
+wrapped providers. Operators select them directly, and CompozyOS uses Pi only as the underlying ACP
 adapter. These built-ins default to `auth_mode = "bound_secret"` with required provider-key slots.
-Override the slot when you want Compozy Vault, rather than the daemon environment, to own the
+Override the slot when you want CompozyOS Vault, rather than the daemon environment, to own the
 launch-time credential.
 
 ```toml
@@ -320,7 +320,7 @@ kind = "api_key"
 required = true
 ```
 
-For Compozy-managed encrypted storage, use a `vault:providers/<provider>/<slot>` ref and save the value
+For CompozyOS-managed encrypted storage, use a `vault:providers/<provider>/<slot>` ref and save the value
 through the settings API or web provider editor. The `<provider>` and `<slot>` segments are lowercase
 provider/slot identifiers using letters, numbers, hyphens, underscores, or dots; path traversal,
 whitespace, and arbitrary vault paths are rejected.
@@ -334,12 +334,12 @@ kind = "api_key"
 required = true
 ```
 
-Compozy never exposes provider secret values through settings reads. Status surfaces report only
+CompozyOS never exposes provider secret values through settings reads. Status surfaces report only
 whether the bound credential is present.
 
 ## Add a custom provider
 
-A custom provider needs an ACP-compatible command. Compozy will launch it the same way it launches the
+A custom provider needs an ACP-compatible command. CompozyOS will launch it the same way it launches the
 built-ins.
 
 ```toml
@@ -385,7 +385,7 @@ none_security = "local_transport"
 ```
 
 No-auth providers render as `No auth required` in status, doctor, web, and CLI output. They cannot
-define credential slots or login/status commands. If a custom provider requires a Compozy-managed key,
+define credential slots or login/status commands. If a custom provider requires a CompozyOS-managed key,
 use `auth_mode = "bound_secret"` and define `credential_slots`:
 
 ```toml
@@ -431,19 +431,19 @@ Set environment variables before starting the daemon instead.
 `model` and `models.default` are resolved and exposed as runtime metadata. Direct `acp` providers
 receive the normal ACP startup flow. Native `pi` sessions receive the resolved
 `runtime_provider/model` through ACP model selection. Wrapped Pi-backed API-key providers receive
-session-local Pi `settings.json` and `models.json` so Pi can run with the Compozy-selected provider,
+session-local Pi `settings.json` and `models.json` so Pi can run with the CompozyOS-selected provider,
 model, and injected credential while the operator-facing provider remains OpenRouter, z.ai,
 Moonshot/Kimi, Vercel AI Gateway, xAI, MiniMax, Mistral, or Groq.
 
 The practical rule is:
 
-- use `model` in `AGENT.md` when you want Compozy metadata and provider-specific wrappers to agree on
+- use `model` in `AGENT.md` when you want CompozyOS metadata and provider-specific wrappers to agree on
   the intended model
 - use `native_cli` when the provider command owns login state, session files, or browser/device auth
-- use `bound_secret` plus `credential_slots` when Compozy should inject a specific API key into the
+- use `bound_secret` plus `credential_slots` when CompozyOS should inject a specific API key into the
   subprocess
 - use `env:` refs for service-manager-owned secrets and `vault:providers/<provider>/<slot>` refs
-  for Compozy-managed encrypted provider credentials
+  for CompozyOS-managed encrypted provider credentials
 
 ## MCP server merge order
 
@@ -457,7 +457,7 @@ MCP servers can be declared at several levels. Startup uses this order:
 Config/provider/agent merges are field overlays by server name. Agent-local `mcp.json` sidecars
 replace same-name inline servers as whole objects before that cross-scope merge happens.
 Configured MCP `env` values are passed through as literal strings. Pi-backed providers are launched
-through `pi-acp`; current Pi ACP support does not wire Compozy MCP server declarations into Pi's own MCP
+through `pi-acp`; current Pi ACP support does not wire CompozyOS MCP server declarations into Pi's own MCP
 configuration.
 
 ## Choosing a provider

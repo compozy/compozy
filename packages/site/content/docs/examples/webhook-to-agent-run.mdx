@@ -14,7 +14,7 @@ raw body, must arrive inside a 5-minute freshness window, and must bring a deliv
 be replayed while that window is open. Requests that fail any of those are rejected before an agent
 is ever started.
 
-Use it when an external system already knows something happened and you want Compozy to act on it.
+Use it when an external system already knows something happened and you want CompozyOS to act on it.
 
 ## The artifact
 
@@ -49,7 +49,7 @@ For a custom automation agent, create a workspace-local or global definition wit
 before enabling the trigger. See [Agent definitions](/docs/agents/definitions) for the resolution cascade.
 
 Pass the secret as a write-only value when creating a dynamic trigger. The CLI stores it in the
-Compozy-managed automation vault; it never returns the value. The create response contains the generated
+CompozyOS-managed automation vault; it never returns the value. The create response contains the generated
 trigger, workspace, endpoint-slug, and webhook IDs. This example uses `jq` to build the delivery URL from
 those machine-readable fields:
 
@@ -121,9 +121,9 @@ curl -sS -X POST "$webhook_url" \
     and is dropped without spending a session.
   </WorkflowStep>
   <WorkflowStep title="The secret is write-only">
-    Compozy resolves `webhook_secret_ref` only when validating a signature. Read endpoints never
+    CompozyOS resolves `webhook_secret_ref` only when validating a signature. Read endpoints never
     return the secret, and neither does this page — `env:NAME` keeps it with the operator,
-    `vault:automation/...` keeps it encrypted in Compozy-managed storage.
+    `vault:automation/...` keeps it encrypted in CompozyOS-managed storage.
   </WorkflowStep>
   <WorkflowStep title="Target a Loop instead of a prompt">
     Swap `agent` and `prompt` for a `loop_target` to start a published Loop. Unlike scheduled jobs,
@@ -160,7 +160,7 @@ curl -sS -X POST "$webhook_url" \
     href="/docs/configuration/vault"
     label="Concept"
     title="Vault"
-    description="Compozy-managed encrypted secret storage behind vault: refs, and how values are written but never read back."
+    description="CompozyOS-managed encrypted secret storage behind vault: refs, and how values are written but never read back."
     meta="Configuration"
   />
 </GuideGrid>
