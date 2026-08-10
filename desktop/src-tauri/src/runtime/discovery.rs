@@ -24,6 +24,10 @@ pub enum Discovery {
 pub trait ProcessTable: Send + Sync {
     fn start_time(&self, pid: u32) -> Option<DateTime<Utc>>;
     fn executable(&self, pid: u32) -> Option<PathBuf>;
+
+    fn is_descendant(&self, descendant: u32, ancestor: u32) -> bool {
+        descendant == ancestor
+    }
 }
 
 #[derive(Debug, Default)]
@@ -43,6 +47,29 @@ impl ProcessTable for SystemProcessTable {
         let pid = Pid::from_u32(pid);
         system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
         system.process(pid)?.exe().map(Path::to_path_buf)
+    }
+
+    fn is_descendant(&self, descendant: u32, ancestor: u32) -> bool {
+        if descendant == ancestor {
+            return true;
+        }
+        let mut system = System::new();
+        system.refresh_processes(ProcessesToUpdate::All, true);
+        let ancestor = Pid::from_u32(ancestor);
+        let mut current = Pid::from_u32(descendant);
+        for _ in 0..256 {
+            let Some(parent) = system.process(current).and_then(sysinfo::Process::parent) else {
+                return false;
+            };
+            if parent == ancestor {
+                return true;
+            }
+            if parent == current {
+                return false;
+            }
+            current = parent;
+        }
+        false
     }
 }
 
