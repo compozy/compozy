@@ -388,6 +388,11 @@ func TestManagerCheck(t *testing.T) {
 			want   string
 		}{
 			{
+				name:   "Should route desktop-owned installs through the app",
+				method: InstallMethodDesktopApp,
+				want:   "Update via the CompozyOS desktop app.",
+			},
+			{
 				name:   "Should recommend npm global update for npm installs",
 				method: InstallMethodNPM,
 				want:   "npm update -g @compozy/cli",

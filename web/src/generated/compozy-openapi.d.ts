@@ -29502,6 +29502,12 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_session_executions: number;
+            active_task_claims: number;
+            admission_closed: boolean;
+            authoritative_claims_settled: boolean;
+            safe_to_stop: boolean;
+            session_execution_settled: boolean;
             /** @enum {string} */
             state: "active" | "draining";
           };
@@ -85939,6 +85945,12 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_session_executions: number;
+            active_task_claims: number;
+            admission_closed: boolean;
+            authoritative_claims_settled: boolean;
+            safe_to_stop: boolean;
+            session_execution_settled: boolean;
             /** @enum {string} */
             state: "active" | "draining";
           };

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -70,11 +71,23 @@ func drainStatusBundle(result DrainStatusRecord) outputBundle {
 		},
 		human: func() (string, error) {
 			return renderHumanSection("Daemon admission", []keyValue{
-				{Label: "State", Value: string(result.State)},
+				{Label: networkStateValue, Value: string(result.State)},
+				{Label: "Active session executions", Value: strconv.Itoa(result.ActiveSessionExecutions)},
+				{Label: "Active task claims", Value: strconv.Itoa(result.ActiveTaskClaims)},
+				{Label: "Safe to stop", Value: strconv.FormatBool(result.SafeToStop)},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("drain", []string{stateKey}, []string{string(result.State)}), nil
+			return renderToonObject(
+				"drain",
+				[]string{stateKey, "active_session_executions", "active_task_claims", "safe_to_stop"},
+				[]string{
+					string(result.State),
+					strconv.Itoa(result.ActiveSessionExecutions),
+					strconv.Itoa(result.ActiveTaskClaims),
+					strconv.FormatBool(result.SafeToStop),
+				},
+			), nil
 		},
 	}
 }

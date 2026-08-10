@@ -31,6 +31,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.  | `socket = "$COMPOZY_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
 | `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.         | providers `5s`, MCP `10s`, bridges `30s`                                                              |
 | `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                                   |
+| `[app]`                              | Desktop app update-check policy.                                                     | checks enabled every 6 hours                                                                          |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                           | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
@@ -139,6 +140,12 @@ bridges = "30s"
 # HTTP/SSE API bind address.
 host = "localhost"
 port = 2123
+
+[app]
+# Check for desktop app and app-owned runtime updates.
+update_check = true
+# Check cadence. Valid range: 15m to 168h.
+update_check_interval = "6h"
 
 [window_manager]
 new_window_policy = "floating"
@@ -877,6 +884,13 @@ Changing this field is restart-required.
 | ------ | ------- | ----------- | ------------------------------- | --------------------- |
 | `host` | string  | `localhost` | Non-empty host or bind address. | HTTP/SSE server host. |
 | `port` | integer | `2123`      | `1` through `65535`             | HTTP/SSE server port. |
+
+## `[app]`
+
+| Field                   | Type     | Default | Valid values    | Description                                           |
+| ----------------------- | -------- | ------- | --------------- | ----------------------------------------------------- |
+| `update_check`          | boolean  | `true`  | `true`, `false` | Checks for desktop app and app-owned runtime updates. |
+| `update_check_interval` | duration | `6h`    | `15m` to `168h` | Time between desktop update checks.                   |
 
 ## `[window_manager]`
 

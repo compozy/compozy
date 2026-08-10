@@ -67091,6 +67091,24 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "active_session_executions": {
+                      "type": "integer"
+                    },
+                    "active_task_claims": {
+                      "type": "integer"
+                    },
+                    "admission_closed": {
+                      "type": "boolean"
+                    },
+                    "authoritative_claims_settled": {
+                      "type": "boolean"
+                    },
+                    "safe_to_stop": {
+                      "type": "boolean"
+                    },
+                    "session_execution_settled": {
+                      "type": "boolean"
+                    },
                     "state": {
                       "enum": [
                         "active",
@@ -67100,6 +67118,12 @@
                     }
                   },
                   "required": [
+                    "active_session_executions",
+                    "active_task_claims",
+                    "admission_closed",
+                    "authoritative_claims_settled",
+                    "safe_to_stop",
+                    "session_execution_settled",
                     "state"
                   ],
                   "type": "object"
@@ -210130,6 +210154,24 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "active_session_executions": {
+                      "type": "integer"
+                    },
+                    "active_task_claims": {
+                      "type": "integer"
+                    },
+                    "admission_closed": {
+                      "type": "boolean"
+                    },
+                    "authoritative_claims_settled": {
+                      "type": "boolean"
+                    },
+                    "safe_to_stop": {
+                      "type": "boolean"
+                    },
+                    "session_execution_settled": {
+                      "type": "boolean"
+                    },
                     "state": {
                       "enum": [
                         "active",
@@ -210139,6 +210181,12 @@
                     }
                   },
                   "required": [
+                    "active_session_executions",
+                    "active_task_claims",
+                    "admission_closed",
+                    "authoritative_claims_settled",
+                    "safe_to_stop",
+                    "session_execution_settled",
                     "state"
                   ],
                   "type": "object"

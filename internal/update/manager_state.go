@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const desktopAppUpdateRecommendation = "Update via the CompozyOS desktop app."
+
 // Restore rolls back an applied binary swap using the preserved sibling backup.
 func (m *Manager) Restore(applied AppliedBinary) error {
 	if strings.TrimSpace(applied.BackupPath) == "" || strings.TrimSpace(applied.TargetPath) == "" {
@@ -138,6 +140,8 @@ func (m *Manager) updateRecommendation(installMethod string, release *Release) s
 	}
 	if m.releaseTrack == releaseTrackBeta {
 		switch installMethod {
+		case string(InstallMethodDesktopApp):
+			return desktopAppUpdateRecommendation
 		case string(InstallMethodNPM):
 			return "Use `npm install -g @compozy/cli@beta`."
 		case string(InstallMethodGoInstall):
@@ -150,6 +154,8 @@ func (m *Manager) updateRecommendation(installMethod string, release *Release) s
 	}
 
 	switch installMethod {
+	case string(InstallMethodDesktopApp):
+		return desktopAppUpdateRecommendation
 	case string(InstallMethodHomebrew):
 		return "Use `brew upgrade compozy/compozy/compozy`."
 	case string(InstallMethodNPM):

@@ -118,13 +118,6 @@ type SessionAcceptanceManager interface {
 	CreateAccepted(ctx context.Context, opts session.CreateAcceptedOpts) (*session.Info, error)
 }
 
-// DaemonDrainController owns daemon-global new-work admission state.
-type DaemonDrainController interface {
-	Drain(ctx context.Context) error
-	Undrain(ctx context.Context) error
-	DrainState() contract.DrainState
-}
-
 // SessionPageManager is the bounded public catalog capability implemented by
 // the runtime manager without widening internal full-snapshot consumers.
 type SessionPageManager interface {

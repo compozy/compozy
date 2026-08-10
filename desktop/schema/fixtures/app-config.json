@@ -1,5 +1,15 @@
 {
     "defaults": { "update_check": true, "update_check_interval": "6h" },
     "valid_intervals": ["15m", "6h", "168h"],
-    "invalid_intervals": ["5m", "200h", "never"]
+    "invalid_intervals": ["5m", "200h", "never"],
+    "invalid_documents": [
+        {
+            "name": "malformed interval",
+            "toml": "[app]\nupdate_check_interval = \"not-a-duration\"\n"
+        },
+        {
+            "name": "unknown app key",
+            "toml": "[app]\nupdate_check = true\nunsupported = true\n"
+        }
+    ]
 }

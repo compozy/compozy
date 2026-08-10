@@ -201,7 +201,7 @@ func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) 
 			"Entry ID",
 			automationNameValue,
 			versionValue,
-			"Installed",
+			cliInstalledValue,
 			authoredContextSourceValue,
 		},
 		marketplaceSkillSource,

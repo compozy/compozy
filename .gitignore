@@ -8,6 +8,8 @@
 .tanstack/
 bin/
 dist/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
 .artifacts/
 web/embed/
 storybook-static/

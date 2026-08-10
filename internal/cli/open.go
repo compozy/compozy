@@ -66,7 +66,7 @@ func openBrowser(ctx context.Context, url string) error {
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = exec.CommandContext(ctx, openCommandKey, url)
-	case "windows":
+	case platformWindows:
 		cmd = exec.CommandContext(ctx, "cmd", "/c", "start", url)
 	default:
 		cmd = exec.CommandContext(ctx, "xdg-open", url)

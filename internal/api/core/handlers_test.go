@@ -4378,6 +4378,10 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 			if payload.State != contract.DrainStateDraining {
 				t.Fatalf("drain state = %q, want %q", payload.State, contract.DrainStateDraining)
 			}
+			if !payload.AdmissionClosed || !payload.AuthoritativeClaimsSettled ||
+				!payload.SessionExecutionSettled || !payload.SafeToStop {
+				t.Fatalf("drain readout = %#v, want settled and safe to stop", payload)
+			}
 		}
 
 		statusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
@@ -4417,6 +4421,9 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 			if payload.State != contract.DrainStateActive {
 				t.Fatalf("undrain state = %q, want %q", payload.State, contract.DrainStateActive)
 			}
+			if payload.AdmissionClosed || payload.SafeToStop {
+				t.Fatalf("undrain readout = %#v, want active and unsafe to stop", payload)
+			}
 		}
 
 		activeStatusResponse := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
@@ -4453,6 +4460,18 @@ func (c *testDrainController) DrainState() contract.DrainState {
 		return contract.DrainStateDraining
 	}
 	return contract.DrainStateActive
+}
+
+func (c *testDrainController) DrainStatus(context.Context) (contract.DrainStatusResponse, error) {
+	state := c.DrainState()
+	draining := state == contract.DrainStateDraining
+	return contract.DrainStatusResponse{
+		State:                      state,
+		AdmissionClosed:            draining,
+		AuthoritativeClaimsSettled: true,
+		SessionExecutionSettled:    true,
+		SafeToStop:                 draining,
+	}, nil
 }
 
 func TestLogsEndpointsRejectConflictingAliases(t *testing.T) {

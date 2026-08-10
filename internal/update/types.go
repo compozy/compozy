@@ -77,6 +77,7 @@ const (
 	InstallMethodRPM          InstallMethod = "rpm"
 	InstallMethodScoop        InstallMethod = "scoop"
 	InstallMethodGoInstall    InstallMethod = "go-install"
+	InstallMethodDesktopApp   InstallMethod = "desktop-app"
 	InstallMethodUnknown      InstallMethod = "unknown"
 )
 

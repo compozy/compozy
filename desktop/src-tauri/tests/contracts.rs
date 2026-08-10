@@ -116,12 +116,19 @@ struct ConfigFixture {
     defaults: ConfigDefaults,
     valid_intervals: Vec<String>,
     invalid_intervals: Vec<String>,
+    invalid_documents: Vec<InvalidConfigDocument>,
 }
 
 #[derive(Deserialize)]
 struct ConfigDefaults {
     update_check: bool,
     update_check_interval: String,
+}
+
+#[derive(Deserialize)]
+struct InvalidConfigDocument {
+    name: String,
+    toml: String,
 }
 
 #[test]
@@ -157,6 +164,13 @@ fn should_apply_the_shared_config_defaults_and_interval_bounds() {
             ))
             .is_err(),
             "invalid interval {interval}"
+        );
+    }
+    for document in fixture.invalid_documents {
+        assert!(
+            config::parse(&document.toml).is_err(),
+            "invalid document {}",
+            document.name
         );
     }
 }

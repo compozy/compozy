@@ -16,6 +16,8 @@ const (
 	cliNameValue      = "Name"
 	cliRuntimeValue   = "Runtime"
 	cliRuntimeKey     = "runtime"
+	cliInstalledValue = "Installed"
+	cliSchemaVersion  = "schema_version"
 	agentOutputLabel  = automationAgentValue
 	roleOutputLabel   = "Role"
 )

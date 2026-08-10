@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/gin-gonic/gin"
 )
 
@@ -35,5 +34,10 @@ func (h *BaseHandlers) setDaemonDrainState(c *gin.Context, draining bool) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.DrainStatusResponse{State: h.DrainController.DrainState()})
+	status, err := h.DrainController.DrainStatus(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, status)
 }

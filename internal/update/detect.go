@@ -2,12 +2,23 @@ package update
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"go/build"
+	"os"
 	"path/filepath"
 	"strings"
 )
+
+const desktopProvenanceFileName = ".desktop-provenance.json"
+
+type desktopProvenance struct {
+	InstalledBy  string `json:"installed_by"`
+	BinarySHA256 string `json:"binary_sha256"`
+}
 
 // PrimeInstallDetection resolves and memoizes the install method for this manager.
 func (m *Manager) PrimeInstallDetection(ctx context.Context) error {
@@ -71,6 +82,9 @@ func (m *Manager) resolveInstall(ctx context.Context) (installInfo, error) {
 	}
 
 	normalizedPath := normalizePath(m.executablePath)
+	if isDesktopAppInstall(m.homePaths.HomeDir, m.executablePath, m.runtimeOS) {
+		return installInfo{Method: string(InstallMethodDesktopApp), Managed: true}, nil
+	}
 	switch {
 	case isHomebrewPath(normalizedPath):
 		return installInfo{Method: string(InstallMethodHomebrew), Managed: true}, nil
@@ -94,6 +108,38 @@ func (m *Manager) resolveInstall(ctx context.Context) (installInfo, error) {
 	}
 
 	return installInfo{Method: string(InstallMethodDirectBinary)}, nil
+}
+
+func isDesktopAppInstall(homeDir string, executablePath string, runtimeOS string) bool {
+	binaryName := compozyBinaryName
+	if runtimeOS == runtimeOSWindows {
+		binaryName = compozyWindowsBinaryName
+	}
+	wantPath := filepath.Join(homeDir, "bin", binaryName)
+	resolvedExecutable, err := filepath.Abs(executablePath)
+	if err != nil {
+		return false
+	}
+	resolvedWant, err := filepath.Abs(wantPath)
+	if err != nil || normalizePath(resolvedExecutable) != normalizePath(resolvedWant) {
+		return false
+	}
+
+	markerBytes, err := os.ReadFile(filepath.Join(filepath.Dir(resolvedWant), desktopProvenanceFileName))
+	if err != nil {
+		return false
+	}
+	var marker desktopProvenance
+	if err := json.Unmarshal(markerBytes, &marker); err != nil ||
+		strings.TrimSpace(marker.InstalledBy) != string(InstallMethodDesktopApp) {
+		return false
+	}
+	binaryBytes, err := os.ReadFile(resolvedWant)
+	if err != nil {
+		return false
+	}
+	digest := sha256.Sum256(binaryBytes)
+	return strings.EqualFold(strings.TrimSpace(marker.BinarySHA256), hex.EncodeToString(digest[:]))
 }
 
 type installEnvironment struct {
@@ -177,6 +223,8 @@ func normalizeInstallMethod(raw string) string {
 		return string(InstallMethodScoop)
 	case "go", "go-install", "goinstall":
 		return string(InstallMethodGoInstall)
+	case string(InstallMethodDesktopApp):
+		return string(InstallMethodDesktopApp)
 	default:
 		return normalized
 	}

@@ -351,7 +351,7 @@ func parseRemoteVersion(output []byte) (string, error) {
 	if err := json.Unmarshal(output, &payload); err != nil {
 		return "", fmt.Errorf("cli: decode remote Compozy version: %w", err)
 	}
-	for _, key := range []string{versionKey, "Version"} {
+	for _, key := range []string{versionKey, versionValue} {
 		if value, ok := payload[key].(string); ok && strings.TrimSpace(value) != "" {
 			return strings.TrimSpace(value), nil
 		}

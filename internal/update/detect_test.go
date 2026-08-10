@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -419,9 +420,13 @@ type installDetectionTestResult struct {
 func testManager(t *testing.T, cfg Config) *Manager {
 	t.Helper()
 
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	homePaths := cfg.HomePaths
+	if strings.TrimSpace(homePaths.HomeDir) == "" {
+		var err error
+		homePaths, err = compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 	}
 
 	cfg.HomePaths = homePaths

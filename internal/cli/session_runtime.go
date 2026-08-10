@@ -18,7 +18,7 @@ type sessionRuntimeCommandFlags struct {
 }
 
 func newSessionRuntimeCommand(deps commandDeps) *cobra.Command {
-	cmd := &cobra.Command{Use: "runtime", Short: "Manage the default runtime for future session prompts"}
+	cmd := &cobra.Command{Use: loopRuntimeKey, Short: "Manage the default runtime for future session prompts"}
 	cmd.AddCommand(newSessionRuntimeSetCommand(deps), newSessionRuntimeClearCommand(deps))
 	return cmd
 }

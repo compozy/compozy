@@ -89,6 +89,8 @@ type commandDeps struct {
 	lookPath                    func(string) (string, error)
 	removeFile                  func(string) error
 	openBrowser                 func(context.Context, string) error
+	resolveAppInstallation      func(context.Context, compozyconfig.HomePaths) (appInstallation, error)
+	callAppControl              appControlCaller
 	now                         func() time.Time
 	pollInterval                time.Duration
 	startTimeout                time.Duration
@@ -181,6 +183,7 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newResourceCommand(deps), newMemoryCommand(deps), newVaultCommand(deps), newToolCommand(deps),
 		newToolsetsCommand(deps), newMCPCommand(deps), newLogsCommand(deps), newWhoamiCommand(deps),
 		newOpenCommand(deps), newDocCommand(), newInternalCommand(),
+		newAppCommand(deps),
 	)
 }
 
@@ -265,6 +268,9 @@ func renderHumanExecutionError(err error) (string, bool) {
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
+	if appErr, ok := errors.AsType[*appCommandError](err); ok {
+		return marshalAppCommandExecutionError(args, appErr)
+	}
 	if extensionErr, ok := errors.AsType[interface {
 		error
 		extensionOperationErrorPayload() contract.ExtensionOperationErrorPayload

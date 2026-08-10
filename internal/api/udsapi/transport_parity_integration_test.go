@@ -208,46 +208,57 @@ func TestUDSTransportSessionCommandsProjectionMatchesHTTP(t *testing.T) {
 }
 
 func TestUDSTransportDaemonDrainMatchesHTTPAndCLI(t *testing.T) {
-	t.Parallel()
-	acpmock.RequireDriver(t)
+	t.Run("Should expose identical safe-to-stop readouts", func(t *testing.T) {
+		t.Parallel()
+		acpmock.RequireDriver(t)
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
 
-	var httpDraining compozycontract.DrainStatusResponse
-	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/drain", nil, &httpDraining); err != nil {
-		t.Fatalf("HTTP drain error = %v", err)
-	}
-	var udsDraining compozycontract.DrainStatusResponse
-	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/drain", nil, &udsDraining); err != nil {
-		t.Fatalf("UDS drain error = %v", err)
-	}
-	var cliDraining compozycontract.DrainStatusResponse
-	if err := runtimeHarness.CLI.RunJSON(ctx, &cliDraining, "drain", "-o", "json"); err != nil {
-		t.Fatalf("CLI drain error = %v", err)
-	}
-	if httpDraining.State != compozycontract.DrainStateDraining ||
-		httpDraining != udsDraining || udsDraining != cliDraining {
-		t.Fatalf("drain parity mismatch: HTTP=%#v UDS=%#v CLI=%#v", httpDraining, udsDraining, cliDraining)
-	}
+		var httpDraining compozycontract.DrainStatusResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/drain", nil, &httpDraining); err != nil {
+			t.Fatalf("HTTP drain error = %v", err)
+		}
+		var udsDraining compozycontract.DrainStatusResponse
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/drain", nil, &udsDraining); err != nil {
+			t.Fatalf("UDS drain error = %v", err)
+		}
+		var cliDraining compozycontract.DrainStatusResponse
+		if err := runtimeHarness.CLI.RunJSON(ctx, &cliDraining, "drain", "-o", "json"); err != nil {
+			t.Fatalf("CLI drain error = %v", err)
+		}
+		if httpDraining.State != compozycontract.DrainStateDraining ||
+			httpDraining != udsDraining || udsDraining != cliDraining {
+			t.Fatalf("drain parity mismatch: HTTP=%#v UDS=%#v CLI=%#v", httpDraining, udsDraining, cliDraining)
+		}
+		if !httpDraining.AdmissionClosed ||
+			!httpDraining.AuthoritativeClaimsSettled ||
+			!httpDraining.SessionExecutionSettled ||
+			!httpDraining.SafeToStop {
+			t.Fatalf("drain safety status = %#v, want closed and safe to stop", httpDraining)
+		}
 
-	var cliActive compozycontract.DrainStatusResponse
-	if err := runtimeHarness.CLI.RunJSON(ctx, &cliActive, "undrain", "-o", "json"); err != nil {
-		t.Fatalf("CLI undrain error = %v", err)
-	}
-	var udsActive compozycontract.DrainStatusResponse
-	if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/undrain", nil, &udsActive); err != nil {
-		t.Fatalf("UDS undrain error = %v", err)
-	}
-	var httpActive compozycontract.DrainStatusResponse
-	if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/undrain", nil, &httpActive); err != nil {
-		t.Fatalf("HTTP undrain error = %v", err)
-	}
-	if cliActive.State != compozycontract.DrainStateActive ||
-		cliActive != udsActive || udsActive != httpActive {
-		t.Fatalf("undrain parity mismatch: CLI=%#v UDS=%#v HTTP=%#v", cliActive, udsActive, httpActive)
-	}
+		var cliActive compozycontract.DrainStatusResponse
+		if err := runtimeHarness.CLI.RunJSON(ctx, &cliActive, "undrain", "-o", "json"); err != nil {
+			t.Fatalf("CLI undrain error = %v", err)
+		}
+		var udsActive compozycontract.DrainStatusResponse
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodPost, "/api/undrain", nil, &udsActive); err != nil {
+			t.Fatalf("UDS undrain error = %v", err)
+		}
+		var httpActive compozycontract.DrainStatusResponse
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodPost, "/api/undrain", nil, &httpActive); err != nil {
+			t.Fatalf("HTTP undrain error = %v", err)
+		}
+		if cliActive.State != compozycontract.DrainStateActive ||
+			cliActive != udsActive || udsActive != httpActive {
+			t.Fatalf("undrain parity mismatch: CLI=%#v UDS=%#v HTTP=%#v", cliActive, udsActive, httpActive)
+		}
+		if cliActive.AdmissionClosed || cliActive.SafeToStop {
+			t.Fatalf("undrain safety status = %#v, want open and unsafe to stop", cliActive)
+		}
+	})
 }
 
 func TestUDSTransportRuntimeMemoryDoctorMatchesHTTPAndCLI(t *testing.T) {
