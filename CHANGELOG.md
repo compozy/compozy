@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-08-09
+## 0.3.0 - 2026-08-10
 
 ### ♻️ Refactoring
 
@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING:** remove software-delivery; use implement-tasks without gate inputs.
 - Parent and child sessions (#327)
 - Add secure remote gateway access (#331)
+- Ship CompozyOS desktop app (#336)
 
 ### 🐛 Bug Fixes
 
@@ -63,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restore minimum-age dependencies
 - Stabilize release runtime startup
 - Start absent SSH daemon
+- Make loop goals converge reliably (#335)
+- Desktop issues
 
 ### 🧪 Testing
 
