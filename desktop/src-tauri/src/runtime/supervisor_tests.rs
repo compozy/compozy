@@ -109,6 +109,25 @@ fn should_spawn_detached_and_poll_until_bound_ready() {
 }
 
 #[test]
+fn should_launch_the_current_foreground_daemon_child_contract() {
+    let directory = tempfile::tempdir().expect("temp directory opens");
+    let home = CompozyHome::from_root(directory.path().to_path_buf());
+    let command = daemon_command(Path::new("/opt/compozy/bin/compozy"), &home);
+
+    assert_eq!(
+        command.get_args().collect::<Vec<_>>(),
+        ["daemon", "start", "--foreground", "--internal-child"]
+    );
+    assert_eq!(
+        command
+            .get_envs()
+            .find(|(key, _)| *key == "COMPOZY_HOME")
+            .and_then(|(_, value)| value),
+        Some(home.root.as_os_str())
+    );
+}
+
+#[test]
 fn should_stop_after_three_failed_spawn_attempts() {
     let directory = tempfile::tempdir().expect("temp directory opens");
     let home = CompozyHome::from_root(directory.path().to_path_buf());

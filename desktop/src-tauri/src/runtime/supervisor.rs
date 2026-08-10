@@ -62,17 +62,22 @@ impl ProcessSpawner for SystemSpawner {
             .append(true)
             .open(&home.runtime_log)?;
         let stderr = stdout.try_clone()?;
-        let mut command = Command::new(binary);
+        let mut command = daemon_command(binary, home);
         command
-            .arg("daemon")
-            .arg("run")
-            .env("COMPOZY_HOME", &home.root)
             .stdin(Stdio::null())
             .stdout(Stdio::from(stdout))
             .stderr(Stdio::from(stderr));
         configure_detached(&mut command);
         command.spawn().map(|child| child.id())
     }
+}
+
+fn daemon_command(binary: &Path, home: &CompozyHome) -> Command {
+    let mut command = Command::new(binary);
+    command
+        .args(["daemon", "start", "--foreground", "--internal-child"])
+        .env("COMPOZY_HOME", &home.root);
+    command
 }
 
 pub struct Supervisor<'a> {
