@@ -27,6 +27,7 @@ Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-executi
 | GL | Goal (conversational convergence, controls, context, recovery) |
 | REL | Release and distribution (installers, registries, channels, provenance) |
 | SITE | Public documentation site (published receipts and user-visible release truth) |
+| APP | Desktop app shell (CompozyOS app: install/provisioning, runtime resolution, app/runtime updates, links, window lifecycle, `compozy app` CLI) |
 
 New areas: define the code here first, then mint ids.
 
