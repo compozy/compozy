@@ -9,6 +9,29 @@ import (
 
 const shellQuoteTemplateFunction = "shellQuote"
 
+type shellCommandQuote uint8
+
+const (
+	shellCommandUnquoted shellCommandQuote = iota
+	shellCommandSingleQuoted
+	shellCommandDoubleQuoted
+)
+
+type shellCommandContext struct {
+	quote     shellCommandQuote
+	escaped   bool
+	comment   bool
+	wordStart bool
+	lastLess  bool
+}
+
+type shellCommandTemplateValidator struct {
+	trees         map[string]*parse.Tree
+	active        map[string]struct{}
+	emitsDynamic  bool
+	hasDoubleLess bool
+}
+
 // CompileCommandTemplate validates a shell command template before runtime materialization.
 // Every action that emits runtime data must end in shellQuote so data cannot become shell syntax.
 func CompileCommandTemplate(name string, raw string, namespace Namespace) (*Template, error) {
@@ -35,58 +58,257 @@ func RenderCommandTemplateString(name string, raw string, data any) (string, err
 }
 
 func validateShellCommandTemplate(tmpl *template.Template) error {
+	trees := make(map[string]*parse.Tree, len(tmpl.Templates()))
 	for _, subtemplate := range tmpl.Templates() {
-		if subtemplate.Tree == nil || subtemplate.Root == nil {
-			continue
+		if subtemplate.Tree != nil {
+			trees[subtemplate.Name()] = subtemplate.Tree
 		}
-		if err := validateShellCommandNode(subtemplate.Root); err != nil {
-			return fmt.Errorf("validate command template %q: %w", subtemplate.Name(), err)
-		}
+	}
+	validator := shellCommandTemplateValidator{
+		trees:  trees,
+		active: make(map[string]struct{}),
+	}
+	state, err := validator.validateTemplate(tmpl.Name(), shellCommandContext{wordStart: true})
+	if err != nil {
+		return fmt.Errorf("validate command template %q: %w", tmpl.Name(), err)
+	}
+	if state.quote != shellCommandUnquoted || state.escaped {
+		return unsafeCommandTemplateError("authored command must end outside shell quotes and escapes")
+	}
+	if validator.emitsDynamic && validator.hasDoubleLess {
+		return unsafeCommandTemplateError(
+			"dynamic command templates cannot use << shell constructs",
+		)
 	}
 	return nil
 }
 
-func validateShellCommandNode(node parse.Node) error {
+func (v *shellCommandTemplateValidator) validateTemplate(
+	name string,
+	state shellCommandContext,
+) (shellCommandContext, error) {
+	tree, ok := v.trees[name]
+	if !ok || tree == nil || tree.Root == nil {
+		return state, unsafeCommandTemplateError(fmt.Sprintf("command subtemplate %q is unavailable", name))
+	}
+	if _, recursive := v.active[name]; recursive {
+		return state, unsafeCommandTemplateError(fmt.Sprintf("recursive command subtemplate %q is not supported", name))
+	}
+	v.active[name] = struct{}{}
+	defer delete(v.active, name)
+	return v.validateShellCommandNode(tree.Root, state)
+}
+
+func (v *shellCommandTemplateValidator) validateShellCommandNode(
+	node parse.Node,
+	state shellCommandContext,
+) (shellCommandContext, error) {
 	switch typed := node.(type) {
 	case nil:
-		return nil
+		return state, nil
 	case *parse.ListNode:
-		if typed == nil {
-			return nil
-		}
-		for _, child := range typed.Nodes {
-			if err := validateShellCommandNode(child); err != nil {
-				return err
-			}
-		}
-		return nil
+		return v.validateShellCommandList(typed, state)
+	case *parse.TextNode:
+		return v.scanShellCommandText(typed.Text, state), nil
 	case *parse.ActionNode:
-		if typed.Pipe == nil || len(typed.Pipe.Decl) > 0 || commandPipeEndsWithShellQuote(typed.Pipe) {
-			return nil
-		}
-		return &Error{
-			Code: CodeUnsafeCommandInterpolation,
-			Message: fmt.Sprintf(
-				"rendered command values must end with | %s",
-				shellQuoteTemplateFunction,
-			),
-		}
+		return v.validateShellCommandAction(typed, state)
 	case *parse.IfNode:
-		return validateShellCommandBranches(typed.List, typed.ElseList)
+		return v.validateShellCommandBranches(state, typed.List, typed.ElseList)
 	case *parse.RangeNode:
-		return validateShellCommandBranches(typed.List, typed.ElseList)
+		return v.validateShellCommandRange(typed, state)
 	case *parse.WithNode:
-		return validateShellCommandBranches(typed.List, typed.ElseList)
+		return v.validateShellCommandBranches(state, typed.List, typed.ElseList)
+	case *parse.TemplateNode:
+		return v.validateTemplate(typed.Name, state)
+	case *parse.CommentNode, *parse.BreakNode, *parse.ContinueNode:
+		return state, nil
 	default:
-		return nil
+		return state, unsafeCommandTemplateError(fmt.Sprintf(
+			"unsupported command template node %T", node,
+		))
 	}
 }
 
-func validateShellCommandBranches(list *parse.ListNode, elseList *parse.ListNode) error {
-	if err := validateShellCommandNode(list); err != nil {
-		return err
+func (v *shellCommandTemplateValidator) validateShellCommandList(
+	node *parse.ListNode,
+	state shellCommandContext,
+) (shellCommandContext, error) {
+	if node == nil {
+		return state, nil
 	}
-	return validateShellCommandNode(elseList)
+	for _, child := range node.Nodes {
+		var err error
+		state, err = v.validateShellCommandNode(child, state)
+		if err != nil {
+			return state, err
+		}
+	}
+	return state, nil
+}
+
+func (v *shellCommandTemplateValidator) validateShellCommandAction(
+	node *parse.ActionNode,
+	state shellCommandContext,
+) (shellCommandContext, error) {
+	if node.Pipe == nil || len(node.Pipe.Decl) > 0 {
+		return state, nil
+	}
+	if !commandPipeEndsWithShellQuote(node.Pipe) {
+		return state, unsafeCommandTemplateError(fmt.Sprintf(
+			"rendered command values must end with | %s", shellQuoteTemplateFunction,
+		))
+	}
+	if state.quote != shellCommandUnquoted || state.escaped || state.comment {
+		return state, unsafeCommandTemplateError(
+			"shellQuote interpolation must appear outside authored shell quotes, escapes, and comments",
+		)
+	}
+	v.emitsDynamic = true
+	state.wordStart = false
+	state.lastLess = false
+	return state, nil
+}
+
+func (v *shellCommandTemplateValidator) validateShellCommandRange(
+	node *parse.RangeNode,
+	state shellCommandContext,
+) (shellCommandContext, error) {
+	bodyState, err := v.validateShellCommandNode(node.List, state)
+	if err != nil {
+		return state, err
+	}
+	elseState, err := v.validateShellCommandNode(node.ElseList, state)
+	if err != nil {
+		return state, err
+	}
+	if bodyState != state || elseState != state {
+		return state, unsafeCommandTemplateError(
+			"command range branches must preserve their shell quote context",
+		)
+	}
+	return state, nil
+}
+
+func (v *shellCommandTemplateValidator) validateShellCommandBranches(
+	state shellCommandContext,
+	list *parse.ListNode,
+	elseList *parse.ListNode,
+) (shellCommandContext, error) {
+	left, err := v.validateShellCommandNode(list, state)
+	if err != nil {
+		return state, err
+	}
+	right, err := v.validateShellCommandNode(elseList, state)
+	if err != nil {
+		return state, err
+	}
+	if left != right {
+		return state, unsafeCommandTemplateError(
+			"command template branches must preserve one shell quote context",
+		)
+	}
+	return left, nil
+}
+
+func (v *shellCommandTemplateValidator) scanShellCommandText(
+	text []byte,
+	state shellCommandContext,
+) shellCommandContext {
+	for _, character := range text {
+		if state.comment {
+			if state.escaped {
+				state.escaped = false
+				continue
+			}
+			if character == '\\' {
+				state.escaped = true
+				continue
+			}
+			if character == '\n' {
+				state.comment = false
+				state.wordStart = true
+				state.lastLess = false
+			}
+			continue
+		}
+		if state.escaped {
+			state.escaped = false
+			state.lastLess = false
+			if character != '\n' {
+				state.wordStart = false
+			}
+			continue
+		}
+		switch state.quote {
+		case shellCommandSingleQuoted:
+			if character == '\'' {
+				state.quote = shellCommandUnquoted
+			}
+			state.wordStart = false
+			state.lastLess = false
+		case shellCommandDoubleQuoted:
+			switch character {
+			case '\\':
+				state.escaped = true
+			case '"':
+				state.quote = shellCommandUnquoted
+			}
+			state.wordStart = false
+			state.lastLess = false
+		default:
+			state = v.scanUnquotedShellCharacter(character, state)
+		}
+	}
+	return state
+}
+
+func (v *shellCommandTemplateValidator) scanUnquotedShellCharacter(
+	character byte,
+	state shellCommandContext,
+) shellCommandContext {
+	switch character {
+	case '\\':
+		state.escaped = true
+		state.lastLess = false
+	case '\'':
+		state.quote = shellCommandSingleQuoted
+		state.wordStart = false
+		state.lastLess = false
+	case '"':
+		state.quote = shellCommandDoubleQuoted
+		state.wordStart = false
+		state.lastLess = false
+	case '#':
+		if state.wordStart {
+			state.comment = true
+		} else {
+			state.wordStart = false
+		}
+		state.lastLess = false
+	case '<':
+		if state.lastLess {
+			v.hasDoubleLess = true
+		}
+		state.wordStart = true
+		state.lastLess = true
+	default:
+		state.lastLess = false
+		state.wordStart = isShellWordBoundary(character)
+	}
+	return state
+}
+
+func isShellWordBoundary(character byte) bool {
+	switch character {
+	case ' ', '\t', '\r', '\n', ';', '|', '&', '(', ')', '>':
+		return true
+	default:
+		return false
+	}
+}
+
+func unsafeCommandTemplateError(message string) *Error {
+	return &Error{Code: CodeUnsafeCommandInterpolation, Message: message}
 }
 
 func commandPipeEndsWithShellQuote(pipe *parse.PipeNode) bool {

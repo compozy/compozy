@@ -275,9 +275,10 @@ agents and judges do not run a second template pass. Run detail exposes raw `exe
 beside the input-resolved `materialized_contract`.
 
 `command` criteria keep the exact shell program written by the Loop author. Every runtime template
-value emitted inside `check` must end with `| shellQuote`; compilation rejects unquoted substitutions.
-This preserves authored pipes, redirects, and chaining while preventing inputs, trigger payloads, or
-node outputs from introducing shell syntax.
+value emitted inside `check` must end with `| shellQuote` and remain outside authored quotes or
+escapes, comments, and `<<` constructs; compilation rejects unsafe substitutions. This preserves
+authored pipes, redirects, and chaining while preventing inputs, trigger payloads, or node outputs
+from introducing shell syntax.
 
 Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`, `item`/`index`
 (fan-out scope only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`

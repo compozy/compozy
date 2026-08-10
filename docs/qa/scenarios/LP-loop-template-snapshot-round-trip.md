@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/evidence/run-proof.json; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/qa-audit-report.md; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-template-safety-20260810-055235-722905-lab/qa-artifacts/qa/evidence/shell-template-proof.json; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-template-safety-20260810-055235-722905-lab/qa-artifacts/qa/qa-audit-report.md; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-template-safety-20260810-055235-722905-lab/qa-artifacts/qa/teardown.json
+evidence: docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/evidence/run-proof.json; /Users/pedronauck/dev/qa-labs/compozy-loop-convergence-20260810-034845-371840-lab/qa-artifacts/qa/qa-audit-report.md; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-template-safety-20260810-055235-722905-lab/qa-artifacts/qa/evidence/shell-template-proof.json; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-template-safety-20260810-055235-722905-lab/qa-artifacts/qa/qa-audit-report.md; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-template-safety-20260810-055235-722905-lab/qa-artifacts/qa/teardown.json; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-context-safety-20260810-071042-434424-lab/qa-artifacts/qa/evidence/shell-context-proof.json; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-context-safety-20260810-071042-434424-lab/qa-artifacts/qa/qa-audit-report.md; /Users/pedronauck/dev/qa-labs/compozy-loop-shell-context-safety-20260810-071042-434424-lab/qa-artifacts/qa/teardown.json
 last_report: docs/qa/reports/2026-08-10-loop-convergence.md
 overlaps: LP-006; TA-068
 ---
@@ -50,4 +50,16 @@ QA result 2026-08-10 (review hardening): the unsafe fixture failed validation wi
 `| shellQuote`. Run `looprun-ddf316dc14fc8f31` reached `done`; CLI, HTTP, and runtime evidence agreed
 that the criterion passed with exit code 0, the raw template remained authored, and `qa-injected`
 was never created. The strict audit passed with 0 blockers and 0 warnings, and teardown reported
+`clean: true` with no survivors.
+
+QA impact 2026-08-10 (review round 2): reset because `shellQuote` is now valid only at a plain,
+unescaped shell word position. The walk must reject dynamic values inside authored quotes, shell
+comments, and `<<` constructs while preserving normal authored pipes and redirections.
+
+QA result 2026-08-10 (review round 2): CLI validation rejected quoted, commented, continued-comment,
+and heredoc fixtures with `unsafe_command_interpolation`. The plain fixture accepted
+`x"; touch context-injected; #`; Run `looprun-b8aaa2737957ed1a` reached `done`, its command
+criterion passed with exit code 0, and `context-injected` was never created. HTTP and UDS reads
+agreed on the raw template and materialized contract. The behavior audit passed with 0 blockers and
+0 warnings; its final freshness check is recorded after the repository gate. Teardown reported
 `clean: true` with no survivors.

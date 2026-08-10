@@ -84,7 +84,10 @@ operator decision is required.
 `check` belongs only to `command` criteria. It is an authored shell command in a Loop definition.
 Pipes, redirects, and chaining written by the Loop author remain available. A runtime template value
 inside `check` must end with `| shellQuote`; validation rejects an unquoted substitution before the
-Run starts so runtime data remains one shell value instead of becoming executable syntax.
+Run starts so runtime data remains one shell value instead of becoming executable syntax. Leave the
+template action outside authored single quotes, double quotes, and backslash escapes because
+`shellQuote` supplies the complete quoting context. Dynamic command templates also reject actions
+inside shell comments and `<<` constructs such as heredocs and here-strings.
 Text entered through a conversational `/goal` `verify:` clause is different: Compozy adds that text to
 the synthetic agent-judge rubric and never converts it into a command. See
 [Operate a Goal from a session](/docs/loops/goals#verification-and-constraints).

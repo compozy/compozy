@@ -99,7 +99,10 @@ the runtime fields it sets.
 
 A `command` check is authored shell code. Any runtime value inserted into `check` must end with
 `| shellQuote`, as in the example above. Publish and dry-run reject unquoted command substitutions so
-an input, trigger payload, or node output cannot introduce shell syntax.
+an input, trigger payload, or node output cannot introduce shell syntax. Leave the template action
+outside authored single quotes, double quotes, and backslash escapes because `shellQuote` supplies
+the complete quoting context. Dynamic command templates also reject actions inside shell comments
+and `<<` constructs such as heredocs and here-strings.
 
 The contract may react to terminal truth with `on_done`, `on_noop`, `on_blocked`, `on_failed`,
 `on_exhausted`, `on_stalled`, and `on_canceled`. Each list contains

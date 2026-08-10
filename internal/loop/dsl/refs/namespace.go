@@ -15,7 +15,7 @@ const (
 	CodeItemOutsideFanout = "item_outside_fanout"
 	// CodeConditionNotBool identifies a CEL expression that does not return bool.
 	CodeConditionNotBool = "condition_not_bool"
-	// CodeUnsafeCommandInterpolation identifies command output that is not shell-quoted.
+	// CodeUnsafeCommandInterpolation identifies command output outside the safe shell quoting contract.
 	CodeUnsafeCommandInterpolation = "unsafe_command_interpolation"
 )
 

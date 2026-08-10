@@ -160,6 +160,57 @@ func TestCommandTemplateShouldQuoteRuntimeValuesAsShellData(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject shellQuote inside authored quotes or escapes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name string
+			raw  string
+		}{
+			{name: "double quote", raw: `echo "{{ .inputs.slug | shellQuote }}"`},
+			{name: "single quote", raw: `echo '{{ .inputs.slug | shellQuote }}'`},
+			{name: "escape", raw: `echo \{{ .inputs.slug | shellQuote }}`},
+			{name: "comment", raw: `echo ready # {{ .inputs.slug | shellQuote }}`},
+			{
+				name: "continued comment",
+				raw:  "echo ready # continued \\\n{{ .inputs.slug | shellQuote }}",
+			},
+			{
+				name: "heredoc body",
+				raw:  "cat <<EOF\n{{ .inputs.slug | shellQuote }}\nEOF",
+			},
+			{name: "dynamic heredoc delimiter", raw: `cat <<{{ .inputs.slug | shellQuote }}`},
+			{
+				name: "conditional branch",
+				raw:  `{{ if .inputs.done }}echo "{{ .inputs.slug | shellQuote }}"{{ end }}`,
+			},
+			{
+				name: "subtemplate",
+				raw:  `{{ define "value" }}{{ .inputs.slug | shellQuote }}{{ end }}echo "{{ template "value" . }}"`,
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := refs.CompileCommandTemplate("command", test.raw, namespace(false))
+				var refErr *refs.Error
+				if !errors.As(err, &refErr) || refErr.Code != refs.CodeUnsafeCommandInterpolation {
+					t.Fatalf("CompileCommandTemplate() error = %v, want unsafe command interpolation", err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve authored shell operators around plain quoted values", func(t *testing.T) {
+		t.Parallel()
+
+		raw := "# static comment with \\\"quotes\\\"\n" +
+			`test -f {{ .inputs.slug | shellQuote }} | tee {{ .inputs.slug | shellQuote }} > output.log`
+		if _, err := refs.CompileCommandTemplate("command", raw, namespace(false)); err != nil {
+			t.Fatalf("CompileCommandTemplate() error = %v", err)
+		}
+	})
+
 	t.Run("Should render shell metacharacters inside one quoted value", func(t *testing.T) {
 		t.Parallel()
 

@@ -204,6 +204,30 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 			t.Fatalf("judge payload = %#v, want typed JSON object", judge.calls[0].Criteria[0].Inputs)
 		}
 	})
+
+	t.Run("Should reject a Goal command interpolation inside authored shell quotes", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("done", 1))
+		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		node := testGoalNode(1)
+		node.Params["judge"] = []any{map[string]any{
+			"id": "unsafe", "type": "command",
+			"check": `echo "{{ .inputs.slug | shellQuote }}"`,
+		}}
+		input := testGoalInput(t)
+		input.Namespace = map[string]any{"inputs": map[string]any{"slug": `x"; touch injected; #`}}
+
+		_, err := executor.Execute(t.Context(), node, input)
+		if err == nil || !strings.Contains(err.Error(), "outside authored shell quotes") {
+			t.Fatalf("Execute() error = %v, want unsafe shell quote context", err)
+		}
+		if requests := binder.preparedRequests(); len(requests) != 0 {
+			t.Fatalf("prepared requests = %#v, want no side effect", requests)
+		}
+	})
 }
 
 func TestExecutorShouldSanitizeJudgeDiagnosticsBeforePersistence(t *testing.T) {
@@ -1546,6 +1570,7 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 				ContextState:      "unknown",
 				ContextNudgeRatio: 0.8,
 			})
+			exitCode := 1
 			store.judgeAttempts[attemptID] = JudgeAttempt{
 				AttemptID: attemptID,
 				Key:       key,
@@ -1558,7 +1583,7 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 				}},
 				Criteria: []gate.CriterionResult{{
 					ID: "verify", Type: dsl.CriterionCommand, Outcome: gate.VerdictOutcomeRejected,
-					ExitCode: new(1), Stderr: hostileStderr,
+					ExitCode: &exitCode, Stderr: hostileStderr,
 				}},
 				Warnings: []gate.DiagnosticWarning{{Code: "shell", Message: hostileWarning}},
 			}

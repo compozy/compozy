@@ -64,6 +64,18 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - The targeted strict audit passed with 0 blockers and 0 warnings. Teardown reported `clean: true`
   and no surviving processes.
 
+### Review round 2 — shell context validation
+
+- CLI validation rejected runtime values inside authored quotes, shell comments, continued shell
+  comments, and heredoc commands with the typed `unsafe_command_interpolation` code.
+- Plain `shellQuote` interpolation preserved authored pipes and redirects and remained valid.
+- Run `looprun-b8aaa2737957ed1a` accepted `x"; touch context-injected; #` as one value, reached
+  `done`, and did not create the injection marker.
+- CLI, HTTP, and runtime evidence agreed on the Run, raw definition, materialized contract, and
+  passing command criterion.
+- The targeted behavior audit passed with 0 blockers and 0 warnings; final evidence freshness is
+  checked after the repository gate. Teardown reported `clean: true` and no surviving processes.
+
 ## What Was Fixed
 
 - `BUG-20260808-goal-command-judge-unavailable` is fixed and verified in a fresh isolated Run.
@@ -100,6 +112,7 @@ None.
 
 - **Targeted real-scenario audit:** PASS — 0 blockers, 0 warnings
 - **Review hardening audit:** PASS — CLI/API/runtime, 0 blockers, 0 warnings
+- **Review round 2 audit:** PASS — quoted/comment/continued-comment/heredoc rejection plus safe execution
 - **Teardown:** PASS — `teardown.json` reports `clean: true` and no survivors
 - **Repository full gate:** runs once after the final tracked mutation, outside this QA lab
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0
