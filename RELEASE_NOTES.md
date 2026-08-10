@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-08-08
+## 0.3.0 - 2026-08-09
 
 ### ♻️ Refactoring
 
@@ -6,6 +6,7 @@
 - Site improvements (#277)
 - Replace bundles with extension kits (#291)
 - Modernize Go runtime packages (#293)
+- Use geist instead of inter (#334)
 
 ### 🎉 Features
 
@@ -52,10 +53,14 @@
 - Enforce bundled agent and Loop ownership (#326)
 - Session native tools and extensions details (#330)
 - Judge gate on goal loops
+- Restore minimum-age dependencies
+- Stabilize release runtime startup
+- Start absent SSH daemon
 
 ### 🧪 Testing
 
 - Guard ACP initialize protocol version (#318)
+- Align nightly runtime fixtures
 
 ### Release Notes
 
@@ -126,6 +131,26 @@ it does not relicense the code.
 
 #### Features
 
+##### Bundled Tailscale connectivity extension
+
+Gateway reachability ships with a first-party provider. The `tailscale` extension runs a Tailscale
+node inside the Compozy process through `tsnet`, against the operator's own account — nothing else
+to install, and Compozy operates no relay, server, or account on anyone's behalf. The private tier
+serves `https://compozy-gateway.<tailnet>.ts.net:8443` on the tailnet; the public tier serves the
+same hostname over Tailscale Funnel on 443. (#331)
+
+- Bind the auth key once with `compozy extension secrets set tailscale --env TS_AUTHKEY` (hidden
+  input); the value never appears in output, status, or diagnostics.
+- The extension declares required Live network participation for `gateway.private` and
+  `gateway.public`, so enabling asks for a one-time digest confirmation — and asks again only when
+  that declaration changes.
+- First activation provisions the HTTPS certificate before the Funnel listener opens, verifies
+  public endpoints through authenticated DNS-over-TLS (`gateway.verify.public_dns_resolver`), and
+  keeps unverified listeners staged with bounded retries instead of tearing them down.
+- Third-party providers implement the same `connectivity.provider` contract from the Go and
+  TypeScript SDKs, gated by install-source trust and control-digest re-confirmation on every enable
+  and boot.
+
 ##### Complete Loop node lifecycle
 
 Loops now have a full declarative failure contract at the node level and precise repair controls at the operator level. Authors classify failures, declare retries with backoff, route errors, absorb them with `allow_fail`, set attempt timeouts and deadlines, emit `on_*` effects, and add durable wait nodes. Operators pause, resume, cancel, kill, or requeue individual nodes and list what is waiting, quarantined, retrying, or asking for attention — all from the CLI, HTTP, UDS, native tools, and MCP, without opening the web UI. (#305)
@@ -165,6 +190,29 @@ A rejected Loop generation no longer restarts blind. The rejection is carried in
 - `compozy extension list` and `compozy extension status` accept `--workspace`, so agents can inspect workspace dev overlays without dropping to raw HTTP.
 
 Migration notes: this is a greenfield hard cut that discards existing Loop run history. The migration clears Loop runs, run events, gate decisions, generation outputs, goal turns and checkpoints, session bindings, and output blobs, along with the task and automation runs that referenced them. Export anything you need before upgrading.
+
+##### Remote gateway: reach your daemon from anywhere
+
+A fresh install is still reachable only from the machine it runs on — and now that is a choice
+instead of a limitation. The remote gateway adds three independent, off-by-default switches: a
+private overlay that serves the full product to devices you pair over your own Tailscale network, a
+public delivery ingress that accepts only signed webhook and bridge callbacks, and consent-gated
+public operator access for devices that cannot join the overlay. (#331)
+
+- The daemon never binds a public address. Gateway tier listeners stay on loopback and a
+  connectivity provider publishes a verified route to them: an address is advertised only after the
+  daemon fetches a one-time challenge through it and gets its own nonce back.
+- Reaching an address is never authentication. Devices pair with single-use, five-minute artifacts
+  written to private `0600` files, credentials are stored only as hashes, and
+  `compozy device revoke` cancels live streams before it returns.
+- `compozy gateway status|audit`, `compozy pair`, `compozy device`, and `compozy connect` (HTTPS
+  profiles plus zero-exposure SSH) operate everything, with the same state in **Settings → Gateway**
+  and the `compozy__gateway` native tool.
+- Public delivery verifies Compozy's timestamped HMAC contract on every request, with replay
+  protection and per-source rate limits. There is no store-and-forward while the daemon is offline —
+  senders own retries.
+
+Setup guides live in the new Gateway docs section: https://compozy.com/docs/gateway.
 
 ##### Reversible session archiving and list actions
 
@@ -318,6 +366,18 @@ Loop action runs now have exactly one daemon-owned worker, cancellation survives
 - Enablement of a bundled extension is a fresh-home default, not an override: generic local and marketplace installs stay disabled by default, and stored state survives restart and update.
 
 #### Highlights
+
+##### Gateway docs: zero to GitHub webhooks
+
+compozy.com gains a dedicated Gateway section written for first-time operators: a ten-minute
+quickstart from `gateway.enabled` to a paired phone, a step-by-step "Receive GitHub webhooks"
+tutorial verified end to end — including why a native repository webhook cannot sign Compozy's
+generic trigger contract and the GitHub Actions workflow that can — a Tailscale extension page
+covering tailnet prerequisites through clean removal, a remote CLI/SSH/public-access guide, a
+devices-audit-teardown runbook, and a plain-language security page. (#331)
+
+Migration notes: `/docs/operations/remote-gateway`, `/docs/operations/gateway-threat-model`, and
+`/docs/configuration/gateway` moved into `/docs/gateway/*` as a hard cut — update saved links.
 
 ##### MCP catalog, session runtime, and extension management
 
