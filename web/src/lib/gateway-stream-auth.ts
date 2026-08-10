@@ -1,18 +1,17 @@
 import { apiClient } from "./api-client";
+import { readGatewayListenerTier } from "./gateway-access-signal";
 
 /**
  * Stream authentication for the page's own origin.
  *
  * A tier listener authenticates streams with a single-use ticket
- * (`?ticket=…`), while the local listener does not register the minting route
- * at all. So the honest question is not "is a gateway tier enabled somewhere"
- * — it is "does *this* listener accept tickets", and the mint response answers
- * it directly: `201` means remote, `404`/`405` means local.
+ * (`?ticket=…`), while the local listener needs none. Every API response
+ * identifies the physical listener through `X-Compozy-Gateway-Tier`, so the
+ * client never probes an intentionally absent route to infer its mode.
  *
- * The mode is latched on the first answer. Until then, concurrent streams each
- * attempt their own mint, which is what a remote session needs anyway (tickets
- * are single-use, never shared) and costs one wasted request per stream exactly
- * once on a local session.
+ * The mode is latched after an explicit status read. Remote connections still
+ * mint one ticket per connect and reconnect; tickets are single-use and never
+ * shared.
  */
 export type GatewayStreamAuthMode = "local" | "remote";
 
@@ -35,7 +34,7 @@ export function resetGatewayStreamAuth(): void {
   mode = undefined;
 }
 
-/** The latched mode, or `undefined` before the first mint answered. */
+/** The latched mode, or `undefined` before listener discovery completes. */
 export function gatewayStreamAuthMode(): GatewayStreamAuthMode | undefined {
   return mode;
 }
@@ -46,18 +45,12 @@ export function gatewayStreamAuthMode(): GatewayStreamAuthMode | undefined {
  * every connect and every reconnect gets its own.
  */
 export async function acquireStreamTicket(signal?: AbortSignal): Promise<string | null> {
-  if (mode === "local") return null;
+  const resolvedMode = await resolveGatewayStreamAuthMode(signal);
+  if (resolvedMode === "local") return null;
 
   const { data, error, response } = await apiClient.POST("/api/gateway/stream-tickets", {
     signal,
   });
-
-  if (response.status === 404 || response.status === 405) {
-    mode = "local";
-    return null;
-  }
-
-  mode = "remote";
 
   if (!response.ok || error !== undefined) {
     // An ended session is reported once, by the shared api-client middleware.
@@ -82,6 +75,22 @@ export async function acquireStreamTicket(signal?: AbortSignal): Promise<string 
     );
   }
   return ticket;
+}
+
+async function resolveGatewayStreamAuthMode(signal?: AbortSignal): Promise<GatewayStreamAuthMode> {
+  if (mode) return mode;
+
+  const { response } = await apiClient.GET("/api/status", { signal });
+  const tier = readGatewayListenerTier(response);
+  if (!response.ok || !tier) {
+    throw new GatewayStreamAuthError(
+      `Failed to identify the live stream listener: ${response.status}`,
+      response.status
+    );
+  }
+
+  mode = tier === "local" ? "local" : "remote";
+  return mode;
 }
 
 /**

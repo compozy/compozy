@@ -86,6 +86,31 @@ func TestCORSMiddlewareAllowsPatchPreflight(t *testing.T) {
 	})
 }
 
+func TestCORSMiddlewareExposesGatewayTier(t *testing.T) {
+	t.Run("Should expose the listener tier to browser clients", func(t *testing.T) {
+		t.Parallel()
+
+		engine := gin.New()
+		engine.Use(corsMiddleware("127.0.0.1:2123"))
+		engine.GET("/api/status", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"http://127.0.0.1:2123/api/status",
+			http.NoBody,
+		)
+		request.Header.Set("Origin", "http://127.0.0.1:2123")
+		engine.ServeHTTP(recorder, request)
+
+		got := recorder.Header().Get("Access-Control-Expose-Headers")
+		if !strings.Contains(got, gatewayTierHeader) {
+			t.Fatalf("Access-Control-Expose-Headers = %q, want it to include %q", got, gatewayTierHeader)
+		}
+	})
+}
+
 func TestCORSMiddlewareRejectsReboundRequestHost(t *testing.T) {
 	t.Run("Should reject matching attacker controlled Host and Origin on a loopback bind", func(
 		t *testing.T,

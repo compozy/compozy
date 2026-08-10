@@ -717,9 +717,18 @@ describe("SessionChatRuntimeProvider", () => {
       const requestURL = getRequestURL(input);
       const pathname = requestURL.pathname;
 
-      // The prompt POST streams its response, so the shared transport asks
-      // whether this listener authenticates streams with a ticket. A local
-      // listener does not register the minting route.
+      if (pathname === "/api/status") {
+        return jsonResponse(
+          {},
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "X-Compozy-Gateway-Tier": streamTickets.length > 0 ? "private" : "local",
+            },
+          }
+        );
+      }
+
       if (pathname === "/api/gateway/stream-tickets") {
         const ticket = streamTickets.shift();
         if (ticket) {
@@ -734,7 +743,7 @@ describe("SessionChatRuntimeProvider", () => {
             }
           );
         }
-        return jsonResponse({ error: "not found" }, { status: 404 });
+        throw new Error("Remote stream ticket requested without a queued test ticket");
       }
 
       if (pathname === "/api/sessions") {

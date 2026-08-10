@@ -13,7 +13,7 @@
  * fresh one, not by tearing the session down.
  */
 export type GatewayAccessSignal = "unauthenticated" | "revoked";
-export type GatewayListenerTier = "private" | "public";
+export type GatewayListenerTier = "local" | "private" | "public";
 
 const UNAUTHENTICATED_CODE = "gateway_device_unauthenticated";
 const REVOKED_CODE = "gateway_device_revoked";
@@ -61,9 +61,19 @@ export function reportGatewayAccess(status: number, payload: unknown): void {
 }
 
 export function reportGatewayListenerTier(rawTier: string | null): void {
-  const tier = rawTier?.trim().toLowerCase();
-  if (tier !== "private" && tier !== "public") return;
+  const tier = parseGatewayListenerTier(rawTier);
+  if (!tier) return;
   for (const listener of tierListeners) listener(tier);
+}
+
+export function parseGatewayListenerTier(rawTier: string | null): GatewayListenerTier | undefined {
+  const tier = rawTier?.trim().toLowerCase();
+  if (tier !== "local" && tier !== "private" && tier !== "public") return undefined;
+  return tier;
+}
+
+export function readGatewayListenerTier(response: Response): GatewayListenerTier | undefined {
+  return parseGatewayListenerTier(response.headers.get(GATEWAY_TIER_HEADER));
 }
 
 export async function reportGatewayResponse(response: Response): Promise<void> {

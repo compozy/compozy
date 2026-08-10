@@ -183,10 +183,8 @@ describe("SessionGoalHeader", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const pathname = path(input);
-        // The shared stream transport asks whether this listener needs a
-        // ticket; a local listener does not register the minting route.
-        if (pathname.endsWith("/api/gateway/stream-tickets")) {
-          return Response.json({ error: "not found" }, { status: 404 });
+        if (pathname.endsWith("/api/status")) {
+          return Response.json({}, { headers: { "X-Compozy-Gateway-Tier": "local" } });
         }
         if (pathname.endsWith(`/sessions/${SESSION_ID}/goal`)) {
           goalReads += 1;

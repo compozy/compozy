@@ -66,7 +66,10 @@ func corsMiddlewareWithForwardedTarget(boundHost string, allowForwardedTarget bo
 		headers := c.Writer.Header()
 		headers.Set("Access-Control-Allow-Headers", "Content-Type, Last-Event-ID, Accept, Authorization")
 		headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		headers.Set("Access-Control-Expose-Headers", "Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream")
+		headers.Set(
+			"Access-Control-Expose-Headers",
+			"Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream, "+gatewayTierHeader,
+		)
 		headers.Set("Vary", "Origin")
 		if origin != "" {
 			allowedOrigin, ok := resolveAllowedOriginForTarget(

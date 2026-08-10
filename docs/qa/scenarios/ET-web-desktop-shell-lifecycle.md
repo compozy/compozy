@@ -4,15 +4,15 @@ area: ET
 title: Operate the desktop shell across workspaces and connection states
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A fresh workspace renders one persistent desktop with menubar, dock, wallpaper, and command hint; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
+expected: A fresh workspace renders one persistent desktop with menubar, dock, wallpaper, and command hint; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
 qa_status: pass
 bug_ids:
-fix_status:
+fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-01-empty-desktop.png; docs/qa/evidence/2026-08-01-window-tabs/supervisor-02-recovery-desktop.png
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+evidence: docs/qa/evidence/2026-08-10-local-stream-auth-clean/browser-web-evidence.json; docs/qa/evidence/2026-08-10-local-stream-auth-clean/desktop-network-summary.json; docs/qa/evidence/2026-08-10-local-stream-auth-clean/software-factory-desktop.png
+last_report: docs/qa/reports/2026-08-10-local-stream-auth-clean.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
@@ -22,3 +22,6 @@ qa-impact: 2026-07-22 window-management hard cut replaced key-level hydration wi
 
 qa-impact: 2026-07-31 frame-based decks, semantic multi-instance lookup, and state-preserving hidden
 members changed shell projection and activation. Reset for the tabbed shell.
+
+qa-impact: 2026-08-10 local stream authorization stopped probing the remote-only ticket endpoint and
+now reads the listener tier explicitly. Reset for a clean-console Web and desktop-app re-walk.

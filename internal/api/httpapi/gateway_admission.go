@@ -7,6 +7,13 @@ import (
 
 const gatewayTierHeader = "X-Compozy-Gateway-Tier"
 
+func localListenerTierMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header(gatewayTierHeader, string(SurfaceSetLocal))
+		c.Next()
+	}
+}
+
 func (h *Handlers) gatewayAdmissionMiddleware(tier gateway.Tier, surface gateway.Surface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header(gatewayTierHeader, string(tier))

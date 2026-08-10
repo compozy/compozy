@@ -25,6 +25,22 @@ function errorResponse(status: number, code?: string): Response {
   });
 }
 
+function listenerResponse(tier: "local" | "private" | "public"): Response {
+  return new Response(JSON.stringify({}), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Compozy-Gateway-Tier": tier,
+    },
+  });
+}
+
+function requestPath(input: RequestInfo | URL): string {
+  if (input instanceof Request) return new URL(input.url).pathname;
+  if (input instanceof URL) return input.pathname;
+  return new URL(String(input)).pathname;
+}
+
 describe("gateway stream auth", () => {
   beforeEach(() => {
     resetGatewayStreamAuth();
@@ -36,8 +52,8 @@ describe("gateway stream auth", () => {
     resetGatewayStreamAuth();
   });
 
-  it("Should latch local mode when the listener does not register the minting route", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(errorResponse(404));
+  it("Should discover local mode without requesting the remote minting route", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(listenerResponse("local"));
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await acquireStreamTicket()).toBeNull();
@@ -45,10 +61,11 @@ describe("gateway stream auth", () => {
 
     expect(await acquireStreamTicket()).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.map(([input]) => requestPath(input))).toEqual(["/api/status"]);
   });
 
   it("Should leave a local stream URL untouched", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(errorResponse(405)));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
 
     expect(await authorizeStreamUrl("/api/sessions/catalog-stream")).toBe(
       "/api/sessions/catalog-stream"
@@ -59,7 +76,10 @@ describe("gateway stream auth", () => {
     let issued = 0;
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation(() => {
+      vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        if (requestPath(input) === "/api/status") {
+          return Promise.resolve(listenerResponse("private"));
+        }
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -92,7 +112,10 @@ describe("gateway stream auth", () => {
   it("Should report an ended session and fail the connection when the mint is unauthenticated", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(errorResponse(401, "gateway_device_unauthenticated"))
+      vi
+        .fn()
+        .mockResolvedValueOnce(listenerResponse("private"))
+        .mockResolvedValueOnce(errorResponse(401, "gateway_device_unauthenticated"))
     );
     const signals: string[] = [];
     const unsubscribe = observeGatewayAccess(signal => signals.push(signal));
@@ -105,7 +128,13 @@ describe("gateway stream auth", () => {
   });
 
   it("Should fail the connection without ending the session on a transient mint failure", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(errorResponse(503)));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(listenerResponse("private"))
+        .mockResolvedValueOnce(errorResponse(503))
+    );
     const signals: string[] = [];
     const unsubscribe = observeGatewayAccess(signal => signals.push(signal));
 
@@ -118,19 +147,28 @@ describe("gateway stream auth", () => {
   it("Should reject a successful mint response whose ticket is not a string", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ ticket: 42, expires_at: "2026-08-07T00:00:00Z" }), {
-          status: 201,
-          headers: { "Content-Type": "application/json" },
-        })
-      )
+      vi
+        .fn()
+        .mockResolvedValueOnce(listenerResponse("private"))
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ ticket: 42, expires_at: "2026-08-07T00:00:00Z" }), {
+            status: 201,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
     );
 
     await expect(acquireStreamTicket()).rejects.toBeInstanceOf(GatewayStreamAuthError);
   });
 
   it("Should authorize a streaming prompt POST target on a remote session", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ticketResponse("tkt_prompt")));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(listenerResponse("private"))
+        .mockResolvedValueOnce(ticketResponse("tkt_prompt"))
+    );
 
     const target = await authorizeStreamFetchInput("/api/workspaces/ws1/sessions/s1/prompt");
 
@@ -138,7 +176,7 @@ describe("gateway stream auth", () => {
   });
 
   it("Should return the prompt POST target unchanged on a local session", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(errorResponse(404)));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
 
     const target = await authorizeStreamFetchInput("/api/workspaces/ws1/sessions/s1/prompt");
 

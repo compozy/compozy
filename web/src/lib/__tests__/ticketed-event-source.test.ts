@@ -44,11 +44,20 @@ function ticketResponse(ticket: string): Response {
   });
 }
 
-function notFound(): Response {
-  return new Response(JSON.stringify({ error: "not found" }), {
-    status: 404,
-    headers: { "Content-Type": "application/json" },
+function listenerResponse(tier: "local" | "private"): Response {
+  return new Response(JSON.stringify({}), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Compozy-Gateway-Tier": tier,
+    },
   });
+}
+
+function requestPath(input: RequestInfo | URL): string {
+  if (input instanceof Request) return new URL(input.url).pathname;
+  if (input instanceof URL) return input.pathname;
+  return new URL(input).pathname;
 }
 
 async function settled(): Promise<void> {
@@ -70,7 +79,7 @@ describe("ticketed event source", () => {
   });
 
   it("Should open a local stream on the bare URL and keep native reconnect", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(notFound()));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
     const source = createStreamEventSource("/api/sessions/catalog-stream");
     await settled();
 
@@ -87,7 +96,16 @@ describe("ticketed event source", () => {
   });
 
   it("Should open a remote stream with a minted ticket", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ticketResponse("tkt_1")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          requestPath(input) === "/api/status"
+            ? listenerResponse("private")
+            : ticketResponse("tkt_1")
+        )
+      )
+    );
     const source = createStreamEventSource("/api/tasks/t1/stream");
     await settled();
 
@@ -96,7 +114,16 @@ describe("ticketed event source", () => {
   });
 
   it("Should authenticate the default session stream factory with a fresh ticket", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ticketResponse("session-ticket")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          requestPath(input) === "/api/status"
+            ? listenerResponse("private")
+            : ticketResponse("session-ticket")
+        )
+      )
+    );
 
     const source = defaultEventSourceFactory("/api/sessions/session-1/stream");
     await settled();
@@ -112,7 +139,10 @@ describe("ticketed event source", () => {
     let issued = 0;
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation(() => {
+      vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        if (requestPath(input) === "/api/status") {
+          return Promise.resolve(listenerResponse("private"));
+        }
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -143,7 +173,10 @@ describe("ticketed event source", () => {
     let issued = 0;
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation(() => {
+      vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        if (requestPath(input) === "/api/status") {
+          return Promise.resolve(listenerResponse("private"));
+        }
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -170,7 +203,16 @@ describe("ticketed event source", () => {
 
   it("Should stop reconnecting once the consumer closes the stream", async () => {
     vi.useFakeTimers();
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ticketResponse("tkt_1")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          requestPath(input) === "/api/status"
+            ? listenerResponse("private")
+            : ticketResponse("tkt_1")
+        )
+      )
+    );
 
     const source = createStreamEventSource("/api/tasks/t1/stream");
     await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
@@ -186,6 +228,7 @@ describe("ticketed event source", () => {
     vi.useFakeTimers();
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(listenerResponse("private"))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ error: "boom" }), {
           status: 503,
@@ -211,7 +254,16 @@ describe("ticketed event source", () => {
   });
 
   it("Should forward open and message events to the consumer", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ticketResponse("tkt_1")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          requestPath(input) === "/api/status"
+            ? listenerResponse("private")
+            : ticketResponse("tkt_1")
+        )
+      )
+    );
     const source = createStreamEventSource("/api/tasks/t1/stream");
     await settled();
 

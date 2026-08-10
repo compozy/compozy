@@ -75,16 +75,19 @@ const network: TaskRunNetworkProjection = {
 };
 
 /**
- * The shared stream transport asks the listener whether it needs a ticket before
- * it opens a socket. A local listener answers 404, which is what this lane is.
+ * The shared stream transport reads the explicit listener tier before it opens
+ * a socket. This lane models the local listener, which needs no ticket.
  */
 function stubLocalListener() {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
+      new Response(JSON.stringify({}), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Compozy-Gateway-Tier": "local",
+        },
       })
     )
   );

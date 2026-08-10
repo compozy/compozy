@@ -13,6 +13,7 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	}
 
 	api := router.Group("/api")
+	api.Use(localListenerTierMiddleware())
 	registerWebhookRoutes(api, handlers)
 	api.GET("/mcp/oauth/callback", handlers.completeMCPAuthCallback)
 	api.Use(browserRequestProtectionMiddleware(handlers.boundHost))

@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-06-route-reload-general.png
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+evidence: docs/qa/evidence/2026-08-10-local-stream-auth-clean/software-factory-web.png; docs/qa/evidence/2026-08-10-local-stream-auth-clean/software-factory-desktop.png
+last_report: docs/qa/reports/2026-08-10-local-stream-auth-clean.md
 overlaps: ET-web-desktop-shell-lifecycle; ET-window-manager-public-parity; ET-window-manager-layout-gestures; ET-web-route-chrome-topbar
 ---
 

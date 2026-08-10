@@ -40,6 +40,22 @@ function jsonResponse(status: number): Response {
   });
 }
 
+function listenerResponse(tier: "local" | "private"): Response {
+  return new Response(JSON.stringify({}), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Compozy-Gateway-Tier": tier,
+    },
+  });
+}
+
+function requestPath(input: RequestInfo | URL): string {
+  if (input instanceof Request) return new URL(input.url).pathname;
+  if (input instanceof URL) return input.pathname;
+  return new URL(input).pathname;
+}
+
 const STREAM_PATH = "/api/workspaces/ws1/window-manager/stream?after_revision=1&client_id=web";
 
 describe("ticketed web socket", () => {
@@ -56,7 +72,7 @@ describe("ticketed web socket", () => {
   });
 
   it("Should upgrade without a ticket on a local session", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(404)));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
 
     const socket = createStreamWebSocket(STREAM_PATH);
     await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
@@ -69,7 +85,10 @@ describe("ticketed web socket", () => {
     let issued = 0;
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation(() => {
+      vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        if (requestPath(input) === "/api/status") {
+          return Promise.resolve(listenerResponse("private"));
+        }
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -88,7 +107,13 @@ describe("ticketed web socket", () => {
   });
 
   it("Should close so the consumer reconnect loop takes over when the mint fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(503)));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(listenerResponse("private"))
+        .mockResolvedValueOnce(jsonResponse(503))
+    );
 
     const socket = createStreamWebSocket(STREAM_PATH);
     const closes: CloseEvent[] = [];
@@ -101,7 +126,7 @@ describe("ticketed web socket", () => {
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
-  it("Should not open a socket when the consumer closed before the ticket resolved", async () => {
+  it("Should not open a socket when the consumer closed before authorization resolved", async () => {
     let release: (value: Response) => void = () => {};
     vi.stubGlobal(
       "fetch",
@@ -115,7 +140,7 @@ describe("ticketed web socket", () => {
 
     const socket = createStreamWebSocket(STREAM_PATH);
     socket.close();
-    release(ticketResponse("tkt_late"));
+    release(listenerResponse("local"));
     await Promise.resolve();
 
     expect(FakeWebSocket.instances).toHaveLength(0);

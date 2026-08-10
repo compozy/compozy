@@ -264,6 +264,51 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 	})
 }
 
+func TestGatewayOperatorResponsesIdentifyListenerTier(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name       string
+		surfaceSet SurfaceSet
+		wantTier   string
+	}{
+		{
+			name:       "Should identify the local operator listener",
+			surfaceSet: SurfaceSetLocal,
+			wantTier:   string(SurfaceSetLocal),
+		},
+		{
+			name:       "Should identify the private operator listener",
+			surfaceSet: SurfaceSetPrivate,
+			wantTier:   string(gateway.TierPrivate),
+		},
+		{
+			name:       "Should identify the public operator listener",
+			surfaceSet: SurfaceSetPublicOperator,
+			wantTier:   string(gateway.TierPublic),
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			router := newGatewaySurfaceTestRouter(
+				test.surfaceSet,
+				gatewayHTTPServiceStub{},
+				gatewayHTTPAuthenticatorStub{},
+			)
+			request := httptest.NewRequestWithContext(
+				t.Context(), http.MethodGet, "http://127.0.0.1:2123/api/status", http.NoBody,
+			)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+
+			if got := response.Header().Get(gatewayTierHeader); got != test.wantTier {
+				t.Fatalf("%s = %q, want %q", gatewayTierHeader, got, test.wantTier)
+			}
+		})
+	}
+}
+
 func isForbiddenRemoteRoute(route string) bool {
 	parts := strings.SplitN(route, " ", 2)
 	if len(parts) != 2 {
