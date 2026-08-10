@@ -436,6 +436,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		nodes := descriptors[toolspkg.ToolIDLoopNodes]
 		assertNativeOutputSchemaAccepts(t, status, `{
 			"run":{"id":"run-1","best_generation":2,"best_score":0.91},
+			"materialized_contract":{"goal":"Ship weather-app","definition_of_done":"All tasks complete"},
 			"node_controls":[],
 			"waits":[],
 			"generations":[{

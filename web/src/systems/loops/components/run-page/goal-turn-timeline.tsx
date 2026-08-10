@@ -62,6 +62,86 @@ function TurnFact({ label, children }: { label: string; children: React.ReactNod
   );
 }
 
+function CriterionOutput({ label, value }: { label: "stdout" | "stderr"; value?: string }) {
+  if (!value) return null;
+  return (
+    <div className="mt-2 min-w-0">
+      <Eyebrow className={label === "stderr" ? "text-danger" : "text-faint"}>{label}</Eyebrow>
+      <pre
+        className={cn(
+          "mt-1 max-h-40 overflow-auto rounded-xs px-2 py-1.5 font-mono text-mono-id whitespace-pre-wrap break-words",
+          label === "stderr" ? "bg-danger-tint text-danger" : "bg-neutral-tint text-muted"
+        )}
+      >
+        {value}
+      </pre>
+    </div>
+  );
+}
+
+function GoalTurnDiagnostics({ turn }: { turn: GoalTurnTimelineItem }) {
+  if (turn.criteria.length === 0 && turn.warnings.length === 0) return null;
+  return (
+    <div className="mt-3 border-t border-line-soft pt-2.5" data-testid="goal-turn-diagnostics">
+      <Eyebrow className="text-faint">Judge diagnostics</Eyebrow>
+      {turn.criteria.length > 0 ? (
+        <ul className="mt-1.5 divide-y divide-line-soft" aria-label="Judge criteria">
+          {turn.criteria.map(criterion => (
+            <li key={criterion.id} className="min-w-0 py-2 first:pt-0 last:pb-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <MonoId value={criterion.id} className="max-w-table-cell-sm text-fg" />
+                <Pill tone="neutral" size="xs">
+                  {criterion.type}
+                </Pill>
+                <Pill tone={criterion.passed ? "success" : "warning"} size="xs">
+                  {sentenceCase(criterion.outcome)}
+                </Pill>
+                {criterion.exit_code !== undefined ? (
+                  <span className="font-mono text-mono-id text-subtle">
+                    exit {criterion.exit_code === null ? "not reported" : criterion.exit_code}
+                  </span>
+                ) : null}
+              </div>
+              <CriterionOutput label="stdout" value={criterion.stdout} />
+              <CriterionOutput label="stderr" value={criterion.stderr} />
+              {criterion.blocking_issues?.length ? (
+                <ul className="mt-2 space-y-1" aria-label={`${criterion.id} blocking issues`}>
+                  {criterion.blocking_issues.map(issue => (
+                    <li key={issue.id} className="flex min-w-0 gap-2 text-form-label text-muted">
+                      <MonoId value={issue.id} className="shrink-0 text-warning" />
+                      <span className="min-w-0 text-pretty">{issue.note}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {criterion.warnings?.length ? (
+                <ul className="mt-2 space-y-1" aria-label={`${criterion.id} warnings`}>
+                  {criterion.warnings.map(warning => (
+                    <li key={`${warning.code}:${warning.message}`} className="text-form-label">
+                      <MonoId value={warning.code} className="mr-2 text-warning" />
+                      <span className="text-muted">{warning.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {turn.warnings.length > 0 ? (
+        <ul className="mt-2 space-y-1 border-t border-line-soft pt-2" aria-label="Judge warnings">
+          {turn.warnings.map(warning => (
+            <li key={`${warning.code}:${warning.message}`} className="text-form-label">
+              <MonoId value={warning.code} className="mr-2 text-warning" />
+              <span className="text-muted">{warning.message}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function GoalTurnRow({ turn }: { turn: GoalTurnTimelineItem }) {
   const tone = resultTone(turn);
   const resultLabel = turn.resultStatus ? sentenceCase(turn.resultStatus) : "In progress";
@@ -127,6 +207,8 @@ function GoalTurnRow({ turn }: { turn: GoalTurnTimelineItem }) {
           </ul>
         </div>
       ) : null}
+
+      <GoalTurnDiagnostics turn={turn} />
 
       <div className="mt-2.5 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-line-soft pt-2 text-form-hint text-subtle">
         {turn.evidenceRef ? (

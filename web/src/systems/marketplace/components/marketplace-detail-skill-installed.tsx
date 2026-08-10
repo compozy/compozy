@@ -117,7 +117,11 @@ function MarketplaceSkillManageCard({
                 onCheckedChange={state.toggleEnabled}
               />
             }
-            label={<span id="marketplace-skill-enabled-label">Enabled</span>}
+            label={
+              <span id="marketplace-skill-enabled-label">
+                {skill.enabled ? "Enabled" : "Disabled"}
+              </span>
+            }
           />
           {state.toggleError ? (
             <p

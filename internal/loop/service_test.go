@@ -821,7 +821,10 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 		t.Parallel()
 
 		store := newFakeLoopStore()
-		svc := newTestService(t, store, validDefinition())
+		definition := validDefinition()
+		definition.Contract.Goal = "Complete {{ .inputs.tasks }}"
+		definition.Contract.DefinitionOfDone = "{{ .inputs.tasks }} is complete"
+		svc := newTestService(t, store, definition)
 		run, err := svc.StartInline(
 			context.Background(),
 			"ws-1",
@@ -1828,7 +1831,10 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		t.Parallel()
 
 		store := newFakeLoopStore()
-		svc := newTestService(t, store, validDefinition())
+		definition := validDefinition()
+		definition.Contract.Goal = "Complete {{ .inputs.tasks }}"
+		definition.Contract.DefinitionOfDone = "{{ .inputs.tasks }} is complete"
+		svc := newTestService(t, store, definition)
 
 		preview, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
 			Values: map[string]any{"tasks": "task-ref"},
@@ -1847,6 +1853,15 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		}
 		if len(preview.Nodes) == 0 {
 			t.Fatal("Nodes length = 0, want materialized gen-1 nodes")
+		}
+		if got, want := preview.Contract.Goal, "Complete {{ .inputs.tasks }}"; got != want {
+			t.Fatalf("Contract.Goal = %q, want raw authored contract %q", got, want)
+		}
+		if got, want := preview.MaterializedContract.Goal, "Complete task-ref"; got != want {
+			t.Fatalf("MaterializedContract.Goal = %q, want %q", got, want)
+		}
+		if got, want := preview.MaterializedContract.DefinitionOfDone, "task-ref is complete"; got != want {
+			t.Fatalf("MaterializedContract.DefinitionOfDone = %q, want %q", got, want)
 		}
 		if store.createCount() != 0 {
 			t.Fatalf("CreateLoopRun calls = %d, want 0", store.createCount())

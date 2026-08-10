@@ -19,7 +19,6 @@ type ToolReportTarget struct {
 	ExpectedControlEpoch int64
 	ExpectedBindingEpoch int64
 	PromptID             string
-	OriginSessionID      string
 	BoundSessionID       string
 }
 
@@ -29,8 +28,7 @@ func (t ToolReportTarget) Validate() error {
 		return err
 	}
 	if t.ExpectedControlEpoch < 1 || t.ExpectedBindingEpoch < 1 ||
-		strings.TrimSpace(t.PromptID) == "" || strings.TrimSpace(t.OriginSessionID) == "" ||
-		strings.TrimSpace(t.BoundSessionID) == "" {
+		strings.TrimSpace(t.PromptID) == "" || strings.TrimSpace(t.BoundSessionID) == "" {
 		return fmt.Errorf("%w: Goal tool report target is incomplete", loop.ErrValidation)
 	}
 	return nil

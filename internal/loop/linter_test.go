@@ -554,6 +554,16 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 			wantCodes: []string{refs.CodeUnresolvablePath},
 		},
 		{
+			name: "Should reject unquoted runtime values in command checks",
+			mutate: func(def *dsl.Definition) {
+				def.Contract.Verification = []dsl.GateCriterion{{
+					ID: "verify", Type: dsl.CriterionCommand,
+					Check: "test -d artifacts/{{ .inputs.tasks }}",
+				}}
+			},
+			wantCodes: []string{refs.CodeUnsafeCommandInterpolation},
+		},
+		{
 			name: "Should reject item outside fanout",
 			mutate: func(def *dsl.Definition) {
 				agent := requireNode(t, def, "agent")
@@ -619,6 +629,13 @@ func TestLinterShouldRejectStructuralAndReferenceInvalidShapes(t *testing.T) {
 					Agent:  "critic",
 					Rubric: "Judge {{ .inputs.missing }}",
 				}}
+			},
+			wantCodes: []string{refs.CodeUnknownReference},
+		},
+		{
+			name: "Should restrict contract narrative templates to declared inputs",
+			mutate: func(def *dsl.Definition) {
+				def.Contract.Goal = "Ship {{ .nodes.agent.output.summary }}"
 			},
 			wantCodes: []string{refs.CodeUnknownReference},
 		},

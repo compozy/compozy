@@ -72,7 +72,12 @@ contract:
   boundaries: [] # optional scope statements
   stop_when: "" # optional CEL terminal condition
   verification: # gate criteria that decide "done"
-    - { id: checks, type: command, check: "{{ .inputs.verify_command }}", expect: exit_zero }
+    - {
+        id: checks,
+        type: command,
+        check: "test -d artifacts/{{ .inputs.slug | shellQuote }}",
+        expect: exit_zero,
+      }
   terminal_states: [done, no-op, blocked, failed, exhausted, stalled, canceled]
   iteration_cap: 50 # 0 = unbounded (watch Loops)
   no_progress: { window: 3, hash_fields: [delivery_artifact, gate_verdict] }
@@ -91,6 +96,13 @@ model — `iteration_cap`, `no_progress`, and `budget` — is documented in full
 `runtime_defaults.worker` seeds worker runtime fields; `runtime_defaults.judge` seeds judge fields.
 Each `runtime_rules` entry matches exactly one task `id`, `type`, or `complexity` and replaces only
 the runtime fields it sets.
+
+A `command` check is authored shell code. Any runtime value inserted into `check` must end with
+`| shellQuote`, as in the example above. Publish and dry-run reject unquoted command substitutions so
+an input, trigger payload, or node output cannot introduce shell syntax. Leave the template action
+outside authored single quotes, double quotes, and backslash escapes because `shellQuote` supplies
+the complete quoting context. Dynamic command templates also reject actions inside shell comments
+and `<<` constructs such as heredocs and here-strings.
 
 The contract may react to terminal truth with `on_done`, `on_noop`, `on_blocked`, `on_failed`,
 `on_exhausted`, `on_stalled`, and `on_canceled`. Each list contains

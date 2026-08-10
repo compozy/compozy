@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func loopStatusOutputBundle(response contract.LoopRunResponse) outputBundle {
+func loopStatusOutputBundle(response *contract.LoopRunResponse) outputBundle {
 	bundle := loopOutputBundle(response, fmt.Sprintf("Loop run %s is %s", response.Run.ID, response.Run.Status))
 	bundle.jsonl = func(cmd *cobra.Command) error {
 		return writeJSONLine(cmd, response)

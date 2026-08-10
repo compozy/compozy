@@ -138,6 +138,8 @@ type segmentState struct {
 	lastResult         loop.ActionPromptResult
 	lastVerdict        string
 	lastBlockingIssues []gate.BlockingIssue
+	lastCriteria       []gate.CriterionResult
+	lastWarnings       []gate.DiagnosticWarning
 	resolvedRuntime    loop.ResolvedRuntime
 }
 

@@ -1406,7 +1406,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "f6434e485d1becf0aec0201dcbb8853242be92d8fb69610f5461ace7ca9a2627",
-    "output_schema_digest": "c6f1ec579cefa2553bb25c0c7df8af6b68d334a6bda0e628715de4124ed91a3c"
+    "output_schema_digest": "094ed9ce850b475ec35ccb76d202e2f43c76c15253133bbc020672879ef279e5"
   },
   {
     "tool_id": "compozy__loop_turns",

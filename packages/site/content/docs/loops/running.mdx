@@ -14,7 +14,8 @@ The run form is generated from the Loop's [declared inputs](/docs/loops/dsl-refe
 — a typed field per input, each with a type badge, a required marker, and inline validation. An
 `agent` input renders a picker; a `boolean` renders a switch. A sticky preview beside the form shows
 "what will run" — the contract, the verification rows, the seven terminal chips, and a lifecycle line
-— and recomputes on every change.
+— and recomputes on every change. After a successful dry-run, the preview switches to the returned
+`materialized_contract`, so input-backed goal text is exactly what the runtime will use.
 
 Two actions submit the form:
 
@@ -45,7 +46,9 @@ a control the runtime does not support.
 **A sticky contract header** carries the live status pill (pulsing only while `running` or
 `watching`), the generation and attempt count, the run's start metadata, the goal, and the valid
 **Pause**, **Resume**, or **Cancel run** action. **Kill run** is the destructive escape in the
-overflow menu and appears only while the run is live.
+overflow menu and appears only while the run is live. The Progress story reads the run's
+`materialized_contract`; **Inspect** keeps the raw `executed_definition` available for authoring
+and audit questions.
 
 **Five meters** track spend against limits — attempts, tokens, wall clock, cost, and breadth
 (fan-out). Bars warn-tint only near a ceiling. The cost meter is derived (tokens × price) and never
@@ -122,11 +125,11 @@ the Loop and run id, the goal, the generation count, timing, and a budget mini-b
 Use the detail surface when you need provenance or gate decisions. List surfaces stay deliberately
 small.
 
-| Surface                                        | Shape                                                                                                                                      |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `compozy loop status` / `compozy__loop_status` | `run` includes optional `best_generation`/`best_score`; `generations[]` includes `parent_generation`, `origin`, `verdicts[]`, and outputs. |
-| `compozy loop runs` / `compozy__loop_runs`     | Each run summary includes optional `best_generation`/`best_score`; it never embeds generation history.                                     |
-| Loop catalog list                              | `last_run` includes optional `best_generation`/`best_score`; it never embeds generation history.                                           |
+| Surface                                        | Shape                                                                                                                                                                                                                                 |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compozy loop status` / `compozy__loop_status` | The detail includes raw `executed_definition` plus input-resolved `materialized_contract`; `run` includes optional `best_generation`/`best_score`; `generations[]` includes `parent_generation`, `origin`, `verdicts[]`, and outputs. |
+| `compozy loop runs` / `compozy__loop_runs`     | Each run summary includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                |
+| Loop catalog list                              | `last_run` includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                      |
 
 The best fields are omitted until an approved finite score establishes a baseline. A detailed JSON
 response can therefore look like this:

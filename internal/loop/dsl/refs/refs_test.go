@@ -144,6 +144,104 @@ func TestTemplateShouldValidateReferencesAgainstNamespace(t *testing.T) {
 	})
 }
 
+func TestCommandTemplateShouldQuoteRuntimeValuesAsShellData(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an unquoted runtime value", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := refs.CompileCommandTemplate(
+			"command",
+			`test -f .compozy/tasks/{{ .inputs.slug }}/task.md`,
+			namespace(false),
+		)
+		if err == nil || !strings.Contains(err.Error(), "must end with | shellQuote") {
+			t.Fatalf("CompileCommandTemplate() error = %v, want shellQuote requirement", err)
+		}
+	})
+
+	t.Run("Should reject shellQuote inside authored quotes or escapes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name string
+			raw  string
+		}{
+			{name: "double quote", raw: `echo "{{ .inputs.slug | shellQuote }}"`},
+			{name: "single quote", raw: `echo '{{ .inputs.slug | shellQuote }}'`},
+			{name: "escape", raw: `echo \{{ .inputs.slug | shellQuote }}`},
+			{name: "comment", raw: `echo ready # {{ .inputs.slug | shellQuote }}`},
+			{
+				name: "continued comment",
+				raw:  "echo ready # continued \\\n{{ .inputs.slug | shellQuote }}",
+			},
+			{
+				name: "heredoc body",
+				raw:  "cat <<EOF\n{{ .inputs.slug | shellQuote }}\nEOF",
+			},
+			{name: "dynamic heredoc delimiter", raw: `cat <<{{ .inputs.slug | shellQuote }}`},
+			{
+				name: "conditional branch",
+				raw:  `{{ if .inputs.done }}echo "{{ .inputs.slug | shellQuote }}"{{ end }}`,
+			},
+			{
+				name: "subtemplate",
+				raw:  `{{ define "value" }}{{ .inputs.slug | shellQuote }}{{ end }}echo "{{ template "value" . }}"`,
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := refs.CompileCommandTemplate("command", test.raw, namespace(false))
+				var refErr *refs.Error
+				if !errors.As(err, &refErr) || refErr.Code != refs.CodeUnsafeCommandInterpolation {
+					t.Fatalf("CompileCommandTemplate() error = %v, want unsafe command interpolation", err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve authored shell operators around plain quoted values", func(t *testing.T) {
+		t.Parallel()
+
+		raw := "# static comment with \\\"quotes\\\"\n" +
+			`test -f {{ .inputs.slug | shellQuote }} | tee {{ .inputs.slug | shellQuote }} > output.log`
+		if _, err := refs.CompileCommandTemplate("command", raw, namespace(false)); err != nil {
+			t.Fatalf("CompileCommandTemplate() error = %v", err)
+		}
+	})
+
+	t.Run("Should reject conditional shell quote context changes", func(t *testing.T) {
+		t.Parallel()
+
+		raw := `{{ if .inputs.done }}'{{ else }}'{{ end }}value{{ if .inputs.done }}'{{ else }}'{{ end }}`
+		_, err := refs.CompileCommandTemplate("command", raw, namespace(false))
+		var refErr *refs.Error
+		if !errors.As(err, &refErr) || refErr.Code != refs.CodeUnsafeCommandInterpolation {
+			t.Fatalf("CompileCommandTemplate() error = %v, want conditional shell quote rejection", err)
+		}
+	})
+
+	t.Run("Should render shell metacharacters inside one quoted value", func(t *testing.T) {
+		t.Parallel()
+
+		raw := `test -f .compozy/tasks/{{ .inputs.slug | shellQuote }}/task.md`
+		if _, err := refs.CompileCommandTemplate("command", raw, namespace(false)); err != nil {
+			t.Fatalf("CompileCommandTemplate() error = %v", err)
+		}
+		rendered, err := refs.RenderCommandTemplateString("command", raw, map[string]any{
+			"inputs": map[string]any{"slug": `weather'; touch /tmp/injected; #'`},
+		})
+		if err != nil {
+			t.Fatalf("RenderCommandTemplateString() error = %v", err)
+		}
+		want := `test -f .compozy/tasks/'weather'"'"'; touch /tmp/injected; #'"'"''/task.md`
+		if rendered != want {
+			t.Fatalf("RenderCommandTemplateString() = %q, want %q", rendered, want)
+		}
+	})
+}
+
 func TestTemplateShouldRejectNonAllowlistedFunctions(t *testing.T) {
 	t.Parallel()
 

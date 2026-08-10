@@ -29,12 +29,8 @@ func evaluateGateNode(
 	outputs []GenerationOutput,
 	evaluations *gateEvaluationCollector,
 ) (GenerationOutput, *task.CoordinatorTerminal, error) {
-	if evaluator == nil {
-		return GenerationOutput{}, nil, fmt.Errorf(
-			"%w: gate node %q requires a coordinator gate evaluator",
-			ErrValidation,
-			node.ID,
-		)
+	if err := requireGateEvaluator(evaluator, node.ID); err != nil {
+		return GenerationOutput{}, nil, err
 	}
 	namespace, err := runtimeNamespaceWithHistory(
 		run,
@@ -73,15 +69,18 @@ func evaluateGateNode(
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
-	verdict, err := evaluator.Evaluate(ctx, runtimeGate, runtimeGateInput(
+	gateInput, err := runtimeGateInput(
 		run,
 		generation,
 		resolved,
 		effective,
-		namespace,
 		gate.PlacementInBody,
 		humanDecisions,
-	))
+	)
+	if err != nil {
+		return GenerationOutput{}, nil, err
+	}
+	verdict, err := evaluator.Evaluate(ctx, runtimeGate, gateInput)
 	if err != nil {
 		return GenerationOutput{}, nil, err
 	}
@@ -93,6 +92,17 @@ func evaluateGateNode(
 		evaluations.record(runtimeGate, output.ItemIndex, verdict)
 	}
 	return gateOutputFromVerdict(output, node.ID, verdict)
+}
+
+func requireGateEvaluator(evaluator gate.GateEvaluator, nodeID dsl.NodeID) error {
+	if evaluator == nil {
+		return fmt.Errorf(
+			"%w: gate node %q requires a coordinator gate evaluator",
+			ErrValidation,
+			nodeID,
+		)
+	}
+	return nil
 }
 
 func validateJudgeGateRuntimes(
@@ -129,18 +139,20 @@ func runtimeGateInput(
 	generation int,
 	resolved *ResolvedDefinition,
 	effective EffectiveConfig,
-	namespace map[string]any,
 	placement gate.Placement,
 	humanDecisions map[string]gate.HumanDecision,
-) gate.GateInput {
+) (gate.GateInput, error) {
 	if humanDecisions == nil {
 		humanDecisions = map[string]gate.HumanDecision{}
+	}
+	contract, err := MaterializeContract(resolved.Definition.Contract, run.Inputs)
+	if err != nil {
+		return gate.GateInput{}, err
 	}
 	return gate.GateInput{
 		LoopRunID:            string(run.ID),
 		Placement:            placement,
-		Contract:             new(resolved.Definition.Contract),
-		TemplateData:         namespace,
+		Contract:             &contract,
 		Revision:             max(0, generation-1),
 		BestScore:            cloneFloat64(run.BestScore),
 		HumanDecisions:       humanDecisions,
@@ -150,7 +162,7 @@ func runtimeGateInput(
 			WorkspaceID: string(run.WorkspaceID),
 			ActorKind:   startLoopMetaKey,
 		},
-	}
+	}, nil
 }
 
 func loadGateDecisions(
@@ -225,7 +237,7 @@ func renderGateCriterion(
 ) (dsl.GateCriterion, error) {
 	var err error
 	prefix := fmt.Sprintf("nodes.%s.criteria.%s", nodeID, criterion.ID)
-	if criterion.Check, err = renderGateString(prefix+".check", criterion.Check, namespace); err != nil {
+	if criterion.Check, err = renderCommandGateString(prefix+".check", criterion.Check, namespace); err != nil {
 		return dsl.GateCriterion{}, err
 	}
 	if criterion.Contains, err = renderGateString(prefix+".contains", criterion.Contains, namespace); err != nil {
@@ -243,6 +255,17 @@ func renderGateCriterion(
 	if criterion.Tool, err = renderGateString(prefix+".tool", criterion.Tool, namespace); err != nil {
 		return dsl.GateCriterion{}, err
 	}
+	renderedInputs, err := renderActionParam(prefix+".inputs", criterion.Inputs, namespace)
+	if err != nil {
+		return dsl.GateCriterion{}, fmt.Errorf("render gate %s.inputs: %w", prefix, err)
+	}
+	if renderedInputs != nil {
+		inputs, ok := renderedInputs.(map[string]any)
+		if !ok {
+			return dsl.GateCriterion{}, fmt.Errorf("%w: gate %s.inputs must be an object", ErrValidation, prefix)
+		}
+		criterion.Inputs = inputs
+	}
 	return criterion, nil
 }
 
@@ -251,6 +274,17 @@ func renderGateString(name string, raw string, namespace map[string]any) (string
 		return raw, nil
 	}
 	rendered, err := refs.RenderTemplateString(name, raw, namespace)
+	if err != nil {
+		return "", fmt.Errorf("render gate %s: %w", name, err)
+	}
+	return rendered, nil
+}
+
+func renderCommandGateString(name string, raw string, namespace map[string]any) (string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return raw, nil
+	}
+	rendered, err := refs.RenderCommandTemplateString(name, raw, namespace)
 	if err != nil {
 		return "", fmt.Errorf("render gate %s: %w", name, err)
 	}

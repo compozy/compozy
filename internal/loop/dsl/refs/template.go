@@ -20,13 +20,14 @@ type Template struct {
 // RenderTemplateString parses and executes one runtime interpolation template with
 // the same curated functions and missing-key behavior used by CompileTemplate.
 func RenderTemplateString(name string, raw string, data any) (string, error) {
-	tmpl, err := template.New(name).
-		Option("missingkey=error").
-		Funcs(funcMap()).
-		Parse(raw)
+	tmpl, err := parseTemplate(name, raw)
 	if err != nil {
-		return "", fmt.Errorf("parse template %q: %w", name, err)
+		return "", err
 	}
+	return executeTemplate(name, tmpl, data)
+}
+
+func executeTemplate(name string, tmpl *template.Template, data any) (string, error) {
 	var rendered bytes.Buffer
 	if err := tmpl.Execute(&rendered, data); err != nil {
 		return "", fmt.Errorf("execute template %q: %w", name, err)
@@ -36,6 +37,14 @@ func RenderTemplateString(name string, raw string, data any) (string, error) {
 
 // CompileTemplate parses and validates one Go text/template string.
 func CompileTemplate(name string, raw string, namespace Namespace) (*Template, error) {
+	tmpl, err := parseTemplate(name, raw)
+	if err != nil {
+		return nil, err
+	}
+	return compileParsedTemplate(raw, tmpl, namespace)
+}
+
+func parseTemplate(name string, raw string) (*template.Template, error) {
 	tmpl, err := template.New(name).
 		Option("missingkey=error").
 		Funcs(funcMap()).
@@ -43,6 +52,10 @@ func CompileTemplate(name string, raw string, namespace Namespace) (*Template, e
 	if err != nil {
 		return nil, fmt.Errorf("parse template %q: %w", name, err)
 	}
+	return tmpl, nil
+}
+
+func compileParsedTemplate(raw string, tmpl *template.Template, namespace Namespace) (*Template, error) {
 	walker := templateWalker{namespace: namespace}
 	for _, subtemplate := range tmpl.Templates() {
 		if subtemplate.Tree == nil || subtemplate.Root == nil {
@@ -61,10 +74,11 @@ func CompileTemplate(name string, raw string, namespace Namespace) (*Template, e
 
 func funcMap() template.FuncMap {
 	return template.FuncMap{
-		"json":    templateJSON,
-		"toJson":  templateJSON,
-		"join":    templateJoin,
-		"default": templateDefault,
+		"json":       templateJSON,
+		"toJson":     templateJSON,
+		"join":       templateJoin,
+		"default":    templateDefault,
+		"shellQuote": templateShellQuote,
 	}
 }
 

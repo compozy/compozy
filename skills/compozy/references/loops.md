@@ -87,9 +87,10 @@ Follow **inspect → validate → dry-run → publish (with `expected_version`) 
    per-node codes (`unknown_reference`, `node_id_invalid`, `verdict_policy_requires_judge`,
    `fan_out_ceiling_exceeded`).
 3. **dry-run** — `compozy__loop_run` with `dry: true` resolves inputs and returns the first generation's
-   plan without creating a run or spending budget. It also builds and reloads the executed-definition
-   snapshot used by submission; a template or condition manifest mismatch reports the exact key and
-   source before any run is created.
+   plan without creating a run or spending budget. It returns the authored `contract` beside the
+   input-resolved `materialized_contract` that Goal agents and judges receive. It also builds and
+   reloads the executed-definition snapshot used by submission; a template or condition manifest
+   mismatch reports the exact key and source before any run is created.
 4. **publish** — `compozy__loop_create` with `expected_version` set to the version from step one (or
    HTTP `PATCH /loops/:name`). This is compare-and-swap: a stale version is rejected `409` with the
    current version. Native: `tool_conflict`/`loop_version_conflict` with
@@ -153,15 +154,20 @@ start new work; budget crossed before work grants `budget/work-and-settle` for o
 plus closure; reseed grants `reseed/rotate-binding`; pause grants `plain-resume/reactivate`.
 
 `compozy__goal_get` follows an active moved-binding alias and remains readable for terminal state until
-clear. `compozy__goal_report` accepts `complete` or `blocked`; blocked requires evidence, evidence is
-limited to 16 KiB, and the daemon revalidates the current prompt/control/binding identity. It records
-a durable boundary intent, not immediate completion or proof of provider-side effect uniqueness.
-Retry of the same intent deduplicates; conflict or revoke fails with a stable reason.
+clear. `compozy__goal_report` accepts `complete` or `blocked`; blocked requires evidence. It is
+available to the current bound prompt for session-, catalog-, HTTP-, and native-tool-origin Runs.
+Evidence is limited to 16 KiB, and the daemon revalidates workspace, Run, prompt, control, and
+binding identity. It records a durable boundary intent, not immediate completion or proof of
+provider-side effect uniqueness. Retry of the same intent deduplicates; conflict or revoke fails
+with a stable reason.
 
 `compozy__loop_turns` and `compozy loop turns --run <id> --after-seq <n>` read the run-wide monotonic audit;
 optional node/item filters narrow one instance. `compozy loop runs --origin session
 --origin-session <id>` isolates conversational Runs. Turn result, reason, stop reason, verdict,
-evidence, usage, and end time remain nullable until durable evidence exists.
+evidence, usage, and end time remain nullable until durable evidence exists. Settled turns retain
+bounded criterion diagnostics and aggregate warnings. Command criteria include outcome, exit code,
+standard output, standard error, blockers, and warnings when present; continuation prompts and the
+Web timeline use that durable evidence.
 
 ## Terminal Outcomes And Live States
 
@@ -260,6 +266,19 @@ Definitions reference data over one namespace with two surfaces, chosen by the f
 
 - **Values** — Go `{{ }}` templates in string fields (`params.*`, rubrics, `transform.map.*`).
 - **Conditions** — CEL returning `bool` (`branch.condition`, `fan-out.filter`, `contract.stop_when`).
+
+Contract narrative fields (`goal`, `definition_of_done`, `constraints[]`, `boundaries[]`) accept only
+declared `inputs` references and materialize once before Goal work. Goal params and nested gate inputs
+materialize recursively at their execution boundary; direct references retain JSON types and raw
+`output_schema` values are never rendered. Literal `{{ ... }}` inside an input value stays literal —
+agents and judges do not run a second template pass. Run detail exposes raw `executed_definition`
+beside the input-resolved `materialized_contract`.
+
+`command` criteria keep the exact shell program written by the Loop author. Every runtime template
+value emitted inside `check` must end with `| shellQuote` and remain outside authored quotes or
+escapes, comments, and `<<` constructs; compilation rejects unsafe substitutions. This preserves
+authored pipes, redirects, and chaining while preventing inputs, trigger payloads, or node outputs
+from introducing shell syntax.
 
 Namespace roots: `inputs.<name>`, `nodes.<id>.output.<path>`, `nodes.<id>.status`, `item`/`index`
 (fan-out scope only), `trigger.<path>` (trigger/webhook starts only), `event.<path>` (`watch-events`
@@ -389,7 +408,8 @@ bounded before storage; reads are scoped to the run's workspace. The closed even
 `generation_started` carries `generation`, `parent_generation`, `origin`, `reattempt_strategy`, and
 `loop_name`. `gate_verdict` carries the sanitized `node_id`, `generation`, `gate_id`, `item_index`,
 `verdict`, `reason`, `route`, `blocking_issues`, `criteria`, optional `score`, and optional
-`best_generation`. The retired `confidence` field is not part of either payload.
+`best_generation`. `goal_turn_completed` carries the settled Goal result plus bounded `criteria` and
+`warnings`, matching persisted turn reads. The retired `confidence` field is not part of either payload.
 
 ## Watch-Source Behavior
 

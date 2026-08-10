@@ -243,6 +243,42 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 	})
 }
 
+func TestLoopGateCommandRunnerShouldExecuteInResolvedWorkspace(t *testing.T) {
+	t.Run("Should resolve the run workspace before starting the command", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{
+			byID: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-command": {Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: rootDir}},
+			},
+		}}
+		result, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-command",
+			Command:     "pwd",
+		})
+		if err != nil {
+			t.Fatalf("RunCommand() error = %v", err)
+		}
+		if got, want := strings.TrimSpace(result.Stdout), rootDir; got != want {
+			t.Fatalf("RunCommand() stdout = %q, want workspace root %q", got, want)
+		}
+	})
+
+	t.Run("Should fail before execution when the workspace cannot be resolved", func(t *testing.T) {
+		t.Parallel()
+
+		runner := loopGateCommandRunner{workspaceResolver: loopActionBinderWorkspaceResolver{}}
+		_, err := runner.RunCommand(t.Context(), gate.CommandRequest{
+			WorkspaceID: "ws-missing",
+			Command:     "exit 0",
+		})
+		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			t.Fatalf("RunCommand() error = %v, want ErrWorkspaceNotFound", err)
+		}
+	})
+}
+
 func TestValidatePinnedRuntimeShouldRejectRuntimeDivergence(t *testing.T) {
 	t.Parallel()
 

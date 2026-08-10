@@ -1,6 +1,6 @@
 # BUG-20260808-goal-command-judge-unavailable: Command-only Goal judges never evaluate and trap the Loop in approval pauses
 
-- **Status:** fixed-pending-verification
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -51,14 +51,16 @@ node; non-zero exit routes a revision turn.
   `gate.Evaluator.validateGate` requires an `agent-judge` or `human` criterion under that policy —
   and the goal linter forbids `human` and supports command-only judges. Contract gates already
   derive their policy from criteria; the goal gate did not.
-- **Fix commit:** pending — `gate.GateFromGoalJudge` derives the verdict policy from the criteria
+- **Fix commit:** `9eaaf30` — `gate.GateFromGoalJudge` derives the verdict policy from the criteria
   (agent-judge present → `revise_until_clean`, deterministic-only → `fixed_passes`) and the daemon
   uses it instead of the hand-built gate.
 - **Regression test:** `internal/daemon/loop_goal_executor_test.go::TestLoopGoalJudgeEvaluatorShouldEvaluateDeterministicJudges`
 
 ## Verification
 
-- **Retested:** pending — resume the paused live run (or run any command-judged goal loop) on the
-  rebuilt daemon and confirm the judge executes the command, approves, and the loop advances.
-- **Result:** unit regression proves the old gate construction returned
-  `ErrVerdictPolicyRequiresJudge` and the new one evaluates the command and approves.
+- **Retested:** 2026-08-10 in fresh isolated Run `looprun-63a9f3bae9fa958d`; the historical operator
+  Run was not resumed or mutated.
+- **Result:** the deterministic command executed from the selected workspace, persisted one
+  rejected turn with complete diagnostics, approved the next turn with exit code 0, advanced to the
+  successor node, and terminalized the Run as `done`. The strict QA evidence audit passed with zero
+  blockers and zero warnings.

@@ -140,7 +140,7 @@ func (e *Evaluator) evaluateCriterion(
 ) CriterionResult {
 	switch criterion.Type {
 	case dsl.CriterionCommand:
-		return e.evaluateCommand(ctx, gate, criterion)
+		return e.evaluateCommand(ctx, gate, criterion, in)
 	case dsl.CriterionAgentJudge:
 		return e.evaluateAgentJudge(ctx, gate, criterion, in)
 	case dsl.CriterionHuman:

@@ -137,7 +137,10 @@ compozy loop turns --run run_123 --after-seq 42 --limit 50 -o json
 
 Optional `--node` and `--item` filters narrow one Goal instance. `result_status`, reason, stop reason,
 verdict, evidence, token usage, and `ended_at` are nullable until the corresponding evidence exists.
-The response returns `next_after_seq` for the next page. See the generated
+Settled turns also retain bounded `criteria[]` and aggregate `warnings[]`. Each criterion records its
+outcome and, when applicable, exit code, standard output, standard error, blockers, and warnings.
+The Web Run page shows the same diagnostics, so a continuation can act on the failed check instead
+of repeating completed work. The response returns `next_after_seq` for the next page. See the generated
 [`compozy loop turns` reference](/docs/cli/loop/turns).
 
 List only conversational Goal Runs, or one origin session:
@@ -164,9 +167,10 @@ Agents operating inside the active binding have three dedicated tools:
 - `compozy__loop_turns` reads the workspace-authorized Run audit with cursor and node/item filters, even after the binding is terminal.
 
 `compozy__goal_report` is a durable boundary intent, not immediate completion or proof of provider-side
-effect uniqueness. The daemon revalidates prompt, control, and binding epochs when invoked. Evidence is limited
-to 16 KiB; `blocked` requires evidence. Retries with the same payload deduplicate, while conflicting
-or revoked reports fail with stable reason codes. Resolve each live descriptor with
+effect uniqueness. It is available to the current bound Goal prompt whether the Run started from a
+session, the catalog, HTTP, or a native tool. The daemon revalidates workspace, Run, prompt, control,
+and binding epochs when invoked. Evidence is limited to 16 KiB; `blocked` requires evidence. Retries
+with the same payload deduplicate, while conflicting or revoked reports fail with stable reason codes. Resolve each live descriptor with
 `compozy__tool_info` before calling it.
 
 ## Configure defaults

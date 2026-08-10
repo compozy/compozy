@@ -126,6 +126,10 @@ func (s *service) DryRun(
 	if _, _, err := BuildExecutedDefinitionSnapshot(resolved, effective); err != nil {
 		return nil, err
 	}
+	materializedContract, err := MaterializeContract(resolved.Definition.Contract, resolvedInputs.Values)
+	if err != nil {
+		return nil, fmt.Errorf("loop: materialize dry-run contract: %w", err)
+	}
 	return &PlanPreview{
 		LoopName:                     loopName,
 		ResolvedInputs:               resolvedInputs.Values,
@@ -133,6 +137,7 @@ func (s *service) DryRun(
 		Generation:                   1,
 		Nodes:                        previewNodes(resolved.Definition.Graph),
 		Contract:                     resolved.Definition.Contract,
+		MaterializedContract:         materializedContract,
 		EffectiveConfig:              effective,
 		ResolvedNetworkParticipation: networkSpec,
 	}, nil

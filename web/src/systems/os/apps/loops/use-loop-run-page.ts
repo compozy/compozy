@@ -47,6 +47,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   const generations = runQuery.data?.generations;
   const watchEvents = runQuery.data?.watch_events ?? undefined;
   const executedDefinition = runQuery.data?.executed_definition;
+  const materializedContract = runQuery.data?.materialized_contract;
   const loopName = run?.loop_name ?? "";
   const loopQuery = useLoop(
     workspaceId,
@@ -195,6 +196,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
     run,
     effectiveRun,
     definition,
+    materializedContract,
     generations: generations ?? [],
     graph: view?.graph ?? null,
     watchEvents,

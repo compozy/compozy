@@ -43,8 +43,9 @@ export function LoopRunPreview({
   const inputCount = inputs ? Object.keys(inputs).length : 0;
   const effective =
     plan?.effective_config ?? resolveLoopEffectiveConfig(effectiveConfig, configOverrides);
+  const previewContract = plan?.materialized_contract ?? contract;
   const reattemptLabel = effective.reattempt_strategy === "full_body" ? "full-body" : "failed-only";
-  const terminalCount = contract.terminal_states?.length ?? 0;
+  const terminalCount = previewContract.terminal_states?.length ?? 0;
   return (
     <aside className="flex flex-col gap-3" data-testid="loop-run-preview">
       <LoopRailSection
@@ -55,7 +56,7 @@ export function LoopRunPreview({
         <div className="px-4 py-3.5">
           <p className="text-small-body leading-relaxed text-muted">
             Run <b className="font-medium text-fg-strong">{loopName}</b> against its contract:{" "}
-            {contract.goal} Iterates up to{" "}
+            {previewContract.goal} Iterates up to{" "}
             <b className="font-medium text-fg-strong">
               {effective.iteration_cap === 0 ? "∞" : effective.iteration_cap}
             </b>{" "}
@@ -94,11 +95,11 @@ export function LoopRunPreview({
         </div>
       </LoopRailSection>
       <LoopRailSection
-        gist={`${contract.verification?.length ?? 0} checks · ${terminalCount} possible endings`}
+        gist={`${previewContract.verification?.length ?? 0} checks · ${terminalCount} possible endings`}
         title="Contract"
       >
         <div className="flex flex-col">
-          <LoopContractRows contract={contract} />
+          <LoopContractRows contract={previewContract} />
         </div>
       </LoopRailSection>
       {plan ? <LoopRunPlan plan={plan} /> : null}

@@ -24,7 +24,7 @@ import type { Page } from "@playwright/test";
 
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 interface GatewayStatusPayload {
   addresses: { address: string; live: boolean; tier: string }[];
@@ -56,6 +56,7 @@ test("E2E-001 (local legs) operator mints a pairing, the daemon redeems it once,
 }) => {
   assertLaunchRuntime(runtime, "gateway pairing");
   await ensureGlobalWorkspace(runtime);
+  await useGlobalWorkspaceIfPrompted(appPage);
 
   await openGatewaySettings(appPage, runtime);
 
@@ -119,7 +120,8 @@ test("E2E-001 (local legs) operator mints a pairing, the daemon redeems it once,
     })
   ).rejects.toThrow();
 
-  await appPage.getByRole("button", { name: "Close" }).click();
+  await appPage.keyboard.press("Escape");
+  await expect(appPage.getByTestId("gateway-pairing-dialog")).toBeHidden();
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(appPage.getByTestId(`gateway-device-${redeemed.device.id}`)).toContainText(
     "Second browser"
@@ -141,6 +143,7 @@ test("E2E-005 (local legs) public operator access requires fresh consent, revoca
 }) => {
   assertLaunchRuntime(runtime, "gateway consent and revocation");
   await ensureGlobalWorkspace(runtime);
+  await useGlobalWorkspaceIfPrompted(appPage);
 
   await openGatewaySettings(appPage, runtime);
 
@@ -223,6 +226,7 @@ test("E2E-006 (local legs) the self-audit reports a ranked finding with actionab
 }) => {
   assertLaunchRuntime(runtime, "gateway self-audit");
   await ensureGlobalWorkspace(runtime);
+  await useGlobalWorkspaceIfPrompted(appPage);
 
   await openGatewaySettings(appPage, runtime);
 

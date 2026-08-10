@@ -258,7 +258,7 @@ func assertGoalDurableStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"loop_run_id", "seq", "generation", "node_id", "item_index", "turn",
 		"session_id", "binding_handle", "binding_epoch", "prompt_id", "prompt_attempt",
 		"usage_base_tokens", "result_status", "stop_reason", "reason_code", "verdict_outcome",
-		"blocking_json", "evidence_ref", "prompt_ref", "tokens_used", "actor_kind", "actor_id",
+		"blocking_json", "criteria_json", "warnings_json", "evidence_ref", "prompt_ref", "tokens_used", "actor_kind", "actor_id",
 		"started_at", "ended_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_goal_checkpoints", []string{
@@ -276,7 +276,7 @@ func assertGoalDurableStateSchema(t *testing.T, globalDB *GlobalDB) {
 	})
 	assertTableColumns(t, globalDB.db, "loop_goal_judge_attempts", []string{
 		"attempt_id", "loop_run_id", "generation", "node_id", "item_index", "turn",
-		"judge_digest", "status", "outcome", "blocking_json", "evidence_ref", "tokens_used",
+		"judge_digest", "status", "outcome", "blocking_json", "criteria_json", "warnings_json", "evidence_ref", "tokens_used",
 		"usage_base_tokens", "started_at", "completed_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_session_bindings", []string{

@@ -39,6 +39,13 @@ const plan: LoopDryRunPreview = {
   generation: 1,
   input_origins: {},
   loop_name: "delivery",
+  materialized_contract: {
+    budget: { on_exceeded: "halt", tokens: 100, wall_clock_sec: 60 },
+    definition_of_done: "Done.",
+    goal: "Ship it.",
+    iteration_cap: 1,
+    no_progress: { window: 1 },
+  },
   nodes: [],
   resolved_inputs: {},
   resolved_network_participation: {

@@ -27,6 +27,8 @@ type Turn struct {
 	ReasonCode      *loop.ReasonCode
 	VerdictOutcome  *gate.VerdictOutcome
 	BlockingIssues  []gate.BlockingIssue
+	Criteria        []gate.CriterionResult
+	Warnings        []gate.DiagnosticWarning
 	EvidenceRef     *string
 	PromptRef       *string
 	TokensUsed      *int64

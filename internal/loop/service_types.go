@@ -267,6 +267,7 @@ type PlanPreview struct {
 	Generation                   int                    `json:"generation"`
 	Nodes                        []PlanNodePreview      `json:"nodes"`
 	Contract                     dsl.Contract           `json:"contract"`
+	MaterializedContract         dsl.Contract           `json:"materialized_contract"`
 	EffectiveConfig              EffectiveConfig        `json:"effective_config"`
 	ResolvedNetworkParticipation participation.Spec     `json:"resolved_network_participation"`
 }

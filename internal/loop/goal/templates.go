@@ -104,23 +104,12 @@ func renderWorkPrompt(segment *segmentState, turn int, kind string) string {
 		prompt.WriteString(segment.lastVerdict)
 		prompt.WriteString(".")
 	}
-	if len(segment.lastBlockingIssues) > 0 {
-		prompt.WriteString("\n\nPrevious blocking issues:")
-		for _, issue := range segment.lastBlockingIssues {
-			id := strings.TrimSpace(issue.ID)
-			note := strings.TrimSpace(issue.Note)
-			if id == "" && note == "" {
-				continue
-			}
-			prompt.WriteString("\n- ")
-			if id != "" {
-				prompt.WriteString("[")
-				prompt.WriteString(id)
-				prompt.WriteString("] ")
-			}
-			prompt.WriteString(note)
-		}
-	}
+	appendPreviousDiagnostics(
+		&prompt,
+		segment.lastBlockingIssues,
+		segment.lastCriteria,
+		segment.lastWarnings,
+	)
 	prompt.WriteString(
 		"\n\nThe Goal engine will evaluate the pinned criteria after this turn. " +
 			"Use the Goal report tool only for an explicit complete or evidenced blocked boundary; " +

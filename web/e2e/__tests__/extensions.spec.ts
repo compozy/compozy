@@ -77,7 +77,9 @@ test.describe("Extension dev overlay and source-union install", () => {
       "aria-disabled",
       "true"
     );
-    await expect(marketplace.extensionUpdateAction).toBeHidden();
+    await expect(
+      marketplaceWin.getByRole("button", { name: `Update ${extensionName}` })
+    ).toHaveCount(0);
 
     await expect(marketplace.extensionLogsPanel).toBeVisible();
     await expect(marketplace.extensionLogsLines).toContainText(logSentinel, { timeout: 30_000 });

@@ -709,6 +709,8 @@ type LoopGoalJudgeAttempt struct {
 	Status          string         `json:"status"`
 	Outcome         sql.NullString `json:"outcome"`
 	BlockingJson    string         `json:"blocking_json"`
+	CriteriaJson    string         `json:"criteria_json"`
+	WarningsJson    string         `json:"warnings_json"`
 	EvidenceRef     sql.NullString `json:"evidence_ref"`
 	TokensUsed      sql.NullInt64  `json:"tokens_used"`
 	UsageBaseTokens int64          `json:"usage_base_tokens"`
@@ -759,6 +761,8 @@ type LoopGoalTurn struct {
 	ReasonCode      sql.NullString `json:"reason_code"`
 	VerdictOutcome  sql.NullString `json:"verdict_outcome"`
 	BlockingJson    string         `json:"blocking_json"`
+	CriteriaJson    string         `json:"criteria_json"`
+	WarningsJson    string         `json:"warnings_json"`
 	EvidenceRef     sql.NullString `json:"evidence_ref"`
 	PromptRef       sql.NullString `json:"prompt_ref"`
 	TokensUsed      sql.NullInt64  `json:"tokens_used"`

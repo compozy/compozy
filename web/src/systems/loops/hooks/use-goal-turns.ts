@@ -51,6 +51,8 @@ export interface GoalTurnTimelineItem {
   reasonCode: string | null;
   verdictOutcome: string | null;
   blockingIssues: { id: string; note: string }[];
+  criteria: GoalTurn["criteria"];
+  warnings: GoalTurn["warnings"];
   evidenceRef: string | null;
   tokensUsed: number | null;
   startedAt: string;
@@ -83,6 +85,8 @@ function apiTimelineItem(turn: GoalTurn): GoalTurnTimelineItem {
     reasonCode: turn.reason_code,
     verdictOutcome: turn.verdict_outcome,
     blockingIssues: turn.blocking_issues,
+    criteria: turn.criteria,
+    warnings: turn.warnings,
     evidenceRef: turn.evidence_ref,
     tokensUsed: turn.tokens_used,
     startedAt: turn.started_at,
@@ -106,6 +110,8 @@ function liveTimelineItem(turn: LoopGoalTurnLive): GoalTurnTimelineItem {
     reasonCode: turn.reasonCode,
     verdictOutcome: turn.verdictOutcome,
     blockingIssues: turn.blockingIssues,
+    criteria: turn.criteria,
+    warnings: turn.warnings,
     evidenceRef: turn.evidenceRef,
     tokensUsed: turn.tokensUsed,
     startedAt: turn.startedAt,

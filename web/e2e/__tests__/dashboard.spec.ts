@@ -365,21 +365,44 @@ async function runCLIJSON<T>(runtime: BrowserRuntime, args: string[]): Promise<T
 
 function assertOverviewParity(snapshot: HomeSnapshot): void {
   const expected = comparableOverview(snapshot.http);
-  if (snapshot.uds) expect(comparableOverview(snapshot.uds)).toEqual(expected);
-  if (snapshot.cli) expect(comparableOverview(snapshot.cli)).toEqual(expected);
+  for (const candidate of [snapshot.uds, snapshot.cli]) {
+    if (!candidate) continue;
+    expect(comparableOverview(candidate)).toEqual(expected);
+    assertLongestSessionDurationClose(snapshot.http, candidate);
+  }
 }
 
 function comparableOverview(overview: HomeOverview) {
+  const longestSession = overview.pulse.longest_session;
   return {
     schema_version: overview.schema_version,
     attention: overview.attention,
     today: overview.today,
     outcomes: overview.outcomes,
     usage: overview.usage,
-    pulse: overview.pulse,
+    pulse: {
+      ...overview.pulse,
+      longest_session: longestSession
+        ? {
+            agent_name: longestSession.agent_name,
+            date: longestSession.date,
+            session_id: longestSession.session_id,
+          }
+        : longestSession,
+    },
     network: overview.network,
     system: overview.system,
   };
+}
+
+function assertLongestSessionDurationClose(expected: HomeOverview, actual: HomeOverview): void {
+  const expectedDuration = expected.pulse.longest_session?.duration_seconds;
+  const actualDuration = actual.pulse.longest_session?.duration_seconds;
+  if (expectedDuration === undefined || actualDuration === undefined) {
+    expect(actualDuration).toBe(expectedDuration);
+    return;
+  }
+  expect(Math.abs(actualDuration - expectedDuration)).toBeLessThanOrEqual(5);
 }
 
 function homeMetric(root: Locator, label: string): Locator {

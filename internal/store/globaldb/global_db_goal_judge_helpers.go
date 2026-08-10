@@ -1,7 +1,6 @@
 package globaldb
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -99,10 +98,14 @@ func judgeAttemptMatchesCompletion(
 	if req.TokensReported && attempt.TokensUsed != req.TokensUsed {
 		return false
 	}
-	wantBlocking, err := json.Marshal(req.Verdict.BlockingIssues)
+	wantDiagnostics, err := marshalGoalVerdictDiagnostics(&req.Verdict)
 	if err != nil {
 		return false
 	}
-	gotBlocking, err := json.Marshal(attempt.BlockingIssues)
-	return err == nil && bytes.Equal(gotBlocking, wantBlocking)
+	gotDiagnostics, err := marshalGoalVerdictDiagnostics(&gate.Verdict{
+		BlockingIssues: attempt.BlockingIssues,
+		Criteria:       attempt.Criteria,
+		Warnings:       attempt.Warnings,
+	})
+	return err == nil && goalVerdictDiagnosticsEqual(gotDiagnostics, wantDiagnostics)
 }

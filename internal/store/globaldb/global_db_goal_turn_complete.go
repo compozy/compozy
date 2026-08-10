@@ -3,7 +3,6 @@ package globaldb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -77,7 +76,7 @@ func (g *GoalRepo) completeGoalTurnWithExecutor(
 	if err := validateGoalTurnSettlementEffect(ctx, exec, checkpoint, req); err != nil {
 		return goal.Checkpoint{}, err
 	}
-	blockingJSON, err := goalSettlementBlockingJSON(req.Verdict)
+	diagnostics, err := marshalGoalVerdictDiagnostics(req.Verdict)
 	if err != nil {
 		return goal.Checkpoint{}, err
 	}
@@ -86,7 +85,7 @@ func (g *GoalRepo) completeGoalTurnWithExecutor(
 		return goal.Checkpoint{}, err
 	}
 	now := g.now().UTC()
-	if err := persistGoalTurnSettlementRow(ctx, exec, req, blockingJSON, evidenceRef, now); err != nil {
+	if err := persistGoalTurnSettlementRow(ctx, exec, req, diagnostics, evidenceRef, now); err != nil {
 		return goal.Checkpoint{}, err
 	}
 	settlement, err := resolveGoalTurnSettlement(ctx, exec, checkpoint, req)
@@ -153,7 +152,7 @@ func persistGoalTurnSettlementRow(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	req goal.CompleteTurnRequest,
-	blockingJSON []byte,
+	diagnostics goalVerdictDiagnostics,
 	evidenceRef string,
 	now time.Time,
 ) error {
@@ -172,7 +171,9 @@ func persistGoalTurnSettlementRow(
 		StopReason:     goalNullableString(string(req.Result.StopReason)),
 		ReasonCode:     goalNullableString(string(req.Result.ReasonCode)),
 		VerdictOutcome: verdictOutcome,
-		BlockingJson:   string(blockingJSON),
+		BlockingJson:   string(diagnostics.blockingJSON),
+		CriteriaJson:   string(diagnostics.criteriaJSON),
+		WarningsJson:   string(diagnostics.warningsJSON),
 		EvidenceRef:    goalNullableString(evidenceRef),
 		TokensUsed:     tokensUsed,
 		EndedAt:        store.FormatTimestamp(now),
@@ -286,24 +287,11 @@ func goalTurnAlreadyCompleted(
 	if !row.ResultStatus.Valid {
 		return false, nil
 	}
-	wantBlocking, err := goalSettlementBlockingJSON(req.Verdict)
+	wantDiagnostics, err := marshalGoalVerdictDiagnostics(req.Verdict)
 	if err != nil {
 		return false, err
 	}
-	wantVerdict := ""
-	if req.Verdict != nil {
-		wantVerdict = string(req.Verdict.Outcome)
-	}
-	matches := row.ResultStatus.String == string(req.Result.Outcome) &&
-		goalOptionalStringMatches(row.StopReason, string(req.Result.StopReason)) &&
-		goalOptionalStringMatches(row.ReasonCode, string(req.Result.ReasonCode)) &&
-		goalOptionalStringMatches(row.VerdictOutcome, wantVerdict) &&
-		row.BlockingJson == string(wantBlocking) &&
-		goalOptionalTokensMatch(row.TokensUsed, req.Result.TokensUsed, req.Result.TokensReported) &&
-		row.ActorKind == strings.TrimSpace(req.DispatchActorKind) &&
-		row.ActorID == strings.TrimSpace(req.DispatchActorID) &&
-		row.BindingEpoch == req.ExpectedBindingEpoch
-	if !matches {
+	if !goalTurnSettlementMatches(row, req, wantDiagnostics) {
 		return false, goalControlStaleError("Goal turn already has a different settlement")
 	}
 	prompt, err := loadGoalPromptRow(ctx, exec, req.Key.LoopRunID, req.PromptID)
@@ -325,6 +313,28 @@ func goalTurnAlreadyCompleted(
 	return true, nil
 }
 
+func goalTurnSettlementMatches(
+	row sqlcgen.GetCompletedGoalTurnRow,
+	req goal.CompleteTurnRequest,
+	diagnostics goalVerdictDiagnostics,
+) bool {
+	wantVerdict := ""
+	if req.Verdict != nil {
+		wantVerdict = string(req.Verdict.Outcome)
+	}
+	return row.ResultStatus.String == string(req.Result.Outcome) &&
+		goalOptionalStringMatches(row.StopReason, string(req.Result.StopReason)) &&
+		goalOptionalStringMatches(row.ReasonCode, string(req.Result.ReasonCode)) &&
+		goalOptionalStringMatches(row.VerdictOutcome, wantVerdict) &&
+		row.BlockingJson == string(diagnostics.blockingJSON) &&
+		row.CriteriaJson == string(diagnostics.criteriaJSON) &&
+		row.WarningsJson == string(diagnostics.warningsJSON) &&
+		goalOptionalTokensMatch(row.TokensUsed, req.Result.TokensUsed, req.Result.TokensReported) &&
+		row.ActorKind == strings.TrimSpace(req.DispatchActorKind) &&
+		row.ActorID == strings.TrimSpace(req.DispatchActorID) &&
+		row.BindingEpoch == req.ExpectedBindingEpoch
+}
+
 func goalOptionalStringMatches(stored sql.NullString, want string) bool {
 	want = strings.TrimSpace(want)
 	if want == "" {
@@ -338,18 +348,6 @@ func goalOptionalTokensMatch(stored sql.NullInt64, want int64, reported bool) bo
 		return !stored.Valid
 	}
 	return stored.Valid && stored.Int64 == want
-}
-
-func goalSettlementBlockingJSON(verdict *gate.Verdict) ([]byte, error) {
-	issues := []gate.BlockingIssue{}
-	if verdict != nil {
-		issues = append(issues, verdict.BlockingIssues...)
-	}
-	data, err := json.Marshal(issues)
-	if err != nil {
-		return nil, fmt.Errorf("store: encode Goal turn blockers: %w", err)
-	}
-	return data, nil
 }
 
 func goalVerdictOutcomeValid(outcome gate.VerdictOutcome) bool {

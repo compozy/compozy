@@ -50,13 +50,38 @@ func sessionGoalTurn(turn goalpkg.Turn) session.GoalTurn {
 	for _, issue := range turn.BlockingIssues {
 		issues = append(issues, session.GoalBlockingIssue{ID: issue.ID, Note: issue.Note})
 	}
+	criteria := make([]session.GoalCriterionResult, 0, len(turn.Criteria))
+	for _, criterion := range turn.Criteria {
+		criterionIssues := make([]session.GoalBlockingIssue, 0, len(criterion.BlockingIssues))
+		for _, issue := range criterion.BlockingIssues {
+			criterionIssues = append(criterionIssues, session.GoalBlockingIssue{ID: issue.ID, Note: issue.Note})
+		}
+		criterionWarnings := make([]session.GoalDiagnosticWarning, 0, len(criterion.Warnings))
+		for _, warning := range criterion.Warnings {
+			criterionWarnings = append(criterionWarnings, session.GoalDiagnosticWarning{
+				Code: warning.Code, Message: warning.Message,
+			})
+		}
+		criteria = append(criteria, session.GoalCriterionResult{
+			ID: criterion.ID, Type: string(criterion.Type), Outcome: string(criterion.Outcome),
+			Passed: criterion.Passed, Broken: criterion.Broken, ExitCode: criterion.ExitCode,
+			Stdout: criterion.Stdout, Stderr: criterion.Stderr, Score: criterion.Score,
+			Evidence: append([]byte(nil), criterion.Evidence...), BlockingIssues: criterionIssues,
+			Warnings: criterionWarnings, Payload: append([]byte(nil), criterion.Payload...),
+		})
+	}
+	warnings := make([]session.GoalDiagnosticWarning, 0, len(turn.Warnings))
+	for _, warning := range turn.Warnings {
+		warnings = append(warnings, session.GoalDiagnosticWarning{Code: warning.Code, Message: warning.Message})
+	}
 	result := session.GoalTurn{
 		Seq: turn.Seq, Generation: int64(turn.Key.Generation), NodeID: string(turn.Key.NodeID),
 		ItemIndex: turn.Key.ItemIndex, Turn: turn.Turn, PromptAttempt: turn.PromptAttempt,
 		SessionID: turn.SessionID, BindingHandle: turn.BindingHandle, BindingEpoch: turn.BindingEpoch,
 		PromptID: turn.PromptID, ResultStatus: cloneStringPointer(turn.ResultStatus),
-		BlockingIssues: issues, EvidenceRef: cloneStringPointer(turn.EvidenceRef),
-		PromptRef: cloneStringPointer(turn.PromptRef), TokensUsed: turn.TokensUsed,
+		BlockingIssues: issues, Criteria: criteria, Warnings: warnings,
+		EvidenceRef: cloneStringPointer(turn.EvidenceRef),
+		PromptRef:   cloneStringPointer(turn.PromptRef), TokensUsed: turn.TokensUsed,
 		ActorKind: turn.ActorKind, ActorID: turn.ActorID, StartedAt: turn.StartedAt, EndedAt: turn.EndedAt,
 	}
 	if turn.ReasonCode != nil {

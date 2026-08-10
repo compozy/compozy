@@ -299,6 +299,8 @@ func (s *fakeExecutorStore) CompleteJudgeAttempt(
 	attempt.Status = "completed"
 	attempt.Outcome = string(req.Verdict.Outcome)
 	attempt.BlockingIssues = append([]gate.BlockingIssue(nil), req.Verdict.BlockingIssues...)
+	attempt.Criteria = cloneCriterionResults(req.Verdict.Criteria)
+	attempt.Warnings = append([]gate.DiagnosticWarning(nil), req.Verdict.Warnings...)
 	attempt.TokensUsed = req.TokensUsed
 	attempt.TokensReported = req.TokensReported
 	attempt.CompletedAt = &now
@@ -398,11 +400,25 @@ func cloneTestInt64(value *int64) *int64 {
 
 func cloneJudgeAttempt(attempt JudgeAttempt) JudgeAttempt {
 	attempt.BlockingIssues = append([]gate.BlockingIssue(nil), attempt.BlockingIssues...)
+	attempt.Criteria = cloneCriterionResults(attempt.Criteria)
+	attempt.Warnings = append([]gate.DiagnosticWarning(nil), attempt.Warnings...)
 	if attempt.CompletedAt != nil {
 		completedAt := *attempt.CompletedAt
 		attempt.CompletedAt = &completedAt
 	}
 	return attempt
+}
+
+func cloneCriterionResults(criteria []gate.CriterionResult) []gate.CriterionResult {
+	cloned := make([]gate.CriterionResult, len(criteria))
+	for index := range criteria {
+		cloned[index] = criteria[index]
+		cloned[index].Evidence = append([]byte(nil), criteria[index].Evidence...)
+		cloned[index].Payload = append([]byte(nil), criteria[index].Payload...)
+		cloned[index].BlockingIssues = append([]gate.BlockingIssue(nil), criteria[index].BlockingIssues...)
+		cloned[index].Warnings = append([]gate.DiagnosticWarning(nil), criteria[index].Warnings...)
+	}
+	return cloned
 }
 
 type scriptedPrompt struct {

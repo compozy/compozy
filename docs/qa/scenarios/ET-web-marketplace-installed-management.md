@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Each kind opens in Installed scope with `tab` omitted and exposes only daemon-backed controls: skill content, shadows, enable and update; extension kit inventory, lifecycle, environment, diagnostics and provenance; MCP creation and exact-scope configuration, status and authorization.
 entry_points: /marketplace/skills; /marketplace/mcps; /marketplace/extensions
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: blocked-verify
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/marketplace-extension-evidence.md; /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/mcp-installed-default.png
-last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
+evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-skill-disabled.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-dev-cycle-trust.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-mcp-playwright-installed.png
+last_report: docs/qa/reports/2026-08-10-loop-browser-runtime-closeout.md
 overlaps: ET-web-extensions-manage; ET-web-extension-detail; ET-web-mcp-status-matrix
 ---
 
@@ -65,3 +65,15 @@ authorization/connection/tools; extension kit/access/environment/diagnostics/log
 holds short collapsible property cards. Update and Authorize are OS-head primary actions only; the
 rail Manage card keeps the enable switch, overflow (Provenance/Remove), and trust badges. Reset to
 untested.
+
+QA impact 2026-08-10: an installed Skill now labels its switch from daemon truth (`Enabled` or
+`Disabled`) after mutation, and extension Update opens an update-specific trust confirmation instead
+of install copy. This scenario remains untested for a fresh Skill toggle, Extension update-confirm,
+refresh, and exact-scope management walk.
+
+QA completion: blocked-verify 2026-08-10 — Bruno toggled the bundled `compozy` skill, confirmed the `Disabled` label
+survived reload, and restored `Enabled`; disabled and restored `dev-cycle` while runtime health and
+official trust stayed truthful; then installed Playwright in workspace scope and inspected its
+installed stdio detail. The isolated catalog exposed no extension update candidate, so the remaining
+update branch could not be walked without fabricated state; its detail contract is tracked by
+ET-web-extension-detail.

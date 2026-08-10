@@ -502,7 +502,14 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		if err != nil || attempt.Status != "running" {
 			t.Fatalf("BeginJudgeAttempt() = %#v, %v", attempt, err)
 		}
-		verdict := gate.Verdict{Outcome: gate.VerdictOutcomeApproved}
+		verdict := gate.Verdict{
+			Outcome: gate.VerdictOutcomeApproved,
+			Criteria: []gate.CriterionResult{{
+				ID: "verify", Type: "command", Outcome: gate.VerdictOutcomeApproved, Passed: true,
+				Stdout: "all tasks completed",
+			}},
+			Warnings: []gate.DiagnosticWarning{{Code: "cached", Message: "result reused safely"}},
+		}
 		if _, err := globalDB.CompleteJudgeAttempt(ctx, goal.CompleteJudgeAttemptRequest{
 			AttemptID:            attempt.AttemptID,
 			Key:                  key,
@@ -608,6 +615,24 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		blockingIssues, ok := completedEvent["blocking_issues"].([]any)
 		if !ok || len(blockingIssues) != 0 {
 			t.Fatalf("completed blocking_issues = %#v, want empty array", completedEvent["blocking_issues"])
+		}
+		criteria, ok := completedEvent["criteria"].([]any)
+		if !ok || len(criteria) != 1 {
+			t.Fatalf("completed criteria = %#v, want one result", completedEvent["criteria"])
+		}
+		criterion, ok := criteria[0].(map[string]any)
+		if !ok || criterion["id"] != "verify" || criterion["type"] != "command" ||
+			criterion["outcome"] != "approved" || criterion["passed"] != true ||
+			criterion["stdout"] != "all tasks completed" {
+			t.Fatalf("completed criterion = %#v, want serialized fixture values", criteria[0])
+		}
+		warnings, ok := completedEvent["warnings"].([]any)
+		if !ok || len(warnings) != 1 {
+			t.Fatalf("completed warnings = %#v, want one warning", completedEvent["warnings"])
+		}
+		warning, ok := warnings[0].(map[string]any)
+		if !ok || warning["code"] != "cached" || warning["message"] != "result reused safely" {
+			t.Fatalf("completed warning = %#v, want serialized fixture values", warnings[0])
 		}
 		if _, err := globalDB.CompleteTurn(ctx, completeReq); err != nil {
 			t.Fatalf("CompleteTurn(idempotent) error = %v", err)

@@ -669,6 +669,7 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 					Seq: 5, Generation: 2, NodeID: "converge", ItemIndex: 0, Turn: 2,
 					PromptAttempt: 1, SessionID: "sess-bound", BindingHandle: "goal:hash",
 					BindingEpoch: 2, PromptID: "prompt-5", BlockingIssues: []session.GoalBlockingIssue{},
+					Criteria: []session.GoalCriterionResult{}, Warnings: []session.GoalDiagnosticWarning{},
 					ActorKind: "agent", ActorID: "goal:run-1", StartedAt: fixedLoopTime(),
 				}},
 				NextAfterSeq: &next,
@@ -706,7 +707,8 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 		var page contract.GoalTurnPage
 		testutil.DecodeJSONResponse(t, turnsResponse, &page)
 		if len(page.Turns) != 1 || page.Turns[0].ResultStatus != nil || page.NextAfterSeq == nil ||
-			*page.NextAfterSeq != 5 || page.Turns[0].BlockingIssues == nil {
+			*page.NextAfterSeq != 5 || page.Turns[0].BlockingIssues == nil ||
+			page.Turns[0].Criteria == nil || page.Turns[0].Warnings == nil {
 			t.Fatalf("GET Goal turns = %#v", page)
 		}
 	})

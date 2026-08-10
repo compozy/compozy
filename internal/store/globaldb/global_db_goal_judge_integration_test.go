@@ -111,6 +111,11 @@ func TestGoalJudgeAttemptLifecycleIntegration(t *testing.T) {
 			BlockingIssues: []gate.BlockingIssue{
 				{ID: "verify", Note: "verification still fails"},
 			},
+			Criteria: []gate.CriterionResult{{
+				ID: "verify", Type: "command", Outcome: gate.VerdictOutcomeRejected,
+				Stderr: "task_03 is pending",
+			}},
+			Warnings: []gate.DiagnosticWarning{{Code: "shell", Message: "inspect stderr"}},
 		}
 		if _, err := globalDB.db.ExecContext(
 			testutil.Context(t),
@@ -160,14 +165,31 @@ func TestGoalJudgeAttemptLifecycleIntegration(t *testing.T) {
 			t.Fatalf("CompleteJudgeAttempt() error = %v", err)
 		}
 		if completed.Status != "completed" || completed.Outcome != string(gate.VerdictOutcomeRejected) ||
-			!completed.TokensReported || completed.TokensUsed != 0 || len(completed.BlockingIssues) != 1 {
+			!completed.TokensReported || completed.TokensUsed != 0 || len(completed.BlockingIssues) != 1 ||
+			len(completed.Criteria) != 1 || len(completed.Warnings) != 1 {
 			t.Fatalf("completed judge = %#v, want rejected with reported zero", completed)
+		}
+		if completed.BlockingIssues[0].ID != "verify" ||
+			completed.BlockingIssues[0].Note != "verification still fails" ||
+			completed.Criteria[0].ID != "verify" || completed.Criteria[0].Type != "command" ||
+			completed.Criteria[0].Outcome != gate.VerdictOutcomeRejected || completed.Criteria[0].Passed ||
+			completed.Criteria[0].Stderr != "task_03 is pending" || completed.Warnings[0].Code != "shell" ||
+			completed.Warnings[0].Message != "inspect stderr" {
+			t.Fatalf("completed judge diagnostics = %#v, want fixture values", completed)
 		}
 		loaded, err := globalDB.GetJudgeAttempt(testutil.Context(t), key, "judge-attempt-1")
 		if err != nil {
 			t.Fatalf("GetJudgeAttempt() error = %v", err)
 		}
-		if loaded.CompletedAt == nil || !loaded.TokensReported || loaded.TokensUsed != 0 {
+		if loaded.CompletedAt == nil || loaded.Status != "completed" ||
+			loaded.Outcome != string(gate.VerdictOutcomeRejected) || !loaded.TokensReported ||
+			loaded.TokensUsed != 0 || len(loaded.BlockingIssues) != 1 ||
+			loaded.BlockingIssues[0].ID != "verify" ||
+			loaded.BlockingIssues[0].Note != "verification still fails" || len(loaded.Criteria) != 1 ||
+			loaded.Criteria[0].ID != "verify" || loaded.Criteria[0].Type != "command" ||
+			loaded.Criteria[0].Outcome != gate.VerdictOutcomeRejected || loaded.Criteria[0].Passed ||
+			loaded.Criteria[0].Stderr != "task_03 is pending" || len(loaded.Warnings) != 1 ||
+			loaded.Warnings[0].Code != "shell" || loaded.Warnings[0].Message != "inspect stderr" {
 			t.Fatalf("loaded judge = %#v, want durable terminal token truth", loaded)
 		}
 

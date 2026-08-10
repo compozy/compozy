@@ -180,6 +180,18 @@ func (s *daemonLoopAPIService) GetLoopRun(
 	if err != nil {
 		return contract.LoopRunResponse{}, err
 	}
+	materialized, err := looppkg.MaterializeContract(resolved.Definition.Contract, run.Inputs)
+	if err != nil {
+		return contract.LoopRunResponse{}, fmt.Errorf(
+			"daemon: materialize executed Loop contract for run %q: %w",
+			run.ID,
+			err,
+		)
+	}
+	var materializedContract contract.LoopContract
+	if err := transcodeLoopAPI(materialized, &materializedContract); err != nil {
+		return contract.LoopRunResponse{}, fmt.Errorf("daemon: encode materialized Loop contract: %w", err)
+	}
 	payload, err := loopRunPayload(*run)
 	if err != nil {
 		return contract.LoopRunResponse{}, err
@@ -193,12 +205,13 @@ func (s *daemonLoopAPIService) GetLoopRun(
 		return contract.LoopRunResponse{}, err
 	}
 	return contract.LoopRunResponse{
-		Run:                payload,
-		ExecutedDefinition: &executedDefinition,
-		Generations:        generations,
-		NodeControls:       controls,
-		Waits:              waits,
-		WatchEvents:        watchEvents,
+		Run:                  payload,
+		ExecutedDefinition:   &executedDefinition,
+		MaterializedContract: materializedContract,
+		Generations:          generations,
+		NodeControls:         controls,
+		Waits:                waits,
+		WatchEvents:          watchEvents,
 	}, nil
 }
 
@@ -301,6 +314,10 @@ func loopPlanPayload(plan *looppkg.PlanPreview) (*contract.LoopPlanPayload, erro
 	if err := transcodeLoopAPI(plan.Contract, &loopContract); err != nil {
 		return nil, fmt.Errorf("daemon: encode loop plan contract DTO: %w", err)
 	}
+	var materializedContract contract.LoopContract
+	if err := transcodeLoopAPI(plan.MaterializedContract, &materializedContract); err != nil {
+		return nil, fmt.Errorf("daemon: encode materialized loop plan contract DTO: %w", err)
+	}
 	effective, err := loopEffectiveConfigPayload(plan.EffectiveConfig)
 	if err != nil {
 		return nil, err
@@ -316,6 +333,7 @@ func loopPlanPayload(plan *looppkg.PlanPreview) (*contract.LoopPlanPayload, erro
 		Generation:                   plan.Generation,
 		Nodes:                        loopPlanNodesPayload(plan.Nodes),
 		Contract:                     loopContract,
+		MaterializedContract:         materializedContract,
 		EffectiveConfig:              effective,
 		ResolvedNetworkParticipation: participation.CloneSpec(plan.ResolvedNetworkParticipation),
 	}, nil

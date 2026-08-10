@@ -297,9 +297,9 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
     endpoint,
     payload: triggerPayload("deploy", "main"),
     secret: webhookSecret,
-    wantStatus: 404,
+    wantStatus: 409,
   });
-  expect(disabledDelivery.body).toMatch(/not registered|not found/i);
+  expect(disabledDelivery.body).toMatch(/disabled/i);
   expect(await triggerRunCount(runtime, updated.id)).toBe(1);
 
   await ui.detailOverflow.click();

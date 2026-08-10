@@ -146,6 +146,19 @@ describe("applyLoopEventFrame", () => {
           stop_reason: "end_turn",
           verdict_outcome: "rejected",
           blocking_issues: [{ id: "issue_1", note: "Missing evidence" }],
+          criteria: [
+            {
+              id: "tasks_completed",
+              type: "command",
+              outcome: "rejected",
+              passed: false,
+              exit_code: 1,
+              stdout: "checked task state",
+              stderr: "task_03 is pending",
+              warnings: [{ code: "command_output_truncated", message: "Output was truncated." }],
+            },
+          ],
+          warnings: [{ code: "judge_rejected", message: "A criterion did not pass." }],
           evidence_ref: "blob_1",
           tokens_used: 420,
         },
@@ -165,7 +178,65 @@ describe("applyLoopEventFrame", () => {
     expect(completed.goalTurns[0].blockingIssues).toEqual([
       { id: "issue_1", note: "Missing evidence" },
     ]);
+    expect(completed.goalTurns[0].criteria).toEqual([
+      {
+        id: "tasks_completed",
+        type: "command",
+        outcome: "rejected",
+        passed: false,
+        exit_code: 1,
+        stdout: "checked task state",
+        stderr: "task_03 is pending",
+        warnings: [{ code: "command_output_truncated", message: "Output was truncated." }],
+      },
+    ]);
+    expect(completed.goalTurns[0].warnings).toEqual([
+      { code: "judge_rejected", message: "A criterion did not pass." },
+    ]);
   });
+
+  it("Should reject Goal criteria without a boolean passed field", () => {
+    const state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("goal_turn_completed", {
+        seq: 1,
+        generation: 1,
+        node_id: "goal",
+        item_index: 0,
+        turn: 1,
+        prompt_id: "prompt_missing_passed",
+        result_status: "completed",
+        verdict_outcome: "approved",
+        criteria: [{ id: "verify", type: "command", outcome: "approved" }],
+      })
+    );
+
+    expect(state.goalTurns).toHaveLength(1);
+    expect(state.goalTurns[0].criteria).toEqual([]);
+  });
+
+  it.each([null, "false", 0])(
+    "Should reject Goal criteria with a non-boolean passed value %p",
+    passed => {
+      const state = applyLoopEventFrame(
+        emptyLoopRunLiveState(),
+        frame("goal_turn_completed", {
+          seq: 1,
+          generation: 1,
+          node_id: "goal",
+          item_index: 0,
+          turn: 1,
+          prompt_id: "prompt_invalid_passed",
+          result_status: "completed",
+          verdict_outcome: "approved",
+          criteria: [{ id: "verify", type: "command", outcome: "approved", passed }],
+        })
+      );
+
+      expect(state.goalTurns).toHaveLength(1);
+      expect(state.goalTurns[0].criteria).toEqual([]);
+    }
+  );
 
   it("Should retain a goal_status_changed frame without inventing a turn", () => {
     const state = applyLoopEventFrame(

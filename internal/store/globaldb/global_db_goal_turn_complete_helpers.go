@@ -227,6 +227,8 @@ func appendGoalTurnCompletedEvent(
 			"reason_code":                        goalTurnEventOptionalReasonCode(turn.ReasonCode),
 			"verdict_outcome":                    goalTurnEventOptionalVerdict(turn.VerdictOutcome),
 			loopRunEventPayloadKeyBlockingIssues: turn.BlockingIssues,
+			"criteria":                           turn.Criteria,
+			"warnings":                           turn.Warnings,
 			"evidence_ref":                       goalTurnEventOptionalString(turn.EvidenceRef),
 			"tokens_used":                        goalTurnEventOptionalInt64(turn.TokensUsed),
 			loopRunEventPayloadKeyActorKind:      turn.ActorKind,

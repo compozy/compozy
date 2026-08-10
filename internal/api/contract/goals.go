@@ -1,6 +1,9 @@
 package contract
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // GoalReasonCode is the stable public Goal error and transition vocabulary.
 type GoalReasonCode string
@@ -123,6 +126,29 @@ type GoalBlockingIssue struct {
 	Note string `json:"note"`
 }
 
+// GoalDiagnosticWarning is one non-terminal Goal judge diagnostic.
+type GoalDiagnosticWarning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// GoalCriterionResult is one sanitized Goal judge criterion result.
+type GoalCriterionResult struct {
+	ID             string                  `json:"id"`
+	Type           string                  `json:"type"`
+	Outcome        GoalVerdictOutcome      `json:"outcome"`
+	Passed         bool                    `json:"passed"`
+	Broken         bool                    `json:"broken,omitempty"`
+	ExitCode       *int                    `json:"exit_code,omitempty"`
+	Stdout         string                  `json:"stdout,omitempty"`
+	Stderr         string                  `json:"stderr,omitempty"`
+	Score          *float64                `json:"score,omitempty"`
+	Evidence       json.RawMessage         `json:"evidence,omitempty"`
+	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues,omitempty"`
+	Warnings       []GoalDiagnosticWarning `json:"warnings,omitempty"`
+	Payload        json.RawMessage         `json:"payload,omitempty"`
+}
+
 // GoalContextSnapshot is checkpoint-pinned context telemetry.
 type GoalContextSnapshot struct {
 	State      GoalContextState `json:"state"`
@@ -174,28 +200,30 @@ type GoalCommandResult struct {
 
 // GoalTurn is one immutable-start, optionally terminal Goal audit row.
 type GoalTurn struct {
-	Seq            int64                 `json:"seq"`
-	Generation     int64                 `json:"generation"`
-	NodeID         string                `json:"node_id"`
-	ItemIndex      int                   `json:"item_index"`
-	Turn           int                   `json:"turn"`
-	PromptAttempt  int                   `json:"prompt_attempt"`
-	SessionID      string                `json:"session_id"`
-	BindingHandle  string                `json:"binding_handle"`
-	BindingEpoch   int64                 `json:"binding_epoch"`
-	PromptID       string                `json:"prompt_id"`
-	ResultStatus   *GoalTurnResultStatus `json:"result_status"`
-	ReasonCode     *GoalReasonCode       `json:"reason_code"`
-	StopReason     *ACPPromptStopReason  `json:"stop_reason"`
-	VerdictOutcome *GoalVerdictOutcome   `json:"verdict_outcome"`
-	BlockingIssues []GoalBlockingIssue   `json:"blocking_issues"`
-	EvidenceRef    *string               `json:"evidence_ref"`
-	PromptRef      *string               `json:"prompt_ref"`
-	TokensUsed     *int64                `json:"tokens_used"`
-	ActorKind      string                `json:"actor_kind"`
-	ActorID        string                `json:"actor_id"`
-	StartedAt      time.Time             `json:"started_at"`
-	EndedAt        *time.Time            `json:"ended_at"`
+	Seq            int64                   `json:"seq"`
+	Generation     int64                   `json:"generation"`
+	NodeID         string                  `json:"node_id"`
+	ItemIndex      int                     `json:"item_index"`
+	Turn           int                     `json:"turn"`
+	PromptAttempt  int                     `json:"prompt_attempt"`
+	SessionID      string                  `json:"session_id"`
+	BindingHandle  string                  `json:"binding_handle"`
+	BindingEpoch   int64                   `json:"binding_epoch"`
+	PromptID       string                  `json:"prompt_id"`
+	ResultStatus   *GoalTurnResultStatus   `json:"result_status"`
+	ReasonCode     *GoalReasonCode         `json:"reason_code"`
+	StopReason     *ACPPromptStopReason    `json:"stop_reason"`
+	VerdictOutcome *GoalVerdictOutcome     `json:"verdict_outcome"`
+	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues"`
+	Criteria       []GoalCriterionResult   `json:"criteria"`
+	Warnings       []GoalDiagnosticWarning `json:"warnings"`
+	EvidenceRef    *string                 `json:"evidence_ref"`
+	PromptRef      *string                 `json:"prompt_ref"`
+	TokensUsed     *int64                  `json:"tokens_used"`
+	ActorKind      string                  `json:"actor_kind"`
+	ActorID        string                  `json:"actor_id"`
+	StartedAt      time.Time               `json:"started_at"`
+	EndedAt        *time.Time              `json:"ended_at"`
 }
 
 // GoalTurnPage is one run-wide monotonic cursor page.

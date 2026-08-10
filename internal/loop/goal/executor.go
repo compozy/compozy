@@ -47,8 +47,11 @@ func (e *Executor) initializeSegment(
 	if err := validateGoalExecutionInput(e, node, in); err != nil {
 		return nil, err
 	}
-	params, err := decodeGoalParams(node)
+	params, err := loop.MaterializeGoalParams(node, in.Namespace)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateGoalParams(params); err != nil {
 		return nil, err
 	}
 	item, err := loop.ItemRuntimeFromNamespace(in.Namespace, params.Runtime)
@@ -125,18 +128,14 @@ func validateGoalExecutionInput(e *Executor, node dsl.Node, in loop.ActionExecut
 	return nil
 }
 
-func decodeGoalParams(node dsl.Node) (dsl.GoalParams, error) {
-	var params dsl.GoalParams
-	if err := node.Params.Decode(&params); err != nil {
-		return dsl.GoalParams{}, fmt.Errorf("decode Goal params: %w", err)
-	}
+func validateGoalParams(params dsl.GoalParams) error {
 	if strings.TrimSpace(params.Objective) == "" || params.MaxTurns < 1 || len(params.Judge) == 0 {
-		return dsl.GoalParams{}, fmt.Errorf(
+		return fmt.Errorf(
 			"%w: Goal objective, max_turns, and judge are required",
 			loop.ErrValidation,
 		)
 	}
-	return params, nil
+	return nil
 }
 
 func (e *Executor) loadOrCreateCheckpoint(

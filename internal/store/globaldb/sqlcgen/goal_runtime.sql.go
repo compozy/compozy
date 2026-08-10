@@ -384,7 +384,7 @@ func (q *Queries) ReadLatestGoalSessionCheckpoint(ctx context.Context, loopRunID
 }
 
 const readLatestGoalSessionVerdict = `-- name: ReadLatestGoalSessionVerdict :one
-SELECT loop_run_id, seq, generation, node_id, item_index, turn, session_id, binding_handle, binding_epoch, prompt_id, prompt_attempt, usage_base_tokens, result_status, stop_reason, reason_code, verdict_outcome, blocking_json, evidence_ref, prompt_ref, tokens_used, actor_kind, actor_id, started_at, ended_at
+SELECT loop_run_id, seq, generation, node_id, item_index, turn, session_id, binding_handle, binding_epoch, prompt_id, prompt_attempt, usage_base_tokens, result_status, stop_reason, reason_code, verdict_outcome, blocking_json, criteria_json, warnings_json, evidence_ref, prompt_ref, tokens_used, actor_kind, actor_id, started_at, ended_at
 FROM loop_goal_turns
 WHERE loop_run_id = ?1 AND verdict_outcome IS NOT NULL
 ORDER BY seq DESC
@@ -412,6 +412,8 @@ func (q *Queries) ReadLatestGoalSessionVerdict(ctx context.Context, loopRunID st
 		&i.ReasonCode,
 		&i.VerdictOutcome,
 		&i.BlockingJson,
+		&i.CriteriaJson,
+		&i.WarningsJson,
 		&i.EvidenceRef,
 		&i.PromptRef,
 		&i.TokensUsed,

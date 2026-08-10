@@ -240,6 +240,16 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 		loopRuntimeAssertJSONEqual(
 			t, "UDS dry-run effective config", udsResponse.DryRun.EffectiveConfig, cliResponse.DryRun.EffectiveConfig,
 		)
+		loopRuntimeAssertJSONEqual(
+			t, "HTTP dry-run materialized contract",
+			httpResponse.DryRun.MaterializedContract,
+			cliResponse.DryRun.MaterializedContract,
+		)
+		loopRuntimeAssertJSONEqual(
+			t, "UDS dry-run materialized contract",
+			udsResponse.DryRun.MaterializedContract,
+			cliResponse.DryRun.MaterializedContract,
+		)
 		if got := cliResponse.DryRun.EffectiveConfig.RuntimeDefaults.Worker.Model; got != "vendor/model" {
 			t.Fatalf("slash-safe worker model = %q, want vendor/model", got)
 		}

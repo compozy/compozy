@@ -223870,6 +223870,575 @@
                       },
                       "type": "array"
                     },
+                    "materialized_contract": {
+                      "properties": {
+                        "boundaries": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "budget": {
+                          "properties": {
+                            "on_exceeded": {
+                              "enum": [
+                                "halt",
+                                "escalate"
+                              ],
+                              "type": "string"
+                            },
+                            "tokens": {
+                              "type": "integer"
+                            },
+                            "wall_clock_sec": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "tokens",
+                            "wall_clock_sec"
+                          ],
+                          "type": "object"
+                        },
+                        "constraints": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "definition_of_done": {
+                          "type": "string"
+                        },
+                        "goal": {
+                          "type": "string"
+                        },
+                        "iteration_cap": {
+                          "type": "integer"
+                        },
+                        "no_progress": {
+                          "properties": {
+                            "hash_fields": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "window": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "window"
+                          ],
+                          "type": "object"
+                        },
+                        "on_blocked": {
+                          "items": {
+                            "oneOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "emit": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "payload": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "emit"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "with": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "tool"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "on_canceled": {
+                          "items": {
+                            "oneOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "emit": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "payload": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "emit"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "with": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "tool"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "on_done": {
+                          "items": {
+                            "oneOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "emit": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "payload": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "emit"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "with": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "tool"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "on_exhausted": {
+                          "items": {
+                            "oneOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "emit": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "payload": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "emit"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "with": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "tool"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "on_failed": {
+                          "items": {
+                            "oneOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "emit": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "payload": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "emit"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "with": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "tool"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "on_noop": {
+                          "items": {
+                            "oneOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "emit": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "payload": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "emit"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "with": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "tool"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "on_stalled": {
+                          "items": {
+                            "oneOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "emit": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "payload": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "emit"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "with": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "tool"
+                                ],
+                                "type": "object"
+                              }
+                            ]
+                          },
+                          "type": "array"
+                        },
+                        "runtime_defaults": {
+                          "nullable": true,
+                          "properties": {
+                            "judge": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "worker": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "runtime_rules": {
+                          "items": {
+                            "properties": {
+                              "match": {
+                                "properties": {
+                                  "complexity": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "runtime": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning": {
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "match",
+                              "runtime"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "stop_when": {
+                          "type": "string"
+                        },
+                        "terminal_states": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "verification": {
+                          "items": {
+                            "properties": {
+                              "agent": {
+                                "type": "string"
+                              },
+                              "check": {
+                                "type": "string"
+                              },
+                              "contains": {
+                                "type": "string"
+                              },
+                              "expect": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "inputs": {
+                                "additionalProperties": {},
+                                "type": "object"
+                              },
+                              "metric": {
+                                "nullable": true,
+                                "properties": {
+                                  "direction": {
+                                    "enum": [
+                                      "maximize",
+                                      "minimize"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "min_delta": {
+                                    "format": "double",
+                                    "nullable": true,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "direction"
+                                ],
+                                "type": "object"
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "rubric": {
+                                "type": "string"
+                              },
+                              "runtime": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning": {
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "tool": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "budget",
+                        "definition_of_done",
+                        "goal",
+                        "iteration_cap",
+                        "no_progress"
+                      ],
+                      "type": "object"
+                    },
                     "node_controls": {
                       "items": {
                         "properties": {
@@ -224411,6 +224980,7 @@
                     }
                   },
                   "required": [
+                    "materialized_contract",
                     "node_controls",
                     "run",
                     "waits"
@@ -231634,6 +232204,97 @@
                             },
                             "type": "array"
                           },
+                          "criteria": {
+                            "items": {
+                              "properties": {
+                                "blocking_issues": {
+                                  "items": {
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "note": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "note"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "broken": {
+                                  "type": "boolean"
+                                },
+                                "evidence": {},
+                                "exit_code": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "outcome": {
+                                  "enum": [
+                                    "approved",
+                                    "rejected",
+                                    "awaiting_approval",
+                                    "blocked",
+                                    "error",
+                                    "timeout",
+                                    "invalid_output"
+                                  ],
+                                  "type": "string"
+                                },
+                                "passed": {
+                                  "type": "boolean"
+                                },
+                                "payload": {},
+                                "score": {
+                                  "format": "double",
+                                  "nullable": true,
+                                  "type": "number"
+                                },
+                                "stderr": {
+                                  "type": "string"
+                                },
+                                "stdout": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                },
+                                "warnings": {
+                                  "items": {
+                                    "properties": {
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "message": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "code",
+                                      "message"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "outcome",
+                                "passed",
+                                "type"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "ended_at": {
                             "format": "date-time",
                             "nullable": true,
@@ -231753,6 +232414,24 @@
                             ],
                             "nullable": true,
                             "type": "string"
+                          },
+                          "warnings": {
+                            "items": {
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "message": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "code",
+                                "message"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
                           }
                         },
                         "required": [
@@ -231761,6 +232440,7 @@
                           "binding_epoch",
                           "binding_handle",
                           "blocking_issues",
+                          "criteria",
                           "ended_at",
                           "evidence_ref",
                           "generation",
@@ -231777,7 +232457,8 @@
                           "stop_reason",
                           "tokens_used",
                           "turn",
-                          "verdict_outcome"
+                          "verdict_outcome",
+                          "warnings"
                         ],
                         "type": "object"
                       },
@@ -249240,6 +249921,575 @@
                         "loop_name": {
                           "type": "string"
                         },
+                        "materialized_contract": {
+                          "properties": {
+                            "boundaries": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "budget": {
+                              "properties": {
+                                "on_exceeded": {
+                                  "enum": [
+                                    "halt",
+                                    "escalate"
+                                  ],
+                                  "type": "string"
+                                },
+                                "tokens": {
+                                  "type": "integer"
+                                },
+                                "wall_clock_sec": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "tokens",
+                                "wall_clock_sec"
+                              ],
+                              "type": "object"
+                            },
+                            "constraints": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "definition_of_done": {
+                              "type": "string"
+                            },
+                            "goal": {
+                              "type": "string"
+                            },
+                            "iteration_cap": {
+                              "type": "integer"
+                            },
+                            "no_progress": {
+                              "properties": {
+                                "hash_fields": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "window": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "window"
+                              ],
+                              "type": "object"
+                            },
+                            "on_blocked": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_canceled": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_done": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_exhausted": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_failed": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_noop": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_stalled": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "runtime_defaults": {
+                              "nullable": true,
+                              "properties": {
+                                "judge": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "worker": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "runtime_rules": {
+                              "items": {
+                                "properties": {
+                                  "match": {
+                                    "properties": {
+                                      "complexity": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "match",
+                                  "runtime"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "stop_when": {
+                              "type": "string"
+                            },
+                            "terminal_states": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "verification": {
+                              "items": {
+                                "properties": {
+                                  "agent": {
+                                    "type": "string"
+                                  },
+                                  "check": {
+                                    "type": "string"
+                                  },
+                                  "contains": {
+                                    "type": "string"
+                                  },
+                                  "expect": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "inputs": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  },
+                                  "metric": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "direction": {
+                                        "enum": [
+                                          "maximize",
+                                          "minimize"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "min_delta": {
+                                        "format": "double",
+                                        "nullable": true,
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "direction"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "prompt": {
+                                    "type": "string"
+                                  },
+                                  "rubric": {
+                                    "type": "string"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "budget",
+                            "definition_of_done",
+                            "goal",
+                            "iteration_cap",
+                            "no_progress"
+                          ],
+                          "type": "object"
+                        },
                         "nodes": {
                           "items": {
                             "properties": {
@@ -249424,6 +250674,7 @@
                         "generation",
                         "input_origins",
                         "loop_name",
+                        "materialized_contract",
                         "nodes",
                         "resolved_inputs",
                         "resolved_network_participation"
@@ -250479,6 +251730,575 @@
                         "loop_name": {
                           "type": "string"
                         },
+                        "materialized_contract": {
+                          "properties": {
+                            "boundaries": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "budget": {
+                              "properties": {
+                                "on_exceeded": {
+                                  "enum": [
+                                    "halt",
+                                    "escalate"
+                                  ],
+                                  "type": "string"
+                                },
+                                "tokens": {
+                                  "type": "integer"
+                                },
+                                "wall_clock_sec": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "tokens",
+                                "wall_clock_sec"
+                              ],
+                              "type": "object"
+                            },
+                            "constraints": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "definition_of_done": {
+                              "type": "string"
+                            },
+                            "goal": {
+                              "type": "string"
+                            },
+                            "iteration_cap": {
+                              "type": "integer"
+                            },
+                            "no_progress": {
+                              "properties": {
+                                "hash_fields": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "window": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "window"
+                              ],
+                              "type": "object"
+                            },
+                            "on_blocked": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_canceled": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_done": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_exhausted": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_failed": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_noop": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "on_stalled": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "emit": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "payload": {
+                                            "additionalProperties": {},
+                                            "type": "object"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "emit"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "tool": {
+                                        "type": "string"
+                                      },
+                                      "with": {
+                                        "additionalProperties": {},
+                                        "type": "object"
+                                      }
+                                    },
+                                    "required": [
+                                      "tool"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            },
+                            "runtime_defaults": {
+                              "nullable": true,
+                              "properties": {
+                                "judge": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "worker": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "runtime_rules": {
+                              "items": {
+                                "properties": {
+                                  "match": {
+                                    "properties": {
+                                      "complexity": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "match",
+                                  "runtime"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "stop_when": {
+                              "type": "string"
+                            },
+                            "terminal_states": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "verification": {
+                              "items": {
+                                "properties": {
+                                  "agent": {
+                                    "type": "string"
+                                  },
+                                  "check": {
+                                    "type": "string"
+                                  },
+                                  "contains": {
+                                    "type": "string"
+                                  },
+                                  "expect": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "inputs": {
+                                    "additionalProperties": {},
+                                    "type": "object"
+                                  },
+                                  "metric": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "direction": {
+                                        "enum": [
+                                          "maximize",
+                                          "minimize"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "min_delta": {
+                                        "format": "double",
+                                        "nullable": true,
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "direction"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "prompt": {
+                                    "type": "string"
+                                  },
+                                  "rubric": {
+                                    "type": "string"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "tool": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "type"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "budget",
+                            "definition_of_done",
+                            "goal",
+                            "iteration_cap",
+                            "no_progress"
+                          ],
+                          "type": "object"
+                        },
                         "nodes": {
                           "items": {
                             "properties": {
@@ -250663,6 +252483,7 @@
                         "generation",
                         "input_origins",
                         "loop_name",
+                        "materialized_contract",
                         "nodes",
                         "resolved_inputs",
                         "resolved_network_participation"

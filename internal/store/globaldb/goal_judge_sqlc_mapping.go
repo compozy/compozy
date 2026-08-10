@@ -29,6 +29,18 @@ func goalJudgeAttemptFromGenerated(
 	if attempt.BlockingIssues == nil {
 		attempt.BlockingIssues = []gate.BlockingIssue{}
 	}
+	if err := json.Unmarshal([]byte(row.CriteriaJson), &attempt.Criteria); err != nil {
+		return goal.JudgeAttempt{}, fmt.Errorf("store: decode goal judge criteria: %w", err)
+	}
+	if attempt.Criteria == nil {
+		attempt.Criteria = []gate.CriterionResult{}
+	}
+	if err := json.Unmarshal([]byte(row.WarningsJson), &attempt.Warnings); err != nil {
+		return goal.JudgeAttempt{}, fmt.Errorf("store: decode goal judge warnings: %w", err)
+	}
+	if attempt.Warnings == nil {
+		attempt.Warnings = []gate.DiagnosticWarning{}
+	}
 	if row.TokensUsed.Valid {
 		attempt.TokensReported = true
 		attempt.TokensUsed = row.TokensUsed.Int64

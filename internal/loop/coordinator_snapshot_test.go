@@ -138,8 +138,13 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		if got := len(hydrated.Definition.Start); got != 0 {
 			t.Fatalf("hydrated start bindings = %d, want 0", got)
 		}
-		if got := len(hydrated.Templates); got != 0 {
-			t.Fatalf("hydrated templates = %d, want 0", got)
+		if got := len(hydrated.Templates); got != 2 ||
+			hydrated.Templates["contract.goal"] == nil ||
+			hydrated.Templates["contract.definition_of_done"] == nil {
+			t.Fatalf(
+				"hydrated contract narrative templates = %#v, want goal and definition of done",
+				hydrated.Templates,
+			)
 		}
 		if got := len(hydrated.Conditions); got != 0 {
 			t.Fatalf("hydrated conditions = %d, want 0", got)

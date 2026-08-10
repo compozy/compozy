@@ -321,6 +321,8 @@ CREATE TABLE loop_goal_judge_attempts (
 		outcome IS NULL OR outcome IN ('approved','rejected','blocked','error','timeout','invalid_output')
 	),
 	blocking_json     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(blocking_json)),
+	criteria_json     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(criteria_json)),
+	warnings_json     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(warnings_json)),
 	evidence_ref      TEXT,
 	tokens_used       INTEGER CHECK (tokens_used IS NULL OR tokens_used >= 0),
 	usage_base_tokens INTEGER NOT NULL DEFAULT 0 CHECK (usage_base_tokens >= 0),
@@ -386,6 +388,8 @@ CREATE TABLE loop_goal_turns (
 		verdict_outcome IS NULL OR verdict_outcome IN ('approved','rejected','blocked','error','timeout','invalid_output')
 	),
 	blocking_json     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(blocking_json)),
+	criteria_json     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(criteria_json)),
+	warnings_json     TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(warnings_json)),
 	evidence_ref      TEXT,
 	prompt_ref        TEXT,
 	tokens_used       INTEGER CHECK (tokens_used IS NULL OR tokens_used >= 0),

@@ -12,6 +12,7 @@ func (e *Evaluator) evaluateCommand(
 	ctx context.Context,
 	gate Gate,
 	criterion dsl.GateCriterion,
+	in GateInput,
 ) CriterionResult {
 	if e.commands == nil {
 		return CriterionResult{
@@ -30,6 +31,7 @@ func (e *Evaluator) evaluateCommand(
 	}
 	expect = normalizeCommandExpectation(expect)
 	req := CommandRequest{
+		WorkspaceID: in.ToolScope.WorkspaceID,
 		GateID:      gate.ID,
 		CriterionID: criterion.ID,
 		Command:     criterion.Check,

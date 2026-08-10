@@ -67,7 +67,7 @@ New components live in `components/run-page/` with the same naming convention; r
 | Status chip, controls gating | `run.status` (11-value enum), `run.pause_requested` |
 | Subhead id / started / elapsed | `run.id`, `run.started_at` (elapsed ticks client-side; parked/terminal states show `created_at → last_progress_at` span) |
 | Watched subject ("Watching PR #128") | `run.inputs` (loop-declared primary input; generic fallback: first scalar input rendered as `key value`) |
-| Goal title / done-when | `executed_definition.contract.goal` / `.definition_of_done` (fallback to `useLoop` when no pinned definition — existing behavior) |
+| Goal title / done-when | `materialized_contract.goal` / `.definition_of_done` (fallback to the authored `executed_definition.contract` when no materialized projection is available) |
 | Group progress bar | latest generation's `outputs[]` grouped by `item_index` (§5.2) |
 | "N open points" | latest `gate_verdict.blocking_issues[]` length (SSE reducer already keyed by nodeId) |
 | Story rows | SSE `/events` + persisted `loop_run_events` (kinds: `status_changed`, `generation_started`, `node_running`, `node_succeeded`, `node_failed`, `gate_verdict`, `needs_approval`, `goal_turn_*`) |

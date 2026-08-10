@@ -55,6 +55,7 @@ function MarketplaceActionDialogs({
       ) : null}
       {trustEntry ? (
         <ExtensionTrustDialog
+          action={trustEntry.update_available ? "update" : "install"}
           name={trustEntry.name}
           warnings={trustEntry.trust?.warnings}
           error={trustError}

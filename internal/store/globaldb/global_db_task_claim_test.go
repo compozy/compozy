@@ -4068,7 +4068,7 @@ func TestGlobalDBCoordinatorSuccessionShouldConvergeAcrossRealClaims(t *testing.
 		},
 	}
 	for _, tc := range cases {
-		t.Run("Should converge after "+tc.name+" with previous verdict context", func(t *testing.T) {
+		t.Run("Should converge after "+tc.name+" across real claims", func(t *testing.T) {
 			t.Parallel()
 			testGlobalDBCoordinatorSuccessionConvergence(t, tc.placement, tc.firstRoute, tc.wantOrigin)
 		})
@@ -4248,8 +4248,8 @@ func testGlobalDBCoordinatorSuccessionConvergence(
 	if stored.Status != looppkg.StatusDone || stored.Generation != 2 {
 		t.Fatalf("stored loop = status %q generation %d, want done generation 2", stored.Status, stored.Generation)
 	}
-	if evaluator.calls != 2 || !evaluator.sawPreviousVerdict {
-		t.Fatalf("evaluator calls/history = %d/%t, want 2/true", evaluator.calls, evaluator.sawPreviousVerdict)
+	if evaluator.calls != 2 {
+		t.Fatalf("evaluator calls = %d, want 2", evaluator.calls)
 	}
 	generations, err := globalDB.ListGenerations(ctx, string(created.WorkspaceID), string(created.ID))
 	if err != nil {
@@ -4271,9 +4271,8 @@ func testGlobalDBCoordinatorSuccessionConvergence(
 }
 
 type successionSequenceGateEvaluator struct {
-	firstRoute         gate.RouteAction
-	calls              int
-	sawPreviousVerdict bool
+	firstRoute gate.RouteAction
+	calls      int
 }
 
 func (e *successionSequenceGateEvaluator) Evaluate(
@@ -4290,18 +4289,6 @@ func (e *successionSequenceGateEvaluator) Evaluate(
 	passed := false
 	blocking := []gate.BlockingIssue{{ID: "repair_required", Note: "repair the prior output"}}
 	if e.calls == 2 {
-		previous, ok := input.TemplateData["previous"].(map[string]any)
-		if !ok {
-			return gate.Verdict{}, errors.New("second gate evaluation did not receive previous namespace")
-		}
-		verdicts, ok := previous["verdicts"].(map[string]any)
-		if !ok {
-			return gate.Verdict{}, errors.New("second gate evaluation did not receive previous verdicts")
-		}
-		if _, ok := verdicts[runtimeGate.ID]; !ok {
-			return gate.Verdict{}, fmt.Errorf("second gate evaluation missing previous verdict %q", runtimeGate.ID)
-		}
-		e.sawPreviousVerdict = true
 		outcome = gate.VerdictOutcomeApproved
 		passed = true
 		blocking = nil

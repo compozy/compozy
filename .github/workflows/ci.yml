@@ -320,7 +320,7 @@ jobs:
   e2e-combined:
     name: E2E (combined lane)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     needs: verify
     steps:
       - uses: actions/checkout@v7

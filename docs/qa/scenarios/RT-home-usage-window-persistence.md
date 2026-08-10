@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-06-review-remediation/cora-home-canary-reload.png
-last_report: docs/qa/reports/2026-08-06-review-remediation.md
+evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/home-90d-system-persisted.png
+last_report: docs/qa/reports/2026-08-10-loop-browser-runtime-closeout.md
 overlaps:
 ---
 
@@ -38,3 +38,8 @@ empty usage state stayed truthful, and cost remained unavailable rather than inf
 QA completion 2026-08-06 review remediation: After drag-grouping and deck reload activity, Cora
 selected 90d, expanded System, and reloaded. The usage window and expansion persisted, the isolated
 daemon facts remained visible, and cost stayed unavailable rather than inferred.
+
+QA completion 2026-08-10 loop browser closeout: After the three-window deck and Marketplace
+lifecycle walks, Cora selected 90d, expanded System, and reloaded. The controls retained
+`aria-pressed=true` and `aria-expanded=true`; the fresh daemon remained connected and the empty usage
+state stayed truthful.
