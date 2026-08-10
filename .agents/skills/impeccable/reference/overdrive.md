@@ -57,7 +57,7 @@ Organized by what you're trying to achieve, not by technology name.
 
 ### Render beyond CSS
 - **WebGL** (all browsers): shader effects, post-processing, particle systems. Libraries: Three.js, OGL (lightweight), regl. Use for effects CSS can't express.
-- **WebGPU** (Chrome/Edge; Safari partial; Firefox: flag only): next-gen GPU compute. More powerful than WebGL but limited browser support. Always fall back to WebGL2.
+- **WebGPU** (Chrome/Edge; Safari 26+; Firefox on Windows/macOS; flag only on Firefox Linux/Android): next-gen GPU compute, more powerful than WebGL. Always fall back to WebGL2.
 - **Canvas 2D / OffscreenCanvas**: custom rendering, pixel manipulation, or moving heavy rendering off the main thread entirely via Web Workers + OffscreenCanvas.
 - **SVG filter chains**: displacement maps, turbulence, morphology for organic distortion effects. CSS-animatable.
 

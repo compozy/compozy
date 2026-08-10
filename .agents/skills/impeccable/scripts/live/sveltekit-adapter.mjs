@@ -7,6 +7,7 @@
  * actual live UI remains the shared plain-DOM browser chrome.
  */
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -14,6 +15,28 @@ export const SVELTE_LIVE_ROOT_COMPONENT = 'src/lib/impeccable/ImpeccableLiveRoot
 export const SVELTE_LAYOUT_MARKER_OPEN = '<!-- impeccable-live-svelte-start -->';
 export const SVELTE_LAYOUT_MARKER_CLOSE = '<!-- impeccable-live-svelte-end -->';
 export const SVELTE_ROOT_IMPORT = "import ImpeccableLiveRoot from '$lib/impeccable/ImpeccableLiveRoot.svelte';";
+// Matches the import at ANY revision (or none). [ \t]* bounds only, never
+// \s*: a greedy \s* after the statement swallowed the next line's
+// indentation on removal, leaving a formatting scar in user layouts.
+const SVELTE_ROOT_IMPORT_LINE_RE = /^[ \t]*import ImpeccableLiveRoot from '\$lib\/impeccable\/ImpeccableLiveRoot\.svelte(?:\?[^']*)?';[ \t]*\r?\n?/gm;
+
+/**
+ * The import specifier carries a token-derived revision query. The adapter
+ * component embeds the helper token, and Vite (client AND SSR) can keep
+ * serving a stale compiled module after the file is rewritten on a helper
+ * restart; the browser then requests /live.js with a rotated-out token and
+ * gets a 401 with no picker. A changed specifier is a different module id,
+ * which no cache survives.
+ */
+export function svelteRootImportLine(rev) {
+  if (!rev) return SVELTE_ROOT_IMPORT;
+  return "import ImpeccableLiveRoot from '$lib/impeccable/ImpeccableLiveRoot.svelte?impeccable-live=" + rev + "';";
+}
+
+export function svelteAdapterRev(token) {
+  if (!token) return null;
+  return crypto.createHash('sha256').update(String(token)).digest('hex').slice(0, 8);
+}
 
 export function detectSvelteKitProject(cwd = process.cwd(), config = null) {
   const appHtml = findSvelteKitAppHtml(cwd, config);
@@ -50,7 +73,7 @@ export function applySvelteKitLiveAdapter({ cwd = process.cwd(), port, token, co
   fs.mkdirSync(path.dirname(layoutAbs), { recursive: true });
   const layoutExisted = fs.existsSync(layoutAbs);
   const before = layoutExisted ? fs.readFileSync(layoutAbs, 'utf-8') : defaultSvelteLayout();
-  const after = patchSvelteLayout(before);
+  const after = patchSvelteLayout(before, { rev: svelteAdapterRev(token) });
   fs.writeFileSync(layoutAbs, after, 'utf-8');
 
   return {
@@ -94,15 +117,27 @@ export function removeSvelteKitLiveAdapter({ cwd = process.cwd(), config = null 
   };
 }
 
-export function patchSvelteLayout(content) {
+export function patchSvelteLayout(content, { rev = null } = {}) {
   let out = String(content || '');
-  if (!out.includes(SVELTE_ROOT_IMPORT)) {
-    const scriptMatch = out.match(/<script(?:\s[^>]*)?>/i);
-    if (scriptMatch) {
-      const insertAt = scriptMatch.index + scriptMatch[0].length;
-      out = out.slice(0, insertAt) + '\n  ' + SVELTE_ROOT_IMPORT + out.slice(insertAt);
-    } else {
-      out = `<script>\n  ${SVELTE_ROOT_IMPORT}\n</script>\n\n` + out;
+  const importLine = svelteRootImportLine(rev);
+  if (!out.includes(importLine)) {
+    // An import at an older revision is replaced in place, keeping its
+    // indentation; only a layout with no impeccable import gets an insert.
+    let replaced = false;
+    out = out.replace(SVELTE_ROOT_IMPORT_LINE_RE, (line) => {
+      if (replaced) return '';
+      replaced = true;
+      const indent = (line.match(/^[ \t]*/) || [''])[0];
+      return indent + importLine + '\n';
+    });
+    if (!replaced) {
+      const scriptMatch = out.match(/<script(?:\s[^>]*)?>/i);
+      if (scriptMatch) {
+        const insertAt = scriptMatch.index + scriptMatch[0].length;
+        out = out.slice(0, insertAt) + '\n  ' + importLine + out.slice(insertAt);
+      } else {
+        out = `<script>\n  ${importLine}\n</script>\n\n` + out;
+      }
     }
   }
 
@@ -131,8 +166,8 @@ export function unpatchSvelteLayout(content) {
     'g',
   );
   out = out.replace(blockRe, '$1');
-  out = out.replace(new RegExp('^\\s*' + escapeRegExp(SVELTE_ROOT_IMPORT) + '\\s*\\n?', 'gm'), '');
-  out = out.replace(/<script>\s*<\/script>\s*\n?/g, '');
+  out = out.replace(SVELTE_ROOT_IMPORT_LINE_RE, '');
+  out = out.replace(/<script>\s*<\/script>[ \t]*\r?\n?/g, '');
   return out.replace(/\n{3,}/g, '\n\n');
 }
 
@@ -193,6 +228,11 @@ export function buildSvelteLiveRootComponent(port, token) {
     script.src = LIVE_URL;
     script.async = true;
     script.dataset.impeccableLiveScript = 'true';
+    script.onerror = () => console.error(
+      '[impeccable] live.js failed to load from ' + LIVE_URL
+      + ' (helper down, or the token rotated while a stale adapter module was cached).'
+      + ' Re-run the live boot, then reload this page.'
+    );
     document.head.appendChild(script);
 
     return () => {

@@ -10,6 +10,7 @@ description: >-
   charters, the bug registry — use qa-report; for CI gate runs, AI
   implementation audits, or integration/security/performance suites, use
   agent-output-audit.
+disable-model-invocation: true
 argument-hint: "[qa-docs-path]"
 metadata:
   author: Pedro Nauck

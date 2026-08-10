@@ -6,6 +6,7 @@ description: >
   primitive obsession — and writes a prioritized report to docs/_refacs/. Use when auditing
   code quality, planning a refactoring sprint, or reviewing architectural health; not for
   style/formatting, performance, or security audits.
+disable-model-invocation: true
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck

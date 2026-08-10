@@ -21,6 +21,7 @@
 
   const TOKEN = window.__IMPECCABLE_TOKEN__;
   const PORT = window.__IMPECCABLE_PORT__;
+  const APP_ROOT = window.__IMPECCABLE_APP_ROOT__ || null;
   if (!TOKEN || !PORT) {
     window.__IMPECCABLE_LIVE_INIT__ = false; // reset so the real load can init
     return;
@@ -96,23 +97,20 @@
     return { value: c.value, label: c.label };
   });
 
-  const LIVE_CHROME_MOUNT_CONTRACT = ['root', 'transport', 'state', 'actions'];
-  const LIVE_UI_SURFACES = [
-    { key: 'global-bottom-bar', ids: [PREFIX + '-global-bar', PREFIX + '-global-bar-brand', PREFIX + '-pick-toggle', PREFIX + '-insert-toggle', PREFIX + '-detect-toggle', PREFIX + '-detect-badge', PREFIX + '-design-toggle', PREFIX + '-page-chat', PREFIX + '-page-chat-input', PREFIX + '-page-chat-voice'] },
-    { key: 'pending-copy-edit-dock', ids: [PREFIX + '-pending-dock'] },
-    { key: 'element-selection-chrome', ids: [PREFIX + '-highlight', PREFIX + '-tooltip', PREFIX + '-bar', PREFIX + '-selection-pill', PREFIX + '-input', PREFIX + '-configure-voice', PREFIX + '-configure-bar-tooltip'] },
-    { key: 'action-picker', ids: [PREFIX + '-picker'] },
-    { key: 'edit-chrome', ids: [PREFIX + '-edit-badge'] },
-    { key: 'generating-row', ids: [PREFIX + '-bar', PREFIX + '-shader'] },
-    { key: 'variant-cycling-row', ids: [PREFIX + '-bar', PREFIX + '-params-panel'] },
-    { key: 'variant-params-panel', ids: [PREFIX + '-params-panel'] },
-    { key: 'saving-confirmed-rows', ids: [PREFIX + '-bar'] },
-    { key: 'insert-mode-chrome', ids: [PREFIX + '-insert-line', PREFIX + '-insert-placeholder', PREFIX + '-placeholder-resize', PREFIX + '-insert-input', PREFIX + '-insert-voice', PREFIX + '-insert-create', PREFIX + '-insert-create-tooltip'] },
-    { key: 'annotation-chrome', ids: [PREFIX + '-annot', PREFIX + '-annot-svg', PREFIX + '-annot-pins', PREFIX + '-annot-clear'] },
-    { key: 'design-system-panel', ids: [PREFIX + '-design-host'] },
-    { key: 'toasts-and-errors', ids: [PREFIX + '-toast'] },
-    { key: 'css-isolation-boundary', ids: [PREFIX + '-root'] },
-  ];
+  // The Live chrome inventory (which surfaces exist, and the element ids each
+  // one owns) comes from the canonical source, skill/scripts/live/ui-surfaces.mjs,
+  // which the /live.js assembler serializes into these globals alongside the
+  // token/port/vocabulary. This file is served raw and injected as a classic
+  // script, so it cannot import that module; the private impeccable-site repo
+  // imports it directly to check its Live UI lab holds a snapshot for every
+  // surface, which only works while the list has exactly one definition.
+  // Add a surface in ui-surfaces.mjs, not here.
+  const LIVE_CHROME_MOUNT_CONTRACT = Array.isArray(window.__IMPECCABLE_LIVE_MOUNT_CONTRACT__)
+    ? window.__IMPECCABLE_LIVE_MOUNT_CONTRACT__
+    : ['root', 'transport', 'state', 'actions'];
+  const LIVE_UI_SURFACES = Array.isArray(window.__IMPECCABLE_LIVE_UI_SURFACES__)
+    ? window.__IMPECCABLE_LIVE_UI_SURFACES__
+    : [];
   const LIVE_UI_COMPONENT_IDS = [...new Set(LIVE_UI_SURFACES.flatMap((surface) => surface.ids))];
 
   //
@@ -131,8 +129,14 @@
   // must never regress: a `browser_resumed`/behind checkpoint re-broadcasts an
   // earlier phase (the server regresses the snapshot phase to `generating` on a
   // behind checkpoint), and without this the bar jumps backward mid-generation.
-  // Unranked phases (params sidecar flow, unknown values) always pass so we
-  // never block a phase we do not model.
+  // Unranked phases always pass so we never block a phase we do not model.
+  //
+  // Every `agent_phase` name here is emitted by recordAgentPhase() in
+  // live-server.mjs and listed in AGENT_PHASES in live/vocabulary.mjs, which the
+  // event validator enforces. This file is served raw and injected as an IIFE,
+  // so it cannot import that list; adding a phase means adding it in both.
+  // `queued`, `generating`, `variants_progress`, and `variants_ready` are set
+  // locally by this file and never arrive over the wire.
   const PHASE_RANK = {
     queued: 0,
     picked_up: 1,
@@ -142,17 +146,10 @@
     generation_ready: 5,
     generating: 5,
     variants_progress: 5,
-    first_variant_generating: 6,
-    first_variant_validating: 7,
     first_reviewable: 8,
-    remaining_variants_generating: 9,
-    remaining_variants_validating: 10,
     second_reviewable: 11,
     all_variants_ready: 12,
     variants_ready: 12,
-    variant_parameters_generating: 13,
-    variant_parameters_validating: 14,
-    parameters_ready: 15,
   };
   function shouldAdvancePhase(current, next) {
     if (!next || next === current) return false;
@@ -167,6 +164,13 @@
   let svelteComponentSession = null;
   let svelteRuntimePromise = null;
   let pendingSvelteComponentRetryObserver = null;
+  // The persistent mount-error card. A failed import/mount used to wipe local
+  // session state and flash a 5s toast, which destroyed the only handle the
+  // user had on a session the server still considered live. The card stays up
+  // until the variant mounts, the user retries, or a new cycle starts.
+  let mountErrorEl = null;
+  let mountErrorState = null;
+  let lastReportedMountFailure = null;
   let currentSourceFile = null;
   let currentPreviewFile = null;
   let currentPreviewMode = null;
@@ -175,6 +179,14 @@
   let pickedAnchorViewportTop = null;
   let pendingVariantAnchorRetryObserver = null;
   let pendingAcceptedSession = null;
+  // Survives cleanupAcceptedSession on purpose: the id of an accept whose
+  // POST was acknowledged (intent durable, epoch fenced) but whose actual
+  // source promotion hasn't reported back yet. Accept is optimistic, so the
+  // teardown nulls pendingAcceptedSession long before live-accept.mjs runs;
+  // this marker is what lets the SSE 'error' branch still recognize a late
+  // accept failure and say the variant was not saved (issue #384). Released
+  // when the real accept result arrives or a new session starts.
+  let awaitingAcceptResult = null;
   let variantObserver = null;
   let variantSelectionInFlight = false;
   let variantSelectionPromise = null;
@@ -2017,6 +2029,9 @@
     state = next;
     window.__IMPECCABLE_LIVE_STATE__ = next;
     syncPageInteractionCursor();
+    // Whether a queued steer is still behind a generation is a function of this
+    // state, so the hint has to move with it, not only with the 5s poll.
+    syncSteerQueueHint();
   }
 
   /** Element used to position the floating bar / shader during a session. */
@@ -2580,16 +2595,38 @@
     if (generationPhase === 'scaffolding') return 'Finding the source...';
     if (generationPhase === 'source_ready') return 'Source ready. Generating...';
     if (generationPhase === 'scaffold_fallback') return 'Agent is locating the source...';
-    if (generationPhase === 'first_variant_generating') return 'Designing the first variant...';
-    if (generationPhase === 'first_variant_validating') return 'Checking the first variant...';
-    if (generationPhase === 'remaining_variants_generating') return 'Exploring two more directions...';
-    if (generationPhase === 'remaining_variants_validating') return 'Checking the remaining variants...';
+    if (generationPhase === 'first_reviewable') return 'First variant is ready. Exploring more...';
+    if (generationPhase === 'second_reviewable') return 'Checking the remaining variants...';
     return 'Generating ' + expectedVariants + ' variants...';
   }
 
   // Cycling row
 
   const TUNE_ICON_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex-shrink:0"><line x1="4" y1="8" x2="20" y2="8"/><circle cx="14" cy="8" r="2.4" fill="currentColor" stroke="none"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="10" cy="16" r="2.4" fill="currentColor" stroke="none"/></svg>';
+
+  /**
+   * Which variant the user is actually looking at. For component previews the
+   * mounted component is the truth; `visibleVariant` is the intent, and the two
+   * differ while a mount is in flight.
+   */
+  function cyclingShownVariant() {
+    return svelteComponentSession?.sessionId === currentSessionId && svelteComponentSession.mountedVariant > 0
+      ? svelteComponentSession.mountedVariant
+      : visibleVariant;
+  }
+
+  /**
+   * The single counter string. It is built here rather than at each call site
+   * because the row builder and the incremental sync used to disagree on the
+   * denominator: one showed the planned count, the other the arrived count, so
+   * "2/3" turned into "2/2" on the next sync without anything changing on
+   * screen. Arrived wins once anything has arrived; expected covers the window
+   * before the first variant lands.
+   */
+  function cyclingCounterText() {
+    const total = arrivedVariants > 0 ? arrivedVariants : expectedVariants;
+    return cyclingShownVariant() + '/' + total;
+  }
 
   function buildCyclingRow() {
     if (!ensureCyclingRenderable('build-cycling-row')) {
@@ -2604,7 +2641,7 @@
     const prev = navBtn('\u2190');
     prev.id = PREFIX + '-variant-prev';
     prev.addEventListener('click', (e) => { e.stopPropagation(); cycleVariant(-1); });
-    if (visibleVariant <= 1) prev.style.opacity = '0.3';
+    if (cyclingShownVariant() <= 1) prev.style.opacity = '0.3';
     row.appendChild(prev);
 
     // Dots (clickable)
@@ -2616,14 +2653,14 @@
       color: BP.textDim, minWidth: '24px', textAlign: 'center',
     });
     counter.id = PREFIX + '-variant-counter';
-    counter.textContent = visibleVariant + '/' + expectedVariants;
+    counter.textContent = cyclingCounterText();
     row.appendChild(counter);
 
     // Next
     const next = navBtn('\u2192');
     next.id = PREFIX + '-variant-next';
     next.addEventListener('click', (e) => { e.stopPropagation(); cycleVariant(1); });
-    if (visibleVariant >= arrivedVariants) next.style.opacity = '0.3';
+    if (cyclingShownVariant() >= arrivedVariants) next.style.opacity = '0.3';
     row.appendChild(next);
 
     // Tune chip stays visible while the deferred parameter phase is running,
@@ -2988,7 +3025,7 @@
       console.warn('[impeccable] Refusing to render empty variant cycling state:', reason);
       const message = 'No variants were mounted. Please try again.';
       if (svelteComponentSession?.sessionId === currentSessionId) {
-        abortSvelteComponentInjection(currentSessionId, message);
+        resetSvelteComponentSession(currentSessionId, message);
         return;
       }
       cleanup();
@@ -3726,7 +3763,10 @@
     const container = copyEditContainerContext(contextElement);
     if (container) for (const op of ops) op.container = container;
     try {
-      const res = await fetch('http://localhost:' + PORT + '/manual-edit-stash', {
+      // Token in the query string as well as the body: the URL token is what
+      // authorizes the CORS preflight when the page runs on a non-loopback
+      // dev host (ddev, Valet), since the preflight carries no request body.
+      const res = await fetch('http://localhost:' + PORT + '/manual-edit-stash?token=' + encodeURIComponent(TOKEN), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -4918,11 +4958,9 @@
   }
 
   function syncCyclingControls() {
-    const shown = svelteComponentSession?.sessionId === currentSessionId && svelteComponentSession.mountedVariant > 0
-      ? svelteComponentSession.mountedVariant
-      : visibleVariant;
+    const shown = cyclingShownVariant();
     const counter = uiGetById(PREFIX + '-variant-counter');
-    if (counter && arrivedVariants > 0) counter.textContent = shown + '/' + arrivedVariants;
+    if (counter) counter.textContent = cyclingCounterText();
     const prev = uiGetById(PREFIX + '-variant-prev');
     const next = uiGetById(PREFIX + '-variant-next');
     if (prev) prev.style.opacity = shown <= 1 ? '0.3' : '1';
@@ -5152,15 +5190,74 @@
     }
   }
 
-  function resolveComponentModuleUrl(manifest, modulePath) {
-    return new URL(String(modulePath || ''), location.origin).href;
+  // The dev server may serve under a non-root base (vite `base`) or a root
+  // that differs from where the helper wrote the preview tree. Root-relative
+  // URLs are tried against the detected base first; the /@fs/ absolute form
+  // is the fallback that works regardless of base and root, as long as the
+  // path is inside the server's fs.allow.
+  let detectedDevBase = null;
+  function detectDevServerBase() {
+    if (detectedDevBase !== null) return detectedDevBase;
+    detectedDevBase = '/';
+    const scripts = document.querySelectorAll('script[type="module"][src]');
+    for (const script of scripts) {
+      const src = script.getAttribute('src') || '';
+      const idx = src.indexOf('/@vite/client');
+      if (idx > 0) { detectedDevBase = src.slice(0, idx) + '/'; break; }
+      if (idx === 0) { detectedDevBase = '/'; break; }
+    }
+    return detectedDevBase;
+  }
+
+  function componentModuleCandidates(manifest, modulePath, absPath) {
+    const base = detectDevServerBase();
+    const rel = String(modulePath || '').replace(/^\/+/, '');
+    const candidates = [new URL(base + rel, location.origin).href];
+    if (base !== '/') candidates.push(new URL('/' + rel, location.origin).href);
+    if (absPath) {
+      const fsRel = '@fs/' + String(absPath).replace(/^\/+/, '');
+      candidates.push(new URL(base + fsRel, location.origin).href);
+      // Vite versions differ on whether @fs is served under base or at the
+      // server root; with a non-root base, try both.
+      if (base !== '/') candidates.push(new URL('/' + fsRel, location.origin).href);
+    }
+    return candidates;
+  }
+
+  async function importFirstReachable(candidates, bust) {
+    let lastErr = null;
+    for (const candidate of candidates) {
+      try {
+        const url = bust ? candidate + (candidate.includes('?') ? '&' : '?') + 't=' + Date.now() : candidate;
+        const mod = await import(/* @vite-ignore */ url);
+        return { mod, url: candidate };
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw Object.assign(lastErr || new Error('no module candidates'), {
+      impeccableTriedUrls: candidates,
+    });
+  }
+
+  // Distinguishes "this variant is broken" from "the preview tree is not
+  // reachable from the dev server at all" (wrong root, unserved directory).
+  async function probePreviewTree(manifest) {
+    if (!manifest?.probeModule) return { ok: true, skipped: true };
+    const candidates = componentModuleCandidates(manifest, manifest.probeModule, manifest.probeModuleAbs);
+    try {
+      await importFirstReachable(candidates, false);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, tried: err.impeccableTriedUrls || candidates };
+    }
   }
 
   function loadSvelteRuntime(runtimeModule, manifest) {
     const modulePath = runtimeModule || '/src/lib/impeccable/__runtime.js';
-    const url = resolveComponentModuleUrl(manifest, modulePath);
     if (!svelteRuntimePromise) {
-      svelteRuntimePromise = import(/* @vite-ignore */ url);
+      const candidates = componentModuleCandidates(manifest, modulePath, manifest?.runtimeModuleAbs);
+      svelteRuntimePromise = importFirstReachable(candidates, false).then((r) => r.mod);
     }
     return svelteRuntimePromise;
   }
@@ -5170,7 +5267,7 @@
   // attribute with JSON braces can't survive the Svelte compiler. Returns a map of
   // { "1": [...params], "2": [...] }; an empty object when the agent declared none.
   async function loadSvelteComponentParams(manifest) {
-    const dir = String(manifest?.componentDir || '').replace(/^\/+/, '');
+    const dir = String(manifest?.revisionDir || manifest?.componentDir || '').replace(/^\/+/, '');
     if (!dir) return {};
     const paramsPath = dir + '/params.json';
     const url = 'http://localhost:' + PORT + '/source?token=' + TOKEN + '&path=' + encodeURIComponent(paramsPath);
@@ -5189,42 +5286,14 @@
     }
   }
 
-  async function loadSvelteComponentVariantSource(manifest, variantNum) {
-    const dir = String(manifest?.componentDir || '').replace(/^\/+/, '');
-    if (!dir || !variantNum) return '';
-    const extension = manifest.componentExtension || 'svelte';
-    const sourcePath = dir + '/v' + variantNum + '.' + extension;
-    const url = 'http://localhost:' + PORT + '/source?token=' + TOKEN + '&path=' + encodeURIComponent(sourcePath);
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return '';
-      return await res.text();
-    } catch {
-      return '';
-    }
-  }
 
-  function extractSvelteComponentStyle(source) {
-    const match = String(source || '').match(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/i);
-    return match ? match[1].trim() : '';
-  }
 
-  async function applySvelteComponentVariantStyle(variantNum) {
-    if (!svelteComponentSession || !variantNum) return;
-    const { manifest, sessionId } = svelteComponentSession;
-    const source = await loadSvelteComponentVariantSource(manifest, variantNum);
-    const css = extractSvelteComponentStyle(source);
-    removeSvelteComponentVariantStyle(svelteComponentSession);
-    if (!css) return;
-    const scopedCss = scopeCssToSveltePreview(css, sessionId);
-    if (!scopedCss) return;
-    const style = document.createElement('style');
-    style.dataset.impeccableSvelteComponentStyle = sessionId;
-    style.dataset.impeccableVariant = String(variantNum);
-    style.textContent = scopedCss;
-    document.head.appendChild(style);
-    svelteComponentSession.styleEl = style;
-  }
+  // NOTE: the compiled component imported from the dev server already carries
+  // its own scoped styles (vite-plugin-svelte injects them on module
+  // evaluation). The old second injection re-fetched the raw source through
+  // the helper and re-prefixed every selector un-hashed, so the same rules
+  // applied twice with different specificity: preview and accepted cascades
+  // disagreed. The single compiled copy is the truth now.
 
   function removeSvelteComponentVariantStyle(session = svelteComponentSession) {
     const style = session?.styleEl;
@@ -5232,10 +5301,6 @@
     if (session) session.styleEl = null;
   }
 
-  function scopeCssToSveltePreview(css, sessionId) {
-    const prefix = '[data-impeccable-variants="' + String(sessionId).replace(/"/g, '\\"') + '"] ';
-    return scopeCssBlock(String(css || ''), prefix).trim();
-  }
 
   function scopeCssBlock(css, prefix) {
     let out = '';
@@ -5345,6 +5410,9 @@
     const contract = manifest?.propContract || [];
     const values = {};
     if (!liveEl || contract.length === 0) return values;
+    if (Number(manifest.contractVersion) === 2) {
+      return buildSveltePropValuesV2(liveEl, manifest);
+    }
     const sourceOriginal = parseOriginalMarkupElement(manifest.originalMarkup || '');
     if (!sourceOriginal) return values;
     const map = buildSvelteExpressionTextMap(sourceOriginal, liveEl);
@@ -5355,19 +5423,199 @@
     return values;
   }
 
+  // Contract v2 hydration. The scaffolder preserved control flow, so props
+  // come in kinds: `collection` hydrates from the live DOM's rendered items
+  // (count by the item root selector, texts by slot order), `condition` from
+  // whether the branch's probe element is currently rendered, `text` from the
+  // v1 index-zip run over the markup WITH control-flow regions stripped and
+  // the live tree WITH item elements excluded, so loop tokens can never shift
+  // slots again. `handler` props keep their no-op defaults.
+  function buildSveltePropValuesV2(liveEl, manifest) {
+    const contract = manifest.propContract || [];
+    const values = {};
+    const itemElsByProp = new Map();
+
+    for (const entry of contract) {
+      if (entry.kind === 'collection' && entry.item && entry.item.rootTag) {
+        const selector = entry.item.rootTag + (entry.item.rootClasses || []).map((c) => '.' + cssEscapeIdent(c)).join('');
+        let matches = [];
+        try { matches = Array.from(liveEl.querySelectorAll(selector)); } catch { matches = []; }
+        itemElsByProp.set(entry.prop, matches);
+        const statics = new Set((entry.item.staticTexts || []).map((t) => String(t).trim()));
+        const slots = entry.item.textSlots || [];
+        values[entry.prop] = matches.map((itemEl, index) => {
+          const texts = collectVisibleTexts(itemEl).filter((t) => !statics.has(t));
+          const item = {};
+          slots.forEach((slot, i) => { item[slot.key] = texts[i] != null ? texts[i] : ''; });
+          // Attribute-bound values (href={link.href}) hydrate from the
+          // rendered attribute on the live item element or a descendant.
+          for (const slot of entry.item.attrSlots || []) {
+            if (item[slot.key] != null || !slot.tag) continue;
+            const sel = slot.tag + (slot.classes || []).map((c) => '.' + cssEscapeIdent(c)).join('');
+            let el = null;
+            try { el = itemEl.matches(sel) ? itemEl : itemEl.querySelector(sel); } catch { el = null; }
+            const value = el ? el.getAttribute(slot.attr) : null;
+            if (value != null) item[slot.key] = value;
+          }
+          // Keyed each: the key field is never rendered, so hydrate it with a
+          // unique per-index value or Svelte throws each_key_duplicate.
+          if (entry.item.keyField && item[entry.item.keyField] == null) {
+            item[entry.item.keyField] = 'impeccable-live-' + index;
+          }
+          return item;
+        });
+      } else if (entry.kind === 'condition') {
+        if (entry.probe && entry.probe.tag) {
+          const selector = entry.probe.tag + (entry.probe.classes || []).map((c) => '.' + cssEscapeIdent(c)).join('');
+          try { values[entry.prop] = !!liveEl.querySelector(selector); } catch { /* keep default */ }
+        } else if (entry.probe && entry.probe.className) {
+          // class:name directive: the live DOM answers directly, either on
+          // the picked element itself or on a descendant carrying the class.
+          try {
+            values[entry.prop] = liveEl.classList.contains(entry.probe.className)
+              || !!liveEl.querySelector('.' + cssEscapeIdent(entry.probe.className));
+          } catch { /* keep default */ }
+        }
+      }
+    }
+
+    // Text props outside control flow: strip block regions from the source
+    // markup, exclude live text nodes inside any hydrated item element, then
+    // run the existing zip.
+    const textEntries = contract.filter((e) => e.kind === 'text' || e.kind === 'raw');
+    if (textEntries.length > 0) {
+      const strippedMarkup = stripSvelteBlockRegions(manifest.originalMarkup || '');
+      const sourceOriginal = parseOriginalMarkupElement(strippedMarkup);
+      if (sourceOriginal) {
+        const excluded = [];
+        for (const els of itemElsByProp.values()) excluded.push(...els);
+        const filteredLive = cloneWithoutElements(liveEl, excluded);
+        const map = buildSvelteExpressionTextMap(sourceOriginal, filteredLive);
+        for (const entry of textEntries) {
+          const token = '{' + entry.expr + '}';
+          if (map.has(token)) values[entry.prop] = map.get(token) || '';
+        }
+      }
+    }
+    return values;
+  }
+
+  function cssEscapeIdent(value) {
+    try { return CSS.escape(value); } catch { return String(value).replace(/[^a-zA-Z0-9_-]/g, ''); }
+  }
+
+  function collectVisibleTexts(rootEl) {
+    const texts = [];
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const trimmed = String(node.textContent || '').trim();
+      if (trimmed) texts.push(trimmed);
+    }
+    return texts;
+  }
+
+  // Remove balanced {#each}...{/each} and {#if}...{/if} regions (including
+  // the delimiters) from a markup string. Nesting-aware. {#key} blocks keep
+  // their CONTENT (it always renders) but lose their delimiter tokens, which
+  // would otherwise consume live text slots in the zip and shift every
+  // following expression.
+  function stripSvelteBlockRegions(markup) {
+    let out = String(markup || '');
+    out = stripSvelteKeyDelimiters(out);
+    for (const kind of ['each', 'if']) {
+      const open = '{#' + kind;
+      const close = '{/' + kind + '}';
+      for (;;) {
+        const start = out.indexOf(open);
+        if (start === -1) break;
+        let depth = 0;
+        let i = start;
+        let end = -1;
+        while (i < out.length) {
+          if (out.startsWith(open, i)) { depth++; i += open.length; continue; }
+          if (out.startsWith(close, i)) {
+            depth--;
+            i += close.length;
+            if (depth === 0) { end = i; break; }
+            continue;
+          }
+          i++;
+        }
+        if (end === -1) break;
+        out = out.slice(0, start) + out.slice(end);
+      }
+    }
+    return out;
+  }
+
+  function stripSvelteKeyDelimiters(markup) {
+    let out = String(markup || '');
+    for (;;) {
+      const start = out.indexOf('{#key');
+      if (start === -1) break;
+      // The opening tag runs to its matching close brace (expressions inside
+      // may nest braces).
+      let depth = 0;
+      let i = start;
+      let openEnd = -1;
+      while (i < out.length) {
+        if (out[i] === '{') depth++;
+        else if (out[i] === '}') {
+          depth--;
+          if (depth === 0) { openEnd = i + 1; break; }
+        }
+        i++;
+      }
+      if (openEnd === -1) break;
+      out = out.slice(0, start) + out.slice(openEnd);
+    }
+    return out.split('{/key}').join('');
+  }
+
+  function cloneWithoutElements(rootEl, excludedEls) {
+    if (!excludedEls || excludedEls.length === 0) return rootEl;
+    const excludedSet = new Set(excludedEls);
+    // Mark originals, clone, then strip marked clones: identity does not
+    // survive cloneNode, attributes do.
+    const MARK = 'data-impeccable-hydration-excluded';
+    for (const el of excludedSet) { try { el.setAttribute(MARK, '1'); } catch { /* detached */ } }
+    let clone;
+    try {
+      clone = rootEl.cloneNode(true);
+      clone.querySelectorAll('[' + MARK + ']').forEach((el) => el.remove());
+    } finally {
+      for (const el of excludedSet) { try { el.removeAttribute(MARK); } catch { /* detached */ } }
+    }
+    return clone || rootEl;
+  }
+
   async function mountSvelteComponentVariant(variantNum) {
     if (!svelteComponentSession || !variantNum) return false;
     const { manifest, mountTargetEl, sessionId } = svelteComponentSession;
+    // Resolved before the first await so the failure report can name the module
+    // the browser could not reach, whichever step threw.
+    const extension = manifest.componentExtension || 'svelte';
+    // Prefer the server-stamped revision dir: its path changes on every
+    // publish, which is what defeats stale transform caches for files the
+    // dev server does not watch.
+    const dirRel = manifest.revisionDir || manifest.componentDir || '';
+    const dirAbs = manifest.revisionDirAbs || manifest.componentDirAbs || null;
+    const moduleBase = manifest.componentModuleBase
+      || ('/' + String(dirRel).replace(/^\/+/, ''));
+    const modulePath = String(moduleBase).replace(/\/+$/, '') + '/v' + variantNum + '.' + extension;
+    const moduleAbs = dirAbs
+      ? String(dirAbs).replace(/\/+$/, '') + '/v' + variantNum + '.' + extension
+      : null;
+    const candidates = componentModuleCandidates(manifest, modulePath, moduleAbs);
+    let moduleUrl = candidates[0];
     try {
       const previousAnchor = getMountedSvelteComponentAnchor(svelteComponentSession) || selectedElement;
       svelteComponentSession.swapAnchor = makeFrozenAnchor(previousAnchor) || svelteComponentSession.swapAnchor || null;
       const runtime = await loadSvelteRuntime(manifest.runtimeModule, manifest);
-      const extension = manifest.componentExtension || 'svelte';
-      const moduleBase = manifest.componentModuleBase
-        || ('/' + String(manifest.componentDir || '').replace(/^\/+/, ''));
-      const modulePath = String(moduleBase).replace(/\/+$/, '') + '/v' + variantNum + '.' + extension;
-      const moduleUrl = resolveComponentModuleUrl(manifest, modulePath) + '?t=' + Date.now();
-      const mod = await import(/* @vite-ignore */ moduleUrl);
+      const imported = await importFirstReachable(candidates, true);
+      moduleUrl = imported.url;
+      const mod = imported.mod;
       const Component = mod.default;
       if (svelteComponentSession.mountedInstance && runtime.unmount) {
         await runtime.unmount(svelteComponentSession.mountedInstance);
@@ -5380,7 +5628,7 @@
       });
       svelteComponentSession.mountedVariant = variantNum;
       svelteComponentSession.runtime = runtime;
-      await applySvelteComponentVariantStyle(variantNum);
+      removeSvelteComponentVariantStyle(svelteComponentSession);
       if (state === 'CYCLING') syncCyclingControls();
       const nextAnchor = getMountedSvelteComponentAnchor(svelteComponentSession);
       if (nextAnchor) {
@@ -5401,14 +5649,42 @@
           selectedElement = settledAnchor;
         });
       }
+      // Render truth, not publish truth: this is the only point in the whole
+      // pipeline that proves the user can see variant N.
+      reportVariantMounted(sessionId, variantNum, moduleUrl);
+      if (mountErrorState?.sessionId === sessionId && mountErrorState.variant === variantNum) {
+        clearMountErrorCard();
+      }
       return true;
     } catch (err) {
       if (svelteComponentSession?.sessionId === sessionId) {
         svelteComponentSession.swapAnchor = null;
       }
       console.error('[impeccable] Failed to mount component variant ' + variantNum + ' for ' + sessionId + ':', err);
+      reportVariantMountFailed(sessionId, variantNum, moduleUrl, err);
+      // Every mount failure gets the card, so the variant-switch path (which
+      // used to revert with no feedback whatsoever) says what broke too.
+      showMountErrorCard(sessionId, {
+        variant: variantNum,
+        url: moduleUrl,
+        message: await describeMountFailure(manifest, err),
+      });
       return false;
     }
+  }
+
+  // Distinguishes a broken variant from an unreachable preview tree; the
+  // recovery differs (fix the component vs fix the root/dev-server pair).
+  async function describeMountFailure(manifest, err) {
+    try {
+      const probe = await probePreviewTree(manifest);
+      if (probe.ok === false) {
+        return 'The preview tree is not reachable from the dev server (probe failed on '
+          + (probe.tried || []).join(', ')
+          + '). The resolved app root and the dev server root likely disagree; restart live from the app the dev server serves.';
+      }
+    } catch { /* probe is best-effort */ }
+    return 'The compiled component could not be imported or mounted. ' + (err?.message || 'Unknown error');
   }
 
   function teardownSvelteComponentSession(restoreOriginal) {
@@ -5463,12 +5739,29 @@
   }
 
   async function injectSvelteComponentsFromManifest(manifestPath, sessionId) {
+    // Every (re)injection is a fresh attempt: reset the failure dedupe so a
+    // republish that is STILL broken at the same URL reports again instead of
+    // being swallowed while the agent believes the repair landed.
+    lastReportedMountFailure = null;
     const url = 'http://localhost:' + PORT + '/source?token=' + TOKEN + '&path=' + encodeURIComponent(manifestPath);
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(String(res.status));
       const manifest = JSON.parse(await res.text());
-      if (manifest.id !== sessionId) return;
+      if (manifest.id !== sessionId) {
+        // A manifest at the expected path belonging to a different session is
+        // an agent-side publish error. Left as a bare return it stranded the
+        // bar in GENERATING with no explanation and no event.
+        const mismatch = 'Manifest at ' + manifestPath + ' belongs to session ' + (manifest.id || 'unknown') + ', not ' + sessionId + '.';
+        reportVariantMountFailed(sessionId, visibleVariant || 1, manifestPath, mismatch);
+        showMountErrorCard(sessionId, {
+          variant: visibleVariant || 0,
+          url: manifestPath,
+          message: 'The variant manifest is for a different session. Ask the agent to republish.',
+          previewFile: manifestPath,
+        });
+        return;
+      }
 
       const paramsByVariant = await loadSvelteComponentParams(manifest);
       const availableVariants = Number(manifest.arrivedVariants) || Number(manifest.count) || 1;
@@ -5492,7 +5785,14 @@
         arrivedVariants = availableVariants;
         expectedVariants = Number(manifest.count) || expectedVariants || arrivedVariants;
         visibleVariant = visibleVariant > 0 && visibleVariant <= arrivedVariants ? visibleVariant : 1;
-        await mountSvelteComponentVariant(visibleVariant || 1);
+        const remounted = await mountSvelteComponentVariant(visibleVariant || 1);
+        if (!remounted) {
+          // The mount already reported the failure and raised the card.
+          // Advancing to CYCLING here would show a bar claiming variants are
+          // ready over a page where nothing rendered.
+          saveSession();
+          return;
+        }
         setLiveState('CYCLING');
         showOrUpdateCyclingBar();
         saveSession();
@@ -5567,9 +5867,11 @@
       const mounted = await mountSvelteComponentVariant(visibleVariant);
       if (!mounted) {
         // The compiled component threw (e.g. a Svelte compile error in the
-        // variant file). Don't strand the bar in an empty CYCLING state; restore
-        // the original element and reset to PICKING so the user can retry.
-        abortSvelteComponentInjection(sessionId, 'A variant failed to compile. Fix the component and re-run.');
+        // variant file). mountSvelteComponentVariant already reported the
+        // failure and raised the card; tear the half-built preview down but
+        // keep the session so Retry and a republish still have something to
+        // act on.
+        abortSvelteComponentInjection(sessionId);
         return;
       }
 
@@ -5586,7 +5888,15 @@
       console.log('[impeccable] Mounted ' + arrivedVariants + ' ' + manifest.framework + ' component variants.');
     } catch (err) {
       console.error('[impeccable] Failed to mount component-preview variants:', err);
-      abortSvelteComponentInjection(sessionId, 'Could not load variants. Fix the error and re-run.');
+      // Report the manifest PATH, never the fetch URL: that URL carries the
+      // live helper token and this string is journaled.
+      reportVariantMountFailed(sessionId, visibleVariant || 1, manifestPath, err);
+      abortSvelteComponentInjection(sessionId, {
+        variant: visibleVariant || 0,
+        url: manifestPath,
+        message: 'Could not read the variant manifest. ' + (err?.message || 'Unknown error'),
+        previewFile: manifestPath,
+      });
     }
   }
 
@@ -5607,10 +5917,187 @@
     pendingSvelteComponentRetryObserver.observe(document.body, { childList: true, subtree: true });
   }
 
-  // Reset cleanly when a Svelte component session can't mount: tear the wrapper
-  // down (restoring the original element), clear persisted session state, and
-  // return the bar to PICKING. Avoids the stuck 0/0 CYCLING bar.
-  function abortSvelteComponentInjection(sessionId, message) {
+  //
+  // Mount acknowledgements
+  //
+  // The agent's `done` says it published files. Only the browser knows whether
+  // the import resolved and the component reached the DOM. These two events
+  // carry that answer back, so the journal, `live-status`, and `live-resume`
+  // can tell "the user is comparing variants" from "nothing ever rendered".
+
+  // Mirror of the caps in live/event-validation.mjs. Trimming here keeps a
+  // stack-trace-sized error from being rejected outright and lost.
+  const MOUNT_URL_MAX = 2000;
+  const MOUNT_ERROR_MAX = 1000;
+
+  function reportVariantMounted(sessionId, variantNum, moduleUrl) {
+    const variant = Math.floor(Number(variantNum) || 0);
+    if (!sessionId || variant < 1) return;
+    sendEvent({
+      type: 'variant_mounted',
+      id: sessionId,
+      variant,
+      url: moduleUrl ? String(moduleUrl).slice(0, MOUNT_URL_MAX) : undefined,
+    });
+  }
+
+  function reportVariantMountFailed(sessionId, variantNum, moduleUrl, error) {
+    if (!sessionId) return;
+    const parsed = Math.floor(Number(variantNum) || 0);
+    const variant = parsed >= 1 ? parsed : 1;
+    const url = String(moduleUrl || 'unknown').slice(0, MOUNT_URL_MAX);
+    const message = String(error?.message || error || 'Unknown mount error').slice(0, MOUNT_ERROR_MAX);
+    // Progressive delivery and the Retry button both re-enter the same failure.
+    // Report each distinct one once so the agent's poll queue and the journal
+    // stay readable; a genuinely new failure (different variant, URL, or
+    // message) still gets through.
+    const key = sessionId + '|' + variant + '|' + url + '|' + message;
+    if (lastReportedMountFailure === key) return;
+    lastReportedMountFailure = key;
+    sendEvent({ type: 'variant_mount_failed', id: sessionId, variant, url, error: message });
+  }
+
+  function truncateMiddle(value, max) {
+    const text = String(value || '');
+    if (text.length <= max) return text;
+    const head = Math.ceil((max - 1) / 2);
+    const tail = max - 1 - head;
+    return text.slice(0, head) + '…' + text.slice(text.length - tail);
+  }
+
+  /**
+   * Persistent failure surface. Replaces the old 5s toast: a toast that
+   * disappears while the session is unusable is indistinguishable from no
+   * feedback at all, and the wipe that came with it deleted the only handle on
+   * a session the server still considered live.
+   */
+  function showMountErrorCard(sessionId, details) {
+    mountErrorState = {
+      sessionId: sessionId || currentSessionId || null,
+      variant: Math.floor(Number(details?.variant) || 0),
+      url: details?.url ? String(details.url) : '',
+      message: details?.message || 'A variant failed to load.',
+      previewFile: details?.previewFile || currentPreviewFile || null,
+    };
+    renderMountErrorCard();
+  }
+
+  function clearMountErrorCard() {
+    mountErrorState = null;
+    if (mountErrorEl) {
+      mountErrorEl.remove();
+      mountErrorEl = null;
+    }
+  }
+
+  function mountErrorCardBottomOffset() {
+    const barRect = globalBarEl?.getBoundingClientRect();
+    return barRect && barRect.height > 0
+      ? Math.max(16, window.innerHeight - barRect.top + 12)
+      : 16;
+  }
+
+  function renderMountErrorCard() {
+    if (!mountErrorState) return;
+    if (mountErrorEl) mountErrorEl.remove();
+    const P = BP || barPaletteForTheme(detectPageTheme());
+    const card = el('div', {
+      position: 'fixed', bottom: mountErrorCardBottomOffset() + 'px', left: '50%',
+      transform: 'translateX(-50%)',
+      display: 'flex', flexDirection: 'column', gap: '6px',
+      background: P.surface, color: P.text,
+      border: '1px solid oklch(65% 0.18 30 / 0.55)',
+      borderRadius: '8px', padding: '10px 12px',
+      fontFamily: FONT, fontSize: '12px',
+      boxShadow: P.shadow, zIndex: Z.toast,
+      maxWidth: 'min(520px, calc(100vw - 32px))',
+      pointerEvents: 'auto', textAlign: 'left',
+    });
+    card.id = PREFIX + '-mount-error';
+
+    const head = el('div', { display: 'flex', alignItems: 'center', gap: '8px' });
+    const glyph = el('span', { fontSize: '13px', lineHeight: '1', color: 'oklch(62% 0.19 30)', flexShrink: '0' });
+    glyph.textContent = '⚠';
+    head.appendChild(glyph);
+    const title = el('span', { fontWeight: '600', flex: '1' });
+    title.textContent = mountErrorState.variant > 0
+      ? 'Variant ' + mountErrorState.variant + ' failed to load'
+      : 'Variants failed to load';
+    head.appendChild(title);
+    const dismiss = el('button', {
+      border: 'none', background: 'transparent', color: P.textDim,
+      cursor: 'pointer', fontFamily: FONT, fontSize: '14px', lineHeight: '1',
+      padding: '0 2px', flexShrink: '0',
+    });
+    dismiss.textContent = '×';
+    dismiss.setAttribute('aria-label', 'Dismiss');
+    dismiss.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearMountErrorCard();
+      // The card was the only recovery affordance while the bar is hidden;
+      // dismissing it must hand the user back a usable surface. PICKING
+      // reactivates the global mark and the picker. The saved session and
+      // server truth survive, so a later republish (SSE `done`) still
+      // resurrects the comparison through the normal handlers.
+      if (state === 'GENERATING') setLiveState('PICKING');
+    });
+    head.appendChild(dismiss);
+    card.appendChild(head);
+
+    const body = el('div', { color: P.textDim, lineHeight: '1.4' });
+    body.textContent = mountErrorState.message;
+    card.appendChild(body);
+
+    if (mountErrorState.url) {
+      const urlLine = el('div', {
+        fontFamily: MONO, fontSize: '11px', color: P.textDim,
+        wordBreak: 'break-all', opacity: '0.85',
+      });
+      urlLine.textContent = truncateMiddle(mountErrorState.url, 72);
+      urlLine.title = mountErrorState.url;
+      card.appendChild(urlLine);
+    }
+
+    const actions = el('div', { display: 'flex', gap: '8px', marginTop: '2px' });
+    const retry = el('button', {
+      border: '1px solid ' + P.hairline, background: 'transparent',
+      color: P.text, fontFamily: FONT, fontSize: '12px', fontWeight: '500',
+      borderRadius: '5px', padding: '4px 10px', cursor: 'pointer',
+    });
+    retry.textContent = 'Retry';
+    retry.dataset.impeccableMountRetry = 'true';
+    retry.addEventListener('click', (e) => { e.stopPropagation(); retryMountErrorCard(); });
+    actions.appendChild(retry);
+    card.appendChild(actions);
+
+    mountErrorEl = card;
+    uiAppend(card);
+    defangOutsideHandlers(card);
+  }
+
+  function retryMountErrorCard() {
+    const info = mountErrorState;
+    if (!info) return;
+    const sessionId = info.sessionId || currentSessionId;
+    const manifestPath = info.previewFile || currentPreviewFile;
+    clearMountErrorCard();
+    if (!sessionId || !manifestPath) {
+      showToast('No variant manifest to retry. Ask the agent to republish.', 5000);
+      return;
+    }
+    // A retry must be able to report the same failure again, otherwise a second
+    // attempt against an unchanged broken module would look silent.
+    lastReportedMountFailure = null;
+    if (state !== 'CYCLING') setLiveState('GENERATING');
+    injectSvelteComponentsFromManifest(manifestPath, sessionId);
+  }
+
+  // Tear down a component preview that could not mount, WITHOUT touching
+  // session identity. The old version cleared localStorage, nulled
+  // currentSessionId, and reset to PICKING, which orphaned a session the server
+  // still had in its journal and made every recovery path unreachable. The DOM
+  // teardown and observer cleanup are still right; the state wipe never was.
+  function abortSvelteComponentInjection(sessionId, details) {
     try {
       if (svelteComponentSession?.sessionId === sessionId) {
         teardownSvelteComponentSession(true);
@@ -5622,11 +6109,46 @@
       console.warn('[impeccable] Svelte component abort cleanup failed:', err);
     }
     hideShaderOverlay();
+    if (pendingSvelteComponentRetryObserver) { pendingSvelteComponentRetryObserver.disconnect(); pendingSvelteComponentRetryObserver = null; }
+    if (pendingVariantAnchorRetryObserver) { pendingVariantAnchorRetryObserver.disconnect(); pendingVariantAnchorRetryObserver = null; }
+    // The generate submit armed a scroll lock and a variant observer; a page
+    // the user cannot scroll, watched by a stale observer, is exactly the
+    // wrong place to show a card asking them to act.
+    stopScrollLock();
+    if (variantObserver) { variantObserver.disconnect(); variantObserver = null; }
+    removeVariantStateStylesheet();
+    hideBar(true);
+    // currentSessionId, the saved session, and the file metadata all survive on
+    // purpose: Retry, a republish from the agent, and a page reload all need
+    // them. saveSession keeps the localStorage cache in step with the server.
+    saveSession();
+    if (details) showMountErrorCard(sessionId, details);
+    else if (!mountErrorState) {
+      showMountErrorCard(sessionId, { message: 'Variants could not be mounted. Retry, or ask the agent to republish.' });
+    }
+  }
+
+  // Hard reset for the one case that is not a mount failure: a cycling state
+  // with nothing to cycle. There is no variant to retry and no URL to report,
+  // so the session really is over.
+  function resetSvelteComponentSession(sessionId, message) {
+    try {
+      if (svelteComponentSession?.sessionId === sessionId) {
+        teardownSvelteComponentSession(true);
+      } else {
+        const orphan = document.querySelector('[data-impeccable-variants="' + sessionId + '"]');
+        if (orphan) orphan.remove();
+      }
+    } catch (err) {
+      console.warn('[impeccable] Svelte component reset cleanup failed:', err);
+    }
+    hideShaderOverlay();
     if (variantObserver) { variantObserver.disconnect(); variantObserver = null; }
     if (pendingSvelteComponentRetryObserver) { pendingSvelteComponentRetryObserver.disconnect(); pendingSvelteComponentRetryObserver = null; }
     if (pendingVariantAnchorRetryObserver) { pendingVariantAnchorRetryObserver.disconnect(); pendingVariantAnchorRetryObserver = null; }
     stopScrollLock();
     removeVariantStateStylesheet();
+    clearMountErrorCard();
     clearSession();
     clearHandled();
     resetSessionFileMeta();
@@ -5647,6 +6169,22 @@
   // failure is surfaced via recoverEmptyCycling.
   const COMPLETED_SOURCE_FALLBACK_RETRIES = 3;
   const COMPLETED_SOURCE_FALLBACK_RETRY_MS = 1200;
+
+  /**
+   * Terminal recovery for a session whose source-side scaffolding no longer
+   * exists. The discard event is best-effort: with no agent polling it parks
+   * the durable session in discard_requested, which no resume path adopts;
+   * with an agent attached it triggers the normal discard finalization.
+   */
+  function discardOrphanedSession(reason) {
+    const sessionId = currentSessionId;
+    if (!sessionId) return;
+    console.warn('[impeccable] Discarding orphaned session ' + sessionId + ': ' + reason);
+    sendEvent({ type: 'discard', id: sessionId, orphaned: true }).catch(() => {});
+    markSessionHandled();
+    cleanup({ instantChrome: true });
+    showToast('The previous live session no longer matches the source file, so it was discarded. Pick an element to start fresh.', 6000);
+  }
 
   /**
    * No-HMR fallback: fetch the raw source file from the live server,
@@ -5684,6 +6222,25 @@
         srcWrapper = doc.querySelector('[data-impeccable-variants="' + sessionId + '"]');
         if (!srcWrapper) {
           console.warn('[impeccable] Variant wrapper not found in source file.');
+          // A resumed cycling session whose wrapper is gone from source is an
+          // ORPHAN: the file was edited or regenerated out from under it, so
+          // no reload, HMR push, or server restart can ever complete it, and
+          // the frozen picker it leaves behind used to need a manual
+          // live-complete --discarded. Retry a few reads first (an agent
+          // rewrite or HMR patch may be mid-flight), then self-discard and
+          // hand the surface back to the picker.
+          if (opts.orphanDiscard && sessionId === currentSessionId) {
+            const attempt = opts._orphanAttempt || 0;
+            if (attempt < COMPLETED_SOURCE_FALLBACK_RETRIES) {
+              setTimeout(() => {
+                if (sessionId !== currentSessionId) return;
+                if (state !== 'GENERATING' && state !== 'CYCLING') return;
+                injectVariantsFromSource(filePath, sessionId, { ...opts, _orphanAttempt: attempt + 1 });
+              }, COMPLETED_SOURCE_FALLBACK_RETRY_MS);
+            } else {
+              discardOrphanedSession('variant wrapper missing from source');
+            }
+          }
           return;
         }
 
@@ -6386,12 +6943,8 @@
             // checkpoint may carry an earlier phase for internal bookkeeping,
             // but the bar must not move backward.
             if (shouldAdvancePhase(generationPhase, msg.phase)) generationPhase = msg.phase;
-            if (msg.phase === 'variant_parameters_generating' || msg.phase === 'variant_parameters_validating') {
-              parameterGenerationState = 'loading';
-            }
-            if (msg.phase === 'parameters_ready' && parameterGenerationState !== 'ready') {
-              parameterGenerationState = 'loading';
-            }
+            // The deferred parameter pass reports through `variant_progress`
+            // with publicationKind 'params', not through agent_phase.
             updateBarContent(state === 'CYCLING' ? 'cycling' : 'generating');
             saveSession();
           }
@@ -6474,12 +7027,20 @@
           break;
         case 'complete':
         case 'accept':
+          // The real accept result arrived: the awaited failure window closed.
+          if (awaitingAcceptResult?.id && msg.id === awaitingAcceptResult.id) awaitingAcceptResult = null;
           if (maybeCompleteAcceptedSession(msg)) break;
           break;
         case 'agent_done':
           // The deterministic accept has already committed the reviewed DOM
           // and fenced generation. Carbonize may continue in the background;
           // it must not hold the foreground picker hostage.
+          // Only a carbonize agent_done is provably accept-side: accept
+          // unlocks at the first variant, so a late generation agent_done
+          // for the same session id can still arrive after Accept and must
+          // not close the awaited failure window early (the SSE broadcast
+          // carries no sourceEventType to tell the two apart).
+          if (msg.data?.carbonize === true && awaitingAcceptResult?.id && msg.id === awaitingAcceptResult.id) awaitingAcceptResult = null;
           if (msg.data?.carbonize === true && maybeCompleteAcceptedSession(msg)) break;
           break;
         case 'discarded':
@@ -6491,14 +7052,43 @@
         case 'error':
           if (pendingAcceptedSession?.id && msg.id === pendingAcceptedSession.id) {
             pendingAcceptedSession = null;
+            awaitingAcceptResult = null;
             setLiveState('CYCLING');
             updateBarContent('cycling');
             showToast('Could not complete accept cleanup. Try Accept again.', 5000);
             break;
           }
+          // The optimistic teardown already released the session, so the
+          // CYCLING recovery above can no longer match; without this branch
+          // the failure fell through to the generic toast and the user had
+          // no hint their variant was never written (issue #384).
+          if (awaitingAcceptResult?.id && msg.id === awaitingAcceptResult.id) {
+            awaitingAcceptResult = null;
+            console.error('[impeccable] Accept failed after teardown:', msg.message);
+            // Hedged on purpose: a carbonize-phase failure raises this same
+            // error after the source WAS promoted, so "was not saved" would
+            // overclaim. Normalize the server message's terminal punctuation
+            // so the two sentences don't run together.
+            const acceptFailDetail = String(msg.message || 'unknown error').trim().replace(/[.!?]?$/, '.');
+            showToast('Accept failed: ' + acceptFailDetail + ' The variant may not have been saved. If the change is missing, pick the element and generate again.', 8000);
+            break;
+          }
           if (maybeCompleteSteer(msg)) break;
           console.error('[impeccable] Error:', msg.message);
           showToast('Error: ' + msg.message, 5000);
+          // An agent error reply is terminal for the session it names: tear
+          // it down exactly like 'discarded' (cleanup includes clearSession),
+          // or the durable localStorage checkpoint survives and every reload
+          // resurrects a GENERATING bar for a session the server no longer
+          // knows about (issue #362).
+          if (msg.id && msg.id === currentSessionId) {
+            markSessionHandled();
+            cleanup();
+            break;
+          }
+          // A stored-but-not-current checkpoint naming the errored session
+          // (the error raced a reload) must not resurrect either.
+          if (msg.id && loadSession()?.id === msg.id) clearSession();
           hideBar();
           renderEditBadge('hidden');
           setLiveState('PICKING');
@@ -6543,6 +7133,13 @@
     if (currentSessionId) saveSession();
   }
 
+  // Progress events must never overtake the event that CREATES their session:
+  // the Go-time checkpoint and the generate POST are concurrent fetches, and
+  // when the checkpoint lands first the server rightly refuses it as
+  // unknown_session — which must mean "foreign leftovers", not "you raced
+  // your own Go click". The gate serializes creation before progress.
+  let sessionCreationGate = Promise.resolve();
+
   function sendEvent(msg, opts) {
     msg.token = TOKEN;
     function handleFailure(err) {
@@ -6553,15 +7150,45 @@
       console.debug('[impeccable] Dropped optional live event:', err);
       return null;
     }
-    return fetch('http://localhost:' + PORT + '/events', {
+    // Token in the query string as well as the body: the URL token is what
+    // authorizes the CORS preflight when the page runs on a non-loopback
+    // dev host (ddev, Valet), since the preflight carries no request body.
+    const doSend = () => fetch('http://localhost:' + PORT + '/events?token=' + encodeURIComponent(TOKEN), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(msg),
     }).then(async res => {
       if (res.ok) return res;
       const body = await res.json().catch(() => ({}));
+      // The server refused to journal progress for a session it has never
+      // seen: this browser is carrying state from another project or a
+      // wiped store (two apps sharing a localhost port). Continuing to
+      // report it would freeze the picker behind a session that can never
+      // complete, so drop the local state and hand the surface back.
+      if (body.error === 'unknown_session' && msg.type === 'checkpoint'
+          && msg.id && msg.id === currentSessionId) {
+        abandonForeignSession(msg.id);
+        return null;
+      }
       return handleFailure(new Error(body.error || ('HTTP ' + res.status + ' ' + res.statusText)));
     }).catch(handleFailure);
+
+    if (msg.type === 'generate' || msg.type === 'steer') {
+      const creation = doSend();
+      sessionCreationGate = creation.then(() => {}, () => {});
+      return creation;
+    }
+    return sessionCreationGate.then(doSend);
+  }
+
+  let abandonedForeignSessionId = null;
+  function abandonForeignSession(sessionId) {
+    if (abandonedForeignSessionId === sessionId || sessionId !== currentSessionId) return;
+    abandonedForeignSessionId = sessionId;
+    console.warn('[impeccable] The live server has no record of session ' + sessionId + '; clearing stale local state.');
+    markSessionHandled();
+    cleanup({ instantChrome: true });
+    showToast('A saved live session belonged to a different project, so it was cleared. Pick an element to start fresh.', 6000);
   }
 
   function checkpointPayload(reason) {
@@ -6944,7 +7571,14 @@
     disableInlineEdit();
     stripManualEditRuntimeState(selectedElement);
 
+    // A new cycle publishes new modules, so the previous cycle's mount failure
+    // is about files that no longer matter.
+    clearMountErrorCard();
+    lastReportedMountFailure = null;
     pendingAcceptedSession = null;
+    // A new session supersedes any accept still awaiting its result; a late
+    // failure toast for the previous session would only mislead here.
+    awaitingAcceptResult = null;
     currentSessionId = id8();
     expectedVariants = selectedCount;
     arrivedVariants = 0;
@@ -7023,7 +7657,14 @@
     if (!canCreateInsert({ prompt, comments: snapshot.comments, strokes: snapshot.strokes })) return;
 
     stopVoice({ suppressSubmit: true });
+    // A new cycle publishes new modules, so the previous cycle's mount failure
+    // is about files that no longer matter.
+    clearMountErrorCard();
+    lastReportedMountFailure = null;
     pendingAcceptedSession = null;
+    // A new session supersedes any accept still awaiting its result; a late
+    // failure toast for the previous session would only mislead here.
+    awaitingAcceptResult = null;
     currentSessionId = id8();
     expectedVariants = selectedCount;
     arrivedVariants = 0;
@@ -7855,6 +8496,7 @@ void main() {
         markSessionHandled();
         setLiveState('CONFIRMED');
         document.documentElement.dataset.impeccableAcceptToPickingMs = String(Date.now() - acceptPayload.clientSentAt);
+        awaitingAcceptResult = { id: acceptedSessionId };
         scheduleAcceptCleanup(pending);
       })
       .catch(() => {
@@ -8141,8 +8783,62 @@ void main() {
     return Math.floor(num);
   }
 
+  /**
+   * A durable server session this page can adopt when the browser has no local
+   * record of it. Requires an explicit pageUrl match: a summary with no page is
+   * not evidence that it belongs to THIS page, and adopting it would hijack an
+   * unrelated route.
+   */
+  // Phases in which the user is (or should be) comparing variants. Only these
+  // are adoptable by a browser with no local record. Steer and manual-edit
+  // sessions have no wrapper to restore, and accept/carbonize phases are
+  // agent-side work: a reload mid-carbonize must not resurrect the bar over a
+  // page whose comparison is already decided (a slow-CI reload hit exactly
+  // that window and left the bar stranded after accept).
+  const ADOPTABLE_SESSION_PHASES = new Set([
+    'generate_requested', 'variants_ready', 'generating', 'cycling',
+  ]);
+
+  function findAdoptableServerSession(activeSessions) {
+    if (!Array.isArray(activeSessions)) return null;
+    return activeSessions.find((session) => (
+      session?.id
+      && !isTerminalSessionSummary(session)
+      && !isSessionHandled(session.id)
+      && session.pageUrl
+      && pageMatchesCurrent(session.pageUrl)
+      && (session.previewFile || session.sourceFile)
+      && Number(session.expectedVariants) > 0
+      && ADOPTABLE_SESSION_PHASES.has(String(session.phase || ''))
+    )) || null;
+  }
+
+  // Shape a server summary like a saved local session so one restore path
+  // serves both. The server has no browser state machine, so an adopted session
+  // always re-enters GENERATING and lets the injection settle the final state.
+  function serverSessionAsSavedShape(session) {
+    return {
+      id: session.id,
+      state: 'GENERATING',
+      expected: Number(session.expectedVariants) || 0,
+      arrived: Number(session.arrivedVariants) || 0,
+      visible: Number(session.visibleVariant) || 0,
+      sourceFile: session.sourceFile || undefined,
+      previewFile: session.previewFile || undefined,
+      previewMode: session.previewMode || undefined,
+      pageUrl: session.pageUrl || undefined,
+      paramValues: session.paramValues && typeof session.paramValues === 'object' ? session.paramValues : {},
+    };
+  }
+
   function restoreSessionWithoutWrapper(reason, activeSessions) {
-    const saved = loadSession();
+    const cached = loadSession();
+    // localStorage is a cache, not a gate. A cleared tab, a second browser
+    // profile, or a teardown that dropped local state all leave the durable
+    // server session as the only record of work in progress; adopt it instead
+    // of stranding a session the server still considers live.
+    const adopted = cached?.id ? null : findAdoptableServerSession(activeSessions);
+    const saved = cached?.id ? cached : (adopted ? serverSessionAsSavedShape(adopted) : null);
     if (!saved?.id || isSessionHandled(saved.id)) return false;
     const savedState = String(saved.state || '').toUpperCase();
     if (savedState !== 'GENERATING' && savedState !== 'CYCLING') return false;
@@ -8179,7 +8875,14 @@ void main() {
       ? currentPreviewFile
       : (currentSourceFile || currentPreviewFile);
     if (restoreFile) {
-      injectVariantsFromSource(restoreFile, currentSessionId);
+      // A restored CYCLING session promises variants already written into
+      // source; if they are not there (after retries), the session is an
+      // orphan and must self-discard instead of freezing the picker (#439).
+      // GENERATING restores make no such promise: deferred-wrapper flows
+      // legitimately have no wrapper in source until the agent's write lands.
+      injectVariantsFromSource(restoreFile, currentSessionId, {
+        orphanDiscard: savedState === 'CYCLING' && !isFrameworkComponentPreviewMode(currentPreviewMode),
+      });
       return true;
     }
 
@@ -8229,6 +8932,7 @@ void main() {
     // it here would overwrite the Go-time value every time state changes.
     sessionState.saveSession({
       id: currentSessionId,
+      appRoot: APP_ROOT || undefined,
       state,
       action: selectedAction,
       count: selectedCount,
@@ -8250,7 +8954,17 @@ void main() {
   }
 
   function loadSession() {
-    return sessionState.loadSession();
+    const saved = sessionState.loadSession();
+    // localStorage is per-origin, and two projects routinely reuse the same
+    // localhost port. A saved session stamped with another project's appRoot
+    // is that project's leftover, never a session this server can complete;
+    // resuming it freezes the picker behind an unfinishable banner.
+    if (saved?.appRoot && APP_ROOT && saved.appRoot !== APP_ROOT) {
+      console.warn('[impeccable] Ignoring saved live session from another project (' + saved.appRoot + ').');
+      sessionState.clearSession();
+      return null;
+    }
+    return saved;
   }
 
   function clearSession() {
@@ -8277,6 +8991,8 @@ void main() {
     const restoreOriginal = options?.restoreOriginal === true;
     const instantChrome = options?.instantChrome === true;
     const cleanupSessionId = currentSessionId;
+    clearMountErrorCard();
+    lastReportedMountFailure = null;
     if (svelteComponentSession?.sessionId === cleanupSessionId) {
       teardownSvelteComponentSession(true);
     } else if (cleanupSessionId) {
@@ -8619,6 +9335,8 @@ void main() {
   let pageChatInput = null;
   let pageChatHint = null;
   let pageChatVoiceBtn = null;
+  let pageChatSendBtn = null;
+  let pageChatQueueHintEl = null;
   let pageChatExpanded = false;
   let steerLocked = false;
   let steerRequestId = null;
@@ -8633,7 +9351,7 @@ void main() {
   /** @type {{ mode: 'steer'|'configure', input: HTMLInputElement, submit: () => void, beforeStart?: () => void } | null} */
   let voiceCtx = null;
   const PAGE_CHAT_COLLAPSED_W = '104px';
-  const PAGE_CHAT_PROCESSING_W = '76px';
+  const PAGE_CHAT_QUEUED_W = '212px';
   const PAGE_CHAT_PLACEHOLDER_COLLAPSED = 'Steer…';
   const PAGE_CHAT_PLACEHOLDER_EXPANDED = 'Steer the page…';
   const STEER_AWAIT_TIMEOUT_MS = 120000;
@@ -8647,6 +9365,10 @@ void main() {
   // every normal generation, and telling the user to start a poll loop then is
   // wrong advice about a healthy session.
   const AGENT_BUSY_TIP = 'Agent is working - steering resumes when it finishes';
+  // Same distinction, said where the steer request is waiting. A submitted
+  // steer that lands while a generate holds the poll lease is not stuck, it is
+  // second in line, and the pulsing dots alone read as "nothing is happening".
+  const STEER_QUEUED_HINT = 'Queued behind current generation';
   const GLOBAL_BAR_SECTION_GAP = 8;
   const GLOBAL_BAR_INNER_GAP = 2;
   const GLOBAL_BAR_INNER_PAD_LEFT = 2;
@@ -8799,10 +9521,85 @@ void main() {
   }
 
   function syncPageChatVisual() {
-    if (!pageChatInput || steerLocked) return;
+    if (!pageChatInput || steerLocked) {
+      syncPageChatSendButton();
+      return;
+    }
     const hasText = pageChatInput.value.length > 0;
     if (hasText && !pageChatExpanded) expandPageChat({ focus: false });
     else if (!hasText && pageChatExpanded) collapsePageChat();
+    syncPageChatSendButton();
+  }
+
+  /**
+   * Send is visible once the pill is open for typing and enabled once there is
+   * something to send. It disappears entirely while a steer is in flight, the
+   * same way the mic does: a second submit during the lock has nowhere to go.
+   */
+  function syncPageChatSendButton() {
+    if (!pageChatSendBtn) return;
+    const P = pageChatPalette();
+    const hasText = !!pageChatInput?.value.trim();
+    const focused = pageChatInput && activeElementDeep() === pageChatInput;
+    const visible = !steerLocked && (pageChatExpanded || hasText || focused);
+    pageChatSendBtn.style.display = visible ? 'inline-flex' : 'none';
+    pageChatSendBtn.disabled = !visible || !hasText;
+    pageChatSendBtn.style.background = P.accent;
+    pageChatSendBtn.style.color = C.ink;
+    pageChatSendBtn.style.borderLeft = '1px solid ' + P.hairline;
+    pageChatSendBtn.style.opacity = pageChatSendBtn.disabled ? '0.42' : '1';
+    pageChatSendBtn.style.cursor = pageChatSendBtn.disabled ? 'not-allowed' : 'pointer';
+    pageChatSendBtn.title = pageChatSendBtn.disabled ? 'Type what to change first' : 'Send (Enter)';
+  }
+
+  /**
+   * A submitted steer is queued, not ignored, whenever no poll is parked and
+   * the browser knows a generation is in flight: the agent holds the lease and
+   * will not see the steer until it finishes. Saying so beats three dots that
+   * look identical to a lost request.
+   */
+  function steerQueuedBehindGeneration() {
+    return steerLocked && !agentPollingConnected && agentHasWorkInFlight();
+  }
+
+  function buildSteerQueueHint() {
+    const P = pageChatPalette();
+    const hint = el('span', {
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end',
+      flex: '1', minWidth: '0', marginLeft: 'auto',
+      padding: '0 10px 0 6px',
+      fontFamily: FONT, fontSize: '10.5px', fontWeight: '500',
+      color: P.patinaPale,
+      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      pointerEvents: 'none',
+    });
+    hint.id = PREFIX + '-page-chat-queue';
+    return hint;
+  }
+
+  function syncSteerQueueHint() {
+    if (!pageChatEl) return;
+    const queued = steerQueuedBehindGeneration();
+    if (queued) {
+      if (!pageChatQueueHintEl) {
+        pageChatQueueHintEl = buildSteerQueueHint();
+        pageChatEl.appendChild(pageChatQueueHintEl);
+      }
+      pageChatQueueHintEl.textContent = STEER_QUEUED_HINT;
+      if (pageChatDotsEl) pageChatDotsEl.style.display = 'none';
+      pageChatEl.style.width = PAGE_CHAT_QUEUED_W;
+      pageChatEl.setAttribute('aria-label', STEER_QUEUED_HINT);
+      return;
+    }
+    if (pageChatQueueHintEl?.parentNode) {
+      pageChatQueueHintEl.remove();
+      pageChatQueueHintEl = null;
+      if (steerLocked) {
+        pageChatEl.style.width = pageChatExpanded ? pageChatExpandedWidth() : PAGE_CHAT_COLLAPSED_W;
+        pageChatEl.setAttribute('aria-label', 'Processing steer request');
+      }
+    }
+    if (pageChatDotsEl) pageChatDotsEl.style.display = '';
   }
 
   function shouldFocusSteerChat() {
@@ -8974,6 +9771,7 @@ void main() {
 
   function syncPageChatFocusRing() {
     if (!pageChatEl || !pageChatInput) return;
+    syncPageChatSendButton();
     const focused = activeElementDeep() === pageChatInput;
     const typingReady = focused && !steerLocked;
     pageChatEl.dataset.inputFocused = focused ? 'true' : 'false';
@@ -9127,10 +9925,26 @@ void main() {
     steerAwaitTimer = setTimeout(() => {
       if (!steerLocked || steerRequestId !== id) return;
       unlockSteerChat({
-        error: 'Steer timed out waiting for the agent. Check that live-poll is running and replies with steer_done.',
+        error: steerTimeoutMessage(),
         restoreMessage: steerPendingMessage,
       });
     }, STEER_AWAIT_TIMEOUT_MS);
+  }
+
+  /**
+   * Two minutes of silence has three different causes and only one of them is
+   * "live-poll is not running". Naming the wrong one sends the user to restart
+   * a poll loop that was never the problem.
+   */
+  function steerTimeoutMessage() {
+    const head = 'Steer timed out after 2 minutes. ';
+    if (steerQueuedBehindGeneration()) {
+      return head + 'The agent is still busy with the current generation - your message was not lost, but it never got picked up. Send it again once the variants land.';
+    }
+    if (!agentPollingConnected) {
+      return head + 'No agent is polling right now. Run live-poll.mjs, then send it again.';
+    }
+    return head + 'The agent picked it up but never replied with steer_done. Check the agent session for a stalled or failed steer.';
   }
 
   function lockSteerChat() {
@@ -9156,6 +9970,7 @@ void main() {
       pageChatDotsEl = buildSteerProcessingDots();
       pageChatEl.appendChild(pageChatDotsEl);
     }
+    syncSteerQueueHint();
     syncPageChatFocusRing();
     syncPageChatChrome();
   }
@@ -9196,6 +10011,10 @@ void main() {
     if (pageChatDotsEl?.parentNode) {
       pageChatDotsEl.remove();
       pageChatDotsEl = null;
+    }
+    if (pageChatQueueHintEl?.parentNode) {
+      pageChatQueueHintEl.remove();
+      pageChatQueueHintEl = null;
     }
     steerPendingMessage = keepExpanded ? restoreMessage : '';
     steerInputWasFocused = false;
@@ -9435,10 +10254,11 @@ void main() {
     const id = id8();
     steerRequestId = id;
     steerPendingMessage = text;
-    if (steerInputWasFocused) sendSteerCheckpoint(id, 'steer_input_focused', { focused: true });
     lockSteerChat();
     scheduleSteerAwaitTimeout(id);
-    sendSteerCheckpoint(id, 'steer_submitted', { message: text, pageUrl: location.href });
+    // Checkpoints follow the steer event, never precede it: the steer event
+    // is what creates the session journal server-side, and a checkpoint for
+    // a not-yet-created session is rejected as unknown_session.
     sendEvent({
       type: 'steer',
       id,
@@ -9446,9 +10266,11 @@ void main() {
       pageUrl: location.href,
     }).then((res) => {
       if (!res) {
-        sendSteerCheckpoint(id, 'steer_send_failed', { message: text });
         unlockSteerChat({ error: 'Could not reach live server', restoreMessage: text });
+        return;
       }
+      if (steerInputWasFocused) sendSteerCheckpoint(id, 'steer_input_focused', { focused: true });
+      sendSteerCheckpoint(id, 'steer_submitted', { message: text, pageUrl: location.href });
     });
   }
 
@@ -9564,10 +10386,41 @@ void main() {
     pageChatVoiceBtn.setAttribute('aria-label', 'Voice input');
     pageChatVoiceBtn.innerHTML = ICON_PAGE_VOICE;
 
+    // Visible Send, same affordance the element-level Go bar gets from
+    // buildConfigureSubmitButton. Enter still submits; the button exists so a
+    // typed steer does not look like a dead-end text field.
+    pageChatSendBtn = el('button', {
+      display: 'none', alignItems: 'center', justifyContent: 'center',
+      padding: '0', boxSizing: 'border-box',
+      width: '28px', height: '28px', flexShrink: '0',
+      border: 'none', borderLeft: '1px solid ' + P.hairline,
+      borderRadius: '0',
+      background: P.accent, color: C.ink,
+      cursor: 'pointer',
+      transition: 'filter 0.12s ease, opacity 0.12s ease',
+    });
+    pageChatSendBtn.id = PREFIX + '-page-chat-send';
+    pageChatSendBtn.type = 'button';
+    pageChatSendBtn.setAttribute('aria-label', 'Send steer message');
+    pageChatSendBtn.innerHTML = ICON_CONFIGURE_SUBMIT;
+    pageChatSendBtn.addEventListener('pointerdown', keepSteerPointerInside);
+    pageChatSendBtn.addEventListener('mousedown', keepSteerPointerInside);
+    pageChatSendBtn.addEventListener('mouseenter', () => {
+      if (!pageChatSendBtn.disabled) pageChatSendBtn.style.filter = 'brightness(1.1)';
+    });
+    pageChatSendBtn.addEventListener('mouseleave', () => { pageChatSendBtn.style.filter = 'none'; });
+    pageChatSendBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      keepSteerPointerInside(e);
+      if (steerLocked || pageChatSendBtn.disabled) return;
+      submitSteerMessage();
+    });
+
     pageChatEl.appendChild(chatIcon);
     pageChatEl.appendChild(pageChatHint);
     pageChatEl.appendChild(pageChatInput);
     pageChatEl.appendChild(pageChatVoiceBtn);
+    pageChatEl.appendChild(pageChatSendBtn);
 
     if (!uiGetById(PREFIX + '-page-chat-style')) {
       const s = document.createElement('style');
@@ -9590,14 +10443,14 @@ void main() {
 
     pageChatEl.addEventListener('pointerdown', (e) => {
       keepSteerPointerInside(e);
-      if (steerLocked || pageChatVoiceBtn.contains(e.target)) return;
+      if (steerLocked || pageChatVoiceBtn.contains(e.target) || pageChatSendBtn.contains(e.target)) return;
       armPageChatForTyping({ expand: true, focus: false });
     });
     pageChatEl.addEventListener('mousedown', keepSteerPointerInside);
     pageChatEl.addEventListener('click', (e) => {
       keepSteerPointerInside(e);
       if (steerLocked) return;
-      if (pageChatVoiceBtn.contains(e.target)) return;
+      if (pageChatVoiceBtn.contains(e.target) || pageChatSendBtn.contains(e.target)) return;
       armPageChatForTyping({ expand: true, focus: true });
     });
 
@@ -9618,6 +10471,7 @@ void main() {
 
     pageChatInput.addEventListener('input', () => {
       syncPageChatVisual();
+      syncPageChatSendButton();
     });
 
     pageChatInput.addEventListener('focus', () => {
@@ -9688,6 +10542,7 @@ void main() {
 
   function syncAgentPollingUi(connected) {
     agentPollingConnected = !!connected;
+    syncSteerQueueHint();
     if (!globalBarBrandEl) return;
     const P = barPaletteForTheme(globalBarEl?.dataset.theme || detectPageTheme());
     agentStatusMessage = agentStatusText();
@@ -10982,7 +11837,28 @@ void main() {
 
   // Unified render: merge parsed DESIGN.md frontmatter with sidecar v2
 
+  /**
+   * The empty state has to say which emptiness it is. `present:false` (no
+   * DESIGN.md at all) is handled upstream in renderDesignBody; everything here
+   * means the helper found a design system and this panel found nothing in it
+   * worth drawing. Telling that user "no design system data" reads as "your
+   * DESIGN.md is missing" and sends them to write a file they already have.
+   */
+  function designEmptyMessage() {
+    if (designState.hasMd && !designState.hasSidecar) {
+      return 'DESIGN.md found, no structured tokens to display. Run ' + IMPECCABLE_COMMAND + ' document to generate the .impeccable/design.json sidecar.';
+    }
+    if (designState.hasMd) {
+      return 'DESIGN.md and its sidecar were found, but neither carries colors, type, radii, or components to display.';
+    }
+    return 'No design system data available.';
+  }
+
   function renderDesignVisual(body, parsed, sidecar) {
+    // Count only what this function draws: renderDesignBody may already have
+    // appended a stale-sidecar hint or the basic-view CTA, and those must not
+    // pass for token content.
+    const beforeCount = body.childElementCount;
     const frontmatter = parsed?.frontmatter || {};
     const extensions = sidecar?.extensions || {};
     const proseColors = parsed?.colors || null;
@@ -11010,8 +11886,8 @@ void main() {
       body.appendChild(renderOverviewCollapsible(narrative));
     }
 
-    if (body.childElementCount === 0) {
-      body.appendChild(msgDiv('empty', 'No design system data available.'));
+    if (body.childElementCount === beforeCount) {
+      body.appendChild(msgDiv('empty', designEmptyMessage()));
     }
   }
 
@@ -11096,7 +11972,9 @@ void main() {
       rules: [
         ...(md.colors?.rules || []).map((r) => ({ ...r, section: 'colors' })),
         ...(md.typography?.rules || []).map((r) => ({ ...r, section: 'typography' })),
+        ...(md.layout?.rules || []).map((r) => ({ ...r, section: 'layout' })),
         ...(md.elevation?.rules || []).map((r) => ({ ...r, section: 'elevation' })),
+        ...(md.shapes?.rules || []).map((r) => ({ ...r, section: 'shapes' })),
       ],
       dos: md.dosDonts?.dos || [],
       donts: md.dosDonts?.donts || [],

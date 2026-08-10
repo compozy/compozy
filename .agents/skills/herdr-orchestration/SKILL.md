@@ -1,6 +1,7 @@
 ---
 name: herdr-orchestration
 description: Orchestrate Claude and Codex worker TUIs from a controller agent through herdr panes and the herdr socket CLI. Use when delegating bounded tasks to herdr worker panes, running user-activated plan-first delegations (Claude Code plan mode, Codex Plan mode), waiting on native agent status (idle, working, blocked, done), or verifying worker reports. Workers launch as interactive TUIs via herdr agent start — never through headless runners (compozy exec, claude -p, codex exec). Not for cmux workspaces (see cmux-orchestration) and not for end-user herdr control.
+disable-model-invocation: true
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck

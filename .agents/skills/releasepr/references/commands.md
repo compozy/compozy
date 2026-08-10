@@ -40,11 +40,11 @@ plan if that tag already exists locally or on `origin`.
 | `--format`  | string | `json`  | `json` emits the plan object; `github` emits ordered `key=value` lines for `$GITHUB_OUTPUT`. |
 
 The plan also emits `previous_tag`, `git_range`, and `initial_release`.
-`git_range` is `<previous_tag>..<release_commit>` and is empty only when no
-strict semantic-version predecessor is reachable on the first-parent release
-line. In that case `initial_release` is true. Beta plans include prerelease
-tags while choosing the predecessor; stable and legacy plans exclude
-prerelease tags.
+`git_range` is
+`<previous_tag>..<release_commit>` and is empty only when no strict semantic-
+version predecessor is reachable on the first-parent release line. In that
+case `initial_release` is true. Beta plans include prerelease tags while
+choosing the predecessor; stable and legacy plans exclude prerelease tags.
 
 The channel policy is closed:
 
@@ -69,11 +69,11 @@ pr-release plan --ref legacy/v0.2 --version 0.2.16 --channel legacy --format git
 Renders the Markdown body for an explicit release without writing files. Pass
 the outputs from `plan` unchanged:
 
-| Flag        | Type   | Default  | Behavior |
-| ----------- | ------ | -------- | -------- |
-| `--tag`     | string | required | Target semantic-version Git tag. |
-| `--range`   | string | empty    | Exact `<previous>..<commit>` range emitted by a non-initial plan. |
-| `--initial` | bool   | false    | Explicitly render the first release when `release_initial` is true. Mutually exclusive with `--range`. |
+| Flag      | Type   | Default | Behavior |
+| --------- | ------ | ------- | -------- |
+| `--tag`   | string | required | Target semantic-version Git tag. |
+| `--range` | string | empty | Exact `<previous>..<commit>` range emitted by a non-initial plan. |
+| `--initial` | bool | false | Explicitly render the first release when `release_initial` is true. Mutually exclusive with `--range`. |
 
 ```bash
 pr-release release-body \

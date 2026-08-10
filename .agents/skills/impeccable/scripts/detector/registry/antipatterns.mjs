@@ -29,16 +29,6 @@ const ANTIPATTERNS = [
     skillGuideline: 'overused fonts like Inter',
   },
   {
-    id: 'single-font',
-    category: 'slop',
-    scopes: ['type'],
-    name: 'Single font without hierarchy',
-    description:
-      'Only one font family is used for the entire page. A single family can work when weight and size contrast carry the hierarchy; otherwise pair a distinctive display font with a refined body font.',
-    skillSection: 'Typography',
-    skillGuideline: 'only one font family for the entire page',
-  },
-  {
     id: 'flat-type-hierarchy',
     category: 'slop',
     scopes: ['type'],
@@ -150,6 +140,15 @@ const ANTIPATTERNS = [
     skillGuideline: 'dark mode with glowing accents',
   },
   {
+    id: 'radial-spotlight-glow',
+    category: 'slop',
+    name: 'Decorative radial spotlight glow',
+    description:
+      'A soft, low-opacity accent-colored radial gradient fading to transparent, dropped behind a hero or section as a "spotlight." It is a reflex AI decoration — the translucent cousin of the saturated radial halo. Let the surface stand on its own, or light the composition with a deliberate material accent rather than a floating colored haze.',
+    skillSection: 'Color & Contrast',
+    skillGuideline: 'dark mode with glowing accents',
+  },
+  {
     id: 'marquee',
     category: 'slop',
     name: 'Auto-scrolling marquee',
@@ -189,15 +188,14 @@ const ANTIPATTERNS = [
     skillGuideline: 'tiny uppercase tracked label above the hero headline',
   },
   {
-    id: 'repeated-section-kickers',
+    id: 'kicker-above-heading',
     category: 'slop',
     scopes: ['type'],
-    severity: 'advisory',
-    name: 'Repeated section kicker labels',
+    name: 'Kicker / eyebrow label above heading',
     description:
-      'Repeating tiny uppercase tracked labels above section headings turns a brand page into AI editorial scaffolding. Replace them with stronger structure, artifacts, imagery, or a deliberate brand system.',
+      'A tiny tracked uppercase or small-caps label sitting as its own block directly above a heading is banned outright, repeated or not. Generated kickers never earn their place: the heading carries its own weight. Delete the label and let the heading speak; if the words matter, work them into the heading or the body.',
     skillSection: 'Typography',
-    skillGuideline: 'repeated eyebrow or kicker labels as section scaffolding',
+    skillGuideline: 'kicker or eyebrow labels above headings',
   },
   {
     id: 'numbered-section-labels',

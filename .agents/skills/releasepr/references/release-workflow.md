@@ -84,14 +84,14 @@ release-PR version calculation:
 2. Run `plan --ref ... --version ... --channel ... --format github` and append
    its stdout to `$GITHUB_OUTPUT`.
 3. Run `release-body` with the emitted `release_tag` and `release_git_range`,
-   writing stdout to a temporary Markdown file. Pass `--initial` instead of
-   `--range` only when the emitted `release_initial` is true.
+   writing stdout to a temporary Markdown file. Pass `--initial` only when the
+   emitted `release_initial` is true; otherwise pass `--range`.
 4. Run the project's dry-run checks using the emitted unprefixed version and
    publication policy.
 5. Only the consuming workflow creates the emitted tag and invokes GoReleaser,
-   npm, and Homebrew. The release publisher consumes the temporary Markdown;
-   every downstream changelog receipt consumes the same planned predecessor
-   and range.
+   npm, and Homebrew. The release publisher and any changelog receipt generator
+   consume the same planned predecessor and range; only the release publisher
+   consumes the temporary Markdown file.
 
 The plan proves that the supplied ref is the checked-out `HEAD` and that the
 derived tag is absent locally and on `origin`. Read the `plan` channel-policy

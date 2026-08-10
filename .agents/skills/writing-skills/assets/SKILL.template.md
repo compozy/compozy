@@ -1,22 +1,34 @@
 ---
 name: [skill-name]
-description: [Action-oriented capability description in the third person. Max 1,024 characters. Include positive triggers. Do not use for [explicit negative triggers].]
+description: [Leading word first, then one trigger per branch. Third person, max 1,024 characters. Use when [positive triggers]. Don't use for [negative triggers].]
 ---
 
 # [Skill Title]
 
-## Procedures
+[One or two lines: the behaviour this skill makes predictable.]
+
+<!-- A skill is steps, reference, or both. Keep the section(s) that fit; delete the other(s). -->
+
+## Steps — [for sequenced work]
 
 **Step 1: [Action Phase]**
-1. [Third-person imperative instruction, e.g., "Extract the query parameters..."]
-2. [Instruction referencing an asset, e.g., "Read `assets/template.json` to structure the final output."]
+1. [Third-person imperative instruction, e.g., "Extract the query parameters…"]
+2. [Pointer worded for when, e.g., "When the output must match a schema, read `assets/template.json` in full."]
+
+*Done when:* [checkable criterion — done vs. not-done is decidable; exhaustive where it matters, e.g., "every modified model accounted for"].
 
 **Step 2: [Action Phase]**
-1. [Decision tree/conditional logic, e.g., "If source maps are required, run `scripts/build.sh`. Otherwise, skip to Step 3."]
-2. [Instruction requiring JiT loading, e.g., "Read `references/auth-flow.md` to map the specific error codes."]
-3. Execute `python scripts/[script-name].py` to [perform deterministic action].
+1. [Conditional logic, e.g., "If source maps are required, run `scripts/build.sh`; otherwise skip to Step 3."]
+2. Execute `python [skill-dir]/scripts/[script-name].py` to [deterministic action] ([read-only | bootstrap | mutating]).
+
+*Done when:* [checkable criterion].
+
+## Reference — [for rules consulted on demand; a flat peer-set is a valid shape for a whole skill]
+
+- [Rule or fact, with its caveats co-located under the same heading.]
+- [Pointer worded for when: "When [trigger], read `references/[file].md` in full."]
 
 ## Error Handling
-* If `scripts/[script-name].py` fails due to [specific edge case], execute [recovery step].
-* If [condition B occurs], read `references/[troubleshooting-file].md`.
 
+<!-- Only if the skill runs scripts or has known failure states — otherwise delete this section. -->
+* If `scripts/[script-name].py` fails due to [specific edge case], [recovery step].

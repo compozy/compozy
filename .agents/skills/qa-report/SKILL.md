@@ -7,7 +7,7 @@ description: >-
   as flows, derive scenarios, plan persona-driven session charters), or
   registering bugs into the durable bug registry. Do not use for live
   session execution, browser evidence, or fix loops — use qa-execution for those.
-trigger: explicit
+disable-model-invocation: true
 argument-hint: "[qa-docs-path]"
 metadata:
   author: Pedro Nauck

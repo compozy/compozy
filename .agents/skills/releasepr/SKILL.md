@@ -61,16 +61,15 @@ output or running commands. They are load-bearing, not appendices.
 
 2. **Verify wiring before changing anything.** Run the read-only helper from
    the consuming repo root:
-   `bash .agents/skills/releasepr/scripts/check-setup.sh`
+   `bash skills/releasepr/scripts/check-setup.sh`
    It reports PASS/WARN/FAIL for the binary, token, config file, owner/repo
    resolution, conventional commits, and the workflow file. It only inspects —
    it never writes, pushes, or calls mutating APIs.
 
 3. **Set up (if check-setup reports missing pieces).** Copy
-   `.agents/skills/releasepr/assets/release.yml.template` into
-   `.github/workflows/` and
-   `.agents/skills/releasepr/assets/pr-release.yaml.template` to
-   `.pr-release.yaml`, then adjust.
+   `skills/releasepr/assets/release.yml.template` into
+   `.github/workflows/` and `skills/releasepr/assets/pr-release.yaml.template`
+   to `.pr-release.yaml`, then adjust.
    **STOP. Read `references/setup.md` and `references/configuration.md` in full
    before installing pr-release or editing any config.** The asset templates and
    the bullets here are starting points, not the contract — defaults, validation
@@ -91,8 +90,6 @@ output or running commands. They are load-bearing, not appendices.
    **STOP. Read `references/release-workflow.md` in full before diagnosing CI
    behavior or modifying the release workflow.** Trigger rules and the
    merge → production-release path are only accurate there.
-
-## Error handling
 
 6. **Diagnose a failure.**
    **STOP. Read `references/troubleshooting.md` in full before proposing a fix

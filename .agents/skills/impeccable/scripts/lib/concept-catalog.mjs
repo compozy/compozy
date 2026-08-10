@@ -1,11 +1,12 @@
 import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { WELL_TIERS } from './roll-selection.mjs';
 
 export const CONCEPT_STATUSES = new Set(['approved', 'rejected']);
 
 // What a concept is actually strong at. Worlds carry a durable visual
 // identity (their palette/type half is the magnet); compositions carry a
-// staging or interaction idea (their topology half is the magnet) that can be
+// composition or interaction idea (their topology half is the magnet) that can be
 // dressed in any committed identity; duals fuse both inseparably. Direction
 // seeds draw world|dual, surface seeds draw composition|dual.
 export const CONCEPT_STRENGTHS = new Set(['world', 'composition', 'dual']);
@@ -15,7 +16,20 @@ export const CONCEPT_STRENGTHS = new Set(['world', 'composition', 'dual']);
 // atmosphere worlds need the largest translation step. Every seed roll draws
 // one challenger from each tier so at least one directly-usable graphic
 // system is always on the table.
-export const WELL_TIERS = ['graphic', 'interaction', 'atmosphere'];
+// Defined in roll-selection.mjs, the dependency-free leaf both the seeder and
+// the roll API import. It cannot depend on this file: this one reads the
+// filesystem, and a Pages Function must not pull node:fs into its bundle.
+// Imported and re-exported rather than re-exported alone: a bare
+// `export { X } from` does not bind X in this module's own scope, and
+// validateConceptCatalog needs it.
+export { WELL_TIERS };
+
+// Reviewer axes that gate the challenger draw without touching approval.
+export const CONCEPT_BREADTHS = new Set(['general', 'niche']);
+// The registers of work a roll can be asked for. Kept here beside the review
+// validation that uses it; roll-selection.mjs filters on it and the seeder
+// validates the --mode flag against the same four.
+export const SEED_MODES = new Set(['persuade', 'operate', 'read', 'experience']);
 
 const WEB_LEVERAGE_RE = /(?:\b3d\b|\badaptive\b|\banimat(?:e|ed|ion)\b|\bapi\b|\baria\b|\baudio\b|\bautomated?\b|\bbarcode\b|\bbroadcastchannel\b|\bbrowser\b|\bcamera\b|canvas\b|\bcaption\b|\bcollaborat(?:e|ive|ion)\b|\bcompar(?:e|ison)\b|\bcomput(?:e|ed|ation)\b|\bcomputer[- ]vision\b|\bconstraint[- ]solving\b|\bcryptographic?\b|\bcss\b|\bdeep[- ]link(?:ing)?\b|\bdirect manipulation\b|\bdom\b|\bdrag\b|\bfilter\b|\bfocus\b|\bgenerative\b|\bgeolocat(?:e|ed|ion)\b|\bgesture\b|\bgpu\b|\bgraph\b|\bhistory\b|\bindexeddb\b|\binteractive\b|\bintersectionobserver\b|\bkeyboard\b|\blive\b|\blocal\b|\bmicrophone\b|\bmotion\b|\bmultiplayer\b|\bnative\b|\bnotification\b|\boffline\b|\bpersonaliz(?:e|ed|ation)\b|\bplayable\b|\bpointer\b|\bprocedural\b|\bprovenance\b|\breal[- ]?time\b|\bresizeobserver\b|\bresponsive\b|\breveal\b|\bscrub\b|\bsearch\b|\bsearchparams\b|\bsensor\b|\bserver[- ]sent\b|\bservice worker\b|\bshader\b|\bsimulat(?:e|ed|ion|or)\b|\bspatial\b|\bstate\b|\bstream(?:ing)?\b|\bsvg\b|\bsynchroniz(?:e|ed|ation)\b|\btimeline\b|\btouch\b|\burl|\bvideo\b|\bweb(?:gl|socket|vtt)?\b|\bworker\b|\bzoom\b)/i;
 export const SYSTEM_PREFIXES = [
@@ -36,9 +50,36 @@ export function normalizeConceptForm(value) {
     .trim();
 }
 
-export function validateConceptEntry(concept, { existingForms = new Map() } = {}) {
+export function validateConceptEntry(concept, { existingForms = new Map(), axes = null } = {}) {
   const errors = [];
   const id = concept?.id || '(unknown)';
+
+  // Recorded aesthetic axis values. Optional, and absent means the value is
+  // inferred from the system rules instead. Some axes cannot be inferred at all:
+  // depth's keyword probe matched worlds that said "no cast shadow anywhere",
+  // and motion and colour strategy describe properties the rules never state, so
+  // a wave that assigns those has to record them or the assignment is lost.
+  // Validated against the axes definition when the caller supplies it, because a
+  // typo would read as "unrecorded" and silently fall back to a probe that is
+  // known not to work.
+  if (concept?.axes !== undefined && concept.axes !== null) {
+    if (typeof concept.axes !== 'object' || Array.isArray(concept.axes)) {
+      errors.push(`concept ${id} axes must be an object of axis id to value id`);
+    } else if (axes) {
+      const byId = new Map((axes.axes || []).map(axis => [axis.id, axis]));
+      for (const [axisId, valueId] of Object.entries(concept.axes)) {
+        const axis = byId.get(axisId);
+        if (!axis) {
+          errors.push(`concept ${id} names unknown axis "${axisId}"`);
+        } else if (!(axis.values || []).some(value => value.id === valueId)) {
+          errors.push(
+            `concept ${id} axis "${axisId}" has unknown value "${valueId}" `
+            + `(expected one of ${(axis.values || []).map(v => v.id).join(', ')})`
+          );
+        }
+      }
+    }
+  }
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(concept?.id || '')) {
     errors.push(`invalid concept id: ${String(concept?.id)}`);
   }
@@ -67,6 +108,18 @@ export function validateConceptEntry(concept, { existingForms = new Map() } = {}
     || concept.tags.length !== 3
     || concept.tags.some(tag => typeof tag !== 'string' || !tag.trim())) {
     errors.push(`concept ${id} must have exactly three structural tags`);
+  }
+  // The slop this world in particular is at risk of. Optional, because 541
+  // entries predate it and none of them are wrong for lacking it. A world built
+  // from posters is at risk of shouting and one built from instruments is at
+  // risk of dead greys; a global detector cannot know which, and the author can.
+  if (concept?.avoid !== undefined) {
+    if (!Array.isArray(concept.avoid)
+      || concept.avoid.length < 2
+      || concept.avoid.length > 3
+      || concept.avoid.some(item => typeof item !== 'string' || item.trim().length < 12 || item.trim().length > 160)) {
+      errors.push(`concept ${id} avoid must be two or three negations of 12–160 characters`);
+    }
   }
   if (!Array.isArray(concept?.system)
     || concept.system.length !== SYSTEM_PREFIXES.length
@@ -282,6 +335,27 @@ export function validateConceptCatalog(catalog, reviewData, {
         errors.push(`review ${id} rating only applies to approved concepts`);
       }
     }
+    // Breadth: a world too narrow to serve an arbitrary build keeps its approval
+    // and leaves the challenger pool. Selection has honoured this for a while but
+    // nothing validated it, so a typo would silently read as "general".
+    if (review?.breadth !== undefined && !CONCEPT_BREADTHS.has(review.breadth)) {
+      errors.push(`review ${id} breadth must be one of ${[...CONCEPT_BREADTHS].join(', ')}`);
+    }
+    // Mode eligibility: which registers of work this world can carry. Absent
+    // means all of them, which is why it needs no backfill. Listing every mode
+    // is the same as omitting it, and an empty list would deal nothing, so both
+    // are rejected in favour of leaving the field out.
+    if (review?.allowedModes !== undefined) {
+      if (!Array.isArray(review.allowedModes) || review.allowedModes.length === 0) {
+        errors.push(`review ${id} allowedModes must be a non-empty array, or omitted to allow every mode`);
+      } else if (review.allowedModes.some(mode => !SEED_MODES.has(mode))) {
+        errors.push(`review ${id} allowedModes may only contain ${[...SEED_MODES].join(', ')}`);
+      } else if (new Set(review.allowedModes).size !== review.allowedModes.length) {
+        errors.push(`review ${id} allowedModes must not repeat a mode`);
+      } else if (review.allowedModes.length === SEED_MODES.size) {
+        errors.push(`review ${id} allowedModes lists every mode; omit the field instead`);
+      }
+    }
   }
 
   const wellTierById = new Map((catalog?.wells || []).map(well => [well.id, well.tier]));
@@ -320,10 +394,3 @@ export function approvedPoolRevision(concepts) {
   return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 12);
 }
 
-export function deterministicRank(items, input, idFor = item => item.id) {
-  return [...items].sort((a, b) => {
-    const scoreA = crypto.createHash('sha256').update(`${input}:${idFor(a)}`).digest('hex');
-    const scoreB = crypto.createHash('sha256').update(`${input}:${idFor(b)}`).digest('hex');
-    return scoreB.localeCompare(scoreA) || idFor(a).localeCompare(idFor(b));
-  });
-}

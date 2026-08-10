@@ -54,10 +54,7 @@ def walk_named(repo: Path, names: set[str]) -> list[Path]:
     for root, dirs, files in os.walk(repo, followlinks=False):
         dirs[:] = sorted(d for d in dirs if d not in IGNORED_DIRS)
         for name in sorted(set(files) & names):
-            source = Path(root) / name
-            # os.walk lists broken symlinks as files; they are unreadable.
-            if source.is_file():
-                found.append(source)
+            found.append(Path(root) / name)
     return sorted(found)
 
 
@@ -70,9 +67,7 @@ def walk_skills(repo: Path) -> list[Path]:
         for walk_root, dirs, files in os.walk(root, followlinks=False):
             dirs[:] = sorted(d for d in dirs if d not in IGNORED_DIRS)
             if "SKILL.md" in files:
-                candidate = Path(walk_root) / "SKILL.md"
-                if candidate.is_file():
-                    found.add(candidate.resolve())
+                found.add((Path(walk_root) / "SKILL.md").resolve())
     return sorted(found)
 
 

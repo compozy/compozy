@@ -1,14 +1,13 @@
 # React
 
-Install `@xstate/store` for store APIs and `@xstate/store-react` for React bindings. Importing bindings from `@xstate/store/react` is gone in v4.
+`@xstate/store-react` v2 re-exports everything from `@xstate/store`, so it is the only install needed. Importing bindings from `@xstate/store/react` is gone in v4.
 
 ```bash
-npm install @xstate/store @xstate/store-react
+npm install @xstate/store-react
 ```
 
 ```tsx
-import { createStore } from '@xstate/store';
-import { useSelector } from '@xstate/store-react';
+import { createStore, useSelector } from '@xstate/store-react';
 
 const store = createStore({
   context: { count: 0 },
@@ -84,8 +83,6 @@ function Counter() {
 ```
 
 `input` is required when the logic's `context` function requires it, optional when it does not. Input is read when the store is created, so later prop changes do not reinitialize it — send an event to react to changing props.
-
-In Compozy, `useStoreBinding` is the sole exception for a genuine resource/scope identity or pristine baseline replacement that must be visible before commit. Its factories stay pure. Current hook callbacks and Query executors enter through typed events; never refresh factory dependencies by assigning refs during render.
 
 Share a component-scoped store with descendants through React context, passing the store object itself.
 

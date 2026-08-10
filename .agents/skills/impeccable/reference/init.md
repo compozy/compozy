@@ -36,7 +36,7 @@ Start with the unknowns that most change future product decisions:
 2. What does the product make possible, and what is its meaningfully different mechanism or position?
 3. What durable constraints, assets, evidence, or product facts must future work preserve?
 
-Confirm ambiguous platform separately. Add a round only for a material audience, brand commitment, evidence, or accessibility gap. Record undecided facts instead of inventing them.
+Confirm ambiguous platform separately. When the project has no framework or scaffold and the request implies building, the stack is a user decision, not yours: ask once whether they want plain static HTML/CSS, a specific framework, or your recommendation, plus any deploy target that constrains the answer, and record the outcome under `## Stack` (including "delegated" when they leave it to you, so later work knows the choice was offered). Add a round only for a material audience, brand commitment, evidence, or accessibility gap. Record undecided facts instead of inventing them.
 
 Do not ask for an aesthetic direction, emotional feel, visual references, colors, typography, or style during init. If the user volunteers a binding visual constraint, record it without expanding it.
 
@@ -65,6 +65,9 @@ Write only confirmed facts and explicitly marked open decisions. Omit irrelevant
 ## Platform
 
 web
+
+## Stack
+[Greenfield only: the user's answer to the stack question, e.g. "static HTML/CSS", "Astro", or "delegated: <what you chose and why>". Omit the section when an existing codebase already answers it.]
 
 ## Users
 [Primary users, their situation, and job. Add other audiences only when confirmed.]

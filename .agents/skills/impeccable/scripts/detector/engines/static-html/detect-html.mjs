@@ -24,13 +24,14 @@ import {
   checkElementMotion,
   checkElementOversizedH1,
   checkElementQuality,
+  checkElementRadialSpotlight,
   checkCreamPalette,
   checkHtmlPatterns,
+  checkKickerAboveHeadingFromDoc,
   checkNumberedSectionLabelsFromDoc,
   checkPageLayout,
   checkPageQualityFromDoc,
   checkRepeatedContainerTextFromDoc,
-  checkRepeatedSectionKickersFromDoc,
   resolveBackground,
   resolveBorderRadiusPx,
 } from '../../rules/checks.mjs';
@@ -58,9 +59,6 @@ function checkStaticPageTypography(document, window) {
   }
   for (const font of overusedFound) {
     findings.push({ id: 'overused-font', snippet: `Primary font: ${font}` });
-  }
-  if (fonts.size === 1 && document.querySelectorAll('*').length >= 20) {
-    findings.push({ id: 'single-font', snippet: `only font used is ${[...fonts][0]}` });
   }
   const sizes = new Set();
   for (const el of document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, a, li, td, th, label, button, div')) {
@@ -105,6 +103,7 @@ const STATIC_ELEMENT_RULES = [
   { id: 'oversized-h1', selector: 'h1', run: (el, tag, style, window) => checkElementOversizedH1(el, style, tag, window) },
   { id: 'clipped-overflow-container', selector: '*', run: (el, tag, style, window) => checkElementClippedOverflow(el, style, tag, window) },
   { id: 'gpt-thin-border-wide-shadow', selector: '*', run: (el, tag, style) => checkElementGptBorderShadow(el, style) },
+  { id: 'radial-spotlight-glow', selector: '*', run: (el, tag, style, window) => checkElementRadialSpotlight(el, style, tag, window) },
 ];
 
 async function detectHtml(filePath, options = {}) {
@@ -139,9 +138,20 @@ async function detectHtml(filePath, options = {}) {
         domutils,
       };
     });
-  } catch {
-    return detectText(html, filePath, options);
+  } catch (err) {
+  if (!globalThis.__impeccableStaticHtmlWarned) {
+    globalThis.__impeccableStaticHtmlWarned = true;
+
+    process.stderr.write(
+  'impeccable detect: DEGRADED - HTML parser modules unavailable ' +
+  '(htmlparser2, css-select, css-tree, domutils).\n' +
+  'Falling back to regex matching. Custom properties, selector matching and computed ' +
+  'contrast are NOT evaluated; findings are an undercount, not a clean bill of health.\n'
+);
   }
+
+  return detectText(html, filePath, options);
+}
 
   const resolvedPath = path.resolve(filePath);
   const fileDir = path.dirname(resolvedPath);
@@ -200,7 +210,7 @@ async function detectHtml(filePath, options = {}) {
     for (const f of runPageCheck('typography-rules', () => checkStaticPageTypography(document, window))) {
       findings.push(finding(f.id, filePath, f.snippet));
     }
-    for (const f of runPageCheck('repeated-section-kickers', () => checkRepeatedSectionKickersFromDoc(document, window))) {
+    for (const f of runPageCheck('kicker-above-heading', () => checkKickerAboveHeadingFromDoc(document, window))) {
       findings.push(finding(f.id, filePath, f.snippet));
     }
     for (const f of runPageCheck('numbered-section-labels', () => checkNumberedSectionLabelsFromDoc(document, window))) {
@@ -218,7 +228,25 @@ async function detectHtml(filePath, options = {}) {
     for (const f of runPageCheck('skipped-heading', () => checkPageQualityFromDoc(document))) {
       findings.push(finding(f.id, filePath, f.snippet));
     }
-    for (const f of runPageCheck('html-patterns', () => checkHtmlPatterns(html).filter(item =>
+    // Scoped corpora for the pattern checks (see buildHtmlPatternCorpora in
+    // rules/checks.mjs): CSS-property regexes must not fire on prose ABOUT
+    // css — `<code>background-clip: text</code>` in a changelog is
+    // documentation, not styling. cssText already carries the <style>
+    // blocks and any linked local stylesheets; style/class attributes come
+    // from the parsed document, so escaped code samples never contribute.
+    const styleAttrParts = [];
+    const classAttrParts = [];
+    for (const el of document.querySelectorAll('*')) {
+      const styleAttr = el.getAttribute('style');
+      if (styleAttr) styleAttrParts.push(`style="${styleAttr}"`);
+      const classAttr = el.getAttribute('class');
+      if (classAttr) classAttrParts.push(classAttr);
+    }
+    const patternCorpora = {
+      styleText: [cssText, ...styleAttrParts].join('\n'),
+      classText: classAttrParts.join('\n'),
+    };
+    for (const f of runPageCheck('html-patterns', () => checkHtmlPatterns(html, patternCorpora).filter(item =>
       item.id !== 'bounce-easing' && item.id !== 'layout-transition'
     ))) {
       const item = finding(f.id, filePath, f.snippet);

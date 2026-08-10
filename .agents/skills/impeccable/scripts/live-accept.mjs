@@ -27,6 +27,7 @@ import {
   inlineSvelteComponentAccept,
   removeSvelteComponentSession,
 } from './live/svelte-component.mjs';
+import { enterLiveRoot } from './live/roots.mjs';
 
 const ACCEPT_LOCK_WAIT_MS = 1_000;
 // Mirrors VARIANT_ID_PATTERN in live/event-validation.mjs, which gates the same
@@ -946,6 +947,7 @@ function argVal(args, flag) {
 // Auto-execute when run directly
 const _running = process.argv[1];
 if (_running?.endsWith('live-accept.mjs') || _running?.endsWith('live-accept.mjs/')) {
+  enterLiveRoot();
   acceptCli();
 }
 

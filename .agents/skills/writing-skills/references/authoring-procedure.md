@@ -33,8 +33,9 @@ Resolve bundled paths relative to the directory that contains the `writing-skill
 2. Write all instructions in the **third-person imperative** ("Extract the text," "Run the build").
 3. Keep SKILL.md under 500 lines (the spec ceiling — the doctrine's *sprawl* bar usually lands far lower). Decide what sits inline vs. behind a pointer using the doctrine's *Information hierarchy* section, and word every pointer so it encodes when to load the file.
 4. End each step on a checkable completion criterion (*Done when:* …).
+5. Run the doctrine's pruning pass over the finished draft: relevance line by line, then the no-op test sentence by sentence — delete failing sentences whole, rephrase any prohibition as its positive target, and collapse restated qualities into leading words.
 
-*Done when:* every doctrine section that bears on the content has been applied — hierarchy, pruning, leading words, description, negation.
+*Done when:* every block in the draft is typed — step (ending on *Done when:*) or reference — and the pruning pass has touched every sentence.
 
 ## Step 4: Identify and Bundle Scripts
 
@@ -49,9 +50,9 @@ Resolve bundled paths relative to the directory that contains the `writing-skill
 
 1. Review SKILL.md for "hallucination gaps" — points where the agent is forced to guess.
 2. Verify all file paths are relative and use forward slashes (`/`).
-3. Read `references/checklist.md` and cross-reference every checklist item against the final output; ship only when every item passes.
+3. Read `references/checklist.md` in full and produce the written audit it demands: every item — doctrine (Part A) and spec (Part B) — marked Pass or Fail against the final output. Fix every Fail and re-audit.
 
-*Done when:* the checklist is fully satisfied.
+*Done when:* the written audit shows every item as Pass.
 
 ## Error Handling
 

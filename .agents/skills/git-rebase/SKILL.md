@@ -6,7 +6,6 @@ metadata:
   github: https://github.com/pedronauck
   repository: https://github.com/pedronauck/skills
 ---
-
 # Git Rebase with Intelligent Conflict Resolution
 
 ## Quick Start

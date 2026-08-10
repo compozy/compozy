@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { profileStep, recordProfileEvent } from '../../profile/profiler.mjs';
-import { collectCssCustomProps, cssLengthToPx, parseAnyColor, resolveLengthPx, resolveVarRefs } from '../../rules/checks.mjs';
+import { CSS_NAMED_COLORS, collectCssCustomProps, cssLengthToPx, parseAnyColor, resolveLengthPx, resolveVarRefs } from '../../rules/checks.mjs';
 
 // ---------------------------------------------------------------------------
 // jsdom CSS-variable border override map
@@ -223,7 +223,7 @@ function unwrapCssAtLayer(source) {
 // ---------------------------------------------------------------------------
 
 const STATIC_INHERITED_PROPS = new Set([
-  'color', 'fontFamily', 'fontSize', 'fontStyle', 'fontWeight',
+  'color', 'fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'fontVariant',
   'lineHeight', 'letterSpacing', 'textTransform', 'textAlign', 'hyphens',
   'webkitHyphens',
 ]);
@@ -252,6 +252,7 @@ const STATIC_DEFAULT_STYLE = {
   fontFamily: '',
   fontSize: '16px',
   fontStyle: 'normal',
+  fontVariant: 'normal',
   fontWeight: '400',
   lineHeight: 'normal',
   letterSpacing: 'normal',
@@ -344,17 +345,28 @@ const STATIC_PROP_MAP = {
   'overflow-y': 'overflowY',
 };
 
+// parseStaticColor tries parseAnyColor first, which already resolves every
+// name in the shared CSS_NAMED_COLORS table. This fallback only carries the
+// keywords parseAnyColor deliberately returns null for: the cascade needs
+// `transparent` to read as an actual zero-alpha color.
 const STATIC_NAMED_COLORS = {
-  black: { r: 0, g: 0, b: 0, a: 1 },
-  white: { r: 255, g: 255, b: 255, a: 1 },
   transparent: { r: 0, g: 0, b: 0, a: 0 },
-  gray: { r: 128, g: 128, b: 128, a: 1 },
-  grey: { r: 128, g: 128, b: 128, a: 1 },
-  silver: { r: 192, g: 192, b: 192, a: 1 },
-  red: { r: 255, g: 0, b: 0, a: 1 },
-  green: { r: 0, g: 128, b: 0, a: 1 },
-  blue: { r: 0, g: 0, b: 255, a: 1 },
 };
+
+// Named-color alternation for plucking a color token out of shorthand values
+// (issue #359: a hardcoded 9-name list here silently dropped `purple`,
+// `crimson`, `teal`, ... from border shorthands, so the side defaulted to
+// neutral black and side-tab never fired on .html files). Derived from the
+// same table parseAnyColor resolves against, so extraction and parsing can't
+// drift apart. Longest-first so names containing other names as substrings
+// (rebeccapurple) are matched whole.
+const NAMED_COLOR_TOKENS = [...Object.keys(CSS_NAMED_COLORS), ...Object.keys(STATIC_NAMED_COLORS)]
+  .sort((a, b) => b.length - a.length)
+  .join('|');
+const STATIC_COLOR_TOKEN_RE = new RegExp(
+  `(?:rgba?\\([^)]+\\)|oklch\\([^)]+\\)|oklab\\([^)]+\\)|lch\\([^)]+\\)|lab\\([^)]+\\)|hsla?\\([^)]+\\)|hwb\\([^)]+\\)|#[0-9a-f]{3,8}\\b|\\b(?:${NAMED_COLOR_TOKENS})\\b)`,
+  'i'
+);
 
 function splitCssList(value) {
   const parts = [];
@@ -441,7 +453,7 @@ function extractStaticColor(value) {
     }
     return '';
   }
-  const colorLike = raw.match(/(?:rgba?\([^)]+\)|oklch\([^)]+\)|oklab\([^)]+\)|lch\([^)]+\)|lab\([^)]+\)|hsla?\([^)]+\)|hwb\([^)]+\)|#[0-9a-f]{3,8}\b|\b(?:black|white|gray|grey|silver|red|green|blue|transparent)\b)/i);
+  const colorLike = raw.match(STATIC_COLOR_TOKEN_RE);
   if (!colorLike) return '';
   return colorLike[0];
 }
@@ -940,7 +952,10 @@ function collectStaticCssText(root, fileDir, profile, filePath, modules) {
     const rel = link.attribs?.rel || '';
     const href = link.attribs?.href || '';
     if (!/\bstylesheet\b/i.test(rel) || !href || /^(https?:)?\/\//i.test(href)) continue;
-    const cssPath = path.resolve(fileDir, href);
+    // Cache-busting hrefs (styles.css?v=3) resolve to the file, not to a
+    // literal path with the query in it; a versioned link otherwise made the
+    // whole stylesheet invisible to every element-level check.
+    const cssPath = path.resolve(fileDir, href.split(/[?#]/)[0]);
     try {
       const css = profileStep(profile, {
         engine: 'static-html',

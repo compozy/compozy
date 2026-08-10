@@ -229,4 +229,12 @@ if (!b64) {
   process.exit(1);
 }
 fs.writeFileSync(out, Buffer.from(b64, 'base64'));
-console.log(`IMAGE: ${out} (${size}, ${quality}, gpt-image-2, billed to your OpenAI key)`);
+// The prompt travels with the asset: embedded in the file itself (EXIF-class
+// metadata via embed-prompt.mjs) so intent survives copies across harnesses,
+// plus a sidecar for anything that indexes rather than opens the image.
+try {
+  const { spawnSync } = await import('node:child_process');
+  spawnSync(process.execPath, [new URL('./embed-prompt.mjs', import.meta.url).pathname, out, '--prompt', prompt], { stdio: 'ignore' });
+  fs.writeFileSync(`${out}.json`, JSON.stringify({ prompt, createdAt: new Date().toISOString(), tool: 'generate-image.mjs', model: 'gpt-image-2' }, null, 2));
+} catch { /* embedding is best-effort */ }
+console.log(`IMAGE: ${out} (${size}, ${quality}, gpt-image-2, billed to your OpenAI key); prompt embedded + sidecar at ${out}.json`);

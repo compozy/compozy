@@ -140,16 +140,6 @@ const ANTIPATTERNS = [
     skillGuideline: 'overused fonts like Inter',
   },
   {
-    id: 'single-font',
-    category: 'slop',
-    scopes: ['type'],
-    name: 'Single font without hierarchy',
-    description:
-      'Only one font family is used for the entire page. A single family can work when weight and size contrast carry the hierarchy; otherwise pair a distinctive display font with a refined body font.',
-    skillSection: 'Typography',
-    skillGuideline: 'only one font family for the entire page',
-  },
-  {
     id: 'flat-type-hierarchy',
     category: 'slop',
     scopes: ['type'],
@@ -261,6 +251,15 @@ const ANTIPATTERNS = [
     skillGuideline: 'dark mode with glowing accents',
   },
   {
+    id: 'radial-spotlight-glow',
+    category: 'slop',
+    name: 'Decorative radial spotlight glow',
+    description:
+      'A soft, low-opacity accent-colored radial gradient fading to transparent, dropped behind a hero or section as a "spotlight." It is a reflex AI decoration — the translucent cousin of the saturated radial halo. Let the surface stand on its own, or light the composition with a deliberate material accent rather than a floating colored haze.',
+    skillSection: 'Color & Contrast',
+    skillGuideline: 'dark mode with glowing accents',
+  },
+  {
     id: 'marquee',
     category: 'slop',
     name: 'Auto-scrolling marquee',
@@ -300,15 +299,14 @@ const ANTIPATTERNS = [
     skillGuideline: 'tiny uppercase tracked label above the hero headline',
   },
   {
-    id: 'repeated-section-kickers',
+    id: 'kicker-above-heading',
     category: 'slop',
     scopes: ['type'],
-    severity: 'advisory',
-    name: 'Repeated section kicker labels',
+    name: 'Kicker / eyebrow label above heading',
     description:
-      'Repeating tiny uppercase tracked labels above section headings turns a brand page into AI editorial scaffolding. Replace them with stronger structure, artifacts, imagery, or a deliberate brand system.',
+      'A tiny tracked uppercase or small-caps label sitting as its own block directly above a heading is banned outright, repeated or not. Generated kickers never earn their place: the heading carries its own weight. Delete the label and let the heading speak; if the words matter, work them into the heading or the body.',
     skillSection: 'Typography',
-    skillGuideline: 'repeated eyebrow or kicker labels as section scaffolding',
+    skillGuideline: 'kicker or eyebrow labels above headings',
   },
   {
     id: 'numbered-section-labels',
@@ -902,9 +900,21 @@ function checkColors(opts) {
   const findings = [];
 
   if (hasDirectText && textColor && !isEmojiOnly) {
+    // Gradient-clipped text (`background-clip: text`, typically with a
+    // transparent text-fill) paints its glyphs *with* the element's own
+    // gradient. The `color` value the cascade still reports is never painted,
+    // and the gradient is the fill, not a backdrop — so measuring `color`
+    // against that gradient (which resolveGradientStops picks up as the
+    // element's own background-image) is a guaranteed false positive
+    // (issue #409 Case A). Skip the backdrop-contrast checks; the gradient-text
+    // rule below still flags the pattern itself. Skipping a rule beats a false
+    // positive here — the true painted contrast can't be measured from `color`.
+    const isGradientClippedText = bgClip === 'text';
     // Run background-dependent checks against either a solid bg or, if the
     // ancestor is a gradient, against every gradient stop (use the worst case).
-    const bgs = effectiveBg ? [effectiveBg] : (effectiveBgStops && effectiveBgStops.length ? effectiveBgStops : null);
+    const bgs = isGradientClippedText
+      ? null
+      : (effectiveBg ? [effectiveBg] : (effectiveBgStops && effectiveBgStops.length ? effectiveBgStops : null));
     if (bgs) {
       // Gray on colored background — flag if every stop is chromatic
       const textLum = relativeLuminance(textColor);
@@ -1237,12 +1247,15 @@ function checkHeroEyebrow(opts) {
   }];
 }
 
-function checkRepeatedSectionKickers(opts) {
-  const { candidates, minCount = 3 } = opts;
-  if (!Array.isArray(candidates) || candidates.length < minCount) return [];
+// Outright ban: one kicker is one too many, so every collected candidate is
+// a finding. The judgment lives in the candidate gate (isKickerCandidate) and
+// the collector's context skips, not in a repetition count.
+function checkKickerAboveHeading(opts) {
+  const { candidates } = opts;
+  if (!Array.isArray(candidates)) return [];
   return candidates.map(candidate => ({
-    id: 'repeated-section-kickers',
-    snippet: `repeated section kicker "${candidate.kickerText}" before ${candidate.headingTag} "${candidate.headingText}" (${candidates.length} on page)`,
+    id: 'kicker-above-heading',
+    snippet: `kicker "${candidate.kickerText}" above ${candidate.headingTag} "${candidate.headingText}"`,
   }));
 }
 
@@ -1604,7 +1617,13 @@ function isZeroOffset(value) {
 // never see it — pseudo-elements aren't part of the DOM the cascade walks —
 // so this scans stylesheet text directly, mirroring the border rule's
 // gates: >= 3px thick, chromatic fill, full height against a side edge.
-function scanCssTextForPseudoStripe(content) {
+function scanCssTextForPseudoStripe(rawContent) {
+  // Blank comment bodies byte-for-byte so commented-out rules are not
+  // scanned as live CSS and every rule keeps its source offset (each
+  // finding carries `index` so line-based callers can attribute it and
+  // line-scoped inline ignores can match).
+  const content = String(rawContent || '').replace(/\/\*[\s\S]*?\*\//g,
+    (block) => block.replace(/[^\n]/g, ' '));
   const customProps = collectCssCustomProps(content);
   const findings = [];
   const seen = new Set();
@@ -1713,9 +1732,13 @@ function scanCssTextForPseudoStripe(content) {
 
     if (seen.has(selector)) continue;
     seen.add(selector);
+    // The selector group absorbs whitespace trailing the previous rule;
+    // advance past it so `index` points at the selector itself.
+    const selectorStart = m.index + (m[1].length - m[1].trimStart().length);
     findings.push({
       id: 'side-tab',
       snippet: `${selector} — absolute ${thicknessPx}px pseudo-element stripe (${edge}: 0)`,
+      index: selectorStart,
     });
   }
   return findings;
@@ -1830,9 +1853,11 @@ function collectMarqueeKeyframes(content) {
 // bound to a keyframe loop that travels a large horizontal distance.
 // Rotation/opacity animations never qualify (no X travel); JS-driven
 // carousels with user controls have no infinite CSS X-loop to match.
-function scanCssTextForMarquee(content) {
+// `content` is CSS-bearing text; `markup` (defaulting to the same string
+// for single-corpus callers) is where the <marquee> tag itself lives.
+function scanCssTextForMarquee(content, markup = content) {
   const findings = [];
-  if (/<marquee\b/i.test(content)) {
+  if (/<marquee\b/i.test(markup)) {
     findings.push({ id: 'marquee', snippet: '<marquee> element' });
   }
   const marqueeKeyframes = collectMarqueeKeyframes(content);
@@ -2011,10 +2036,14 @@ function selectorHitsLandmark(content, selector, ranges) {
 // element sits inside a header/nav landmark is the hero liveness cliché
 // and is promoted to error severity; occurrences elsewhere keep the
 // registry default severity.
-function scanCssTextForPulsingDot(content) {
+//
+// `content` is CSS-bearing text (rules and keyframes); `markup` — defaulting
+// to the same string for single-corpus callers like the regex source
+// engine — is where landmark ranges and Tailwind class attributes live.
+function scanCssTextForPulsingDot(content, markup = content) {
   const customProps = collectCssCustomProps(content);
   const keyframes = collectPulseKeyframes(content);
-  const heroRanges = landmarkSourceRanges(content);
+  const heroRanges = landmarkSourceRanges(markup);
   const findings = [];
   const seen = new Set();
 
@@ -2063,7 +2092,7 @@ function scanCssTextForPulsingDot(content) {
 
     if (seen.has(selector)) continue;
     seen.add(selector);
-    const inLandmark = selectorHitsLandmark(content, selector, heroRanges);
+    const inLandmark = selectorHitsLandmark(markup, selector, heroRanges);
     findings.push({
       id: 'pulsing-dot',
       snippet: `${selector} — ${w}x${h}px dot with infinite "${pulseName}" animation${inLandmark ? ' in header/nav' : ''}`,
@@ -2073,10 +2102,11 @@ function scanCssTextForPulsingDot(content) {
   }
 
   // Tailwind utilities: animate-ping / animate-pulse on a tiny rounded-full
-  // element declared entirely in the class attribute.
+  // element declared entirely in the class attribute. Scanned in the markup
+  // corpus so the match index lines up with the landmark ranges.
   const classRe = /class\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
   let cm;
-  while ((cm = classRe.exec(content)) !== null) {
+  while ((cm = classRe.exec(markup)) !== null) {
     const cls = cm[1] || cm[2] || '';
     const anim = cls.match(/\banimate-(ping|pulse)\b/);
     if (!anim) continue;
@@ -2157,20 +2187,64 @@ function scanHtmlForShapeAssembledIllustration(html) {
   return findings;
 }
 
+// Scoped scan corpora for the page-level pattern checks. CSS-property
+// regexes run over the whole source string fire on documentation ABOUT
+// css — `<code>background-clip: text</code>` prose, <pre> samples, HTML
+// comments — so the checks scan only the strings that actually style the
+// page:
+//   styleText — <style> block contents plus style="…" attribute values.
+//     Attribute values keep their `style="…"` form so block-scoped
+//     scanners (grid background) keep treating each attribute as one
+//     declaration block, exactly as they did against raw source. Engines
+//     that already read more CSS (linked stylesheets) prepend it.
+//   classText — class attribute values, for utility-class scans.
+// Markup-shaped checks (inline <svg> scenes, <img> tags, <marquee>,
+// landmark ranges) and rendered-text checks (theater phrases) keep the
+// full source. This extraction serves callers without a parsed document
+// (the browser bundle scanning outerHTML); attribute reads are tag-scoped
+// so escaped code samples (&lt;div style="…"&gt;) never contribute. The
+// static engine passes richer corpora built from its parsed document.
+// Bare CSS input (no markup at all) is its own style text, which keeps
+// direct checkHtmlPatterns(css) callers behaving as before.
+function buildHtmlPatternCorpora(html) {
+  const source = String(html || '');
+  if (!/<[a-zA-Z!/]/.test(source)) {
+    return { styleText: source, classText: source };
+  }
+  const styleParts = [];
+  const classParts = [];
+  const styleBlockRe = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+  let m;
+  while ((m = styleBlockRe.exec(source)) !== null) styleParts.push(m[1]);
+  const tagRe = /<[a-zA-Z][^>]*>/g;
+  while ((m = tagRe.exec(source)) !== null) {
+    const tag = m[0];
+    const sm = tag.match(/\bstyle\s*=\s*("[^"]*"|'[^']*')/i);
+    if (sm) styleParts.push(`style=${sm[1]}`);
+    const cm = tag.match(/\bclass\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+    if (cm) classParts.push(cm[1] ?? cm[2] ?? '');
+  }
+  return { styleText: styleParts.join('\n'), classText: classParts.join('\n') };
+}
+
 /**
  * Regex-on-HTML checks shared between browser and Node page-level detection.
- * These don't need DOM access, just the raw HTML string.
+ * These don't need DOM access, just the raw HTML string. CSS-property and
+ * utility-class patterns scan the scoped corpora (styleText / classText —
+ * see buildHtmlPatternCorpora) so prose about css never flags; only the
+ * markup-shaped and rendered-text checks read the full source.
  */
-function checkHtmlPatterns(html) {
+function checkHtmlPatterns(html, corpora) {
+  const { styleText, classText } = corpora || buildHtmlPatternCorpora(html);
   const findings = [];
 
   // --- Color ---
 
   // AI color palette: purple/violet
   const purpleHexRe = /#(?:7c3aed|8b5cf6|a855f7|9333ea|7e22ce|6d28d9|6366f1|764ba2|667eea)\b/gi;
-  if (purpleHexRe.test(html)) {
+  if (purpleHexRe.test(styleText)) {
     const purpleTextRe = /(?:(?:^|;)\s*color\s*:\s*(?:.*?)(?:#(?:7c3aed|8b5cf6|a855f7|9333ea|7e22ce|6d28d9))|gradient.*?#(?:7c3aed|8b5cf6|a855f7|764ba2|667eea))/gi;
-    if (purpleTextRe.test(html)) {
+    if (purpleTextRe.test(styleText)) {
       findings.push({ id: 'ai-color-palette', snippet: 'Purple/violet accent colors detected' });
     }
   }
@@ -2178,15 +2252,15 @@ function checkHtmlPatterns(html) {
   // Gradient text (background-clip: text + gradient)
   const gradientRe = /(?:-webkit-)?background-clip\s*:\s*text/gi;
   let gm;
-  while ((gm = gradientRe.exec(html)) !== null) {
+  while ((gm = gradientRe.exec(styleText)) !== null) {
     const start = Math.max(0, gm.index - 200);
-    const context = html.substring(start, gm.index + gm[0].length + 200);
+    const context = styleText.substring(start, gm.index + gm[0].length + 200);
     if (/gradient/i.test(context)) {
       findings.push({ id: 'gradient-text', snippet: 'background-clip: text + gradient' });
       break;
     }
   }
-  if (/\bbg-clip-text\b/.test(html) && /\bbg-gradient-to-/.test(html)) {
+  if (/\bbg-clip-text\b/.test(classText) && /\bbg-gradient-to-/.test(classText)) {
     findings.push({ id: 'gradient-text', snippet: 'bg-clip-text + bg-gradient (Tailwind)' });
   }
 
@@ -2195,10 +2269,10 @@ function checkHtmlPatterns(html) {
   // Side-tab accent stripe drawn as an absolutely-positioned pseudo-element
   // (no border property involved, so the element-level border checks and
   // the border-left regexes never see it).
-  findings.push(...scanCssTextForPseudoStripe(html));
+  findings.push(...scanCssTextForPseudoStripe(styleText));
 
   // Side-tab accent stripe drawn as a single-edge inset box-shadow.
-  findings.push(...scanCssTextForInsetStripe(html));
+  findings.push(...scanCssTextForInsetStripe(styleText));
 
   // --- Layout ---
 
@@ -2206,20 +2280,20 @@ function checkHtmlPatterns(html) {
   const spacingValues = [];
   const spacingRe = /(?:padding|margin)(?:-(?:top|right|bottom|left))?\s*:\s*(\d+)px/gi;
   let sm;
-  while ((sm = spacingRe.exec(html)) !== null) {
+  while ((sm = spacingRe.exec(styleText)) !== null) {
     const v = parseInt(sm[1], 10);
     if (v > 0 && v < 200) spacingValues.push(v);
   }
   const gapRe = /gap\s*:\s*(\d+)px/gi;
-  while ((sm = gapRe.exec(html)) !== null) {
+  while ((sm = gapRe.exec(styleText)) !== null) {
     spacingValues.push(parseInt(sm[1], 10));
   }
   const twSpaceRe = /\b(?:p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap)-(\d+)\b/g;
-  while ((sm = twSpaceRe.exec(html)) !== null) {
+  while ((sm = twSpaceRe.exec(classText)) !== null) {
     spacingValues.push(parseInt(sm[1], 10) * 4);
   }
   const remSpacingRe = /(?:padding|margin)(?:-(?:top|right|bottom|left))?\s*:\s*([\d.]+)rem/gi;
-  while ((sm = remSpacingRe.exec(html)) !== null) {
+  while ((sm = remSpacingRe.exec(styleText)) !== null) {
     const v = Math.round(parseFloat(sm[1]) * 16);
     if (v > 0 && v < 200) spacingValues.push(v);
   }
@@ -2243,7 +2317,7 @@ function checkHtmlPatterns(html) {
 
   // Bounce/elastic animation names
   const bounceRe = /animation(?:-name)?\s*:\s*([^;{}]*(?:bounce|elastic|wobble|jiggle|spring)[^;{}]*)/gi;
-  const bounceMatch = bounceRe.exec(html);
+  const bounceMatch = bounceRe.exec(styleText);
   if (bounceMatch) {
     const animationToken = bounceMatch[1]
       .split(/[,\s]+/)
@@ -2254,7 +2328,7 @@ function checkHtmlPatterns(html) {
   // Overshoot cubic-bezier
   const bezierRe = /cubic-bezier\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)/g;
   let bm;
-  while ((bm = bezierRe.exec(html)) !== null) {
+  while ((bm = bezierRe.exec(styleText)) !== null) {
     const y1 = parseFloat(bm[2]), y2 = parseFloat(bm[4]);
     if (y1 < -0.1 || y1 > 1.1 || y2 < -0.1 || y2 > 1.1) {
       findings.push({ id: 'bounce-easing', snippet: `cubic-bezier(${bm[1]}, ${bm[2]}, ${bm[3]}, ${bm[4]})` });
@@ -2265,7 +2339,7 @@ function checkHtmlPatterns(html) {
   // Layout property transitions
   const transRe = /transition(?:-property)?\s*:\s*([^;{}]+)/gi;
   let tm;
-  while ((tm = transRe.exec(html)) !== null) {
+  while ((tm = transRe.exec(styleText)) !== null) {
     const val = tm[1].toLowerCase();
     if (/\ball\b/.test(val)) continue;
     const found = val.match(/\b(?:(?:max|min)-)?(?:width|height)\b|\bpadding(?:-(?:top|right|bottom|left))?\b|\bmargin(?:-(?:top|right|bottom|left))?\b/gi);
@@ -2275,30 +2349,32 @@ function checkHtmlPatterns(html) {
     }
   }
 
-  // Pulsing status dots (tiny circular elements on infinite pulse animations)
-  findings.push(...scanCssTextForPulsingDot(html));
+  // Pulsing status dots (tiny circular elements on infinite pulse animations).
+  // The CSS rules come from styleText; the markup carries the landmark
+  // ranges and Tailwind class attributes.
+  findings.push(...scanCssTextForPulsingDot(styleText, html));
 
   // Shape-assembled illustrations (large pictorial SVGs built from primitives)
   findings.push(...scanHtmlForShapeAssembledIllustration(html));
 
   // Auto-scrolling marquees (<marquee> or infinite horizontal loop animations)
-  findings.push(...scanCssTextForMarquee(html));
+  findings.push(...scanCssTextForMarquee(styleText, html));
 
   // --- Dark glow / chromatic halo shadows ---
 
-  const glowHits = scanCssTextForGlow(html);
+  const glowHits = scanCssTextForGlow(styleText);
   if (glowHits.length > 0) {
     findings.push({ id: 'dark-glow', snippet: glowHits[0].snippet });
   }
 
   // Radial-gradient background halo (gradient-drawn sibling of dark-glow)
-  const haloHits = scanCssTextForRadialHalo(html);
+  const haloHits = scanCssTextForRadialHalo(styleText);
   if (haloHits.length > 0) {
     findings.push({ id: 'radial-halo', snippet: haloHits[0].snippet });
   }
 
   // --- Generated-UI tells: repeating-gradient stripes ---
-  if (/repeating-(?:linear|radial|conic)-gradient\s*\(/i.test(html)) {
+  if (/repeating-(?:linear|radial|conic)-gradient\s*\(/i.test(styleText)) {
     findings.push({ id: 'repeating-stripes-gradient', snippet: 'repeating-gradient decorative stripes' });
   }
 
@@ -2315,7 +2391,7 @@ function checkHtmlPatterns(html) {
   // in for the second axis. Colors like `oklch(96% 0.012 82 / 0.055)` carry
   // nested parens, so match the hairline stop directly rather than parsing
   // whole gradient layers.
-  const gridHits = scanCssTextForGridBackground(html);
+  const gridHits = scanCssTextForGridBackground(styleText);
   if (gridHits.length > 0) {
     findings.push({ id: 'codex-grid-background', snippet: gridHits[0].snippet });
   }
@@ -2337,7 +2413,7 @@ function checkHtmlPatterns(html) {
   // hover:rotate / hover:translate utility on an <img>. Each distinct
   // mechanism is its own finding.
   const imgHoverCss = /\bimg\b[^,{}]*:hover\b[^{}]*\{[^}]*\btransform\s*:\s*(?:scale|rotate|translate|matrix|skew)/i;
-  if (imgHoverCss.test(html)) {
+  if (imgHoverCss.test(styleText)) {
     findings.push({ id: 'image-hover-transform', snippet: 'img:hover { transform } rule' });
   }
   const imgTagRe = /<img\b[^>]*\bclass\s*=\s*"([^"]*)"/gi;
@@ -2462,27 +2538,52 @@ function resolveBackground(el, win, customPropMap) {
 // Walk parents looking for a gradient background and return its color stops.
 // Used as a fallback when resolveBackground() returns null because the
 // effective background is a gradient (no single solid color to compare against).
-function resolveGradientStops(el, win) {
+function resolveGradientStops(el, win, customPropMap) {
   let current = el;
   while (current && current.nodeType === 1) {
     const style = DETECTOR_IS_BROWSER ? getComputedStyle(current) : win.getComputedStyle(current);
     const bgImage = style.backgroundImage || '';
+    let stops = null;
     if (bgImage && bgImage !== 'none' && /gradient/i.test(bgImage)) {
-      const stops = parseGradientColors(bgImage);
-      if (stops.length > 0) return stops;
+      const parsed = parseGradientColors(bgImage);
+      if (parsed.length > 0) stops = parsed;
     }
-    if (!DETECTOR_IS_BROWSER) {
+    if (!stops && !DETECTOR_IS_BROWSER) {
       // jsdom doesn't decompose `background:` shorthand — peek at the raw inline style
       const rawStyle = current.getAttribute?.('style') || '';
       const bgMatch = rawStyle.match(/background(?:-image)?\s*:\s*([^;]+)/i);
       if (bgMatch && /gradient/i.test(bgMatch[1])) {
-        const stops = parseGradientColors(bgMatch[1]);
-        if (stops.length > 0) return stops;
+        const parsed = parseGradientColors(bgMatch[1]);
+        if (parsed.length > 0) stops = parsed;
       }
     }
+    if (stops) return compositeGradientStops(stops, current, win, customPropMap);
     current = current.parentElement;
   }
   return null;
+}
+
+// A translucent gradient stop (e.g. a faint `rgba(52,192,168,0.09)` accent
+// glow) paints over whatever surface sits beneath the gradient — the browser
+// composites it, so its effective color is far closer to the base than to the
+// full-opacity accent. Treating the stop as opaque flags every text child of a
+// softly-glowing section as low-contrast (issue #409 Case B). Composite each
+// alpha stop over the resolved surface beneath the gradient element. When that
+// surface isn't resolvable (another gradient above, no opaque ancestor), drop
+// the translucent stop rather than guess: a dropped stop can't manufacture a
+// false finding, and skipping beats a wrong ratio.
+function compositeGradientStops(stops, gradientEl, win, customPropMap) {
+  const hasAlpha = stops.some(s => (s.a ?? 1) < 0.99);
+  if (!hasAlpha) return stops;
+  const base = resolveBackground(gradientEl.parentElement || gradientEl, win, customPropMap);
+  const out = [];
+  for (const s of stops) {
+    const a = s.a ?? 1;
+    if (a >= 0.99) { out.push(s); continue; }
+    if (base) out.push(compositeColorOver(s, base));
+    // else: unresolvable base — drop the translucent stop (skip, don't guess).
+  }
+  return out.length ? out : null;
 }
 
 // Parse a single CSS length token to pixels. Accepts "12px", "50%", a
@@ -3134,7 +3235,7 @@ function parseColorResolved(str, customPropMap) {
   return parseAnyColor(resolved);
 }
 
-const REPEATED_KICKER_SKIP_SELECTOR = [
+const KICKER_SKIP_SELECTOR = [
   'nav',
   'form',
   'table',
@@ -3153,7 +3254,7 @@ const REPEATED_KICKER_SKIP_SELECTOR = [
   '[data-impeccable-allow-kickers]',
 ].join(',');
 
-const REPEATED_KICKER_CARD_CONTEXT_SELECTOR = [
+const KICKER_CARD_CONTEXT_SELECTOR = [
   'article',
   'button',
   'a',
@@ -3171,23 +3272,32 @@ function cleanInlineText(el) {
     .trim();
 }
 
-function isRepeatedKickerCardContext(heading, kicker) {
-  const item = heading.closest?.(REPEATED_KICKER_CARD_CONTEXT_SELECTOR);
+function isKickerCardContext(heading, kicker) {
+  const item = heading.closest?.(KICKER_CARD_CONTEXT_SELECTOR);
   return Boolean(item && (!item.contains || item.contains(kicker)));
 }
 
-function isRepeatedKickerCandidate(opts) {
+// Meta lines above headlines join category and date (or path crumbs) with
+// separator glyphs, or carry a year. A kicker is one short phrase; metadata
+// keeps its markers.
+const KICKER_META_TEXT_RE = /[·•|]|\s[\/›»>]\s|\b(19|20)\d{2}\b/;
+// Legal and document numbering: "Section 4.2", "Article IX", "§ 12.3",
+// dotted decimal outlines. The label identifies the clause, so it stays.
+const KICKER_DOC_NUMBERING_RE = /^(§|\d+(\.\d+)+\b|(section|article|clause|appendix|exhibit|schedule|chapter|part|rule|title)\s+([\divxlc]+\b|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b)/i;
+
+function isKickerCandidate(opts) {
   const {
-    headingTag,
+    headingLevel,
     headingText,
     headingFontSize,
     kickerTag,
     kickerText,
     kickerTextTransform,
+    kickerFontVariant,
     kickerFontSize,
     kickerLetterSpacing,
   } = opts;
-  if (!['h2', 'h3', 'h4'].includes(headingTag)) return false;
+  if (!headingLevel || headingLevel > 4) return false;
   if (!headingText || headingText.length < 3) return false;
   if (/^\/[\w-]+/i.test(headingText.replace(/^"|"$/g, '').trim())) return false;
   if (!(headingFontSize >= 20)) return false;
@@ -3195,47 +3305,82 @@ function isRepeatedKickerCandidate(opts) {
   if (!['p', 'span', 'div', 'small'].includes(kickerTag)) return false;
   if (!kickerText || kickerText.length < 2 || kickerText.length > 34) return false;
   if (/^step\s*\d+/i.test(kickerText) || /^\d{1,2}$/.test(kickerText)) return false;
+  if (KICKER_META_TEXT_RE.test(kickerText)) return false;
+  if (KICKER_DOC_NUMBERING_RE.test(kickerText)) return false;
 
+  const isSmallCaps = /small-caps/.test(kickerFontVariant || '');
   const isUppercased = kickerTextTransform === 'uppercase'
-    || (/[A-Z]/.test(kickerText) && !/[a-z]/.test(kickerText));
+    || (/[A-Z]/.test(kickerText) && !/[a-z]/.test(kickerText))
+    || isSmallCaps;
   if (!isUppercased) return false;
   if (!(kickerFontSize > 0 && kickerFontSize <= 14)) return false;
-  const minTrackedSpacing = Math.max(1, kickerFontSize * 0.08);
+  // Proportional only, no absolute floor: the wild's most common recipe is
+  // 0.08em at a sub-13px size, which computes to under 1px and sailed past
+  // the old Math.max(1, ...) floor (observed live: a page whose kickers were
+  // literally class="kicker" produced zero findings).
+  const minTrackedSpacing = kickerFontSize * 0.06;
   if (!(kickerLetterSpacing >= minTrackedSpacing)) return false;
   return true;
 }
 
-function collectRepeatedSectionKickerCandidates(doc, getStyle, resolveLetterSpacing) {
+// Resolve a heading level for the anchor element: 1-4 for h1-h4, aria-level
+// (default 2) for role="heading" elements, 0 otherwise.
+function kickerHeadingLevel(heading) {
+  const tag = heading.tagName.toLowerCase();
+  const byTag = /^h([1-6])$/.exec(tag);
+  if (byTag) return parseInt(byTag[1], 10);
+  const role = heading.getAttribute?.('role') || '';
+  if (role.toLowerCase() !== 'heading') return 0;
+  const ariaLevel = parseInt(heading.getAttribute?.('aria-level') || '', 10);
+  return Number.isFinite(ariaLevel) && ariaLevel >= 1 ? ariaLevel : 2;
+}
+
+function collectKickerCandidates(doc, getStyle, resolveLetterSpacing) {
   const candidates = [];
-  for (const heading of doc.querySelectorAll('h2, h3, h4')) {
-    if (heading.closest?.(REPEATED_KICKER_SKIP_SELECTOR)) continue;
+  for (const heading of doc.querySelectorAll('h1, h2, h3, h4, [role="heading"]')) {
+    const headingLevel = kickerHeadingLevel(heading);
+    if (!headingLevel || headingLevel > 4) continue;
+    if (heading.closest?.(KICKER_SKIP_SELECTOR)) continue;
+    // Application contexts (tab panels, dialogs) use compact context labels
+    // above headings to describe state, not to decorate. Same carve-out the
+    // hero-eyebrow rule makes.
+    if (heading.closest?.('[role="tabpanel"], [role="dialog"], [role="application"], dialog')) continue;
     const kicker = heading.previousElementSibling;
-    if (!kicker || kicker.closest?.(REPEATED_KICKER_SKIP_SELECTOR)) continue;
-    if (isRepeatedKickerCardContext(heading, kicker)) continue;
+    if (!kicker || kicker.closest?.(KICKER_SKIP_SELECTOR)) continue;
+    if (isKickerCardContext(heading, kicker)) continue;
 
     const headingStyle = getStyle(heading);
     const kickerStyle = getStyle(kicker);
+    const headingTag = heading.tagName.toLowerCase();
     const headingText = (heading.textContent || '').replace(/\s+/g, ' ').trim();
     const kickerText = cleanInlineText(kicker) || (kicker.textContent || '').replace(/\s+/g, ' ').trim();
     const headingFontSize = resolveLetterSpacing(headingStyle.fontSize || '', 16) || parseFloat(headingStyle.fontSize) || 0;
     const kickerFontSize = resolveLetterSpacing(kickerStyle.fontSize || '', 16) || parseFloat(kickerStyle.fontSize) || 0;
     const kickerLetterSpacing = resolveLetterSpacing(kickerStyle.letterSpacing || '', kickerFontSize);
 
-    if (!isRepeatedKickerCandidate({
-      headingTag: heading.tagName.toLowerCase(),
+    if (!isKickerCandidate({
+      headingLevel,
       headingText,
       headingFontSize,
       kickerTag: kicker.tagName.toLowerCase(),
       kickerText,
       kickerTextTransform: kickerStyle.textTransform || '',
+      kickerFontVariant: `${kickerStyle.fontVariant || ''} ${kickerStyle.fontVariantCaps || ''}`,
       kickerFontSize,
       kickerLetterSpacing,
     })) {
       continue;
     }
 
+    // A tracked-caps eyebrow above a hero-scale h1 belongs to
+    // hero-eyebrow-chip (which also covers the accent-bold and dash-prefix
+    // stylings there). Stand down so one element gets one finding.
+    if (headingTag === 'h1' && headingFontSize >= 48 && kickerLetterSpacing >= 1.6) {
+      continue;
+    }
+
     candidates.push({
-      headingTag: heading.tagName.toLowerCase(),
+      headingTag,
       headingText: headingText.replace(/^"|"$/g, '').slice(0, 60),
       kickerText: kickerText.slice(0, 40),
     });
@@ -3243,17 +3388,17 @@ function collectRepeatedSectionKickerCandidates(doc, getStyle, resolveLetterSpac
   return candidates;
 }
 
-function checkRepeatedSectionKickersDOM() {
-  const candidates = collectRepeatedSectionKickerCandidates(
+function checkKickerAboveHeadingDOM() {
+  const candidates = collectKickerCandidates(
     document,
     (el) => getComputedStyle(el),
     (value, fontSize) => resolveLengthPx(value, fontSize) || 0,
   );
-  return checkRepeatedSectionKickers({ candidates });
+  return checkKickerAboveHeading({ candidates });
 }
 
 // ── Numbered section labels ─────────────────────────────────────────────────
-// Sibling of the repeated-kicker rule: instead of a tracked uppercase word,
+// Sibling of the kicker-above-heading rule: instead of a tracked uppercase word,
 // the section scaffold is a tiny numeric index riding beside each section
 // heading — bare and zero-padded, or an index joined to a short micro-label
 // by a separator glyph. The kicker rule deliberately excludes bare 1-2 digit
@@ -3307,7 +3452,7 @@ function collectNumberedSectionLabelCandidates(doc, getStyle, resolveLetterSpaci
   const candidates = [];
   const seenLabels = new Set();
   for (const heading of doc.querySelectorAll('h2, h3, h4')) {
-    if (heading.closest?.(REPEATED_KICKER_SKIP_SELECTOR)) continue;
+    if (heading.closest?.(KICKER_SKIP_SELECTOR)) continue;
     // The index sits either directly before the heading, or before the
     // wrapper the heading leads (label | <div><h2>…</h2>…</div>).
     let label = heading.previousElementSibling;
@@ -3317,9 +3462,9 @@ function collectNumberedSectionLabelCandidates(doc, getStyle, resolveLetterSpaci
       if (firstChild === heading) label = parent.previousElementSibling;
     }
     if (!label || seenLabels.has(label)) continue;
-    if (label.closest?.(REPEATED_KICKER_SKIP_SELECTOR)) continue;
+    if (label.closest?.(KICKER_SKIP_SELECTOR)) continue;
     if (HEADING_TAGS.has(label.tagName.toLowerCase())) continue;
-    if (isRepeatedKickerCardContext(heading, label)) continue;
+    if (isKickerCardContext(heading, label)) continue;
 
     const labelText = cleanInlineText(label) || (label.textContent || '').replace(/\s+/g, ' ').trim();
     const parsed = parseNumberedLabelText(labelText);
@@ -3522,6 +3667,131 @@ function checkElementAIPaletteDOM(el) {
   return findings;
 }
 
+// ─── Decorative radial spotlight glow ───────────────────────────────────────
+// A soft, low-opacity chromatic radial-gradient fading to transparent, painted
+// as a decorative wash behind a hero or section. The translucent sibling of the
+// `radial-halo` tell: `radial-halo` requires a saturated, near-opaque center on
+// a dark page; this catches the low-alpha "spotlight" the halo gate lets slip
+// (e.g. `radial-gradient(circle at 52% 38%, rgba(80,111,255,0.26),
+// transparent 44%)`). The two alpha bands are disjoint, so they never
+// double-report the same declaration.
+const SPOTLIGHT_COLOR_TOKEN_RE = /(?:rgba?|hsla?|oklch|oklab|lab|lch|hwb|color-mix)\([^)]*(?:\([^)]*\))?[^)]*\)|#[0-9a-f]{3,8}\b|\btransparent\b/i;
+
+// Parse the FIRST non-repeating radial-gradient in a background value into its
+// ordered color stops. Each stop is { color: {r,g,b,a} | null, transparent }.
+// Returns null when there is no plain radial-gradient to read.
+function parseRadialGradientStops(value) {
+  if (!value || !/radial-gradient/i.test(value)) return null;
+  const gradRe = /(repeating-)?radial-gradient\(/gi;
+  let g;
+  while ((g = gradRe.exec(value)) !== null) {
+    if (g[1]) continue; // repeating-* is a pattern, not a spotlight
+    let depth = 0, end = -1;
+    const open = value.indexOf('(', g.index);
+    for (let i = open; i < value.length; i++) {
+      if (value[i] === '(') depth++;
+      else if (value[i] === ')') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    const args = splitTopLevelCommas(value.slice(open + 1, end));
+    // The optional prelude (shape / size / `at <pos>`) carries no color token.
+    const stopArgs = args.filter(a => SPOTLIGHT_COLOR_TOKEN_RE.test(a));
+    if (stopArgs.length < 2) return null;
+    return stopArgs.map(a => {
+      const tok = a.match(SPOTLIGHT_COLOR_TOKEN_RE);
+      if (!tok) return { color: null, transparent: false };
+      if (/^transparent$/i.test(tok[0])) return { color: null, transparent: true };
+      const color = parseAnyColor(tok[0]);
+      return { color, transparent: !!color && (color.a ?? 1) <= 0.05 };
+    });
+  }
+  return null;
+}
+
+// Pure gate. `label` is a stable identifier the fixture test keys on.
+function checkRadialSpotlight({ gradientValue, width, height, label }) {
+  const stops = parseRadialGradientStops(gradientValue);
+  if (!stops || stops.length < 2) return [];
+
+  // Must fade OUT: the last stop is transparent / near-zero alpha. A gradient
+  // between two visible surfaces is a real background, not a floating glow.
+  const last = stops[stops.length - 1];
+  const lastAlpha = last.transparent ? 0 : (last.color ? (last.color.a ?? 1) : 1);
+  if (lastAlpha > 0.05) return [];
+
+  // The visible (non-transparent, parseable) color stops.
+  const colored = stops.filter(s => !s.transparent && s.color && (s.color.a ?? 1) > 0.05);
+  if (colored.length === 0) return [];
+  // One soft glow, not a multi-color composition: at most two visible stops.
+  if (colored.length > 2) return [];
+  // Every visible stop must be LOW opacity. Any opaque stop means a real fill
+  // or a saturated halo (`radial-halo`'s job), not this translucent spotlight.
+  if (colored.some(s => (s.color.a ?? 1) >= 0.45)) return [];
+  // At least one visible stop must be chromatic. A neutral (grayscale)
+  // near-black / near-white vignette is a legitimate lighting move, exempt.
+  const chromatic = colored.find(s => hasChroma(s.color, 24));
+  if (!chromatic) return [];
+
+  // Decorative-scale gate. Badges, avatars, and actual small "lights" are
+  // exempt; a spotlight glow only reads as slop when it washes a large surface.
+  if (!(width >= 240 && height >= 160)) return [];
+
+  const alpha = (chromatic.color.a ?? 1).toFixed(2);
+  const name = label || 'section';
+  return [{
+    id: 'radial-spotlight-glow',
+    snippet: `radial-gradient spotlight glow "${name}" (${colorToHex(chromatic.color)} a${alpha} → transparent) on ${Math.round(width)}x${Math.round(height)} surface`,
+  }];
+}
+
+// Read the raw radial-gradient source off an element's computed style, with a
+// fallback to the `background` shorthand and the inline style attribute for
+// engines that don't decompose the shorthand into backgroundImage.
+function elementGradientValue(style, el) {
+  const bgImage = style.backgroundImage && style.backgroundImage !== 'none' ? style.backgroundImage : '';
+  if (/radial-gradient/i.test(bgImage)) return bgImage;
+  const bg = style.background || '';
+  if (/radial-gradient/i.test(bg)) return bg;
+  const rawStyle = el?.getAttribute?.('style') || '';
+  const m = rawStyle.match(/background(?:-image)?\s*:\s*([^;]+)/i);
+  if (m && /radial-gradient/i.test(m[1])) return m[1];
+  return '';
+}
+
+function spotlightLabel(el) {
+  const dataName = el.getAttribute?.('data-name');
+  if (dataName) return dataName;
+  if (typeof el.id === 'string' && el.id) return el.id;
+  const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/)[0] : '';
+  if (cls) return cls;
+  return el.tagName ? el.tagName.toLowerCase() : 'section';
+}
+
+function checkElementRadialSpotlightDOM(el) {
+  const style = getComputedStyle(el);
+  const gradientValue = elementGradientValue(style, el);
+  if (!gradientValue) return [];
+  const rect = el.getBoundingClientRect();
+  return checkRadialSpotlight({
+    gradientValue,
+    width: rect.width,
+    height: rect.height,
+    label: spotlightLabel(el),
+  });
+}
+
+function checkElementRadialSpotlight(el, style, tag, window) {
+  const gradientValue = elementGradientValue(style, el);
+  if (!gradientValue) return [];
+  // Static engine does no layout — read explicit pixel dimensions from CSS.
+  return checkRadialSpotlight({
+    gradientValue,
+    width: parseFloat(style.width) || 0,
+    height: parseFloat(style.height) || 0,
+    label: spotlightLabel(el),
+  });
+}
+
 const QUALITY_TEXT_TAGS = new Set(['p', 'li', 'td', 'th', 'dd', 'blockquote', 'figcaption']);
 
 // Resolve a CSS font-size value to pixels by walking up the parent chain.
@@ -3664,6 +3934,34 @@ function isVisuallyHidden(el, style) {
   return false;
 }
 
+// Elements whose text is never painted: document metadata and script/style
+// payloads. Their JS / CSS / JSON-LD text satisfies `hasDirectText`, and on
+// sites that set `html { font-size: 62.5% }` their inherited computed size is
+// 10px — so the text-size floors flag them as tiny body copy even though
+// nothing renders (issue #408: dozens of phantom "10px body text" findings on
+// every Shopify page). Exclude them, plus anything the cascade resolves to
+// display:none / visibility:hidden. The jsdom path can't lay out, so the
+// tag/attribute-based exclusions carry the weight there; the display checks are
+// computed-style reads that resolve without layout in both adapters.
+const NON_RENDERED_TAGS = new Set([
+  'script', 'style', 'title', 'noscript', 'template', 'head',
+  'meta', 'link', 'base', 'param', 'source', 'track', 'datalist',
+  'col', 'colgroup', 'map', 'area',
+]);
+function isNonRenderedText(el, tag, style) {
+  const t = (tag || '').toLowerCase();
+  if (NON_RENDERED_TAGS.has(t)) return true;
+  // Descendants of <head> never render even when the tag itself would
+  // (some sites nest <noscript>/<template> content there).
+  if (el && el.closest && el.closest('head')) return true;
+  if (style) {
+    if (style.display === 'none') return true;
+    const vis = style.visibility;
+    if (vis === 'hidden' || vis === 'collapse') return true;
+  }
+  return false;
+}
+
 // Pure quality checks. Most run on computed CSS and DOM-only inputs (work in
 // jsdom and the browser). Two checks (line-length, cramped-padding) gate on
 // element rect dimensions, which jsdom can't compute — pass `rect: null` from
@@ -3674,8 +3972,13 @@ function isVisuallyHidden(el, style) {
 function checkQuality(opts) {
   const { el, tag, style, hasDirectText, textLen, fontSize, lineHeightPx, letterSpacingPx, rect, lineMax = 80, viewportWidth = 0, win = null } = opts;
   const findings = [];
-  // Skip browser extension injected elements
-  const elId = el.id || '';
+  // Skip browser extension injected elements. Read the id via getAttribute
+  // whenever `el.id` is not a string: on a <form> (and other
+  // [LegacyOverrideBuiltIns] hosts) a named control like <input name="id">
+  // shadows the builtin `id` getter and returns the control element, whose
+  // `.startsWith` is undefined and throws (issue #407 — every Shopify product
+  // form ships an <input name="id">).
+  const elId = typeof el.id === 'string' ? el.id : (el.getAttribute?.('id') || '');
   if (elId.startsWith('claude-') || elId.startsWith('cic-')) return findings;
 
   // --- Line length too long --- (browser-only: needs rect.width)
@@ -3943,7 +4246,7 @@ function checkQuality(opts) {
     const skipTags = ['sub', 'sup', 'code', 'kbd', 'samp', 'var', 'caption', 'figcaption'];
     const inUIContext = el.closest && el.closest('button, a, label, summary, pre, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="option"], nav, footer, [aria-hidden="true"], [class*="badge" i], [class*="caption" i], [class*="chip" i], [class*="code" i], [class*="console" i], [class*="diff" i], [class*="label" i], [class*="meta" i], [class*="mock" i], [class*="pill" i], [class*="preview" i], [class*="tag" i], [class*="terminal" i], [class*="writes" i]');
     const isUppercase = style.textTransform === 'uppercase';
-    if (!skipTags.includes(tag) && !inUIContext && !isUppercase) {
+    if (!skipTags.includes(tag) && !inUIContext && !isUppercase && !isNonRenderedText(el, tag, style)) {
       findings.push({ id: 'tiny-text', snippet: `${fontSize}px body text` });
     }
   }
@@ -3973,13 +4276,15 @@ function checkQuality(opts) {
       .replace(/\s+/g, ' ')
       .trim();
     const dtLen = directText.length;
-    const UI_SKIP_TAGS = new Set(['sub', 'sup', 'script', 'style', 'title', 'option']);
-    const notRendered = style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse';
+    // `option` renders (in native select popups) so it stays a local skip;
+    // script/style/title/noscript/head-descendants and display:none /
+    // visibility:hidden are handled by isNonRenderedText (shared with tiny-text).
+    const UI_SKIP_TAGS = new Set(['sub', 'sup', 'option']);
     // jsdom resolves the parent chain in resolveFontSizePx, so em/rem/%-sized
     // text that computes at or above the floor never reaches here. The browser
     // adapter additionally catches values only resolvable with real layout
     // (e.g. viewport-relative units, cascade winners set in linked sheets).
-    if (fontSize > 0 && fontSize < 11 && dtLen >= 2 && !UI_SKIP_TAGS.has(tag) && !notRendered) {
+    if (fontSize > 0 && fontSize < 11 && dtLen >= 2 && !UI_SKIP_TAGS.has(tag) && !isNonRenderedText(el, tag, style)) {
       const EXEMPT_CONTEXT = 'pre, code, kbd, samp, var, svg, [aria-hidden="true"], [class*="terminal" i], [class*="console" i], [class*="code" i], [class*="mock" i], [class*="editor" i], [class*="syntax" i], [class*="diff" i]';
       const isExemptContext = (el.matches && el.matches(EXEMPT_CONTEXT)) || (el.closest && el.closest(EXEMPT_CONTEXT));
       if (!isExemptContext && !isVisuallyHidden(el, style)) {
@@ -4192,7 +4497,7 @@ function checkElementColors(el, style, tag, window, customPropMap, hasAnchorInhe
     textColor,
     bgColor: ownBg,
     effectiveBg: finalEffectiveBg,
-    effectiveBgStops: finalEffectiveBg ? null : resolveGradientStops(el, window),
+    effectiveBgStops: finalEffectiveBg ? null : resolveGradientStops(el, window, customPropMap),
     fontSize: parseFloat(style.fontSize) || 16,
     fontWeight: parseInt(style.fontWeight) || 400,
     hasDirectText,
@@ -4332,13 +4637,13 @@ function checkElementHeroEyebrow(el, style, tag, window, customPropMap) {
   });
 }
 
-function checkRepeatedSectionKickersFromDoc(doc, win) {
-  const candidates = collectRepeatedSectionKickerCandidates(
+function checkKickerAboveHeadingFromDoc(doc, win) {
+  const candidates = collectKickerCandidates(
     doc,
     (el) => win.getComputedStyle(el),
     (value, fontSize) => resolveLengthPx(value, fontSize) || 0,
   );
-  return checkRepeatedSectionKickers({ candidates });
+  return checkKickerAboveHeading({ candidates });
 }
 
 function checkElementMotion(tag, style) {
@@ -4396,12 +4701,6 @@ function checkTypography() {
       if (!OVERUSED_FONTS.has(font)) continue;
       if (isBrandFontOnOwnDomain(font)) continue;
       findings.push({ type: 'overused-font', detail: `Primary font: ${font} (${Math.round(share * 100)}% of text)` });
-    }
-
-    // Single-font check: only one distinct primary font across all text
-    if (fontUsage.size === 1) {
-      const only = [...fontUsage.keys()][0];
-      findings.push({ type: 'single-font', detail: `only font used is ${only}` });
     }
   }
 
@@ -4662,14 +4961,6 @@ function checkPageTypography(doc, win) {
 
   for (const font of overusedFound) {
     findings.push({ id: 'overused-font', snippet: `Primary font: ${font}` });
-  }
-
-  // Single font
-  if (fonts.size === 1) {
-    const els = doc.querySelectorAll('*');
-    if (els.length >= 20) {
-      findings.push({ id: 'single-font', snippet: `only font used is ${[...fonts][0]}` });
-    }
   }
 
   // Flat type hierarchy
@@ -6497,7 +6788,11 @@ if (IS_BROWSER) {
   function generateSelector(el) {
     if (el === document.body) return 'body';
     if (el === document.documentElement) return 'html';
-    if (el.id) return '#' + CSS.escape(el.id);
+    // Read via getAttribute when `el.id` is not a string — a <form> with a
+    // named control (e.g. <input name="id">) shadows the builtin getter and
+    // returns the element, producing a garbage `#[object …]` selector (#407).
+    const elId = typeof el.id === 'string' ? el.id : (el.getAttribute('id') || '');
+    if (elId) return '#' + CSS.escape(elId);
 
     const parts = [];
     let current = el;
@@ -7434,8 +7729,11 @@ if (IS_BROWSER) {
     for (const el of document.querySelectorAll('*')) {
       // Skip impeccable's own elements and any descendants (overlays, labels, banner, nav buttons)
       if (el.closest('.impeccable-overlay, .impeccable-label, .impeccable-banner, .impeccable-tooltip')) continue;
-      // Skip browser extension elements (Claude, etc.)
-      const elId = el.id || '';
+      // Skip browser extension elements (Claude, etc.). Use getAttribute when
+      // `el.id` is not a string: a <form> with a named control like
+      // <input name="id"> shadows the builtin `id` getter and returns the
+      // element, whose `.startsWith` throws (issue #407).
+      const elId = typeof el.id === 'string' ? el.id : (el.getAttribute('id') || '');
       if (elId.startsWith('claude-') || elId.startsWith('cic-')) continue;
       // Skip the impeccable live-mode overlay (highlight, tooltip, bar, picker, toast).
       // These are inspector chrome, not part of the user's design.
@@ -7450,6 +7748,7 @@ if (IS_BROWSER) {
         ...checkElementMotionDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
         ...checkElementGlowDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
         ...checkElementAIPaletteDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
+        ...checkElementRadialSpotlightDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
         ...checkElementIconTileDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
         ...checkElementItalicSerifDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
         ...checkElementQualityDOM(el).map(f => ({ type: f.id, detail: f.snippet })),
@@ -7488,7 +7787,7 @@ if (IS_BROWSER) {
       addBrowserFindings(groupMap, document.body, typoFindings);
     }
 
-    const sectionKickerFindings = checkRepeatedSectionKickersDOM()
+    const sectionKickerFindings = checkKickerAboveHeadingDOM()
       .map(f => ({ type: f.id, detail: f.snippet }))
       .filter(f => _ruleOk(f.type));
     if (sectionKickerFindings.length > 0) {

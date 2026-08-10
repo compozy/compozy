@@ -27,6 +27,7 @@
  * shape rather than the markdown block.
  */
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1146,6 +1147,7 @@ async function cli() {
     if (shouldWarnMissingTarget(ctx, targetProvided, targetExists)) {
       parts.push(buildMissingTargetDirective());
     }
+    appendImageToolsDirective(parts);
     appendStalenessDirective(parts, ctx, cliOptions);
     if (updateDirective) parts.push(updateDirective);
     process.stdout.write(parts.join('\n\n---\n\n') + '\n');
@@ -1180,6 +1182,7 @@ async function cli() {
       `# NATIVE PLATFORM REFERENCE: ${reference.name.toUpperCase()} (reference/${reference.name}.md)\n\n${reference.content.trim()}`,
     );
   }
+  appendImageToolsDirective(parts);
   appendStalenessDirective(parts, ctx, cliOptions);
   if (!ctx.platform) {
     // A `## Platform` section that names something we don't recognize (a
@@ -1275,9 +1278,10 @@ function appendImageGenDirective(parts) {
   if (!process.env.OPENAI_API_KEY) return;
   const scriptsPath = path.dirname(fileURLToPath(import.meta.url));
   parts.push([
-    'IMAGE_GEN_AVAILABLE: An OpenAI key is present, so image generation works even without a harness-native image tool:',
-    `\`node ${scriptsPath}/generate-image.mjs --prompt "..." --out <file>\` (gpt-image-2, billed to the user's key; say so before the first render).`,
-    'Prefer the harness-native image tool when one exists. Visualizing a direction before building it measurably strengthens the result.',
+    'IMAGE_GEN_AVAILABLE: your harness-native image tool is always the first choice for generation; use it whenever one exists.',
+    'This environment also carries an OpenAI key as the fallback for harnesses with no native tool:',
+    `\`node ${scriptsPath}/generate-image.mjs --prompt "..." --out <file>\` (gpt-image-2, billed to the user's key; say so before the first render, and never reach for it when a native tool exists).`,
+    'Visualizing a direction before building it measurably strengthens the result.',
   ].join(' '));
 }
 
@@ -1332,6 +1336,19 @@ function appendDetectorFallback(parts, ctx) {
 // markdown already in memory, a bounded set of stats, or one of the small JSON
 // files the boot reads regardless. The deep pass (git drift, token divergence,
 // cross-workspace sweep) belongs to the doctor command, not to every session.
+// One boot-time probe replaces every session re-deriving its image toolchain:
+// harnesses and OSes differ (cwebp, sips on macOS, magick, ffmpeg), and the
+// agent should read this line instead of running command -v per image.
+function appendImageToolsDirective(parts) {
+  const probe = process.platform === 'win32' ? 'where' : 'which';
+  const found = ['cwebp', 'sips', 'magick', 'ffmpeg'].filter((tool) => {
+    try { return spawnSync(probe, [tool], { stdio: 'ignore' }).status === 0; } catch { return false; }
+  });
+  parts.push(found.length
+    ? `IMAGE_TOOLS: available image converters on this machine: ${found.join(', ')}. Use the first suitable one; never probe again this session.`
+    : 'IMAGE_TOOLS: no image converter found (cwebp, sips, magick, ffmpeg). Ship PNG output unconverted rather than probing per image.');
+}
+
 function appendStalenessDirective(parts, ctx, options) {
   const projectRoot = ctx.projectRoot || process.cwd();
   if (stalenessCheckDisabled([projectRoot, ctx.repoRoot])) return;

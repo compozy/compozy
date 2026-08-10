@@ -880,6 +880,9 @@ function extractFindingIgnoreValueRaw(finding, rule = normalizeIgnoreRule(findin
     const primary = text.match(/Primary font:\s*([^()\n;]+)/i);
     if (primary) return cleanIgnoreValueDisplay(primary[1]);
 
+    const googleLabel = text.match(/Google Fonts:\s*([^()\n;]+)/i);
+    if (googleLabel) return cleanIgnoreValueDisplay(googleLabel[1]);
+
     const family = text.match(/font-family\s*:\s*["']?([^'",;\n]+)/i);
     if (family) return cleanIgnoreValueDisplay(family[1]);
 
@@ -1109,7 +1112,19 @@ function formatFindingIgnoreCommand(finding) {
 function quoteCommandArg(value) {
   const text = String(value || '').trim();
   if (/^[A-Za-z0-9._:-]+$/.test(text)) return text;
-  return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  // The suggestion is meant to be run on this same machine, so quote for its
+  // shell. POSIX /bin/sh still expands $(...), backticks, and ${} inside
+  // double quotes, and these values come from scanned file content (a
+  // font-family name) or a file path, so untrusted input must be
+  // single-quoted (issue #476). Windows cmd.exe performs no such command
+  // substitution, but it treats a single quote as a literal character rather
+  // than a grouping delimiter, so a value or path containing spaces has to
+  // stay double-quoted there (Greptile #533). Keep the pre-existing
+  // double-quote escaping on Windows so that path's behavior is unchanged.
+  if (process.platform === 'win32') {
+    return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  }
+  return `'${text.replace(/'/g, `'\\''`)}'`;
 }
 
 function relativize(filePath, cwd) {
@@ -1330,6 +1345,51 @@ function isInsideProject(filePath, projectCwd) {
   } catch {
     return false;
   }
+}
+
+// Resolve a path to its canonical (symlink-free) form. When the path does
+// not exist yet — the before-edit hook gates proposed Writes — canonicalize
+// the nearest existing ancestor and re-append the remainder, so a new file
+// under a symlinked root still compares equal to its canonical project.
+// Memoized: the hook runs as a fresh process per tool event, so the cache
+// amounts to once-per-event work — the scan loops re-check the same project
+// root for every target file. The cap only matters to long-lived importers
+// like the test runner.
+const canonicalPathCache = new Map();
+const CANONICAL_PATH_CACHE_MAX = 1024;
+
+function canonicalPath(p) {
+  const resolved = path.resolve(p);
+  if (canonicalPathCache.has(resolved)) return canonicalPathCache.get(resolved);
+  let canonical = resolved;
+  let dir = resolved;
+  const tail = [];
+  while (true) {
+    try {
+      canonical = tail.length ? path.join(fs.realpathSync(dir), ...tail) : fs.realpathSync(dir);
+      break;
+    } catch { /* keep climbing */ }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    tail.unshift(path.basename(dir));
+    dir = parent;
+  }
+  if (canonicalPathCache.size >= CANONICAL_PATH_CACHE_MAX) canonicalPathCache.clear();
+  canonicalPathCache.set(resolved, canonical);
+  return canonical;
+}
+
+// Containment gate shared by the before-edit hook and both scan passes. A
+// session routinely touches files that belong to no project or to a
+// different one — harness scratchpad dirs under the system temp root,
+// sibling checkouts, one-off throwaway HTML — and findings against those are
+// judged with THIS project's config and DESIGN.md palette, which is never
+// right. Skip them (audit reason: outside-project). Paths are canonicalized
+// first so a symlinked root (macOS /tmp -> /private/tmp) doesn't split the
+// comparison.
+export function isScanTargetInsideProject(filePath, projectCwd) {
+  if (!filePath || !projectCwd) return false;
+  return isInsideProject(canonicalPath(filePath), canonicalPath(projectCwd));
 }
 
 export function parseStaticStyleImports(content, fromFile, projectCwd) {
@@ -1690,6 +1750,10 @@ export async function runHook({ stdinJson, env = {}, cwd = process.cwd(), now = 
         lastSkip = 'file-missing';
         continue;
       }
+      if (!isScanTargetInsideProject(filePath, projectCwd)) {
+        lastSkip = 'outside-project';
+        continue;
+      }
 
       const maxFileBytes = config.limits?.maxFileBytes ?? DEFAULT_CONFIG.limits.maxFileBytes;
       if (maxFileBytes > 0) {
@@ -2020,6 +2084,10 @@ export async function runStopHook({ stdinJson, env = {}, cwd = process.cwd(), no
       const relForMatch = relativize(filePath, projectCwd);
       if (matchesAnyGlob(relForMatch, config.ignoreFiles) || matchesAnyGlob(filePath, config.ignoreFiles)) continue;
       if (!fs.existsSync(filePath)) continue;
+      // Caches written before this gate existed can still hold out-of-project
+      // paths, so the Stop pass re-checks containment rather than trusting
+      // the per-edit pass to have filtered them.
+      if (!isScanTargetInsideProject(filePath, projectCwd)) continue;
 
       scanned += 1;
       let content = '';

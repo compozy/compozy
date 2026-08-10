@@ -7,6 +7,38 @@ import { profileFindingsAsync, profileStep, profileStepAsync } from '../../profi
 import { captureVisualContrastCandidate } from '../visual/screenshot-contrast.mjs';
 import { checkContentHiddenAtRest } from '../../rules/checks.mjs';
 
+// On Windows, puppeteer's bundled Chrome lives in a user-writable cache
+// directory. Its GPU process can be denied (STATUS_ACCESS_DENIED) by security
+// software or the GPU sandbox because it launches from an untrusted path.
+// Chrome then crash-loops the GPU process, and each relaunch briefly flashes a
+// compositor surface, the black window users report during `detect <url>`
+// (issue #372). The system-installed Chrome runs from a trusted location with a
+// healthy GPU, so channel:'chrome' avoids the crash entirely; both use hardware
+// GPU, so contrast measurement is unaffected. Scope this to Windows only: other
+// platforms do not have the bug, so they keep the pinned bundled build for
+// consistent measurement across machines. Fall back to bundled when the switch
+// fails (Chrome not installed, or channel resolution fails). If the bundled
+// launch then also fails, surface the original system-Chrome error as the
+// cause so the real failure is not lost.
+async function launchBrowser(puppeteer, { headless = true, args = [] } = {}) {
+  let channelError;
+  if (process.platform === 'win32') {
+    try {
+      return await puppeteer.default.launch({ channel: 'chrome', headless, args });
+    } catch (err) {
+      // System Chrome unavailable or unlaunchable; fall through to the bundled
+      // browser, but keep the error in case the fallback fails too.
+      channelError = err;
+    }
+  }
+  try {
+    return await puppeteer.default.launch({ headless, args });
+  } catch (err) {
+    if (channelError && err && err.cause === undefined) err.cause = channelError;
+    throw err;
+  }
+}
+
 // Reveal sweep + invisible-text measurement for the content-hidden-at-rest
 // rule. Scrolls through the document with instant jumps (bypasses CSS
 // scroll-behavior: smooth) so IntersectionObserver / scroll reveal handlers
@@ -178,7 +210,7 @@ async function detectUrl(url, options = {}) {
     phase: 'load',
     ruleId: 'launch-browser',
     target: url,
-  }, () => puppeteer.default.launch({ headless: true, args: launchArgs }));
+  }, () => launchBrowser(puppeteer, { headless: options?.headless ?? true, args: launchArgs }));
   const page = await profileStepAsync(profile, {
     engine: 'browser',
     phase: 'load',
@@ -312,7 +344,7 @@ async function createBrowserDetector(options = {}) {
     throw new Error('puppeteer is required for URL scanning. Install: npm install puppeteer');
   }
   const launchArgs = options.launchArgs || (process.env.CI ? ['--no-sandbox', '--disable-setuid-sandbox'] : []);
-  const browser = options.browser || await puppeteer.default.launch({
+  const browser = options.browser || await launchBrowser(puppeteer, {
     headless: options.headless ?? true,
     args: launchArgs,
   });
@@ -337,4 +369,4 @@ async function createBrowserDetector(options = {}) {
   };
 }
 
-export { runVisualContrastFallback, detectUrl, createBrowserDetector };
+export { runVisualContrastFallback, detectUrl, createBrowserDetector, launchBrowser };

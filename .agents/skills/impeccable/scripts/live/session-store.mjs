@@ -1,26 +1,40 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getLegacyLiveSessionsDir, getLiveSessionsDir, safeSessionId } from '../lib/impeccable-paths.mjs';
+import { COMPLETED_SESSION_PHASES, GENERATION_FENCED_SESSION_PHASES } from './vocabulary.mjs';
 
-const COMPLETED_PHASES = new Set(['completed', 'discarded']);
-export const GENERATION_FENCED_PHASES = new Set([
-  'accept_requested',
-  'discard_requested',
-  'carbonize_required',
-  'completed',
-  'discarded',
-]);
+const COMPLETED_PHASES = new Set(COMPLETED_SESSION_PHASES);
+export const GENERATION_FENCED_PHASES = new Set(GENERATION_FENCED_SESSION_PHASES);
+
+// The snapshot file carries two bookkeeping fields the snapshot itself does not
+// own: how large the journal was when the snapshot was written, and the next
+// sequence number. Both are stripped before a snapshot is handed to a caller.
+// The byte count is what makes a cached snapshot verifiable — the journal is
+// append-only, so a matching size means no event has landed since.
+const META_JOURNAL_BYTES = '__journalBytes';
+const META_NEXT_SEQ = '__nextSeq';
+
+// TODO(revision-unification): `checkpointRevision`, `browserCheckpointRevision`,
+// and `publicationCheckpointRevision` are three counters for two domains.
+// `checkpointRevision` is a compatibility mirror of the browser counter kept for
+// older readers. Collapsing them means changing what a resumed browser compares
+// its local revision against, so it belongs in a pass that owns resume ordering,
+// not in a caching change.
 
 export function createLiveSessionStore({ cwd = process.cwd(), sessionId } = {}) {
   const rootDir = getLiveSessionsDir(cwd);
   const legacyRootDir = getLegacyLiveSessionsDir(cwd);
   fs.mkdirSync(rootDir, { recursive: true });
 
-  // No snapshot cache on purpose: appendEvent and getSnapshot both rebuild from
-  // the journal so sequence numbers and phase fences never come from a stale
-  // in-memory copy when the publisher/complete helpers append from another
-  // process. A cache written but never read would grow per session for the
-  // lifetime of the server without ever saving a rebuild.
+  // Derived state per session, keyed by what the journal looked like when it was
+  // derived. Publisher/complete helpers append from other processes, so the key
+  // is the journal's own (path, size, mtime) rather than a trusted local write
+  // count: an append this process did not make invalidates the entry and the
+  // next read replays. Without the cache every append and every read replayed
+  // the whole journal, which made a long session quadratic in its own length.
+  /** @type {Map<string, { snapshot: object, nextSeq: number, journalPath: string, size: number, mtimeMs: number }>} */
+  const derived = new Map();
+
   function getReadableJournalPath(id) {
     const primary = getJournalPath(rootDir, id);
     if (fs.existsSync(primary)) return primary;
@@ -29,42 +43,116 @@ export function createLiveSessionStore({ cwd = process.cwd(), sessionId } = {}) 
     return primary;
   }
 
+  /**
+   * The current derived state for a session, from the in-memory cache when the
+   * journal has not moved, from the snapshot file when that file is provably
+   * current, and from a full replay otherwise.
+   */
+  function readState(id, { allowSnapshotFile = true } = {}) {
+    const journalPath = getReadableJournalPath(id);
+    const stat = statOrNull(journalPath);
+    const size = stat ? stat.size : -1;
+    const mtimeMs = stat ? stat.mtimeMs : -1;
+
+    const cached = derived.get(id);
+    if (cached && cached.journalPath === journalPath && cached.size === size && cached.mtimeMs === mtimeMs) {
+      return cached;
+    }
+
+    if (allowSnapshotFile && stat) {
+      const hydrated = readSnapshotFile(getSnapshotPath(rootDir, id), id, size);
+      if (hydrated) {
+        const entry = { ...hydrated, journalPath, size, mtimeMs };
+        derived.set(id, entry);
+        return entry;
+      }
+    }
+
+    const rebuilt = rebuildSnapshotFromJournal(journalPath, id);
+    const entry = { snapshot: rebuilt.snapshot, nextSeq: rebuilt.nextSeq, journalPath, size, mtimeMs };
+    derived.set(id, entry);
+    return entry;
+  }
+
+  function persist(id, snapshot, nextSeq) {
+    const snapshotPath = getSnapshotPath(rootDir, id);
+    const journalPath = getReadableJournalPath(id);
+    const stat = statOrNull(journalPath);
+    writeSnapshot(snapshotPath, snapshot, { journalBytes: stat ? stat.size : -1, nextSeq });
+    derived.set(id, {
+      snapshot,
+      nextSeq,
+      journalPath,
+      size: stat ? stat.size : -1,
+      mtimeMs: stat ? stat.mtimeMs : -1,
+    });
+  }
+
   return {
     rootDir,
     legacyRootDir,
     appendEvent(event) {
       const normalized = normalizeEvent(event, sessionId);
       const journalPath = getJournalPath(rootDir, normalized.id);
-      const snapshotPath = getSnapshotPath(rootDir, normalized.id);
       const legacyJournalPath = getJournalPath(legacyRootDir, normalized.id);
       if (!fs.existsSync(journalPath) && fs.existsSync(legacyJournalPath)) {
         fs.copyFileSync(legacyJournalPath, journalPath);
+        // The readable path just moved from legacy to primary; anything derived
+        // against the old path describes a file this session no longer reads.
+        derived.delete(normalized.id);
       }
-      // Publisher/complete helpers can append from a separate process while
-      // the server is alive. Rebuild here so sequence numbers and phase
-      // fences never come from a stale in-memory cache.
-      const prior = rebuildSnapshotFromJournal(getReadableJournalPath(normalized.id), normalized.id);
-      const seq = prior.nextSeq;
+      // Reuse the derived state when the journal has not changed under us, and
+      // apply the new event on top of it. Correctness still comes from the
+      // journal: any append from another process invalidates the entry above
+      // and this replays before writing, so sequence numbers and phase fences
+      // are never taken from a stale copy.
+      const prior = readState(normalized.id);
       const entry = {
-        seq,
+        seq: prior.nextSeq,
         id: normalized.id,
         type: normalized.type,
         ts: new Date().toISOString(),
         event: normalized,
       };
       fs.appendFileSync(journalPath, JSON.stringify(entry) + '\n');
-      const next = applyEvent(prior.snapshot, entry, prior.diagnostics);
-      writeSnapshot(snapshotPath, next);
+      const next = applyEvent(prior.snapshot, entry);
+      persist(normalized.id, next, prior.nextSeq + 1);
       return next;
     },
+    /**
+     * True when a journal exists for the id in either root. appendEvent
+     * CREATES a journal for any id it is handed, so callers that should only
+     * ever touch existing sessions (browser checkpoints, mount acks) check
+     * here first — otherwise a stale id from another project's browser
+     * storage materializes a ghost session in this store.
+     */
+    has(id) {
+      if (!id || typeof id !== 'string') return false;
+      return fs.existsSync(getJournalPath(rootDir, id))
+        || fs.existsSync(getJournalPath(legacyRootDir, id));
+    },
+    /**
+     * Read-only. `live-status` and `live-resume` call this against a session a
+     * running server owns; writing the snapshot file here made every read a
+     * write and let a reader's replay of a half-written journal land on disk.
+     * Snapshot files are written by appendEvent and by flush().
+     */
     getSnapshot(id = sessionId, opts = {}) {
       if (!id) throw new Error('session id required');
-      const journalPath = getReadableJournalPath(id);
-      const snapshotPath = getSnapshotPath(rootDir, id);
-      const rebuilt = rebuildSnapshotFromJournal(journalPath, id);
-      writeSnapshot(snapshotPath, rebuilt.snapshot);
-      if (!opts.includeCompleted && COMPLETED_PHASES.has(rebuilt.snapshot.phase)) return null;
-      return rebuilt.snapshot;
+      const { snapshot } = readState(id);
+      if (!opts.includeCompleted && COMPLETED_PHASES.has(snapshot.phase)) return null;
+      return snapshot;
+    },
+    /**
+     * Write the snapshot file for a session without appending an event. The
+     * durable truth is the journal, so this only refreshes the read cache other
+     * processes use; callers that need the state itself should use getSnapshot.
+     */
+    flush(id = sessionId) {
+      if (!id) throw new Error('session id required');
+      const state = readState(id, { allowSnapshotFile: false });
+      persist(id, state.snapshot, state.nextSeq);
+      return state.snapshot;
     },
     listActiveSessions() {
       const ids = new Set();
@@ -74,12 +162,48 @@ export function createLiveSessionStore({ cwd = process.cwd(), sessionId } = {}) 
           if (name.endsWith('.jsonl')) ids.add(name.slice(0, -'.jsonl'.length));
         }
       }
+      // Each id goes through readState, so a session whose journal has not moved
+      // since it was last derived costs a stat and nothing more. The server calls
+      // this on every /status and on every SSE connect.
       return [...ids]
         .sort()
         .map((id) => this.getSnapshot(id))
         .filter(Boolean);
     },
   };
+}
+
+function statOrNull(filePath) {
+  try {
+    return fs.statSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Hydrate derived state from a snapshot file, but only when it provably
+ * describes the journal as it stands right now. Anything short of an exact byte
+ * match on an append-only file means events landed after the snapshot was
+ * written, and the caller replays instead.
+ */
+function readSnapshotFile(snapshotPath, id, journalBytes) {
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(snapshotPath, 'utf-8'));
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (parsed[META_JOURNAL_BYTES] !== journalBytes) return null;
+  if (!Number.isInteger(parsed[META_NEXT_SEQ])) return null;
+  const nextSeq = parsed[META_NEXT_SEQ];
+  delete parsed[META_JOURNAL_BYTES];
+  delete parsed[META_NEXT_SEQ];
+  // The journal owns identity; a snapshot file copied between session ids is
+  // not a reason to answer with the wrong id.
+  if (parsed.id !== id) return null;
+  return { snapshot: { ...baseSnapshot(id), ...parsed }, nextSeq };
 }
 
 function normalizeEvent(event, fallbackId) {
@@ -127,9 +251,35 @@ function baseSnapshot(id) {
     generationCanceledAt: null,
     cancelReason: null,
     annotationArtifacts: [],
+    // Render truth. `arrivedVariants` says what the agent published; these say
+    // what the browser actually got on screen. They are kept alongside the
+    // published counters rather than replacing them so older readers keep
+    // working, but they are the only fields that answer "did the user ever see
+    // a variant".
+    mountedVariants: [],
+    mountFailures: [],
+    renderState: null,
     diagnostics: [],
     updatedAt: null,
   };
+}
+
+// How many mount failures a session keeps. The card in the browser shows the
+// newest one; the agent needs enough history to spot a variant that fails
+// every republish, not the whole retry storm.
+const MOUNT_FAILURE_HISTORY = 5;
+
+/**
+ * `pending` = the agent published and nothing has acked yet, `mounted` = at
+ * least one variant reached the DOM, `failed` = the browser reported failures
+ * and nothing ever mounted. A single success outranks any number of failures:
+ * the user is looking at something.
+ */
+function deriveRenderState(snapshot) {
+  if (snapshot.mountedVariants.length > 0) return 'mounted';
+  if (snapshot.mountFailures.length > 0) return 'failed';
+  if (snapshot.generationCompletedAt) return 'pending';
+  return null;
 }
 
 function rebuildSnapshotFromJournal(journalPath, id) {
@@ -159,7 +309,7 @@ function rebuildSnapshotFromJournal(journalPath, id) {
   return { snapshot, diagnostics, nextSeq };
 }
 
-function applyEvent(snapshot, entry, inheritedDiagnostics = []) {
+function applyEvent(snapshot, entry) {
   const event = entry.event || entry;
   const next = {
     ...snapshot,
@@ -168,13 +318,12 @@ function applyEvent(snapshot, entry, inheritedDiagnostics = []) {
     generationTimings: { ...(snapshot.generationTimings || {}) },
     variantPlan: snapshot.variantPlan || null,
     annotationArtifacts: [...(snapshot.annotationArtifacts || [])],
+    mountedVariants: [...(snapshot.mountedVariants || [])],
+    mountFailures: [...(snapshot.mountFailures || [])],
+    renderState: snapshot.renderState ?? null,
     diagnostics: [...(snapshot.diagnostics || [])],
     updatedAt: entry.ts || new Date().toISOString(),
   };
-
-  if (inheritedDiagnostics.length && next.diagnostics.length === 0) {
-    next.diagnostics = [...inheritedDiagnostics];
-  }
 
   switch (event.type) {
     case 'generate':
@@ -184,6 +333,11 @@ function applyEvent(snapshot, entry, inheritedDiagnostics = []) {
       next.pendingEventSeq = entry.seq ?? next.pendingEventSeq;
       next.pendingEvent = toPendingEvent(event);
       next.variantPlan = null;
+      // A new cycle publishes new files: everything the browser told us about
+      // the previous batch is now about modules that no longer exist.
+      next.mountedVariants = [];
+      next.mountFailures = [];
+      next.renderState = null;
       if (event.screenshotPath) upsertArtifact(next.annotationArtifacts, { type: 'screenshot', path: event.screenshotPath });
       break;
     case 'variant_plan':
@@ -238,7 +392,45 @@ function applyEvent(snapshot, entry, inheritedDiagnostics = []) {
           message: 'Accepted variant still has carbonize markers that must be folded into source CSS.',
         });
       }
+      next.renderState = deriveRenderState(next);
       break;
+    case 'variant_mounted': {
+      const variant = Number(event.variant);
+      if (!Number.isInteger(variant) || variant < 1) {
+        next.diagnostics.push({ error: 'malformed_mount_ack', type: event.type, variant: event.variant ?? null });
+        break;
+      }
+      if (!next.mountedVariants.includes(variant)) {
+        next.mountedVariants = [...next.mountedVariants, variant].sort((a, b) => a - b);
+      }
+      next.renderState = deriveRenderState(next);
+      break;
+    }
+    case 'variant_mount_failed': {
+      const variant = Number(event.variant);
+      if (!Number.isInteger(variant) || variant < 1) {
+        next.diagnostics.push({ error: 'malformed_mount_ack', type: event.type, variant: event.variant ?? null });
+        break;
+      }
+      next.mountFailures = [
+        ...next.mountFailures,
+        {
+          variant,
+          url: typeof event.url === 'string' ? event.url : null,
+          error: typeof event.error === 'string' ? event.error : null,
+          at: event.at ?? (Date.parse(entry.ts || '') || Date.now()),
+        },
+      ].slice(-MOUNT_FAILURE_HISTORY);
+      next.renderState = deriveRenderState(next);
+      // The failure needs an agent reply, so it must survive a helper
+      // restart the same way a generate does. Never clobber a still-pending
+      // generate: a progressive publish can fail an early mount while the
+      // generate event itself is still leased.
+      if (!next.pendingEvent) {
+        next.pendingEvent = toPendingEvent(event);
+      }
+      break;
+    }
     case 'checkpoint':
       if (next.generationCanceled || GENERATION_FENCED_PHASES.has(next.phase)) {
         next.diagnostics.push({ error: 'checkpoint_after_terminal_ignored', phase: event.phase ?? null, revision: event.revision ?? null });
@@ -361,6 +553,11 @@ function upsertArtifact(artifacts, artifact) {
   }
 }
 
-function writeSnapshot(snapshotPath, snapshot) {
-  fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2) + '\n');
+function writeSnapshot(snapshotPath, snapshot, meta) {
+  const payload = {
+    ...snapshot,
+    [META_JOURNAL_BYTES]: meta?.journalBytes ?? -1,
+    [META_NEXT_SEQ]: meta?.nextSeq ?? 1,
+  };
+  fs.writeFileSync(snapshotPath, JSON.stringify(payload, null, 2) + '\n');
 }

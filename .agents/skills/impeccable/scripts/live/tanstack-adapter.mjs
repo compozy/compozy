@@ -19,7 +19,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildLiveScriptSrc } from '../live-inject.mjs';
+import { buildLiveScriptSrc } from './frameworks/script-src.mjs';
 
 export const TANSTACK_MARKER_OPEN = '{/* impeccable-live-tanstack-start */}';
 export const TANSTACK_MARKER_CLOSE = '{/* impeccable-live-tanstack-end */}';

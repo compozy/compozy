@@ -1,7 +1,7 @@
 # Minimal pr-release workflow for a CONSUMING repository.
 # Copy to .github/workflows/release.yml and adjust PR_RELEASE_MODULE (pin a
 # real tag), go-version, default branch, and secret names.
-# See .agents/skills/releasepr/references/release-workflow.md and setup.md.
+# See skills/releasepr/references/release-workflow.md and setup.md.
 #
 # RELEASE_TOKEN must be a PAT or GitHub App token (NOT the default
 # GITHUB_TOKEN) so the release-pr job can open PRs and trigger downstream
@@ -34,7 +34,7 @@ permissions:
 
 env:
   # Pin an explicit tag — never @latest — for reproducible releases.
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.25
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.21
   GO_VERSION: "1.25.9"
   # Set for a project's first release when no git tags exist yet.
   INITIAL_VERSION: v0.0.1

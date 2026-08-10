@@ -181,7 +181,7 @@ Open only the relevant references for the current task:
 - Async lifecycle modeling: `references/async-state.md`
 - Review pass and smell detection: `references/review-checklist.md`
 
-If the problem is specifically about XState Store in a codebase that already uses it, prefer the dedicated `xstate-store` skill for implementation details.
+If the problem is specifically about XState or actor systems in a codebase that already uses them, prefer the dedicated `xstate-v5` skill for implementation details.
 
 ## Output format
 

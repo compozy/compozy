@@ -1,6 +1,7 @@
 ---
 name: to-prompt
 description: Turn code, issues, or context into a handoff brief for another LLM — full context, zero prescribed solution, written to docs/prompts/. Use when packaging a bug fix, an improvement, or a feature request for an external LLM to implement. Don't use for prompts that already prescribe an implementation, simple one-shot questions, or end-user-facing copy.
+disable-model-invocation: true
 metadata:
   author: Pedro Nauck
   github: https://github.com/pedronauck

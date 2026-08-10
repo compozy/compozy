@@ -8,7 +8,7 @@ Reach for the first row that fits.
 | --- | --- | --- |
 | 1 | `useState` / `useReducer` | Component-specific UI state |
 | 2 | Context | Shared state read by a subtree, changing infrequently |
-| 3 | `@xstate/store` | Shared client state across unrelated components |
+| 3 | Zustand / XState Store / Jotai | Shared client state across unrelated components |
 | 4 | TanStack Query | Server state, caching, synchronization |
 | 5 | URL state | Shareable, linkable application state (TanStack Router) |
 
@@ -65,20 +65,20 @@ Context is for reading shared data in a subtree, not a cure for every prop chain
 
 ## External stores
 
-Compozy external client stores use `@xstate/store`, whose React binding is built on `useSyncExternalStore`. React Compiler does not change its ownership or selector rules.
+Zustand, Redux, Jotai, and XState Store are all built on `useSyncExternalStore`, which is the compiler-idiomatic pattern. None of them appears in the compiler's incompatible-library list, and the compiler changes no advice about them.
 
 Two facts that predate the compiler and still hold:
 
-- **Selectors do not need memoizing for subscription correctness.** Memoize only to avoid expensive recomputation.
+- **Selectors do not need memoizing for subscription correctness.** react-redux moved `useSelector` onto `useSyncExternalStore` in v8, which supports unstable inline selectors without re-subscribing; Zustand removed its "memoizing selectors" docs section for the same reason. Memoize a selector only to avoid recomputation (reselect, proxy-memoize).
 - **A selector returning a new object reference re-renders every time**, because comparison is `Object.is`. The compiler cannot fix this — the value is produced inside the store's own selector call, outside any component the compiler compiled. Select primitives, or pass a shallow comparator.
 
 ```tsx
 // Re-renders on every store change: new object every call
-const { a, b } = useSelector(store, (s) => ({ a: s.context.a, b: s.context.b }));
+const { a, b } = useStore((s) => ({ a: s.a, b: s.b }));
 
 // Select primitives separately
-const a = useSelector(store, (s) => s.context.a);
-const b = useSelector(store, (s) => s.context.b);
+const a = useStore((s) => s.a);
+const b = useStore((s) => s.b);
 
 // Or supply a comparator (XState Store)
 const value = useSelector(actor, (s) => s.context.item, shallowEqual);
