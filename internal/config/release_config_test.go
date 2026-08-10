@@ -423,6 +423,146 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 	}
 }
 
+func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
+	release := mapAt(t, goreleaser, "release")
+
+	t.Run("Should keep the shared GitHub release in draft state until desktop verification", func(t *testing.T) {
+		t.Parallel()
+
+		if got, ok := release["draft"].(bool); !ok || !got {
+			t.Fatalf("release.draft = %#v, want true", release["draft"])
+		}
+		publishFeed := strings.Index(workflow, "scripts/publish-desktop-release.sh")
+		publishDraft := strings.Index(workflow, "- name: Publish GitHub draft last")
+		patchDraft := strings.Index(workflow, "-F draft=false")
+		if publishFeed == -1 || publishDraft == -1 || patchDraft == -1 {
+			t.Fatal("release workflow is missing feed publication or final GitHub draft publication")
+		}
+		if publishFeed > publishDraft || publishDraft > patchDraft {
+			t.Fatal("release workflow must verify and publish the feed before publishing the GitHub draft")
+		}
+		if got := strings.Count(workflow, "-F draft=false"); got != 1 {
+			t.Fatalf("GitHub draft publication count = %d, want exactly one finalizer", got)
+		}
+	})
+
+	t.Run("Should pin the three-platform matrix and Tauri v1 contract", func(t *testing.T) {
+		t.Parallel()
+
+		for _, snippet := range []string{
+			"fail-fast: false",
+			"runner: macos-15",
+			"target: universal-apple-darwin",
+			"runner: ubuntu-22.04",
+			"target: x86_64-unknown-linux-gnu",
+			"runner: windows-latest",
+			"target: x86_64-pc-windows-msvc",
+			"uses: tauri-apps/tauri-action@v1",
+			"releaseDraft: true",
+			"uploadUpdaterJson: false",
+			"uploadWorkflowArtifacts: true",
+			"libwebkit2gtk-4.1-dev",
+			"xdg-utils",
+		} {
+			assertContainsText(t, "desktop release workflow", workflow, snippet)
+		}
+		if got := strings.Count(workflow, "uses: tauri-apps/tauri-action@v1"); got != 1 {
+			t.Fatalf("tauri-action step count = %d, want one matrix step", got)
+		}
+	})
+
+	t.Run("Should assert signing material before bundling with current platform APIs", func(t *testing.T) {
+		t.Parallel()
+
+		preflight := strings.Index(workflow, "- name: Assert signing material before build")
+		bundle := strings.Index(workflow, "- name: Build signed desktop bundle")
+		if preflight == -1 || bundle == -1 || preflight > bundle {
+			t.Fatal("desktop signing preflight must run before the Tauri build")
+		}
+		for _, snippet := range []string{
+			"APPLE_API_ISSUER",
+			"APPLE_API_KEY_PATH",
+			"scripts/notarize-staple-dmg.sh",
+			"artifact-signing-cli --version 0.11.0 --locked",
+			"AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}",
+			"AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}",
+		} {
+			assertContainsText(t, "desktop release workflow", workflow, snippet)
+		}
+		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_ID:")
+		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_PASSWORD:")
+	})
+}
+
+func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+
+	t.Run("Should fail before build when signing material is absent", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "assert-desktop-signing-material.sh"),
+			"linux",
+		)
+		cmd.Dir = root
+		cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("signing preflight unexpectedly succeeded: %s", output)
+		}
+		assertContainsText(t, "signing preflight", string(output), "TAURI_SIGNING_PRIVATE_KEY is missing")
+	})
+
+	t.Run("Should refuse stable publication before touching credentials", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "publish-desktop-release.sh"),
+			"desktop", "runtime", "feed", "stable", "0.4.0", "bucket", "https://example.r2.cloudflarestorage.com",
+		)
+		cmd.Dir = root
+		cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("stable desktop publication unexpectedly succeeded: %s", output)
+		}
+		assertContainsText(t, "stable guard", string(output), "stable remains reserved")
+	})
+
+	t.Run("Should refuse update key generation in CI", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "generate-desktop-update-key.sh"),
+			filepath.Join(t.TempDir(), "update.key"),
+		)
+		cmd.Dir = root
+		cmd.Env = []string{
+			"PATH=" + os.Getenv("PATH"),
+			"CI=true",
+			"TAURI_SIGNING_PRIVATE_KEY_PASSWORD=not-used",
+		}
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("CI key generation unexpectedly succeeded: %s", output)
+		}
+		assertContainsText(t, "key generation guard", string(output), "must never be generated in CI")
+	})
+}
+
 func TestReleasePreflightValidatesPublishWorkspace(t *testing.T) {
 	t.Parallel()
 

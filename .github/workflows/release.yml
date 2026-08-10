@@ -438,11 +438,13 @@ jobs:
 
   # Job 6: Publish only from an explicit, validated plan.
   release:
-    name: Production Release
+    name: Stage Production Release
     needs: release-plan
     if: needs.release-plan.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    outputs:
+      already_published: ${{ steps.publication.outputs.already_published }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -661,19 +663,303 @@ jobs:
           git -C .release-homebrew commit -m "compozy ${RELEASE_TAG}"
           git -C .release-homebrew push origin HEAD:main
 
-      - name: Apply published GitHub channel policy
+  desktop-build:
+    name: Desktop ${{ matrix.name }}
+    needs: [release-plan, release]
+    if: |
+      needs.release.result == 'success' &&
+      needs.release.outputs.already_published != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS universal
+            id: macos
+            runner: macos-15
+            platform: macos
+            target: universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundles: app,dmg
+          - name: Linux x86_64
+            id: linux
+            runner: ubuntu-22.04
+            platform: linux
+            target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+          - name: Windows x86_64
+            id: windows
+            runner: windows-latest
+            platform: windows
+            target: x86_64-pc-windows-msvc
+            rust_targets: x86_64-pc-windows-msvc
+            bundles: nsis
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-plan.outputs.release_ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install Linux desktop dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - name: Write App Store Connect API key
+        if: matrix.platform == 'macos'
+        env:
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${APPLE_API_PRIVATE_KEY:-}" ]]; then
+            echo "::error::APPLE_API_PRIVATE_KEY is required"
+            exit 1
+          fi
+          api_key_path="${RUNNER_TEMP}/AuthKey_${{ secrets.APPLE_API_KEY }}.p8"
+          printf '%s' "${APPLE_API_PRIVATE_KEY}" >"${api_key_path}"
+          chmod 600 "${api_key_path}"
+          echo "APPLE_API_KEY_PATH=${api_key_path}" >>"${GITHUB_ENV}"
+
+      - name: Install Azure Artifact Signing CLI
+        if: matrix.platform == 'windows'
+        run: cargo install artifact-signing-cli --version 0.11.0 --locked
+
+      - name: Assert signing material before build
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+        run: scripts/assert-desktop-signing-material.sh "${{ matrix.platform }}"
+
+      - name: Generate release channel configuration
+        shell: bash
+        env:
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          TAURI_SIGNING_PUBLIC_KEY_PREVIOUS: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY_PREVIOUS }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+        run: |
+          set -euo pipefail
+          azure_args=()
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            azure_args=(--azure-endpoint "${AZURE_ARTIFACT_SIGNING_ENDPOINT}")
+          fi
+          go run ./cmd/compozy-desktop-release channel-config \
+            --version "${{ needs.release-plan.outputs.release_version }}" \
+            --channel "${{ needs.release-plan.outputs.release_channel }}" \
+            --public-key "${TAURI_SIGNING_PUBLIC_KEY}" \
+            --previous-public-key "${TAURI_SIGNING_PUBLIC_KEY_PREVIOUS:-}" \
+            --output desktop/src-tauri/tauri.channel.conf.json \
+            "${azure_args[@]}"
+
+      - name: Build signed desktop bundle
+        uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: desktop
+          tagName: ${{ needs.release-plan.outputs.release_tag }}
+          releaseName: CompozyOS ${{ needs.release-plan.outputs.release_version }} — ${{ needs.release-plan.outputs.release_channel }}
+          releaseDraft: true
+          uploadUpdaterJson: false
+          uploadWorkflowArtifacts: true
+          args: >-
+            --target ${{ matrix.target }}
+            --bundles ${{ matrix.bundles }}
+            --config src-tauri/tauri.channel.conf.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+
+      - name: Notarize staple and validate macOS artifacts
+        if: matrix.platform == 'macos'
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          app_path="$(find desktop/src-tauri/target -type d -path '*/bundle/macos/*.app' -print -quit)"
+          dmg_path="$(find desktop/src-tauri/target -type f -path '*/bundle/dmg/*.dmg' -print -quit)"
+          scripts/notarize-staple-dmg.sh "${app_path}" "${dmg_path}" "${RELEASE_VERSION}"
+          gh release upload "${RELEASE_TAG}" "${dmg_path}" --clobber --repo "${GITHUB_REPOSITORY}"
+
+      - name: Normalize desktop artifacts
+        shell: bash
+        run: |
+          scripts/normalize-desktop-artifacts.sh \
+            "${{ matrix.platform }}" \
+            "${{ needs.release-plan.outputs.release_version }}" \
+            desktop/src-tauri/target \
+            ".artifacts/desktop/${{ matrix.id }}"
+
+      - name: Upload normalized desktop artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-release-${{ matrix.id }}
+          path: .artifacts/desktop/${{ matrix.id }}/*
+          if-no-files-found: error
+          retention-days: 14
+
+  desktop-publish:
+    name: Verify and Publish Desktop Release
+    needs: [release-plan, release, desktop-build]
+    if: |
+      needs.release.result == 'success' &&
+      needs.desktop-build.result == 'success' &&
+      needs.release.outputs.already_published != 'true'
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-plan.outputs.release_ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Install verification tools
+        run: brew install minisign awscli
+
+      - name: Download normalized desktop artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-release-*
+          path: .artifacts/desktop
+          merge-multiple: true
+
+      - name: Download runtime archives from the draft
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          PUBLICATION_RELEASE_ID: ${{ steps.publication.outputs.release_id }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/runtime
+          gh release download "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --dir .artifacts/runtime \
+            --pattern compozy_darwin_arm64.tar.gz \
+            --pattern compozy_darwin_x86_64.tar.gz \
+            --pattern compozy_linux_x86_64.tar.gz \
+            --pattern compozy_windows_x86_64.zip
+
+      - name: Build and sign canonical feeds
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          scripts/build-desktop-feed.sh \
+            .artifacts/desktop \
+            .artifacts/runtime \
+            "${RELEASE_VERSION}" \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            .artifacts/feed
+          scripts/sign-runtime-manifest.sh .artifacts/feed/runtime.json
+
+      - name: Revalidate stapling and bundle version
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/macos-app
+          tar -xzf ".artifacts/desktop/CompozyOS_${RELEASE_VERSION}_universal.app.tar.gz" \
+            -C .artifacts/macos-app
+          app_path="$(find .artifacts/macos-app -type d -name '*.app' -print -quit)"
+          dmg_path=".artifacts/desktop/CompozyOS_${RELEASE_VERSION}_universal.dmg"
+          xcrun stapler validate "${app_path}"
+          xcrun stapler validate "${dmg_path}"
+          bundle_version="$(/usr/libexec/PlistBuddy -c 'Print:CFBundleShortVersionString' "${app_path}/Contents/Info.plist")"
+          if [[ "${bundle_version}" != "${RELEASE_VERSION}" ]]; then
+            echo "::error::CFBundleShortVersionString ${bundle_version} does not match ${RELEASE_VERSION}"
+            exit 1
+          fi
+
+      - name: Publish immutable payloads then manifests and verify
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          R2_BUCKET: ${{ secrets.R2_RELEASES_BUCKET }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT_URL }}
+        run: |
+          scripts/publish-desktop-release.sh \
+            .artifacts/desktop \
+            .artifacts/runtime \
+            .artifacts/feed \
+            "${RELEASE_CHANNEL}" \
+            "${RELEASE_VERSION}" \
+            "${R2_BUCKET}" \
+            "${R2_ENDPOINT}"
+
+      - name: Publish GitHub draft last
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
           GITHUB_PRERELEASE: ${{ needs.release-plan.outputs.github_prerelease }}
           GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
         run: |
           set -euo pipefail
-          release_id="${PUBLICATION_RELEASE_ID}"
-          if [[ -z "${release_id}" ]]; then
-            release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id')"
-          fi
+          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id')"
           gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
             -F draft=false \
             -F prerelease="${GITHUB_PRERELEASE}" \
@@ -682,7 +968,6 @@ jobs:
       - name: Verify published channel policy
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          PUBLICATION_RELEASE_ID: ${{ steps.publication.outputs.release_id }}
           RELEASE_COMMIT: ${{ needs.release-plan.outputs.release_commit }}
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
@@ -692,45 +977,32 @@ jobs:
           NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
         run: |
           set -euo pipefail
-          echo "Verifying ${RELEASE_CHANNEL} policy for ${RELEASE_TAG}"
-          release_id="${PUBLICATION_RELEASE_ID}"
-          if [[ -z "${release_id}" ]]; then
-            release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id')"
-          fi
-          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}")"
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")"
           if [[ "$(jq -r '.draft' <<<"${release_json}")" != "false" ]]; then
             echo "::error::GitHub Release is still a draft"
             exit 1
           fi
           if [[ "$(jq -r '.tag_name' <<<"${release_json}")" != "${RELEASE_TAG}" ]]; then
-            echo "::error::GitHub Release tag does not match the authoritative release plan"
+            echo "::error::GitHub Release tag does not match the release plan"
             exit 1
           fi
           if [[ "$(jq -r '.target_commitish' <<<"${release_json}")" != "${RELEASE_COMMIT}" ]]; then
-            echo "::error::GitHub Release target does not match the authoritative release plan"
+            echo "::error::GitHub Release target does not match the release plan"
             exit 1
           fi
-          release_prerelease="$(jq -r '.prerelease' <<<"${release_json}")"
-          if [[ "${release_prerelease}" != "${GITHUB_PRERELEASE}" ]]; then
-            echo "::error::GitHub prerelease state does not match the authoritative release plan"
+          if [[ "$(jq -r '.prerelease' <<<"${release_json}")" != "${GITHUB_PRERELEASE}" ]]; then
+            echo "::error::GitHub prerelease state does not match the release plan"
             exit 1
           fi
-          public_release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id')"
-          if [[ "${public_release_id}" != "${release_id}" ]]; then
-            echo "::error::Public GitHub Release identity does not match the validated release"
-            exit 1
-          fi
-
           latest_tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
           if [[ "${GITHUB_MAKE_LATEST}" == "true" && "${latest_tag}" != "${RELEASE_TAG}" ]]; then
-            echo "::error::GitHub latest release does not match the authoritative release plan"
+            echo "::error::GitHub latest release does not match the release plan"
             exit 1
           fi
           if [[ "${GITHUB_MAKE_LATEST}" == "false" && "${latest_tag}" == "${RELEASE_TAG}" ]]; then
             echo "::error::Prerelease unexpectedly became the latest GitHub release"
             exit 1
           fi
-
           scripts/release-npm-readiness.sh \
             "${RELEASE_VERSION}" \
             "${NPM_TAG}" \

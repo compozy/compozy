@@ -36,10 +36,16 @@
         }
     },
     "bundle": {
-        "active": false,
+        "active": true,
+        "createUpdaterArtifacts": true,
         "icon": ["../../web/public/icon-512.png"],
         "category": "Productivity",
         "shortDescription": "CompozyOS desktop shell",
-        "longDescription": "The native desktop shell for the CompozyOS agent operating system."
+        "longDescription": "The native desktop shell for the CompozyOS agent operating system.",
+        "windows": {
+            "nsis": {
+                "installMode": "currentUser"
+            }
+        }
     }
 }

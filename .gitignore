@@ -10,6 +10,7 @@ bin/
 dist/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+desktop/src-tauri/tauri.channel.conf.json
 .artifacts/
 web/embed/
 storybook-static/

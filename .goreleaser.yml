@@ -183,7 +183,7 @@ release:
   target_commitish: "{{ .Commit }}"
   name_template: "CompozyOS {{ .Version }} — {{ .Env.RELEASE_CHANNEL }}"
   mode: replace
-  draft: false
+  draft: true
   # This field does not support templates. The release planner enforces that
   # beta versions carry prerelease data while stable and legacy versions do not.
   prerelease: auto
