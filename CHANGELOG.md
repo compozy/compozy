@@ -68,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Desktop issues
 - Ship the full desktop icon set required by Windows tauri-build
 - Pause the Windows desktop lane and ship macOS + Linux only
+- Adjust project copy
 
 ### 🧪 Testing
 
