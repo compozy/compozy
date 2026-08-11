@@ -745,9 +745,22 @@ jobs:
           if (-not $signtool) { Write-Error 'signtool.exe not found under Windows Kits'; exit 1 }
           "SIGNTOOL_PATH=$($signtool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           $az = (Get-Command az.cmd -ErrorAction Stop).Source
-          "AZURE_CLI_PATH=$az" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # artifact-signing-cli 0.11.0 hardcodes `az login --service-principal`
+          # without --allow-no-subscriptions, which fails for our data-plane-only
+          # signer principal. Route its az calls through a shim that appends the
+          # flag on login and delegates everything else verbatim.
+          $shim = Join-Path $env:RUNNER_TEMP 'azshim.cmd'
+          @(
+            '@echo off'
+            "if ""%1""==""login"" ("
+            "  call ""$az"" %* --allow-no-subscriptions"
+            ') else ('
+            "  call ""$az"" %*"
+            ')'
+          ) | Set-Content -Path $shim -Encoding ascii
+          "AZURE_CLI_PATH=$shim" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "signtool: $($signtool.FullName)"
-          Write-Host "az: $az"
+          Write-Host "az: $az (shimmed at $shim)"
 
       # Signs a throwaway system binary so endpoint/credential/tooling faults
       # surface with real CLI stderr in seconds instead of after the full
