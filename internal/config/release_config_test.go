@@ -442,14 +442,30 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		}
 		publishFeed := strings.Index(workflow, "scripts/publish-desktop-release.sh")
 		publishDraft := strings.Index(workflow, "- name: Publish GitHub draft last")
+		verifyPublished := strings.Index(workflow, "- name: Verify published channel policy")
 		patchDraft := strings.Index(workflow, "-F draft=false")
-		if publishFeed == -1 || publishDraft == -1 || patchDraft == -1 {
+		if publishFeed == -1 || publishDraft == -1 || verifyPublished == -1 || patchDraft == -1 {
 			t.Fatal("release workflow is missing feed publication or final GitHub draft publication")
 		}
-		if publishFeed > publishDraft || publishDraft > patchDraft {
+		if publishFeed > publishDraft || publishDraft > patchDraft || patchDraft > verifyPublished {
 			t.Fatal("release workflow must verify and publish the feed before publishing the GitHub draft")
 		}
-		if got := strings.Count(workflow, "-F draft=false"); got != 1 {
+
+		finalizer := workflow[publishDraft:verifyPublished]
+		for _, required := range []string{
+			`gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100"`,
+			`select(.tag_name == $tag)`,
+			`if [[ "${matching_count}" != "1" ]]; then`,
+			`release_id="$(jq -r '.[0].id' <<<"$matching_releases")"`,
+			`release_draft="$(jq -r '.[0].draft' <<<"$matching_releases")"`,
+			`if [[ "${release_draft}" == "true" ]]; then`,
+			`elif [[ "${release_draft}" == "false" ]]; then`,
+			`"repos/${GITHUB_REPOSITORY}/releases/${release_id}"`,
+		} {
+			assertContainsText(t, "GitHub draft finalizer", finalizer, required)
+		}
+		assertNotContainsText(t, "GitHub draft finalizer", finalizer, `releases/tags/${RELEASE_TAG}`)
+		if got := strings.Count(finalizer, "-F draft=false"); got != 1 {
 			t.Fatalf("GitHub draft publication count = %d, want exactly one finalizer", got)
 		}
 	})

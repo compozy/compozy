@@ -960,11 +960,31 @@ jobs:
           GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
         run: |
           set -euo pipefail
-          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id')"
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
-            -F draft=false \
-            -F prerelease="${GITHUB_PRERELEASE}" \
-            -f make_latest="${GITHUB_MAKE_LATEST}" >/dev/null
+          release_pages="$(
+            gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100"
+          )"
+          matching_releases="$(
+            jq -c --arg tag "$RELEASE_TAG" '[.[][] | select(.tag_name == $tag)]' <<<"$release_pages"
+          )"
+          matching_count="$(jq -r 'length' <<<"$matching_releases")"
+          if [[ "${matching_count}" != "1" ]]; then
+            echo "::error::Expected exactly one GitHub Release for ${RELEASE_TAG}, found ${matching_count}"
+            exit 1
+          fi
+
+          release_id="$(jq -r '.[0].id' <<<"$matching_releases")"
+          release_draft="$(jq -r '.[0].draft' <<<"$matching_releases")"
+          if [[ "${release_draft}" == "true" ]]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+              -F draft=false \
+              -F prerelease="${GITHUB_PRERELEASE}" \
+              -f make_latest="${GITHUB_MAKE_LATEST}" >/dev/null
+          elif [[ "${release_draft}" == "false" ]]; then
+            echo "GitHub Release ${RELEASE_TAG} is already published"
+          else
+            echo "::error::GitHub Release ${RELEASE_TAG} returned an invalid draft state: ${release_draft}"
+            exit 1
+          fi
 
       - name: Verify published channel policy
         env:
