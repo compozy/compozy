@@ -10,9 +10,10 @@ use crate::home::CompozyHome;
 use sysinfo::Signal;
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
+use super::discovery::DaemonRecord;
 use super::probe::BoundDaemonIdentity;
 
-const READY_DEADLINE: Duration = Duration::from_secs(30);
+pub(crate) const READY_DEADLINE: Duration = Duration::from_secs(30);
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 const ATTEMPT_BACKOFF: [Option<Duration>; 3] = [
     Some(Duration::from_millis(250)),
@@ -235,6 +236,21 @@ impl<'a> Supervisor<'a> {
             }
         }
         Err(start_error(home))
+    }
+
+    pub fn wait_for_recorded_daemon(&self, recorded: &DaemonRecord) -> Option<BoundDaemonIdentity> {
+        for _ in 0..poll_limit(self.readiness_deadline, self.poll_interval) {
+            if let Some(identity) = self.readiness.ready(None)
+                && identity.record == *recorded
+            {
+                return Some(identity);
+            }
+            if !self.readiness.process_alive(recorded.pid) {
+                return None;
+            }
+            self.delay.sleep(self.poll_interval);
+        }
+        None
     }
 
     fn retry_after_contention(&self, rounds: &mut usize) -> bool {

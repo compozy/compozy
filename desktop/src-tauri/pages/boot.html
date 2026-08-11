@@ -15,12 +15,16 @@
     <main class="boot" aria-labelledby="boot-title">
       <p class="boot__identity">CompozyOS</p>
       <section class="boot__state">
-        <div class="boot__status" aria-hidden="true">
-          <span class="boot__mark"></span>
-          <p class="boot__status-label">Runtime</p>
+        <div class="boot__heading">
+          <span class="boot__mark" aria-hidden="true"></span>
+          <h1 id="boot-title" aria-atomic="true" aria-live="polite">Looking for CompozyOS</h1>
         </div>
-        <h1 id="boot-title" aria-atomic="true" aria-live="polite">Looking for CompozyOS</h1>
         <p id="boot-detail" class="boot__detail" hidden></p>
+        <div id="boot-progress" class="boot__progress" role="status" aria-atomic="true" hidden>
+          <p id="boot-progress-label" class="boot__progress-label"></p>
+          <p id="boot-progress-attempt" class="boot__progress-attempt" hidden></p>
+          <progress id="boot-progress-bar" class="boot__progress-bar" max="100" hidden></progress>
+        </div>
         <p id="boot-action" class="boot__action" hidden></p>
         <div
           id="boot-controls"
@@ -33,21 +37,60 @@
           <button id="boot-retry" class="boot__control" type="button" hidden></button>
           <button id="boot-diagnose" class="boot__control" type="button" hidden></button>
         </div>
-        <p id="boot-result" class="boot__result" aria-live="polite" hidden></p>
-        <dl id="boot-diagnostics" class="boot__diagnostics" hidden>
-          <div id="boot-app-log-row" hidden>
-            <dt>App log</dt>
-            <dd id="boot-app-log"></dd>
+        <p id="boot-result" class="boot__result" role="status" aria-atomic="true" hidden></p>
+        <details id="boot-technical" class="boot__technical" hidden>
+          <summary>Technical details</summary>
+          <div class="boot__technical-content">
+            <dl id="boot-diagnostics" class="boot__diagnostics">
+              <div id="boot-error-code-row" hidden>
+                <dt>Error code</dt>
+                <dd id="boot-error-code"></dd>
+              </div>
+              <div id="boot-current-error-row" data-error="false" hidden>
+                <dt>Current error</dt>
+                <dd id="boot-current-error"></dd>
+              </div>
+              <div id="boot-previous-crash-row" hidden>
+                <dt>Previous crash</dt>
+                <dd id="boot-previous-crash"></dd>
+              </div>
+              <div id="boot-phase-row" hidden>
+                <dt>Boot phase</dt>
+                <dd id="boot-phase"></dd>
+              </div>
+              <div id="boot-boot-id-row" hidden>
+                <dt>Boot ID</dt>
+                <dd id="boot-boot-id"></dd>
+              </div>
+              <div id="boot-app-version-row" hidden>
+                <dt>App version</dt>
+                <dd id="boot-app-version"></dd>
+              </div>
+              <div id="boot-runtime-version-row" hidden>
+                <dt>Runtime version</dt>
+                <dd id="boot-runtime-version"></dd>
+              </div>
+              <div id="boot-runtime-owner-row" hidden>
+                <dt>Runtime owner</dt>
+                <dd id="boot-runtime-owner"></dd>
+              </div>
+            </dl>
+            <div
+              id="boot-diagnostic-controls"
+              class="boot__diagnostic-controls"
+              role="group"
+              aria-label="Diagnostic actions"
+              hidden
+            >
+              <button id="boot-copy" class="boot__control" type="button" hidden>
+                Copy diagnostics
+              </button>
+              <button id="boot-export" class="boot__control" type="button" hidden>
+                Export diagnostics
+              </button>
+            </div>
           </div>
-          <div id="boot-runtime-log-row" hidden>
-            <dt>Runtime log</dt>
-            <dd id="boot-runtime-log"></dd>
-          </div>
-          <div id="boot-last-error-row" hidden>
-            <dt>Last error</dt>
-            <dd id="boot-last-error"></dd>
-          </div>
-        </dl>
+        </details>
       </section>
     </main>
   </body>

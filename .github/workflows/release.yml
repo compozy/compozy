@@ -850,10 +850,11 @@ jobs:
 
   desktop-publish:
     name: Verify and Publish Desktop Release
-    needs: [release-plan, release, desktop-build]
+    needs: [release-plan, release, desktop-build, desktop-smoke]
     if: |
       needs.release.result == 'success' &&
-      needs.desktop-build.result == 'success'
+      needs.desktop-build.result == 'success' &&
+      needs.desktop-smoke.result == 'success'
     runs-on: macos-15
     timeout-minutes: 90
     steps:
@@ -951,6 +952,97 @@ jobs:
             "${RELEASE_VERSION}" \
             "${R2_BUCKET}" \
             "${R2_ENDPOINT}"
+
+  desktop-smoke:
+    name: Smoke Packaged Desktop ${{ matrix.name }}
+    # The release package embeds the live channel endpoint. Smoke it before
+    # changing that endpoint's manifest, so a failed package cannot expose a
+    # new release. This proves first-run provisioning with the current signed
+    # channel runtime; desktop-publish separately verifies candidate payloads.
+    needs: [release-plan, release, desktop-build]
+    if: |
+      needs.release.result == 'success' &&
+      needs.desktop-build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS DMG
+            id: macos
+            runner: macos-15
+            platform: macos
+            artifact: CompozyOS_${{ needs.release-plan.outputs.release_version }}_universal.dmg
+          - name: Linux AppImage
+            id: linux
+            runner: ubuntu-22.04
+            platform: linux
+            artifact: CompozyOS_${{ needs.release-plan.outputs.release_version }}_amd64.AppImage
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-plan.outputs.release_ref }}
+
+      - name: Install Linux desktop smoke dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils \
+            xvfb
+
+      - name: Download packaged desktop artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-release-${{ matrix.id }}
+          path: .artifacts/desktop
+
+      - name: Read current channel runtime identity
+        id: runtime
+        env:
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+        run: |
+          set -euo pipefail
+          runtime_version="$(
+            curl --fail --silent --show-error \
+              "https://releases.compozy.com/desktop/${RELEASE_CHANNEL}/runtime.json" \
+              | jq -er '.version | strings | select(length > 0)'
+          )"
+          printf 'version=%s\n' "${runtime_version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Provision from an empty isolated home
+        env:
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          bash scripts/smoke-desktop-release-artifact.sh \
+            "${{ matrix.platform }}" \
+            ".artifacts/desktop/${{ matrix.artifact }}" \
+            "${RELEASE_VERSION}" \
+            "${{ steps.runtime.outputs.version }}"
+
+  desktop-finalize:
+    name: Finalize Desktop Release
+    needs: [release-plan, release, desktop-publish, desktop-smoke]
+    if: |
+      needs.release.result == 'success' &&
+      needs.desktop-publish.result == 'success' &&
+      needs.desktop-smoke.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-plan.outputs.release_ref }}
+
+      - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Publish GitHub draft last
         env:

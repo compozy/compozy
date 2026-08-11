@@ -196,6 +196,9 @@ func TestBootMarksRestartOperationReadyAfterFreshDaemonInfo(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 	d.pid = func() int { return 9393 }
+	d.processStartedAt = func(int) (time.Time, error) {
+		return time.Date(2026, 4, 17, 12, 1, 0, 0, time.UTC), nil
+	}
 	d.getenv = func(key string) string {
 		if key == RestartOperationEnvKey {
 			return operation.OperationID

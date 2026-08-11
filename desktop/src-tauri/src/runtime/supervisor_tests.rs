@@ -32,6 +32,24 @@ struct FakeReadiness {
     alive: bool,
 }
 
+struct RecordedDaemonReadiness {
+    polls: AtomicUsize,
+    ready_after: usize,
+    identity: BoundDaemonIdentity,
+    alive: bool,
+}
+
+impl ReadinessProbe for RecordedDaemonReadiness {
+    fn ready(&self, _expected_child_pid: Option<u32>) -> Option<BoundDaemonIdentity> {
+        let poll = self.polls.fetch_add(1, Ordering::SeqCst) + 1;
+        (poll >= self.ready_after).then(|| self.identity.clone())
+    }
+
+    fn process_alive(&self, _pid: u32) -> bool {
+        self.alive
+    }
+}
+
 impl ReadinessProbe for FakeReadiness {
     fn ready(&self, expected: Option<u32>) -> Option<BoundDaemonIdentity> {
         let poll = self.polls.fetch_add(1, Ordering::SeqCst) + 1;
@@ -109,6 +127,35 @@ fn should_spawn_detached_and_poll_until_bound_ready() {
         StartResult::Owned(OwnedRuntime { pid: 42, .. })
     ));
     assert_eq!(spawner.calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn should_wait_for_a_live_recorded_daemon_and_attach_without_spawning_a_second_child() {
+    let expected = identity();
+    let spawner = FakeSpawner {
+        calls: AtomicUsize::new(0),
+        terminated: AtomicUsize::new(0),
+        pid: 91,
+    };
+    let readiness = RecordedDaemonReadiness {
+        polls: AtomicUsize::new(0),
+        ready_after: 3,
+        identity: expected.clone(),
+        alive: true,
+    };
+    let delay = FakeDelay;
+    let supervisor = Supervisor {
+        spawner: &spawner,
+        readiness: &readiness,
+        delay: &delay,
+        readiness_deadline: Duration::from_secs(1),
+        poll_interval: Duration::from_millis(10),
+    };
+
+    let attached = supervisor.wait_for_recorded_daemon(&expected.record);
+
+    assert_eq!(attached, Some(expected));
+    assert_eq!(spawner.calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]

@@ -43,6 +43,37 @@ type sessionCommandCatalogManagerStub struct {
 	calls   *atomic.Int32
 }
 
+func TestBaseHandlersStreamDoneBridge(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should replace the silent construction channel with the transport shutdown bridge", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			Logger: slog.New(slog.NewTextHandler(&logs, nil)),
+		})
+		if strings.Contains(logs.String(), "stream shutdown bridge not provided") {
+			t.Fatalf("NewBaseHandlers() logged a construction-state stream bridge warning: %s", logs.String())
+		}
+
+		transportDone := make(chan struct{})
+		handlers.SetStreamDone(transportDone)
+		select {
+		case <-handlers.StreamDoneChannel():
+			t.Fatal("StreamDoneChannel() closed before the transport shutdown bridge closed")
+		default:
+		}
+
+		close(transportDone)
+		select {
+		case <-handlers.StreamDoneChannel():
+		default:
+			t.Fatal("StreamDoneChannel() did not observe the transport shutdown bridge")
+		}
+	})
+}
+
 func (s sessionCommandCatalogManagerStub) CommandCatalog(
 	ctx context.Context,
 	id string,

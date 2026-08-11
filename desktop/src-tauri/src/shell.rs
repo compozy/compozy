@@ -6,9 +6,8 @@ use chrono::{DateTime, Utc};
 use semver::VersionReq;
 use tauri::{AppHandle, Manager, Wry};
 
-use crate::app_state::AppStatePublisher;
+use crate::app_state::{AppStatePublisher, AppStateStartup};
 use crate::config;
-use crate::control::ControlServer;
 use crate::controller::DesktopController;
 use crate::errors::{ShellError, ShellErrorCode};
 use crate::health_monitor;
@@ -16,37 +15,60 @@ use crate::home::CompozyHome;
 use crate::links::LinkQueue;
 use crate::release::ReleaseConfig;
 use crate::runtime::artifacts::current_target;
-use crate::runtime::discovery::{Discovery, SystemProcessTable, discover};
-use crate::runtime::mutation::{
-    RecoveryPlan, UpdateJournal, UpdateLock, complete_recovery, prepare_recovery, read_journal,
+use crate::runtime::control_server_startup::{
+    ControlServerStartup, show_boot_before_starting_control,
 };
+use crate::runtime::discovery::SystemProcessTable;
+use crate::runtime::mutation::UpdateLock;
 use crate::runtime::probe::{
-    BoundDaemonIdentity, BoundProbe, Compatibility, HttpStatusTransport, Identity, IdentityProbe,
-    MINIMUM_RUNTIME, handshake,
+    BoundDaemonIdentity, BoundProbe, Compatibility, HttpStatusTransport, MINIMUM_RUNTIME, handshake,
 };
 use crate::runtime::provision::{
     ProvisionOutcome, ProvisionRequest, ResumeChoice, incomplete_stage, provision, shell_error,
 };
-use crate::runtime::readiness::DaemonReadiness;
+use crate::runtime::readiness::{DaemonReadiness, live_bound_runtime};
+use crate::runtime::recorded_start::{
+    RecordedDaemonStart, await_or_recover_boot_timestamp_drift_daemon,
+    await_or_recover_recorded_daemon,
+};
 use crate::runtime::resolver::{
     AttachFirstResolver, BinarySource, Resolution, RuntimeResolver, SystemInstallLocator,
 };
+use crate::runtime::startup_failure::{
+    development_runtime_error, publish_boot_presentation_failure,
+};
 use crate::runtime::supervisor::{StartResult, Supervisor, SystemSpawner, ThreadDelay};
+use crate::runtime::update_cadence;
 use crate::runtime::update_lifecycle::SystemRuntimeLifecycle;
+use crate::runtime::update_recovery::recover_or_publish;
 use crate::state::ShellState;
 use crate::update::app_update::{AppUpdater, TauriAppUpdateBackend, recover_intent};
-use crate::update::runtime_update::RuntimeLifecycle;
 use crate::update::runtime_update::{ManifestRuntimeStager, RuntimeUpdater};
 use crate::{boot_window, logging, windowing};
 
 const RESOLUTION_ATTEMPTS: usize = 4;
 
+pub struct ShellStartup {
+    pub started_at: DateTime<Utc>,
+    pub app_version: String,
+    pub boot_id: String,
+    pub previous_crash: Option<crate::diagnostics::PreviousCrash>,
+    pub startup_marker: Option<crate::diagnostics::startup_marker::StartupMarker>,
+}
+
 pub fn setup(
     app: &AppHandle<Wry>,
     home: CompozyHome,
     links: Arc<LinkQueue>,
-    started_at: DateTime<Utc>,
+    startup: ShellStartup,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let ShellStartup {
+        started_at,
+        app_version,
+        boot_id,
+        previous_crash,
+        startup_marker,
+    } = startup;
     let settings = config::load(&home.config_file, &home);
     let mut startup_diagnostic = settings.diagnostic.clone();
     if let Some(diagnostic) = &startup_diagnostic {
@@ -66,8 +88,18 @@ pub fn setup(
             None
         }
     };
-    let publisher =
-        AppStatePublisher::new(app.clone(), home.clone(), started_at, startup_diagnostic);
+    let publisher = AppStatePublisher::new(
+        app.clone(),
+        home.clone(),
+        AppStateStartup {
+            started_at,
+            diagnostic: startup_diagnostic,
+            app_version: app_version.clone(),
+            boot_id,
+            previous_crash,
+            startup_marker,
+        },
+    );
     let app_updater = release.as_ref().map(|release| {
         let backend = Arc::new(TauriAppUpdateBackend::new(
             app.clone(),
@@ -89,11 +121,7 @@ pub fn setup(
         app_updater,
         updates_enabled,
     ));
-    match recover_intent(
-        &home.app_update_intent,
-        env!("CARGO_PKG_VERSION"),
-        Utc::now(),
-    ) {
+    match recover_intent(&home.app_update_intent, &app_version, Utc::now()) {
         Ok(Some(event)) => controller.record_app_event(&event),
         Ok(None) => {}
         Err(error) => {
@@ -105,7 +133,12 @@ pub fn setup(
             });
         }
     }
-    let server = ControlServer::start(&home.app_socket, controller.clone())?;
+    let control_startup = ControlServerStartup::new(
+        app.clone(),
+        home.clone(),
+        Arc::clone(&controller),
+        publisher.clone(),
+    );
     let coordinator = Arc::new(ShellCoordinator {
         app: app.clone(),
         home,
@@ -113,19 +146,26 @@ pub fn setup(
         publisher,
         controller: Arc::clone(&controller),
         release,
+        app_version,
+        control_startup,
         running: AtomicBool::new(false),
     });
     let retry_coordinator = Arc::downgrade(&coordinator);
     controller.set_retry(Arc::new(move || {
         if let Some(coordinator) = retry_coordinator.upgrade() {
-            std::thread::spawn(move || coordinator.run(true));
+            std::thread::spawn(move || coordinator.retry());
         }
     }));
 
-    app.manage(server);
     app.manage(Arc::clone(&controller));
     app.manage(Arc::clone(&coordinator));
-    boot_window::show(app, ShellState::Resolving)?;
+    if !show_boot_before_starting_control(
+        || boot_window::show(app, ShellState::Resolving),
+        |error| publish_boot_presentation_failure(&coordinator.publisher, &coordinator.home, error),
+        || coordinator.control_startup.ensure_started(),
+    ) {
+        return Ok(());
+    }
 
     let startup = Arc::clone(&coordinator);
     let interval = settings.config.update_check_interval;
@@ -135,7 +175,7 @@ pub fn setup(
         }
         Arc::clone(&startup).run(false);
         if updates_enabled {
-            spawn_update_cadence(startup.controller.clone(), interval);
+            update_cadence::spawn(startup.controller.clone(), interval);
         }
     });
     Ok(())
@@ -148,10 +188,18 @@ struct ShellCoordinator {
     publisher: AppStatePublisher,
     controller: Arc<DesktopController>,
     release: Option<ReleaseConfig>,
+    app_version: String,
+    control_startup: ControlServerStartup,
     running: AtomicBool,
 }
 
 impl ShellCoordinator {
+    fn retry(self: Arc<Self>) {
+        if self.control_startup.ensure_started() {
+            self.run(true);
+        }
+    }
+
     fn run(self: Arc<Self>, resume_recovery: bool) {
         if self
             .running
@@ -162,90 +210,14 @@ impl ShellCoordinator {
         }
         self.controller.set_runtime_updater(None);
         self.publisher.publish(ShellState::Resolving);
-        if self.recover_runtime(resume_recovery) {
+        if recover_or_publish(&self.home, &self.publisher, resume_recovery) {
             self.resolve_loop();
         }
         self.running.store(false, Ordering::Release);
     }
 
-    fn recover_runtime(&self, resume_recovery: bool) -> bool {
-        match read_journal(&self.home.update_journal) {
-            Ok(None) => return true,
-            Ok(Some(_journal)) => {}
-            Err(error) => {
-                logging::error(format!("read runtime recovery journal: {error}"));
-                self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
-                return false;
-            }
-        }
-        let processes = SystemProcessTable;
-        let lock = match UpdateLock::acquire(&self.home.update_lock, &processes) {
-            Ok(lock) => lock,
-            Err(error) => {
-                logging::error(format!("acquire runtime recovery lock: {error}"));
-                self.publish_error(ShellErrorCode::UpdateLockHeld);
-                return false;
-            }
-        };
-        let plan = match prepare_recovery(&self.home) {
-            Ok(plan) => plan,
-            Err(error) => {
-                logging::error(format!("prepare runtime recovery: {error}"));
-                self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
-                return false;
-            }
-        };
-        let Some(plan) = plan else {
-            if let Err(error) = lock.release() {
-                logging::error(format!("release empty runtime recovery lock: {error}"));
-            }
-            return true;
-        };
-        let recovery_required = matches!(&plan, RecoveryPlan::RecoveryRequired(_));
-        match plan {
-            RecoveryPlan::ResumeNewRuntime(journal) => {
-                return self.resume_runtime(journal, lock);
-            }
-            RecoveryPlan::RecoveryRequired(journal) if resume_recovery => {
-                return self.resume_runtime(journal, lock);
-            }
-            RecoveryPlan::RecoveryRequired(_) => {}
-            RecoveryPlan::CleanRollback | RecoveryPlan::Complete => {}
-        }
-        if let Err(error) = lock.release() {
-            logging::error(format!("release runtime recovery lock: {error}"));
-            self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
-            return false;
-        }
-        if recovery_required {
-            self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
-            return false;
-        }
-        true
-    }
-
-    fn resume_runtime(&self, journal: UpdateJournal, lock: UpdateLock) -> bool {
-        let lifecycle = SystemRuntimeLifecycle::new(self.home.clone());
-        if let Err(error) = lifecycle.start_and_verify(&self.home.app_binary, &journal.to_version) {
-            logging::error(format!("resume updated runtime: {error}"));
-            self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
-            return false;
-        }
-        if let Err(error) = complete_recovery(&self.home, journal) {
-            logging::error(format!("complete runtime recovery: {error}"));
-            self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
-            return false;
-        }
-        if let Err(error) = lock.release() {
-            logging::error(format!("release completed runtime recovery lock: {error}"));
-            self.publish_error(ShellErrorCode::MigrationRecoveryRequired);
-            return false;
-        }
-        self.publisher.publish(ShellState::Resolving);
-        true
-    }
-
     fn resolve_loop(&self) {
+        let mut recovery_attempted = false;
         for _attempt in 0..RESOLUTION_ATTEMPTS {
             let processes = SystemProcessTable;
             let probe = BoundProbe::new(HttpStatusTransport::default(), Duration::from_secs(2));
@@ -260,11 +232,75 @@ impl ShellCoordinator {
                     self.finish_attach(identity, owned);
                     return;
                 }
+                Resolution::Awaiting(record) => {
+                    if recovery_attempted {
+                        self.publish_error(ShellErrorCode::RuntimeStartFailed);
+                        return;
+                    }
+                    match await_or_recover_recorded_daemon(&self.home, &record, &processes, &probe)
+                    {
+                        RecordedDaemonStart::Attached { identity, owned } => {
+                            self.finish_attach(*identity, owned);
+                            return;
+                        }
+                        RecordedDaemonStart::Recovered => {
+                            recovery_attempted = true;
+                            continue;
+                        }
+                        RecordedDaemonStart::Unverified => {
+                            self.publish_error(ShellErrorCode::RuntimeUnhealthy);
+                            return;
+                        }
+                        RecordedDaemonStart::Failed => {
+                            self.publish_error(ShellErrorCode::RuntimeStartFailed);
+                            return;
+                        }
+                    }
+                }
+                Resolution::StartTimeMismatch {
+                    record,
+                    observed_start,
+                } => {
+                    if recovery_attempted {
+                        self.publish_error(ShellErrorCode::RuntimeStartFailed);
+                        return;
+                    }
+                    match await_or_recover_boot_timestamp_drift_daemon(
+                        &self.home,
+                        &record,
+                        observed_start,
+                        &processes,
+                        &probe,
+                    ) {
+                        RecordedDaemonStart::Attached { identity, owned } => {
+                            self.finish_attach(*identity, owned);
+                            return;
+                        }
+                        RecordedDaemonStart::Recovered => {
+                            recovery_attempted = true;
+                            continue;
+                        }
+                        RecordedDaemonStart::Unverified => {
+                            self.publish_error(ShellErrorCode::RuntimeUnhealthy);
+                            return;
+                        }
+                        RecordedDaemonStart::Failed => {
+                            self.publish_error(ShellErrorCode::RuntimeStartFailed);
+                            return;
+                        }
+                    }
+                }
                 Resolution::NeedsStart { binary, source } => {
                     self.start_runtime(&binary, source == BinarySource::AppOwned);
                     return;
                 }
                 Resolution::NeedsProvision => {
+                    if self.release.is_none() {
+                        self.publisher.publish(ShellState::ShellError {
+                            error: development_runtime_error(&self.home),
+                        });
+                        return;
+                    }
                     let lock = match UpdateLock::acquire(&self.home.update_lock, &processes) {
                         Ok(lock) => lock,
                         Err(error) => {
@@ -322,7 +358,7 @@ impl ShellCoordinator {
             public_key: &release.current_public_key,
             target,
             installed: None,
-            app_version: env!("CARGO_PKG_VERSION"),
+            app_version: &self.app_version,
             channel: &release.channel,
             resume: if incomplete_stage(&self.home) {
                 ResumeChoice::Continue
@@ -357,6 +393,8 @@ impl ShellCoordinator {
 
     fn finish_attach(&self, identity: BoundDaemonIdentity, owned: bool) {
         self.publisher.publish(ShellState::Attaching);
+        self.controller
+            .set_runtime_metadata(identity.status.daemon.version.clone(), owned);
         let minimum = match VersionReq::parse(MINIMUM_RUNTIME) {
             Ok(minimum) => minimum,
             Err(error) => {
@@ -436,7 +474,7 @@ impl ShellCoordinator {
             &identity.origin,
             Box::new(stager),
             Box::new(SystemRuntimeLifecycle::new(self.home.clone())),
-            env!("CARGO_PKG_VERSION"),
+            self.app_version.clone(),
             release.channel.clone(),
         );
         match updater {
@@ -455,22 +493,4 @@ impl ShellCoordinator {
             error: ShellError::from_code(code, self.home.app_log.clone()),
         });
     }
-}
-
-fn live_bound_runtime(home: &CompozyHome) -> bool {
-    let processes = SystemProcessTable;
-    let Discovery::Live(record) = discover(&home.daemon_info, &processes) else {
-        return false;
-    };
-    let probe = BoundProbe::new(HttpStatusTransport::default(), Duration::from_secs(2));
-    matches!(probe.probe(&record, None), Identity::Compozy(_))
-}
-
-fn spawn_update_cadence(controller: Arc<DesktopController>, interval: Duration) {
-    std::thread::spawn(move || {
-        loop {
-            std::thread::sleep(interval);
-            controller.check_updates();
-        }
-    });
 }

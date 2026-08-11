@@ -7,6 +7,19 @@ Support bundles package the runtime signals maintainers need without copying ses
 raw credentials. The daemon owns bundle creation through an operation API; the CLI and web UI only
 request, poll, and download that daemon-built archive.
 
+For a desktop startup failure, use the separate local diagnostic archive instead:
+
+```bash
+compozy app diagnose --bundle --yes -o json
+```
+
+It works without a healthy daemon and contains `manifest.json` with the redacted desktop
+`DiagnosticReport`. It may also contain bounded, redacted tails from the current boot's
+`desktop.log` and `desktop-bootstrap.jsonl`; it never includes `compozy.log`, raw logs, databases,
+configuration, credentials, sessions, or transcripts. It does not create a support-bundle operation,
+upload anything, or delete data. Use `compozy support bundle` only when the daemon is running and
+you need the broader runtime archive.
+
 ## Create A Bundle
 
 Use the CLI when you are on the machine that owns the CompozyOS home:

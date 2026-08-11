@@ -256,12 +256,12 @@ fn should_refuse_foreign_port_and_report_version_skew() {
 }
 
 #[test]
-fn should_recover_unhealthy_probe_and_ignore_stale_or_other_home_records() {
+fn should_defer_a_live_unhealthy_record_and_ignore_stale_or_other_home_records() {
     let (_directory, home, server, processes) = runtime_fixture(StubResponse::Unhealthy);
     let installs = CountingInstalls::default();
     assert!(matches!(
         resolve(&home, &processes, &installs),
-        Resolution::Failed { error } if error.code == ShellErrorCode::RuntimeUnhealthy
+        Resolution::Awaiting(record) if record.pid == 42
     ));
     server.set_response(StubResponse::Status {
         version: "0.3.0".to_owned(),

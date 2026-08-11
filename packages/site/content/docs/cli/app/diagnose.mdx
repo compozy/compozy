@@ -1,11 +1,11 @@
 ---
 title: "compozy app diagnose"
-description: "Show desktop app diagnostics"
+description: "Show safe desktop diagnostics"
 ---
 
 ## compozy app diagnose
 
-Show desktop app diagnostics
+Show safe desktop diagnostics
 
 ```
 compozy app diagnose [flags]
@@ -14,7 +14,10 @@ compozy app diagnose [flags]
 ### Options
 
 ```
-  -h, --help   help for diagnose
+      --bundle                 Create a local diagnostic bundle
+      --bundle-output string   File path for the diagnostic bundle
+  -h, --help                   help for diagnose
+      --yes                    Confirm diagnostic bundle creation
 ```
 
 ### Options inherited from parent commands

@@ -39,10 +39,12 @@ pub enum ShellErrorCode {
     MigrationRecoveryRequired,
     ConfigInvalid,
     NotOwned,
+    DesktopControlFailed,
+    BootWindowFailed,
 }
 
 impl ShellErrorCode {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 15] = [
         Self::PortConflictForeign,
         Self::RuntimeStartFailed,
         Self::ProvisionNetwork,
@@ -56,6 +58,8 @@ impl ShellErrorCode {
         Self::MigrationRecoveryRequired,
         Self::ConfigInvalid,
         Self::NotOwned,
+        Self::DesktopControlFailed,
+        Self::BootWindowFailed,
     ];
 
     pub const fn default_message(self) -> &'static str {
@@ -73,6 +77,8 @@ impl ShellErrorCode {
             Self::MigrationRecoveryRequired => "The runtime needs update recovery.",
             Self::ConfigInvalid => "The app settings are invalid.",
             Self::NotOwned => "This runtime is managed outside the desktop app.",
+            Self::DesktopControlFailed => "The desktop control service could not start.",
+            Self::BootWindowFailed => "The desktop startup screen could not open.",
         }
     }
 }
@@ -84,9 +90,55 @@ pub struct ShellError {
     pub log_path: PathBuf,
 }
 
+/// A diagnostic that is safe to copy, export, or return over local control.
+///
+/// `ShellError` deliberately keeps a local log path for rendering and app-state
+/// handling. Diagnostics must not disclose that path because copies and exports
+/// can leave the local machine.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DiagnosticError {
+    pub code: ShellErrorCode,
+    pub safe_message: String,
+}
+
+impl From<&ShellError> for DiagnosticError {
+    fn from(error: &ShellError) -> Self {
+        let safe_message = redact_local_diagnostic_paths(&error.safe_message, &error.log_path);
+        Self {
+            code: error.code,
+            safe_message: if safe_message.is_empty() {
+                error.code.default_message().to_owned()
+            } else {
+                safe_message
+            },
+        }
+    }
+}
+
+fn redact_local_diagnostic_paths(message: &str, log_path: &std::path::Path) -> String {
+    let mut redacted = message.to_owned();
+    for path in [
+        Some(log_path),
+        log_path.parent(),
+        log_path.parent().and_then(std::path::Path::parent),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if path == std::path::Path::new("/") {
+            continue;
+        }
+        let display = path.to_string_lossy();
+        if !display.is_empty() {
+            redacted = redacted.replace(display.as_ref(), REDACTED);
+        }
+    }
+    sanitize_public_text(&redacted)
+}
+
 impl ShellError {
     pub fn new(code: ShellErrorCode, message: impl AsRef<str>, log_path: PathBuf) -> Self {
-        let safe_message = sanitize_public_text(message.as_ref());
+        let safe_message = redact_local_diagnostic_paths(message.as_ref(), &log_path);
         Self {
             code,
             safe_message: if safe_message.is_empty() {
@@ -225,5 +277,19 @@ mod tests {
                 .safe_message
                 .starts_with("The runtime returned an invalid response:")
         );
+    }
+
+    #[test]
+    fn should_not_copy_a_compozy_home_path_into_a_diagnostic_error() {
+        let error = ShellError::new(
+            ShellErrorCode::ProvisionPermission,
+            "Could not write /private/compozy-home/config.toml.",
+            PathBuf::from("/private/compozy-home/logs/desktop.log"),
+        );
+
+        let diagnostic = DiagnosticError::from(&error);
+
+        assert!(!diagnostic.safe_message.contains("/private/compozy-home"));
+        assert!(diagnostic.safe_message.contains(REDACTED));
     }
 }

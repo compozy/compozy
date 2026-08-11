@@ -1,7 +1,13 @@
 use std::path::Path;
+use std::time::Duration;
 
-use super::discovery::{Discovery, ProcessTable, discover};
-use super::probe::{BoundDaemonIdentity, Identity, IdentityProbe};
+use crate::home::CompozyHome;
+
+use super::boot_timestamp_drift::{
+    BoundBootTimestampDrift, bound_app_owned_runtime_with_boot_timestamp_drift,
+};
+use super::discovery::{Discovery, ProcessTable, SystemProcessTable, discover};
+use super::probe::{BoundDaemonIdentity, BoundProbe, HttpStatusTransport, Identity, IdentityProbe};
 use super::supervisor::ReadinessProbe;
 
 pub struct DaemonReadiness<'a> {
@@ -11,18 +17,61 @@ pub struct DaemonReadiness<'a> {
     pub probe: &'a dyn IdentityProbe,
 }
 
+pub fn live_bound_runtime(home: &CompozyHome) -> bool {
+    let processes = SystemProcessTable;
+    let probe = BoundProbe::new(HttpStatusTransport::default(), Duration::from_secs(2));
+    match discover(&home.daemon_info, &processes) {
+        Discovery::Live(record) => matches!(probe.probe(&record, None), Identity::Compozy(_)),
+        Discovery::StartTimeMismatch {
+            record,
+            observed_start,
+        } => matches!(
+            bound_app_owned_runtime_with_boot_timestamp_drift(
+                home,
+                &processes,
+                &probe,
+                &record,
+                observed_start,
+            ),
+            BoundBootTimestampDrift::Attached(_)
+        ),
+        Discovery::Absent | Discovery::AbsentWithDiagnostic(_) => false,
+    }
+}
+
 impl ReadinessProbe for DaemonReadiness<'_> {
     fn ready(&self, expected_child_pid: Option<u32>) -> Option<BoundDaemonIdentity> {
-        let Discovery::Live(record) = discover(self.daemon_record, self.processes) else {
-            return None;
+        let identity = match discover(self.daemon_record, self.processes) {
+            Discovery::Live(record) => match self.probe.probe(&record, None) {
+                Identity::Compozy(identity) => *identity,
+                Identity::Foreign | Identity::Unreachable => return None,
+            },
+            Discovery::StartTimeMismatch {
+                record,
+                observed_start,
+            } => {
+                let home = CompozyHome::from_root(self.home.to_path_buf());
+                match bound_app_owned_runtime_with_boot_timestamp_drift(
+                    &home,
+                    self.processes,
+                    self.probe,
+                    &record,
+                    observed_start,
+                ) {
+                    BoundBootTimestampDrift::Attached(identity) => *identity,
+                    BoundBootTimestampDrift::Unreachable
+                    | BoundBootTimestampDrift::NotOwned
+                    | BoundBootTimestampDrift::IdentityMismatch => return None,
+                }
+            }
+            Discovery::Absent | Discovery::AbsentWithDiagnostic(_) => return None,
         };
-        if expected_child_pid.is_some_and(|pid| !self.processes.is_descendant(record.pid, pid)) {
+        if expected_child_pid
+            .is_some_and(|pid| !self.processes.is_descendant(identity.record.pid, pid))
+        {
             return None;
         }
-        match self.probe.probe(&record, None) {
-            Identity::Compozy(identity) => Some(*identity),
-            Identity::Foreign | Identity::Unreachable => None,
-        }
+        Some(identity)
     }
 
     fn process_alive(&self, pid: u32) -> bool {

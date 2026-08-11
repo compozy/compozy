@@ -6,6 +6,7 @@ use atomicwrites::{AllowOverwrite, AtomicFile};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::diagnostics::DiagnosticReport;
 use crate::errors::ShellError;
 use crate::state::ShellState;
 
@@ -16,8 +17,7 @@ pub struct AppRecord {
     pub schema_version: u8,
     pub pid: u32,
     pub started_at: DateTime<Utc>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub diagnostic: Option<ShellError>,
+    pub diagnostic_report: DiagnosticReport,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -29,22 +29,22 @@ pub struct AppRecord {
 }
 
 impl AppRecord {
-    pub fn new(pid: u32, started_at: DateTime<Utc>, shell: ShellState) -> Self {
+    pub fn new(
+        pid: u32,
+        started_at: DateTime<Utc>,
+        diagnostic_report: DiagnosticReport,
+        shell: ShellState,
+    ) -> Self {
         Self {
             schema_version: APP_STATE_SCHEMA_VERSION,
             pid,
             started_at,
-            diagnostic: None,
+            diagnostic_report,
             app_version: None,
             channel: None,
             update: None,
             shell,
         }
-    }
-
-    pub fn with_diagnostic(mut self, diagnostic: Option<ShellError>) -> Self {
-        self.diagnostic = diagnostic;
-        self
     }
 
     pub fn with_metadata(
@@ -122,14 +122,28 @@ pub fn write_atomic(path: &Path, record: &AppRecord) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::TimeZone;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
 
+    use crate::diagnostics::{DiagnosticReport, RuntimeDiagnosticMetadata};
     use crate::errors::{ShellError, ShellErrorCode};
     use crate::state::{ProvisionStage, UpdateTarget};
 
     use super::*;
+
+    fn report(shell: &ShellState) -> DiagnosticReport {
+        DiagnosticReport::from_snapshot(
+            "boot-test",
+            "0.4.1",
+            None,
+            None,
+            &RuntimeDiagnosticMetadata::default(),
+            shell,
+            &AppUpdateStatus::default(),
+        )
+    }
 
     #[test]
     fn should_write_schema_valid_records_without_partial_reads() {
@@ -156,8 +170,11 @@ mod tests {
             } else {
                 ShellState::Attaching
             };
-            write_atomic(&path, &AppRecord::new(42, Utc::now(), shell))
-                .expect("record writes atomically");
+            write_atomic(
+                &path,
+                &AppRecord::new(42, Utc::now(), report(&shell), shell),
+            )
+            .expect("record writes atomically");
         }
         done.store(true, Ordering::Release);
         reader.join().expect("reader joins");
@@ -182,7 +199,7 @@ mod tests {
             },
         ];
         for state in states {
-            let value = serde_json::to_value(AppRecord::new(42, Utc::now(), state))
+            let value = serde_json::to_value(AppRecord::new(42, Utc::now(), report(&state), state))
                 .expect("record serializes");
             assert!(
                 value
@@ -198,6 +215,45 @@ mod tests {
         }
     }
 
+    #[test]
+    fn should_persist_the_injected_tauri_package_version_in_the_diagnostic_report() {
+        let report = DiagnosticReport::from_snapshot(
+            "boot-version",
+            "0.4.1",
+            None,
+            None,
+            &RuntimeDiagnosticMetadata::default(),
+            &ShellState::Resolving,
+            &AppUpdateStatus::default(),
+        );
+        let record = AppRecord::new(42, Utc::now(), report, ShellState::Resolving).with_metadata(
+            "0.4.1",
+            "development",
+            AppUpdateStatus::default(),
+        );
+
+        let value = serde_json::to_value(record).expect("record serializes");
+
+        assert_eq!(value["app_version"], "0.4.1");
+        assert_eq!(value["diagnostic_report"]["app_version"], "0.4.1");
+    }
+
+    #[test]
+    fn should_preserve_the_observed_operating_system_process_start_time() {
+        let started_at = Utc
+            .with_ymd_and_hms(2026, 8, 11, 12, 0, 0)
+            .single()
+            .expect("fixture timestamp is valid");
+        let record = AppRecord::new(
+            42,
+            started_at,
+            report(&ShellState::Resolving),
+            ShellState::Resolving,
+        );
+
+        assert_eq!(record.started_at, started_at);
+    }
+
     #[cfg(unix)]
     #[test]
     fn should_report_write_failure_without_panicking() {
@@ -208,7 +264,12 @@ mod tests {
             .expect("permissions update");
         let result = write_atomic(
             &directory.path().join("app.json"),
-            &AppRecord::new(42, Utc::now(), ShellState::Resolving),
+            &AppRecord::new(
+                42,
+                Utc::now(),
+                report(&ShellState::Resolving),
+                ShellState::Resolving,
+            ),
         );
         fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700))
             .expect("permissions restore");

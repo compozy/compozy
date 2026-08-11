@@ -429,6 +429,140 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	}
 }
 
+func TestBootPublishesOperatingSystemProcessStartTime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should publish the operating system process start time instead of the boot clock", func(t *testing.T) {
+		t.Parallel()
+
+		expectedStartedAt, err := procutil.StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatalf("procutil.StartedAt(daemon process) error = %v", err)
+		}
+
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.now = func() time.Time { return expectedStartedAt.Add(-time.Hour) }
+		d.openRegistry = func(context.Context, string) (Registry, error) {
+			return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+
+		info, err := ReadInfo(homePaths.DaemonInfo)
+		if err != nil {
+			t.Fatalf("ReadInfo(daemon.json) error = %v", err)
+		}
+		if !info.StartedAt.Equal(expectedStartedAt) {
+			t.Fatalf(
+				"daemon info start time = %v, want operating system start time %v",
+				info.StartedAt,
+				expectedStartedAt,
+			)
+		}
+	})
+}
+
+func TestBootPublishesInfoOnlyAfterAllFallibleStartupCompletes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep daemon discovery unavailable and clean up servers when late reconciliation fails", func(
+		t *testing.T,
+	) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.openRegistry = func(context.Context, string) (Registry, error) {
+			return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+
+		lateFailure := errors.New("late reconciliation failure")
+		reconcileStarted := make(chan struct{})
+		releaseReconcile := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() {
+			releaseOnce.Do(func() { close(releaseReconcile) })
+		}
+		t.Cleanup(release)
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{
+				err: lateFailure,
+				onReconcile: func() {
+					close(reconcileStarted)
+					<-releaseReconcile
+				},
+			}, nil
+		}
+
+		httpServer := &fakeServer{name: "http"}
+		udsServer := &fakeServer{name: "uds"}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) { return httpServer, nil }
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return udsServer, nil }
+
+		bootResult := make(chan error, 1)
+		go func() {
+			bootResult <- d.boot(testutil.Context(t))
+		}()
+
+		select {
+		case <-reconcileStarted:
+		case <-time.After(5 * time.Second):
+			t.Fatal("boot() did not reach late reconciliation")
+		}
+
+		_, infoErr := os.Stat(homePaths.DaemonInfo)
+		release()
+		select {
+		case bootErr := <-bootResult:
+			if !errors.Is(bootErr, lateFailure) {
+				t.Fatalf("boot() error = %v, want late reconciliation failure", bootErr)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("boot() did not return after late reconciliation failed")
+		}
+
+		if !errors.Is(infoErr, os.ErrNotExist) {
+			t.Fatalf("daemon.json during incomplete boot stat error = %v, want os.ErrNotExist", infoErr)
+		}
+		if got := httpServer.shutdownCallCount(); got != 1 {
+			t.Fatalf("http server shutdown calls = %d, want 1 after late boot failure", got)
+		}
+		if got := udsServer.shutdownCallCount(); got != 1 {
+			t.Fatalf("uds server shutdown calls = %d, want 1 after late boot failure", got)
+		}
+		if _, err := os.Stat(homePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("daemon.json after failed boot stat error = %v, want os.ErrNotExist", err)
+		}
+	})
+}
+
 func TestBootWithRegistryMissingResourceDBLeavesResourceServiceUnavailable(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -896,6 +1030,9 @@ func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
 
 	d := newTestDaemon(t, homePaths, &cfg)
 	d.pid = func() int { return 777 }
+	d.processStartedAt = func(int) (time.Time, error) {
+		return time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC), nil
+	}
 	d.acquireLock = func(path string, _ int) (*Lock, error) {
 		return &Lock{path: path, stalePID: 444}, nil
 	}

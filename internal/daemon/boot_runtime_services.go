@@ -26,7 +26,6 @@ func (d *Daemon) bootRuntimeServices(
 		)
 	}
 
-	state.startedAt = d.now().UTC()
 	state.notifier = newHooksNotifier(state.logger, d.now)
 	if err := d.bootRuntimeMemoryMonitor(ctx, state, cleanup); err != nil {
 		return err

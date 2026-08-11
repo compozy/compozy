@@ -79,13 +79,6 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 		StartedAt: state.startedAt,
 		Network:   networkInfo,
 	}
-	if err := WriteInfo(d.homePaths.DaemonInfo, info); err != nil {
-		return err
-	}
-	cleanup.add(func(context.Context) error {
-		return RemoveInfo(d.homePaths.DaemonInfo)
-	})
-
 	state.httpServer = httpServer
 	state.udsServer = udsServer
 	state.info = info

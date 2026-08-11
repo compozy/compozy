@@ -34,7 +34,7 @@ func newAppCommand(deps commandDeps) *cobra.Command {
 		newAppStatusCommand(deps),
 		newAppUpdateCommand(deps),
 		newAppControlCommand(deps, appRetryMethod, "Retry the current desktop app operation", appRetryMethod),
-		newAppControlCommand(deps, "diagnose", "Show desktop app diagnostics", "diagnose"),
+		newAppDiagnoseCommand(deps),
 	)
 	return command
 }
@@ -228,7 +228,7 @@ func appStatusBundle(report AppStatusReport) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"app",
-				[]string{marketplaceInstalledKey, "app_version", daemonRunningStatus, stateKey},
+				[]string{marketplaceInstalledKey, appVersionKey, daemonRunningStatus, stateKey},
 				[]string{
 					strconv.FormatBool(report.Installed),
 					report.AppVersion,

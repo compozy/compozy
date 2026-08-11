@@ -157,12 +157,13 @@ pub fn download_verified(
     client: &Client,
     artifact: &PlatformArtifact,
     destination: &Path,
+    progress: &mut dyn FnMut(u8),
 ) -> Result<(), ArtifactError> {
     validate_artifact(artifact)?;
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent).map_err(ArtifactError::Io)?;
     }
-    let result = download_verified_inner(client, artifact, destination);
+    let result = download_verified_inner(client, artifact, destination, progress);
     if result.is_err() {
         match fs::remove_file(destination) {
             Ok(()) => {}
@@ -180,6 +181,7 @@ fn download_verified_inner(
     client: &Client,
     artifact: &PlatformArtifact,
     destination: &Path,
+    progress: &mut dyn FnMut(u8),
 ) -> Result<(), ArtifactError> {
     let mut response = client
         .get(artifact.url.clone())
@@ -197,6 +199,7 @@ fn download_verified_inner(
     let mut file = File::create(destination).map_err(ArtifactError::Io)?;
     let mut hasher = Sha256::new();
     let mut written = 0_u64;
+    let mut last_progress = None;
     let mut buffer = [0_u8; 64 * 1024];
     loop {
         let read = response
@@ -210,6 +213,12 @@ fn download_verified_inner(
             .ok_or(ArtifactError::TooLarge)?;
         if written > artifact.size || written > MAX_ARCHIVE_BYTES {
             return Err(ArtifactError::TooLarge);
+        }
+        let percentage = written.saturating_mul(100) / artifact.size;
+        let percentage = percentage.min(100) as u8;
+        if last_progress != Some(percentage) {
+            progress(percentage);
+            last_progress = Some(percentage);
         }
         hasher.update(&buffer[..read]);
         file.write_all(&buffer[..read]).map_err(ArtifactError::Io)?;
