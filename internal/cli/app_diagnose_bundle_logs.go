@@ -19,8 +19,8 @@ import (
 const (
 	appDiagnosticBundleLogMessageMaxBytes = 512
 	appDiagnosticBundleInfoLogLevel       = "INFO"
-	appDiagnosticBundleSecretTerm         = "SECRET"
-	appDiagnosticBundleTokenTerm          = "TOKEN"
+	appDiagnosticBundleSecretTerm         = "secret"
+	appDiagnosticBundleTokenTerm          = "token"
 	appDiagnosticBundleConfigTerm         = "config"
 	appDiagnosticBundleSessionTerm        = "session"
 )
@@ -141,11 +141,11 @@ func redactAppDiagnosticBundleLogTail(
 	var output bytes.Buffer
 	for line := range bytes.SplitSeq(tail, []byte{'\n'}) {
 		redacted, ok := redactAppDiagnosticBundleLogLine(line, report, homePaths, userHome)
-		if !ok || output.Len()+len(redacted) >= int(appDiagnosticBundleLogTailMaxBytes) {
-			if ok {
-				break
-			}
+		if !ok {
 			continue
+		}
+		if output.Len()+len(redacted) >= int(appDiagnosticBundleLogTailMaxBytes) {
+			break
 		}
 		if _, err := output.WriteString(redacted); err != nil {
 			return nil
@@ -202,8 +202,8 @@ func containsAppDiagnosticBundleNonShareableContent(message string) bool {
 		"transcript",
 		"credential",
 		"password",
-		strings.ToLower(appDiagnosticBundleSecretTerm),
-		strings.ToLower(appDiagnosticBundleTokenTerm),
+		appDiagnosticBundleSecretTerm,
+		appDiagnosticBundleTokenTerm,
 		"authorization",
 		"compozy.db",
 		"sqlite",

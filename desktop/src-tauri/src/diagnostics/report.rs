@@ -6,16 +6,16 @@ use crate::record::AppUpdateStatus;
 use crate::state::ShellState;
 
 pub const DIAGNOSTIC_REPORT_SCHEMA_VERSION: u8 = 1;
-pub const BOOTSTRAP_PHASE: &str = "bootstrap";
-pub const RESOLVING_PHASE: &str = "resolving";
-pub const PROVISIONING_PHASE: &str = "provisioning";
-pub const STARTING_PHASE: &str = "starting";
-pub const ATTACHING_PHASE: &str = "attaching";
-pub const PRODUCT_PHASE: &str = "product";
-pub const UPDATING_PHASE: &str = "updating";
-pub const DISCONNECTED_PHASE: &str = "disconnected";
-pub const SKEW_PHASE: &str = "skew";
-pub const ERROR_PHASE: &str = "error";
+pub(crate) const BOOTSTRAP_PHASE: &str = "bootstrap";
+const RESOLVING_PHASE: &str = "resolving";
+const PROVISIONING_PHASE: &str = "provisioning";
+const STARTING_PHASE: &str = "starting";
+const ATTACHING_PHASE: &str = "attaching";
+const PRODUCT_PHASE: &str = "product";
+const UPDATING_PHASE: &str = "updating";
+const DISCONNECTED_PHASE: &str = "disconnected";
+const SKEW_PHASE: &str = "skew";
+const ERROR_PHASE: &str = "error";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PreviousCrash {
@@ -96,7 +96,7 @@ pub fn boot_phase_from_state(state: &ShellState) -> &'static str {
     }
 }
 
-pub fn is_diagnostic_phase(value: &str) -> bool {
+pub(crate) fn is_diagnostic_phase(value: &str) -> bool {
     matches!(
         value,
         BOOTSTRAP_PHASE

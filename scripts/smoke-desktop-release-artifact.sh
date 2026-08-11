@@ -29,7 +29,12 @@ jq -n \
       COMPOZY_HOME: $compozy_home
     }
   }' >"${manifest_path}"
-TEARDOWN_COMMAND="python3 '${repo_root}/.agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py' --manifest '${manifest_path}' --repo-root '${repo_root}'"
+teardown_command=(
+  python3
+  "${repo_root}/.agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py"
+  --manifest "${manifest_path}"
+  --repo-root "${repo_root}"
+)
 mount_path=
 app_pid=
 app_signal_target=
@@ -104,7 +109,7 @@ cleanup() {
 
   validate_daemon_identity_for_teardown || status=1
   stop_desktop_child
-  if ! eval "${TEARDOWN_COMMAND}"; then
+  if ! "${teardown_command[@]}"; then
     status=1
   fi
   if ! jq -e '.clean == true' "${qa_root}/teardown.json" >/dev/null 2>&1; then

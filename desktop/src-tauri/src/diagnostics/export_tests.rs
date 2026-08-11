@@ -168,13 +168,12 @@ fn should_reject_a_symlinked_default_bundle_directory() {
     assert!(fs::read_dir(target).expect("target reads").next().is_none());
 }
 
-#[cfg(unix)]
 #[test]
 fn should_reject_an_output_path_outside_private_bundle_storage() {
     let directory = tempfile::tempdir().expect("temp directory opens");
     let home = CompozyHome::from_root(directory.path().join("compozy-home"));
     let target = directory.path().join("outside");
-    fs::create_dir(&target).expect("symlink target creates");
+    fs::create_dir(&target).expect("outside directory creates");
 
     let error = export(
         &home,
@@ -205,6 +204,7 @@ fn should_remove_an_oversized_diagnostic_bundle_attempt() {
                 .expect("bundle entry reads")
                 .path()
                 .extension()
-                .is_none_or(|ext| ext != "gz"))
+                .and_then(|extension| extension.to_str())
+                != Some("gz"))
     );
 }
