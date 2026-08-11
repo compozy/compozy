@@ -35,10 +35,17 @@ When a task or spec names an OpenDesign artifact, mock, screenshot, or other
 trusted visual reference, activate `eng-ui-screenshot` before implementation
 and follow its Visual Contract Mode. Implement from the rendered reference,
 not source inspection alone; an implementation-only screenshot never proves
-parity. The reference is normative for visual language — layout, anatomy,
-typography, tokens, motion — and lossy for everything else: content, data,
-copy, brand marks, and which controls exist stay with runtime truth,
-`COPY.md`, and the brand inventory, recorded as authorized differences.
+parity. The reference is normative for visual language — layout, on-screen
+anatomy, typography, tokens, motion — and lossy for everything else: content,
+data, copy, brand marks, which controls exist, component identity, and any
+host chrome it redraws around the named piece stay with runtime truth,
+`COPY.md`, the brand inventory, the reuse gate below, and the live surface,
+recorded as authorized differences. Before code, map every in-scope region to
+a shipped `@compozy/ui` primitive or existing domain composite and integrate
+the named piece into the live host surface; prototype markup is a stand-in,
+never an implementation spec. This scope outranks stricter reproduction
+doctrine in any other active skill (`impeccable`'s comp reproduction
+included).
 
 ## Static HTML artifacts
 
@@ -77,3 +84,4 @@ bundle with zero unresolved blocking divergence.
 - **A plausible mock implies unsupported runtime behavior:** remove the unsupported control or metric; daemon truth wins.
 - **Runtime truth conflicts with a normative visual reference:** follow runtime truth, record the contract conflict, and reconcile or explicitly authorize the reference delta before claiming parity.
 - **The reference shows placeholder art, demo data, or omits product content:** a prototype is lossy — keep the canonical owner (brand inventory, runtime truth, existing views), record the authorized difference, and never grow an `@compozy/ui` brand primitive or delete product content to match a mock.
+- **The reference hand-rolls a shipped component or redraws a live surface:** implement with the mapped `@compozy/ui`/domain component inside the live host surface, keep the reference's read through its variants and tokens, and record the delta as authorized — never fork the component or rebuild the host to match prototype markup.

@@ -66,7 +66,7 @@ Compozy Impact Audit:
 - Pull every color/type/radius/spacing/motion value from `tokens.css` + `DESIGN.md`. Signal palette is information, never decoration: `#E8572A` action · `#5FBF85` success · `#E0635A` danger · `#D6A647` warning · `#8E8EB5` info.
 - Never hand-edit `DESIGN.md` frontmatter or `<!-- BEGIN/END:tokens:* -->` regions. After changing runtime/site theme tokens run `make codegen`; `make codegen-check` enforces drift. Site-only extensions go in `packages/site/app/global.css` `@theme inline`.
 - **Truthful UI > plausible UI.** Never render controls/metrics the runtime doesn't support. On conflict, daemon truth wins.
-- **Design-system/redesign work runs through the `designer` agent in execution mode only** and MUST activate `eng-design` + `ui-craft` (reference-routed — read the matched rows in full). **`eng-ui-screenshot` verification is spec-scoped:** required only when the executing spec/task names a visual reference (`docs/design/opendesign` HTML); Visual Contract Mode then requires a rendered reference/implementation bundle with zero unresolved structural mismatches — an implementation-only capture is not parity evidence. Reference parity binds visual language only — a prototype is lossy on content, data, copy, and brand marks; runtime truth, `COPY.md`, and the `@compozy/ui` brand inventory own those axes (divergences become authorized deltas, never new brand variants or invented content).
+- **Design-system/redesign work runs through the `designer` agent in execution mode only** and MUST activate `eng-design` + `ui-craft` (reference-routed — read the matched rows in full). **`eng-ui-screenshot` verification is spec-scoped:** required only when the executing spec/task names a visual reference (`docs/design/opendesign` HTML); Visual Contract Mode then requires a rendered reference/implementation bundle with zero unresolved structural mismatches — an implementation-only capture is not parity evidence. Reference parity binds visual language only — what the named piece reads like, never what it's built from: a prototype is lossy on content, data, copy, brand marks, component identity, and the host chrome it redraws around the piece; runtime truth, `COPY.md`, the `@compozy/ui` inventory (reuse-before-create above), and the live host surface own those axes (divergences become authorized deltas — never invented content, forked primitives, or torn-down host UI).
 
 ## Copy System
 
@@ -182,7 +182,7 @@ Any SQLite table/column/index/constraint change → activate `eng-schema-migrati
 
 - `standing_directives.md` — active engineering posture (SD-001..011); read before a TechSpec or architecture pivot.
 - `spec-authoring-playbook.md` — mandatory preflight for `cy-create-prd`/`techspec`/`tasks` (enforced by `cy-spec-preflight`).
-- `lessons/` (`L-001..031` + README) — durable lessons with confirmed root cause + evidence; scan the index by issue class.
+- `lessons/` (`L-001..035` + README) — durable lessons with confirmed root cause + evidence; scan the index by issue class.
 - `glossary.md` — canonical vocabulary; read when naming anything or reviewing a rename.
 - `_synthesis.md` + `analysis/` — evidence corpus behind the rules; read when challenging one.
 
