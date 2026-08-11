@@ -55,7 +55,7 @@ export async function GET() {
   const body = [
     "# CompozyOS Documentation",
     "",
-    "> CompozyOS runs agent work, state, memory, permissions, coordination, and extensibility in one local-first runtime.",
+    "> CompozyOS is the system around the agent, already built: it keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble. Loops, triggers, memory, permissions, approvals, and history come built in.",
     "",
     section("Current release and migration", releaseLines),
     ...groupOrder().map(group => section(group, linesByGroup.get(group) ?? [])),

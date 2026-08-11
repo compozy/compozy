@@ -66,7 +66,7 @@ export function TasksDashboardView({
   if (!dashboard) {
     return (
       <Empty
-        description="Create or run tasks to see queue depth, health, freshness, and live work in one place."
+        description="Create or run tasks to see queue depth, health, freshness, and live work."
         icon={AlertCircle}
         title="No dashboard data yet"
         data-testid="tasks-dashboard-empty"

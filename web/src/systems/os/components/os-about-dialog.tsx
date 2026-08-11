@@ -57,7 +57,7 @@ export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
           <Logo variant="symbol" decorative className="size-6" />
           <div className="flex min-w-0 flex-col gap-1">
             <DialogTitle>CompozyOS</DialogTitle>
-            <DialogDescription>The agent operating system running this desktop.</DialogDescription>
+            <DialogDescription>An operating system for AI agents.</DialogDescription>
           </div>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">

@@ -85,6 +85,12 @@
             "skillPath": "skills/mine/deep-review/SKILL.md",
             "computedHash": "f87524f4e50f1311ebd14a8590bfffac2866a8e333fd4813e12aa2f5803bfe75"
         },
+        "design-taste-frontend": {
+            "source": "Leonxlnx/taste-skill",
+            "sourceType": "github",
+            "skillPath": "skills/taste-skill/SKILL.md",
+            "computedHash": "6d838b246d0e35d0b53f4f23f98ba7a1dd561937e64f7d0c7553b0928e376c3e"
+        },
         "deslop": {
             "source": "pedronauck/skills",
             "sourceType": "github",

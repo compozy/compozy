@@ -146,8 +146,8 @@ func TestNewDocCommand_GeneratesDocs(t *testing.T) {
 	if !strings.Contains(content, `title: "compozy"`) {
 		t.Error("compozy.mdx frontmatter should have title 'compozy'")
 	}
-	if !strings.Contains(content, `description: "CompozyOS — agent operating system"`) {
-		t.Error("compozy.mdx should preserve product capitalization from Cobra")
+	if !strings.Contains(content, `description: "CompozyOS — the system around your agents, already built"`) {
+		t.Error("compozy.mdx should preserve the root Short verbatim from Cobra")
 	}
 
 	agentIndex, err := os.ReadFile(filepath.Join(outputDir, "agent", "index.mdx"))

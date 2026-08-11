@@ -356,7 +356,7 @@ tokens:
     typography-clamps:
       lead: "1.1875rem"
       lead--line-height: "1.5"
-      hero: "clamp(2.8rem, 6.5vw, 5.4rem)"
+      hero: "clamp(2.6rem, 5vw, 4.5rem)"
       error-title: "clamp(2.6rem, 6vw, 4.8rem)"
       hero-section: "clamp(2.6rem, 5.5vw, 4.2rem)"
       blog-title: "clamp(2.6rem, 5.4vw, 4.6rem)"
@@ -1092,7 +1092,7 @@ chrome (sidebar, TOC, actions, `h3`+) stay on Geist. Docs mono labels bind
 
 | Token                                        | Value                          | Token                                | Value                           | Token                                     | Value                           |
 | -------------------------------------------- | ------------------------------ | ------------------------------------ | ------------------------------- | ----------------------------------------- | ------------------------------- |
-| `--text-site-lead`                           | `1.1875rem`                    | `--text-site-lead--line-height`      | `1.5`                           | `--text-site-hero`                        | `clamp(2.8rem, 6.5vw, 5.4rem)`  |
+| `--text-site-lead`                           | `1.1875rem`                    | `--text-site-lead--line-height`      | `1.5`                           | `--text-site-hero`                        | `clamp(2.6rem, 5vw, 4.5rem)`    |
 | `--text-site-error-title`                    | `clamp(2.6rem, 6vw, 4.8rem)`   | `--text-site-hero-section`           | `clamp(2.6rem, 5.5vw, 4.2rem)`  | `--text-site-blog-title`                  | `clamp(2.6rem, 5.4vw, 4.6rem)`  |
 | `--text-site-doc-title`                      | `clamp(2.4rem, 4vw, 3.4rem)`   | `--text-site-doc-lead`               | `1.125rem`                      | `--text-site-doc-lead--line-height`       | `1.65`                          |
 | `--text-site-doc-prose`                      | `1rem`                         | `--text-site-doc-prose--line-height` | `var(--leading-doc-body)`       | `--text-site-doc-prose-compact`           | `0.95rem`                       |

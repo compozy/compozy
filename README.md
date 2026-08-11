@@ -1,7 +1,8 @@
 <div align="center">
   <img src="packages/site/public/icon-512.png" alt="CompozyOS" width="96" height="96">
   <h1>CompozyOS</h1>
-  <p><strong>A local-first operating system for agent work.</strong></p>
+  <p><strong>The system around the agent, already built.</strong></p>
+  <p>An operating system for AI agents.</p>
   <p>
     <a href="https://github.com/compozy/compozy/actions/workflows/ci.yml">
       <img src="https://github.com/compozy/compozy/actions/workflows/ci.yml/badge.svg" alt="CI">
@@ -21,10 +22,11 @@
   </p>
 </div>
 
-CompozyOS gives agent work a durable place to live. One local daemon connects sessions, tasks,
-loops, memory, permissions, automation, and tools. People can see and steer the work through the web
-shell and CLI; agents operate the same state through structured HTTP, UDS, MCP, and native-tool
-surfaces.
+Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops,
+triggers, cron, memory, permissions, approvals, observability, and the glue scripts that hold them
+together. CompozyOS turns that entire agent stack into one product, a complete environment to
+create, automate, and supervise agent work with the agent CLIs you already use (Claude Code,
+OpenClaw, and Hermes). Built first for developers and technical operators.
 
 > [!WARNING]
 > The v0.3 line is in beta. The previous v0.2.15 product is deprecated and maintained only for
@@ -32,17 +34,22 @@ surfaces.
 > the [migration guide](MIGRATION_GUIDE.md) before replacing an existing v0.2 installation.
 
 <div align="center">
-  <img src="imgs/screenshot.png" alt="CompozyOS workspace with durable agent work" width="100%">
+  <img src="imgs/screenshot.png" alt="CompozyOS web shell" width="100%">
 </div>
 
 ## ✨ Highlights
 
+- **Create.** Sessions, agents, Loops, and capabilities are objects you author once and reuse, not
+  scripts you rewrite per run.
+- **Automate.** Cron schedules, webhooks, and triggers keep work running with no terminal open.
+- **Supervise.** Approvals, permissions, run state, artifacts, and agent activity stay inspectable
+  while work continues in the background.
 - **Work survives the terminal.** Sessions and Loop runs belong to the daemon, so closing one client
   does not erase the work.
-- **One state, several control surfaces.** Web, CLI, HTTP/SSE, UDS, MCP, and native tools expose the
-  same runtime-owned resources.
-- **People stay in control.** Approvals, permissions, run state, artifacts, and agent activity remain
-  inspectable while work continues in the background.
+- **Runs the agents you already use.** ACP-compatible CLIs (Claude Code, OpenClaw, and Hermes)
+  operate the same daemon-owned state.
+- **Batteries included.** One runtime, one state model: loops, approvals, and memory are core
+  objects, not plugins, reachable from web, CLI, HTTP/SSE, UDS, MCP, and native tools.
 - **Local-first by default.** One Go binary and SQLite-backed stores keep runtime state on the
   operator's machine unless a configured provider or extension owns an external boundary.
 - **Remote access stays explicit.** The [Gateway](https://compozy.com/docs/gateway)

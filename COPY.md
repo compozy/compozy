@@ -37,44 +37,44 @@ Runtime truth beats copy preference. Generated API/CLI references beat paraphras
 
 ### Canonical One-Liner
 
-CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.
+CompozyOS is the system around the agent, already built: it keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble and maintain.
 
 ### Short Pitch
 
-CompozyOS turns the agent CLIs people already use into durable work that can outlive a terminal tab. Sessions, tasks, loops, memory, permissions, automation, and the OS shell share one daemon-owned state; people and agents can operate that state through web, CLI, HTTP/SSE, UDS, and tools. Compozy Network adds agent-to-agent coordination inside the same system.
+Anyone can prompt an agent. Making agents work continuously is still an engineering project: loops, triggers, cron, memory, permissions, approvals, observability, and the glue scripts that hold them together. CompozyOS turns that entire agent stack into one product. It runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes) and ships the operating layer around them already built: durable sessions, Loops, triggers, memory, permissions, approvals, automation, and supervision through web, CLI, HTTP/SSE, UDS, and tools. Compozy Network adds agent-to-agent coordination inside the same system.
 
 ### Product Category
 
-Use `agent operating system` as the category descriptor and **CompozyOS** whenever naming the product. Use `compozy` only for the command and its technical identifier family. The OS claim rests on integrated completeness and extensibility, not on a desktop metaphor or a collection of disconnected features.
+Use `operating system for AI agents` (or `agent operating system`) as the category descriptor and **CompozyOS** whenever naming the product. Use `compozy` only for the command and its technical identifier family. The category is a supporting label, never the headline claim: the promise is the system around the agent delivered already built, and the category explains what kind of product delivers it. The OS claim rests on the assembled, integrated system, not on a desktop metaphor or a feature count.
 
-### Launch Hero Lock
+### Hero Lock
 
-> **The only true OS for AI agents.**
+> **The system around the agent, already built.**
 >
-> A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and CompozyOS is the only one built to pass it.
+> One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks.
 
-Use the headline and definition together, verbatim, on the landing hero. Never use `only` or `true`
-as a standalone product claim without the definition or adjacent named-system proof.
+Use the headline and subhead together, verbatim, on the landing hero, with `An operating system for AI agents` as a small category label near them. The retired hero ("The only true OS for AI agents" and its OS-test definition) must not reappear on any evergreen surface: it led with architecture and category purity, which are mechanisms, never the promise. Dated launch posts that already shipped it stay as history.
 
 ### Primary Promise
 
-People can start, watch, guide, resume, and finish agent work in one system. The work stays durable and inspectable, and agents can manage the same runtime through structured surfaces.
+People get advanced, continuous agent work (loops, scheduled automation, memory, permissions, approvals, supervision) without assembling or maintaining the system around the agent. The work stays durable and inspectable, and agents can manage the same runtime through structured surfaces.
 
 ### Differentiator Ladder
 
-Lead with the system, then prove it through the connected parts:
+Lead with compression, then prove it through the connected parts:
 
-1. **Integrated completeness:** execution, tasks, loops, memory, permissions, automation, coordination, and the OS shell share one runtime and one state model. The connection between them is the claim; a feature count is not.
-2. **Built to be built on:** extensions, hooks, skills, capabilities, bridges, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
-3. **Local-first durability:** one Go binary and SQLite-backed daemon keep sessions, events, work, and state durable, resumable, and inspectable.
-4. **Shared control:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents.
-5. **Bounded autonomy:** task runs, claim tokens, leases, safe spawn, memory scopes, and coordinator handoff make multi-agent work observable and recoverable.
+1. **Already built:** loops, triggers, memory, permissions, approvals, automation, supervision, and the OS shell arrive as one product. The claim is that there is nothing to assemble; a feature count is not the claim.
+2. **Runs the agents people already use:** ACP-compatible agent CLIs (Claude Code, OpenClaw, and Hermes) plug in as drivers. CompozyOS is not another boxed agent competing with them.
+3. **One runtime, one state model:** execution, tasks, loops, memory, permissions, automation, coordination, and the shell stay connected because they are core objects of the same local-first runtime, not plugins. One Go binary and SQLite-backed daemon keep the work durable, resumable, and inspectable. This is why the system does not feel stitched together; it is the mechanism behind the promise, never the headline.
+4. **Built to be built on:** extensions, hooks, skills, capabilities, bridges, SDKs, MCP, and native tools plug into daemon-owned registries and public contracts.
+5. **Shared control, bounded autonomy:** web, CLI, HTTP/SSE, UDS, and tools expose the same runtime state to people and agents; approvals, claim tokens, leases, safe spawn, and coordinator handoff keep autonomous work observable and recoverable.
 6. **Compozy Network:** sessions can become peers, exchange typed envelopes, and return receipts inside the same runtime that owns their work, state, permissions, and memory.
 
 ### What CompozyOS Is Not
 
 Use the glossary as the authority. In public copy, keep these boundaries clear:
 
+- CompozyOS is not another agent or assistant. It runs the ACP-compatible agent CLIs people already use; agent neutrality is a feature line, never the headline promise.
 - CompozyOS is not a desktop shell placed over an agent CLI. The shell is one surface over a daemon-owned operating system.
 - CompozyOS is not a workflow engine. Capabilities are interpretive, not deterministic programs.
 - CompozyOS is not a federation protocol. Compozy Network is a self-contained agent coordination layer, not an organization-level trust system.
@@ -86,9 +86,11 @@ Use the glossary as the authority. In public copy, keep these boundaries clear:
 
 ### Primary Narrative
 
-Agent work needs an operating system, not a stack of disconnected tools.
+The system around the agent, already built.
 
-CompozyOS ties execution, state, governance, coordination, and presentation into one local-first runtime. The primary story is that the parts already work together: a task can start a session, permissions bound it, memory follows the workspace, people can see and steer it, and another agent can continue the work without rebuilding the context by hand.
+Anyone can prompt an agent; making agents work continuously is still an engineering project. The advanced techniques (reliable loops, triggers, scheduled automation, memory, permissions, approvals) stay with the few who can assemble the system around the agent. CompozyOS lowers that floor: it ships the entire agent stack as one product, so the operating expertise comes built in. The parts already work together: a task can start a session, permissions bound it, memory follows the workspace, people can see and steer it, and another agent can continue the work without rebuilding the context by hand.
+
+The enemy in public copy is the DIY agent stack (agent CLI + loops + triggers + cron and webhooks + memory + permissions + approvals + observability + glue scripts), never a named rival. Architecture ("one runtime, one state model") explains why the system holds; it never leads.
 
 ### Secondary Narrative
 
@@ -107,19 +109,20 @@ availability never opts an execution in. In code and structured payloads, preser
 
 Every major copy surface should draw from one or more proof pillars.
 
-| Pillar            | Claim Shape                                                                             | Proof to Prefer                                                                                     |
-| ----------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Integrated System | Work, state, policy, memory, automation, coordination, and the OS shell stay connected. | A real task/session/loop journey that crosses those surfaces without duplicate state.               |
-| Durable Runtime   | Sessions survive beyond one terminal interaction and remain inspectable.                | Session CLI, event databases, SSE, UDS/HTTP parity, web session views.                              |
-| Shared Control    | People and agents operate the same daemon-owned state through structured surfaces.      | CLI `-o json`, HTTP/UDS endpoints, native tools, hosted MCP projection, truthful web views.         |
-| Bounded Autonomy  | Work ownership is token-fenced, leased, observable, and recoverable.                    | Task claim, heartbeat, complete/fail/release, coordinator state, safe spawn.                        |
-| Extensibility     | Public contracts let the operating system grow without bypassing runtime ownership.     | Host API, hooks, extensions, skills, capability catalog, bridge adapters, SDKs, and tool registry.  |
-| Memory            | Memory is typed, scoped, file-backed, and inspectable.                                  | `compozy memory` commands, memory taxonomy, operation history, health.                              |
-| Compozy Network   | Explicitly Live agents exchange typed envelopes and collect receipts.                   | Local/Live controls, `compozy network` commands, message kinds, commit-first delivery, audit trail. |
+| Pillar            | Claim Shape                                                                             | Proof to Prefer                                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Assembled System  | The whole agent stack ships in one product; there is nothing to assemble.               | An install-to-first-Loop journey that needs no outside tooling; the built-in surfaces in generated references. |
+| Integrated System | Work, state, policy, memory, automation, coordination, and the OS shell stay connected. | A real task/session/loop journey that crosses those surfaces without duplicate state.                          |
+| Durable Runtime   | Sessions survive beyond one terminal interaction and remain inspectable.                | Session CLI, event databases, SSE, UDS/HTTP parity, web session views.                                         |
+| Shared Control    | People and agents operate the same daemon-owned state through structured surfaces.      | CLI `-o json`, HTTP/UDS endpoints, native tools, hosted MCP projection, truthful web views.                    |
+| Bounded Autonomy  | Work ownership is token-fenced, leased, observable, and recoverable.                    | Task claim, heartbeat, complete/fail/release, coordinator state, safe spawn.                                   |
+| Extensibility     | Public contracts let the operating system grow without bypassing runtime ownership.     | Host API, hooks, extensions, skills, capability catalog, bridge adapters, SDKs, and tool registry.             |
+| Memory            | Memory is typed, scoped, file-backed, and inspectable.                                  | `compozy memory` commands, memory taxonomy, operation history, health.                                         |
+| Compozy Network   | Explicitly Live agents exchange typed envelopes and collect receipts.                   | Local/Live controls, `compozy network` commands, message kinds, commit-first delivery, audit trail.            |
 
 ### Feature Priority by Surface
 
-- **Homepage:** the integrated OS outcome first, connected-system proof second, extensibility third, and Compozy Network as the unique subsystem within that system.
+- **Homepage:** the compression promise first (advanced agent work, no stack to assemble), built-in capability proof second (create, automate, supervise), agent neutrality and extensibility third, and Compozy Network as the unique subsystem within that system. Architecture appears only as a why-it-holds caption.
 - **Runtime docs:** the reader's problem first, architecture second.
 - **Protocol docs:** Compozy Network value and adoption path first, wire mechanics second; never promote the subsystem into the whole product category.
 - **Web UI:** truthful state and the person's next action first, marketing language last.
@@ -129,19 +132,19 @@ Every major copy surface should draw from one or more proof pillars.
 
 ## 4. Audience & Surface Intent
 
-| Audience                  | Reader Job                                                                                        | Proof They Need                                                                                               | CTA Style                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| People running agent work | Start, watch, guide, resume, and finish agent work — technical or not.                            | A clear install path, visible session state, plain-language docs; commands and event history one step deeper. | `Install the runtime`, `Start the daemon`, `Open the runtime docs`.  |
-| Agent/runtime developers  | Understand extension points and daemon contracts.                                                 | APIs, SDKs, tool registry, hooks, capabilities, generated references.                                         | `Build an extension`, `Read the Host API`, `View the tool registry`. |
-| Protocol implementers     | Implement or inspect `compozy-network/v0` outside CompozyOS.                                      | Envelope shape, message kinds, trust model, conformance guidance.                                             | `Read the compozy-network/v0 spec`, `Send a minimal message`.        |
-| Contributors              | Work safely in the repo and preserve product semantics.                                           | Glossary, AGENTS/CLAUDE instructions, tests, task specs.                                                      | `Read the contributor path`, `Run the verification gate`.            |
-| Evaluators                | Decide whether CompozyOS is different from local CLIs, harnesses, MCP, A2A, and workflow engines. | Sharp positioning, named constraints, honest maturity, sourced comparison.                                    | `Compare the runtime`, `See what ships today`.                       |
+| Audience                                              | Reader Job                                                                                                        | Proof They Need                                                                                                                 | CTA Style                                                            |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Developers and technical operators running agent work | Get advanced, continuous agent work (loops, automation, approvals) without assembling the stack around the agent. | A clear install path, a first Loop or automation that works, visible session state; commands and event history one step deeper. | `Install the runtime`, `Start the daemon`, `Open the runtime docs`.  |
+| Agent/runtime developers                              | Understand extension points and daemon contracts.                                                                 | APIs, SDKs, tool registry, hooks, capabilities, generated references.                                                           | `Build an extension`, `Read the Host API`, `View the tool registry`. |
+| Protocol implementers                                 | Implement or inspect `compozy-network/v0` outside CompozyOS.                                                      | Envelope shape, message kinds, trust model, conformance guidance.                                                               | `Read the compozy-network/v0 spec`, `Send a minimal message`.        |
+| Contributors                                          | Work safely in the repo and preserve product semantics.                                                           | Glossary, AGENTS/CLAUDE instructions, tests, task specs.                                                                        | `Read the contributor path`, `Run the verification gate`.            |
+| Evaluators                                            | Decide whether CompozyOS is different from local CLIs, harnesses, MCP, A2A, and workflow engines.                 | Sharp positioning, named constraints, honest maturity, sourced comparison.                                                      | `Compare the runtime`, `See what ships today`.                       |
 
-The primary audience spans non-technical and technical people. Default public prose to plain language; keep the exact mechanism one step away — a linked reference, expandable detail, or secondary text — not in the first sentence.
+Today's product experience is technical: terminal install, local daemon, CLI, `config.toml`. Present-tense claims target developers and technical operators; broader operators are vision and stay future-framed. Public prose still defaults to plain language: everyday words carry the claim, and the exact mechanism stays one step away (a linked reference, expandable detail, or secondary text), not in the first sentence.
 
 ## 5. Voice & Editorial Rules
 
-CompozyOS copy is people-first, plain-spoken, and calm-confident. It writes for anyone who runs agent work — technical or not. Everyday words carry the claim; the mechanism stays one step away as proof, never as an entry fee.
+CompozyOS copy is people-first, plain-spoken, and calm-confident. It writes plainly for the people who run agent work today: developers and technical operators. Plain language is a courtesy, not an audience claim. Everyday words carry the claim; the mechanism stays one step away as proof, never as an entry fee.
 
 ### Voice
 
@@ -149,7 +152,7 @@ CompozyOS copy is people-first, plain-spoken, and calm-confident. It writes for 
 - Calm, not cute.
 - Plain, not vague.
 - Confident, not inflated.
-- Person-first: speak to the person whose work the agents are doing — founder, writer, analyst, or engineer — never to an abstract "user," and never through protocol jargon.
+- Person-first: speak to the person whose work the agents are doing, never to an abstract "user," and never through protocol jargon. Today that person is a developer or technical operator; keep the language plain anyway.
 - Product-led: CompozyOS and Compozy Network are usually the subject.
 
 ### Style Rules
@@ -210,6 +213,14 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - Never adopt `Factory` as a CompozyOS product or feature name. The noun is occupied in this space (Factory.ai claims the "software factory" category; Mastra ships "Mastra Factory").
 - Never write `AI factory`. That phrase is NVIDIA's and means a datacenter that manufactures intelligence, not a software process.
 - Keep the anti-cage framing: an OS gives agents general capability with safe boundaries; a factory built on it is not a rigid assembly line. (Context: Garry Tan's "Foxconn factories for your agents" critique, 2026-06.)
+
+### Positioning Vocabulary
+
+- `the agent stack` / `the DIY agent stack`: the pile a user otherwise assembles and maintains around an agent CLI (loops, triggers, cron and webhooks, memory, permissions, approvals, observability, glue scripts). This is the canonical problem name in marketing copy; the enemy is the stack, never a named rival.
+- `Batteries included.`: the label and headline form of the completeness claim. In prose use `comes built in`, `already built`, or `nothing to assemble`. Never `full-feature`.
+- `simple` / `easy`: only with a measured metric behind them; until then use `assembled`, `complete`, `built in`.
+- `wedge`: banned in all public copy; say `developers first` or `we start with`.
+- `one workspace` / `all your agents in one place`: banned as promise framing. Agent neutrality is a feature line ("runs the agents you already use"), never the headline.
 
 ### Runtime Terms
 
@@ -282,6 +293,8 @@ Avoid these unless quoting another source:
 - `build the future`
 - `empower your developers`
 - `production-ready` without concrete evidence
+- `wedge`
+- `full-feature`
 
 ## 7. Claim Standards
 
@@ -346,16 +359,20 @@ Goal: make the core difference obvious quickly.
 
 Use:
 
-- the Task 11 launch contract for the final headline and subhead; this governance file intentionally does not duplicate or pre-activate them.
-- an OS-level outcome followed by proof that execution, state, permissions, memory, automation, coordination, and the shell are connected.
-- extensibility as the second criterion: show how extensions, hooks, skills, SDKs, and tools participate in the same runtime.
+- the Hero Lock in §2 verbatim: headline, subhead, and the small category label.
+- the compression promise first, then proof that loops, triggers, memory, permissions, approvals, automation, and supervision come built in (create, automate, supervise).
+- agent neutrality as a feature line: CompozyOS runs the agent CLIs people already use (Claude Code, OpenClaw, and Hermes).
+- extensibility as the next criterion: show how extensions, hooks, skills, SDKs, and tools participate in the same runtime.
 - Compozy Network as the unique subsystem inside the complete system, not as the whole-product lead.
+- architecture only as a why-it-holds caption ("one runtime, one state model"), never a section lead.
 - install path as primary conversion.
 - concrete signal cards only when the numbers are current.
 
 Avoid:
 
 - leading with ACP, JSON-RPC, stdio, UDS, SQLite, delivery internals, or package names.
+- leading with architecture, OS purity, or category tests.
+- centralization framing ("one workspace", "all your agents in one place") as the promise.
 - making runtime and network sound like two unrelated products.
 - generic "agent OS" claims without proof.
 
@@ -475,23 +492,23 @@ Avoid:
 
 ### One-Liner
 
-Formula:
+Formula (never a feature roll — the claim is what it keeps doing for the person and the pain it removes):
 
 ```text
-CompozyOS is a <category> for <outcome>: <integrated-system promise>, <shared-control proof>, and <extensibility proof>.
+CompozyOS is <the promise as a noun phrase>: <what it keeps doing for the person, in plain verbs>, without <the concrete pain it removes>.
 ```
 
 Approved:
 
 ```text
-CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.
+CompozyOS is the system around the agent, already built: it keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble and maintain.
 ```
 
 ### Hero
 
-Use the Launch Hero Lock in §2 verbatim across the landing and launch surfaces. Keep the definition
-adjacent to the headline, prove integrated completeness, and never make Compozy Network stand in for
-the complete product.
+Use the Hero Lock in §2 verbatim across the landing and launch surfaces. Keep the subhead adjacent
+to the headline, keep the category label small, and never let architecture, centralization, or
+Compozy Network stand in for the promise.
 
 ### Feature Card
 
@@ -600,10 +617,10 @@ No Docker. No Postgres. compozy daemon start.
 Why it works: concrete local-first proof.
 
 ```text
-Orca, Paperclip, Smithers, Hermes, OpenClaw, Synara, and T3 each prove demand for part of the system. CompozyOS connects those operating-system responsibilities in one runtime.
+Orca, Paperclip, Smithers, Hermes, OpenClaw, Synara, and T3 each prove demand for part of the system. CompozyOS ships those parts in one product, batteries included.
 ```
 
-Why it works: names the comparison set and frames the difference as integration rather than an unsupported ranking.
+Why it works: names the comparison set and frames the difference as compression rather than an unsupported ranking. Comparison surfaces may name systems; the narrative enemy stays the DIY stack.
 
 ### Weak CompozyOS Copy
 
@@ -631,11 +648,14 @@ If site metadata, OpenGraph images, hero copy, and docs intro use different one-
 
 Known drift to watch for:
 
-- a provisional or retired landing headline being copied into governance before Task 11 installs the launch contract.
+- the retired hero resurfacing anywhere: "The only true OS for AI agents", the OS-test definition, "an agent operating system for real work", "a local-first operating system for agent work", or "gives agent work a durable place to live" in metadata, OG images, docs intros, or package descriptions.
+- architecture climbing into headline slots: "one runtime, one state model" or OS-purity tests as a promise instead of a why-it-holds caption.
+- centralization framing returning: "one workspace", "all your agents in one place".
 - `Compozy Network` or "runtime with a network built in" phrasing standing in for the integrated CompozyOS category.
 - `capability` vs old `recipe`, `workflow`, `procedure`, or `playbook` language.
 - runtime behavior that moved from planned to shipped or from spec to deleted.
-- people-first language drifting back toward control-room personas: the runtime term is `control surface`, and the audience is people running agent work (technical or not).
+- present-tense copy drifting past the current audience: non-technical operators are vision, not a shipped claim.
+- people-first language drifting back toward control-room personas: the runtime term is `control surface`.
 
 ## 11. Agent Prompt Guide
 
@@ -644,7 +664,7 @@ Use these as task-local prompts after reading the target files.
 ### Rewrite a Homepage Hero
 
 ```text
-Use COPY.md, DESIGN.md, and the Task 11 launch contract. Do not invent, duplicate, or relock the headline or subhead. Lead with the OS-level outcome, prove integrated completeness and extensibility with current runtime evidence, and keep Compozy Network in its subsystem role. Primary CTA installs or starts the runtime; the secondary CTA points to the strongest supporting proof.
+Use COPY.md and DESIGN.md. Use the §2 Hero Lock verbatim; do not invent or relock the headline or subhead. Lead with the compression promise, prove the built-ins (create, automate, supervise) with current runtime evidence, keep architecture as a why-it-holds caption, and keep Compozy Network in its subsystem role. Primary CTA installs or starts the runtime; the secondary CTA points to the strongest supporting proof.
 ```
 
 ### Write a Docs Intro
@@ -687,6 +707,10 @@ Before shipping copy or product-facing text, verify:
 - Inline example lists of agent CLIs use the canonical trio (Claude Code, OpenClaw, and Hermes) unless a CLI-specific reason exists.
 - ACP driver/agent counts in public copy are derived from `PROVIDERS.length`, not a hardcoded number.
 - Claim maturity is clear.
+- The promise leads: the system around the agent, already built. Architecture ("one runtime, one state model", OS-purity tests) appears only as a why-it-holds mechanism, never in a headline slot.
+- No `wedge`, no `full-feature`, and no `simple`/`easy` claims without a metric behind them.
+- No centralization promise (`one workspace`, `all your agents in one place`).
+- Present-tense audience claims stay within developers and technical operators; broader operators are future-framed.
 - Numbers and counts have a source and update trigger.
 - CTAs name a concrete action.
 - Marketing body avoids `we` and `our`.

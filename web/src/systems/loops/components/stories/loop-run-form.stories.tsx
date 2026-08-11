@@ -59,7 +59,7 @@ function RunFormShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** The hero run form: auto-generated typed inputs, Advanced overrides, live preview. */
+/** The hero run form: auto-generated typed inputs and per-run Limits overrides. */
 export const ImplementTasks: Story = {
   render: () => (
     <RunFormShell>
@@ -72,7 +72,7 @@ export const ImplementTasks: Story = {
   ),
 };
 
-/** The live preview reflects the explicit per-run cap without changing the saved baseline. */
+/** An explicit per-run cap marks overrides without changing the saved baseline. */
 export const ImplementTasksWithRunOverride: Story = {
   ...ImplementTasks,
   tags: ["play-fn"],
@@ -83,7 +83,6 @@ export const ImplementTasksWithRunOverride: Story = {
     await expect(capInput).toHaveAttribute("placeholder", "3");
     await fireEvent.change(capInput, { target: { value: "4" } });
     await expect(canvas.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
-    await expect(canvas.getByTestId("loop-run-preview")).toHaveTextContent("4 generations");
     await expect(capInput).toHaveAttribute("placeholder", "3");
   },
 };

@@ -400,11 +400,9 @@ export { LoopTargetFields } from "./components/target/loop-target-fields";
 // Run form
 export { LoopRunForm } from "./components/run-form/loop-run-form";
 export { LoopRunActiveNotice } from "./components/run-form/loop-run-active-notice";
-export { LoopRunAfterStart } from "./components/run-form/loop-run-after-start";
 export { LoopRunInputField } from "./components/run-form/loop-run-input-field";
 export { LoopRunOverrides } from "./components/run-form/loop-run-overrides";
-export { LoopRunPreview } from "./components/run-form/loop-run-preview";
-export { LoopRunWaysToStart } from "./components/run-form/loop-run-ways-to-start";
+export { LoopRunPlan } from "./components/run-form/loop-run-plan";
 
 // Configure sheet
 export { LoopConfigureDialog } from "./components/configure/loop-configure-dialog";

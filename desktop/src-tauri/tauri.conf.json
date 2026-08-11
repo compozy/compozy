@@ -51,7 +51,7 @@
         ],
         "category": "Productivity",
         "shortDescription": "CompozyOS desktop shell",
-        "longDescription": "The native desktop shell for the CompozyOS agent operating system.",
+        "longDescription": "The native desktop shell for CompozyOS: create, automate, and supervise agent work.",
         "windows": {
             "nsis": {
                 "installMode": "currentUser"

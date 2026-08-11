@@ -44,9 +44,9 @@ export function FeaturesSection() {
     <SectionFrame background="canvas" padY="lg" className="border-b border-line">
       <SectionHeader
         align="start"
-        eyebrow="Control surface"
-        title="The runtime your agents already know how to drive."
-        description="Sessions, capabilities, workspaces, automation, observability: every surface is reachable from CLI, HTTP, and UDS. Same primitives for you and for the agents you run."
+        eyebrow="Built in"
+        title="Comes with what you would otherwise build."
+        description="Loops, memory, automation, permissions, approvals, and run history are core objects in one runtime, reachable from CLI, HTTP, and UDS. Same primitives for you and for the agents you run."
       />
 
       <ul className="mt-12 grid gap-4 md:grid-cols-2">

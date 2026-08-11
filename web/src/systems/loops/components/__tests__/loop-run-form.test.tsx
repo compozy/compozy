@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -117,25 +117,6 @@ describe("LoopRunForm", () => {
     expect(runCalls).toHaveLength(0);
   });
 
-  it("Should identify this form as the http start kind and list other declared kinds as text", () => {
-    renderForm();
-    expect(screen.getByTestId("loop-run-ways-to-start")).toHaveTextContent(
-      "this form starts over http"
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Ways to start/ }));
-    expect(screen.getByTestId("loop-run-this-form-kind")).toHaveTextContent("http");
-    const others = screen.getByTestId("loop-run-other-start-kinds");
-    expect(others).toHaveTextContent("manual");
-    expect(others).toHaveTextContent("schedule");
-    expect(others).not.toHaveTextContent("http");
-    // Read-only by contract (ADR-018 §3): disclosure only, nothing that edits start[].
-    const waysToStart = within(screen.getByTestId("loop-run-ways-to-start"));
-    expect(waysToStart.getAllByRole("button")).toHaveLength(1);
-    expect(waysToStart.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(waysToStart.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(waysToStart.queryByRole("checkbox")).not.toBeInTheDocument();
-  });
-
   it("Should render NO stop control anywhere in the form", () => {
     renderForm();
     expect(screen.queryByRole("button", { name: /^stop/i })).not.toBeInTheDocument();
@@ -156,10 +137,8 @@ describe("LoopRunForm", () => {
     fireEvent.click(screen.getByTestId("loop-run-dry-button"));
     await waitFor(() => expect(screen.getByTestId("loop-run-plan")).toBeInTheDocument());
     expect(screen.getAllByTestId("loop-run-plan-node").length).toBeGreaterThan(0);
-    expect(screen.getByTestId("loop-run-preview")).toHaveTextContent(
-      ".compozy/tasks/billing-webhooks"
-    );
-    expect(screen.getByTestId("loop-run-preview")).not.toHaveTextContent("{{ .inputs.slug }}");
+    expect(screen.getByTestId("loop-run-plan")).toHaveTextContent("billing-webhooks");
+    expect(screen.getByTestId("loop-run-plan")).not.toHaveTextContent("{{ .inputs.slug }}");
     expect(onRunStarted).not.toHaveBeenCalled();
   });
 
@@ -237,7 +216,7 @@ describe("LoopRunForm", () => {
 
   it("Should serialize an explicit Live run without legacy participation fields", async () => {
     renderForm();
-    expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("Local");
+    expect(screen.getByTestId("loop-run-participation-mode")).toHaveValue("local");
     fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
       target: { value: "billing-webhooks" },
     });
@@ -250,8 +229,8 @@ describe("LoopRunForm", () => {
     fireEvent.change(screen.getByTestId("loop-run-participation-strategy"), {
       target: { value: "named" },
     });
-    expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("Live");
-    expect(screen.getByTestId("loop-run-participation-preview")).toHaveTextContent("release-room");
+    expect(screen.getByTestId("loop-run-participation-mode")).toHaveValue("live");
+    expect(screen.getByTestId("loop-run-participation-channel")).toHaveValue("release-room");
 
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -291,11 +270,9 @@ describe("LoopRunForm", () => {
     expect(runRequests).toHaveLength(1);
   });
 
-  it("Should preview saved Loop defaults and keep an untouched run override-free", async () => {
+  it("Should keep saved Loop defaults and leave an untouched run override-free", async () => {
     renderForm(vi.fn(), loop, savedConfig);
 
-    expect(screen.getByTestId("loop-run-preview")).toHaveTextContent("3 generations");
-    expect(screen.getByTestId("loop-run-preview")).toHaveTextContent("full-body re-attempt");
     fireEvent.click(screen.getByRole("button", { name: /Limits/ }));
     expect(screen.getByTestId("loop-run-override-input-iteration_cap")).toHaveAttribute(
       "placeholder",
@@ -312,23 +289,19 @@ describe("LoopRunForm", () => {
     await expect(runRequestBody()).resolves.toMatchObject({ config_overrides: null });
   });
 
-  it("Should preview an explicit per-run cap without changing the saved Loop baseline", async () => {
+  it("Should apply an explicit per-run cap without changing the saved Loop baseline", async () => {
     renderForm(vi.fn(), loop, savedConfig);
-    const preview = screen.getByTestId("loop-run-preview");
 
-    expect(preview).toHaveTextContent("3 generations");
     fireEvent.click(screen.getByRole("button", { name: /Limits/ }));
     const capInput = screen.getByTestId("loop-run-override-input-iteration_cap");
     expect(capInput).toHaveAttribute("placeholder", "3");
 
     fireEvent.change(capInput, { target: { value: "4" } });
     expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
-    expect(preview).toHaveTextContent("4 generations");
     expect(capInput).toHaveAttribute("placeholder", "3");
 
     fireEvent.change(capInput, { target: { value: "" } });
     expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("loop defaults");
-    expect(preview).toHaveTextContent("3 generations");
 
     fireEvent.change(capInput, { target: { value: "4" } });
     fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {

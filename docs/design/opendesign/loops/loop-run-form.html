@@ -71,7 +71,7 @@
   .btn--primary[disabled]:hover{background:var(--accent)}
 
   .scroll{flex:1;min-height:0;overflow-y:auto}
-  .page{max-width:1240px;margin:0 auto;padding:24px 36px 80px}
+  .page{max-width:672px;margin:0 auto;padding:24px 24px 80px}
 
   /* lede — anatomy verbatim from loop-detail.html */
   .dh{padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:24px}
@@ -84,7 +84,7 @@
   .dotsep{width:2px;height:2px;border-radius:50%;background:var(--faint);display:inline-block}
   .dh__lede{margin-top:10px;font-size:13px;line-height:1.6;color:var(--muted);max-width:70ch}
 
-  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+  .layout{display:block;max-width:672px;margin:0 auto}
 
   /* collapsible sections — one calm pattern everywhere (verbatim from loop-detail.html) */
   .sec{margin-bottom:22px;border:0}
@@ -162,39 +162,6 @@
   .toast.on{display:inline-flex}
   .toast a{text-decoration:underline;text-underline-offset:2px}
 
-  /* rail — collapsible cards, summary carries the gist (verbatim from loop-detail.html) */
-  .rsec{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);margin-bottom:12px;overflow:hidden}
-  .rsec > summary{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;list-style:none;user-select:none}
-  .rsec > summary::-webkit-details-marker{display:none}
-  .rsec > summary:hover{background:var(--row-hover)}
-  .rsec > summary svg.si{width:14px;height:14px;color:var(--subtle);flex:none}
-  .rsec > summary .rt{font-size:12px;font-weight:560;color:var(--fg-strong);flex:none}
-  .rsec > summary .rsum{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:11px;color:var(--faint)}
-  .rsec > summary svg.chev{width:13px;height:13px;color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
-  .rsec:not([open]) > summary svg.chev{transform:rotate(-90deg)}
-  .rsec__body{border-top:1px solid var(--line-soft)}
-  .kv__row{padding:13px 14px;border-top:1px solid var(--line-soft)}
-  .kv__row:first-child{border-top:0}
-  .kv__row .k{font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
-  .kv__row .v{font-size:12.5px;line-height:1.55;color:var(--fg)}
-  .kv__row .v code{font-family:var(--font-mono);font-size:11px;background:var(--input-fill);border:1px solid var(--line-soft);border-radius:var(--radius-xs);padding:1px 5px}
-  .kv__row .v.mono{font-size:11px;color:var(--muted)}
-  .vrow{display:flex;align-items:center;gap:10px;padding:5px 0}
-  .vrow svg{width:14px;height:14px;color:var(--subtle);flex:none}
-  .vrow b{font-size:12.5px;font-weight:520;color:var(--fg-strong)}
-  .vrow span{font-size:12px;color:var(--muted)}
-  .summary-live{font-size:12.5px;line-height:1.65;color:var(--muted);padding:13px 14px}
-  .summary-live b{color:var(--fg-strong);font-weight:560}
-  .summary-live .acc{color:var(--accent-strong);font-weight:560}
-  .summary-live .mono{font-size:11px;color:var(--fg);background:var(--badge-fill);padding:1px 5px;border-radius:var(--radius-xs)}
-  .afterrow{display:flex;align-items:flex-start;gap:9px;padding:10px 14px;border-top:1px solid var(--line-soft)}
-  .afterrow:first-child{border-top:0}
-  .afterrow svg{width:13px;height:13px;color:var(--subtle);flex:none;margin-top:2px}
-  .afterrow div b{display:block;font-size:12px;font-weight:520;color:var(--fg-strong)}
-  .afterrow div span{font-size:11.5px;color:var(--subtle);line-height:1.45}
-  .afterrow div span code{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
-
-  @media(max-width:1080px){.layout{grid-template-columns:1fr}}
   @media(prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation:none!important}}
 </style>
 </head>
@@ -347,58 +314,6 @@
               <button class="btn btn--primary btn--lg" type="button" id="runBtn" disabled data-od-id="run-form-start"><i data-lucide="play"></i>Start run</button>
             </div>
           </form>
-
-          <!-- RAIL — what will run, contract truth, ways to start, what happens next -->
-          <aside data-od-id="run-form-rail">
-
-            <!-- live preview of the exact run being composed -->
-            <details class="rsec" open data-od-id="run-form-preview">
-              <summary><i class="si" data-lucide="eye"></i><span class="rt">What will run</span><span class="rsum" id="pvSum">waiting on slug</span><i class="chev" data-lucide="chevron-down"></i></summary>
-              <div class="rsec__body">
-                <p class="summary-live" id="summary"></p>
-              </div>
-            </details>
-
-            <!-- contract, condensed from loop-detail.html — same truth, no explainer cards -->
-            <details class="rsec" data-od-id="run-form-contract">
-              <summary><i class="si" data-lucide="scroll-text"></i><span class="rt">Contract</span><span class="rsum">3 checks · 7 possible endings</span><i class="chev" data-lucide="chevron-down"></i></summary>
-              <div class="rsec__body">
-                <div class="kv__row"><div class="k">Goal</div><div class="v">Ship every authored task under <code>.compozy/tasks/{{ .inputs.slug }}</code>, implemented, reviewed to acceptance, and verified by the project's own checks.</div></div>
-                <div class="kv__row"><div class="k">Verified by</div><div class="v">
-                  <div class="vrow"><i data-lucide="bot"></i><b>Acceptance review</b><span>agent judge, until clean</span></div>
-                  <div class="vrow"><i data-lucide="terminal"></i><b>Project check</b><span id="verifyNote">verify_command off</span></div>
-                  <div class="vrow"><i data-lucide="user-check"></i><b>Your approval</b><span id="mergeNote">needs-approval before main</span></div>
-                </div></div>
-                <!-- spec loop-node-lifecycle: contract terminal triggers on_done|on_noop|on_blocked|on_exhausted|on_stalled|on_canceled — `canceled` is a real ending; enums render as plain mono text, not chips -->
-                <div class="kv__row"><div class="k">Possible endings</div><div class="v mono">done · no_op · blocked · failed · exhausted · stalled · canceled</div></div>
-              </div>
-            </details>
-
-            <!-- ways in — start kinds as plain mono text (production: internal/loop/dsl/gate_start.go StartKind;
-                 the web form posts POST /loops/:name/run, stamped `http` by transport — loops.go
-                 loopStartKindForTransport; `manual` has no wired producer today) -->
-            <details class="rsec" data-od-id="run-form-start-kinds">
-              <summary><i class="si" data-lucide="zap"></i><span class="rt">Ways to start</span><span class="rsum">this form starts over http · 5 more</span><i class="chev" data-lucide="chevron-down"></i></summary>
-              <div class="rsec__body">
-                <div class="kv__row"><div class="k">This form</div><div class="v mono">http</div></div>
-                <div class="kv__row"><div class="k">Also declared in start[]</div><div class="v mono">manual · schedule (nightly · 0 3 * * *) · cli · uds · native_tool</div></div>
-                <div class="rnote">Author the start allowlist in the <a href="loop-editor.html" style="color:var(--muted);text-decoration:underline;text-underline-offset:2px">editor's Start inspector</a>.</div>
-              </div>
-            </details>
-
-            <!-- what happens after Start — after-start affordance references loop-run-detail.html -->
-            <details class="rsec" open data-od-id="run-form-after-start">
-              <summary><i class="si" data-lucide="route"></i><span class="rt">After you start</span><span class="rsum">live run page · you stay in control</span><i class="chev" data-lucide="chevron-down"></i></summary>
-              <div class="rsec__body">
-                <!-- production: RunLoopResponse.web_url → LoopRunWebRoute "/loop-runs/%s" -->
-                <div class="afterrow"><i data-lucide="monitor-play"></i><div><b>You land on the run page</b><span>Live nodes, events and controls, like <a href="loop-run-detail.html" style="color:var(--muted);text-decoration:underline;text-underline-offset:2px">r-8f3a2b's</a>. <code>web_url · /loop-runs/:id</code></span></div></div>
-                <!-- spec loop-node-lifecycle: retry/backoff, quarantine (never lost), requeue origin -->
-                <div class="afterrow"><i data-lucide="rotate-ccw"></i><div><b>Failures retry on their own</b><span>Steps that keep failing are set aside in quarantine, never lost; you can requeue them. <code>retry · quarantine · requeue</code></span></div></div>
-                <!-- spec loop-node-lifecycle: run verbs are cancel (cooperative) and kill (immediate); `stop` deleted -->
-                <div class="afterrow"><i data-lucide="hand"></i><div><b>You can always step in</b><span>Pause, resume, cancel or kill from the run page — cancel finishes in-flight work, kill stops it now. <code>cancel · kill</code></span></div></div>
-              </div>
-            </details>
-          </aside>
         </div>
       </div>
     </div>
@@ -411,37 +326,14 @@
   (function(){
     "use strict";
     var $ = function(id){ return document.getElementById(id); };
-    var slug=$("slug"), slugErr=$("slugErr"), impl=$("implementer"), verifyCmd=$("verify_command"), branch=$("branch"), autoCommit=$("autoCommit");
+    var slug=$("slug"), slugErr=$("slugErr"), autoCommit=$("autoCommit");
     var runBtn=$("runBtn"), dryBtn=$("dryBtn");
-    var summary=$("summary"), pvSum=$("pvSum"), verifyNote=$("verifyNote"), mergeNote=$("mergeNote");
     var limitsSum=$("limitsSum"), anText=$("anText"), toast=$("toast");
     var ovs=[$("ovIter"),$("ovTok"),$("ovWall"),$("ovNp"),$("ovFan"),$("ovGate")];
 
-    function esc(v){ return v.replace(/[<>&"]/g,""); }
-    function fmtTokens(n){ if(!n||n<=0) return "off"; if(n>=1e6) return (n/1e6).toFixed(n%1e6===0?0:1)+"M"; if(n>=1e3) return Math.round(n/1e3)+"k"; return String(n); }
-
     function paint(){
-      var s=slug.value.trim(), a=impl.value.trim()||"code_implementer", b=branch.value.trim()||"main";
-      var vc=verifyCmd.value.trim();
-      var committed=autoCommit.getAttribute("aria-checked")==="true";
+      var s=slug.value.trim();
       var iter=$("ovIter").value||"50";
-      var tok=fmtTokens(parseInt($("ovTok").value,10));
-      var pol=$("ovPolicy").value;
-
-      verifyNote.textContent = vc ? esc(vc)+" · exit zero" : "verify_command off";
-      mergeNote.textContent = "needs-approval before "+esc(b);
-      pvSum.textContent = s ? esc(s)+" as "+esc(a) : "waiting on slug";
-
-      var sSafe=esc(s);
-      summary.innerHTML =
-        'Run <b>software-delivery</b> on '+(s?'<span class="mono">'+sSafe+'</span>':'<span class="acc">(pick a slug)</span>')+'. '+
-        'Loads the tasks under <span class="mono">.compozy/tasks/'+(s?sSafe:'&lt;slug&gt;')+'</span> and runs them in dependency order as <b>'+esc(a)+'</b>, targeting <b>'+esc(b)+'</b>. '+
-        'Up to <b>'+iter+'</b> generations'+(tok==="off"?', no token budget':', enforced <b>'+tok+'</b> token budget ('+(pol==="escalate"?"escalate: pauses as needs-approval when exceeded":"halt: ends as exhausted when exceeded")+')')+'. '+
-        (vc?'Verified by <span class="mono">'+esc(vc)+'</span>. ':'Command check off. ')+
-        (committed?'One commit per task after verification. ':'Changes stay uncommitted for review. ')+
-        'Pauses as <span class="acc">needs-approval</span> before <b>'+esc(b)+'</b>. '+
-        'Ends honestly at done, no_op, blocked, failed, exhausted, stalled or canceled.';
-
       var tokRaw=$("ovTok").value, wallRaw=$("ovWall").value;
       var budgets=(tokRaw||wallRaw)?"budgets set":"no budgets set";
       var changed=[$("ovIter"),$("ovTok"),$("ovWall"),$("ovNp"),$("ovFan"),$("ovGate")].some(function(x){return x.value!==x.getAttribute("data-def");})||$("ovPolicy").value!=="halt";
@@ -460,7 +352,7 @@
       });
     });
     $("ovPolicy").addEventListener("change", paint);
-    [slug,impl,verifyCmd,branch].forEach(function(el){ el.addEventListener("input", paint); });
+    slug.addEventListener("input", paint);
     autoCommit.addEventListener("click", function(){ autoCommit.setAttribute("aria-checked", autoCommit.getAttribute("aria-checked")==="true"?"false":"true"); paint(); });
     autoCommit.addEventListener("keydown", function(e){ if(e.key===" "||e.key==="Enter"){ e.preventDefault(); autoCommit.click(); } });
 

@@ -3,100 +3,80 @@ import { cn } from "@compozy/ui/lib/utils";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
-type MarketScope = {
+type StackRow = {
   name: string;
-  scope: string;
-  layer: string;
-  highlight?: boolean;
+  diy: string;
+  builtIn: string;
 };
 
-const MARKET_SCOPES: MarketScope[] = [
+const STACK_ROWS: StackRow[] = [
   {
-    name: "Paperclip",
-    scope: "Open-source orchestration for teams of AI agents.",
-    layer: "Orchestration",
+    name: "Loops",
+    diy: "Retry scripts, watch loops, and ad-hoc guardrails rewritten per project.",
+    builtIn: "Loops are core objects with typed guardrails and durable runs.",
   },
   {
-    name: "Smithers",
-    scope: "A durable coding-agent workflow runtime with replay and fork controls.",
-    layer: "Durable workflow runtime",
+    name: "Triggers and schedules",
+    diy: "Cron jobs, webhook endpoints, and the glue that connects them to agents.",
+    builtIn: "Automation the daemon owns: cron, webhooks, and event triggers.",
   },
   {
-    name: "OpenClaw",
-    scope: "A personal AI assistant that connects channels, tools, and automation on your devices.",
-    layer: "Personal assistant",
+    name: "Memory",
+    diy: "Memory files and recall scripts that drift per machine.",
+    builtIn: "Scoped, file-backed memory per workspace and agent, inspectable from every surface.",
   },
   {
-    name: "T3 Code",
-    scope: "A minimal web GUI for coding agents across several providers.",
-    layer: "Coding interface",
+    name: "Permissions and approvals",
+    diy: "Permission wrappers and approval prompts enforced only by convention.",
+    builtIn: "Permissions and approvals enforced in the runtime, not in the prompt.",
   },
   {
-    name: "Mastra Factory",
-    scope: "An agent-powered software delivery environment built on Mastra.",
-    layer: "Software factory",
+    name: "Observability",
+    diy: "Log scraping and ad-hoc dashboards bolted around each run.",
+    builtIn: "Durable events and run history from the records the runtime already writes.",
   },
   {
-    name: "CompozyOS",
-    scope:
-      "Runs the work, keeps the memory, sets the permissions, connects agents to each other, and stays open at every seam.",
-    layer: "Operating system",
-    highlight: true,
+    name: "Agent integration",
+    diy: "Per-provider adapters and startup scripts for every CLI.",
+    builtIn: "Runs the agents you already use: Claude Code, OpenClaw, and Hermes among them.",
   },
 ];
 
-const COLUMNS = "md:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_minmax(0,13rem)]";
+const COLUMNS = "md:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_minmax(0,1fr)]";
 
 export function Comparison() {
   return (
     <SectionFrame background="canvas" padY="lg" className="border-b border-line">
       <SectionHeader
         align="start"
-        eyebrow="The market is proving the layers"
-        title="The layer is not the operating system."
-        description="The category already values agent orchestration, durable runs, assistants, and coding interfaces. The newest layer even has a name — the software factory. Factories are the machines; an OS is the floor they run on. CompozyOS brings the operating responsibilities together: run, memory, permissions, connection, and extensibility."
+        eyebrow="The DIY agent stack"
+        title="Every piece you would otherwise assemble."
+        description="Getting continuous work out of agents means wiring loops, triggers, cron, memory, permissions, approvals, and observability, then maintaining the glue between them. In CompozyOS those are core objects in one runtime."
       />
 
       <div className="mt-10 overflow-hidden rounded-diagram border border-line bg-canvas-soft">
         <div className={cn("hidden border-b border-line px-5 py-4 md:grid md:gap-4", COLUMNS)}>
-          <Eyebrow className="text-subtle">Approach</Eyebrow>
-          <Eyebrow className="text-subtle">What it does</Eyebrow>
-          <Eyebrow className="text-subtle">Layer</Eyebrow>
+          <Eyebrow className="text-subtle">Piece</Eyebrow>
+          <Eyebrow className="text-subtle">What you assemble yourself</Eyebrow>
+          <Eyebrow className="text-accent">What comes built in</Eyebrow>
         </div>
 
-        {MARKET_SCOPES.map(row => (
+        {STACK_ROWS.map(row => (
           <article
             key={row.name}
             className={cn(
               "grid gap-3 border-t border-line p-5 first:border-t-0 md:items-baseline md:gap-4",
-              COLUMNS,
-              row.highlight && "border-l-4 border-l-accent bg-accent-tint/40"
+              COLUMNS
             )}
           >
-            <h3 className={cn("text-sm font-semibold", row.highlight ? "text-accent" : "text-fg")}>
-              {row.name}
-            </h3>
+            <h3 className="text-sm font-semibold text-fg">{row.name}</h3>
             <div>
-              <Eyebrow className="text-subtle md:hidden">What it does</Eyebrow>
-              <p
-                className={cn(
-                  "text-small-body leading-6",
-                  row.highlight ? "text-fg" : "text-muted"
-                )}
-              >
-                {row.scope}
-              </p>
+              <Eyebrow className="text-subtle md:hidden">What you assemble yourself</Eyebrow>
+              <p className="text-small-body leading-6 text-muted">{row.diy}</p>
             </div>
             <div>
-              <Eyebrow className="text-subtle md:hidden">Layer</Eyebrow>
-              <p
-                className={cn(
-                  "text-small-body leading-6",
-                  row.highlight ? "font-medium text-accent" : "text-muted"
-                )}
-              >
-                {row.layer}
-              </p>
+              <Eyebrow className="text-accent md:hidden">What comes built in</Eyebrow>
+              <p className="text-small-body leading-6 text-fg">{row.builtIn}</p>
             </div>
           </article>
         ))}

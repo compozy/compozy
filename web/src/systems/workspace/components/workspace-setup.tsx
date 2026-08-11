@@ -122,11 +122,6 @@ function WorkspaceOnboarding({ model }: WorkspaceOnboardingProps) {
                 <p className="max-w-xl text-item-title leading-7 text-muted">{copy.description}</p>
               </div>
             </div>
-
-            <div className="rounded-2xl border border-line bg-canvas-soft p-4">
-              <Eyebrow className="text-muted">{copy.noteLabel}</Eyebrow>
-              <p className="mt-2 text-sm leading-6 text-muted">{copy.noteBody}</p>
-            </div>
           </div>
 
           <form

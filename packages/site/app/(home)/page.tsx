@@ -18,7 +18,7 @@ import { goInstallCommand } from "@/lib/release/install-commands";
 import { createPageMetadata, siteConfig } from "@/lib/site-config";
 import type { Metadata } from "next";
 
-const homeTitle = "CompozyOS — Agent operating system for real work";
+const homeTitle = "CompozyOS — The system around the agent, already built";
 
 export const metadata: Metadata = {
   ...createPageMetadata({

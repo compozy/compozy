@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "CompozyOS",
   url: "https://compozy.com",
   description:
-    "CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime.",
+    "The system around the agent, already built. CompozyOS keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble.",
   githubUrl: "https://github.com/compozy",
   repoUrl: "https://github.com/compozy/compozy",
   repoBranch: "main",

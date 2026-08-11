@@ -173,7 +173,7 @@ describe("WorkspaceOnboarding", () => {
     expect(screen.getByTestId("workspace-onboarding")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Start CompozyOS with a real workspace, not an empty shell.",
+        name: "Register a workspace to start.",
       })
     ).toBeInTheDocument();
     expect(screen.getByTestId("workspace-setup-global-card")).toBeInTheDocument();

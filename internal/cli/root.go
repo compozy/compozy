@@ -114,7 +114,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   rootCompozyKey,
-		Short: "CompozyOS — agent operating system",
+		Short: "CompozyOS — the system around your agents, already built",
 		Example: `  # Start the daemon and create a session in the current workspace
   compozy daemon start
   compozy session new --agent general

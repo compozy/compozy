@@ -13,7 +13,7 @@ describe("static public route metadata", () => {
 
     expect(metadata.title).toBe("Blog");
     expect(metadata.description).toBe(
-      "Field notes on building, operating, extending, and releasing the integrated CompozyOS agent operating system."
+      "Field notes on building, operating, and extending CompozyOS: loops, automation, memory, permissions, and the runtime behind them."
     );
     expect(metadata.alternates?.canonical).toBe("/blog/");
     expect(metadata.openGraph?.title).toBe("Blog");
@@ -56,7 +56,7 @@ describe("static public route metadata", () => {
       const { metadata, viewport } = await import("@/app/layout");
 
       expect(siteConfig.description).toBe(
-        "CompozyOS is an agent operating system for real work: it runs agent sessions, keeps their state and memory, applies permissions, connects them to each other, and exposes the whole system through one extensible local-first runtime."
+        "The system around the agent, already built. CompozyOS keeps AI agents working continuously, without the scripts, cron jobs, and glue code people otherwise assemble."
       );
       expect(metadata.metadataBase?.toString()).toBe("https://compozy.com/");
       expect(metadata.applicationName).toBe(siteConfig.name);

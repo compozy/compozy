@@ -120,7 +120,7 @@ export function InstallSection({ goInstallCommand }: { goInstallCommand: string 
         align="center"
         eyebrow="Getting started"
         title="Install the beta. Start one durable session."
-        description="Use the verified installer on macOS or Linux, the npm beta channel, or the pinned Go release. Homebrew returns with the stable release."
+        description="Use the verified installer on macOS or Linux, the npm beta channel, or the pinned Go release. Homebrew returns with the stable release. Today's experience is technical: a terminal, a local daemon, and one config file. Built for developers and technical operators."
       />
 
       <div className="mx-auto mt-10 w-full max-w-190">

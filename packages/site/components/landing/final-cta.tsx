@@ -11,11 +11,11 @@ export function FinalCta() {
         <div>
           <Eyebrow className="text-accent">CompozyOS beta</Eyebrow>
           <h2 className="mt-4 max-w-[18ch] text-site-cta-title leading-none font-normal tracking-tight text-fg">
-            Install CompozyOS. Start durable work. Choose Live when coordination helps.
+            Install CompozyOS. Put agents to work continuously.
           </h2>
           <p className="mt-5 max-w-[52ch] text-sm leading-7 text-muted">
-            One local-first runtime for sessions, state, policy, memory, automation, and agent
-            coordination.
+            One complete environment, batteries included: loops, triggers, memory, permissions,
+            approvals, and history. No scripts or orchestration frameworks to maintain.
           </p>
         </div>
 

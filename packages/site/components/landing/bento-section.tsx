@@ -55,10 +55,10 @@ function RuntimeCard() {
           <span>OS Shell</span>
         </div>
         <h2
-          aria-label="True OS. Every window managed."
+          aria-label="Batteries included. Every window managed."
           className="font-display text-site-bento-lg font-normal leading-tight text-fg sm:text-site-bento-xl xl:text-site-bento-2xl"
         >
-          True OS.
+          Batteries included.
           <br />
           <span className="text-accent">Every window managed.</span>
         </h2>

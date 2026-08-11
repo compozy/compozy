@@ -9,7 +9,7 @@ metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
   license: "MIT"
   homepage: "https://compozy.com"
-  description: "A local-first operating system for agent work."
+  description: "One complete environment to create, automate, and supervise agent work."
   maintainers:
     - "CompozyOS Team"
 
@@ -79,7 +79,7 @@ nfpms:
     vendor: CompozyOS
     homepage: "https://compozy.com"
     maintainer: "CompozyOS Team"
-    description: "A local-first operating system for agent work."
+    description: "One complete environment to create, automate, and supervise agent work."
     license: "MIT"
     bindir: /usr/bin
     section: utils
@@ -92,7 +92,7 @@ npms:
   - name: "@compozy/cli"
     ids:
       - compozy-archive
-    description: "A local-first operating system for agent work."
+    description: "One complete environment to create, automate, and supervise agent work."
     repository: "git+https://github.com/compozy/compozy.git"
     bugs: "https://github.com/compozy/compozy/issues"
     access: public

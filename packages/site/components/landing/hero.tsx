@@ -1,9 +1,8 @@
 import { Eyebrow } from "@compozy/ui";
 
-import { HeroPlayer } from "./hero-player";
-import { BUILTIN_PROVIDER_COUNT } from "./provider-data";
+import { HeroVisual } from "./hero-visual";
 import { CtaButton } from "./primitives/cta-button";
-import { NETWORK_KIND_COUNT } from "./primitives/network-kinds";
+import { BUILTIN_PROVIDER_COUNT } from "./provider-data";
 
 const featuredAgentNames = ["Claude Code", "OpenClaw", "Hermes"];
 const additionalProviderCount = Math.max(0, BUILTIN_PROVIDER_COUNT - featuredAgentNames.length);
@@ -12,27 +11,27 @@ const featuredAgentDetail =
     ? `${featuredAgentNames.join(", ")}, and ${additionalProviderCount} more built-in integrations.`
     : `${featuredAgentNames.join(", ")}.`;
 
-// Locked launch hero (COPY.md §2, packages/site/CLAUDE.md): the headline and this definition
-// ship together, verbatim. `lib/og/templates/landing.tsx` carries the same pair for the OG image.
-const DEFINITION =
-  "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and CompozyOS is the only one built to pass it.";
+// Locked hero (COPY.md §2 Hero Lock): the headline and this subhead ship together, verbatim.
+// `lib/og/templates/landing.tsx` carries the same pair for the OG image.
+const SUBHEAD =
+  "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks.";
 
 const signalItems = [
   {
-    label: "Durable sessions, one state",
-    detail: "Agent work stays visible and inspectable beyond one terminal interaction.",
+    label: "Create",
+    detail: "Loops, capabilities, and agent sessions, defined once and run on demand.",
+  },
+  {
+    label: "Automate",
+    detail: "Cron schedules, webhooks, and event triggers the daemon owns.",
+  },
+  {
+    label: "Supervise",
+    detail: "Approvals, permissions, and full run history on every session.",
   },
   {
     label: `${BUILTIN_PROVIDER_COUNT} built-in providers`,
-    detail: featuredAgentDetail,
-  },
-  {
-    label: "Tool registry, one control path",
-    detail: "Native tools, MCP servers, and extensions on one control path.",
-  },
-  {
-    label: "Local by default, Live by choice",
-    detail: `${NETWORK_KIND_COUNT} typed message kinds, commit-first delivery, and explicit external boundaries.`,
+    detail: `Runs the agents you already use: ${featuredAgentDetail}`,
   },
 ];
 
@@ -47,20 +46,20 @@ export function Hero() {
       />
 
       <div className="relative mx-auto max-w-site-layout-width">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:items-center lg:gap-14">
-          <div className="order-2 lg:order-0 lg:pr-2">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] lg:items-center lg:gap-10">
+          <div className="lg:pr-2">
             <Eyebrow className="text-muted flex items-center gap-3">
               <span className="text-accent">CompozyOS</span>
               <span className="h-px w-10 bg-line" />
-              <span>Agent operating system · beta</span>
+              <span>An operating system for AI agents · beta</span>
             </Eyebrow>
 
-            <h1 className="mt-6 max-w-[16ch] text-site-hero leading-none font-normal tracking-tight text-fg">
-              The only true OS for AI agents.
+            <h1 className="mt-6 max-w-[18ch] font-display text-site-hero leading-none font-normal tracking-tight text-fg">
+              The system around the agent, already built.
             </h1>
 
             <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-muted md:text-lg">
-              {DEFINITION}
+              {SUBHEAD}
             </p>
 
             <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap">
@@ -73,9 +72,10 @@ export function Hero() {
             </div>
           </div>
 
-          {/* Visual comes after copy on desktop (and on mobile flows under). */}
-          <div className="order-1 lg:order-0">
-            <HeroPlayer />
+          {/* The 3D shell capture; on lg it overruns the layout column so the
+              section's overflow-hidden crops it at the viewport edge, deck-cover style. */}
+          <div className="relative">
+            <HeroVisual className="mx-auto w-full max-w-140 lg:mx-0 lg:w-[120%] lg:max-w-none" />
           </div>
         </div>
         <dl className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-4">

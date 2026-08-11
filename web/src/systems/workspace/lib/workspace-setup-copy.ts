@@ -1,12 +1,9 @@
 export const WORKSPACE_SETUP_COPY = {
   onboarding: {
     eyebrow: "Workspace setup",
-    title: "Start CompozyOS with a real workspace, not an empty shell.",
+    title: "Register a workspace to start.",
     description:
       "Register your global workspace to anchor CompozyOS immediately, or point it at a specific project root if this machine already has a working directory in play.",
-    noteLabel: "First-run note",
-    noteBody:
-      "CompozyOS needs at least one registered workspace before sessions, knowledge, and workspace-local skills can behave predictably.",
   },
   dialog: {
     title: "Add workspace",

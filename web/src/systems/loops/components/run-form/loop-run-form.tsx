@@ -8,11 +8,9 @@ import { loopSourceLabel } from "../../lib/loop-catalog";
 import { LoopPageLede } from "../loop-page-lede";
 import type { LoopDetail, LoopEffectiveConfig, LoopRun } from "../../types";
 import { LoopRunActiveNotice } from "./loop-run-active-notice";
-import { LoopRunAfterStart } from "./loop-run-after-start";
 import { LoopRunInputField } from "./loop-run-input-field";
 import { LoopRunOverrides } from "./loop-run-overrides";
-import { LoopRunPreview } from "./loop-run-preview";
-import { LoopRunWaysToStart } from "./loop-run-ways-to-start";
+import { LoopRunPlan } from "./loop-run-plan";
 
 interface LoopRunFormProps {
   workspaceId: string;
@@ -25,10 +23,11 @@ interface LoopRunFormProps {
 
 /**
  * The hero run form (§4.3): an auto-generated typed input form from the Loop's declared
- * inputs, a folded per-run limits grid (clamped, no cost cap), a live contract preview,
- * and the Dry run / Start run actions. Leaving the form without starting is a route
- * action (`Close` in the window chrome), not a third button beside the two that submit.
- * State + the run/dry calls live in `useLoopRunForm`; this component is the presentation.
+ * inputs, a folded per-run limits grid (clamped, no cost cap), and the Dry run / Start run
+ * actions. After a successful Dry run, the resolved gen-1 plan renders inline. Leaving the
+ * form without starting is a route action (`Close` in the window chrome), not a third button
+ * beside the two that submit. State + the run/dry calls live in `useLoopRunForm`; this
+ * component is the presentation.
  */
 export function LoopRunForm({
   workspaceId,
@@ -42,11 +41,11 @@ export function LoopRunForm({
 
   return (
     <div
-      className="grid min-h-0 flex-1 grid-cols-1 max-lg:block max-lg:overflow-y-auto lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]"
+      className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col overflow-y-auto"
       data-testid="loop-run-form"
     >
       <form
-        className="flex min-w-0 flex-col gap-6 overflow-y-auto px-6 py-5 max-lg:overflow-visible"
+        className="flex min-w-0 flex-col gap-6 px-6 py-5"
         onSubmit={event => {
           event.preventDefault();
           form.handleRun();
@@ -157,21 +156,9 @@ export function LoopRunForm({
             Dry run validates inputs and renders the first-generation plan without starting a run.
           </span>
         </p>
-      </form>
 
-      <div className="flex min-w-0 flex-col gap-3 overflow-y-auto border-t border-line-soft bg-canvas-tint px-5 py-5 max-lg:overflow-visible lg:border-t-0 lg:border-l">
-        <LoopRunPreview
-          loopName={loop.name}
-          contract={form.contract}
-          effectiveConfig={effectiveConfig}
-          configOverrides={form.configOverrides}
-          inputs={form.schema}
-          networkParticipation={form.networkParticipation}
-          plan={form.plan}
-        />
-        <LoopRunWaysToStart start={loop.definition.start} />
-        <LoopRunAfterStart />
-      </div>
+        {form.plan ? <LoopRunPlan plan={form.plan} /> : null}
+      </form>
     </div>
   );
 }

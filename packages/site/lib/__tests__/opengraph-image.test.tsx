@@ -94,20 +94,20 @@ describe("Landing OpenGraph image (root)", () => {
     expect((response.init as { fonts: unknown[] }).fonts.length).toBeGreaterThan(0);
   });
 
-  it("renders the locked OS definition and beta footer rail with the warm-dark palette", async () => {
+  it("renders the locked hero pair and beta footer rail with the warm-dark palette", async () => {
     const { default: Image } = await import("@/app/opengraph-image");
     const response = asMockImageResponse(await Image());
     const copy = textContent(response.element);
     const styleValues = styleStrings(response.element);
     const types = componentTypes(response.element);
 
-    expect(copy).toContain("The only true OS for AI agents.");
+    expect(copy).toContain("The system around the agent, already built.");
     expect(copy).toContain(
-      "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and CompozyOS is the only one built to pass it."
+      "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks."
     );
     expect(copy).toContain("COMPOZYOS / BETA");
     expect(copy).toContain("OPERATING SYSTEM FOR AI AGENTS");
-    expect(copy).toContain("RUN · MEMORY · POLICY · CONNECTION");
+    expect(copy).toContain("CREATE · AUTOMATE · SUPERVISE");
     expect(copy).toContain("compozy.com");
 
     for (const hex of PALETTE_HEXES) {

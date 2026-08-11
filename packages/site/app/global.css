@@ -42,7 +42,7 @@
   --text-inline-code: 0.9em;
   --text-accent-glyph: 0.85em;
   --text-ui-title-lg: 1.35rem;
-  --text-site-hero: clamp(2.8rem, 6.5vw, 5.4rem);
+  --text-site-hero: clamp(2.6rem, 5vw, 4.5rem);
   --text-site-error-title: clamp(2.6rem, 6vw, 4.8rem);
   --text-site-hero-section: clamp(2.6rem, 5.5vw, 4.2rem);
   --text-site-blog-title: clamp(2.6rem, 5.4vw, 4.6rem);

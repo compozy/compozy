@@ -2,11 +2,6 @@ import { baseOptions } from "@/lib/layout.shared";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-const remotionPlayerMocks = vi.hoisted(() => ({
-  player: vi.fn(),
-  thumbnail: vi.fn(),
-}));
-
 // Mock next/link to render as a plain anchor
 vi.mock("next/link", () => ({
   default: ({
@@ -27,17 +22,6 @@ vi.mock("next/link", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
-}));
-
-vi.mock("@remotion/player", () => ({
-  Player: (props: Record<string, unknown>) => {
-    remotionPlayerMocks.player(props);
-    return <div data-testid="remotion-player" />;
-  },
-  Thumbnail: (props: Record<string, unknown>) => {
-    remotionPlayerMocks.thumbnail(props);
-    return <div data-testid="remotion-thumbnail" />;
-  },
 }));
 
 import { Pill } from "@compozy/ui";
@@ -74,13 +58,13 @@ function assetSources(): (string | null)[] {
 describe("Hero", () => {
   it("leads with the locked headline, subhead, and CompozyOS overview CTA", () => {
     render(<Hero />);
-    // Locked launch pair (COPY.md §2). The headline and the definition ship verbatim, together.
+    // Locked hero pair (COPY.md §2 Hero Lock). The headline and the subhead ship verbatim, together.
     expect(
-      screen.getByRole("heading", { level: 1, name: "The only true OS for AI agents." })
+      screen.getByRole("heading", { level: 1, name: "The system around the agent, already built." })
     ).toBeDefined();
     expect(
       screen.getByText(
-        "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and CompozyOS is the only one built to pass it."
+        "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks."
       )
     ).toBeDefined();
     const install = screen.getByText("Install the beta");
@@ -91,23 +75,24 @@ describe("Hero", () => {
 
   it("renders four proof-of-life signal tiles", () => {
     render(<Hero />);
-    expect(screen.getByText("Durable sessions, one state")).toBeDefined();
+    expect(screen.getByText("Create")).toBeDefined();
+    expect(screen.getByText("Automate")).toBeDefined();
+    expect(screen.getByText("Supervise")).toBeDefined();
     expect(screen.getByText(`${BUILTIN_PROVIDER_COUNT} built-in providers`)).toBeDefined();
-    expect(screen.getByText("Tool registry, one control path")).toBeDefined();
-    expect(screen.getByText("Local by default, Live by choice")).toBeDefined();
   });
 
-  it("starts the Remotion player muted so browser autoplay can advance frames", () => {
-    remotionPlayerMocks.player.mockClear();
-
+  it("renders the OS shell capture as the hero visual", () => {
     render(<Hero />);
 
-    expect(remotionPlayerMocks.player).toHaveBeenCalledWith(
-      expect.objectContaining({
-        autoPlay: true,
-        initiallyMuted: true,
-      })
-    );
+    expect(
+      resolveImageAsset(
+        screen
+          .getByAltText(
+            "CompozyOS workspace capture: the Loops window lists three workspace loops beside a Tasks board tracking launch work across Blocked, Queued, and Done."
+          )
+          .getAttribute("src")
+      )
+    ).toBe("/images/hero/os-shell-capture-v1.png");
   });
 });
 
@@ -123,7 +108,7 @@ describe("FeaturesSection", () => {
     expect(screen.queryByText("Hooks")).toBeNull();
     expect(screen.queryByText("Bridges")).toBeNull();
     expect(screen.queryByText("Skills")).toBeNull();
-    expect(screen.getByText("The runtime your agents already know how to drive.")).toBeDefined();
+    expect(screen.getByText("Comes with what you would otherwise build.")).toBeDefined();
   });
 
   it("uses the four everything illustration assets", () => {
@@ -161,7 +146,7 @@ describe("BentoSection", () => {
     expect(screen.queryByText("Tool Registry")).toBeNull();
 
     for (const title of [
-      "True OS. Every window managed.",
+      "Batteries included. Every window managed.",
       "Built-in network. Delegate. Deliver. Done.",
       "From anywhere. Into a session.",
       "Memory that compounds.",
@@ -357,16 +342,22 @@ describe("InstallSection", () => {
 });
 
 describe("Comparison", () => {
-  it("names each market scope positively and highlights the operating-system row", () => {
+  it("frames the DIY agent stack against what comes built in, with no named rivals", () => {
     render(<Comparison />);
-    expect(screen.getByText("The layer is not the operating system.")).toBeDefined();
-    for (const name of ["Paperclip", "Smithers", "OpenClaw", "T3 Code", "Mastra Factory"]) {
+    expect(screen.getByText("Every piece you would otherwise assemble.")).toBeDefined();
+    for (const name of [
+      "Loops",
+      "Triggers and schedules",
+      "Memory",
+      "Permissions and approvals",
+      "Observability",
+      "Agent integration",
+    ]) {
       expect(screen.getByText(name)).toBeDefined();
     }
-    expect(screen.getByText("CompozyOS")).toBeDefined();
-    expect(screen.getByText("Operating system")).toBeDefined();
-    expect(screen.queryByText("Letta")).toBeNull();
-    expect(screen.queryByText(/None, single agent/)).toBeNull();
+    expect(screen.queryByText("Paperclip")).toBeNull();
+    expect(screen.queryByText("Smithers")).toBeNull();
+    expect(screen.queryByText("Mastra Factory")).toBeNull();
   });
 
   it("keeps internal research paths out of the rendered page", () => {

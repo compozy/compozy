@@ -8,7 +8,7 @@ product
 
 ## Users
 
-**Primary — People running agent work.** Anyone who delegates real work to AI agents — founders, product people, writers, analysts, and developers — and needs that work to be durable, visible, and steerable rather than trapped in throwaway terminal tabs. They run ACP-compatible agent CLIs (Claude Code, OpenClaw, Hermes) through CompozyOS without needing to know the protocol underneath. Their context: a personal machine running a background daemon, often several agent sessions at once, where the job is to start work, see what agents are doing, step in when something needs them, and trust what finished. Design for the least technical person in this group; never require terminal literacy to understand state.
+**Primary — Developers and technical operators.** Engineers, technical founders, and operators who delegate real work to AI agents and need that work durable, visible, and steerable rather than trapped in throwaway terminal tabs. They run ACP-compatible agent CLIs (Claude Code, OpenClaw, Hermes) through CompozyOS without needing to know the protocol underneath. Their context: a personal machine running a background daemon, often several agent sessions at once, where the job is to start work, see what agents are doing, step in when something needs them, and trust what finished. Design so the UI never requires terminal literacy to read state; that is the path toward serving less technical operators later, not a claim that they are served today.
 
 **Secondary — Agent/runtime developers.** Engineers extending CompozyOS against daemon contracts: extensions, hooks, skills, capabilities, bridges, and SDKs. They need the UI to expose the same structured surfaces the daemon exposes, not a UI-only shortcut.
 
@@ -16,7 +16,7 @@ product
 
 ## Product Purpose
 
-CompozyOS is an agent operating system for real work. One local-first Go daemon connects durable sessions, tasks, loops, memory, permissions, automation, tools, and the OS shell through daemon-owned state. Web, CLI, HTTP/SSE, UDS, and native tools let people and agents operate that same system. Compozy Network adds peer discovery, capability exchange, delegation, and receipts as one subsystem of the OS.
+CompozyOS is one complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks. Loops, triggers, memory, permissions, automation, and supervision come built in rather than assembled. Why it holds: one runtime, one state model; loops, approvals, and memory are core objects, not plugins. Web, CLI, HTTP/SSE, UDS, and native tools let people and agents operate that same system. Compozy Network adds peer discovery, capability exchange, delegation, and receipts as one subsystem of the OS.
 
 The runtime UI's job is to make agent work legible and controllable at a glance: what is running, what needs you, what finished, and what it produced. Depth — events, tools, memory, network traffic — stays one step away for whoever wants it, and no one is asked to decode runtime internals to understand their own work. Success looks like: a person supervises several concurrent agents, understands the state of each in seconds, and acts on it (resume, approve, inspect, route) without ever being shown a control or metric the runtime does not actually support.
 

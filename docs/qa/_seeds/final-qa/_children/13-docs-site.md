@@ -29,7 +29,7 @@ The CLAUDE.md and packages/site/CLAUDE.md invariants this child encodes:
 
 - "**Pull tokens from `DESIGN.md` (repo root).** No invented colors, type, radii, spacing, or motion." (`packages/site/CLAUDE.md:7`)
 - "**Pull product language from `COPY.md` (repo root).** Landing copy, blog/changelog, documentation narrative, site config, OpenGraph metadata, SEO descriptions, and public CTAs MUST follow the copy system before inventing new wording." (`packages/site/CLAUDE.md:8`)
-- "**Launch hero lock**: headline 'The only true OS for AI agents.' followed immediately by the exact OS definition." (`packages/site/CLAUDE.md`; mirrors `COPY.md` §2).
+- "**Hero lock**: headline 'The system around the agent, already built.' followed immediately by the exact subhead." (`packages/site/CLAUDE.md`; the lock text lives in `COPY.md` §2).
 - "**`packages/site` ships in same PR as backend contract changes** that affect documented APIs/CLI verbs (per `internal/api/contract` co-ship rule in root CLAUDE.md)." (`packages/site/CLAUDE.md:10`)
 - "Document only behavior the runtime actually supports today. … API/CLI references are generated from `openapi/compozy.json` and the cobra JSON export — do not paraphrase. If the generated reference is wrong, fix the source." (`packages/site/CLAUDE.md:54-55`)
 - "Vocabulary follows `docs/_memory/glossary.md`. The canonical artifact name is `capability`, never `recipe`." (`packages/site/CLAUDE.md:56`)
@@ -48,7 +48,7 @@ The static `app/` routes (`packages/site/app/`):
 
 | Route                          | Source                                                             | Notes                                                                                                                                                       |
 | ------------------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`                            | `packages/site/app/(home)/page.tsx:16-33`                          | Landing — mounts 12 sections starting with `<Hero />`. Hero copy locked in `packages/site/components/landing/hero.tsx:43-51`.                              |
+| `/`                            | `packages/site/app/(home)/page.tsx:16-33`                          | Landing — mounts 12 sections starting with `<Hero />`. Hero copy locked in `packages/site/components/landing/hero.tsx` (h1 + SUBHEAD const).                              |
 | `/docs/[[...slug]]`            | `packages/site/app/docs/[[...slug]]/page.tsx:53-116`                | Catch-all docs renderer; resolves via `docsSource.getPage(slug)`.                                                                                            |
 | `/blog`                        | `packages/site/app/blog/page.tsx:28-114`                           | Blog index; pulls `allPosts()` (`packages/site/lib/blog.ts:24-26`).                                                                                          |
 | `/blog/[slug]`                 | `packages/site/app/blog/[slug]/page.tsx:52-117`                    | Single post; `generateStaticParams` enumerates every post.                                                                                                  |
@@ -110,7 +110,7 @@ The gap real-scenario lane must close: every existing vitest spec stubs the runt
 
 ## 3. Gaps the real-scenario lane must close
 
-1. **Hero copy is the canonical OS-first lock**: assert hero `<h1>` is exactly "The only true OS for AI agents." and the adjacent definition matches `packages/site/CLAUDE.md` byte-for-byte (DOC-01).
+1. **Hero copy is the canonical lock**: assert hero `<h1>` is exactly "The system around the agent, already built." and the adjacent subhead matches the `COPY.md` §2 Hero Lock byte-for-byte (DOC-01).
 2. **Sidebar resolution is exhaustive**: every `docsSource.getPages()` URL renders a 200 in the static export and every internal link from those pages resolves (DOC-02).
 3. **Search returns results for "session", "memory", "extension"**: assert `/api/search` answers each query with non-zero hits and at least one `tag: "Runtime"` and one `tag: "Compozy Network"` result (DOC-03).
 4. **API reference rendering is faithful to `openapi/compozy.json`**: every `<tag>.mdx` exists, renders an APIPage block, and the page enumerates every operation in that tag (DOC-04).
@@ -199,17 +199,17 @@ docs_refs:
   - /Users/pedronauck/Dev/compozy/compozy/COPY.md
   - /Users/pedronauck/Dev/compozy/compozy/packages/site/CLAUDE.md
 code_refs:
-  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero.tsx:43-51
-  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/(home)/page.tsx:16-33
-  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/layout.tsx:27-72
-  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/opengraph-image.tsx:60-72
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero.tsx (h1 + SUBHEAD const)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/(home)/page.tsx (homeTitle metadata)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/app/layout.tsx (root metadata)
+  - /Users/pedronauck/Dev/compozy/compozy/packages/site/lib/og/templates/landing.tsx (HEADLINE + SUBHEAD consts)
 steps:
   - Build: `make site-build` (`Makefile:74-75`) and capture exit code.
   - Serve: `bunx serve packages/site/out -p $PORT` in the background; wait until 200 on `/`.
   - Navigate Chromium headless to `http://127.0.0.1:$PORT/`.
-  - Assert the page <h1> text is exactly `The only true OS for AI agents.` (byte-equal, no trailing whitespace).
-  - Assert the adjacent definition matches the launch hero lock in `packages/site/CLAUDE.md` byte-for-byte.
-  - Assert the hero renders `/images/landing/os-shell-hero.png` with an accessible description of the windows, task board, and loop run.
+  - Assert the page <h1> text is exactly `The system around the agent, already built.` (byte-equal, no trailing whitespace).
+  - Assert the adjacent subhead matches the Hero Lock in `COPY.md` §2 byte-for-byte.
+  - Assert the hero media region mounts (Remotion HeroPlayer) and the page requests no missing image assets (zero 404s in the network log).
   - Capture First Contentful Paint via Performance Timing API; assert FCP <= 2500 ms on the loopback static server.
   - Capture full-page screenshot to `doc-01-home.png`.
 expected:
@@ -217,12 +217,12 @@ expected:
   - Lead paragraph matches the locked subhead.
   - FCP within budget.
   - No console errors logged in headless browser DevTools.
-  - The OpenGraph image at `/opengraph-image` (statically exported PNG) embeds the same hero string at `packages/site/app/opengraph-image.tsx:61` (byte-grep the rendered PNG metadata is not required; assert the source string in the build output `out/opengraph-image*` is present).
+  - The OpenGraph image at `/opengraph-image` (statically exported PNG) embeds the same hero string defined by the `HEADLINE` const in `packages/site/lib/og/templates/landing.tsx` (byte-grep of the rendered PNG metadata is not required; assert the source string in the build output `out/opengraph-image*` is present).
 evidence:
   - `doc-01-home.html`, `doc-01-home.png`, `doc-01-fcp.json`
   - `doc-01-hero-text.txt` (the exact rendered <h1> innerText)
 failure_signatures:
-  - <h1> deviates from the relock string → marketing copy regression; touches `components/landing/hero.tsx:44`.
+  - <h1> deviates from the relock string → marketing copy regression; touches `components/landing/hero.tsx` (h1).
   - Subhead missing or paraphrased → COPY.md drift; CLAUDE.md hero lock violated.
   - FCP > 2500 ms on loopback → asset regression; check `public/images/landing/os-shell-hero.png` size and Next image output.
   - Console errors or missing hero media → static asset/import drift; check `components/landing/hero.tsx` and the OS-shell capture.
@@ -1169,7 +1169,7 @@ The 13-docs-site module is **green** when:
 
 Authoritative references used by this child (every citation is repo-absolute):
 
-- Hero copy lock: `/Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero.tsx:43-51`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/CLAUDE.md:9`, `/Users/pedronauck/Dev/compozy/compozy/COPY.md` §2-3.
+- Hero copy lock: `/Users/pedronauck/Dev/compozy/compozy/packages/site/components/landing/hero.tsx` (h1 + SUBHEAD const), `/Users/pedronauck/Dev/compozy/compozy/packages/site/CLAUDE.md:9`, `/Users/pedronauck/Dev/compozy/compozy/COPY.md` §2-3.
 - Site config: `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/site-config.ts:1-7`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/app/layout.tsx:27-72`.
 - Fumadocs source: `/Users/pedronauck/Dev/compozy/compozy/packages/site/source.config.ts:3-9`, `/Users/pedronauck/Dev/compozy/compozy/packages/site/lib/source.ts:65-75`.
 - Velite: `/Users/pedronauck/Dev/compozy/compozy/packages/site/velite.config.ts:1-85`.

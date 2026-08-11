@@ -4,15 +4,15 @@ import { loadOGFonts } from "../fonts";
 import { LogoLockup, SymbolGlyph } from "../logo";
 import { COLORS, FONTS, SIZE } from "../tokens";
 
-const HEADLINE = "The only true OS for AI agents.";
-const DEFINITION =
-  "A window on top of an agent isn't an OS. An OS runs the work, keeps the memory, sets the permissions, connects agents to each other — and lets you build on it. That's the test, and CompozyOS is the only one built to pass it.";
+const HEADLINE = "The system around the agent, already built.";
+const SUBHEAD =
+  "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks.";
 const EYEBROW = "COMPOZYOS / BETA";
 
 const FOOTER_RAIL = [
   { label: "OPERATING SYSTEM FOR AI AGENTS", color: COLORS.accent, lowercase: false },
   { label: "compozy.com", color: COLORS.textSecondary, lowercase: true },
-  { label: "RUN · MEMORY · POLICY · CONNECTION", color: COLORS.textSecondary, lowercase: false },
+  { label: "CREATE · AUTOMATE · SUPERVISE", color: COLORS.textSecondary, lowercase: false },
 ] as const;
 
 const canvasStyle: CSSProperties = {
@@ -94,7 +94,7 @@ export async function renderLandingOG(): Promise<ImageResponse> {
         <div
           style={{
             fontFamily: FONTS.display,
-            fontSize: "92px",
+            fontSize: "80px",
             lineHeight: 0.96,
             letterSpacing: "-0.025em",
             color: COLORS.textPrimary,
@@ -113,7 +113,7 @@ export async function renderLandingOG(): Promise<ImageResponse> {
             fontWeight: 400,
           }}
         >
-          {DEFINITION}
+          {SUBHEAD}
         </div>
       </div>
 

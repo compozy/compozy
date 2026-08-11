@@ -51,7 +51,7 @@ read -r linux_arm64_sha linux_arm64_file < <(archive_record linux arm64)
 mkdir -p "$(dirname "$output_path")"
 cat >"$output_path" <<FORMULA
 class Compozy < Formula
-  desc "CompozyOS agent operating system"
+  desc "Create, automate, and supervise agent work"
   homepage "https://compozy.com"
   version "${release_version}"
   license "MIT"

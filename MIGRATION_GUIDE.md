@@ -1,9 +1,9 @@
 # Migrate from CompozyOS v0.2.15 to CompozyOS v0.3
 
 CompozyOS v0.3 is a hard cut, not an in-place compatibility release. It keeps the `compozy` binary
-and the `.compozy/tasks/` task format, but replaces the workflow runner with a daemon-owned agent
-operating system. Runtime databases, command names, extension contracts, and review behavior do not
-carry forward automatically.
+and the `.compozy/tasks/` task format, but replaces the workflow runner with a daemon-owned
+environment for creating, automating, and supervising agent work. Runtime databases, command names,
+extension contracts, and review behavior do not carry forward automatically.
 
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.

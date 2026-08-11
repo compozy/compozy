@@ -33,13 +33,6 @@ vi.mock("@/lib/changelog/github-client", () => ({
   loadChangelogReleases: async () => ({ status: "ready", releases: [] }),
 }));
 
-// The hero visual is a Remotion <Player>; jsdom cannot drive its frame loop and the heading
-// hierarchy does not depend on it. components/landing/__tests__/landing.test.tsx owns the
-// player's own contract.
-vi.mock("@/components/landing/hero-player", () => ({
-  HeroPlayer: () => <div data-testid="hero-player" />,
-}));
-
 afterEach(() => cleanup());
 
 function expectSingleH1(name: string | RegExp): void {
@@ -61,10 +54,10 @@ describe("public heading hierarchy", () => {
   it("keeps the landing page to one primary heading", async () => {
     render(await HomePage());
 
-    // The h1 is the locked launch headline (COPY.md §2). Section h2 copy is owned by
+    // The h1 is the locked hero headline (COPY.md §2 Hero Lock). Section h2 copy is owned by
     // components/landing/__tests__/landing.test.tsx; this suite owns the hierarchy itself,
     // so it stays valid when the landing IA changes.
-    expectSingleH1("The only true OS for AI agents.");
+    expectSingleH1("The system around the agent, already built.");
     expect(screen.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(0);
     expectNoSkippedHeadingLevels();
   }, 15_000);

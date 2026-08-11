@@ -114,17 +114,6 @@
   .vrow b{font-size:12.5px;font-weight:520;color:var(--fg-strong)}
   .vrow span{font-size:12px;color:var(--muted)}
 
-  /* reliability — 2×2 quiet tiles, plain language */
-  .relgrid{display:grid;grid-template-columns:1fr 1fr}
-  .reltile{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-top:1px solid var(--line-soft)}
-  .reltile:nth-child(-n+2){border-top:0}
-  .reltile:nth-child(odd){border-right:1px solid var(--line-soft)}
-  .reltile__h{display:flex;align-items:center;gap:8px}
-  .reltile__h svg{width:14px;height:14px;color:var(--subtle);flex:none}
-  .reltile__h b{font-size:12.5px;font-weight:560;color:var(--fg-strong)}
-  .reltile p{font-size:12px;line-height:1.55;color:var(--muted)}
-  .reltile p code{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
-
   /* read-only DAG */
   .graph{display:flex;align-items:stretch;overflow-x:auto;padding:16px;scrollbar-width:thin}
   .gnode{display:flex;flex-direction:column;gap:4px;min-width:118px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-tint);flex:none}
@@ -259,29 +248,6 @@
                   <div class="vrow"><i data-lucide="user-check"></i><b>Your approval</b><span>a human decision before anything ships</span></div>
                 </div></div>
                 <div class="kv__row"><div class="k">Possible endings</div><div class="v mono">done · no_op · blocked · failed · exhausted · stalled · canceled</div></div>
-              </div>
-            </details>
-
-            <!-- RELIABILITY — loop-node-lifecycle spec, in plain language (2×2 tiles) -->
-            <details class="sec" open data-od-id="loop-detail-reliability">
-              <summary><i class="si" data-lucide="shield-check"></i><span class="st">When something goes wrong</span><span class="spacer"></span><i class="chev" data-lucide="chevron-down"></i></summary>
-              <div class="panelbox relgrid">
-                <div class="reltile">
-                  <div class="reltile__h"><i data-lucide="rotate-ccw"></i><b>Steps retry on their own</b></div>
-                  <p>Up to 3 tries with growing pauses. Steps that keep failing are set aside in quarantine, never lost. <code>retry · backoff</code></p>
-                </div>
-                <div class="reltile">
-                  <div class="reltile__h"><i data-lucide="timer"></i><b>Every step has a time budget</b></div>
-                  <p>One attempt stops at 45m; the whole step at 2h. Nothing hangs silently. <code>timeout · deadline</code></p>
-                </div>
-                <div class="reltile">
-                  <div class="reltile__h"><i data-lucide="hourglass"></i><b>Waits stay visible</b></div>
-                  <p>Waiting steps show their age, can remind the channel, and expire onto a fallback instead of waiting forever. <code>wait · expires</code></p>
-                </div>
-                <div class="reltile">
-                  <div class="reltile__h"><i data-lucide="hand"></i><b>You stay in control</b></div>
-                  <p>Pause, resume, cancel or requeue any step from the run page. Cancel finishes in-flight work; Kill stops it now. <code>cancel · kill</code></p>
-                </div>
               </div>
             </details>
 
