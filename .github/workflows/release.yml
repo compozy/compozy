@@ -731,6 +731,42 @@ jobs:
         if: matrix.platform == 'windows'
         run: cargo install artifact-signing-cli --version 0.11.0 --locked
 
+      # artifact-signing-cli defaults to fixed signtool/az paths that drift
+      # across runner images; resolve them dynamically for this job and the
+      # Tauri signCommand child processes.
+      - name: Locate Windows signing tools
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match '\\x64\\' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { Write-Error 'signtool.exe not found under Windows Kits'; exit 1 }
+          "SIGNTOOL_PATH=$($signtool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $az = (Get-Command az.cmd -ErrorAction Stop).Source
+          "AZURE_CLI_PATH=$az" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "signtool: $($signtool.FullName)"
+          Write-Host "az: $az"
+
+      # Signs a throwaway system binary so endpoint/credential/tooling faults
+      # surface with real CLI stderr in seconds instead of after the full
+      # Rust build (tauri swallows signCommand output).
+      - name: Windows signing preflight
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+        run: |
+          Copy-Item "$env:SystemRoot\System32\where.exe" "$env:RUNNER_TEMP\signing-preflight.exe"
+          artifact-signing-cli "$env:RUNNER_TEMP\signing-preflight.exe" --endpoint "$env:AZURE_ARTIFACT_SIGNING_ENDPOINT" --description "CompozyOS signing preflight"
+          & $env:SIGNTOOL_PATH verify /pa "$env:RUNNER_TEMP\signing-preflight.exe"
+
       - name: Assert signing material before build
         if: matrix.platform != 'macos'
         shell: bash
