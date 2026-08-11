@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-08-10
+## 0.3.0 - 2026-08-11
 
 ### ♻️ Refactoring
 
@@ -59,6 +59,8 @@
 - Start absent SSH daemon
 - Make loop goals converge reliably (#335)
 - Desktop issues
+- Ship the full desktop icon set required by Windows tauri-build
+- Pause the Windows desktop lane and ship macOS + Linux only
 
 ### 🧪 Testing
 
