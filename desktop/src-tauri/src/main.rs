@@ -191,6 +191,7 @@ fn install_panic_hook(logs_dir: PathBuf, boot_id: String) {
                     sanitize_public_text(&format!("write panic fallback log: {error}"))
                 );
             }
+            writing_panic.store(false, Ordering::Release);
         }
         previous_hook(info);
     }));

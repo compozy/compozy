@@ -113,35 +113,35 @@ fn should_create_private_default_bundle_storage_and_file() {
 
 #[cfg(unix)]
 #[test]
-fn should_preserve_permissions_of_an_existing_custom_output_parent() {
+fn should_repair_permissions_for_a_named_bundle_in_private_storage() {
     use std::os::unix::fs::PermissionsExt;
 
     let directory = tempfile::tempdir().expect("temp directory opens");
     let home = CompozyHome::from_root(directory.path().join("compozy-home"));
-    let parent = directory.path().join("operator-selected");
-    fs::create_dir(&parent).expect("custom parent creates");
-    fs::set_permissions(&parent, fs::Permissions::from_mode(0o755))
-        .expect("custom parent mode sets");
+    fs::create_dir_all(&home.support_bundles_dir).expect("bundle parent creates");
+    fs::set_permissions(&home.support_bundles_dir, fs::Permissions::from_mode(0o755))
+        .expect("bundle parent mode sets");
     export(
         &home,
         &report(),
         true,
-        Some(&parent.join("diagnostics.tar.gz")),
+        Some(&home.support_bundles_dir.join("diagnostics.tar.gz")),
     )
     .expect("bundle exports");
-    let parent_mode = fs::metadata(parent)
-        .expect("custom parent metadata reads")
+    let parent_mode = fs::metadata(&home.support_bundles_dir)
+        .expect("bundle parent metadata reads")
         .permissions()
         .mode()
         & 0o777;
-    assert_eq!(parent_mode, 0o755);
+    assert_eq!(parent_mode, 0o700);
 }
 
 #[test]
 fn should_not_clobber_an_existing_destination_even_when_it_appears_before_commit() {
     let directory = tempfile::tempdir().expect("temp directory opens");
     let home = CompozyHome::from_root(directory.path().join("compozy-home"));
-    let destination = directory.path().join("existing.tar.gz");
+    fs::create_dir_all(&home.support_bundles_dir).expect("bundle parent creates");
+    let destination = home.support_bundles_dir.join("existing.tar.gz");
     fs::write(&destination, "existing bundle").expect("existing destination writes");
     let error = export(&home, &report(), true, Some(&destination))
         .expect_err("existing destination rejects export");
@@ -170,26 +170,41 @@ fn should_reject_a_symlinked_default_bundle_directory() {
 
 #[cfg(unix)]
 #[test]
-fn should_reject_an_intermediate_custom_output_parent_symlink() {
-    use std::os::unix::fs::symlink;
-
+fn should_reject_an_output_path_outside_private_bundle_storage() {
     let directory = tempfile::tempdir().expect("temp directory opens");
     let home = CompozyHome::from_root(directory.path().join("compozy-home"));
-    let safe_parent = directory.path().join("safe");
     let target = directory.path().join("outside");
-    fs::create_dir(&safe_parent).expect("safe parent creates");
     fs::create_dir(&target).expect("symlink target creates");
-    let link = safe_parent.join("link");
-    symlink(&target, &link).expect("intermediate symlink creates");
 
     let error = export(
         &home,
         &report(),
         true,
-        Some(&link.join("nested").join("diagnostics.tar.gz")),
+        Some(&target.join("diagnostics.tar.gz")),
     )
-    .expect_err("intermediate symlink rejects export");
+    .expect_err("outside path rejects export");
 
     assert!(matches!(error, DiagnosticExportError::InvalidPath));
     assert!(fs::read_dir(target).expect("target reads").next().is_none());
+}
+
+#[test]
+fn should_remove_an_oversized_diagnostic_bundle_attempt() {
+    let directory = tempfile::tempdir().expect("temp directory opens");
+    let home = CompozyHome::from_root(directory.path().join("compozy-home"));
+    let mut oversized = report();
+    oversized.boot_id = "x".repeat(49 * 1024);
+
+    let error = export(&home, &oversized, true, None).expect_err("oversized bundle rejects");
+
+    assert!(matches!(error, DiagnosticExportError::TooLarge));
+    assert!(
+        fs::read_dir(&home.support_bundles_dir)
+            .expect("bundle directory reads")
+            .all(|entry| entry
+                .expect("bundle entry reads")
+                .path()
+                .extension()
+                .is_none_or(|ext| ext != "gz"))
+    );
 }

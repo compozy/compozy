@@ -12,59 +12,110 @@ runtime_version=${4:?current channel runtime version is required}
 }
 
 smoke_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
-smoke_home=$(mktemp -d "${smoke_parent}/compozy-desktop-smoke-home.XXXXXX")
+smoke_root=$(mktemp -d "${smoke_parent}/compozyqa-desktop-smoke.XXXXXX")
+smoke_home="${smoke_root}/home/runtime"
+qa_output="${smoke_root}/qa-artifacts"
+qa_root="${qa_output}/qa"
+manifest_path="${qa_root}/bootstrap-manifest.json"
+repo_root=$(git -C "$(dirname "${BASH_SOURCE[0]}")/.." rev-parse --show-toplevel)
+mkdir -p "${smoke_home}" "${qa_root}/pids"
+jq -n \
+  --arg qa_output "${qa_output}" \
+  --arg compozy_home "${smoke_home}" \
+  '{
+    qa_output_path: $qa_output,
+    env: {
+      QA_OUTPUT_PATH: $qa_output,
+      COMPOZY_HOME: $compozy_home
+    }
+  }' >"${manifest_path}"
+TEARDOWN_COMMAND="python3 '${repo_root}/.agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py' --manifest '${manifest_path}' --repo-root '${repo_root}'"
 mount_path=
 app_pid=
-app_process_group=false
+app_signal_target=
 
-stop_process() {
-  local pid=$1
-  local signal_target=$pid
-  if [[ "${app_process_group}" == "true" && "${pid}" == "${app_pid}" ]]; then
-    signal_target=-${pid}
-  fi
-  if ! kill -0 "${pid}" 2>/dev/null; then
+stop_desktop_child() {
+  [[ -n "${app_pid}" ]] || return 0
+  if ! jobs -pr | grep -Fxq "${app_pid}"; then
+    wait "${app_pid}" 2>/dev/null || true
     return 0
   fi
-  kill -TERM -- "${signal_target}" 2>/dev/null || true
+  kill -TERM -- "${app_signal_target}" 2>/dev/null || true
   for _ in {1..10}; do
-    if ! kill -0 "${pid}" 2>/dev/null; then
+    if ! jobs -pr | grep -Fxq "${app_pid}"; then
+      wait "${app_pid}" 2>/dev/null || true
       return 0
     fi
     sleep 1
   done
-  kill -KILL -- "${signal_target}" 2>/dev/null || true
-  for _ in {1..5}; do
-    if ! kill -0 "${pid}" 2>/dev/null; then
-      return 0
+  kill -KILL -- "${app_signal_target}" 2>/dev/null || true
+  wait "${app_pid}" 2>/dev/null || true
+}
+
+quarantine_unverified_daemon_record() {
+  local reason=$1
+  echo "desktop release smoke: refusing to signal an unverified daemon: ${reason}" >&2
+  for record in daemon.json daemon.lock; do
+    if [[ -e "${smoke_home}/${record}" ]]; then
+      mv "${smoke_home}/${record}" "${qa_root}/${record}.unverified"
     fi
-    sleep 1
   done
-  echo "desktop release smoke: could not stop process ${pid}" >&2
-  return 1
+}
+
+validate_daemon_identity_for_teardown() {
+  local record="${smoke_home}/daemon.json"
+  [[ -f "${record}" ]] || return 0
+  local daemon_pid recorded_start
+  daemon_pid=$(jq -er '.pid | select(type == "number" and . > 0)' "${record}") || {
+    quarantine_unverified_daemon_record "daemon.json has no valid pid"
+    return 1
+  }
+  recorded_start=$(jq -er '.started_at | select(type == "string" and length > 0)' "${record}") || {
+    quarantine_unverified_daemon_record "daemon.json has no process start time"
+    return 1
+  }
+  if ! python3 - "${daemon_pid}" "${recorded_start}" <<'PY'
+import datetime
+import subprocess
+import sys
+import time
+
+pid = int(sys.argv[1])
+recorded = datetime.datetime.fromisoformat(sys.argv[2].replace("Z", "+00:00")).timestamp()
+observed_text = subprocess.run(
+    ["ps", "-p", str(pid), "-o", "lstart="],
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout.strip()
+observed = time.mktime(time.strptime(observed_text, "%a %b %d %H:%M:%S %Y"))
+if abs(recorded - observed) > 2:
+    raise SystemExit(1)
+PY
+  then
+    quarantine_unverified_daemon_record "pid/start-time identity does not match the live process"
+    return 1
+  fi
 }
 
 cleanup() {
   local status=$?
   trap - EXIT INT TERM
 
-  if [[ -n "${app_pid}" ]] && kill -0 "${app_pid}" 2>/dev/null; then
-    stop_process "${app_pid}" || status=1
-    wait "${app_pid}" 2>/dev/null || true
+  validate_daemon_identity_for_teardown || status=1
+  stop_desktop_child
+  if ! eval "${TEARDOWN_COMMAND}"; then
+    status=1
   fi
-  if [[ -f "${smoke_home}/daemon.json" ]]; then
-    local daemon_pid
-    daemon_pid=$(jq -er '.pid | select(type == "number" and . > 0)' "${smoke_home}/daemon.json" 2>/dev/null || true)
-    if [[ -n "${daemon_pid}" ]]; then
-      app_process_group=false
-      stop_process "${daemon_pid}" || status=1
-    fi
+  if ! jq -e '.clean == true' "${qa_root}/teardown.json" >/dev/null 2>&1; then
+    echo "desktop release smoke: teardown evidence is missing or not clean" >&2
+    status=1
   fi
   if [[ -n "${mount_path}" ]]; then
     hdiutil detach "${mount_path}" -force >/dev/null 2>&1 || true
     rm -rf "${mount_path}"
   fi
-  rm -rf "${smoke_home}"
+  echo "desktop release smoke: teardown evidence ${qa_root}/teardown.json"
   exit "${status}"
 }
 trap cleanup EXIT INT TERM
@@ -124,13 +175,17 @@ case "${platform}" in
       "${app_binary}" >"${smoke_home}/desktop.log" 2>&1 &
     ;;
   linux)
-    app_process_group=true
     setsid env COMPOZY_HOME="${smoke_home}" HOME="${smoke_home}" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
       APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run --auto-servernum "${app_binary}" \
       >"${smoke_home}/desktop.log" 2>&1 &
     ;;
 esac
 app_pid=$!
+app_signal_target=${app_pid}
+if [[ "${platform}" == "linux" ]]; then
+  app_signal_target=-${app_pid}
+fi
+printf '%s\n' "${app_pid}" >"${qa_root}/pids/desktop.pid"
 
 deadline=$((SECONDS + 180))
 while ((SECONDS < deadline)); do
@@ -138,7 +193,8 @@ while ((SECONDS < deadline)); do
     daemon_pid=$(jq -er '.pid | select(type == "number" and . > 0)' "${smoke_home}/daemon.json" 2>/dev/null || true)
     daemon_port=$(jq -er '.port | select(type == "number" and . > 0)' "${smoke_home}/daemon.json" 2>/dev/null || true)
     if [[ -n "${daemon_pid}" && -n "${daemon_port}" ]]; then
-      status=$(curl --fail --silent --show-error "http://127.0.0.1:${daemon_port}/api/status" || true)
+      status=$(curl --connect-timeout 2 --max-time 5 --fail --silent --show-error \
+        "http://127.0.0.1:${daemon_port}/api/status" || true)
       if [[ -n "${status}" ]] \
         && jq -e \
           --arg home "${smoke_home}" \

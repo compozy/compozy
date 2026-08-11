@@ -233,62 +233,29 @@ impl ShellCoordinator {
                     return;
                 }
                 Resolution::Awaiting(record) => {
-                    if recovery_attempted {
-                        self.publish_error(ShellErrorCode::RuntimeStartFailed);
-                        return;
+                    if self.handle_recorded_start(&mut recovery_attempted, || {
+                        await_or_recover_recorded_daemon(&self.home, &record, &processes, &probe)
+                    }) {
+                        continue;
                     }
-                    match await_or_recover_recorded_daemon(&self.home, &record, &processes, &probe)
-                    {
-                        RecordedDaemonStart::Attached { identity, owned } => {
-                            self.finish_attach(*identity, owned);
-                            return;
-                        }
-                        RecordedDaemonStart::Recovered => {
-                            recovery_attempted = true;
-                            continue;
-                        }
-                        RecordedDaemonStart::Unverified => {
-                            self.publish_error(ShellErrorCode::RuntimeUnhealthy);
-                            return;
-                        }
-                        RecordedDaemonStart::Failed => {
-                            self.publish_error(ShellErrorCode::RuntimeStartFailed);
-                            return;
-                        }
-                    }
+                    return;
                 }
                 Resolution::StartTimeMismatch {
                     record,
                     observed_start,
                 } => {
-                    if recovery_attempted {
-                        self.publish_error(ShellErrorCode::RuntimeStartFailed);
-                        return;
+                    if self.handle_recorded_start(&mut recovery_attempted, || {
+                        await_or_recover_boot_timestamp_drift_daemon(
+                            &self.home,
+                            &record,
+                            observed_start,
+                            &processes,
+                            &probe,
+                        )
+                    }) {
+                        continue;
                     }
-                    match await_or_recover_boot_timestamp_drift_daemon(
-                        &self.home,
-                        &record,
-                        observed_start,
-                        &processes,
-                        &probe,
-                    ) {
-                        RecordedDaemonStart::Attached { identity, owned } => {
-                            self.finish_attach(*identity, owned);
-                            return;
-                        }
-                        RecordedDaemonStart::Recovered => {
-                            recovery_attempted = true;
-                            continue;
-                        }
-                        RecordedDaemonStart::Unverified => {
-                            self.publish_error(ShellErrorCode::RuntimeUnhealthy);
-                            return;
-                        }
-                        RecordedDaemonStart::Failed => {
-                            self.publish_error(ShellErrorCode::RuntimeStartFailed);
-                            return;
-                        }
-                    }
+                    return;
                 }
                 Resolution::NeedsStart { binary, source } => {
                     self.start_runtime(&binary, source == BinarySource::AppOwned);
@@ -340,6 +307,35 @@ impl ShellCoordinator {
             }
         }
         self.publish_error(ShellErrorCode::RuntimeStartFailed);
+    }
+
+    fn handle_recorded_start(
+        &self,
+        recovery_attempted: &mut bool,
+        start: impl FnOnce() -> RecordedDaemonStart,
+    ) -> bool {
+        if *recovery_attempted {
+            self.publish_error(ShellErrorCode::RuntimeStartFailed);
+            return false;
+        }
+        match start() {
+            RecordedDaemonStart::Attached { identity, owned } => {
+                self.finish_attach(*identity, owned);
+                false
+            }
+            RecordedDaemonStart::Recovered => {
+                *recovery_attempted = true;
+                true
+            }
+            RecordedDaemonStart::Unverified => {
+                self.publish_error(ShellErrorCode::RuntimeUnhealthy);
+                false
+            }
+            RecordedDaemonStart::Failed => {
+                self.publish_error(ShellErrorCode::RuntimeStartFailed);
+                false
+            }
+        }
     }
 
     fn provision_runtime(

@@ -29,8 +29,8 @@ pub(crate) const STOP_DEADLINE: Duration = Duration::from_secs(15);
 const STOP_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 pub trait RecoveryProcess: ProcessTable {
-    fn terminate(&self, pid: u32) -> io::Result<()>;
-    fn force_terminate(&self, pid: u32) -> io::Result<()>;
+    fn terminate(&self, pid: u32, expected_start: DateTime<Utc>) -> io::Result<()>;
+    fn force_terminate(&self, pid: u32, expected_start: DateTime<Utc>) -> io::Result<()>;
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -41,12 +41,12 @@ pub enum StalledRuntimeRecovery {
 }
 
 impl RecoveryProcess for SystemProcessTable {
-    fn terminate(&self, pid: u32) -> io::Result<()> {
-        signal_process(pid, false)
+    fn terminate(&self, pid: u32, expected_start: DateTime<Utc>) -> io::Result<()> {
+        signal_process(pid, expected_start, false)
     }
 
-    fn force_terminate(&self, pid: u32) -> io::Result<()> {
-        signal_process(pid, true)
+    fn force_terminate(&self, pid: u32, expected_start: DateTime<Utc>) -> io::Result<()> {
+        signal_process(pid, expected_start, true)
     }
 }
 
@@ -104,7 +104,19 @@ fn recover_verified_runtime(
     if !provenance::owns_executable(home, &executable) {
         return StalledRuntimeRecovery::Unverified;
     }
-    if stop_process(processes, record.pid, delay, stop_deadline, poll_interval).is_err() {
+    let Some(expected_start) = processes.start_time(record.pid) else {
+        return StalledRuntimeRecovery::Unverified;
+    };
+    if stop_process(
+        processes,
+        record.pid,
+        expected_start,
+        delay,
+        stop_deadline,
+        poll_interval,
+    )
+    .is_err()
+    {
         return StalledRuntimeRecovery::Failed;
     }
     if clear_daemon_record(&home.daemon_info).is_err() {
@@ -113,13 +125,25 @@ fn recover_verified_runtime(
     StalledRuntimeRecovery::Recovered
 }
 
-fn signal_process(pid: u32, force: bool) -> io::Result<()> {
+fn signal_process(pid: u32, expected_start: DateTime<Utc>, force: bool) -> io::Result<()> {
     let mut system = System::new();
     let process_id = Pid::from_u32(pid);
     system.refresh_processes(ProcessesToUpdate::Some(&[process_id]), true);
     let process = system
         .process(process_id)
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "runtime process is absent"))?;
+    let expected_start_seconds = u64::try_from(expected_start.timestamp()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "runtime process start time is invalid",
+        )
+    })?;
+    if process.start_time() != expected_start_seconds {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "runtime process identity changed before termination",
+        ));
+    }
     let signaled = if force {
         process.kill()
     } else {
@@ -137,34 +161,50 @@ fn signal_process(pid: u32, force: bool) -> io::Result<()> {
 fn stop_process(
     processes: &dyn RecoveryProcess,
     pid: u32,
+    expected_start: DateTime<Utc>,
     delay: &dyn Delay,
     deadline: Duration,
     poll_interval: Duration,
 ) -> io::Result<()> {
-    processes.terminate(pid)?;
-    if wait_for_exit(processes, pid, delay, deadline, poll_interval) {
+    processes.terminate(pid, expected_start)?;
+    if wait_for_exit(
+        processes,
+        pid,
+        expected_start,
+        delay,
+        deadline,
+        poll_interval,
+    ) {
         return Ok(());
     }
-    processes.force_terminate(pid)?;
-    wait_for_exit(processes, pid, delay, deadline, poll_interval)
-        .then_some(())
-        .ok_or_else(|| io::Error::other("runtime process did not exit after forced termination"))
+    processes.force_terminate(pid, expected_start)?;
+    wait_for_exit(
+        processes,
+        pid,
+        expected_start,
+        delay,
+        deadline,
+        poll_interval,
+    )
+    .then_some(())
+    .ok_or_else(|| io::Error::other("runtime process did not exit after forced termination"))
 }
 
 fn wait_for_exit(
     processes: &dyn ProcessTable,
     pid: u32,
+    expected_start: DateTime<Utc>,
     delay: &dyn Delay,
     deadline: Duration,
     poll_interval: Duration,
 ) -> bool {
     for _ in 0..poll_limit(deadline, poll_interval) {
-        if processes.start_time(pid).is_none() {
+        if processes.start_time(pid) != Some(expected_start) {
             return true;
         }
         delay.sleep(poll_interval);
     }
-    processes.start_time(pid).is_none()
+    processes.start_time(pid) != Some(expected_start)
 }
 
 fn poll_limit(deadline: Duration, interval: Duration) -> usize {
@@ -272,12 +312,19 @@ impl RuntimeLifecycle for SystemRuntimeLifecycle {
 
     fn stop(&self, pid: u32) -> Result<(), RuntimeUpdaterError> {
         let delay = ThreadDelay;
+        let expected_start = self
+            .processes
+            .start_time(pid)
+            .ok_or(RuntimeUpdaterError::Lifecycle)?;
+        // Normal updates never escalate to a forced kill. Only the recovery path may do so after
+        // proving desktop ownership and rechecking the process identity at every signal boundary.
         self.processes
-            .terminate(pid)
+            .terminate(pid, expected_start)
             .and_then(|()| {
                 wait_for_exit(
                     &self.processes,
                     pid,
+                    expected_start,
                     &delay,
                     STOP_DEADLINE,
                     STOP_POLL_INTERVAL,
@@ -285,7 +332,10 @@ impl RuntimeLifecycle for SystemRuntimeLifecycle {
                 .then_some(())
                 .ok_or_else(|| io::Error::other("runtime process did not exit after termination"))
             })
-            .map_err(|_| RuntimeUpdaterError::Lifecycle)
+            .map_err(|error| {
+                crate::logging::error(format!("stop runtime for update: {error}"));
+                RuntimeUpdaterError::Lifecycle
+            })
     }
 
     fn start_and_verify(

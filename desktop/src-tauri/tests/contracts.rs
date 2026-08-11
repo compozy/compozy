@@ -276,7 +276,7 @@ fn should_apply_the_shared_config_defaults_and_interval_bounds() {
 }
 
 #[test]
-fn should_grant_no_capability_or_global_api_to_the_remote_main_window() {
+fn should_grant_only_desktop_control_to_the_local_boot_window() {
     let config = read_json(manifest_dir().join("tauri.conf.json"));
     assert_eq!(config["identifier"], "com.compozy.os");
     assert_eq!(config["productName"], "CompozyOS");
@@ -286,7 +286,10 @@ fn should_grant_no_capability_or_global_api_to_the_remote_main_window() {
 
     let capability = read_json(manifest_dir().join("capabilities/boot.json"));
     assert_eq!(capability["windows"], serde_json::json!(["boot"]));
-    assert_eq!(capability["permissions"], serde_json::json!([]));
+    assert_eq!(
+        capability["permissions"],
+        serde_json::json!(["allow-shell-control"])
+    );
     assert!(capability.get("remote").is_none());
 }
 

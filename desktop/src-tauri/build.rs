@@ -27,5 +27,9 @@ fn main() {
         .unwrap_or_else(|error| panic!("desktop release build configuration is invalid: {error}"));
         println!("cargo:rustc-env=COMPOZY_RELEASE_CHANNEL={channel}");
     }
-    tauri_build::build();
+    tauri_build::try_build(
+        tauri_build::Attributes::new()
+            .app_manifest(tauri_build::AppManifest::new().commands(&["shell_control"])),
+    )
+    .unwrap_or_else(|error| panic!("build desktop application: {error}"));
 }

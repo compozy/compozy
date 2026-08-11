@@ -67,8 +67,12 @@ impl ControlServerStartup {
         if self.app.manage(server) {
             return true;
         }
+        if self.app.try_state::<ControlServer>().is_some() {
+            log::debug!("desktop control server state was already managed");
+            return true;
+        }
         self.publish_failure("control server state was already managed");
-        self.app.try_state::<ControlServer>().is_some()
+        false
     }
 
     fn publish_failure(&self, error: impl std::fmt::Display) {

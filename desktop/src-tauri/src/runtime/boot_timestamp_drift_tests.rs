@@ -163,6 +163,7 @@ fn should_require_a_compozy_identity_for_a_boot_timestamp_drift_runtime() {
     let (_directory, home, record, observed) = owned_runtime();
     let processes = processes(&home, &record, observed);
     let foreign = FakeProbe(Identity::Foreign);
+    let unreachable = FakeProbe(Identity::Unreachable);
     let mismatched = FakeProbe(Identity::Compozy(Box::new(identity(
         DaemonRecord {
             started_at: record.started_at + ChronoDuration::seconds(1),
@@ -186,5 +187,15 @@ fn should_require_a_compozy_identity_for_a_boot_timestamp_drift_runtime() {
             observed
         ),
         BoundBootTimestampDrift::IdentityMismatch
+    ));
+    assert!(matches!(
+        bound_app_owned_runtime_with_boot_timestamp_drift(
+            &home,
+            &processes,
+            &unreachable,
+            &record,
+            observed
+        ),
+        BoundBootTimestampDrift::Unreachable
     ));
 }

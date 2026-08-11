@@ -1021,76 +1021,82 @@ func TestBootRejectsSessionManagersMissingWorkspaceRemovalPreparation(t *testing
 }
 
 func TestBootRemovesStaleSocketAndCleansOrphans(t *testing.T) {
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	staleSocket := cfg.Daemon.Socket
-	if err := os.WriteFile(staleSocket, []byte("stale"), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(socket) error = %v", err)
-	}
+	t.Parallel()
 
-	d := newTestDaemon(t, homePaths, &cfg)
-	d.pid = func() int { return 777 }
-	d.processStartedAt = func(int) (time.Time, error) {
-		return time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC), nil
-	}
-	d.acquireLock = func(path string, _ int) (*Lock, error) {
-		return &Lock{path: path, stalePID: 444}, nil
-	}
+	t.Run("Should replace the stale socket and clean orphaned descendants", func(t *testing.T) {
+		t.Parallel()
 
-	registry := &recordingRegistry{path: homePaths.DatabaseFile}
-	observer := &fakeObserver{result: store.ReconcileResult{Indexed: []string{"sess-a"}}}
-	sessionManager := &fakeSessionManager{}
-	var signals []string
-	d.openRegistry = func(context.Context, string) (Registry, error) {
-		return registry, nil
-	}
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-		return sessionManager, nil
-	}
-	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
-		return observer, nil
-	}
-	d.listProcesses = func(context.Context) ([]processInfo, error) {
-		return []processInfo{{PID: 1001, PPID: 444}, {PID: 2002, PPID: 111}}, nil
-	}
-	d.orphanGraceWait = 2 * time.Millisecond
-	d.orphanPollWait = time.Millisecond
-	d.signalProcess = func(pid int, sig syscall.Signal) error {
-		signals = append(signals, sig.String()+":"+strconvString(pid))
-		return nil
-	}
-	d.processAlive = func(pid int) bool { return pid == 1001 }
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		staleSocket := cfg.Daemon.Socket
+		if err := os.WriteFile(staleSocket, []byte("stale"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(socket) error = %v", err)
+		}
 
-	if err := d.boot(testutil.Context(t)); err != nil {
-		t.Fatalf("boot() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := d.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.pid = func() int { return 777 }
+		d.processStartedAt = func(int) (time.Time, error) {
+			return time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC), nil
+		}
+		d.acquireLock = func(path string, _ int) (*Lock, error) {
+			return &Lock{path: path, stalePID: 444}, nil
+		}
+
+		registry := &recordingRegistry{path: homePaths.DatabaseFile}
+		observer := &fakeObserver{result: store.ReconcileResult{Indexed: []string{"sess-a"}}}
+		sessionManager := &fakeSessionManager{}
+		var signals []string
+		d.openRegistry = func(context.Context, string) (Registry, error) {
+			return registry, nil
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return sessionManager, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return observer, nil
+		}
+		d.listProcesses = func(context.Context) ([]processInfo, error) {
+			return []processInfo{{PID: 1001, PPID: 444}, {PID: 2002, PPID: 111}}, nil
+		}
+		d.orphanGraceWait = 2 * time.Millisecond
+		d.orphanPollWait = time.Millisecond
+		d.signalProcess = func(pid int, sig syscall.Signal) error {
+			signals = append(signals, sig.String()+":"+strconvString(pid))
+			return nil
+		}
+		d.processAlive = func(pid int) bool { return pid == 1001 }
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		socketInfo, err := os.Lstat(staleSocket)
+		if err != nil {
+			t.Fatalf("os.Lstat(socket) error = %v", err)
+		}
+		if socketInfo.Mode()&os.ModeSocket == 0 {
+			t.Fatalf("socket mode = %v, want unix socket", socketInfo.Mode())
+		}
+		if !observer.reconciled {
+			t.Fatal("boot() did not call observer.Reconcile")
+		}
+		if got, want := signals, []string{"terminated:1001", "killed:1001"}; !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("cleanup orphan signals = %#v, want %#v", got, want)
+		}
+
+		info, err := ReadInfo(homePaths.DaemonInfo)
+		if err != nil {
+			t.Fatalf("ReadInfo(daemon.json) error = %v", err)
+		}
+		if got, want := info.PID, 777; got != want {
+			t.Fatalf("daemon info pid = %d, want %d", got, want)
 		}
 	})
-
-	socketInfo, err := os.Lstat(staleSocket)
-	if err != nil {
-		t.Fatalf("os.Lstat(socket) error = %v", err)
-	}
-	if socketInfo.Mode()&os.ModeSocket == 0 {
-		t.Fatalf("socket mode = %v, want unix socket", socketInfo.Mode())
-	}
-	if !observer.reconciled {
-		t.Fatal("boot() did not call observer.Reconcile")
-	}
-	if got, want := signals, []string{"terminated:1001", "killed:1001"}; !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("cleanup orphan signals = %#v, want %#v", got, want)
-	}
-
-	info, err := ReadInfo(homePaths.DaemonInfo)
-	if err != nil {
-		t.Fatalf("ReadInfo(daemon.json) error = %v", err)
-	}
-	if got, want := info.PID, 777; got != want {
-		t.Fatalf("daemon info pid = %d, want %d", got, want)
-	}
 }
 
 func TestCleanupOrphansAllowsGracefulExitBeforeSIGKILL(t *testing.T) {

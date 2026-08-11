@@ -251,7 +251,13 @@ mod tests {
             ShellState::Resolving,
         );
 
-        assert_eq!(record.started_at, started_at);
+        let value = serde_json::to_value(record).expect("record serializes");
+        assert_eq!(
+            value["started_at"],
+            serde_json::Value::String(
+                started_at.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true)
+            )
+        );
     }
 
     #[cfg(unix)]

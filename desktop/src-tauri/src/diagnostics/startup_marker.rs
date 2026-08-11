@@ -8,6 +8,7 @@ use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostics::PreviousCrash;
+use crate::diagnostics::report::{BOOTSTRAP_PHASE, is_diagnostic_phase};
 use crate::home::CompozyHome;
 use crate::runtime::discovery::{ProcessTable, SystemProcessTable};
 
@@ -97,6 +98,7 @@ impl StartupMarker {
         owner: MarkerOwner,
         process_start_time: impl Fn(u32) -> Option<DateTime<Utc>>,
     ) -> io::Result<Self> {
+        validate_boot_id(&boot_id)?;
         ensure_private_directory(&home.support_bundles_dir)?;
         let path = home.support_bundles_dir.join(MARKER_FILE_NAME);
         let lock_path = home.support_bundles_dir.join(MARKER_LOCK_FILE_NAME);
@@ -112,13 +114,15 @@ impl StartupMarker {
                     "desktop startup marker belongs to an active process",
                 ));
             }
-            let previous_crash = read_previous_crash(&path, &process_start_time);
+            let previous_crash = previous
+                .filter(|document| !owner_is_active(&document.owner, &process_start_time))
+                .and_then(previous_crash_from_document);
             write_private_json(
                 &path,
                 &MarkerDocument {
                     schema_version: MARKER_SCHEMA_VERSION,
                     boot_id: boot_id.clone(),
-                    boot_phase: "bootstrap".to_owned(),
+                    boot_phase: BOOTSTRAP_PHASE.to_owned(),
                     owner: owner.clone(),
                 },
             )?;
@@ -209,14 +213,14 @@ fn read_marker_document(path: &Path) -> Option<MarkerDocument> {
         .filter(marker_document_is_valid)
 }
 
-fn read_previous_crash(
-    path: &Path,
-    process_start_time: &impl Fn(u32) -> Option<DateTime<Utc>>,
-) -> Option<PreviousCrash> {
-    let document = read_marker_document(path)?;
-    (!owner_is_active(&document.owner, process_start_time))
-        .then_some(document)
-        .and_then(previous_crash_from_document)
+fn validate_boot_id(boot_id: &str) -> io::Result<()> {
+    if boot_id.trim().is_empty() || boot_id.len() > MAX_BOOT_ID_BYTES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "desktop boot identifier is invalid",
+        ));
+    }
+    Ok(())
 }
 
 fn marker_document_is_valid(document: &MarkerDocument) -> bool {
@@ -240,22 +244,6 @@ fn owner_is_active(
     process_start_time: &impl Fn(u32) -> Option<DateTime<Utc>>,
 ) -> bool {
     process_start_time(owner.pid).is_some_and(|started_at| started_at == owner.started_at)
-}
-
-fn is_diagnostic_phase(value: &str) -> bool {
-    matches!(
-        value,
-        "bootstrap"
-            | "resolving"
-            | "provisioning"
-            | "starting"
-            | "attaching"
-            | "product"
-            | "updating"
-            | "disconnected"
-            | "skew"
-            | "error"
-    )
 }
 
 fn write_private_json(path: &Path, value: &impl Serialize) -> io::Result<()> {

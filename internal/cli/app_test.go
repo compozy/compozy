@@ -299,12 +299,8 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 			case appExportDiagnosticsMethod:
 				exported = true
 				values, ok := params.(map[string]any)
-				if !ok || values["consent"] != true {
-					t.Fatalf("app export params = %#v, want consent=true", params)
-				}
-				outputPath, ok := values["output_path"].(string)
-				if !ok {
-					t.Fatalf("app export output path = %#v, want string", values["output_path"])
+				if !ok || len(values) != 1 || values["consent"] != true {
+					t.Fatalf("app export params = %#v, want only consent=true", params)
 				}
 				exportedReport := appDiagnosticReportFixture()
 				exportedReport["boot_id"] = "boot_exported"
@@ -312,6 +308,11 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 				if decodeErr != nil {
 					t.Fatalf("decode fixture report: %v", decodeErr)
 				}
+				outputPath := filepath.Join(
+					homePaths.HomeDir,
+					supportBundlesDirName,
+					appDiagnosticBundleFileName(fixedTestNow),
+				)
 				bundle, writeErr := writeLocalAppDiagnosticBundle(homePaths, report, outputPath, fixedTestNow, true)
 				if writeErr != nil {
 					t.Fatalf("write delegated bundle: %v", writeErr)
@@ -342,7 +343,44 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject an unexpected live bundle entry", func(t *testing.T) {
+	t.Run("Should keep explicit live bundle paths in the CLI", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		outputPath := filepath.Join(t.TempDir(), "diagnostics.tar.gz")
+		deps := appTestDeps(homePaths)
+		deps.now = func() time.Time { return fixedTestNow }
+		deps.callAppControl = func(_ context.Context, _ string, method string, _ any) (any, error) {
+			if method != appDiagnoseMethod {
+				t.Fatalf("app control method = %q, want only diagnose", method)
+			}
+			return appDiagnosticReportFixture(), nil
+		}
+
+		stdout, err := executeAppTestCommand(
+			t,
+			deps,
+			"app",
+			"diagnose",
+			"--bundle",
+			"--yes",
+			"--bundle-output",
+			outputPath,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("explicit live bundle error = %v", err)
+		}
+		var result appDiagnosticBundleResult
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("decode explicit live bundle result: %v", err)
+		}
+		if result.Bundle.Path != outputPath || result.Bundle.Manifest.Report.BootID != "boot_123" {
+			t.Fatalf("explicit live bundle = %#v, want local archive at selected path", result.Bundle)
+		}
+	})
+
+	t.Run("Should reject invalid live bundle archive structures", func(t *testing.T) {
 		t.Parallel()
 		report, err := decodeAppDiagnosticReport(appDiagnosticReportFixture())
 		if err != nil {
@@ -352,29 +390,93 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create fixture manifest error = %v", err)
 		}
-		bundlePath := filepath.Join(t.TempDir(), "unexpected-entry.tar.gz")
-		file, err := os.OpenFile(bundlePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err != nil {
-			t.Fatalf("OpenFile(unexpected entry bundle) error = %v", err)
+		for _, test := range []struct {
+			name    string
+			entries []appDiagnosticBundleEntry
+			want    string
+		}{
+			{
+				name: "unexpected entry",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: manifestBytes},
+					{Name: "compozy.log", Data: []byte("must not be accepted")},
+				},
+				want: "unexpected entry",
+			},
+			{
+				name: "duplicate entry",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: manifestBytes},
+					{Name: appDiagnosticBundleManifestFile, Data: manifestBytes},
+				},
+				want: "duplicate entry",
+			},
+			{
+				name: "oversized manifest",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: bytes.Repeat([]byte("m"), 49*1024)},
+				},
+				want: "manifest exceeds",
+			},
+			{
+				name: "oversized log",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: manifestBytes},
+					{Name: appDiagnosticBundleDesktopLogFile, Data: bytes.Repeat([]byte("l"), 16*1024+1)},
+				},
+				want: "log entry exceeds",
+			},
+			{
+				name: "oversized aggregate",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: bytes.Repeat([]byte("m"), 20*1024)},
+					{Name: appDiagnosticBundleDesktopLogFile, Data: bytes.Repeat([]byte("d"), 15*1024)},
+					{Name: appDiagnosticBundleBootstrapLogFile, Data: bytes.Repeat([]byte("b"), 15*1024)},
+				},
+				want: "bundle exceeds",
+			},
+		} {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				t.Parallel()
+				bundlePath := filepath.Join(t.TempDir(), "invalid.tar.gz")
+				file, openErr := os.OpenFile(bundlePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+				if openErr != nil {
+					t.Fatalf("OpenFile(invalid bundle) error = %v", openErr)
+				}
+				if writeErr := writeAppDiagnosticBundleArchive(file, test.entries); writeErr != nil {
+					if closeErr := file.Close(); closeErr != nil {
+						t.Fatalf("write invalid bundle error = %v; Close() error = %v", writeErr, closeErr)
+					}
+					t.Fatalf("write invalid bundle error = %v", writeErr)
+				}
+				if closeErr := file.Close(); closeErr != nil {
+					t.Fatalf("Close(invalid bundle) error = %v", closeErr)
+				}
+				_, readErr := readAppDiagnosticBundleManifest(bundlePath)
+				if readErr == nil || !strings.Contains(readErr.Error(), test.want) {
+					t.Fatalf("invalid bundle error = %v, want %q", readErr, test.want)
+				}
+			})
 		}
-		if err := writeAppDiagnosticBundleArchive(file, []appDiagnosticBundleEntry{
-			{Name: appDiagnosticBundleManifestFile, Data: manifestBytes},
-			{Name: "compozy.log", Data: []byte("must not be accepted")},
-		}); err != nil {
-			closeErr := file.Close()
-			if closeErr != nil {
-				t.Fatalf("write unexpected entry bundle error = %v; Close() error = %v", err, closeErr)
+	})
+
+	t.Run("Should reject an outside live bundle path before reading it", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		deps := appTestDeps(homePaths)
+		deps.callAppControl = func(_ context.Context, _ string, method string, _ any) (any, error) {
+			if method == appDiagnoseMethod {
+				return appDiagnosticReportFixture(), nil
 			}
-			t.Fatalf("write unexpected entry bundle error = %v", err)
+			return map[string]any{
+				"bundle_path": filepath.Join(t.TempDir(), "outside.tar.gz"),
+				"bytes":       1,
+			}, nil
 		}
-		if err := file.Close(); err != nil {
-			t.Fatalf("Close(unexpected entry bundle) error = %v", err)
-		}
-		if _, err := readAppDiagnosticBundleManifest(
-			bundlePath,
-		); err == nil ||
-			!strings.Contains(err.Error(), "unexpected entry") {
-			t.Fatalf("unexpected entry bundle error = %v, want rejection", err)
+
+		_, err := executeAppTestCommand(t, deps, "app", "diagnose", "--bundle", "--yes")
+		if err == nil || !strings.Contains(err.Error(), "unexpected bundle path") {
+			t.Fatalf("outside live bundle error = %v, want path rejection", err)
 		}
 	})
 
@@ -458,6 +560,7 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 			`{"timestamp":"2026-04-03T12:00:00Z","level":"info","boot_id":"boot_123","message":"Desktop started from ` + homePaths.HomeDir + `"}`,
 			`{"timestamp":"2026-04-03T12:00:01Z","level":"info","boot_id":"boot_123","message":"token=raw-secret"}`,
 			`{"timestamp":"2026-04-03T12:00:02Z","level":"info","boot_id":"old_boot","message":"Old boot entry"}`,
+			`{"timestamp":"2026-04-03T12:00:03Z","level":"error","boot_id":"boot_123","message":"Failed to open compozy.db"}`,
 		}, "\n")
 		if err := os.WriteFile(filepath.Join(homePaths.LogsDir, "desktop.log"), []byte(desktopLog), 0o600); err != nil {
 			t.Fatalf("WriteFile(desktop diagnostic log) error = %v", err)
@@ -531,7 +634,13 @@ func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
 			t.Fatalf("diagnostic archive log tails = %#v, want redacted current-boot entries", contents)
 		}
 		for _, content := range contents {
-			for _, forbidden := range []string{homePaths.HomeDir, "raw-secret", "transcript", "runtime.db"} {
+			for _, forbidden := range []string{
+				homePaths.HomeDir,
+				"raw-secret",
+				"transcript",
+				"compozy.db",
+				"Old boot entry",
+			} {
 				if bytes.Contains(content, []byte(forbidden)) {
 					t.Fatalf("diagnostic archive contains forbidden value %q", forbidden)
 				}

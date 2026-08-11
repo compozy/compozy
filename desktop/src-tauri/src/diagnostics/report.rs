@@ -6,6 +6,16 @@ use crate::record::AppUpdateStatus;
 use crate::state::ShellState;
 
 pub const DIAGNOSTIC_REPORT_SCHEMA_VERSION: u8 = 1;
+pub const BOOTSTRAP_PHASE: &str = "bootstrap";
+pub const RESOLVING_PHASE: &str = "resolving";
+pub const PROVISIONING_PHASE: &str = "provisioning";
+pub const STARTING_PHASE: &str = "starting";
+pub const ATTACHING_PHASE: &str = "attaching";
+pub const PRODUCT_PHASE: &str = "product";
+pub const UPDATING_PHASE: &str = "updating";
+pub const DISCONNECTED_PHASE: &str = "disconnected";
+pub const SKEW_PHASE: &str = "skew";
+pub const ERROR_PHASE: &str = "error";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct PreviousCrash {
@@ -74,16 +84,32 @@ fn truncate_utf8(value: &str, limit: usize) -> String {
 
 pub fn boot_phase_from_state(state: &ShellState) -> &'static str {
     match state {
-        ShellState::Resolving => "resolving",
-        ShellState::Provisioning { .. } => "provisioning",
-        ShellState::Starting { .. } => "starting",
-        ShellState::Attaching => "attaching",
-        ShellState::Product { .. } => "product",
-        ShellState::Updating { .. } => "updating",
-        ShellState::Disconnected { .. } => "disconnected",
-        ShellState::Skew { .. } => "skew",
-        ShellState::ShellError { .. } => "error",
+        ShellState::Resolving => RESOLVING_PHASE,
+        ShellState::Provisioning { .. } => PROVISIONING_PHASE,
+        ShellState::Starting { .. } => STARTING_PHASE,
+        ShellState::Attaching => ATTACHING_PHASE,
+        ShellState::Product { .. } => PRODUCT_PHASE,
+        ShellState::Updating { .. } => UPDATING_PHASE,
+        ShellState::Disconnected { .. } => DISCONNECTED_PHASE,
+        ShellState::Skew { .. } => SKEW_PHASE,
+        ShellState::ShellError { .. } => ERROR_PHASE,
     }
+}
+
+pub fn is_diagnostic_phase(value: &str) -> bool {
+    matches!(
+        value,
+        BOOTSTRAP_PHASE
+            | RESOLVING_PHASE
+            | PROVISIONING_PHASE
+            | STARTING_PHASE
+            | ATTACHING_PHASE
+            | PRODUCT_PHASE
+            | UPDATING_PHASE
+            | DISCONNECTED_PHASE
+            | SKEW_PHASE
+            | ERROR_PHASE
+    )
 }
 
 pub fn current_diagnostic_error(

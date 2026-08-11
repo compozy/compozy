@@ -216,7 +216,10 @@ func requireAppDiagnosticBundleFile(path string) error {
 	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 		return errors.New("app diagnose: app control bundle path is invalid")
 	}
-	if info.Size() < 1 || info.Size() > appDiagnosticBundleMaxBytes {
+	if info.Size() < 1 {
+		return errors.New("app diagnose: app control bundle is empty")
+	}
+	if info.Size() > appDiagnosticBundleMaxBytes {
 		return errors.New("app diagnose: app control bundle exceeds its size limit")
 	}
 	return nil

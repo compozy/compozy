@@ -316,8 +316,13 @@ mod tests {
             starts: HashMap::from([(record.pid, observed_start)]),
             executables: HashMap::from([(record.pid, home.app_binary.clone())]),
         };
-        let probe = FakeProbe(identity(record, &home.root));
+        let probe = FakeProbe(identity(record.clone(), &home.root));
 
-        assert!(observed_identity(&home, &processes, &probe).is_some());
+        let observed = observed_identity(&home, &processes, &probe)
+            .expect("verified drift runtime remains present");
+        assert_eq!(observed.record.pid, record.pid);
+
+        fs::write(&home.app_binary, b"tampered runtime").expect("runtime fixture tampers");
+        assert!(observed_identity(&home, &processes, &probe).is_none());
     }
 }

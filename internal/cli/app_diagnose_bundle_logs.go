@@ -21,6 +21,8 @@ const (
 	appDiagnosticBundleInfoLogLevel       = "INFO"
 	appDiagnosticBundleSecretTerm         = "SECRET"
 	appDiagnosticBundleTokenTerm          = "TOKEN"
+	appDiagnosticBundleConfigTerm         = "config"
+	appDiagnosticBundleSessionTerm        = "session"
 )
 
 type appDiagnosticBundleLogRecord struct {
@@ -78,7 +80,11 @@ func collectAppDiagnosticBundleLogEntry(
 	if err != nil || len(tail) == 0 {
 		return nil, err
 	}
-	redacted := redactAppDiagnosticBundleLogTail(tail, report, homePaths)
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("app diagnose: resolve user home for log redaction: %w", err)
+	}
+	redacted := redactAppDiagnosticBundleLogTail(tail, report, homePaths, userHome)
 	if len(redacted) == 0 {
 		return nil, nil
 	}
@@ -130,11 +136,15 @@ func redactAppDiagnosticBundleLogTail(
 	tail []byte,
 	report appDiagnosticReport,
 	homePaths compozyconfig.HomePaths,
+	userHome string,
 ) []byte {
 	var output bytes.Buffer
 	for line := range bytes.SplitSeq(tail, []byte{'\n'}) {
-		redacted, ok := redactAppDiagnosticBundleLogLine(line, report, homePaths)
+		redacted, ok := redactAppDiagnosticBundleLogLine(line, report, homePaths, userHome)
 		if !ok || output.Len()+len(redacted) >= int(appDiagnosticBundleLogTailMaxBytes) {
+			if ok {
+				break
+			}
 			continue
 		}
 		if _, err := output.WriteString(redacted); err != nil {
@@ -151,6 +161,7 @@ func redactAppDiagnosticBundleLogLine(
 	line []byte,
 	report appDiagnosticReport,
 	homePaths compozyconfig.HomePaths,
+	userHome string,
 ) (string, bool) {
 	var record appDiagnosticBundleLogRecord
 	if err := json.Unmarshal(line, &record); err != nil || record.BootID != report.BootID {
@@ -161,7 +172,7 @@ func redactAppDiagnosticBundleLogLine(
 		containsAppDiagnosticBundleNonShareableContent(record.Message) {
 		return "", false
 	}
-	message := redactAppDiagnosticBundleLogMessage(record.Message, homePaths)
+	message := redactAppDiagnosticBundleLogMessage(record.Message, homePaths, userHome)
 	if message == "" {
 		return "", false
 	}
@@ -186,8 +197,8 @@ func isAppDiagnosticBundleLogLevelAllowed(level string) bool {
 func containsAppDiagnosticBundleNonShareableContent(message string) bool {
 	message = strings.ToLower(message)
 	for _, term := range []string{
-		configConfigKey,
-		sessionSessionKey,
+		appDiagnosticBundleConfigTerm,
+		appDiagnosticBundleSessionTerm,
 		"transcript",
 		"credential",
 		"password",
@@ -204,7 +215,11 @@ func containsAppDiagnosticBundleNonShareableContent(message string) bool {
 	return false
 }
 
-func redactAppDiagnosticBundleLogMessage(message string, homePaths compozyconfig.HomePaths) string {
+func redactAppDiagnosticBundleLogMessage(
+	message string,
+	homePaths compozyconfig.HomePaths,
+	userHome string,
+) string {
 	redacted := message
 	for _, path := range []string{
 		homePaths.HomeDir,
@@ -214,10 +229,6 @@ func redactAppDiagnosticBundleLogMessage(message string, homePaths compozyconfig
 		if path != "" && path != string(filepath.Separator) {
 			redacted = strings.ReplaceAll(redacted, path, "[redacted]")
 		}
-	}
-	userHome, err := os.UserHomeDir()
-	if err != nil {
-		return ""
 	}
 	if userHome != "" && userHome != string(filepath.Separator) {
 		redacted = strings.ReplaceAll(redacted, userHome, "[redacted]")

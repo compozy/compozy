@@ -43,8 +43,8 @@ pub fn bootstrap_error(
 ) -> io::Result<()> {
     fs::create_dir_all(logs_dir)?;
     let path = logs_dir.join(BOOTSTRAP_LOG_FILE_NAME);
-    let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
-    set_private_file_permissions(&path)?;
+    let mut file = open_private_append_file(&path)?;
+    set_private_file_permissions(&file)?;
     let entry = json!({
         "timestamp": Utc::now().to_rfc3339(),
         "level": "error",
@@ -58,14 +58,42 @@ pub fn bootstrap_error(
 }
 
 #[cfg(unix)]
-fn set_private_file_permissions(path: &std::path::Path) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
+fn open_private_append_file(path: &std::path::Path) -> io::Result<fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
 
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
 }
 
 #[cfg(not(unix))]
-fn set_private_file_permissions(_path: &std::path::Path) -> io::Result<()> {
+fn open_private_append_file(path: &std::path::Path) -> io::Result<fs::File> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "bootstrap log must be a regular file",
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    OpenOptions::new().create(true).append(true).open(path)
+}
+
+#[cfg(unix)]
+fn set_private_file_permissions(file: &fs::File) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    file.set_permissions(fs::Permissions::from_mode(0o600))
+}
+
+#[cfg(not(unix))]
+fn set_private_file_permissions(_file: &fs::File) -> io::Result<()> {
     Ok(())
 }
 
@@ -94,5 +122,36 @@ mod tests {
         assert_eq!(value["level"], "error");
         assert!(!contents.contains("do-not-share"));
         assert!(contents.ends_with('\n'));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn should_create_private_bootstrap_logs_without_following_a_symlink() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+
+        let directory = tempfile::tempdir().expect("temp directory opens");
+        let private = directory.path().join("private");
+        bootstrap_error(&private, "boot-1", "startup", "failure").expect("bootstrap event writes");
+        let log_path = private.join(BOOTSTRAP_LOG_FILE_NAME);
+        assert_eq!(
+            fs::metadata(&log_path)
+                .expect("bootstrap metadata reads")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+
+        let target = directory.path().join("target");
+        fs::write(&target, "untouched").expect("symlink target writes");
+        let redirected = directory.path().join("redirected");
+        fs::create_dir(&redirected).expect("redirected directory creates");
+        symlink(&target, redirected.join(BOOTSTRAP_LOG_FILE_NAME))
+            .expect("bootstrap symlink creates");
+        assert!(bootstrap_error(&redirected, "boot-2", "startup", "failure").is_err());
+        assert_eq!(
+            fs::read_to_string(target).expect("symlink target reads"),
+            "untouched"
+        );
     }
 }

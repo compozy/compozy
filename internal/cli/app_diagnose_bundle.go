@@ -47,7 +47,7 @@ func createAppDiagnosticBundle(
 	live bool,
 	canonicalDefaultParent bool,
 ) (appDiagnosticBundle, error) {
-	if !live {
+	if !live || !canonicalDefaultParent {
 		return writeLocalAppDiagnosticBundle(
 			homePaths,
 			report,
@@ -60,20 +60,14 @@ func createAppDiagnosticBundle(
 		ctx,
 		filepath.Join(homePaths.HomeDir, "app.sock"),
 		appExportDiagnosticsMethod,
-		map[string]any{
-			"consent":     true,
-			"output_path": outputPath,
-		},
+		map[string]any{"consent": true},
 	)
 	if err != nil {
 		return appDiagnosticBundle{}, err
 	}
-	bundle, err := decodeAppDiagnosticBundleExport(result)
+	bundle, err := decodeAppDiagnosticBundleExport(homePaths, result)
 	if err != nil {
 		return appDiagnosticBundle{}, err
-	}
-	if filepath.Clean(bundle.Path) != filepath.Clean(outputPath) {
-		return appDiagnosticBundle{}, errors.New("app diagnose: app control returned an unexpected bundle path")
 	}
 	return bundle, nil
 }
@@ -110,7 +104,10 @@ func appDiagnosticBundleFileName(now time.Time) string {
 		fmt.Sprintf("%03dZ.tar.gz", utc.Nanosecond()/int(time.Millisecond))
 }
 
-func decodeAppDiagnosticBundleExport(value any) (appDiagnosticBundle, error) {
+func decodeAppDiagnosticBundleExport(
+	homePaths compozyconfig.HomePaths,
+	value any,
+) (appDiagnosticBundle, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return appDiagnosticBundle{}, fmt.Errorf("app diagnose: encode app control bundle export: %w", err)
@@ -122,6 +119,9 @@ func decodeAppDiagnosticBundleExport(value any) (appDiagnosticBundle, error) {
 	if strings.TrimSpace(exported.BundlePath) == "" || exported.Bytes < 0 {
 		return appDiagnosticBundle{}, errors.New("app diagnose: app control returned an invalid bundle export")
 	}
+	if err := validateLiveAppDiagnosticBundlePath(homePaths, exported.BundlePath); err != nil {
+		return appDiagnosticBundle{}, err
+	}
 	manifest, err := readAppDiagnosticBundleManifest(exported.BundlePath)
 	if err != nil {
 		return appDiagnosticBundle{}, err
@@ -131,6 +131,24 @@ func decodeAppDiagnosticBundleExport(value any) (appDiagnosticBundle, error) {
 		Bytes:    exported.Bytes,
 		Manifest: manifest,
 	}, nil
+}
+
+func validateLiveAppDiagnosticBundlePath(homePaths compozyconfig.HomePaths, path string) error {
+	root, err := filepath.Abs(filepath.Join(homePaths.HomeDir, supportBundlesDirName))
+	if err != nil {
+		return fmt.Errorf("app diagnose: resolve desktop diagnostic root: %w", err)
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("app diagnose: resolve app control bundle path: %w", err)
+	}
+	if filepath.Dir(filepath.Clean(absolute)) != filepath.Clean(root) || filepath.Ext(absolute) != ".gz" {
+		return errors.New("app diagnose: app control returned an unexpected bundle path")
+	}
+	if err := validateAppDiagnosticBundleOutputAncestry(root); err != nil {
+		return err
+	}
+	return nil
 }
 
 func writeLocalAppDiagnosticBundle(

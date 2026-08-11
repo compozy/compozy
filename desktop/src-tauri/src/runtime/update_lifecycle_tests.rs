@@ -18,6 +18,8 @@ struct FakeRecoveryProcesses {
     graceful_stops: AtomicUsize,
     forced_stops: AtomicUsize,
     stop_on_graceful: bool,
+    stop_on_forced: bool,
+    replacement_after_graceful: Option<DateTime<Utc>>,
 }
 
 impl ProcessTable for FakeRecoveryProcesses {
@@ -39,23 +41,42 @@ impl ProcessTable for FakeRecoveryProcesses {
 }
 
 impl RecoveryProcess for FakeRecoveryProcesses {
-    fn terminate(&self, pid: u32) -> std::io::Result<()> {
+    fn terminate(&self, pid: u32, expected_start: DateTime<Utc>) -> std::io::Result<()> {
+        if self.start_time(pid) != Some(expected_start) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "process identity changed",
+            ));
+        }
         self.graceful_stops.fetch_add(1, Ordering::SeqCst);
         if self.stop_on_graceful {
             self.starts
                 .lock()
                 .expect("process starts lock")
                 .remove(&pid);
+        } else if let Some(replacement) = self.replacement_after_graceful {
+            self.starts
+                .lock()
+                .expect("process starts lock")
+                .insert(pid, replacement);
         }
         Ok(())
     }
 
-    fn force_terminate(&self, pid: u32) -> std::io::Result<()> {
+    fn force_terminate(&self, pid: u32, expected_start: DateTime<Utc>) -> std::io::Result<()> {
+        if self.start_time(pid) != Some(expected_start) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "process identity changed",
+            ));
+        }
         self.forced_stops.fetch_add(1, Ordering::SeqCst);
-        self.starts
-            .lock()
-            .expect("process starts lock")
-            .remove(&pid);
+        if self.stop_on_forced {
+            self.starts
+                .lock()
+                .expect("process starts lock")
+                .remove(&pid);
+        }
         Ok(())
     }
 }
@@ -110,6 +131,8 @@ fn should_recover_only_a_verified_desktop_owned_runtime_once() {
         graceful_stops: AtomicUsize::new(0),
         forced_stops: AtomicUsize::new(0),
         stop_on_graceful: true,
+        stop_on_forced: true,
+        replacement_after_graceful: None,
     };
     let delay = FakeDelay;
 
@@ -151,6 +174,8 @@ fn should_not_touch_an_external_runtime_during_recovery() {
         graceful_stops: AtomicUsize::new(0),
         forced_stops: AtomicUsize::new(0),
         stop_on_graceful: true,
+        stop_on_forced: true,
+        replacement_after_graceful: None,
     };
     let delay = FakeDelay;
 
@@ -183,6 +208,8 @@ fn should_not_touch_a_runtime_when_its_process_start_no_longer_matches_the_recor
         graceful_stops: AtomicUsize::new(0),
         forced_stops: AtomicUsize::new(0),
         stop_on_graceful: true,
+        stop_on_forced: true,
+        replacement_after_graceful: None,
     };
     let delay = FakeDelay;
 
@@ -213,6 +240,8 @@ fn should_not_touch_a_runtime_when_its_provenance_hash_no_longer_matches() {
         graceful_stops: AtomicUsize::new(0),
         forced_stops: AtomicUsize::new(0),
         stop_on_graceful: true,
+        stop_on_forced: true,
+        replacement_after_graceful: None,
     };
     let delay = FakeDelay;
 
@@ -248,6 +277,8 @@ fn should_recover_a_forward_boot_timestamp_drift_only_when_its_drift_is_bounded(
         graceful_stops: AtomicUsize::new(0),
         forced_stops: AtomicUsize::new(0),
         stop_on_graceful: true,
+        stop_on_forced: true,
+        replacement_after_graceful: None,
     };
     let delay = FakeDelay;
 
@@ -282,6 +313,8 @@ fn should_not_touch_a_reverse_boot_timestamp_drift() {
         graceful_stops: AtomicUsize::new(0),
         forced_stops: AtomicUsize::new(0),
         stop_on_graceful: true,
+        stop_on_forced: true,
+        replacement_after_graceful: None,
     };
     let delay = FakeDelay;
 
@@ -311,6 +344,8 @@ fn should_force_stop_a_verified_runtime_that_ignores_graceful_termination() {
         graceful_stops: AtomicUsize::new(0),
         forced_stops: AtomicUsize::new(0),
         stop_on_graceful: false,
+        stop_on_forced: true,
+        replacement_after_graceful: None,
     };
     let delay = FakeDelay;
 
@@ -327,4 +362,63 @@ fn should_force_stop_a_verified_runtime_that_ignores_graceful_termination() {
     );
     assert_eq!(processes.graceful_stops.load(Ordering::SeqCst), 1);
     assert_eq!(processes.forced_stops.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn should_not_force_stop_a_reused_pid_after_graceful_termination() {
+    let (_directory, home, record) = owned_runtime();
+    let processes = FakeRecoveryProcesses {
+        starts: Mutex::new(HashMap::from([(record.pid, record.started_at)])),
+        executables: HashMap::from([(record.pid, home.app_binary.clone())]),
+        graceful_stops: AtomicUsize::new(0),
+        forced_stops: AtomicUsize::new(0),
+        stop_on_graceful: false,
+        stop_on_forced: true,
+        replacement_after_graceful: Some(record.started_at + ChronoDuration::hours(1)),
+    };
+    let delay = FakeDelay;
+
+    assert_eq!(
+        recover_stalled_runtime(
+            &home,
+            &record,
+            &processes,
+            &delay,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+        ),
+        StalledRuntimeRecovery::Recovered
+    );
+    assert_eq!(processes.graceful_stops.load(Ordering::SeqCst), 1);
+    assert_eq!(processes.forced_stops.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn should_report_failed_recovery_when_a_verified_runtime_survives_forced_termination() {
+    let (_directory, home, record) = owned_runtime();
+    let processes = FakeRecoveryProcesses {
+        starts: Mutex::new(HashMap::from([(record.pid, record.started_at)])),
+        executables: HashMap::from([(record.pid, home.app_binary.clone())]),
+        graceful_stops: AtomicUsize::new(0),
+        forced_stops: AtomicUsize::new(0),
+        stop_on_graceful: false,
+        stop_on_forced: false,
+        replacement_after_graceful: None,
+    };
+    let delay = FakeDelay;
+
+    assert_eq!(
+        recover_stalled_runtime(
+            &home,
+            &record,
+            &processes,
+            &delay,
+            Duration::from_millis(1),
+            Duration::from_millis(1),
+        ),
+        StalledRuntimeRecovery::Failed
+    );
+    assert_eq!(processes.graceful_stops.load(Ordering::SeqCst), 1);
+    assert_eq!(processes.forced_stops.load(Ordering::SeqCst), 1);
+    assert!(home.daemon_info.exists());
 }

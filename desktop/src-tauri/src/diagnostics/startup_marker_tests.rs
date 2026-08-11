@@ -273,3 +273,17 @@ fn should_ignore_a_corrupt_previous_marker_that_cannot_match_the_report_schema()
     assert!(marker.previous_crash().is_none());
     marker.clear().expect("marker clears");
 }
+
+#[test]
+fn should_reject_an_invalid_boot_identifier_before_creating_marker_storage() {
+    let directory = tempfile::tempdir().expect("temp directory opens");
+    let home = CompozyHome::from_root(directory.path().join("compozy-home"));
+
+    for boot_id in ["   ".to_owned(), "x".repeat(MAX_BOOT_ID_BYTES + 1)] {
+        let error =
+            StartupMarker::begin_with_owner(&home, boot_id, owner(200, Utc::now()), |_| None)
+                .expect_err("invalid boot identifier rejects marker creation");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+    }
+    assert!(!home.support_bundles_dir.exists());
+}

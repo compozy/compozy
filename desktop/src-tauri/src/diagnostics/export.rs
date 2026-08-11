@@ -53,8 +53,8 @@ pub fn export(
     if !consent {
         return Err(DiagnosticExportError::ConsentRequired);
     }
-    let (path, is_default_path) = resolve_output_path(home, output_path)?;
-    prepare_output_directory(home, &path, is_default_path)?;
+    let path = resolve_output_path(home, output_path)?;
+    prepare_output_directory(home, &path)?;
     reject_existing_destination(&path)?;
     let manifest = DiagnosticExportManifest {
         schema_version: DIAGNOSTIC_MANIFEST_SCHEMA_VERSION,
@@ -89,36 +89,31 @@ pub fn default_bundle_path(home: &CompozyHome, at: DateTime<Utc>) -> PathBuf {
 fn resolve_output_path(
     home: &CompozyHome,
     output_path: Option<&Path>,
-) -> Result<(PathBuf, bool), DiagnosticExportError> {
-    let (path, is_default_path) = match output_path {
+) -> Result<PathBuf, DiagnosticExportError> {
+    let path = match output_path {
         Some(path) if path.as_os_str().is_empty() => {
             return Err(DiagnosticExportError::InvalidPath);
         }
-        Some(path) => (path.to_path_buf(), false),
-        None => (default_bundle_path(home, Utc::now()), true),
+        Some(path) => path.to_path_buf(),
+        None => default_bundle_path(home, Utc::now()),
     };
     if path.file_name().is_none() || path.extension().and_then(|value| value.to_str()) != Some("gz")
     {
         return Err(DiagnosticExportError::InvalidPath);
     }
-    Ok((path, is_default_path))
+    if output_parent(&path)? != home.support_bundles_dir {
+        return Err(DiagnosticExportError::InvalidPath);
+    }
+    Ok(path)
 }
 
-fn prepare_output_directory(
-    home: &CompozyHome,
-    path: &Path,
-    is_default_path: bool,
-) -> Result<(), DiagnosticExportError> {
+fn prepare_output_directory(home: &CompozyHome, path: &Path) -> Result<(), DiagnosticExportError> {
     let parent = output_parent(path)?;
     ensure_no_untrusted_ancestor_symlink(parent)?;
-    if is_default_path {
-        if parent != home.support_bundles_dir {
-            return Err(DiagnosticExportError::InvalidPath);
-        }
-        ensure_private_default_directory(parent)
-    } else {
-        ensure_custom_parent_directory(parent)
+    if parent != home.support_bundles_dir {
+        return Err(DiagnosticExportError::InvalidPath);
     }
+    ensure_private_default_directory(parent)
 }
 
 fn ensure_no_untrusted_ancestor_symlink(path: &Path) -> Result<(), DiagnosticExportError> {
