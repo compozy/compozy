@@ -61,6 +61,7 @@
 - Desktop issues
 - Ship the full desktop icon set required by Windows tauri-build
 - Pause the Windows desktop lane and ship macOS + Linux only
+- Adjust project copy
 
 ### 🧪 Testing
 
