@@ -21,6 +21,7 @@ pub struct CompozyHome {
     pub update_journal: PathBuf,
     pub app_socket: PathBuf,
     pub app_update_intent: PathBuf,
+    pub support_bundles_dir: PathBuf,
 }
 
 #[derive(Debug, Error)]
@@ -60,6 +61,7 @@ impl CompozyHome {
             update_journal: root.join("bin").join(".update-journal.json"),
             app_socket: root.join("app.sock"),
             app_update_intent: root.join(".app-update-intent.json"),
+            support_bundles_dir: root.join("support-bundles"),
             root,
         }
     }

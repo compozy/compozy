@@ -8,6 +8,7 @@ license = "BSL-1.1"
 publish = false
 
 [build-dependencies]
+serde_json = "1"
 tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
@@ -46,6 +47,8 @@ toml = "0.9"
 url = { version = "2", features = ["serde"] }
 which = "8"
 zip = { version = "4", default-features = false, features = ["deflate"] }
+tauri-plugin-clipboard-manager = "=2.3.2"
+fs2 = "0.4"
 
 [dev-dependencies]
 jsonschema = "0.37"

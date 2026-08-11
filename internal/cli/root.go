@@ -24,6 +24,7 @@ const (
 	rootCompozyKey   = "compozy"
 	rootVersionKey   = "version"
 	cliCodeKey       = "code"
+	cliBytesKey      = "bytes"
 	cliFieldKey      = "field"
 	cliFieldValue    = "Field"
 	cliGetKey        = "get"

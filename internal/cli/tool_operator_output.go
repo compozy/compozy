@@ -159,7 +159,7 @@ func toolInvokeBundle(response ToolInvokeResponseRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"tool_invocation",
-				[]string{toolOperatorToolIDKey, automationStatusKey, "truncated", cliDurationMSKey, "bytes"},
+				[]string{toolOperatorToolIDKey, automationStatusKey, "truncated", cliDurationMSKey, cliBytesKey},
 				[]string{
 					response.ToolID.String(),
 					response.Status,

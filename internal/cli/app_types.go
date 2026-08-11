@@ -56,17 +56,20 @@ type AppUpdateState struct {
 }
 
 type appStateRecord struct {
-	SchemaVersion int             `json:"schema_version"`
-	PID           int             `json:"pid"`
-	StartedAt     time.Time       `json:"started_at"`
-	AppVersion    string          `json:"app_version,omitempty"`
-	Channel       string          `json:"channel,omitempty"`
-	State         string          `json:"state"`
-	Owned         bool            `json:"owned,omitempty"`
-	Runtime       json.RawMessage `json:"runtime,omitempty"`
-	Error         *AppErrorReport `json:"error,omitempty"`
-	Update        *AppUpdateState `json:"update,omitempty"`
+	SchemaVersion    int             `json:"schema_version"`
+	PID              int             `json:"pid"`
+	StartedAt        time.Time       `json:"started_at"`
+	AppVersion       string          `json:"app_version,omitempty"`
+	Channel          string          `json:"channel,omitempty"`
+	State            string          `json:"state"`
+	Owned            bool            `json:"owned,omitempty"`
+	Runtime          json.RawMessage `json:"runtime,omitempty"`
+	Error            *AppErrorReport `json:"error,omitempty"`
+	Update           *AppUpdateState `json:"update,omitempty"`
+	DiagnosticReport json.RawMessage `json:"diagnostic_report"`
 }
+
+const appVersionKey = "app_version"
 
 type appInstallation struct {
 	Installed bool

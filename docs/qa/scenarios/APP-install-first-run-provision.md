@@ -4,15 +4,15 @@ area: APP
 title: Install CompozyOS and reach the product with no prior setup
 persona: Lea
 journey: J-desktop-first-run
-expected: A machine with no runtime goes installer → guided provisioning with visible stages → full product UI; relaunch lands directly in the product with exactly one daemon and `compozy status` healthy.
+expected: A machine with no runtime goes installer → guided provisioning with visible phases → download, verify, install, and self-start → full product UI; relaunch lands directly in the product with exactly one daemon and `compozy status` healthy. A startup failure keeps the boot window available for redacted diagnostics, local copy, and explicit local export.
 entry_points: CompozyOS installer (macOS dmg, Linux package); app first launch
 qa_status: blocked-verify
 bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent; BUG-20260810-boot-controls-unavailable
 fix_status: fixed
-retest_status: pass
+retest_status: blocked-verify
 fix_commits: 01a45c49; b415f24b; b3aa3d27; bd610cfa; 02b55a46; f081a1e; working tree
-evidence: /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/boot-retry-blocked.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/boot-diagnostics-fixed.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/boot-retry-fixed.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/platform-capability-blockers.txt
-last_report: docs/qa/reports/2026-08-10-desktop-coderabbit-remediation.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/boot-retry-blocked.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/boot-diagnostics-fixed.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/boot-retry-fixed.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/platform-capability-blockers.txt; /Users/pedronauck/dev/qa-labs/compozy-desktop-startup-diagnostics-20260811-200336-439901-lab/qa-artifacts/qa/runtime-cli-walk.md
+last_report: docs/qa/reports/2026-08-11-desktop-startup-diagnostics.md
 overlaps:
 ---
 
@@ -27,3 +27,9 @@ install→provision→product, Gatekeeper acceptance, `compozy status` transcrip
 tauri-driver script + package install/reinstall transcript. All OSes: process-table capture
 proving exactly one daemon, and the offline-first-run retry walk (E2E-002) on at least one OS
 with the branch recorded.
+
+QA impact 2026-08-11: first-run now self-starts the verified app-owned runtime and keeps the boot
+window available after failure for a redacted report, local copy, and explicit local export.
+Historical evidence above is preserved. The working-tree macOS runtime path passed, but a signed
+candidate DMG and Linux AppImage were unavailable, so installer trust, packaged provisioning, and
+the boot-window recovery controls remain blocked for the mandatory pre-publish artifact smoke.

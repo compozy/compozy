@@ -4,8 +4,8 @@ use tauri::{
     webview::PageLoadEvent,
 };
 
-use crate::errors::ShellError;
-use crate::state::{ShellState, UpdateTarget};
+use crate::errors::{DiagnosticError, ShellError};
+use crate::state::{ProvisionStage, ShellState, UpdateTarget};
 
 const BOOT_BRIDGE_SCRIPT: &str = r#"
 if (!Object.hasOwn(window, "__TAURI__")) {
@@ -35,6 +35,16 @@ struct BootPayload {
     action: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     target: Option<UpdateTarget>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pct: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    attempt: Option<u8>,
+    retry: bool,
+    diagnose: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<DiagnosticError>,
 }
 
 pub fn render<R: Runtime>(window: &WebviewWindow<R>, state: &ShellState) -> tauri::Result<()> {
@@ -56,6 +66,12 @@ pub fn show_update_offer<R: Runtime>(
             message: None,
             action: None,
             target: Some(target),
+            stage: None,
+            pct: None,
+            attempt: None,
+            retry: false,
+            diagnose: false,
+            error: None,
         },
     )
 }
@@ -68,6 +84,12 @@ pub fn show_managed_update<R: Runtime>(app: &AppHandle<R>, action: &str) -> taur
             message: None,
             action: Some(action.to_owned()),
             target: None,
+            stage: None,
+            pct: None,
+            attempt: None,
+            retry: false,
+            diagnose: true,
+            error: None,
         },
     )
 }
@@ -78,8 +100,14 @@ pub fn show_error_notice<R: Runtime>(app: &AppHandle<R>, error: &ShellError) -> 
         BootPayload {
             state: "error".to_owned(),
             message: Some(error.safe_message.clone()),
-            action: None,
+            action: Some("Retry operation".to_owned()),
             target: None,
+            stage: None,
+            pct: None,
+            attempt: None,
+            retry: true,
+            diagnose: true,
+            error: Some(DiagnosticError::from(error)),
         },
     )
 }
@@ -131,11 +159,39 @@ fn render_payload<R: Runtime>(
 
 fn payload_from_state(state: &ShellState) -> BootPayload {
     let (name, message, action) = boot_copy(state);
+    let (stage, pct) = provision_progress(state);
+    let attempt = match state {
+        ShellState::Starting { attempt } => Some(*attempt),
+        _ => None,
+    };
+    let shell_error = match state {
+        ShellState::ShellError { error } => Some(DiagnosticError::from(error)),
+        _ => None,
+    };
     BootPayload {
         state: name.to_owned(),
         message: message.map(str::to_owned),
         action: action.map(str::to_owned),
         target: None,
+        stage,
+        pct,
+        attempt,
+        retry: shell_error.is_some(),
+        diagnose: shell_error.is_some() || matches!(state, ShellState::Disconnected { .. }),
+        error: shell_error,
+    }
+}
+
+fn provision_progress(state: &ShellState) -> (Option<String>, Option<u8>) {
+    let ShellState::Provisioning { stage } = state else {
+        return (None, None);
+    };
+    match stage {
+        ProvisionStage::Download { pct } => (Some("download".to_owned()), Some(*pct)),
+        ProvisionStage::Verify => (Some("verify".to_owned()), None),
+        ProvisionStage::Install => (Some("install".to_owned()), None),
+        ProvisionStage::Start => (Some("start".to_owned()), None),
+        ProvisionStage::Ready => (Some("ready".to_owned()), None),
     }
 }
 
@@ -161,7 +217,11 @@ fn boot_copy(state: &ShellState) -> (&'static str, Option<&str>, Option<&str>) {
                 "Update the CompozyOS runtime through its install channel."
             }),
         ),
-        ShellState::ShellError { error } => ("error", Some(error.safe_message.as_str()), None),
+        ShellState::ShellError { error } => (
+            "error",
+            Some(error.safe_message.as_str()),
+            Some("Retry operation"),
+        ),
     }
 }
 
@@ -177,6 +237,12 @@ mod tests {
                 message: None,
                 action: None,
                 target: Some(target),
+                stage: None,
+                pct: None,
+                attempt: None,
+                retry: false,
+                diagnose: false,
+                error: None,
             };
             let value = serde_json::to_value(payload).expect("offer serializes");
             assert_eq!(value["state"], "product");
@@ -197,5 +263,44 @@ mod tests {
         show(app.handle(), ShellState::Resolving).expect("initial boot window is shown");
 
         assert!(app.get_webview_window("boot").is_some());
+    }
+
+    #[test]
+    fn should_send_a_typed_safe_error_without_its_local_log_path_to_boot() {
+        let payload = payload_from_state(&ShellState::ShellError {
+            error: ShellError::new(
+                crate::errors::ShellErrorCode::RuntimeUnhealthy,
+                "The runtime is not responding.",
+                std::path::PathBuf::from("/private/compozy/logs/desktop.log"),
+            ),
+        });
+
+        let value = serde_json::to_value(payload).expect("boot payload serializes");
+        assert_eq!(value["error"]["code"], "runtime_unhealthy");
+        assert_eq!(
+            value["error"]["safe_message"],
+            "The runtime is not responding."
+        );
+        assert!(value["error"].get("log_path").is_none());
+        assert_eq!(value["retry"], true);
+        assert_eq!(value["diagnose"], true);
+    }
+
+    #[test]
+    fn should_send_truthful_provision_progress_and_start_attempt_to_boot() {
+        let provisioning = serde_json::to_value(payload_from_state(&ShellState::Provisioning {
+            stage: ProvisionStage::Download { pct: 45 },
+        }))
+        .expect("provision payload serializes");
+        let starting =
+            serde_json::to_value(payload_from_state(&ShellState::Starting { attempt: 2 }))
+                .expect("starting payload serializes");
+
+        assert_eq!(provisioning["stage"], "download");
+        assert_eq!(provisioning["pct"], 45);
+        assert!(provisioning.get("attempt").is_none());
+        assert_eq!(starting["attempt"], 2);
+        assert!(starting.get("stage").is_none());
+        assert!(starting.get("pct").is_none());
     }
 }

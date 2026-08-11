@@ -2,7 +2,11 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://compozy.com/schema/app-state.schema.json",
     "title": "CompozyOS app state",
-    "oneOf": [{ "$ref": "#/$defs/app_record" }, { "$ref": "#/$defs/status_report" }],
+    "oneOf": [
+        { "$ref": "#/$defs/app_record" },
+        { "$ref": "#/$defs/status_report" },
+        { "$ref": "#/$defs/diagnostic_report" }
+    ],
     "$defs": {
         "state": {
             "enum": [
@@ -35,7 +39,9 @@
                         "quiesce_failed",
                         "migration_recovery_required",
                         "config_invalid",
-                        "not_owned"
+                        "not_owned",
+                        "desktop_control_failed",
+                        "boot_window_failed"
                     ]
                 },
                 "safe_message": { "type": "string", "minLength": 1, "maxLength": 512 },
@@ -43,9 +49,88 @@
             },
             "additionalProperties": false
         },
+        "diagnostic_error": {
+            "type": "object",
+            "required": ["code", "safe_message"],
+            "properties": {
+                "code": {
+                    "enum": [
+                        "port_conflict_foreign",
+                        "runtime_start_failed",
+                        "provision_network",
+                        "provision_disk_space",
+                        "provision_permission",
+                        "runtime_unhealthy",
+                        "handshake_failed",
+                        "load_deadline_exceeded",
+                        "update_lock_held",
+                        "quiesce_failed",
+                        "migration_recovery_required",
+                        "config_invalid",
+                        "not_owned",
+                        "desktop_control_failed",
+                        "boot_window_failed"
+                    ]
+                },
+                "safe_message": { "type": "string", "minLength": 1, "maxLength": 512 }
+            },
+            "additionalProperties": false
+        },
+        "diagnostic_phase": {
+            "enum": [
+                "bootstrap",
+                "resolving",
+                "provisioning",
+                "starting",
+                "attaching",
+                "product",
+                "updating",
+                "disconnected",
+                "skew",
+                "error"
+            ]
+        },
+        "previous_crash": {
+            "type": "object",
+            "required": ["boot_id", "boot_phase", "started_at"],
+            "properties": {
+                "boot_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                "boot_phase": { "$ref": "#/$defs/diagnostic_phase" },
+                "started_at": { "type": "string", "format": "date-time" }
+            },
+            "additionalProperties": false
+        },
+        "diagnostic_report": {
+            "type": "object",
+            "required": [
+                "schema_version",
+                "boot_id",
+                "boot_phase",
+                "app_version",
+                "runtime_version",
+                "runtime_owned",
+                "current_error",
+                "previous_crash"
+            ],
+            "properties": {
+                "schema_version": { "const": 1 },
+                "boot_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                "boot_phase": { "$ref": "#/$defs/diagnostic_phase" },
+                "app_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+                "runtime_version": { "type": ["string", "null"], "maxLength": 128 },
+                "runtime_owned": { "type": ["boolean", "null"] },
+                "current_error": {
+                    "anyOf": [{ "$ref": "#/$defs/diagnostic_error" }, { "type": "null" }]
+                },
+                "previous_crash": {
+                    "anyOf": [{ "$ref": "#/$defs/previous_crash" }, { "type": "null" }]
+                }
+            },
+            "additionalProperties": false
+        },
         "app_record": {
             "type": "object",
-            "required": ["schema_version", "pid", "started_at", "state"],
+            "required": ["schema_version", "pid", "started_at", "diagnostic_report", "state"],
             "properties": {
                 "schema_version": { "const": 1 },
                 "pid": { "type": "integer", "minimum": 1 },
@@ -63,7 +148,7 @@
                 "runtime": { "type": "string" },
                 "needed": { "type": "string" },
                 "newer": { "type": "boolean" },
-                "diagnostic": { "$ref": "#/$defs/error" },
+                "diagnostic_report": { "$ref": "#/$defs/diagnostic_report" },
                 "error": { "$ref": "#/$defs/error" },
                 "update": { "$ref": "#/$defs/update_status" }
             },

@@ -10,6 +10,36 @@ compozy app status -o json
 compozy app diagnose -o json
 ```
 
+`compozy app diagnose` returns the redacted `DiagnosticReport` for the current boot. If the desktop
+app is not running and its control socket is absent, it uses the latest persisted report instead, so
+diagnosing a recorded failed desktop start does not require a healthy daemon. A present but
+unresponsive control socket returns its control error. The report carries boot ID and phase, app and
+runtime versions, runtime ownership, a safe error, and any previous crash. It excludes raw paths,
+log contents, and secrets.
+
+## Copy or export startup diagnostics
+
+In the boot window, select **Load diagnostics**. Expand **Technical details** only when you need the
+redacted report. **Copy diagnostics** copies it locally. **Export diagnostics** creates a local
+archive only after that explicit action; it never uploads the archive or deletes data.
+
+From a terminal, request the same report or create an archive:
+
+```bash
+compozy app diagnose -o json
+compozy app diagnose --bundle --yes -o json
+compozy app diagnose --bundle --yes --bundle-output ./desktop-diagnostics.tar.gz -o json
+```
+
+`--yes` is required because archive creation writes a local file. By default, the archive is saved
+under `$COMPOZY_HOME/support-bundles/`; `--bundle-output` selects a new file path ending in `.gz`.
+The command refuses an existing file or symbolic link. The archive contains `manifest.json` with
+the redacted report and may include bounded, redacted tails from the current boot's `desktop.log`
+and `desktop-bootstrap.jsonl`. It never includes `compozy.log`, raw log content, databases,
+configuration, credentials, sessions, or transcripts. This startup diagnostic archive is not a
+daemon support bundle, so it also works when the daemon did not start. It is never uploaded
+automatically.
+
 ## Log paths
 
 The app writes logs under the active `COMPOZY_HOME`. These are the default paths:
@@ -61,14 +91,18 @@ compozy app update --check -o json
 
 When status reports `recovery_required`:
 
-1. Run `compozy app diagnose -o json` and save its recovery code and paths.
-2. Stop the desktop app. Do not delete the active runtime or staging directory.
-3. Follow the diagnostic action to restore the verified previous runtime or finish the verified staged runtime.
-4. Reopen the app and run `compozy app retry`.
-5. Confirm that `compozy app status -o json` reports a healthy runtime and no recovery state.
+1. Run `compozy app diagnose -o json` and save its recovery code and report.
+2. Follow the diagnostic action. Do not delete the active runtime, staging directory, or any
+   CompozyOS home data.
+3. Run `compozy app retry` only after resolving the reported cause.
+4. Confirm that `compozy app status -o json` reports a healthy runtime and no recovery state.
 
 For an operator-managed runtime, use the update command reported by diagnostics. The desktop app
 never replaces a Homebrew, npm, Go, Linux package, or other externally managed installation.
+
+The app may repair only disposable desktop metadata and a runtime process it has verified as
+desktop-owned. It does not terminate operator-managed processes and never resets `compozy.db`,
+`config.toml`, credentials, sessions, or the full CompozyOS home.
 
 ## Roll forward after an interrupted release
 
@@ -79,8 +113,8 @@ Prefer a newer signed release over hand-editing runtime markers:
 3. Let the new app validate the existing runtime and recovery record.
 4. Apply the offered runtime update, then confirm healthy status.
 
-If no newer signed release is available, include `compozy app diagnose -o json` and the relevant
-platform logs in a support report.
+If no newer signed release is available, export diagnostics locally and include the archive only
+when you choose to send it to support. CompozyOS does not send it for you.
 
 ## Local and remote security boundary
 

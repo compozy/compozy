@@ -3,6 +3,10 @@ use std::sync::{Arc, Mutex};
 use chrono::{DateTime, Utc};
 use tauri::{AppHandle, Manager, Wry};
 
+use crate::diagnostics::startup_marker::StartupMarker;
+use crate::diagnostics::{
+    DiagnosticReport, PreviousCrash, RuntimeDiagnosticMetadata, boot_phase_from_state,
+};
 use crate::errors::{ShellError, ShellErrorCode};
 use crate::home::CompozyHome;
 use crate::record::{AppRecord, AppUpdateStatus, write_atomic};
@@ -14,32 +18,46 @@ pub struct AppStatePublisher {
     app: AppHandle<Wry>,
     home: CompozyHome,
     started_at: DateTime<Utc>,
-    diagnostic: Option<ShellError>,
+    startup_diagnostic: Option<ShellError>,
+    app_version: String,
+    boot_id: String,
+    previous_crash: Option<PreviousCrash>,
+    startup_marker: Option<StartupMarker>,
     state: Arc<Mutex<PublishedState>>,
     publish_order: Arc<Mutex<()>>,
+}
+
+pub struct AppStateStartup {
+    pub started_at: DateTime<Utc>,
+    pub diagnostic: Option<ShellError>,
+    pub app_version: String,
+    pub boot_id: String,
+    pub previous_crash: Option<PreviousCrash>,
+    pub startup_marker: Option<StartupMarker>,
 }
 
 struct PublishedState {
     shell: ShellState,
     update: AppUpdateStatus,
+    runtime: RuntimeDiagnosticMetadata,
 }
 
 impl AppStatePublisher {
-    pub fn new(
-        app: AppHandle<Wry>,
-        home: CompozyHome,
-        started_at: DateTime<Utc>,
-        diagnostic: Option<ShellError>,
-    ) -> Self {
+    pub fn new(app: AppHandle<Wry>, home: CompozyHome, startup: AppStateStartup) -> Self {
         Self {
             app,
             home,
-            started_at,
-            diagnostic,
+            started_at: startup.started_at,
+            startup_diagnostic: startup.diagnostic,
+            app_version: startup.app_version,
+            boot_id: startup.boot_id,
+            previous_crash: startup.previous_crash,
+            startup_marker: startup.startup_marker,
             publish_order: Arc::new(Mutex::new(())),
             state: Arc::new(Mutex::new(PublishedState {
                 shell: ShellState::Resolving,
                 update: AppUpdateStatus::default(),
+                runtime: RuntimeDiagnosticMetadata::default(),
             })),
         }
     }
@@ -50,9 +68,9 @@ impl AppStatePublisher {
             &self.state,
             |published| {
                 published.shell = state.clone();
-                (state, published.update.clone())
+                (state, published.update.clone(), published.runtime.clone())
             },
-            |(state, update)| self.persist(state, update),
+            |(state, update, runtime)| self.persist(state, update, runtime),
         );
     }
 
@@ -62,9 +80,13 @@ impl AppStatePublisher {
             &self.state,
             |published| {
                 mutate(&mut published.update);
-                (published.shell.clone(), published.update.clone())
+                (
+                    published.shell.clone(),
+                    published.update.clone(),
+                    published.runtime.clone(),
+                )
             },
-            |(shell, update)| self.persist(shell, update),
+            |(shell, update, runtime)| self.persist(shell, update, runtime),
         );
     }
 
@@ -84,20 +106,61 @@ impl AppStatePublisher {
             .clone()
     }
 
-    fn persist(&self, state: ShellState, update: AppUpdateStatus) {
+    pub fn set_runtime_metadata(&self, version: Option<String>, owned: bool) {
+        publish_ordered(
+            &self.publish_order,
+            &self.state,
+            |published| {
+                published.runtime = RuntimeDiagnosticMetadata {
+                    version,
+                    owned: Some(owned),
+                };
+                (
+                    published.shell.clone(),
+                    published.update.clone(),
+                    published.runtime.clone(),
+                )
+            },
+            |(shell, update, runtime)| self.persist(shell, update, runtime),
+        );
+    }
+
+    pub fn diagnostic_report(&self) -> DiagnosticReport {
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        self.diagnostic_report_from(&state.shell, &state.update, &state.runtime)
+    }
+
+    fn persist(
+        &self,
+        state: ShellState,
+        update: AppUpdateStatus,
+        runtime: RuntimeDiagnosticMetadata,
+    ) {
         let channel = option_env!("COMPOZY_RELEASE_CHANNEL").unwrap_or("development");
-        let record = AppRecord::new(std::process::id(), self.started_at, state.clone())
-            .with_diagnostic(self.diagnostic.clone())
-            .with_metadata(env!("CARGO_PKG_VERSION"), channel, update);
+        if let Some(marker) = &self.startup_marker
+            && let Err(error) = marker.update_phase(boot_phase_from_state(&state))
+        {
+            logging::error(format!("update desktop startup marker: {error}"));
+        }
+        let diagnostic_report = self.diagnostic_report_from(&state, &update, &runtime);
+        let record = AppRecord::new(
+            std::process::id(),
+            self.started_at,
+            diagnostic_report,
+            state.clone(),
+        )
+        .with_metadata(self.app_version.clone(), channel, update);
         if let Err(error) = write_atomic(&self.home.app_record, &record) {
             logging::error(format!("write app state: {error}"));
-            let write_error = ShellState::ShellError {
-                error: ShellError::new(
-                    ShellErrorCode::ProvisionPermission,
-                    "The app state could not be written.",
-                    self.home.app_log.clone(),
-                ),
-            };
+            let write_error = record_write_failure_state(&self.state, &self.home.app_log);
+            if let Some(marker) = &self.startup_marker
+                && let Err(marker_error) = marker.update_phase("error")
+            {
+                logging::error(format!("mark app-state write failure: {marker_error}"));
+            }
             if let Some(boot) = self.app.get_webview_window("boot")
                 && let Err(render_error) = boot_window::render(&boot, &write_error)
             {
@@ -118,6 +181,41 @@ impl AppStatePublisher {
             publisher.publish(ShellState::ShellError { error });
         })
     }
+
+    fn diagnostic_report_from(
+        &self,
+        shell: &ShellState,
+        update: &AppUpdateStatus,
+        runtime: &RuntimeDiagnosticMetadata,
+    ) -> DiagnosticReport {
+        DiagnosticReport::from_snapshot(
+            self.boot_id.clone(),
+            self.app_version.clone(),
+            self.previous_crash.clone(),
+            self.startup_diagnostic.as_ref(),
+            runtime,
+            shell,
+            update,
+        )
+    }
+}
+
+fn record_write_failure_state(
+    state: &Mutex<PublishedState>,
+    log_path: &std::path::Path,
+) -> ShellState {
+    let write_error = ShellState::ShellError {
+        error: ShellError::new(
+            ShellErrorCode::ProvisionPermission,
+            "The app state could not be written.",
+            log_path.to_path_buf(),
+        ),
+    };
+    state
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .shell = write_error.clone();
+    write_error
 }
 
 fn publish_ordered<State, Snapshot>(
@@ -214,6 +312,43 @@ mod tests {
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()),
             2
+        );
+    }
+
+    #[test]
+    fn should_publish_a_safe_retryable_error_when_app_state_persistence_fails() {
+        let state = Mutex::new(PublishedState {
+            shell: ShellState::Resolving,
+            update: AppUpdateStatus::default(),
+            runtime: RuntimeDiagnosticMetadata::default(),
+        });
+        let write_error =
+            record_write_failure_state(&state, std::path::Path::new("/private/home/desktop.log"));
+        let published = state.lock().expect("published state lock opens");
+        let report = DiagnosticReport::from_snapshot(
+            "boot-write-failure",
+            "0.4.1",
+            None,
+            None,
+            &published.runtime,
+            &published.shell,
+            &published.update,
+        );
+
+        assert_eq!(published.shell, write_error);
+        assert!(crate::controller::shell_retry_available(&published.shell));
+        assert_eq!(
+            report
+                .current_error
+                .as_ref()
+                .expect("report error exists")
+                .code,
+            ShellErrorCode::ProvisionPermission
+        );
+        assert!(
+            !serde_json::to_string(&report)
+                .expect("report serializes")
+                .contains("/private/home")
         );
     }
 }

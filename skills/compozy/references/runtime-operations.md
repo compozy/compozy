@@ -561,6 +561,14 @@ structural rather than heuristic candidates.
 
 `compozy support bundle --yes` creates and downloads a redacted support bundle. It may include status, doctor, provider, event-summary, log-tail, and config-apply snapshots unless `--no-status` is passed. Treat support bundles as operator artifacts, not native tool calls.
 
+For a failed desktop start, use `compozy app diagnose -o json` before daemon diagnostics. It returns
+the redacted desktop report even when the daemon is unavailable. To save a local-only archive, use
+`compozy app diagnose --bundle --yes -o json`; this explicit write never uploads or deletes data and
+is separate from the daemon-owned support bundle. The archive contains `manifest.json` and may
+include bounded, redacted `desktop.log` and `desktop-bootstrap.jsonl` tails from the current boot;
+it never includes `compozy.log`, raw logs, databases, configuration, credentials, sessions, or
+transcripts.
+
 ## Runtime Boundaries
 
 CompozyOS must remain agent-manageable. Any runtime capability that affects state should have a deterministic CLI, HTTP/UDS, or tool path with machine-readable output. UI-only management is incomplete.

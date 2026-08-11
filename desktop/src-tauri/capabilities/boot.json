@@ -1,7 +1,7 @@
 {
     "$schema": "../gen/schemas/desktop-schema.json",
     "identifier": "boot",
-    "description": "Bundled boot window with no page IPC permissions",
+    "description": "Bundled boot window with access to the desktop control bridge",
     "windows": ["boot"],
-    "permissions": []
+    "permissions": ["allow-shell-control"]
 }

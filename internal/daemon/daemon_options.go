@@ -14,6 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/providers"
 
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -156,6 +157,9 @@ func (d *Daemon) applyCoreDefaults() {
 	}
 	if d.pid == nil {
 		d.pid = os.Getpid
+	}
+	if d.processStartedAt == nil {
+		d.processStartedAt = procutil.StartedAt
 	}
 	if d.acquireLock == nil {
 		d.acquireLock = AcquireLock

@@ -121,7 +121,7 @@ func toolArtifactPageBundle(page ToolArtifactPageRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"tool_artifact_page",
-				[]string{"artifact_uri", "offset", "bytes", "total_bytes", "data_base64", "next_offset", "eof"},
+				[]string{"artifact_uri", "offset", cliBytesKey, "total_bytes", "data_base64", "next_offset", "eof"},
 				[]string{
 					page.Artifact.URI,
 					fmt.Sprintf("%d", page.Offset),

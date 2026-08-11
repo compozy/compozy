@@ -86,9 +86,7 @@ pub fn provision(
     if request.resume == ResumeChoice::StartOver {
         remove_staging(&paths)?;
     }
-    progress(ProvisionStage::Download { pct: 0 });
     let (manifest, signature) = fetch_signed_manifest(&client, request.manifest_url)?;
-    progress(ProvisionStage::Verify);
     let Some(verified) = verify_manifest(
         &manifest,
         &signature,
@@ -100,15 +98,26 @@ pub fn provision(
         return Ok(ProvisionOutcome::UpToDate);
     };
     if !verified_download_exists(&paths.download, &verified.artifact) {
-        download_verified(&client, &verified.artifact, &paths.download)
-            .map_err(map_artifact_download)?;
+        progress(ProvisionStage::Download { pct: 0 });
+        let mut last_pct = 0;
+        download_verified(&client, &verified.artifact, &paths.download, &mut |pct| {
+            if pct != last_pct {
+                progress(ProvisionStage::Download { pct });
+                last_pct = pct;
+            }
+        })
+        .map_err(map_artifact_download)?;
     }
+    progress(ProvisionStage::Verify);
+    if !verified_download_exists(&paths.download, &verified.artifact) {
+        return Err(ProvisionError::Artifact(ArtifactError::DigestMismatch));
+    }
+    progress(ProvisionStage::Install);
     extract_binary(&paths.download, &paths.staged_binary)?;
     if runtime_present() {
         remove_staging(&paths)?;
         return Ok(ProvisionOutcome::AttachExternally);
     }
-    progress(ProvisionStage::Install);
     install_staged(
         request.home,
         &paths.staged_binary,
@@ -139,7 +148,7 @@ pub fn stage_update(
     };
     let paths = staging_paths(home);
     remove_staging(&paths)?;
-    download_verified(&client, &verified.artifact, &paths.download)
+    download_verified(&client, &verified.artifact, &paths.download, &mut |_| {})
         .map_err(map_artifact_download)?;
     extract_binary(&paths.download, &paths.staged_binary)?;
     remove_file_if_present(&paths.download)?;

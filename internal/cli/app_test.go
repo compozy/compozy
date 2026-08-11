@@ -1,14 +1,19 @@
 package cli
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,13 +60,14 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 1,
-			"pid":            4242,
-			"started_at":     "2026-08-10T03:00:00Z",
-			"app_version":    "9.9.9-stale",
-			"state":          "product",
-			"origin":         "http://localhost:2123/",
-			"owned":          true,
+			"schema_version":    1,
+			"pid":               4242,
+			"started_at":        "2026-08-10T03:00:00Z",
+			"app_version":       "9.9.9-stale",
+			"state":             "product",
+			"origin":            "http://localhost:2123/",
+			"owned":             true,
+			"diagnostic_report": appDiagnosticReportFixture(),
 		})
 		deps := appTestDeps(homePaths)
 		deps.resolveAppInstallation = func(context.Context, compozyconfig.HomePaths) (appInstallation, error) {
@@ -129,10 +135,11 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 				t.Parallel()
 				homePaths := appTestHome(t)
 				record := map[string]any{
-					"schema_version": 1,
-					"pid":            4242,
-					"started_at":     "2026-08-10T03:00:00Z",
-					"state":          state.name,
+					"schema_version":    1,
+					"pid":               4242,
+					"started_at":        "2026-08-10T03:00:00Z",
+					"state":             state.name,
+					"diagnostic_report": appDiagnosticReportFixture(),
 				}
 				maps.Copy(record, state.extra)
 				writeAppTestRecord(t, homePaths, record)
@@ -158,10 +165,11 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
 		writeAppTestRecord(t, homePaths, map[string]any{
-			"schema_version": 1,
-			"pid":            4242,
-			"started_at":     "2026-08-10T03:00:00Z",
-			"state":          "attaching",
+			"schema_version":    1,
+			"pid":               4242,
+			"started_at":        "2026-08-10T03:00:00Z",
+			"state":             "attaching",
+			"diagnostic_report": appDiagnosticReportFixture(),
 		})
 		deps := appTestDeps(homePaths)
 		deps.processAlive = func(int) bool { return false }
@@ -195,6 +203,697 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 			err,
 			appStateSchemaUnknownCode,
 		)
+	})
+}
+
+func TestAppDiagnoseReportsSafeStateAndBundles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return the live shared report without wrapping it", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		deps := appTestDeps(homePaths)
+		deps.callAppControl = func(
+			_ context.Context,
+			_ string,
+			method string,
+			params any,
+		) (any, error) {
+			if method != appDiagnoseMethod {
+				t.Fatalf("app control method = %q, want %q", method, appDiagnoseMethod)
+			}
+			values, ok := params.(map[string]any)
+			if !ok || len(values) != 0 {
+				t.Fatalf("app diagnose params = %#v, want empty object", params)
+			}
+			return appDiagnosticReportFixture(), nil
+		}
+
+		stdout, err := executeAppTestCommand(t, deps, "app", "diagnose", "-o", "json")
+		if err != nil {
+			t.Fatalf("app diagnose error = %v", err)
+		}
+		var report appDiagnosticReport
+		if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+			t.Fatalf("decode app diagnose report: %v", err)
+		}
+		if report.BootID != "boot_123" || report.BootPhase != appProductState || report.CurrentError == nil {
+			t.Fatalf("app diagnose report = %#v, want the shared safe report", report)
+		}
+		if _, err := validateAppDiagnosticReport(stdout.Bytes()); err != nil {
+			t.Fatalf("app diagnose report must validate against the shared schema: %v", err)
+		}
+		if bytes.Contains(stdout.Bytes(), []byte(homePaths.HomeDir)) {
+			t.Fatalf("app diagnose report contains raw home path: %s", stdout.Bytes())
+		}
+		human, humanErr := executeAppTestCommand(t, deps, "app", "diagnose")
+		if humanErr != nil {
+			t.Fatalf("human app diagnose error = %v", humanErr)
+		}
+		if !strings.Contains(human.String(), "Error code") || !strings.Contains(human.String(), "runtime_unhealthy") {
+			t.Fatalf("human app diagnose output = %q, want error code", human.String())
+		}
+	})
+
+	t.Run("Should delegate a live bundle export to the desktop app", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		if err := os.MkdirAll(homePaths.LogsDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(live diagnostic logs) error = %v", err)
+		}
+		for _, source := range []struct {
+			name string
+			line string
+		}{
+			{
+				name: "desktop.log",
+				line: `{"timestamp":"2026-04-03T12:00:00Z","level":"info","boot_id":"boot_exported","message":"Desktop event"}`,
+			},
+			{
+				name: "desktop-bootstrap.jsonl",
+				line: `{"timestamp":"2026-04-03T12:00:00Z","level":"info","boot_id":"boot_exported","message":"Bootstrap event"}`,
+			},
+		} {
+			if err := os.WriteFile(
+				filepath.Join(homePaths.LogsDir, source.name),
+				[]byte(source.line),
+				0o600,
+			); err != nil {
+				t.Fatalf("WriteFile(live diagnostic log %q) error = %v", source.name, err)
+			}
+		}
+		deps := appTestDeps(homePaths)
+		deps.now = func() time.Time { return fixedTestNow }
+		exported := false
+		deps.callAppControl = func(
+			_ context.Context,
+			_ string,
+			method string,
+			params any,
+		) (any, error) {
+			switch method {
+			case appDiagnoseMethod:
+				report := appDiagnosticReportFixture()
+				report["boot_id"] = "boot_before_export"
+				return report, nil
+			case appExportDiagnosticsMethod:
+				exported = true
+				values, ok := params.(map[string]any)
+				if !ok || len(values) != 1 || values["consent"] != true {
+					t.Fatalf("app export params = %#v, want only consent=true", params)
+				}
+				exportedReport := appDiagnosticReportFixture()
+				exportedReport["boot_id"] = "boot_exported"
+				report, decodeErr := decodeAppDiagnosticReport(exportedReport)
+				if decodeErr != nil {
+					t.Fatalf("decode fixture report: %v", decodeErr)
+				}
+				outputPath := filepath.Join(
+					homePaths.HomeDir,
+					supportBundlesDirName,
+					appDiagnosticBundleFileName(fixedTestNow),
+				)
+				bundle, writeErr := writeLocalAppDiagnosticBundle(homePaths, report, outputPath, fixedTestNow, true)
+				if writeErr != nil {
+					t.Fatalf("write delegated bundle: %v", writeErr)
+				}
+				return map[string]any{"bundle_path": bundle.Path, "bytes": bundle.Bytes}, nil
+			default:
+				t.Fatalf("app control method = %q, want diagnose or export", method)
+				return nil, nil
+			}
+		}
+
+		stdout, err := executeAppTestCommand(t, deps, "app", "diagnose", "--bundle", "--yes", "-o", "json")
+		if err != nil {
+			t.Fatalf("live app diagnose bundle error = %v", err)
+		}
+		if !exported {
+			t.Fatal("app control did not receive export_diagnostics")
+		}
+		var result appDiagnosticBundleResult
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("decode live diagnostic bundle result: %v", err)
+		}
+		if result.Report.BootID != "boot_exported" || result.Bundle.Manifest.Report.BootID != "boot_exported" {
+			t.Fatalf("live diagnostic bundle result = %#v, want shared manifest", result)
+		}
+		if entries := readAppDiagnosticBundleArchive(t, result.Bundle.Path); len(entries) != 3 {
+			t.Fatalf("live diagnostic bundle entries = %#v, want manifest and both safe log tails", entries)
+		}
+	})
+
+	t.Run("Should keep explicit live bundle paths in the CLI", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		outputPath := filepath.Join(t.TempDir(), "diagnostics.tar.gz")
+		deps := appTestDeps(homePaths)
+		deps.now = func() time.Time { return fixedTestNow }
+		deps.callAppControl = func(_ context.Context, _ string, method string, _ any) (any, error) {
+			if method != appDiagnoseMethod {
+				t.Fatalf("app control method = %q, want only diagnose", method)
+			}
+			return appDiagnosticReportFixture(), nil
+		}
+
+		stdout, err := executeAppTestCommand(
+			t,
+			deps,
+			"app",
+			"diagnose",
+			"--bundle",
+			"--yes",
+			"--bundle-output",
+			outputPath,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("explicit live bundle error = %v", err)
+		}
+		var result appDiagnosticBundleResult
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("decode explicit live bundle result: %v", err)
+		}
+		if result.Bundle.Path != outputPath || result.Bundle.Manifest.Report.BootID != "boot_123" {
+			t.Fatalf("explicit live bundle = %#v, want local archive at selected path", result.Bundle)
+		}
+	})
+
+	t.Run("Should reject invalid live bundle archive structures", func(t *testing.T) {
+		t.Parallel()
+		report, err := decodeAppDiagnosticReport(appDiagnosticReportFixture())
+		if err != nil {
+			t.Fatalf("decode fixture report error = %v", err)
+		}
+		_, manifestBytes, err := newAppDiagnosticBundleManifest(report, fixedTestNow)
+		if err != nil {
+			t.Fatalf("create fixture manifest error = %v", err)
+		}
+		for _, test := range []struct {
+			name    string
+			entries []appDiagnosticBundleEntry
+			want    string
+		}{
+			{
+				name: "unexpected entry",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: manifestBytes},
+					{Name: "compozy.log", Data: []byte("must not be accepted")},
+				},
+				want: "unexpected entry",
+			},
+			{
+				name: "duplicate entry",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: manifestBytes},
+					{Name: appDiagnosticBundleManifestFile, Data: manifestBytes},
+				},
+				want: "duplicate entry",
+			},
+			{
+				name: "oversized manifest",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: bytes.Repeat([]byte("m"), 49*1024)},
+				},
+				want: "manifest exceeds",
+			},
+			{
+				name: "oversized log",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: manifestBytes},
+					{Name: appDiagnosticBundleDesktopLogFile, Data: bytes.Repeat([]byte("l"), 16*1024+1)},
+				},
+				want: "log entry exceeds",
+			},
+			{
+				name: "oversized aggregate",
+				entries: []appDiagnosticBundleEntry{
+					{Name: appDiagnosticBundleManifestFile, Data: bytes.Repeat([]byte("m"), 20*1024)},
+					{Name: appDiagnosticBundleDesktopLogFile, Data: bytes.Repeat([]byte("d"), 15*1024)},
+					{Name: appDiagnosticBundleBootstrapLogFile, Data: bytes.Repeat([]byte("b"), 15*1024)},
+				},
+				want: "bundle exceeds",
+			},
+		} {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				t.Parallel()
+				bundlePath := filepath.Join(t.TempDir(), "invalid.tar.gz")
+				file, openErr := os.OpenFile(bundlePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+				if openErr != nil {
+					t.Fatalf("OpenFile(invalid bundle) error = %v", openErr)
+				}
+				if writeErr := writeAppDiagnosticBundleArchive(file, test.entries); writeErr != nil {
+					if closeErr := file.Close(); closeErr != nil {
+						t.Fatalf("write invalid bundle error = %v; Close() error = %v", writeErr, closeErr)
+					}
+					t.Fatalf("write invalid bundle error = %v", writeErr)
+				}
+				if closeErr := file.Close(); closeErr != nil {
+					t.Fatalf("Close(invalid bundle) error = %v", closeErr)
+				}
+				_, readErr := readAppDiagnosticBundleManifest(bundlePath)
+				if readErr == nil || !strings.Contains(readErr.Error(), test.want) {
+					t.Fatalf("invalid bundle error = %v, want %q", readErr, test.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject an outside live bundle path before reading it", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		deps := appTestDeps(homePaths)
+		deps.callAppControl = func(_ context.Context, _ string, method string, _ any) (any, error) {
+			if method == appDiagnoseMethod {
+				return appDiagnosticReportFixture(), nil
+			}
+			return map[string]any{
+				"bundle_path": filepath.Join(t.TempDir(), "outside.tar.gz"),
+				"bytes":       1,
+			}, nil
+		}
+
+		_, err := executeAppTestCommand(t, deps, "app", "diagnose", "--bundle", "--yes")
+		if err == nil || !strings.Contains(err.Error(), "unexpected bundle path") {
+			t.Fatalf("outside live bundle error = %v, want path rejection", err)
+		}
+	})
+
+	t.Run("Should fall back to a validated local report when the socket is absent", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		writeAppTestRecord(t, homePaths, map[string]any{
+			"schema_version": 1,
+			"pid":            4242,
+			"started_at":     "2026-08-10T03:00:00Z",
+			"state":          "error",
+			"error": map[string]any{
+				"code":         "runtime_unhealthy",
+				"safe_message": "The runtime is not responding.",
+				"log_path":     filepath.Join(homePaths.HomeDir, "desktop.log"),
+			},
+			"diagnostic_report": appDiagnosticReportFixture(),
+		})
+		deps := appTestDeps(homePaths)
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+			return nil, newAppCommandError(appNotRunningCode, "the CompozyOS desktop app is not running", nil)
+		}
+
+		stdout, err := executeAppTestCommand(t, deps, "app", "diagnose", "-o", "json")
+		if err != nil {
+			t.Fatalf("app diagnose fallback error = %v", err)
+		}
+		var report appDiagnosticReport
+		if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+			t.Fatalf("decode fallback report: %v", err)
+		}
+		if report.BootPhase != "product" || report.CurrentError == nil {
+			t.Fatalf("fallback report = %#v, want persisted report", report)
+		}
+		if bytes.Contains(stdout.Bytes(), []byte(homePaths.HomeDir)) {
+			t.Fatalf("fallback report contains raw home path: %s", stdout.Bytes())
+		}
+	})
+
+	t.Run("Should require consent before creating a diagnostic bundle", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		deps := appTestDeps(homePaths)
+		_, err := executeAppTestCommand(t, deps, "app", "diagnose", "--bundle", "-o", "json")
+		if err == nil {
+			t.Fatal("app diagnose bundle error = nil, want consent failure")
+		}
+		assertAppCommandError(t, err, appDiagnosticConsentRequiredCode)
+		assertStructuredAppError(
+			t,
+			[]string{"app", "diagnose", "--bundle", "-o", "json"},
+			err,
+			appDiagnosticConsentRequiredCode,
+		)
+	})
+
+	t.Run("Should create a safe local archive when the app is offline", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		diagnosticReport := appDiagnosticReportFixture()
+		diagnosticReport["current_error"] = map[string]any{
+			"code":         "runtime_unhealthy",
+			"safe_message": "token=raw-secret",
+		}
+		writeAppTestRecord(t, homePaths, map[string]any{
+			"schema_version": 1,
+			"pid":            4242,
+			"started_at":     "2026-08-10T03:00:00Z",
+			"state":          "error",
+			"error": map[string]any{
+				"code":         "runtime_unhealthy",
+				"safe_message": "The runtime is not responding.",
+				"log_path":     filepath.Join(homePaths.HomeDir, "desktop.log"),
+			},
+			"diagnostic_report": diagnosticReport,
+		})
+		if err := os.MkdirAll(homePaths.LogsDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(diagnostic logs) error = %v", err)
+		}
+		desktopLog := strings.Join([]string{
+			`{"timestamp":"2026-04-03T12:00:00Z","level":"info","boot_id":"boot_123","message":"Desktop started from ` + homePaths.HomeDir + `"}`,
+			`{"timestamp":"2026-04-03T12:00:01Z","level":"info","boot_id":"boot_123","message":"token=raw-secret"}`,
+			`{"timestamp":"2026-04-03T12:00:02Z","level":"info","boot_id":"old_boot","message":"Old boot entry"}`,
+			`{"timestamp":"2026-04-03T12:00:03Z","level":"error","boot_id":"boot_123","message":"Failed to open compozy.db"}`,
+		}, "\n")
+		if err := os.WriteFile(filepath.Join(homePaths.LogsDir, "desktop.log"), []byte(desktopLog), 0o600); err != nil {
+			t.Fatalf("WriteFile(desktop diagnostic log) error = %v", err)
+		}
+		bootstrapLog := `{"timestamp":"2026-04-03T12:00:03Z","level":"warn","boot_id":"boot_123","message":"Bootstrap warning"}`
+		if err := os.WriteFile(
+			filepath.Join(homePaths.LogsDir, "desktop-bootstrap.jsonl"),
+			[]byte(bootstrapLog),
+			0o600,
+		); err != nil {
+			t.Fatalf("WriteFile(bootstrap diagnostic log) error = %v", err)
+		}
+		if err := os.WriteFile(homePaths.LogFile, []byte(desktopLog), 0o600); err != nil {
+			t.Fatalf("WriteFile(runtime log) error = %v", err)
+		}
+		deps := appTestDeps(homePaths)
+		deps.now = func() time.Time { return fixedTestNow }
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+			return nil, newAppCommandError(appNotRunningCode, "the CompozyOS desktop app is not running", nil)
+		}
+
+		stdout, err := executeAppTestCommand(t, deps, "app", "diagnose", "--bundle", "--yes", "-o", "json")
+		if err != nil {
+			t.Fatalf("offline app diagnose bundle error = %v", err)
+		}
+		var result appDiagnosticBundleResult
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("decode diagnostic bundle result: %v", err)
+		}
+		wantPath := filepath.Join(
+			homePaths.HomeDir,
+			supportBundlesDirName,
+			"compozyos-desktop-diagnostics-20260403T120000000Z.tar.gz",
+		)
+		if result.Bundle.Path != wantPath {
+			t.Fatalf("diagnostic bundle path = %q, want %q", result.Bundle.Path, wantPath)
+		}
+		if result.Bundle.Manifest.SchemaVersion != appDiagnosticBundleManifestSchemaVersion {
+			t.Fatalf(
+				"diagnostic bundle manifest = %#v, want schema version %d",
+				result.Bundle.Manifest,
+				appDiagnosticBundleManifestSchemaVersion,
+			)
+		}
+		if result.Bundle.Manifest.Report.BootID != "boot_123" {
+			t.Fatalf("diagnostic bundle manifest report = %#v, want shared report", result.Bundle.Manifest.Report)
+		}
+		if runtime.GOOS != "windows" {
+			directory, statErr := os.Stat(filepath.Dir(result.Bundle.Path))
+			if statErr != nil {
+				t.Fatalf("Stat(bundle directory) error = %v", statErr)
+			}
+			if directory.Mode().Perm() != 0o700 {
+				t.Fatalf("bundle directory permissions = %#o, want 0700", directory.Mode().Perm())
+			}
+			archive, statErr := os.Stat(result.Bundle.Path)
+			if statErr != nil {
+				t.Fatalf("Stat(bundle archive) error = %v", statErr)
+			}
+			if archive.Mode().Perm() != 0o600 {
+				t.Fatalf("bundle archive permissions = %#o, want 0600", archive.Mode().Perm())
+			}
+		}
+		contents := readAppDiagnosticBundleArchive(t, result.Bundle.Path)
+		if len(contents) != 3 || contents["manifest.json"] == nil || contents["desktop.log"] == nil ||
+			contents["desktop-bootstrap.jsonl"] == nil || contents["compozy.log"] != nil {
+			t.Fatalf("diagnostic archive contents = %#v, want only the approved entries", contents)
+		}
+		if !bytes.Contains(contents["desktop.log"], []byte("Desktop started from [redacted]")) ||
+			!bytes.Contains(contents["desktop-bootstrap.jsonl"], []byte("Bootstrap warning")) {
+			t.Fatalf("diagnostic archive log tails = %#v, want redacted current-boot entries", contents)
+		}
+		for _, content := range contents {
+			for _, forbidden := range []string{
+				homePaths.HomeDir,
+				"raw-secret",
+				"transcript",
+				"compozy.db",
+				"Old boot entry",
+			} {
+				if bytes.Contains(content, []byte(forbidden)) {
+					t.Fatalf("diagnostic archive contains forbidden value %q", forbidden)
+				}
+			}
+		}
+	})
+
+	t.Run("Should repair the default bundle directory permissions", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("file mode assertions are not portable on Windows")
+		}
+		t.Parallel()
+		homePaths := appTestHome(t)
+		defaultDirectory := filepath.Join(homePaths.HomeDir, supportBundlesDirName)
+		if err := os.Mkdir(defaultDirectory, 0o700); err != nil {
+			t.Fatalf("Mkdir(default bundle directory) error = %v", err)
+		}
+		if err := os.Chmod(defaultDirectory, 0o755); err != nil {
+			t.Fatalf("Chmod(default bundle directory) error = %v", err)
+		}
+		writeAppTestRecord(t, homePaths, map[string]any{
+			"schema_version":    1,
+			"pid":               4242,
+			"started_at":        "2026-08-10T03:00:00Z",
+			"state":             "resolving",
+			"diagnostic_report": appDiagnosticReportFixture(),
+		})
+		deps := appTestDeps(homePaths)
+		deps.now = func() time.Time { return fixedTestNow }
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+			return nil, newAppCommandError(appNotRunningCode, "the CompozyOS desktop app is not running", nil)
+		}
+		_, err := executeAppTestCommand(t, deps, "app", "diagnose", "--bundle", "--yes")
+		if err != nil {
+			t.Fatalf("app diagnose default bundle error = %v", err)
+		}
+		info, err := os.Stat(defaultDirectory)
+		if err != nil {
+			t.Fatalf("Stat(default bundle directory) error = %v", err)
+		}
+		if info.Mode().Perm() != 0o700 {
+			t.Fatalf("default bundle directory permissions = %#o, want 0700", info.Mode().Perm())
+		}
+	})
+
+	t.Run("Should reject a symlink bundle destination", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink creation requires platform-specific privileges")
+		}
+		homePaths := appTestHome(t)
+		writeAppTestRecord(t, homePaths, map[string]any{
+			"schema_version":    1,
+			"pid":               4242,
+			"started_at":        "2026-08-10T03:00:00Z",
+			"state":             "resolving",
+			"diagnostic_report": appDiagnosticReportFixture(),
+		})
+		destination := filepath.Join(t.TempDir(), "diagnostic.tar.gz")
+		if err := os.Symlink(filepath.Join(t.TempDir(), "target"), destination); err != nil {
+			t.Fatalf("Symlink(bundle destination) error = %v", err)
+		}
+		deps := appTestDeps(homePaths)
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+			return nil, newAppCommandError(appNotRunningCode, "the CompozyOS desktop app is not running", nil)
+		}
+		_, err := executeAppTestCommand(
+			t,
+			deps,
+			"app",
+			"diagnose",
+			"--bundle",
+			"--yes",
+			"--bundle-output",
+			destination,
+		)
+		if err == nil || !strings.Contains(err.Error(), "must not be a symlink") {
+			t.Fatalf("symlink bundle destination error = %v, want rejection", err)
+		}
+	})
+
+	t.Run("Should reject a symlink in the bundle destination ancestry", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink creation requires platform-specific privileges")
+		}
+		t.Parallel()
+		homePaths := appTestHome(t)
+		writeAppTestRecord(t, homePaths, map[string]any{
+			"schema_version":    1,
+			"pid":               4242,
+			"started_at":        "2026-08-10T03:00:00Z",
+			"state":             "resolving",
+			"diagnostic_report": appDiagnosticReportFixture(),
+		})
+		outputRoot := t.TempDir()
+		if err := os.Symlink(t.TempDir(), filepath.Join(outputRoot, "redirect")); err != nil {
+			t.Fatalf("Symlink(bundle ancestor) error = %v", err)
+		}
+		deps := appTestDeps(homePaths)
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+			return nil, newAppCommandError(appNotRunningCode, "the CompozyOS desktop app is not running", nil)
+		}
+		_, err := executeAppTestCommand(
+			t,
+			deps,
+			"app",
+			"diagnose",
+			"--bundle",
+			"--yes",
+			"--bundle-output",
+			filepath.Join(outputRoot, "redirect", "nested", "diagnostic.tar.gz"),
+		)
+		if err == nil || !strings.Contains(err.Error(), "ancestry must not contain symlinks") {
+			t.Fatalf("symlink bundle ancestry error = %v, want rejection", err)
+		}
+	})
+
+	t.Run("Should limit macOS system symlink aliases", func(t *testing.T) {
+		t.Parallel()
+		if !isAppDiagnosticBundleSystemAlias("/var") {
+			if isAppDiagnosticBundleSystemAlias("/tmp") || isAppDiagnosticBundleSystemAlias("/etc") {
+				t.Fatal("non-macOS bundle output must not allow a system symlink alias")
+			}
+			return
+		}
+		for _, path := range []string{"/var", "/tmp", "/etc"} {
+			if !isAppDiagnosticBundleSystemAlias(path) {
+				t.Fatalf("macOS system alias %q = false, want true", path)
+			}
+		}
+		if isAppDiagnosticBundleSystemAlias("/usr/local") {
+			t.Fatal("non-allowlisted macOS symlink alias = true, want false")
+		}
+	})
+
+	t.Run("Should preserve an existing bundle output directory mode", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("file mode assertions are not portable on Windows")
+		}
+		t.Parallel()
+		homePaths := appTestHome(t)
+		writeAppTestRecord(t, homePaths, map[string]any{
+			"schema_version":    1,
+			"pid":               4242,
+			"started_at":        "2026-08-10T03:00:00Z",
+			"state":             "resolving",
+			"diagnostic_report": appDiagnosticReportFixture(),
+		})
+		outputDirectory := filepath.Join(t.TempDir(), "operator-output")
+		if err := os.Mkdir(outputDirectory, 0o755); err != nil {
+			t.Fatalf("Mkdir(operator output) error = %v", err)
+		}
+		if err := os.Chmod(outputDirectory, 0o755); err != nil {
+			t.Fatalf("Chmod(operator output) error = %v", err)
+		}
+		deps := appTestDeps(homePaths)
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+			return nil, newAppCommandError(appNotRunningCode, "the CompozyOS desktop app is not running", nil)
+		}
+		_, err := executeAppTestCommand(
+			t,
+			deps,
+			"app",
+			"diagnose",
+			"--bundle",
+			"--yes",
+			"--bundle-output",
+			filepath.Join(outputDirectory, "diagnostic.tar.gz"),
+		)
+		if err != nil {
+			t.Fatalf("app diagnose explicit bundle output error = %v", err)
+		}
+		info, err := os.Stat(outputDirectory)
+		if err != nil {
+			t.Fatalf("Stat(operator output) error = %v", err)
+		}
+		if info.Mode().Perm() != 0o755 {
+			t.Fatalf("operator output directory permissions = %#o, want 0755", info.Mode().Perm())
+		}
+	})
+
+	t.Run("Should leave an existing bundle destination unchanged", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		writeAppTestRecord(t, homePaths, map[string]any{
+			"schema_version":    1,
+			"pid":               4242,
+			"started_at":        "2026-08-10T03:00:00Z",
+			"state":             "resolving",
+			"diagnostic_report": appDiagnosticReportFixture(),
+		})
+		destination := filepath.Join(t.TempDir(), "existing.tar.gz")
+		existing := []byte("existing diagnostic bundle")
+		if err := os.WriteFile(destination, existing, 0o600); err != nil {
+			t.Fatalf("WriteFile(existing bundle) error = %v", err)
+		}
+		deps := appTestDeps(homePaths)
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+			return nil, newAppCommandError(appNotRunningCode, "the CompozyOS desktop app is not running", nil)
+		}
+		_, err := executeAppTestCommand(
+			t,
+			deps,
+			"app",
+			"diagnose",
+			"--bundle",
+			"--yes",
+			"--bundle-output",
+			destination,
+		)
+		if err == nil || !strings.Contains(err.Error(), "already exists") {
+			t.Fatalf("existing bundle destination error = %v, want rejection", err)
+		}
+		actual, readErr := os.ReadFile(destination)
+		if readErr != nil {
+			t.Fatalf("ReadFile(existing bundle) error = %v", readErr)
+		}
+		if !bytes.Equal(actual, existing) {
+			t.Fatalf("existing bundle contents = %q, want %q", actual, existing)
+		}
+	})
+
+	t.Run("Should not remove a replaced destination during failed cleanup", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("hard-link semantics are not portable on Windows")
+		}
+		t.Parallel()
+		directory := t.TempDir()
+		temporaryPath := filepath.Join(directory, ".diagnostic.tmp")
+		destination := filepath.Join(directory, "diagnostic.tar.gz")
+		if err := os.WriteFile(temporaryPath, []byte("temporary bundle"), 0o600); err != nil {
+			t.Fatalf("WriteFile(temporary bundle) error = %v", err)
+		}
+		if err := os.Link(temporaryPath, destination); err != nil {
+			t.Fatalf("Link(temporary bundle) error = %v", err)
+		}
+		if err := os.Remove(destination); err != nil {
+			t.Fatalf("Remove(linked destination) error = %v", err)
+		}
+		replacement := []byte("replacement bundle")
+		if err := os.WriteFile(destination, replacement, 0o600); err != nil {
+			t.Fatalf("WriteFile(replacement bundle) error = %v", err)
+		}
+		if err := removeLinkedAppDiagnosticBundle(temporaryPath, destination); err != nil {
+			t.Fatalf("remove linked bundle cleanup error = %v", err)
+		}
+		actual, err := os.ReadFile(destination)
+		if err != nil {
+			t.Fatalf("ReadFile(replacement bundle) error = %v", err)
+		}
+		if !bytes.Equal(actual, replacement) {
+			t.Fatalf("replacement bundle contents = %q, want %q", actual, replacement)
+		}
 	})
 }
 
@@ -485,5 +1184,60 @@ func assertStructuredAppError(t *testing.T, args []string, err error, wantCode s
 	}
 	if payload.Error.Code != wantCode {
 		t.Fatalf("structured app error = %#v, want code %q", payload, wantCode)
+	}
+}
+
+func appDiagnosticReportFixture() map[string]any {
+	return map[string]any{
+		"schema_version":  1,
+		"boot_id":         "boot_123",
+		"boot_phase":      "product",
+		"app_version":     "0.3.0",
+		"runtime_version": "0.3.0",
+		"runtime_owned":   true,
+		"current_error": map[string]any{
+			"code":         "runtime_unhealthy",
+			"safe_message": "The runtime is not responding.",
+		},
+		"previous_crash": nil,
+	}
+}
+
+func readAppDiagnosticBundleArchive(t *testing.T, path string) map[string][]byte {
+	t.Helper()
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("Open(diagnostic bundle) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := file.Close(); closeErr != nil {
+			t.Errorf("Close(diagnostic bundle) error = %v", closeErr)
+		}
+	})
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatalf("NewReader(diagnostic bundle) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := gzipReader.Close(); closeErr != nil {
+			t.Errorf("Close(diagnostic bundle gzip reader) error = %v", closeErr)
+		}
+	})
+
+	contents := make(map[string][]byte)
+	reader := tar.NewReader(gzipReader)
+	for {
+		header, nextErr := reader.Next()
+		if errors.Is(nextErr, io.EOF) {
+			return contents
+		}
+		if nextErr != nil {
+			t.Fatalf("Next(diagnostic bundle archive) error = %v", nextErr)
+		}
+		data, readErr := io.ReadAll(reader)
+		if readErr != nil {
+			t.Fatalf("ReadAll(diagnostic bundle entry %q) error = %v", header.Name, readErr)
+		}
+		contents[header.Name] = data
 	}
 }

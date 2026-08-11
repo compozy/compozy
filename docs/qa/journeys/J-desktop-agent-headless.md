@@ -16,7 +16,7 @@ flowchart TD
     H --> I{Apply target}
     I -->|--apply app| J[Consent semantics walk deterministically, restart, new version in status]
     I -->|--apply runtime on app-owned home| K[Quiesce, apply, reconnect - headless]
-    K -->|post-migration boot failure| L[status reports runtime_state recovery_required with typed error, diagnose returns log paths]
+    K -->|post-migration boot failure| L[status reports runtime_state recovery_required with typed error, diagnose returns a redacted report and consent-gated local export]
     L --> M[Applying the fixed newer signed build clears the state]
     J --> N[Kill the app process]
     M --> N
@@ -51,7 +51,7 @@ journey:
       expected_observable: "`app_not_installed`, `app_not_running`, `app_control_unavailable`, and `recovery_required` are named, typed, and stable"
   goal:
     observable: "Full desktop lifecycle driven and observed from a terminal alone"
-    side_effects: [app-launched, update-applied, diagnostics-paths-returned]
+    side_effects: [app-launched, update-applied, diagnostic-report-returned]
   true_end_state: "Every `-o json` payload validated against the canonical app-state schema across the whole lifecycle, including `running:false` after the app is killed."
   exit:
     natural: "The agent reports the surface state upstream and moves on."

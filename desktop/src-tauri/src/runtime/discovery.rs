@@ -21,6 +21,10 @@ pub struct DaemonRecord {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Discovery {
     Live(DaemonRecord),
+    StartTimeMismatch {
+        record: DaemonRecord,
+        observed_start: DateTime<Utc>,
+    },
     Absent,
     AbsentWithDiagnostic(String),
 }
@@ -100,7 +104,10 @@ pub fn discover(path: &Path, processes: &dyn ProcessTable) -> Discovery {
     };
     let difference = (observed_start.timestamp() - record.started_at.timestamp()).abs();
     if difference > PROCESS_START_TOLERANCE_SECONDS {
-        return Discovery::Absent;
+        return Discovery::StartTimeMismatch {
+            record,
+            observed_start,
+        };
     }
     Discovery::Live(record)
 }
@@ -168,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_dead_or_reused_pid() {
+    fn should_distinguish_a_dead_pid_from_a_live_start_time_mismatch() {
         let directory = tempfile::tempdir().expect("temp directory opens");
         let started_at = Utc::now();
         let path = write_record(
@@ -186,7 +193,14 @@ mod tests {
         let processes = FakeProcesses {
             starts: HashMap::from([(42, started_at - chrono::Duration::hours(1))]),
         };
-        assert_eq!(discover(&path, &processes), Discovery::Absent);
+        assert!(matches!(
+            discover(&path, &processes),
+            Discovery::StartTimeMismatch {
+                record,
+                observed_start,
+            } if record.started_at == started_at
+                && observed_start == started_at - chrono::Duration::hours(1)
+        ));
     }
 
     #[test]

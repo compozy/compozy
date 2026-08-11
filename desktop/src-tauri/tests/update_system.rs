@@ -320,6 +320,7 @@ fn should_provision_signed_runtime_and_write_matching_provenance() {
         stages,
         [
             ProvisionStage::Download { pct: 0 },
+            ProvisionStage::Download { pct: 100 },
             ProvisionStage::Verify,
             ProvisionStage::Install,
             ProvisionStage::Start,
