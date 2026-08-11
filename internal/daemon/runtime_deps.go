@@ -22,6 +22,7 @@ import (
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
 	Config              compozyconfig.Config
+	AgentProbeConfig    *agentProbeConfigState
 	HomePaths           compozyconfig.HomePaths
 	Logger              *slog.Logger
 	Sessions            SessionManager

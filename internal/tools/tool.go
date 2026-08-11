@@ -218,6 +218,14 @@ type Provider interface {
 	Resolve(ctx context.Context, scope Scope, id ToolID) (Handle, bool, error)
 }
 
+// ProjectionGenerationProvider reports whether a provider projection can be cached for a scope.
+type ProjectionGenerationProvider interface {
+	ProjectionGeneration(ctx context.Context, scope Scope) (generation string, known bool)
+}
+
+// ProjectionGenerationResolver reports authoritative non-provider projection state.
+type ProjectionGenerationResolver func(context.Context, Scope) (generation string, known bool)
+
 // NativeToolFunc is the daemon-compiled function signature for native tools.
 type NativeToolFunc func(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error)
 

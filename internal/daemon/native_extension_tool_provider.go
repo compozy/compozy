@@ -23,6 +23,7 @@ type daemonExtensionToolProvider struct {
 }
 
 var _ toolspkg.Provider = (*daemonExtensionToolProvider)(nil)
+var _ toolspkg.ProjectionGenerationProvider = (*daemonExtensionToolProvider)(nil)
 
 // DeferInitialDiscovery keeps extension subprocess discovery out of the hosted MCP handshake.
 func (*daemonExtensionToolProvider) DeferInitialDiscovery() bool {
@@ -44,6 +45,22 @@ func newDaemonScopedExtensionToolProvider(
 
 func (p *daemonExtensionToolProvider) ID() toolspkg.SourceRef {
 	return p.inner.ID()
+}
+
+// ProjectionGeneration delegates generation reads through canonical workspace scope.
+func (p *daemonExtensionToolProvider) ProjectionGeneration(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) (string, bool) {
+	canonical, err := p.canonicalWorkspaceScope(ctx, scope)
+	if err != nil {
+		return "", false
+	}
+	source, ok := p.inner.(toolspkg.ProjectionGenerationProvider)
+	if !ok {
+		return "", false
+	}
+	return source.ProjectionGeneration(ctx, canonical)
 }
 
 func (p *daemonExtensionToolProvider) List(

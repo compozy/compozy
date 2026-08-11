@@ -11,6 +11,9 @@ func (d *Daemon) runtimeDeps(
 	state *bootState,
 	sessions SessionManager,
 ) RuntimeDeps {
+	if state.agentProbeConfig == nil {
+		state.agentProbeConfig = newAgentProbeConfigState(&state.cfg)
+	}
 	d.initializeDreamRuntime(state, sessions)
 	authoredContext := authoredContextRuntimeDeps(ctx, state, sessions)
 	state.runtimeWorkers.authoredHeartbeatWake = authoredContext.wakePrompter
@@ -21,6 +24,7 @@ func (d *Daemon) runtimeDeps(
 	roles := roleResolverForState(state)
 	return RuntimeDeps{
 		Config:              state.cfg,
+		AgentProbeConfig:    state.agentProbeConfig,
 		HomePaths:           d.homePaths,
 		Logger:              state.logger,
 		Sessions:            sessions,

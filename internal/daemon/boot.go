@@ -124,6 +124,8 @@ type bootState struct {
 	toolCatalog           *resourceCatalog[toolspkg.Tool]
 	mcpServerCatalog      *resourceCatalog[compozyconfig.MCPServer]
 	mcpAuthGeneration     *mcpauth.MutationGeneration
+	toolProjectionEpoch   *mcppkg.ProjectionEpoch
+	agentProbeConfig      *agentProbeConfigState
 	loopCatalog           *resourceCatalog[looppkg.ResourceSpec]
 	agentSkillResources   agentSkillPublisher
 	toolMCPResources      toolMCPPublisher
@@ -166,7 +168,10 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 	defer d.finishBoot(&err)
 
-	state := &bootState{mcpAuthGeneration: mcpauth.NewMutationGeneration()}
+	state := &bootState{
+		mcpAuthGeneration:   mcpauth.NewMutationGeneration(),
+		toolProjectionEpoch: mcppkg.NewProjectionEpoch(),
+	}
 	cleanup := &bootCleanup{}
 	defer cleanup.run(ctx, &err)
 

@@ -233,8 +233,9 @@ func (d *Daemon) bootProcessRegistry(ctx context.Context, state *bootState) erro
 		state.logger.Info(
 			"daemon: reconciled tool process registry",
 			"checked", report.Checked,
-			"recovered", report.Recovered,
+			"interrupted", report.Interrupted,
 			"stale", report.Stale,
+			"current", report.Current,
 		)
 	}
 	return nil

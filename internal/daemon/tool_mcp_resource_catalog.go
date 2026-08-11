@@ -17,10 +17,20 @@ type resourceCatalog[T any] struct {
 	records        []resources.Record[T]
 	transientSpecs map[string]T
 	cloneSpec      func(T) T
+	onChange       func()
 }
 
 func newResourceCatalog[T any](cloneSpec func(T) T) *resourceCatalog[T] {
 	return &resourceCatalog[T]{cloneSpec: cloneSpec}
+}
+
+func (c *resourceCatalog[T]) setOnChange(onChange func()) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.onChange = onChange
+	c.mu.Unlock()
 }
 
 func (c *resourceCatalog[T]) Replace(revision int64, records []resources.Record[T]) {
@@ -28,7 +38,6 @@ func (c *resourceCatalog[T]) Replace(revision int64, records []resources.Record[
 		return
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.revision = revision
 	c.records = cloneResourceRecords(records, c.cloneSpec)
 	retainedTransientSpecs := make(map[string]T, len(c.records))
@@ -41,6 +50,11 @@ func (c *resourceCatalog[T]) Replace(revision int64, records []resources.Record[
 		retainedTransientSpecs[c.records[index].ID] = c.cloneSpec(transientSpec)
 	}
 	c.transientSpecs = retainedTransientSpecs
+	onChange := c.onChange
+	c.mu.Unlock()
+	if onChange != nil {
+		onChange()
+	}
 }
 
 func (c *resourceCatalog[T]) MergeTransientSpecs(specs map[string]T) {
@@ -48,12 +62,16 @@ func (c *resourceCatalog[T]) MergeTransientSpecs(specs map[string]T) {
 		return
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.transientSpecs == nil {
 		c.transientSpecs = make(map[string]T, len(specs))
 	}
 	for id, spec := range specs {
 		c.transientSpecs[id] = c.cloneSpec(spec)
+	}
+	onChange := c.onChange
+	c.mu.Unlock()
+	if onChange != nil {
+		onChange()
 	}
 }
 
@@ -62,10 +80,14 @@ func (c *resourceCatalog[T]) Update(update func([]resources.Record[T]) []resourc
 		return
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	records := cloneResourceRecords(c.records, c.cloneSpec)
 	c.records = cloneResourceRecords(update(records), c.cloneSpec)
 	c.revision++
+	onChange := c.onChange
+	c.mu.Unlock()
+	if onChange != nil {
+		onChange()
+	}
 }
 
 func (c *resourceCatalog[T]) Snapshot() []resources.Record[T] {

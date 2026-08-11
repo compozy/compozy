@@ -89,11 +89,7 @@ func (s *HostedService) projection(ctx context.Context, record *hostedBindRecord
 	if registry == nil {
 		return HostedProjectionResponse{}, ErrHostedRegistryRequired
 	}
-	views, err := registry.List(ctx, record.scope())
-	if err != nil {
-		return HostedProjectionResponse{}, err
-	}
-	return hostedProjectionResponse(views), nil
+	return s.projectionForGeneration(ctx, record, registry)
 }
 
 func hostedProjectionResponse(views []tools.ToolView) HostedProjectionResponse {

@@ -1313,6 +1313,63 @@ func TestMCPToolListCache(t *testing.T) {
 			t.Fatalf("cache entries = %#v, want only current binding", entries)
 		}
 	})
+
+	t.Run("Should expose only live cacheable tool projections as authoritative", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &CallExecutor{toolCache: mcpToolListCache{
+			entries:          make(map[string]mcpToolListCacheEntry),
+			projectionStates: make(map[string]mcpToolProjectionState),
+		}}
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "fixture",
+			RawServerName: "fixture",
+			Scope:         "global",
+		}
+		first := []toolspkg.MCPToolDescriptor{{
+			ID:          "mcp__fixture__alpha",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}}
+		if err := executor.recordToolProjection(source, first, 60_000, time.Now()); err != nil {
+			t.Fatalf("recordToolProjection(first) error = %v", err)
+		}
+		firstGeneration, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || firstGeneration == "" {
+			t.Fatalf("ProjectionGeneration(first) = %q, %t, want authoritative token", firstGeneration, known)
+		}
+
+		second := []toolspkg.MCPToolDescriptor{{
+			ID:          "mcp__fixture__beta",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}}
+		if err := executor.recordToolProjection(source, second, 60_000, time.Now()); err != nil {
+			t.Fatalf("recordToolProjection(second) error = %v", err)
+		}
+		secondGeneration, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || secondGeneration == firstGeneration {
+			t.Fatalf(
+				"ProjectionGeneration(second) = %q, %t, want token different from %q",
+				secondGeneration,
+				known,
+				firstGeneration,
+			)
+		}
+
+		if err := executor.recordToolProjection(source, second, 0, time.Now()); err != nil {
+			t.Fatalf("recordToolProjection(uncacheable) error = %v", err)
+		}
+		if generation, authoritative := executor.ProjectionGeneration(
+			t.Context(),
+			[]toolspkg.SourceRef{source},
+		); authoritative || generation != "" {
+			t.Fatalf(
+				"ProjectionGeneration(uncacheable) = %q, %t, want unknown",
+				generation,
+				authoritative,
+			)
+		}
+	})
 }
 
 func TestProtocolVersionMiddleware(t *testing.T) {

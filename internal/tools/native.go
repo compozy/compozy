@@ -25,6 +25,7 @@ type NativeProvider struct {
 }
 
 var _ Provider = (*NativeProvider)(nil)
+var _ ProjectionGenerationProvider = (*NativeProvider)(nil)
 
 // NewNativeProvider validates and indexes native tools for one source.
 func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProvider, error) {
@@ -67,6 +68,14 @@ func (p *NativeProvider) ID() SourceRef {
 		return SourceRef{}
 	}
 	return p.source
+}
+
+// ProjectionGeneration reports the immutable native descriptor generation.
+func (p *NativeProvider) ProjectionGeneration(_ context.Context, _ Scope) (string, bool) {
+	if p == nil {
+		return "", false
+	}
+	return "1", true
 }
 
 // List returns deterministic native descriptors.

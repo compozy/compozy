@@ -45,33 +45,40 @@ var (
 // HostedRegistry resolves the daemon-owned tool registry at call time.
 type HostedRegistry func() tools.Registry
 
+// HostedProjectionGeneration identifies one complete authoritative projection state.
+// Returning known=false keeps projection reads uncached.
+type HostedProjectionGeneration func(context.Context, tools.Scope) (generation string, known bool)
+
 // HostedConfig configures hosted MCP launch and bind validation.
 type HostedConfig struct {
-	Enabled        bool
-	BindNonceTTL   time.Duration
-	ExpectedBinary string
-	HomePaths      compozyconfig.HomePaths
-	Registry       HostedRegistry
-	Logger         *slog.Logger
-	Now            func() time.Time
-	NonceReader    func([]byte) error
+	Enabled              bool
+	BindNonceTTL         time.Duration
+	ExpectedBinary       string
+	HomePaths            compozyconfig.HomePaths
+	Registry             HostedRegistry
+	ProjectionGeneration HostedProjectionGeneration
+	Logger               *slog.Logger
+	Now                  func() time.Time
+	NonceReader          func([]byte) error
 }
 
 // HostedService owns session-scoped hosted MCP launch and bind lifecycle.
 type HostedService struct {
 	mu sync.Mutex
 
-	enabled        bool
-	bindNonceTTL   time.Duration
-	expectedBinary string
-	homePaths      compozyconfig.HomePaths
-	registry       HostedRegistry
-	logger         *slog.Logger
-	now            func() time.Time
-	nonceReader    func([]byte) error
+	enabled              bool
+	bindNonceTTL         time.Duration
+	expectedBinary       string
+	homePaths            compozyconfig.HomePaths
+	registry             HostedRegistry
+	projectionGeneration HostedProjectionGeneration
+	logger               *slog.Logger
+	now                  func() time.Time
+	nonceReader          func([]byte) error
 
-	launches map[string]*hostedLaunchRecord
-	binds    map[string]*hostedBindRecord
+	launches        map[string]*hostedLaunchRecord
+	binds           map[string]*hostedBindRecord
+	projectionCache hostedProjectionCache
 }
 
 // HostedLaunchRequest describes one session-bound MCP launch.
@@ -168,16 +175,18 @@ func NewHostedService(cfg HostedConfig) (*HostedService, error) {
 		return nil, fmt.Errorf("mcp: normalize hosted MCP binary: %w", err)
 	}
 	return &HostedService{
-		enabled:        cfg.Enabled,
-		bindNonceTTL:   ttl,
-		expectedBinary: expected,
-		homePaths:      cfg.HomePaths,
-		registry:       cfg.Registry,
-		logger:         cfg.Logger,
-		now:            now,
-		nonceReader:    nonceReader,
-		launches:       make(map[string]*hostedLaunchRecord),
-		binds:          make(map[string]*hostedBindRecord),
+		enabled:              cfg.Enabled,
+		bindNonceTTL:         ttl,
+		expectedBinary:       expected,
+		homePaths:            cfg.HomePaths,
+		registry:             cfg.Registry,
+		projectionGeneration: cfg.ProjectionGeneration,
+		logger:               cfg.Logger,
+		now:                  now,
+		nonceReader:          nonceReader,
+		launches:             make(map[string]*hostedLaunchRecord),
+		binds:                make(map[string]*hostedBindRecord),
+		projectionCache:      newHostedProjectionCache(),
 	}, nil
 }
 
@@ -299,10 +308,15 @@ func (s *HostedService) ReleaseSession(sessionID string) {
 	}
 	s.mu.Lock()
 	delete(s.launches, sessionID)
+	releasedBindIDs := make([]string, 0)
 	for bindID, record := range s.binds {
 		if record.sessionID == sessionID {
 			delete(s.binds, bindID)
+			releasedBindIDs = append(releasedBindIDs, bindID)
 		}
 	}
 	s.mu.Unlock()
+	for _, bindID := range releasedBindIDs {
+		s.projectionCache.remove(bindID)
+	}
 }

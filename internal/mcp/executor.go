@@ -98,6 +98,9 @@ func (e *CallExecutor) ListToolsWithProtocol(
 		descriptors = append(descriptors, descriptor)
 	}
 	e.cacheTools(cacheKey, descriptors, ttlMs, time.Now())
+	if err := e.recordToolProjection(source, descriptors, ttlMs, time.Now()); err != nil {
+		return nil, "", err
+	}
 	return descriptors, protocolVersion, nil
 }
 
