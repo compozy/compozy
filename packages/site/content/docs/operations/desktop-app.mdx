@@ -14,11 +14,10 @@ compozy app diagnose -o json
 
 The app writes logs under the active `COMPOZY_HOME`. These are the default paths:
 
-| Platform | App log                                      | Runtime log                                  |
-| -------- | -------------------------------------------- | -------------------------------------------- |
-| macOS    | `~/.compozy/logs/desktop.log`                | `~/.compozy/logs/compozy.log`                |
-| Windows  | `%USERPROFILE%\\.compozy\\logs\\desktop.log` | `%USERPROFILE%\\.compozy\\logs\\compozy.log` |
-| Linux    | `~/.compozy/logs/desktop.log`                | `~/.compozy/logs/compozy.log`                |
+| Platform | App log                       | Runtime log                   |
+| -------- | ----------------------------- | ----------------------------- |
+| macOS    | `~/.compozy/logs/desktop.log` | `~/.compozy/logs/compozy.log` |
+| Linux    | `~/.compozy/logs/desktop.log` | `~/.compozy/logs/compozy.log` |
 
 If `COMPOZY_HOME` is set, replace `~/.compozy` with that path. Both logs remain under its `logs`
 directory regardless of which surface started the runtime.

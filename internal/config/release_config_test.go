@@ -454,7 +454,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		}
 	})
 
-	t.Run("Should pin the three-platform matrix and Tauri v1 contract", func(t *testing.T) {
+	t.Run("Should pin the shipping-platform matrix and Tauri v1 contract", func(t *testing.T) {
 		t.Parallel()
 
 		for _, snippet := range []string{
@@ -463,8 +463,6 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"target: universal-apple-darwin",
 			"runner: ubuntu-22.04",
 			"target: x86_64-unknown-linux-gnu",
-			"runner: windows-latest",
-			"target: x86_64-pc-windows-msvc",
 			"uses: tauri-apps/tauri-action@v1",
 			"releaseDraft: true",
 			"uploadUpdaterJson: false",
@@ -474,6 +472,8 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		} {
 			assertContainsText(t, "desktop release workflow", workflow, snippet)
 		}
+		// Windows is paused until Trusted Signing is restored.
+		assertNotContainsText(t, "desktop release workflow", workflow, "runner: windows-latest")
 		if got := strings.Count(workflow, "uses: tauri-apps/tauri-action@v1"); got != 1 {
 			t.Fatalf("tauri-action step count = %d, want one matrix step", got)
 		}
@@ -493,9 +493,6 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}",
 			"xcrun notarytool submit",
 			"xcrun stapler staple",
-			"artifact-signing-cli --version 0.11.0 --locked",
-			"AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}",
-			"AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}",
 		} {
 			assertContainsText(t, "desktop release workflow", workflow, snippet)
 		}
@@ -698,7 +695,6 @@ func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
 		}
 		assertContainsText(t, "normalization discovery", string(output), "failed to enumerate")
 	})
-
 }
 
 func TestReleasePreflightValidatesPublishWorkspace(t *testing.T) {

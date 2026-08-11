@@ -214,7 +214,6 @@ func desktopUpdaterArtifactNames(version string) map[string]string {
 		platformDarwinAArch64: appName,
 		platformDarwinX8664:   appName,
 		platformLinuxX8664:    "CompozyOS_" + version + "_amd64.AppImage",
-		platformWindowsX8664:  "CompozyOS_" + version + "_x64-setup.exe",
 	}
 }
 

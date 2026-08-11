@@ -11,7 +11,6 @@ func DesktopArtifactNames(version string) []string {
 	updater := desktopUpdaterArtifactNames(version)
 	app := updater[platformDarwinAArch64]
 	linux := updater[platformLinuxX8664]
-	windows := updater[platformWindowsX8664]
 	return []string{
 		app,
 		app + ".sig",
@@ -19,8 +18,6 @@ func DesktopArtifactNames(version string) []string {
 		linux,
 		linux + ".sig",
 		"CompozyOS_" + version + "_amd64.deb",
-		windows,
-		windows + ".sig",
 	}
 }
 
@@ -29,7 +26,6 @@ func RuntimeArtifactNames() map[string]string {
 		platformDarwinAArch64: "compozy_darwin_arm64.tar.gz",
 		platformDarwinX8664:   "compozy_darwin_x86_64.tar.gz",
 		platformLinuxX8664:    "compozy_linux_x86_64.tar.gz",
-		platformWindowsX8664:  "compozy_windows_x86_64.zip",
 	}
 }
 

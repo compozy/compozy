@@ -8,7 +8,6 @@ const (
 	platformDarwinAArch64 = "darwin-aarch64"
 	platformDarwinX8664   = "darwin-x86_64"
 	platformLinuxX8664    = "linux-x86_64"
-	platformWindowsX8664  = "windows-x86_64"
 
 	schemaStreamGlobal    = "global"
 	schemaStreamMemory    = "memory"
@@ -16,11 +15,12 @@ const (
 	schemaStreamWorkspace = "workspace"
 )
 
+// Windows is paused until Trusted Signing is restored; reintroduce its
+// platform key together with the release.yml matrix entry.
 var platformKeys = [...]string{
 	platformDarwinAArch64,
 	platformDarwinX8664,
 	platformLinuxX8664,
-	platformWindowsX8664,
 }
 
 type UpdaterPlatform struct {

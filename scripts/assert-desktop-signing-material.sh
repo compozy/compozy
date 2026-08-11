@@ -17,16 +17,12 @@ done
 
 # macOS asserts live inline in .github/workflows/release.yml so dispatch
 # recovery of an older release ref keeps using the current Apple ID contract.
+# Windows is paused until Trusted Signing is restored.
 case "${platform}" in
   linux)
     ;;
-  windows)
-    for name in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_ARTIFACT_SIGNING_ACCOUNT AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE AZURE_ARTIFACT_SIGNING_ENDPOINT; do
-      require_value "${name}"
-    done
-    ;;
   *)
-    echo "usage: assert-desktop-signing-material.sh <linux|windows>" >&2
+    echo "usage: assert-desktop-signing-material.sh <linux>" >&2
     exit 2
     ;;
 esac

@@ -681,6 +681,9 @@ jobs:
             target: universal-apple-darwin
             rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
             bundles: app,dmg
+          # Windows is paused until the Azure Trusted Signing account is
+          # restored (SignerSign fails server-side); reintroduce the matrix
+          # entry together with the signing preflight steps from git history.
           - name: Linux x86_64
             id: linux
             runner: ubuntu-22.04
@@ -688,13 +691,6 @@ jobs:
             target: x86_64-unknown-linux-gnu
             rust_targets: x86_64-unknown-linux-gnu
             bundles: appimage,deb
-          - name: Windows x86_64
-            id: windows
-            runner: windows-latest
-            platform: windows
-            target: x86_64-pc-windows-msvc
-            rust_targets: x86_64-pc-windows-msvc
-            bundles: nsis
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     steps:
@@ -727,59 +723,6 @@ jobs:
             patchelf \
             xdg-utils
 
-      - name: Install Azure Artifact Signing CLI
-        if: matrix.platform == 'windows'
-        run: cargo install artifact-signing-cli --version 0.11.0 --locked
-
-      # artifact-signing-cli defaults to fixed signtool/az paths that drift
-      # across runner images; resolve them dynamically for this job and the
-      # Tauri signCommand child processes.
-      - name: Locate Windows signing tools
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: |
-          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter signtool.exe |
-            Where-Object { $_.FullName -match '\\x64\\' } |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if (-not $signtool) { Write-Error 'signtool.exe not found under Windows Kits'; exit 1 }
-          "SIGNTOOL_PATH=$($signtool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          $az = (Get-Command az.cmd -ErrorAction Stop).Source
-          # artifact-signing-cli 0.11.0 hardcodes `az login --service-principal`
-          # without --allow-no-subscriptions, which fails for our data-plane-only
-          # signer principal. Route its az calls through a shim that appends the
-          # flag on login and delegates everything else verbatim.
-          $shim = Join-Path $env:RUNNER_TEMP 'azshim.cmd'
-          @(
-            '@echo off'
-            "if ""%1""==""login"" ("
-            "  call ""$az"" %* --allow-no-subscriptions"
-            ') else ('
-            "  call ""$az"" %*"
-            ')'
-          ) | Set-Content -Path $shim -Encoding ascii
-          "AZURE_CLI_PATH=$shim" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "signtool: $($signtool.FullName)"
-          Write-Host "az: $az (shimmed at $shim)"
-
-      # Signs a throwaway system binary so endpoint/credential/tooling faults
-      # surface with real CLI stderr in seconds instead of after the full
-      # Rust build (tauri swallows signCommand output).
-      - name: Windows signing preflight
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
-          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
-          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-        run: |
-          Copy-Item "$env:SystemRoot\System32\where.exe" "$env:RUNNER_TEMP\signing-preflight.exe"
-          artifact-signing-cli "$env:RUNNER_TEMP\signing-preflight.exe" --endpoint "$env:AZURE_ARTIFACT_SIGNING_ENDPOINT" --description "CompozyOS signing preflight"
-          & $env:SIGNTOOL_PATH verify /pa "$env:RUNNER_TEMP\signing-preflight.exe"
-
       - name: Assert signing material before build
         if: matrix.platform != 'macos'
         shell: bash
@@ -787,12 +730,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
-          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
-          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
         run: scripts/assert-desktop-signing-material.sh "${{ matrix.platform }}"
 
       # macOS asserts live inline (not in the repo script) so a dispatch that
@@ -827,22 +764,14 @@ jobs:
         env:
           TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
           TAURI_SIGNING_PUBLIC_KEY_PREVIOUS: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY_PREVIOUS }}
-          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
         run: |
           set -euo pipefail
-          # Args stay non-empty so macOS bash 3.2 + set -u never sees an
-          # empty-array expansion.
-          args=(
-            --version "${{ needs.release-plan.outputs.release_version }}"
-            --channel "${{ needs.release-plan.outputs.release_channel }}"
-            --public-key "${TAURI_SIGNING_PUBLIC_KEY}"
-            --previous-public-key "${TAURI_SIGNING_PUBLIC_KEY_PREVIOUS:-}"
+          go run ./cmd/compozy-desktop-release channel-config \
+            --version "${{ needs.release-plan.outputs.release_version }}" \
+            --channel "${{ needs.release-plan.outputs.release_channel }}" \
+            --public-key "${TAURI_SIGNING_PUBLIC_KEY}" \
+            --previous-public-key "${TAURI_SIGNING_PUBLIC_KEY_PREVIOUS:-}" \
             --output desktop/src-tauri/tauri.channel.conf.json
-          )
-          if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            args+=(--azure-endpoint "${AZURE_ARTIFACT_SIGNING_ENDPOINT}")
-          fi
-          go run ./cmd/compozy-desktop-release channel-config "${args[@]}"
 
       - name: Build signed desktop bundle
         uses: tauri-apps/tauri-action@v1
@@ -868,11 +797,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
-          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
 
       # Inline (not a repo script) so dispatch recovery of an older release
       # ref notarizes with the current Apple ID contract.
@@ -973,8 +897,7 @@ jobs:
             --dir .artifacts/runtime \
             --pattern compozy_darwin_arm64.tar.gz \
             --pattern compozy_darwin_x86_64.tar.gz \
-            --pattern compozy_linux_x86_64.tar.gz \
-            --pattern compozy_windows_x86_64.zip
+            --pattern compozy_linux_x86_64.tar.gz
 
       - name: Build and sign canonical feeds
         env:

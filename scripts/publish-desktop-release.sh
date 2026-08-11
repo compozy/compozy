@@ -26,8 +26,7 @@ go run ./cmd/compozy-desktop-release assert-comparator \
 
 for artifact in \
   "CompozyOS_${release_version}_universal.app.tar.gz" \
-  "CompozyOS_${release_version}_amd64.AppImage" \
-  "CompozyOS_${release_version}_x64-setup.exe"; do
+  "CompozyOS_${release_version}_amd64.AppImage"; do
   scripts/verify-desktop-signature.sh \
     "${desktop_dir}/${artifact}" \
     "${desktop_dir}/${artifact}.sig" \
@@ -134,7 +133,7 @@ scripts/assert-runtime-manifest-payloads.sh \
   "${runtime_verify_dir}" \
   "${release_version}"
 
-for platform in darwin-aarch64 darwin-x86_64 linux-x86_64 windows-x86_64; do
+for platform in darwin-aarch64 darwin-x86_64 linux-x86_64; do
   payload_url="$(jq -er --arg platform "${platform}" '.platforms[$platform].url' "${verify_dir}/latest.json")"
   jq -er --arg platform "${platform}" '.platforms[$platform].signature' \
     "${verify_dir}/latest.json" >"${verify_dir}/${platform}.sig"

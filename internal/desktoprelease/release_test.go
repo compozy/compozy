@@ -65,9 +65,9 @@ func TestManifestValidation(t *testing.T) {
 		t.Parallel()
 
 		manifest := validLatestManifest()
-		delete(manifest.Platforms, platformWindowsX8664)
+		delete(manifest.Platforms, platformLinuxX8664)
 		manifest.Platforms["unsupported"] = UpdaterPlatform{}
-		assertErrorContains(t, ValidateLatestManifest(manifest), "required platform windows-x86_64 is missing")
+		assertErrorContains(t, ValidateLatestManifest(manifest), "required platform linux-x86_64 is missing")
 	})
 
 	t.Run("Should reject signatures expressed as URLs", func(t *testing.T) {
