@@ -118,6 +118,102 @@ func TestApplyMigrationStream(t *testing.T) {
 		}
 	})
 
+	t.Run("Should honor foreign key disabling in immutable migration history", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openEngineTestDB(t, "historical-foreign-key-rebuild.db")
+		files := signedMigrationMapFS(t, map[string][]byte{
+			"00001_rebuild.sql": []byte(`-- +goose Up
+PRAGMA foreign_keys = OFF;
+CREATE TABLE parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE children (
+  id INTEGER PRIMARY KEY,
+  parent_id INTEGER NOT NULL REFERENCES parents(id) ON DELETE CASCADE
+);
+INSERT INTO parents (id, value) VALUES (1, 'before');
+INSERT INTO children (id, parent_id) VALUES (1, 1);
+CREATE TABLE new_parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1);
+INSERT INTO new_parents (id, value) SELECT id, value FROM parents;
+DROP TABLE parents;
+ALTER TABLE new_parents RENAME TO parents;
+PRAGMA foreign_keys = ON;
+`),
+		})
+		stream := MigrationStream{
+			Name:         "historical-foreign-key-rebuild",
+			FS:           files,
+			Dir:          ".",
+			VersionTable: "goose_db_version_global",
+		}
+		if err := Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		var parentID int
+		if err := db.QueryRowContext(ctx, `SELECT parent_id FROM children WHERE id = 1`).Scan(&parentID); err != nil {
+			t.Fatalf("query preserved child: %v", err)
+		}
+		if parentID != 1 {
+			t.Fatalf("preserved child parent_id = %d, want 1", parentID)
+		}
+	})
+
+	t.Run("Should discard a failed no-transaction migration connection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), "failed-no-transaction.db")
+		db, err := OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := db.Close(); closeErr != nil {
+				t.Errorf("Close() error = %v", closeErr)
+			}
+		})
+		db.SetMaxOpenConns(2)
+		db.SetMaxIdleConns(2)
+		files := signedMigrationMapFS(t, map[string][]byte{
+			"00001_fail.sql": []byte(`-- +goose Up
+-- +goose NO TRANSACTION
+PRAGMA foreign_keys = OFF;
+BEGIN IMMEDIATE;
+THIS IS NOT VALID SQL;
+`),
+		})
+		stream := MigrationStream{
+			Name:         "failed-no-transaction",
+			FS:           files,
+			Dir:          ".",
+			VersionTable: "goose_db_version_failed_no_transaction",
+		}
+		if err := Apply(ctx, db, stream); err == nil {
+			t.Fatal("Apply() error = nil, want failed migration")
+		}
+
+		connections := make([]*sql.Conn, 0, 2)
+		for range 2 {
+			conn, connErr := db.Conn(ctx)
+			if connErr != nil {
+				t.Fatalf("db.Conn() error = %v", connErr)
+			}
+			connections = append(connections, conn)
+		}
+		for index, conn := range connections {
+			var foreignKeys int
+			if err := conn.QueryRowContext(ctx, `PRAGMA foreign_keys`).Scan(&foreignKeys); err != nil {
+				t.Fatalf("query foreign_keys on connection %d: %v", index+1, err)
+			}
+			if foreignKeys != 1 {
+				t.Errorf("foreign_keys on connection %d = %d, want 1", index+1, foreignKeys)
+			}
+			if err := conn.Close(); err != nil {
+				t.Errorf("close connection %d: %v", index+1, err)
+			}
+		}
+	})
+
 	t.Run("Should reject a no-transaction migration when the pool has one connection", func(t *testing.T) {
 		t.Parallel()
 

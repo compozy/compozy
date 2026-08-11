@@ -271,6 +271,10 @@ func (fakeStore) HeartbeatRunLease(context.Context, taskpkg.LeaseHeartbeat) (tas
 	return taskpkg.Run{}, nil
 }
 
+func (fakeStore) BindLeasedRunSession(context.Context, taskpkg.LeaseSessionBinding) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
 func (fakeStore) ReleaseRunLease(context.Context, taskpkg.LeaseRelease) (taskpkg.Run, error) {
 	return taskpkg.Run{}, nil
 }

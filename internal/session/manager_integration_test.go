@@ -529,9 +529,7 @@ func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *
 			return events, nil
 		}
 
-		events := make(chan acp.AgentEvent)
-		close(events)
-		return events, nil
+		return completedSyntheticPromptEvents(req.TurnID), nil
 	}
 
 	userEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")

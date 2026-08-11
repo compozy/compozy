@@ -46,15 +46,10 @@ import (
 
 const daemonSessionStopHelperEnvKey = "COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER"
 
-type daemonMigrationExpectation struct {
-	stream  store.MigrationStream
-	version int64
-}
-
-func daemonMigrationExpectations() []daemonMigrationExpectation {
-	return []daemonMigrationExpectation{
-		{stream: globaldb.MigrationStream(), version: 28},
-		{stream: memory.MigrationStream(), version: 1},
+func daemonMigrationStreams() []store.MigrationStream {
+	return []store.MigrationStream{
+		globaldb.MigrationStream(),
+		memory.MigrationStream(),
 	}
 }
 
@@ -1554,6 +1549,7 @@ func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
 	cfg := testConfig(t, homePaths)
 	cfg.Automation.Enabled = false
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, "ext-bridge", daemonTestExtensionOptions{
+		bundled:           true,
 		capabilities:      []string{extensionprotocol.CapabilityProvideBridgeAdapter},
 		bridgePlatform:    "telegram",
 		bridgeDisplayName: "Telegram",
@@ -2511,19 +2507,9 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 	if !ok {
 		t.Fatalf("registry type = %T, want *globaldb.GlobalDB", d.registry)
 	}
-	for _, expectation := range daemonMigrationExpectations() {
-		status, err := store.Status(testutil.Context(t), registry.DB(), expectation.stream)
-		if err != nil {
-			t.Fatalf("Status(%s after boot) error = %v", expectation.stream.Name, err)
-		}
-		if status.Version != expectation.version || status.AppliedCount != int(expectation.version) {
-			t.Fatalf(
-				"Status(%s after boot) = %#v, want version %d with %d applied migrations",
-				expectation.stream.Name,
-				status,
-				expectation.version,
-				expectation.version,
-			)
+	for _, stream := range daemonMigrationStreams() {
+		if err := store.RequireCurrent(testutil.Context(t), registry.DB(), stream); err != nil {
+			t.Fatalf("RequireCurrent(%s after boot) error = %v", stream.Name, err)
 		}
 	}
 	if capturedDeps.PromptAssembler == nil {
@@ -2618,22 +2604,12 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 		if !ok {
 			t.Fatalf("registry type = %T, want *globaldb.GlobalDB", d.registry)
 		}
-		for _, expectation := range daemonMigrationExpectations() {
-			status, statusErr := store.Status(testutil.Context(t), registry.DB(), expectation.stream)
-			if statusErr != nil {
+		for _, stream := range daemonMigrationStreams() {
+			if err := store.RequireCurrent(testutil.Context(t), registry.DB(), stream); err != nil {
 				t.Fatalf(
-					"Status(%s after memory-disabled boot) error = %v",
-					expectation.stream.Name,
-					statusErr,
-				)
-			}
-			if status.Version != expectation.version || status.AppliedCount != int(expectation.version) {
-				t.Fatalf(
-					"Status(%s after memory-disabled boot) = %#v, want version %d with %d applied migrations",
-					expectation.stream.Name,
-					status,
-					expectation.version,
-					expectation.version,
+					"RequireCurrent(%s after memory-disabled boot) error = %v",
+					stream.Name,
+					err,
 				)
 			}
 		}
@@ -3366,6 +3342,7 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 	extensionName := "ext-bridge-daemon"
 	instanceID := "brg-daemon-init"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		bundled:           true,
 		runtimeCommand:    daemonExtensionHelperCommand(t),
 		runtimeArgs:       daemonExtensionHelperArgs(),
 		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
@@ -3472,6 +3449,7 @@ func TestBootStartsBridgeExtensionWithDefaultVaultSecretResolver(t *testing.T) {
 	extensionName := "ext-bridge-daemon-default-vault"
 	instanceID := "brg-daemon-default-vault"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		bundled:           true,
 		runtimeCommand:    daemonExtensionHelperCommand(t),
 		runtimeArgs:       daemonExtensionHelperArgs(),
 		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
@@ -3568,6 +3546,7 @@ func TestBootFailsWhenDefaultBridgeSecretVaultValueIsMissing(t *testing.T) {
 	extensionName := "ext-bridge-daemon-missing-vault"
 	instanceID := "brg-daemon-missing-vault"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		bundled:           true,
 		runtimeCommand:    daemonExtensionHelperCommand(t),
 		runtimeArgs:       daemonExtensionHelperArgs(),
 		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
@@ -3651,6 +3630,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 	firstID := "brg-daemon-init-a"
 	secondID := "brg-daemon-init-b"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		bundled:           true,
 		runtimeCommand:    daemonExtensionHelperCommand(t),
 		runtimeArgs:       daemonExtensionHelperArgs(),
 		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
@@ -3795,6 +3775,7 @@ func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
 	extensionName := "ext-bridge-create"
 	instanceID := "brg-daemon-create"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		bundled:           true,
 		runtimeCommand:    daemonExtensionHelperCommand(t),
 		runtimeArgs:       daemonExtensionHelperArgs(),
 		runtimeEnv:        daemonExtensionHelperScenarioEnv("record_initialize", markerPath),
@@ -3886,6 +3867,7 @@ func TestBridgeRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 	extensionName := "ext-bridge-restart"
 	instanceID := "brg-daemon-restart"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		bundled:           true,
 		runtimeCommand:    daemonExtensionHelperCommand(t),
 		runtimeArgs:       daemonExtensionHelperArgs(),
 		runtimeEnv:        daemonExtensionHelperScenarioEnv("exit_once_record_deliveries", markerPath),
@@ -4036,6 +4018,7 @@ func TestDaemonShutdownClosesBridgeRuntimeCleanly(t *testing.T) {
 	extensionName := "ext-bridge-shutdown"
 	instanceID := "brg-daemon-shutdown"
 	installExtensionForDaemonIntegration(t, homePaths.DatabaseFile, extensionName, daemonTestExtensionOptions{
+		bundled:           true,
 		runtimeCommand:    daemonExtensionHelperCommand(t),
 		runtimeArgs:       daemonExtensionHelperArgs(),
 		runtimeEnv:        daemonExtensionHelperScenarioEnv("slow_record_deliveries", markerPath),

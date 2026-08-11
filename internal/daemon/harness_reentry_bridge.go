@@ -389,6 +389,7 @@ func (b *harnessReentryBridge) processTerminalRun(
 
 	target := b.resolveWakeTargetSnapshot(metadata)
 	agentName := b.resolveSummaryAgentName(target, metadata)
+	decision := b.evaluateDecision(task, run, metadata, target)
 	b.writeEventSummary(
 		target.SessionID,
 		agentName,
@@ -397,7 +398,6 @@ func (b *harnessReentryBridge) processTerminalRun(
 		completedAt,
 	)
 
-	decision := b.evaluateDecision(task, run, metadata, target)
 	return b.applyWakeDecision(
 		task,
 		run,

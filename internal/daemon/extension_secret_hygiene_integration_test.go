@@ -450,14 +450,19 @@ func readSecretExtensionSSEFrame(t *testing.T, engine *gin.Engine, name string) 
 		t.Fatalf("SSE status = %d, want %d; body=%s", response.StatusCode, http.StatusOK, body)
 	}
 	reader := bufio.NewReader(response.Body)
-	var frame strings.Builder
 	for {
-		line, readErr := reader.ReadString('\n')
-		if readErr != nil {
-			t.Fatalf("ReadString(SSE) error = %v", readErr)
+		var frame strings.Builder
+		for {
+			line, readErr := reader.ReadString('\n')
+			if readErr != nil {
+				t.Fatalf("ReadString(SSE) error = %v", readErr)
+			}
+			frame.WriteString(line)
+			if line == "\n" {
+				break
+			}
 		}
-		frame.WriteString(line)
-		if line == "\n" {
+		if !strings.HasPrefix(frame.String(), ":") {
 			return frame.String()
 		}
 	}

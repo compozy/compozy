@@ -330,6 +330,7 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 			"extension",
 			"remove",
 			"integration-update-ext",
+			"--global",
 			"-o",
 			"json",
 		); err != nil {
@@ -350,7 +351,16 @@ func TestExtensionRemoveMissingIntegrationReturnsClearError(t *testing.T) {
 
 		env := newExtensionRegistryTestEnv(t, extensionRegistryTestOptions{})
 
-		_, _, err := executeRootCommand(t, env.deps, "extension", "remove", "missing-ext", "-o", "json")
+		_, _, err := executeRootCommand(
+			t,
+			env.deps,
+			"extension",
+			"remove",
+			"missing-ext",
+			"--global",
+			"-o",
+			"json",
+		)
 		if err == nil {
 			t.Fatal("extension remove missing integration error = nil, want failure")
 		}

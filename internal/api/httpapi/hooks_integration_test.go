@@ -13,9 +13,11 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	testutilpkg "github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -507,8 +509,42 @@ func hookIntegrationResolver(overrides map[string]hookspkg.Executor) hookspkg.Ex
 func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessionID string) *sessiondb.SessionDB {
 	t.Helper()
 
+	ctx := testutilpkg.Context(t)
+	registry, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	now := time.Date(2026, 4, 9, 18, 30, 0, 0, time.UTC)
+	if err := registry.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID:        "ws-http-hooks",
+		RootDir:   homePaths.HomeDir,
+		Name:      "HTTP hooks",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		closeErr := registry.Close(ctx)
+		t.Fatalf("InsertWorkspace() error = %v; Close() error = %v", err, closeErr)
+	}
+	if err := registry.RegisterSession(ctx, store.SessionInfo{
+		ID:            sessionID,
+		AgentName:     "coder",
+		Provider:      "codex",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		WorkspaceID:   "ws-http-hooks",
+		SessionType:   "user",
+		State:         "stopped",
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}); err != nil {
+		closeErr := registry.Close(ctx)
+		t.Fatalf("RegisterSession(%q) error = %v; Close() error = %v", sessionID, err, closeErr)
+	}
+	if err := registry.Close(ctx); err != nil {
+		t.Fatalf("GlobalDB.Close() error = %v", err)
+	}
+
 	db, err := sessiondb.OpenSessionDB(
-		testutilpkg.Context(t),
+		ctx,
 		store.SessionDBOwner{SessionID: sessionID, WorkspaceID: "ws-http-hooks"},
 		store.SessionDBFile(filepath.Join(homePaths.SessionsDir, sessionID)),
 	)
@@ -517,7 +553,14 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 	}
 	if err := store.WriteSessionMeta(
 		store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)),
-		store.SessionMeta{ID: sessionID, WorkspaceID: "ws-http-hooks"},
+		store.SessionMeta{
+			ID:                   sessionID,
+			AgentName:            "coder",
+			WorkspaceID:          "ws-http-hooks",
+			State:                "stopped",
+			RuntimeStatus:        store.SessionRuntimeUnbound,
+			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		},
 	); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", sessionID, err)
 	}

@@ -584,7 +584,7 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			t.Run(promptCase.name, func(t *testing.T) {
 				t.Parallel()
 
-				prompt, err := augmenter(ctx, promptCase.session, "Continue the task.")
+				prompt, err := augmenter(testutil.Context(t), promptCase.session, "Continue the task.")
 				if err != nil {
 					t.Fatalf("skills augmenter error = %v", err)
 				}

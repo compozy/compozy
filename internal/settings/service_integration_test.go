@@ -121,12 +121,10 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 		entry := stdioMCPCatalogEntry()
 		entry.Name = "catalog-helper"
 		entry.Payload = json.RawMessage(`{
-		"transport":"stdio",
-		"command":"` + strings.ReplaceAll(os.Args[0], `\`, `\\`) + `",
-		"args":["-test.run=TestSettingsCatalogMCPStdioHelperProcess"],
-		"env":[
-			{"name":"` + settingsCatalogMCPHelperEnv + `","required":true,"secret":false,"default":"1"},
-			{"name":"CATALOG_TOKEN","required":true,"secret":true}
+		"launch":{"type":"npm","package":"catalog-helper","version":"1.0.0"},
+		"inputs":[
+			{"id":"helper_mode","prompt":"Helper mode","type":"string","required":false,"default":"1","binding":{"type":"env","name":"` + settingsCatalogMCPHelperEnv + `"}},
+			{"id":"catalog_token","prompt":"Catalog token","type":"secret","required":true,"binding":{"type":"env","name":"CATALOG_TOKEN"}}
 		],
 		"default_scope":"global"
 	}`)
@@ -139,7 +137,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 			EntryID: "github",
 			Scope:   ScopeGlobal,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
-				"CATALOG_TOKEN": {Value: "executor-secret"},
+				"catalog_token": {Value: "executor-secret"},
 			}},
 		})
 		if err != nil {
@@ -163,6 +161,9 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 		if len(servers) != 1 {
 			t.Fatalf("len(sidecar servers) = %d, want 1", len(servers))
 		}
+		if got, want := servers[0].Command, "npx"; got != want {
+			t.Fatalf("catalog server command = %q, want %q", got, want)
+		}
 		executor, err := mcppkg.NewMCPCallExecutor(
 			mcppkg.ServerResolverFunc(func(
 				_ context.Context,
@@ -174,8 +175,11 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 						source.RawServerName,
 					)
 				}
+				server := servers[0]
+				server.Command = os.Args[0]
+				server.Args = []string{"-test.run=TestSettingsCatalogMCPStdioHelperProcess"}
 				return mcppkg.ResolvedServer{
-					Server: servers[0],
+					Server: server,
 					Target: mcpauth.Target{
 						Scope:      mcpauth.ScopeGlobal,
 						ServerName: installed.Item.Name,
@@ -209,8 +213,11 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 		if err != nil {
 			t.Fatalf("CallTool() error = %v", err)
 		}
-		if got, want := result.Preview, "env: executor-secret"; got != want {
+		if got, want := result.Preview, "env: [REDACTED]"; got != want {
 			t.Fatalf("CallTool().Preview = %q, want %q", got, want)
+		}
+		if len(result.Redactions) == 0 {
+			t.Fatal("CallTool().Redactions is empty, want secret redaction evidence")
 		}
 	})
 }

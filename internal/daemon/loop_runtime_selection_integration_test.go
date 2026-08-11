@@ -585,11 +585,30 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 		return
 	}
 
-	if !t.Run("Should fail a missing bound secret before an ACP process starts", func(t *testing.T) {
+	if !t.Run("Should quarantine a missing bound secret before an ACP process starts", func(t *testing.T) {
 		definition := loopRuntimeSingleAgentDefinition("runtime-bound-secret-integration", "securemock")
 		createLoopViaHTTP(t, ctx, harness, definition)
 		run := runLoopViaHTTP(t, ctx, harness, definition.Meta.Name)
-		waitForLoopRunStatus(t, ctx, harness, run.ID, contract.LoopRunStatusStalled)
+		path := loopRuntimeEndpoint(
+			harness.WorkspaceID,
+			"/loop-runs/"+url.PathEscape(run.ID),
+		)
+		var detail contract.LoopRunResponse
+		workerNodeID := definition.Graph.Nodes[0].ID
+		waitForRuntimeCondition(t, "missing bound secret quarantine", 20*time.Second, func() bool {
+			if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &detail); err != nil {
+				return false
+			}
+			if detail.Run.Status != contract.LoopRunStatusRunning {
+				return false
+			}
+			for _, control := range detail.NodeControls {
+				if control.NodeID == workerNodeID && control.Quarantined {
+					return true
+				}
+			}
+			return false
+		})
 		if records := loopRuntimeDiagnostics(t, environment.secureDiagnostics); len(records) != 0 {
 			t.Fatalf("secure provider diagnostics = %#v, want no ACP process", records)
 		}

@@ -117,7 +117,11 @@ func (m *Manager) LinkDevelopment(
 	}
 	extension, err := m.activateDevelopmentLinkLocked(ctx, key, link, verified)
 	if err != nil {
-		return nil, errors.Join(err, m.restoreDevelopmentLinkSnapshot(key, previous))
+		restoreErr := m.restoreDevelopmentLinkSnapshot(key, previous)
+		if operationErr := operation.ensureActive(); operationErr != nil {
+			return nil, errors.Join(err, restoreErr, operationErr)
+		}
+		return nil, errors.Join(err, restoreErr)
 	}
 	return extension, nil
 }

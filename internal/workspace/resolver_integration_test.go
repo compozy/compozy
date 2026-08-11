@@ -236,8 +236,24 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 		}
 	}
 	for _, session := range []storepkg.SessionInfo{
-		{ID: "sess_reopen_healthy", AgentName: "coder", WorkspaceID: "ws_reopen_healthy", State: "stopped", CreatedAt: now, UpdatedAt: now},
-		{ID: "sess_reopen_missing", AgentName: "coder", WorkspaceID: "ws_reopen_missing", State: "stopped", CreatedAt: now, UpdatedAt: now},
+		{
+			ID:            "sess_reopen_healthy",
+			AgentName:     "coder",
+			WorkspaceID:   "ws_reopen_healthy",
+			State:         "stopped",
+			RuntimeStatus: storepkg.SessionRuntimeUnbound,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		},
+		{
+			ID:            "sess_reopen_missing",
+			AgentName:     "coder",
+			WorkspaceID:   "ws_reopen_missing",
+			State:         "stopped",
+			RuntimeStatus: storepkg.SessionRuntimeUnbound,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		},
 	} {
 		if err := db.RegisterSession(ctx, session); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", session.ID, err)

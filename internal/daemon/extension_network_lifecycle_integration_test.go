@@ -433,6 +433,7 @@ func TestInstalledExtensionNetworkConsentTransportLifecycle(t *testing.T) {
 				Now:       func() time.Time { return confirmedAt },
 			},
 				withDaemonExtensionEventWriter(writer),
+				withDaemonExtensionAutomation(&fakeAutomationManager{}),
 			).(*daemonExtensionService)
 			if !ok {
 				t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")

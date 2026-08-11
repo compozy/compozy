@@ -73,7 +73,21 @@ func parseMigrationSQL(path string, contents []byte) (parsedMigrationSQL, error)
 	if err != nil {
 		return parsedMigrationSQL{}, fmt.Errorf("parse %s down migration: %w", path, err)
 	}
+	if useTx && migrationDisablesForeignKeys(up) {
+		useTx = false
+	}
 	return parsedMigrationSQL{useTx: useTx, up: up, down: down}, nil
+}
+
+func migrationDisablesForeignKeys(statements []string) bool {
+	for _, statement := range statements {
+		normalized := strings.TrimSuffix(strings.TrimSpace(statement), ";")
+		normalized = strings.ToUpper(strings.Join(strings.Fields(normalized), ""))
+		if normalized == "PRAGMAFOREIGN_KEYS=OFF" {
+			return true
+		}
+	}
+	return false
 }
 
 func parseMigrationSQLDirection(

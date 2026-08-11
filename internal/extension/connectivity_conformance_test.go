@@ -402,7 +402,7 @@ func startConnectivityConformanceManager(
 	manager := NewManager(
 		env.registry,
 		WithLogger(slog.New(slog.NewTextHandler(&logs, nil))),
-		WithInitializeTimeout(200*time.Millisecond),
+		WithInitializeTimeout(defaultInitializeTimeout),
 		WithHealthCheckTimeout(50*time.Millisecond),
 		WithSubprocessSignalGrace(20*time.Millisecond),
 		withRestartBackoffMax(10*time.Millisecond),

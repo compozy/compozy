@@ -153,7 +153,12 @@ func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.
 		diagnosticsPath := filepath.Join(t.TempDir(), "acpmock-diagnostics.jsonl")
 		command := acpmock.BuildCommand(driverPath, fixturePath, "hosted-native", diagnosticsPath)
 
-		h := newHarness(t)
+		h := newHostedMCPHarness(
+			t,
+			WithDriver(NewACPDriverAdapter(newIntegrationACPDriver(
+				acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+			))),
+		)
 		h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(driverPath)
 		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 		if err != nil {
@@ -171,13 +176,6 @@ func TestManagerIntegrationAllowedToolsOverrideNarrowsAcpmockSession(t *testing.
 			},
 		}}
 		h.resolver.upsert(&resolved)
-		h.manager = newManagerWithHarness(
-			t,
-			h,
-			WithDriver(NewACPDriverAdapter(newIntegrationACPDriver(
-				acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-			))),
-		)
 
 		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "acpmock-tools",

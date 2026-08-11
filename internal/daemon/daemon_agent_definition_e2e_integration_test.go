@@ -58,8 +58,8 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		); err != nil {
 			t.Fatalf("HTTP get extension agent error = %v", err)
 		}
-		if !reflect.DeepEqual(before.Agent.CategoryPath, []string{"Compozy"}) {
-			t.Fatalf("extension agent category = %#v, want Compozy", before.Agent.CategoryPath)
+		if !reflect.DeepEqual(before.Agent.CategoryPath, []string{"CompozyOS"}) {
+			t.Fatalf("extension agent category = %#v, want CompozyOS", before.Agent.CategoryPath)
 		}
 		if before.Agent.EffectiveRuntime == nil || before.Agent.EffectiveRuntime.Provider == "" {
 			t.Fatalf("extension agent effective runtime = %#v, want resolved provider", before.Agent.EffectiveRuntime)
@@ -95,8 +95,8 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 			t.Fatalf("HTTP update extension agent error = %v", err)
 		}
 		if updated.Agent.Provider != selectedProvider || updated.Agent.Model != selectedModel ||
-			!reflect.DeepEqual(updated.Agent.CategoryPath, []string{"Compozy"}) {
-			t.Fatalf("updated extension agent = %#v, want selected runtime in Compozy", updated.Agent)
+			!reflect.DeepEqual(updated.Agent.CategoryPath, []string{"CompozyOS"}) {
+			t.Fatalf("updated extension agent = %#v, want selected runtime in CompozyOS", updated.Agent)
 		}
 		if updated.Agent.DefinitionDigest == before.Agent.DefinitionDigest {
 			t.Fatalf(
@@ -145,7 +145,7 @@ func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 		}
 		if afterRestart.Agent.DefinitionDigest != updated.Agent.DefinitionDigest ||
 			afterRestart.Agent.Provider != selectedProvider || afterRestart.Agent.Model != selectedModel ||
-			!reflect.DeepEqual(afterRestart.Agent.CategoryPath, []string{"Compozy"}) {
+			!reflect.DeepEqual(afterRestart.Agent.CategoryPath, []string{"CompozyOS"}) {
 			t.Fatalf("post-restart extension agent = %#v, want persisted update %#v", afterRestart.Agent, updated.Agent)
 		}
 		disabled, err := restarted.DisableExtension(ctx, devcycle.Name)

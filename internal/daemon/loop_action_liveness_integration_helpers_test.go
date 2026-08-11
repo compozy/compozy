@@ -210,7 +210,7 @@ func testLoopFailureBreakerIntegration(t *testing.T) {
 
 	actions, err := looppkg.NewActionRegistry(
 		inertActionToolRegistry{},
-		looppkg.WithActionGoalExecutor(failureBreakerActionExecutor{}),
+		looppkg.WithActionTransformExecutor(failureBreakerActionExecutor{}),
 	)
 	if err != nil {
 		t.Fatalf("loop.NewActionRegistry() error = %v", err)
@@ -354,17 +354,12 @@ func testLoopFailureBreakerIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CoordinatorRunner.Run(second retry) error = %v", err)
 	}
-	if plan.Terminal == nil {
-		t.Fatal("CoordinatorRunner.Run(second retry) terminal = nil")
-	}
-	if got, want := plan.Terminal.Status, string(looppkg.StatusStalled); got != want {
-		t.Fatalf("terminal status = %q, want %q", got, want)
-	}
-	if got, want := plan.Terminal.Cause, string(looppkg.TransitionCauseNoProgress); got != want {
-		t.Fatalf("terminal cause = %q, want %q", got, want)
-	}
-	if got, want := plan.Terminal.ReasonCode, "circuit_breaker"; got != want {
-		t.Fatalf("terminal reason = %q, want %q", got, want)
+	if plan.Terminal != nil || plan.NextCoordinator == nil {
+		t.Fatalf(
+			"second retry plan terminal/next = %#v/%#v, want quarantine continuation",
+			plan.Terminal,
+			plan.NextCoordinator,
+		)
 	}
 	if _, err := manager.StartRun(ctx, secondRetry.Run.ID, taskpkg.StartRun{
 		IdempotencyKey: "start-" + secondRetry.Run.ID,
@@ -372,12 +367,23 @@ func testLoopFailureBreakerIntegration(t *testing.T) {
 	}, actor); err != nil {
 		t.Fatalf("StartRun(second retry coordinator) error = %v", err)
 	}
-	terminalRun, err := db.GetLoopRunByID(ctx, created.ID)
+	activeRun, err := db.GetLoopRunByID(ctx, created.ID)
 	if err != nil {
-		t.Fatalf("GetLoopRunByID(terminal) error = %v", err)
+		t.Fatalf("GetLoopRunByID(active) error = %v", err)
 	}
-	if terminalRun.Status != looppkg.StatusStalled || terminalRun.Generation != 2 {
-		t.Fatalf("terminal Loop = %#v, want stalled generation 2", terminalRun)
+	if activeRun.Status != looppkg.StatusRunning || activeRun.Generation != 3 {
+		t.Fatalf("active Loop = %#v, want running generation 3", activeRun)
+	}
+	controls, err := db.ListNodeControls(ctx, created.WorkspaceID, created.ID)
+	if err != nil {
+		t.Fatalf("ListNodeControls() error = %v", err)
+	}
+	controlByNode := make(map[looppkg.NodeID]looppkg.NodeControl, len(controls))
+	for _, control := range controls {
+		controlByNode[control.NodeID] = control
+	}
+	if !controlByNode["failing"].Quarantined || controlByNode["passing"].Quarantined {
+		t.Fatalf("node controls = %#v, want only failing quarantined", controls)
 	}
 }
 
@@ -389,14 +395,16 @@ func compileFailureBreakerDefinition(t *testing.T) *looppkg.ResolvedDefinition {
 	definition.Contract.NoProgress.Window = 10
 	failing := definition.Graph.Nodes[0]
 	failing.ID = "failing"
-	failingSession := *failing.Session
-	failingSession.Handle = "failure"
-	failing.Session = &failingSession
+	failing.Kind = string(loopdsl.ActionTransform)
+	failing.Session = nil
+	failing.Params = loopdsl.NodeParams{"map": map[string]any{
+		"status": map[string]any{"value": "failed"},
+	}}
 	passing := failing
 	passing.ID = "passing"
-	passingSession := *passing.Session
-	passingSession.Handle = "passing"
-	passing.Session = &passingSession
+	passing.Params = loopdsl.NodeParams{"map": map[string]any{
+		"status": map[string]any{"value": "complete"},
+	}}
 	definition.Graph.Nodes = []loopdsl.Node{failing, passing}
 
 	resolved, err := looppkg.NewCompiler().Compile(definition)

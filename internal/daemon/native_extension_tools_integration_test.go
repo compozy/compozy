@@ -20,9 +20,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -59,6 +61,24 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		source.downloads["1.0.0"] = nativeNetworkExtensionDownloadResult(t, "1.0.0", "builders")
 		source.downloads["2.0.0"] = nativeNetworkExtensionDownloadResult(t, "2.0.0", "reviewers")
 		source.latestVersion = "1.0.0"
+		automation, ok := deps.Automation.(extensionAutomationPreviewer)
+		if !ok {
+			t.Fatalf("native extension automation = %T, want extensionAutomationPreviewer", deps.Automation)
+		}
+		service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
+			Registry:  extRegistry,
+			Runtime:   inspectionRuntime,
+			HomePaths: deps.HomePaths,
+		},
+			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
+			withDaemonExtensionEventWriter(deps.ExtensionEvents),
+			withDaemonExtensionAutomation(automation),
+			withDaemonExtensionResources(nil, resources.MutationActor{}, inventoryTestResourceCodecs(t)),
+		).(*daemonExtensionService)
+		if !ok {
+			t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")
+		}
+		deps.Extensions = func() core.ExtensionService { return service }
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 		agentScope := toolspkg.Scope{
 			SessionID:   "native-agent-session",
@@ -95,17 +115,6 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 				inspected.Skills,
 				inspected.Manifest.Resources.Skills,
 			)
-		}
-		service, ok := newDaemonExtensionService(daemonExtensionServiceDeps{
-			Registry:  extRegistry,
-			Runtime:   inspectionRuntime,
-			HomePaths: deps.HomePaths,
-		},
-			withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
-			withDaemonExtensionEventWriter(deps.ExtensionEvents),
-		).(*daemonExtensionService)
-		if !ok {
-			t.Fatal("newDaemonExtensionService() did not return daemonExtensionService")
 		}
 		assertNativeExtensionInventoryPreviewParity(t, registry, agentScope, service, "tool-ext")
 

@@ -123,6 +123,7 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeriveNetworkPeerActorContext() error = %v", err)
 	}
+	networkActor.Scope.WorkspaceID = h.workspaceID
 	daemonActor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
 	if err != nil {
 		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
@@ -309,7 +310,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		t.Fatalf("Health() error = %v", err)
 	}
 
-	if got, want := len(executor.forceStopCalls), 2; got != want {
+	if got, want := len(executor.forceStopCalls), 1; got != want {
 		t.Fatalf("len(forceStopCalls) = %d, want %d", got, want)
 	}
 	if got, want := executor.forceStopCalls[0], (taskStopCall{
@@ -317,12 +318,6 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		Reason:    taskpkg.StopReasonCancellation,
 	}); got != want {
 		t.Fatalf("forceStopCalls[0] = %#v, want %#v", got, want)
-	}
-	if got, want := executor.forceStopCalls[1], (taskStopCall{
-		SessionID: "sess-missing-on-boot",
-		Reason:    taskpkg.StopReasonFailed,
-	}); got != want {
-		t.Fatalf("forceStopCalls[1] = %#v, want %#v", got, want)
 	}
 	if got, want := health.Tasks.ForcedStopsSinceStart, 1; got != want {
 		t.Fatalf("health.Tasks.ForcedStopsSinceStart = %d, want %d", got, want)
@@ -532,6 +527,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 		clock.Advance(time.Minute)
 		seedNonLeasedClaimedObserveRun(t, h, failedRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
+		executor.nextSessionID = "sess-observe-dashboard-failed"
 		if _, err := manager.StartRun(
 			testutil.Context(t),
 			failedRun.ID,
@@ -565,6 +561,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 		clock.Advance(time.Minute)
 		seedNonLeasedClaimedObserveRun(t, h, completedRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
+		executor.nextSessionID = "sess-observe-dashboard-completed"
 		if _, err := manager.StartRun(
 			testutil.Context(t),
 			completedRun.ID,

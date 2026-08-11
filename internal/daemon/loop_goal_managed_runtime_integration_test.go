@@ -27,7 +27,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		testLoopActionLivenessIntegration(t)
 	})
 
-	t.Run("Should stall after one node fails across generations despite a successful sibling", func(t *testing.T) {
+	t.Run("Should quarantine a repeated node failure while preserving a successful sibling", func(t *testing.T) {
 		testLoopFailureBreakerIntegration(t)
 	})
 
@@ -998,7 +998,7 @@ func newLoopGoalManagedRuntimeFixture(
 	run := looppkg.Run{
 		ID:          looppkg.RunID("looprun-goal-managed-" + suffix),
 		WorkspaceID: looppkg.WorkspaceID(resolvedWorkspace.ID),
-		LoopName:    "goal-managed", Status: looppkg.StatusRunning, Generation: 1,
+		LoopName:    "goal-managed", Status: looppkg.StatusRunning,
 		ReattemptStrategy: looppkg.ReattemptFailedOnly, CreatedAt: now, StartedAt: now,
 		LastProgressAt: now, Inputs: map[string]any{},
 	}

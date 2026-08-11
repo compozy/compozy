@@ -1050,7 +1050,7 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	}
 	if !strings.Contains(
 		toonOut,
-		"sessions[1]{id,name,agent_name,provider,sandbox_backend,state,badge,failure_kind,workspace,channel,health_state,health,updated_at}:",
+		"sessions[1]{id,name,agent_name,parent_session_id,provider,sandbox_backend,state,badge,failure_kind,workspace,channel,health_state,health,updated_at}:",
 	) || !strings.Contains(toonOut, "page{") || !strings.Contains(toonOut, "has_more") {
 		t.Fatalf("toon output = %q, want TOON table and page metadata", toonOut)
 	}
@@ -4892,19 +4892,22 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 	d.bridges = bridgeService
 	d.mu.Unlock()
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
+		shutdown := func(operation string, stop func(context.Context) error) {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			joinRunError(operation, stop(shutdownCtx))
+		}
 		for _, info := range manager.List() {
 			if info == nil || info.State == session.StateStopped {
 				continue
 			}
-			joinRunError(
+			shutdown(
 				fmt.Sprintf("stop active session %q", info.ID),
-				manager.Stop(shutdownCtx, info.ID),
+				func(ctx context.Context) error { return manager.Stop(ctx, info.ID) },
 			)
 		}
-		joinRunError("shutdown network manager", networkManager.Shutdown(shutdownCtx))
-		joinRunError("shutdown UDS server", server.Shutdown(shutdownCtx))
+		shutdown("shutdown network manager", networkManager.Shutdown)
+		shutdown("shutdown UDS server", server.Shutdown)
 		joinRunError("remove daemon info", compozydaemon.RemoveInfo(d.homePaths.DaemonInfo))
 		d.mu.Lock()
 		d.bridges = nil

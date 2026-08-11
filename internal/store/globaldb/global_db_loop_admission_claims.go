@@ -8,6 +8,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
@@ -61,7 +62,7 @@ func claimLoopAdmission(
 	if _, err := exec.ExecContext(ctx, `DELETE FROM loop_admission_claims
 		WHERE workspace_id = ? AND loop_name = ? AND source_key = ? AND event_key = ?
 		AND expires_at <= ?`, run.WorkspaceID, run.LoopName, admissionIdentity.SourceKey,
-		admissionIdentity.EventKey, now.UTC()); err != nil {
+		admissionIdentity.EventKey, storepkg.FormatTimestamp(now)); err != nil {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, fmt.Errorf(
 			"store: expire matching Loop admission claim: %w", err,
 		)
@@ -69,7 +70,8 @@ func claimLoopAdmission(
 	result, err := exec.ExecContext(ctx, `INSERT OR IGNORE INTO loop_admission_claims (
 		workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at, expires_at
 	) VALUES (?, ?, ?, ?, ?, ?, ?)`, run.WorkspaceID, run.LoopName, admissionIdentity.SourceKey,
-		admissionIdentity.EventKey, run.ID, now.UTC(), now.UTC().Add(admissionIdentity.Horizon))
+		admissionIdentity.EventKey, run.ID, storepkg.FormatTimestamp(now),
+		storepkg.FormatTimestamp(now.Add(admissionIdentity.Horizon)))
 	if err != nil {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, fmt.Errorf("store: claim Loop admission: %w", err)
 	}
@@ -90,7 +92,8 @@ func claimLoopAdmission(
 	if _, err := exec.ExecContext(ctx, `UPDATE loop_admission_claims SET
 		suppressed_count = suppressed_count + 1, last_suppressed_at = ?
 		WHERE workspace_id = ? AND loop_name = ? AND source_key = ? AND event_key = ?`,
-		now.UTC(), run.WorkspaceID, run.LoopName, admissionIdentity.SourceKey, admissionIdentity.EventKey); err != nil {
+		storepkg.FormatTimestamp(now), run.WorkspaceID, run.LoopName,
+		admissionIdentity.SourceKey, admissionIdentity.EventKey); err != nil {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, fmt.Errorf(
 			"store: count suppressed Loop admission: %w",
 			err,
@@ -152,7 +155,7 @@ func (g *LoopRepo) SweepAdmissionClaims(ctx context.Context, now time.Time, limi
 	}
 	result, err := g.db.ExecContext(ctx, `DELETE FROM loop_admission_claims WHERE rowid IN (
 		SELECT rowid FROM loop_admission_claims WHERE expires_at <= ? ORDER BY expires_at LIMIT ?
-	)`, now.UTC(), limit)
+	)`, storepkg.FormatTimestamp(now), limit)
 	if err != nil {
 		return 0, fmt.Errorf("store: sweep Loop admission claims: %w", err)
 	}

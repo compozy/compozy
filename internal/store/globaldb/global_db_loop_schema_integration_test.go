@@ -182,6 +182,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("openGlobalMigrationUpgrade() error = %v", err)
 		}
+		verificationCtx := testutil.Context(t)
 		assertTablesPresent(
 			t,
 			upgraded.db,
@@ -196,7 +197,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		assertTableHasColumn(t, upgraded.db, "loop_run_events", "delivery_key")
 		assertMigratedLoopLifecycleRows(t, upgraded.db, workspaceID)
 		if _, err := upgraded.db.ExecContext(
-			ctx,
+			verificationCtx,
 			`INSERT INTO loop_generations (
 				loop_run_id, generation, parent_generation, origin, created_at
 			) VALUES ('run-v38', 2, 1, 'requeue', ?)`,
@@ -205,7 +206,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			t.Fatalf("insert requeue generation after upgrade error = %v", err)
 		}
 		if _, err := upgraded.db.ExecContext(
-			ctx,
+			verificationCtx,
 			`INSERT INTO dead_entities (workspace_id, kind, entity_id, reason, marked_at)
 			 VALUES (?, 'loop_target', 'delivery:target', 'breaker open', ?)`,
 			workspaceID,
@@ -214,7 +215,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			t.Fatalf("insert loop_target dead entity after upgrade error = %v", err)
 		}
 		if _, err := upgraded.db.ExecContext(
-			ctx,
+			verificationCtx,
 			`INSERT INTO dead_entities (workspace_id, kind, entity_id, reason, marked_at)
 			 VALUES (?, 'invalid', 'bad-target', 'invalid', ?)`,
 			workspaceID,
@@ -222,16 +223,16 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		); err == nil {
 			t.Fatal("invalid dead entity kind accepted after upgrade")
 		}
-		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		status, err := store.Status(verificationCtx, upgraded.db, MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(upgraded) error = %v", err)
 		}
 		assertCompleteMigrationStream(t, status, MigrationStream())
-		if err := upgraded.Close(ctx); err != nil {
+		if err := upgraded.Close(verificationCtx); err != nil {
 			t.Fatalf("Close(upgraded) error = %v", err)
 		}
 
-		reopened, err := OpenGlobalDB(ctx, path)
+		reopened, err := OpenGlobalDB(verificationCtx, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(reopened) error = %v", err)
 		}
@@ -241,7 +242,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			}
 		})
 		assertMigratedLoopLifecycleRows(t, reopened.db, workspaceID)
-		reopenedStatus, err := store.Status(ctx, reopened.db, MigrationStream())
+		reopenedStatus, err := store.Status(verificationCtx, reopened.db, MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(reopened) error = %v", err)
 		}
@@ -255,7 +256,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		prefixDB, err := openGlobalMigrationPrefixDatabase(
 			t,
 			path,
-			globalMigrationPrefixBefore(t, "00041_schema.sql"),
+			globalMigrationPrefixBefore(t, "00047_schema.sql"),
 		)
 		if err != nil {
 			t.Fatalf("openGlobalMigrationPrefixDatabase() error = %v", err)
@@ -265,11 +266,11 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_admission_claims (
 			workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at,
 			suppressed_count, last_suppressed_at
-		) VALUES ('ws-upgrade', 'delivery', 'source', 'event:42', 'run-v40', ?, 2, ?)`,
+		) VALUES ('ws-upgrade', 'delivery', 'source', 'event:42', 'run-pre-v47', ?, 2, ?)`,
 			claimedAt,
 			claimedAt.Add(time.Hour),
 		); err != nil {
-			t.Fatalf("insert v40 admission claim error = %v", err)
+			t.Fatalf("insert pre-v47 admission claim error = %v", err)
 		}
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("prefixDB.Close() error = %v", err)
@@ -279,11 +280,12 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("openGlobalMigrationUpgrade() error = %v", err)
 		}
-		if err := upgraded.Close(ctx); err != nil {
+		if err := upgraded.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("Close(upgraded) error = %v", err)
 		}
 
-		reopened, err := OpenGlobalDB(ctx, path)
+		verificationCtx := testutil.Context(t)
+		reopened, err := OpenGlobalDB(verificationCtx, path)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(reopened) error = %v", err)
 		}
@@ -292,13 +294,138 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
 			}
 		})
-		claim, err := reopened.GetAdmissionClaim(ctx, "ws-upgrade", "delivery", "source", "event:42")
+		claim, err := reopened.GetAdmissionClaim(verificationCtx, "ws-upgrade", "delivery", "source", "event:42")
 		if err != nil {
 			t.Fatalf("GetAdmissionClaim() error = %v", err)
 		}
-		if claim.LoopRunID != "run-v40" || claim.SuppressedCount != 2 ||
+		if claim.LoopRunID != "run-pre-v47" || claim.SuppressedCount != 2 ||
 			!claim.ExpiresAt.Equal(claimedAt.Add(168*time.Hour)) {
 			t.Fatalf("upgraded admission claim = %#v, want preserved row with prior 168h horizon", claim)
+		}
+	})
+
+	t.Run("Should preserve canonical fractional seconds while repairing admission claims", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00059_loop_admission_claim_expiry.sql"),
+		)
+		if err != nil {
+			t.Fatalf("openGlobalMigrationPrefixDatabase() error = %v", err)
+		}
+		ctx := testutil.Context(t)
+		claimedAt := time.Date(2026, 8, 2, 12, 0, 0, 123456789, time.UTC)
+		formattedClaimedAt := store.FormatTimestamp(claimedAt)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_admission_claims (
+			workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at,
+			expires_at, suppressed_count, last_suppressed_at
+		) VALUES ('ws-upgrade', 'delivery', 'source', 'event:fractional', 'run-pre-v59', ?, ?, 0, NULL)`,
+			formattedClaimedAt,
+			formattedClaimedAt,
+		); err != nil {
+			t.Fatalf("insert pre-v59 admission claim error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("openGlobalMigrationUpgrade() error = %v", err)
+		}
+		if err := upgraded.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(upgraded) error = %v", err)
+		}
+
+		verificationCtx := testutil.Context(t)
+		reopened, err := OpenGlobalDB(verificationCtx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopened) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
+			}
+		})
+		claim, err := reopened.GetAdmissionClaim(
+			verificationCtx,
+			"ws-upgrade",
+			"delivery",
+			"source",
+			"event:fractional",
+		)
+		if err != nil {
+			t.Fatalf("GetAdmissionClaim() error = %v", err)
+		}
+		if !claim.ExpiresAt.Equal(claimedAt.Add(168 * time.Hour)) {
+			t.Fatalf("ExpiresAt = %s, want %s", claim.ExpiresAt, claimedAt.Add(168*time.Hour))
+		}
+	})
+
+	t.Run("Should preserve the expiry of admission claims written before v59", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00059_loop_admission_claim_expiry.sql"),
+		)
+		if err != nil {
+			t.Fatalf("openGlobalMigrationPrefixDatabase() error = %v", err)
+		}
+		ctx := testutil.Context(t)
+		claimedAt := time.Date(2026, 8, 2, 23, 0, 0, 123456789, time.UTC)
+		expiresAt := claimedAt.Add(168 * time.Hour)
+		lastSuppressedAt := claimedAt.Add(time.Hour)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_admission_claims (
+			workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at,
+			expires_at, suppressed_count, last_suppressed_at
+		) VALUES ('ws-upgrade', 'delivery', 'source', 'event:writer', 'run-pre-v59-writer', ?, ?, 1, ?)`,
+			claimedAt,
+			expiresAt,
+			lastSuppressedAt,
+		); err != nil {
+			t.Fatalf("insert pre-v59 admission claim error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("openGlobalMigrationUpgrade() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(upgraded cleanup) error = %v", closeErr)
+			}
+		})
+
+		verificationCtx := testutil.Context(t)
+		deleted, err := upgraded.SweepAdmissionClaims(verificationCtx, expiresAt.Add(-time.Nanosecond), 10)
+		if err != nil {
+			t.Fatalf("SweepAdmissionClaims(before expiry) error = %v", err)
+		}
+		if deleted != 0 {
+			t.Fatalf("SweepAdmissionClaims(before expiry) deleted = %d, want 0", deleted)
+		}
+		claim, err := upgraded.GetAdmissionClaim(
+			verificationCtx,
+			"ws-upgrade",
+			"delivery",
+			"source",
+			"event:writer",
+		)
+		if err != nil {
+			t.Fatalf("GetAdmissionClaim() error = %v", err)
+		}
+		if !claim.ClaimedAt.Equal(claimedAt) || !claim.ExpiresAt.Equal(expiresAt) ||
+			claim.LastSuppressedAt == nil || !claim.LastSuppressedAt.Equal(lastSuppressedAt) {
+			t.Fatalf("upgraded admission claim = %#v, want preserved writer timestamps", claim)
 		}
 	})
 
@@ -630,7 +757,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	assertTableColumns(t, globalDB.db, "loop_node_controls", []string{
 		"loop_run_id", "node_id", "paused", "pause_actor_kind", "pause_actor_id", "pause_reason",
 		"pause_rule_id", "pause_requested_at", "quarantined", "quarantine_entry_json", "quarantined_at",
-		"attention_flag", "attention_reason", "cancel_state", "cancel_actor_kind", "cancel_actor_id",
+		"attention_flag", "attention_reason", "attention_producer_node_id", "cancel_state", "cancel_actor_kind", "cancel_actor_id",
 		"cancel_reason", "cancel_requested_at", "last_evidence_at", "death_resume_streak", "revision", "updated_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_node_attempts", []string{

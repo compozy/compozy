@@ -24,6 +24,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	tailscale "github.com/compozy/compozy/extensions/connectivity/tailscale"
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cli"
@@ -352,7 +353,7 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	referenceWriteProviderConfig(t, homePaths, acpmock.ProviderName, command)
 	referenceWriteAgentDef(t, homePaths, "coder", command)
 	harness.workspace = referenceSeedWorkspace(t, homePaths, cfg, filepath.Join(t.TempDir(), "workspace"))
-	referenceDisableBundledDevCycle(t, homePaths)
+	referenceDisableBundledExtensions(t, homePaths)
 
 	logger := slog.New(slog.NewTextHandler(harness.logBuffer, nil))
 	daemon, err := daemonpkg.New(
@@ -388,7 +389,7 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	return harness
 }
 
-func referenceDisableBundledDevCycle(t *testing.T, homePaths compozyconfig.HomePaths) {
+func referenceDisableBundledExtensions(t *testing.T, homePaths compozyconfig.HomePaths) {
 	t.Helper()
 
 	db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
@@ -407,6 +408,12 @@ func referenceDisableBundledDevCycle(t *testing.T, homePaths compozyconfig.HomeP
 	}
 	if err := registry.Disable(devcycle.Name); err != nil {
 		t.Fatalf("Disable(dev-cycle) error = %v", err)
+	}
+	if err := tailscale.EnsureManagedInstall(homePaths, registry); err != nil {
+		t.Fatalf("EnsureManagedInstall(tailscale) error = %v", err)
+	}
+	if err := registry.Disable(tailscale.Name); err != nil {
+		t.Fatalf("Disable(tailscale) error = %v", err)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -195,7 +196,27 @@ func executePreparedMigrationWithoutTransaction(
 		return fmt.Errorf("acquire connection for %s migration %s: %w", direction, path, err)
 	}
 	defer func() {
-		retErr = errors.Join(retErr, conn.Close())
+		retErr = finishPreparedMigrationConnection(conn, retErr)
 	}()
 	return executePreparedMigration(ctx, conn, path, direction, statements)
+}
+
+func finishPreparedMigrationConnection(conn *sql.Conn, migrationErr error) error {
+	if migrationErr == nil {
+		if err := conn.Close(); err != nil {
+			return fmt.Errorf("close migration connection: %w", err)
+		}
+		return nil
+	}
+
+	discardErr := conn.Raw(func(any) error {
+		return driver.ErrBadConn
+	})
+	if discardErr != nil && !errors.Is(discardErr, driver.ErrBadConn) && !errors.Is(discardErr, sql.ErrConnDone) {
+		migrationErr = errors.Join(migrationErr, fmt.Errorf("discard failed migration connection: %w", discardErr))
+	}
+	if closeErr := conn.Close(); closeErr != nil && !errors.Is(closeErr, sql.ErrConnDone) {
+		migrationErr = errors.Join(migrationErr, fmt.Errorf("close failed migration connection: %w", closeErr))
+	}
+	return migrationErr
 }

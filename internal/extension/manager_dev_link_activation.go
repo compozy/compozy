@@ -58,7 +58,13 @@ func (m *Manager) ActivateDevelopmentLink(ctx context.Context, key InstanceKey) 
 	if err := operation.ensureActive(); err != nil {
 		return nil, err
 	}
-	return m.activateDevelopmentLinkLocked(ctx, key, link, verified)
+	extension, err := m.activateDevelopmentLinkLocked(ctx, key, link, verified)
+	if err != nil {
+		if operationErr := operation.ensureActive(); operationErr != nil {
+			return nil, errors.Join(err, operationErr)
+		}
+	}
+	return extension, err
 }
 
 func (m *Manager) stageDevelopmentLinkLocked(

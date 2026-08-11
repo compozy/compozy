@@ -10287,6 +10287,7 @@ func (f *fakeExtensionRuntime) InspectPackageResources(
 }
 
 type daemonTestExtensionOptions struct {
+	bundled           bool
 	version           string
 	requiredEnv       []string
 	runtimeCommand    string
@@ -10359,7 +10360,11 @@ func installDaemonTestExtension(
 	}
 
 	registry := extensionpkg.NewRegistry(db.DB())
-	if err := registry.Install(manifest, dir, checksum); err != nil {
+	installOptions := make([]extensionpkg.InstallOption, 0, 1)
+	if opts.bundled {
+		installOptions = append(installOptions, extensionpkg.WithInstallSource(extensionpkg.SourceBundled))
+	}
+	if err := registry.Install(manifest, dir, checksum, installOptions...); err != nil {
 		t.Fatalf("Registry.Install(%q) error = %v", name, err)
 	}
 	if !enabled {

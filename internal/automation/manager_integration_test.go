@@ -78,7 +78,7 @@ func TestManagerIntegrationAcceptedSuggestionDispatchesThroughScheduler(t *testi
 		if listErr != nil {
 			t.Fatalf("ListRuns() error = %v", listErr)
 		}
-		return len(runs) == 1
+		return len(runs) == 1 && runs[0].Status == RunCompleted
 	})
 	runs, err := h.db.ListRuns(h.ctx, RunQuery{JobID: accepted.Job.ID})
 	if err != nil {

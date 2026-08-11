@@ -2220,6 +2220,7 @@ func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			sampleStarted := time.Now()
 			httpValue := tc.decode()
 			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, tc.path, nil, httpValue); err != nil {
 				t.Fatalf("HTTPJSON(%s) error = %v", tc.path, err)
@@ -2229,6 +2230,12 @@ func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
 			if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, tc.path, nil, udsValue); err != nil {
 				t.Fatalf("UDSJSON(%s) error = %v", tc.path, err)
 			}
+			assertAndNormalizeSettingsReadParityVolatileFields(
+				t,
+				httpValue,
+				udsValue,
+				time.Since(sampleStarted),
+			)
 
 			if !reflect.DeepEqual(httpValue, udsValue) {
 				httpPayload, err := json.Marshal(httpValue)
@@ -2243,6 +2250,34 @@ func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
 			}
 		})
 	}
+}
+
+func assertAndNormalizeSettingsReadParityVolatileFields(
+	t *testing.T,
+	httpValue,
+	udsValue any,
+	sampleDuration time.Duration,
+) {
+	t.Helper()
+
+	httpGeneral, httpOK := httpValue.(*compozycontract.SettingsGeneralResponse)
+	udsGeneral, udsOK := udsValue.(*compozycontract.SettingsGeneralResponse)
+	if !httpOK || !udsOK {
+		return
+	}
+
+	// The transports are sampled sequentially, so runtime uptime can cross a second boundary.
+	maxDriftSeconds := int64(sampleDuration/time.Second) + 1
+	uptimeDrift := udsGeneral.Runtime.UptimeSeconds - httpGeneral.Runtime.UptimeSeconds
+	if uptimeDrift < 0 || uptimeDrift > maxDriftSeconds {
+		t.Fatalf(
+			"runtime uptime drift = %ds, want UDS after HTTP within %ds sampling window",
+			uptimeDrift,
+			maxDriftSeconds,
+		)
+	}
+	httpGeneral.Runtime.UptimeSeconds = 0
+	udsGeneral.Runtime.UptimeSeconds = 0
 }
 
 func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) {

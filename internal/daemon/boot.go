@@ -239,6 +239,9 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 			skills.WithLogger(state.logger),
 			skills.WithActivationContextProvider(newSkillActivationContextProvider(state)),
 		)
+		if err := state.skillsRegistry.LoadAll(ctx); err != nil {
+			return fmt.Errorf("daemon: load skills registry: %w", err)
+		}
 		state.commandService = newSessionCommandService(
 			state.skillsRegistry,
 			func() promptSkillsWorkspaceResolver { return state.workspaceResolver },
