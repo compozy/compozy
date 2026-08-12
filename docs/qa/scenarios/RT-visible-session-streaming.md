@@ -11,9 +11,13 @@ bug_ids:
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/visible-session-streaming-evidence.md
-last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/visible-session-streaming-evidence.md;docs/qa/evidence/2026-08-11-frontend-performance/two-live-windows-visible.png;docs/qa/evidence/2026-08-11-frontend-performance/hidden-window-resources.har
+last_report: docs/qa/reports/2026-08-11-frontend-performance.md
 overlaps: RT-023; RT-013
 ---
 
 Added after the visible-window ownership rule changed from focus-only to actual OS-shell visibility.
+
+QA impact 2026-08-11: document visibility, hidden-window resource ownership, and decision-key gating changed. Reset for a fresh targeted browser walk.
+
+QA 2026-08-11: visible live windows kept their transports; minimizing the task window suspended only its stream, and restoring it reopened one cursor-based connection. A document background/foreground pass reconciled current state without reload or duplicate ownership.

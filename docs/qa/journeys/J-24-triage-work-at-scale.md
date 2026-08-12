@@ -5,7 +5,9 @@ A delivery operator moves from the task backlog to the actor-scoped Inbox and th
 ```mermaid
 flowchart TD
     E[Entry: Tasks] --> L[Load counted lean task catalog]
-    L --> F[Filter/search/sort in the daemon]
+    L --> D[Open a live task detail and its Inspect drawer]
+    D --> U[One task stream updates detail and Inspect exactly once]
+    U --> F[Filter/search/sort in the daemon]
     F --> P{More tasks?}
     P -->|yes| LM[Load more in List and Kanban]
     P -->|no| I[Open Inbox]
@@ -42,18 +44,21 @@ journey:
       origin: in-app-nav
   actions:
     - step: 1
+      verb: "Open a live task detail and its Inspect drawer"
+      expected_observable: "One task SSE connection keeps both surfaces current; events render once, and closing or reopening Inspect does not duplicate the stream"
+    - step: 2
       verb: "Filter and page the task backlog"
       expected_observable: "List and Kanban preserve the lean `{tasks,facets,page}` envelope, daemon order, exact total/facets, and explicit Load more"
-    - step: 2
+    - step: 3
       verb: "Triage the actor-scoped Inbox"
       expected_observable: "Lane/unread/archive totals remain exact while loaded groups append by cursor; read/archive/dismiss survives refresh"
-    - step: 3
+    - step: 4
       verb: "Find jobs and triggers across sources"
       expected_observable: "Jobs and triggers expose counted pages and daemon-owned `q/source/enabled/event/loop/scope` filters, including config, package, and dynamic sources"
-    - step: 4
+    - step: 5
       verb: "Inspect run history and Loop bindings"
       expected_observable: "Recent metrics say `Runs shown` and `Recent success`; Loop detail pages jobs/triggers independently and never claims a sampled catalog badge is complete"
-    - step: 5
+    - step: 6
       verb: "Save and rediscover a dynamic automation"
       expected_observable: "The mutation invalidates compatible infinite caches; reload and server filters return the canonical saved row exactly once"
   goal:
@@ -66,5 +71,5 @@ journey:
     - at_step: 3
       how: "The operator closes the tab after loading several catalog pages."
       resume: "Returning may restart at the first page, but filters, canonical order, saved server state, and truthful totals remain intact; no stale plain-array cache may replace the paged result."
-  crosses: [tasks-catalog, task-inbox, task-triage, automation-catalog, automation-detail, loop-bindings, route-preload, infinite-cache]
+  crosses: [tasks-catalog, task-detail, task-inspect, task-SSE, task-inbox, task-triage, automation-catalog, automation-detail, loop-bindings, route-preload, infinite-cache]
 ```

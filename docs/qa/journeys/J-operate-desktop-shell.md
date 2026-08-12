@@ -15,7 +15,11 @@ flowchart TD
     G -->|yes| D[Group into a tab frame and activate one member]
     G -->|no| M[Move, resize, minimize, restore, or switch workspace]
     D --> M
-    M --> R[Reload or reconnect]
+    M --> VZ{Window remains user-visible?}
+    VZ -->|yes| R[Reload or reconnect]
+    VZ -->|no| S[Suspend that window's streams, polling, and clocks]
+    S --> RS[Restore the window and reconcile current server state]
+    RS --> R
     R --> C{Server and client topology agree?}
     C -->|no| B[Blocker: duplicate, lost, or falsely active surface]
     C -->|yes| V[Verify keyboard focus, labels, and truthful degraded states]
@@ -42,20 +46,20 @@ journey:
       verb: "Open and dismiss global Sessions, Shortcuts, and About surfaces"
       expected_observable: "Dialog ownership, keyboard focus, and dismissal remain consistent"
     - step: 3
-      verb: "Group related windows into tabs, arrange frames, and switch workspace or connection state"
-      expected_observable: "Client-local active tabs and focus remain independent over shared topology; degraded states explain what is unavailable"
+      verb: "Group related windows into tabs, arrange frames, hide one app, and restore it"
+      expected_observable: "Visible sibling windows stay current; minimized, off-desktop, and inactive-stack apps suspend their own external work and reconcile current server state when restored"
     - step: 4
       verb: "Reload and continue from the restored shell"
       expected_observable: "URL, active workspace, and visible windows converge without duplicates or lost routes"
   goal:
     observable: "Every shell entry point resolves to the same reachable work and survives reload with accessible focus and truthful state"
     side_effects: [window-opened-or-focused, shell-preferences-persisted]
-  true_end_state: "A fresh load restores the intended desktop, route, and active workspace; keyboard navigation reaches every actionable control."
+  true_end_state: "A fresh load restores the intended desktop, route, and active workspace; restored apps show current server state without a reload, and keyboard navigation reaches every actionable control."
   exit:
     natural: "The operator continues work in the restored target window."
   abandonment:
     - at_step: 2
       how: "Dismiss a global modal or leave during a disconnected state."
       resume: "Reopen from another shell entry point; no resource mutation or duplicate window remains."
-  crosses: [web-router, window-manager, tab-deck, dock, menubar, command-palette, session-catalog, accessibility, connection-state]
+  crosses: [web-router, window-manager, tab-deck, document-visibility, live-streams, polling, dock, menubar, command-palette, session-catalog, accessibility, connection-state]
 ```
