@@ -13,7 +13,13 @@ import {
   useSessions,
 } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
-import { useActiveWorkspace, type WorkspacePayload } from "@/systems/workspace";
+import {
+  useActiveWorkspace,
+  useScopedWorktreeFilter,
+  type WorkspacePayload,
+} from "@/systems/workspace";
+
+import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 
 const ATTENTION_REFETCH_INTERVAL_MS = 5_000;
 
@@ -39,13 +45,31 @@ export function useOsAttention(
   const sessionsEnabled = workspaceId !== null;
   const taskScope = taskScopeForActiveWorkspace(scope, activeWorkspaceId);
   const tasksEnabled = taskScope !== null;
-  const sessionsQuery = useSessions(workspaceId, {
+  const worktree = useScopedWorktreeFilter(workspaceId, useFocusedWorktreeScopeId(), {
+    enabled: sessionsEnabled && scope === "workspace",
+  });
+  // Attention authority: workspace-wide and never worktree-filtered. A pending
+  // approval in another worktree is still a notification, so deriving badges or
+  // rows from a scoped page would silently hide work.
+  const attentionSessionsQuery = useSessions(workspaceId, {
     enabled: sessionsEnabled,
     filters: { include_health: true, limit: 100, sort: "last_activity" },
   });
+  // Sessions-modal content: a shell surface, so it follows the focused window's
+  // scope exactly like the menubar chip. Distinct query key, no shared snapshot.
+  const modalSessionsQuery = useSessions(workspaceId, {
+    enabled: sessionsEnabled,
+    filters: { include_health: true, limit: 100, sort: "last_activity", worktree },
+  });
   const archivedSessionsQuery = useSessions(workspaceId, {
     enabled: sessionsEnabled,
-    filters: { archive: "only", include_health: true, limit: 100, sort: "last_activity" },
+    filters: {
+      archive: "only",
+      include_health: true,
+      limit: 100,
+      sort: "last_activity",
+      worktree,
+    },
   });
   const dashboardQuery = useTaskDashboard(taskScope ?? {}, {
     enabled: tasksEnabled,
@@ -64,16 +88,24 @@ export function useOsAttention(
     }
   );
 
-  const sessions = sessionsQuery.data ?? [];
+  const attentionSessions = attentionSessionsQuery.data ?? [];
+  const modalSessions = modalSessionsQuery.data ?? [];
   const archivedSessions = archivedSessionsQuery.data ?? [];
   const dashboard = dashboardQuery.data ?? null;
   const tasks = tasksQuery.data ?? [];
+  // Staleness follows each consumer: badges must not read fresh off the scoped
+  // page, and the modal must not read fresh off the unscoped one.
+  const attentionSessionsStale =
+    !sessionsEnabled ||
+    sessionCatalogStreamStatus !== "live" ||
+    attentionSessionsQuery.isError ||
+    attentionSessionsQuery.data === undefined;
   const sessionsDisconnected =
     !sessionsEnabled ||
     sessionCatalogStreamStatus !== "live" ||
-    sessionsQuery.isError ||
+    modalSessionsQuery.isError ||
     archivedSessionsQuery.isError ||
-    sessionsQuery.data === undefined ||
+    modalSessionsQuery.data === undefined ||
     archivedSessionsQuery.data === undefined;
   const tasksDisconnected =
     !tasksEnabled ||
@@ -84,28 +116,31 @@ export function useOsAttention(
     tasksDisconnected || tasksQuery.isError || tasksQuery.data === undefined;
 
   const badges = deriveAttentionBadges({
-    sessions,
-    sessionsStale: sessionsDisconnected,
+    sessions: attentionSessions,
+    sessionsStale: attentionSessionsStale,
     dashboard,
     tasksStale: tasksDisconnected,
   });
   const rows = deriveAttentionRows({
-    sessions,
+    sessions: attentionSessions,
     tasks,
-    sessionRowsStale: sessionsDisconnected,
+    sessionRowsStale: attentionSessionsStale,
     taskRowsStale: taskRowsDisconnected,
   });
   return {
     badges,
     notificationCount: attentionCount(badges),
     rows,
-    sessions,
+    sessions: modalSessions,
     archivedSessions,
     archivedSessionsTotal: archivedSessionsQuery.total,
     sessionsDisconnected,
     tasksDisconnected: taskRowsDisconnected,
     loading:
-      (sessionsEnabled && (sessionsQuery.isLoading || archivedSessionsQuery.isLoading)) ||
+      (sessionsEnabled &&
+        (attentionSessionsQuery.isLoading ||
+          modalSessionsQuery.isLoading ||
+          archivedSessionsQuery.isLoading)) ||
       (tasksEnabled && (dashboardQuery.isLoading || tasksQuery.isLoading)),
   };
 }

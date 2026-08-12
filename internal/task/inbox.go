@@ -53,6 +53,7 @@ func (l InboxLane) Validate(path string) error {
 type InboxQuery struct {
 	Scope       CatalogScope
 	WorkspaceID string
+	WorktreeID  string
 	OwnerKind   OwnerKind
 	OwnerRef    string
 	Lane        InboxLane
@@ -122,6 +123,7 @@ type inboxFingerprint struct {
 	ActorRef    string       `json:"actor_ref"`
 	Scope       CatalogScope `json:"scope"`
 	WorkspaceID string       `json:"workspace_id"`
+	WorktreeID  string       `json:"worktree_id"`
 	OwnerKind   OwnerKind    `json:"owner_kind"`
 	OwnerRef    string       `json:"owner_ref"`
 	Lane        InboxLane    `json:"lane"`
@@ -166,6 +168,7 @@ func normalizeInboxQueryFields(query InboxQuery) InboxQuery {
 		query.Scope = CatalogScopeAll
 	}
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
 	query.OwnerKind = query.OwnerKind.Normalize()
 	query.OwnerRef = strings.TrimSpace(query.OwnerRef)
 	query.Lane = query.Lane.Normalize()
@@ -183,6 +186,7 @@ func validateInboxQuery(query InboxQuery) error {
 	catalogQuery := CatalogQuery{
 		Scope:       query.Scope,
 		WorkspaceID: query.WorkspaceID,
+		WorktreeID:  query.WorktreeID,
 		Status:      query.Status,
 		Priority:    query.Priority,
 		OwnerKind:   query.OwnerKind,
@@ -252,6 +256,7 @@ func taskInboxFingerprint(query InboxQuery, actor ActorIdentity) (string, error)
 		ActorRef:    strings.TrimSpace(actor.Ref),
 		Scope:       query.Scope,
 		WorkspaceID: query.WorkspaceID,
+		WorktreeID:  query.WorktreeID,
 		OwnerKind:   query.OwnerKind,
 		OwnerRef:    query.OwnerRef,
 		Lane:        query.Lane,

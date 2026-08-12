@@ -82,7 +82,9 @@ func seedObserveRunSnapshot(t *testing.T, registry *globaldb.GlobalDB, target ta
 	fixtureNow := timeline.startedAt
 	manager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
-		taskpkg.WithSessionExecutor(observeFixtureSessionExecutor{sessionID: sessionID}),
+		taskpkg.WithSessionExecutor(observeFixtureSessionExecutor{
+			sessionID: sessionID, workspaceID: target.WorkspaceID, worktreeID: target.WorktreeID,
+		}),
 		taskpkg.WithManagerNow(func() time.Time { return fixtureNow }),
 	)
 	if err != nil {
@@ -131,14 +133,18 @@ func seedObserveRunSnapshot(t *testing.T, registry *globaldb.GlobalDB, target ta
 }
 
 type observeFixtureSessionExecutor struct {
-	sessionID string
+	sessionID   string
+	workspaceID string
+	worktreeID  string
 }
 
 func (e observeFixtureSessionExecutor) StartTaskSession(
 	context.Context,
 	*taskpkg.StartTaskSession,
 ) (*taskpkg.SessionRef, error) {
-	return &taskpkg.SessionRef{SessionID: e.sessionID}, nil
+	return &taskpkg.SessionRef{
+		SessionID: e.sessionID, WorkspaceID: e.workspaceID, WorktreeID: e.worktreeID,
+	}, nil
 }
 
 func (e observeFixtureSessionExecutor) AttachTaskSession(
@@ -146,7 +152,9 @@ func (e observeFixtureSessionExecutor) AttachTaskSession(
 	string,
 	string,
 ) (*taskpkg.SessionRef, error) {
-	return &taskpkg.SessionRef{SessionID: e.sessionID}, nil
+	return &taskpkg.SessionRef{
+		SessionID: e.sessionID, WorkspaceID: e.workspaceID, WorktreeID: e.worktreeID,
+	}, nil
 }
 
 func (observeFixtureSessionExecutor) RequestTaskStop(context.Context, string, taskpkg.StopReason) error {

@@ -1,6 +1,8 @@
 package observe
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
@@ -29,6 +31,7 @@ const (
 type TaskSummaryQuery struct {
 	Scope                taskpkg.Scope      `json:"scope,omitempty"`
 	WorkspaceID          string             `json:"workspace_id,omitempty"`
+	WorktreeID           string             `json:"worktree_id,omitempty"`
 	OwnerKind            taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
 	OwnerRef             string             `json:"owner_ref,omitempty"`
 	ParticipationChannel string             `json:"participation_channel,omitempty"`
@@ -42,6 +45,9 @@ func (q TaskSummaryQuery) Validate() error {
 		if err := q.Scope.Validate("task_summary_query.scope"); err != nil {
 			return err
 		}
+	}
+	if strings.TrimSpace(q.WorktreeID) != "" && strings.TrimSpace(q.WorkspaceID) == "" {
+		return fmt.Errorf("%w: task_summary_query.workspace_id is required with worktree_id", taskpkg.ErrValidation)
 	}
 	if q.OwnerKind.Normalize() != "" {
 		if err := q.OwnerKind.Validate("task_summary_query.owner_kind"); err != nil {
@@ -77,6 +83,7 @@ func (q TaskMetricsQuery) Validate() error {
 type TaskDashboardQuery struct {
 	Scope                taskpkg.Scope      `json:"scope,omitempty"`
 	WorkspaceID          string             `json:"workspace_id,omitempty"`
+	WorktreeID           string             `json:"worktree_id,omitempty"`
 	OwnerKind            taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
 	OwnerRef             string             `json:"owner_ref,omitempty"`
 	ParticipationChannel string             `json:"participation_channel,omitempty"`
@@ -102,6 +109,7 @@ func (q TaskDashboardQuery) summaryQuery() TaskSummaryQuery {
 	return TaskSummaryQuery{
 		Scope:                q.Scope,
 		WorkspaceID:          q.WorkspaceID,
+		WorktreeID:           q.WorktreeID,
 		OwnerKind:            q.OwnerKind,
 		OwnerRef:             q.OwnerRef,
 		ParticipationChannel: q.ParticipationChannel,

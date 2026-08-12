@@ -3,7 +3,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
-import type { WorkspacePayload, WorkspaceScopeMode } from "@/systems/workspace";
+import type {
+  ActiveWorktreeSelection,
+  WorkspacePayload,
+  WorkspaceScopeMode,
+} from "@/systems/workspace";
+import { worktreeListingFixture } from "@/systems/workspace/mocks";
 
 import { OsShellContext } from "../../contexts/os-shell-context";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
@@ -69,6 +74,7 @@ function MenubarFixture({
   chip,
   onToggleGlobalScope,
   toggleLocked,
+  worktreeSelection,
 }: {
   overlay?: DesktopOverlay | null;
   live?: boolean;
@@ -76,6 +82,7 @@ function MenubarFixture({
   chip?: { name: string; monogram: string };
   onToggleGlobalScope?: () => void;
   toggleLocked?: boolean;
+  worktreeSelection?: ActiveWorktreeSelection;
 }) {
   const [shell] = useState(() => (live ? createLiveStoryShell() : createStoryShell()));
   const [active, setActive] = useState<DesktopOverlay | null>(overlay);
@@ -102,12 +109,32 @@ function MenubarFixture({
               setActive(current => (open ? id : current === id ? null : current))
             }
             attention={ATTENTION}
+            worktreesByWorkspace={{ [WORKSPACES[0].id]: MENUBAR_WORKTREE_LISTING }}
+            userHomeDir="/Users/ada"
+            worktreeSelection={worktreeSelection}
+            onSelectWorktree={fn()}
+            onCreateWorktree={fn()}
           />
         </DesktopShell>
       </AgentCreateHostProvider>
     </OsShellContext.Provider>
   );
 }
+
+const MENUBAR_WORKTREE_LISTING = {
+  ...worktreeListingFixture,
+  worktrees: worktreeListingFixture.worktrees.map(worktree => ({
+    ...worktree,
+    workspace_id: WORKSPACES[0].id,
+  })),
+};
+
+const READY_WORKTREE = MENUBAR_WORKTREE_LISTING.worktrees.find(
+  worktree => worktree.state === "ready"
+)!;
+const MISSING_WORKTREE = MENUBAR_WORKTREE_LISTING.worktrees.find(
+  worktree => worktree.state === "missing"
+)!;
 
 /** The wired bar at rest, over a live desktop. */
 export const Populated: Story = {
@@ -161,7 +188,7 @@ export const HelpMenuOpen: Story = {
   render: () => <MenubarFixture overlay="help-menu" />,
 };
 
-/** Workspace switcher with the bound set and the overview/creation paths. */
+/** VC-15 — workspace menu with the shared nested worktree projection. */
 export const WorkspaceMenuOpen: Story = {
   args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => <MenubarFixture overlay="workspace-menu" />,
@@ -177,6 +204,44 @@ export const WorkspaceMenuOpenWhileGlobal: Story = {
       onToggleGlobalScope={fn()}
       scope="global"
       toggleLocked={false}
+    />
+  ),
+};
+
+/** VC-16 — the shell chip names only the workspace at its root scope. */
+export const WorkspaceOnlyChip: Story = {
+  args: { workspace: { name: "compozy", monogram: "CO" } },
+  render: () => <MenubarFixture />,
+};
+
+/** VC-17 — an active worktree is part of the shell's visible scope identity. */
+export const WorkspaceAndWorktreeChip: Story = {
+  args: { workspace: { name: "compozy", monogram: "CO" } },
+  render: () => (
+    <MenubarFixture
+      worktreeSelection={{
+        selectedWorktreeId: READY_WORKTREE.id,
+        activeWorktree: READY_WORKTREE,
+        fallback: null,
+      }}
+    />
+  ),
+};
+
+/** VC-18 — a missing selection falls back to the parent and states why. */
+export const MissingWorktreeFallback: Story = {
+  args: { workspace: { name: "compozy", monogram: "CO" } },
+  render: () => (
+    <MenubarFixture
+      worktreeSelection={{
+        selectedWorktreeId: MISSING_WORKTREE.id,
+        activeWorktree: null,
+        fallback: {
+          worktreeId: MISSING_WORKTREE.id,
+          name: MISSING_WORKTREE.name,
+          reason: "missing",
+        },
+      }}
     />
   ),
 };

@@ -50,6 +50,27 @@ func (s *Service) Adopt(ctx context.Context, workspaceID, candidatePath string) 
 		if filepath.Clean(existing.GitDir) != identity.adminGitDir {
 			return nil, refusal(ErrAdoptionUnreadable, "adopted worktree identity changed")
 		}
+		if existing.State == StateMissing {
+			now := s.now().UTC()
+			swapped, swapErr := s.store.CompareAndSwapState(
+				ctx, workspaceID, existing.ID, StateMissing, StateReady, now,
+			)
+			if swapErr != nil {
+				return nil, fmt.Errorf("worktree: restore adopted path: %w", swapErr)
+			}
+			if swapped {
+				existing.State = StateReady
+				existing.UpdatedAt = now
+				s.invalidateDiscovery(workspaceID)
+				s.publishCatalogEvent(CatalogEventUpserted, *existing)
+				return existing, nil
+			}
+			current, currentErr := s.store.Get(ctx, workspaceID, existing.ID)
+			if currentErr != nil {
+				return nil, fmt.Errorf("worktree: reread adopted path: %w", currentErr)
+			}
+			return current, nil
+		}
 		return existing, nil
 	} else if getErr != nil && !errors.Is(getErr, ErrNotFound) {
 		return nil, fmt.Errorf("worktree: inspect adopted path: %w", getErr)

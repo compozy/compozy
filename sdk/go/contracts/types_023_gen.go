@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type TaskDashboardFreshnessPayload struct {
+	ObservedAt       time.Time `json:"observed_at"`
+	LatestActivityAt time.Time `json:"latest_activity_at"`
+	AgeMilli         int64     `json:"age_ms"`
+	StaleAfterMilli  int64     `json:"stale_after_ms"`
+	HasLiveWork      bool      `json:"has_live_work"`
+	Status           string    `json:"status"`
+	Stale            bool      `json:"stale"`
+}
+
 type TaskDashboardHealthPayload struct {
 	Status           string `json:"status"`
 	StuckRuns        int    `json:"stuck_runs"`
@@ -32,6 +42,7 @@ type TaskDashboardLatencyCardPayload struct {
 type TaskDashboardParams struct {
 	Scope                TaskScope  `json:"scope,omitempty"`
 	Workspace            string     `json:"workspace,omitempty"`
+	Worktree             string     `json:"worktree,omitempty"`
 	OwnerKind            OwnerKind  `json:"owner_kind,omitempty"`
 	OwnerRef             string     `json:"owner_ref,omitempty"`
 	ParticipationChannel string     `json:"participation_channel,omitempty"`
@@ -181,6 +192,7 @@ type TaskInboxLaneGroupPayload struct {
 type TaskInboxParams struct {
 	Scope     CatalogScope  `json:"scope,omitempty"`
 	Workspace string        `json:"workspace,omitempty"`
+	Worktree  string        `json:"worktree,omitempty"`
 	OwnerKind OwnerKind     `json:"owner_kind,omitempty"`
 	OwnerRef  string        `json:"owner_ref,omitempty"`
 	Lane      TaskInboxLane `json:"lane,omitempty"`
@@ -212,10 +224,4 @@ type TaskInboxTaskPayload struct {
 	Scope          TaskScope  `json:"scope"`
 	WorkspaceID    string     `json:"workspace_id,omitempty"`
 	LatestEventSeq int64      `json:"latest_event_seq"`
-}
-
-type TaskLatencyMetricPayload struct {
-	Samples       int   `json:"samples"`
-	AverageMillis int64 `json:"average_ms"`
-	MaximumMillis int64 `json:"maximum_ms"`
 }

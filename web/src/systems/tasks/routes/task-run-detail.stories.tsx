@@ -68,6 +68,7 @@ export const Completed: Story = {
           HttpResponse.json({
             run: buildTaskRunDetailFixture({
               run: {
+                resolved_worktree_mode: "none",
                 id: "run_001",
                 task_id: "task_001",
                 attempt: 2,
@@ -104,6 +105,7 @@ export const Failed: Story = {
           HttpResponse.json({
             run: buildTaskRunDetailFixture({
               run: {
+                resolved_worktree_mode: "none",
                 id: "run_001",
                 task_id: "task_001",
                 attempt: 3,
@@ -140,6 +142,7 @@ export const NoSession: Story = {
           HttpResponse.json({
             run: buildTaskRunDetailFixture({
               run: {
+                resolved_worktree_mode: "none",
                 id: "run_001",
                 task_id: "task_001",
                 attempt: 1,

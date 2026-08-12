@@ -21,6 +21,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
@@ -1876,6 +1877,151 @@ func TestGlobalDBTaskCatalogCoordinatorPulseStaysInProgress(t *testing.T) {
 
 func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should normalize an empty migrated resolved worktree mode to workspace root", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		record := taskRecordForTest("task-catalog-migrated-root")
+		if err := globalDB.CreateTask(ctx, record); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-catalog-migrated-root", record.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET resolved_worktree_mode = '' WHERE id = ?`,
+			run.ID,
+		); err != nil {
+			t.Fatalf("seed migrated run mode: %v", err)
+		}
+
+		page, err := globalDB.ListTaskCatalog(ctx, taskpkg.CatalogQuery{IncludeDrafts: true})
+		if err != nil {
+			t.Fatalf("ListTaskCatalog() error = %v", err)
+		}
+		if len(page.Tasks) != 1 || page.Tasks[0].ActiveRun == nil {
+			t.Fatalf("ListTaskCatalog() = %#v, want one active run", page.Tasks)
+		}
+		if got, want := page.Tasks[0].ActiveRun.ResolvedWorktreeMode, taskpkg.WorktreeModeNone; got != want {
+			t.Fatalf("ResolvedWorktreeMode = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should filter active run worktrees before counts and page cuts", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "catalog-worktrees", t.TempDir())
+		now := time.Date(2026, 8, 12, 18, 0, 0, 0, time.UTC)
+		worktrees := []worktreepkg.Worktree{
+			{
+				ID: "wt-catalog-alpha", WorkspaceID: workspaceID, Name: "alpha", Branch: "feature/alpha",
+				Path: filepath.Join(t.TempDir(), "alpha"), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				CreatedAt: now, UpdatedAt: now,
+			},
+			{
+				ID: "wt-catalog-beta", WorkspaceID: workspaceID, Name: "beta", Branch: "feature/beta",
+				Path: filepath.Join(t.TempDir(), "beta"), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				CreatedAt: now, UpdatedAt: now,
+			},
+		}
+		for _, item := range worktrees {
+			if err := globalDB.Worktrees.Insert(ctx, item); err != nil {
+				t.Fatalf("Insert(%q) error = %v", item.ID, err)
+			}
+		}
+
+		bindings := []struct {
+			taskID      string
+			worktreeID  string
+			worktreeRef string
+		}{
+			{taskID: "task-worktree-alpha-1", worktreeID: worktrees[0].ID, worktreeRef: worktrees[0].Name},
+			{taskID: "task-worktree-alpha-2", worktreeID: worktrees[0].ID, worktreeRef: worktrees[0].Name},
+			{taskID: "task-worktree-beta", worktreeID: worktrees[1].ID, worktreeRef: worktrees[1].Name},
+		}
+		for index, binding := range bindings {
+			record := taskRecordForTest(binding.taskID)
+			record.Scope = taskpkg.ScopeWorkspace
+			record.WorkspaceID = workspaceID
+			record.Owner = &taskpkg.Ownership{Kind: taskpkg.OwnerKindHuman, Ref: "user:alice"}
+			record.UpdatedAt = now.Add(time.Duration(index) * time.Minute)
+			if err := globalDB.CreateTask(ctx, record); err != nil {
+				t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+			}
+			run := taskRunForTest("run-"+binding.taskID, binding.taskID)
+			run.WorkspaceID = workspaceID
+			run.WorktreeID = binding.worktreeID
+			run.ResolvedWorktreeMode = taskpkg.WorktreeModeRef
+			run.ResolvedWorktreeRef = binding.worktreeRef
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+			}
+		}
+
+		query := taskpkg.CatalogQuery{
+			Scope:         taskpkg.CatalogScopeWorkspace,
+			WorkspaceID:   workspaceID,
+			WorktreeID:    worktrees[0].ID,
+			IncludeDrafts: true,
+			Limit:         1,
+		}
+		first, err := globalDB.ListTaskCatalog(ctx, query)
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(first) error = %v", err)
+		}
+		if first.Total != 2 || !first.HasMore || first.NextCursor == "" || len(first.Tasks) != 1 {
+			t.Fatalf("ListTaskCatalog(first) = %#v, want one of two filtered tasks with continuation", first)
+		}
+		if first.Tasks[0].ActiveRun == nil || first.Tasks[0].ActiveRun.WorktreeID != worktrees[0].ID {
+			t.Fatalf("ListTaskCatalog(first).ActiveRun = %#v, want worktree %q", first.Tasks[0].ActiveRun, worktrees[0].ID)
+		}
+		facetTotal := 0
+		for _, facet := range first.StatusFacets {
+			facetTotal += facet.Count
+		}
+		if facetTotal != 2 {
+			t.Fatalf("ListTaskCatalog(first).StatusFacets total = %d, want 2", facetTotal)
+		}
+
+		query.Cursor = first.NextCursor
+		second, err := globalDB.ListTaskCatalog(ctx, query)
+		if err != nil {
+			t.Fatalf("ListTaskCatalog(second) error = %v", err)
+		}
+		if second.Total != 2 || second.HasMore || second.NextCursor != "" || len(second.Tasks) != 1 {
+			t.Fatalf("ListTaskCatalog(second) = %#v, want final filtered task", second)
+		}
+		if second.Tasks[0].ActiveRun == nil || second.Tasks[0].ActiveRun.WorktreeID != worktrees[0].ID {
+			t.Fatalf("ListTaskCatalog(second).ActiveRun = %#v, want worktree %q", second.Tasks[0].ActiveRun, worktrees[0].ID)
+		}
+
+		mismatch := query
+		mismatch.Cursor = first.NextCursor
+		mismatch.WorktreeID = worktrees[1].ID
+		if _, err := globalDB.ListTaskCatalog(ctx, mismatch); !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
+			t.Fatalf("ListTaskCatalog(cross-worktree cursor) error = %v, want %v", err, taskpkg.ErrCatalogCursorInvalid)
+		}
+
+		inbox, err := globalDB.ListTaskInbox(ctx, taskpkg.InboxQuery{
+			Scope:       taskpkg.CatalogScopeWorkspace,
+			WorkspaceID: workspaceID,
+			WorktreeID:  worktrees[0].ID,
+		}, taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"})
+		if err != nil {
+			t.Fatalf("ListTaskInbox(worktree) error = %v", err)
+		}
+		if got, want := inbox.Total, 2; got != want {
+			t.Fatalf("ListTaskInbox(worktree).Total = %d, want %d", got, want)
+		}
+	})
 
 	t.Run("Should filter and count the complete catalog before the page cut", func(t *testing.T) {
 		t.Parallel()

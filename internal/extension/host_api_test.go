@@ -5879,6 +5879,22 @@ func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "task_run_query.participation_channel")
 
+	t.Run("Should preserve a workspace-bound worktree catalog filter", func(t *testing.T) {
+		t.Parallel()
+		env := newHostAPITestEnv(t)
+		taskQuery, queryErr := env.handler.taskQueryFromParams(testutil.Context(t), hostAPITasksParams{
+			Scope:     taskpkg.CatalogScopeWorkspace,
+			Workspace: env.workspaceID,
+			Worktree:  " wt-alpha ",
+		})
+		if queryErr != nil {
+			t.Fatalf("taskQueryFromParams(worktree) error = %v", queryErr)
+		}
+		if taskQuery.WorkspaceID != env.workspaceID || taskQuery.WorktreeID != "wt-alpha" {
+			t.Fatalf("taskQueryFromParams(worktree) = %#v, want workspace-bound worktree", taskQuery)
+		}
+	})
+
 	env := newHostAPITestEnv(t)
 	_, err = env.handler.taskQueryFromParams(testutil.Context(t), hostAPITasksParams{Limit: -1})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)

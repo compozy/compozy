@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type TaskTreeParams struct {
+	ID string `json:"id"`
+}
+
 type TaskTriageStatePayload struct {
 	TaskID             string        `json:"task_id"`
 	Actor              ActorIdentity `json:"actor"`
@@ -66,6 +70,7 @@ type TasksParams struct {
 	OwnerKind            OwnerKind     `json:"owner_kind,omitempty"`
 	OwnerRef             string        `json:"owner_ref,omitempty"`
 	ParentTaskID         string        `json:"parent_task_id,omitempty"`
+	Worktree             string        `json:"worktree,omitempty"`
 	ParticipationChannel string        `json:"participation_channel,omitempty"`
 	Query                string        `json:"query,omitempty"`
 	Sort                 CatalogSort   `json:"sort,omitempty"`
@@ -282,10 +287,4 @@ type TriggerResult struct {
 
 type TurnContext struct {
 	TurnID string `json:"turn_id,omitempty"`
-}
-
-type TurnEndPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
 }

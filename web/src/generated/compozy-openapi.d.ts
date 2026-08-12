@@ -12922,7 +12922,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
@@ -14665,7 +14665,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -43362,6 +43362,8 @@ export interface operations {
         scope?: "global" | "workspace";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
+        /** @description Filter by active run worktree ID */
+        worktree?: string;
         /** @description Filter by owner kind */
         owner_kind?:
           | "human"
@@ -43752,6 +43754,8 @@ export interface operations {
         scope?: "global" | "workspace";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
+        /** @description Filter by active run worktree ID */
+        worktree?: string;
         /** @description Filter by owner kind */
         owner_kind?:
           | "human"
@@ -43910,6 +43914,9 @@ export interface operations {
                             }
                         )
                       | null;
+                    /** @enum {string} */
+                    resolved_worktree_mode: "none" | "ref" | "per_run";
+                    resolved_worktree_ref?: string;
                     session_id?: string;
                     /** Format: date-time */
                     started_at?: string | null;
@@ -43924,6 +43931,7 @@ export interface operations {
                       | "canceled"
                       | "needs_attention";
                     task_id: string;
+                    worktree_id?: string;
                   } | null;
                   task: {
                     id: string;
@@ -46304,7 +46312,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
@@ -46641,7 +46649,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
@@ -46957,7 +46965,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -47425,7 +47433,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -47912,7 +47920,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -48049,7 +48057,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -48421,7 +48429,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -48792,7 +48800,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -48929,7 +48937,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -49423,7 +49431,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   result?: unknown;
                   session_id?: string;
@@ -49546,7 +49554,7 @@ export interface operations {
                         )
                       | null;
                     /** @enum {string} */
-                    resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                    resolved_worktree_mode: "none" | "ref" | "per_run";
                     resolved_worktree_ref?: string;
                     session_id?: string;
                     /** Format: date-time */
@@ -63744,7 +63752,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -64190,7 +64198,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
@@ -64550,7 +64558,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -64864,7 +64872,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -65178,7 +65186,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -65760,7 +65768,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -66603,7 +66611,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -66808,6 +66816,8 @@ export interface operations {
         owner_ref?: string;
         /** @description Filter by parent task ID */
         parent_task_id?: string;
+        /** @description Filter by active run worktree ID */
+        worktree?: string;
         /** @description Filter by resolved participation channel */
         participation_channel?: string;
         /** @description Filter by task title or identifier */
@@ -66945,6 +66955,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -66959,6 +66972,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               /** @enum {string} */
               approval_policy?: "none" | "manual";
@@ -67812,7 +67826,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -68244,7 +68258,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
@@ -68367,7 +68381,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -69613,7 +69627,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -71491,7 +71505,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -71923,7 +71937,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
@@ -72046,7 +72060,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -72699,7 +72713,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -73131,7 +73145,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
@@ -73254,7 +73268,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -75113,7 +75127,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -76717,7 +76731,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -78452,7 +78466,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -78797,7 +78811,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -79177,7 +79191,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -79551,7 +79565,7 @@ export interface operations {
                   )
                 | null;
               /** @enum {string} */
-              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
@@ -80032,7 +80046,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
@@ -80370,7 +80384,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
@@ -80675,7 +80689,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -80840,7 +80854,7 @@ export interface operations {
                       )
                     | null;
                   /** @enum {string} */
-                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
@@ -114651,7 +114665,7 @@ export interface operations {
                     )
                   | null;
                 /** @enum {string} */
-                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;

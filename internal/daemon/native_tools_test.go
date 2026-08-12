@@ -3651,16 +3651,21 @@ func TestDaemonNativeTools(t *testing.T) {
 			scope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskList,
-				Input:  json.RawMessage(`{"scope":"workspace","status":"pending","limit":3}`),
+				Input:  json.RawMessage(`{"scope":"workspace","status":"pending","worktree":"wt-1","limit":3}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(task_list) error = %v", err)
 		}
 		if tasks.listCalls != 1 ||
-			tasks.lastQuery.WorkspaceID != "ws-1" ||
-			tasks.lastQuery.Status != taskpkg.TaskStatusPending {
-			t.Fatalf("ListTasks calls/query = %d/%#v, want workspace pending query", tasks.listCalls, tasks.lastQuery)
+			tasks.lastCatalogQuery.WorkspaceID != "ws-1" ||
+			tasks.lastCatalogQuery.WorktreeID != "wt-1" ||
+			tasks.lastCatalogQuery.Status != taskpkg.TaskStatusPending {
+			t.Fatalf(
+				"ListTasks calls/query = %d/%#v, want workspace pending worktree query",
+				tasks.listCalls,
+				tasks.lastCatalogQuery,
+			)
 		}
 
 		readResult, err := registry.Call(
@@ -11247,6 +11252,7 @@ type nativeTaskManager struct {
 	childErr                error
 	listCalls               int
 	lastQuery               taskpkg.Query
+	lastCatalogQuery        taskpkg.CatalogQuery
 	listSummaries           []taskpkg.Summary
 	getCalls                int
 	lastGetID               string
@@ -11524,6 +11530,7 @@ func (m *nativeTaskManager) ListTaskCatalog(
 	_ taskpkg.ActorContext,
 ) (taskpkg.CatalogPage, error) {
 	m.listCalls++
+	m.lastCatalogQuery = query
 	m.lastQuery = taskpkg.Query{
 		Scope:       taskpkg.Scope(query.Scope),
 		WorkspaceID: query.WorkspaceID,

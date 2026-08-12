@@ -5,6 +5,8 @@ import { Rnd } from "react-rnd";
 
 import { cn } from "@/lib/utils";
 
+import { WindowScopeContext } from "@/hooks/use-window-scope";
+
 import { WindowLiveDataContext } from "../contexts/window-live-data-context";
 import {
   OS_WINDOW_DRAG_CANCEL_SELECTOR,
@@ -249,7 +251,11 @@ function OsWindowMember({
               }
             >
               <WindowLiveDataContext value={liveDataEnabled}>
-                <Controller windowId={windowId} />
+                {/* Scopes per-window selection (e.g. active worktree) without
+                    threading windowId through every descendant hook. */}
+                <WindowScopeContext value={windowId}>
+                  <Controller windowId={windowId} />
+                </WindowScopeContext>
               </WindowLiveDataContext>
             </Suspense>
           </OsWindowErrorBoundary>

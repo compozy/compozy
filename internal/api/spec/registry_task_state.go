@@ -315,6 +315,7 @@ func getTaskDashboardOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
+			queryParam("worktree", "Filter by active run worktree ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
 			queryParam("participation_channel", "Filter by resolved participation channel", false),
@@ -340,6 +341,7 @@ func getTaskInboxOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
+			queryParam("worktree", "Filter by active run worktree ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
 			enumQueryParam("lane", "Filter by inbox lane", taskInboxLaneValues()),

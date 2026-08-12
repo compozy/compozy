@@ -20401,7 +20401,6 @@
                             },
                             "resolved_worktree_mode": {
                               "enum": [
-                                "inherit",
                                 "none",
                                 "ref",
                                 "per_run"
@@ -24782,7 +24781,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -102938,6 +102936,14 @@
             }
           },
           {
+            "description": "Filter by active run worktree ID",
+            "in": "query",
+            "name": "worktree",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by owner kind",
             "in": "query",
             "name": "owner_kind",
@@ -104035,6 +104041,14 @@
             }
           },
           {
+            "description": "Filter by active run worktree ID",
+            "in": "query",
+            "name": "worktree",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by owner kind",
             "in": "query",
             "name": "owner_kind",
@@ -104467,6 +104481,17 @@
                                             }
                                           ]
                                         },
+                                        "resolved_worktree_mode": {
+                                          "enum": [
+                                            "none",
+                                            "ref",
+                                            "per_run"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "resolved_worktree_ref": {
+                                          "type": "string"
+                                        },
                                         "session_id": {
                                           "type": "string"
                                         },
@@ -104490,6 +104515,9 @@
                                         },
                                         "task_id": {
                                           "type": "string"
+                                        },
+                                        "worktree_id": {
+                                          "type": "string"
                                         }
                                       },
                                       "required": [
@@ -104498,6 +104526,7 @@
                                         "max_attempts",
                                         "queued_at",
                                         "recovery_count",
+                                        "resolved_worktree_mode",
                                         "status",
                                         "task_id"
                                       ],
@@ -110564,7 +110593,6 @@
                               },
                               "resolved_worktree_mode": {
                                 "enum": [
-                                  "inherit",
                                   "none",
                                   "ref",
                                   "per_run"
@@ -111435,7 +111463,6 @@
                               },
                               "resolved_worktree_mode": {
                                 "enum": [
-                                  "inherit",
                                   "none",
                                   "ref",
                                   "per_run"
@@ -112237,7 +112264,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -113460,7 +113486,6 @@
                                 },
                                 "resolved_worktree_mode": {
                                   "enum": [
-                                    "inherit",
                                     "none",
                                     "ref",
                                     "per_run"
@@ -114733,7 +114758,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -115097,7 +115121,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -116031,7 +116054,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -116961,7 +116983,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -117325,7 +117346,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -118572,7 +118592,6 @@
                                   },
                                   "resolved_worktree_mode": {
                                     "enum": [
-                                      "inherit",
                                       "none",
                                       "ref",
                                       "per_run"
@@ -118912,7 +118931,6 @@
                                       },
                                       "resolved_worktree_mode": {
                                         "enum": [
-                                          "inherit",
                                           "none",
                                           "ref",
                                           "per_run"
@@ -156180,7 +156198,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -157387,7 +157404,6 @@
                             },
                             "resolved_worktree_mode": {
                               "enum": [
-                                "inherit",
                                 "none",
                                 "ref",
                                 "per_run"
@@ -158304,7 +158320,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -159091,7 +159106,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -159881,7 +159895,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -161420,7 +161433,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -163507,7 +163519,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -164057,6 +164068,14 @@
             }
           },
           {
+            "description": "Filter by active run worktree ID",
+            "in": "query",
+            "name": "worktree",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by resolved participation channel",
             "in": "query",
             "name": "participation_channel",
@@ -164421,6 +164440,17 @@
                                   }
                                 ]
                               },
+                              "resolved_worktree_mode": {
+                                "enum": [
+                                  "none",
+                                  "ref",
+                                  "per_run"
+                                ],
+                                "type": "string"
+                              },
+                              "resolved_worktree_ref": {
+                                "type": "string"
+                              },
                               "session_id": {
                                 "type": "string"
                               },
@@ -164444,6 +164474,9 @@
                               },
                               "task_id": {
                                 "type": "string"
+                              },
+                              "worktree_id": {
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -164452,6 +164485,7 @@
                               "max_attempts",
                               "queued_at",
                               "recovery_count",
+                              "resolved_worktree_mode",
                               "status",
                               "task_id"
                             ],
@@ -167030,7 +167064,6 @@
                                   },
                                   "resolved_worktree_mode": {
                                     "enum": [
-                                      "inherit",
                                       "none",
                                       "ref",
                                       "per_run"
@@ -168205,7 +168238,6 @@
                               },
                               "resolved_worktree_mode": {
                                 "enum": [
-                                  "inherit",
                                   "none",
                                   "ref",
                                   "per_run"
@@ -168547,7 +168579,6 @@
                                 },
                                 "resolved_worktree_mode": {
                                   "enum": [
-                                    "inherit",
                                     "none",
                                     "ref",
                                     "per_run"
@@ -171545,7 +171576,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -176370,7 +176400,6 @@
                                   },
                                   "resolved_worktree_mode": {
                                     "enum": [
-                                      "inherit",
                                       "none",
                                       "ref",
                                       "per_run"
@@ -177545,7 +177574,6 @@
                               },
                               "resolved_worktree_mode": {
                                 "enum": [
-                                  "inherit",
                                   "none",
                                   "ref",
                                   "per_run"
@@ -177887,7 +177915,6 @@
                                 },
                                 "resolved_worktree_mode": {
                                   "enum": [
-                                    "inherit",
                                     "none",
                                     "ref",
                                     "per_run"
@@ -179624,7 +179651,6 @@
                                   },
                                   "resolved_worktree_mode": {
                                     "enum": [
-                                      "inherit",
                                       "none",
                                       "ref",
                                       "per_run"
@@ -180799,7 +180825,6 @@
                               },
                               "resolved_worktree_mode": {
                                 "enum": [
-                                  "inherit",
                                   "none",
                                   "ref",
                                   "per_run"
@@ -181141,7 +181166,6 @@
                                 },
                                 "resolved_worktree_mode": {
                                   "enum": [
-                                    "inherit",
                                     "none",
                                     "ref",
                                     "per_run"
@@ -186518,7 +186542,6 @@
                                 },
                                 "resolved_worktree_mode": {
                                   "enum": [
-                                    "inherit",
                                     "none",
                                     "ref",
                                     "per_run"
@@ -190689,7 +190712,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -195110,7 +195132,6 @@
                           },
                           "resolved_worktree_mode": {
                             "enum": [
-                              "inherit",
                               "none",
                               "ref",
                               "per_run"
@@ -196026,7 +196047,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -197042,7 +197062,6 @@
                           },
                           "resolved_worktree_mode": {
                             "enum": [
-                              "inherit",
                               "none",
                               "ref",
                               "per_run"
@@ -198035,7 +198054,6 @@
                         },
                         "resolved_worktree_mode": {
                           "enum": [
-                            "inherit",
                             "none",
                             "ref",
                             "per_run"
@@ -199274,7 +199292,6 @@
                             },
                             "resolved_worktree_mode": {
                               "enum": [
-                                "inherit",
                                 "none",
                                 "ref",
                                 "per_run"
@@ -200137,7 +200154,6 @@
                               },
                               "resolved_worktree_mode": {
                                 "enum": [
-                                  "inherit",
                                   "none",
                                   "ref",
                                   "per_run"
@@ -200925,7 +200941,6 @@
                                   },
                                   "resolved_worktree_mode": {
                                     "enum": [
-                                      "inherit",
                                       "none",
                                       "ref",
                                       "per_run"
@@ -201378,7 +201393,6 @@
                                 },
                                 "resolved_worktree_mode": {
                                   "enum": [
-                                    "inherit",
                                     "none",
                                     "ref",
                                     "per_run"
@@ -287078,7 +287092,6 @@
                             },
                             "resolved_worktree_mode": {
                               "enum": [
-                                "inherit",
                                 "none",
                                 "ref",
                                 "per_run"

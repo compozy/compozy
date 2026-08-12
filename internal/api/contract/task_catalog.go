@@ -19,6 +19,7 @@ type TaskListQuery struct {
 	OwnerKind            taskpkg.OwnerKind     `json:"owner_kind,omitempty"`
 	OwnerRef             string                `json:"owner_ref,omitempty"`
 	ParentTaskID         string                `json:"parent_task_id,omitempty"`
+	Worktree             string                `json:"worktree,omitempty"`
 	ParticipationChannel string                `json:"participation_channel,omitempty"`
 	Query                string                `json:"query,omitempty"`
 	Sort                 taskpkg.CatalogSort   `json:"sort,omitempty"`
@@ -55,6 +56,9 @@ type TaskCatalogRunPayload struct {
 	FailureKind                  string                 `json:"failure_kind,omitempty"`
 	MaxAttempts                  int                    `json:"max_attempts"`
 	SessionID                    string                 `json:"session_id,omitempty"`
+	WorktreeID                   string                 `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode         ResolvedWorktreeMode   `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef          string                 `json:"resolved_worktree_ref,omitempty"`
 	ClaimedBy                    *taskpkg.ActorIdentity `json:"claimed_by,omitempty"`
 	LeaseUntil                   *time.Time             `json:"lease_until,omitempty"`
 	HeartbeatAt                  *time.Time             `json:"heartbeat_at,omitempty"`
@@ -183,6 +187,9 @@ func TaskCatalogRunPayloadFromSummary(summary *taskpkg.RunSummary) *TaskCatalogR
 		FailureKind:                  summary.FailureKind,
 		MaxAttempts:                  summary.MaxAttempts,
 		SessionID:                    summary.SessionID,
+		WorktreeID:                   summary.WorktreeID,
+		ResolvedWorktreeMode:         ResolvedWorktreeMode(summary.ResolvedWorktreeMode),
+		ResolvedWorktreeRef:          summary.ResolvedWorktreeRef,
 		ClaimedBy:                    taskCatalogCloneActorIdentity(summary.ClaimedBy),
 		LeaseUntil:                   taskCatalogOptionalTime(summary.LeaseUntil),
 		HeartbeatAt:                  taskCatalogOptionalTime(summary.HeartbeatAt),
@@ -263,6 +270,7 @@ const (
 type TaskInboxQuery struct {
 	Scope     taskpkg.CatalogScope `json:"scope,omitempty"`
 	Workspace string               `json:"workspace,omitempty"`
+	Worktree  string               `json:"worktree,omitempty"`
 	OwnerKind taskpkg.OwnerKind    `json:"owner_kind,omitempty"`
 	OwnerRef  string               `json:"owner_ref,omitempty"`
 	Lane      TaskInboxLane        `json:"lane,omitempty"`

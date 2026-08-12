@@ -5413,6 +5413,7 @@ export interface TaskDashboard {
 export interface TaskDashboardParams {
   scope?: Scope;
   workspace?: string;
+  worktree?: string;
   owner_kind?: OwnerKind;
   owner_ref?: string;
   participation_channel?: string;
@@ -5444,7 +5445,7 @@ export interface TaskDependencyReferencePayload {
   depends_on: TaskReferencePayload;
 }
 
-export type WorktreeMode = string;
+export type ResolvedWorktreeMode = string;
 
 export type CoordinationMessageKind = string;
 
@@ -5476,7 +5477,7 @@ export interface TaskRunSummaryPayload {
   max_attempts: number;
   session_id?: string;
   worktree_id?: string;
-  resolved_worktree_mode: WorktreeMode;
+  resolved_worktree_mode: ResolvedWorktreeMode;
   resolved_worktree_ref?: string;
   claimed_by?: ActorIdentity;
   claim_token_hash?: string;
@@ -5553,7 +5554,7 @@ export interface TaskRun {
   claimed_by?: ActorIdentity;
   session_id?: string;
   worktree_id?: string;
-  resolved_worktree_mode: WorktreeMode;
+  resolved_worktree_mode: ResolvedWorktreeMode;
   resolved_worktree_ref?: string;
   origin: Origin;
   idempotency_key?: string;
@@ -5626,6 +5627,9 @@ export interface TaskCatalogRunPayload {
   failure_kind?: string;
   max_attempts: number;
   session_id?: string;
+  worktree_id?: string;
+  resolved_worktree_mode: ResolvedWorktreeMode;
+  resolved_worktree_ref?: string;
   claimed_by?: ActorIdentity;
   lease_until?: ISODateTime;
   heartbeat_at?: ISODateTime;
@@ -5693,6 +5697,7 @@ export type CatalogScope = string;
 export interface TaskInboxParams {
   scope?: CatalogScope;
   workspace?: string;
+  worktree?: string;
   owner_kind?: OwnerKind;
   owner_ref?: string;
   lane?: TaskInboxLane;
@@ -6332,6 +6337,7 @@ export interface TasksParams {
   owner_kind?: OwnerKind;
   owner_ref?: string;
   parent_task_id?: string;
+  worktree?: string;
   participation_channel?: string;
   query?: string;
   sort?: CatalogSort;

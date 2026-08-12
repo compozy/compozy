@@ -80,6 +80,54 @@ func filterTasksByOrigin(tasks []taskpkg.Summary, origin taskpkg.OriginKind) []t
 	return filtered
 }
 
+func filterTasksByWorktree(
+	tasks []taskpkg.Summary,
+	runs []taskpkg.Run,
+	worktreeID string,
+) []taskpkg.Summary {
+	worktreeID = strings.TrimSpace(worktreeID)
+	if worktreeID == "" {
+		return tasks
+	}
+
+	selectedRuns := make(map[string]taskpkg.Run, len(tasks))
+	for idx := range runs {
+		candidate := runs[idx]
+		if dashboardActiveRunRank(candidate.Status) == 0 {
+			continue
+		}
+		taskID := strings.TrimSpace(candidate.TaskID)
+		selected, ok := selectedRuns[taskID]
+		if !ok || prefersDashboardActiveRun(candidate, selected) {
+			selectedRuns[taskID] = candidate
+		}
+	}
+
+	filtered := make([]taskpkg.Summary, 0, len(tasks))
+	for idx := range tasks {
+		item := &tasks[idx]
+		selected, ok := selectedRuns[strings.TrimSpace(item.ID)]
+		if ok && strings.TrimSpace(selected.WorktreeID) == worktreeID {
+			filtered = append(filtered, *item)
+		}
+	}
+	return filtered
+}
+
+func prefersDashboardActiveRun(candidate taskpkg.Run, selected taskpkg.Run) bool {
+	candidateRank := dashboardActiveRunRank(candidate.Status)
+	selectedRank := dashboardActiveRunRank(selected.Status)
+	if candidateRank != selectedRank {
+		return candidateRank > selectedRank
+	}
+	candidateActivity := dashboardRunActivityAt(candidate)
+	selectedActivity := dashboardRunActivityAt(selected)
+	if !candidateActivity.Equal(selectedActivity) {
+		return candidateActivity.After(selectedActivity)
+	}
+	return strings.TrimSpace(candidate.ID) > strings.TrimSpace(selected.ID)
+}
+
 func filterRuns(runs []taskpkg.Run, taskIDs map[string]struct{}, query TaskSummaryQuery) []taskpkg.Run {
 	normalizedOrigin := query.OriginKind.Normalize()
 	channel := strings.TrimSpace(query.ParticipationChannel)

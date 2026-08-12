@@ -64,6 +64,7 @@ type CatalogQuery struct {
 	OwnerKind            OwnerKind
 	OwnerRef             string
 	ParentTaskID         string
+	WorktreeID           string
 	ParticipationChannel string
 	Search               string
 	Sort                 CatalogSort
@@ -111,6 +112,7 @@ type catalogFingerprint struct {
 	OwnerKind            OwnerKind     `json:"owner_kind"`
 	OwnerRef             string        `json:"owner_ref"`
 	ParentTaskID         string        `json:"parent_task_id"`
+	WorktreeID           string        `json:"worktree_id"`
 	ParticipationChannel string        `json:"participation_channel"`
 	Search               string        `json:"q"`
 	Sort                 CatalogSort   `json:"sort"`
@@ -139,6 +141,7 @@ func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	query.OwnerKind = query.OwnerKind.Normalize()
 	query.OwnerRef = strings.TrimSpace(query.OwnerRef)
 	query.ParentTaskID = strings.TrimSpace(query.ParentTaskID)
+	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
 	query.ParticipationChannel = strings.TrimSpace(query.ParticipationChannel)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Sort = query.Sort.Normalize()
@@ -174,6 +177,9 @@ func validateCatalogQuery(query CatalogQuery) error {
 		}
 	default:
 		return fmt.Errorf("%w: task_catalog.scope has unsupported value %q", ErrValidation, query.Scope)
+	}
+	if query.WorktreeID != "" && query.WorkspaceID == "" {
+		return fmt.Errorf("%w: task_catalog.workspace_id is required with worktree_id", ErrValidation)
 	}
 	if query.Status != "" {
 		if err := query.Status.Validate("task_catalog.status"); err != nil {
@@ -274,6 +280,7 @@ func taskCatalogFingerprint(query CatalogQuery) (string, error) {
 		OwnerKind:            query.OwnerKind,
 		OwnerRef:             query.OwnerRef,
 		ParentTaskID:         query.ParentTaskID,
+		WorktreeID:           query.WorktreeID,
 		ParticipationChannel: query.ParticipationChannel,
 		Search:               query.Search,
 		Sort:                 query.Sort,

@@ -286,6 +286,7 @@ export const handlers: HttpHandler[] = [
               budget_tokens: 500_000,
               budget_wall_sec: 3_600,
               budget_on_exceeded: "halt",
+              environment: { mode: "root" },
               fan_out_width: 4,
               gate_max_revisions: 3,
               human_gate_enabled: true,

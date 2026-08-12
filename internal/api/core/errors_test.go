@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
 )
 
@@ -432,6 +433,21 @@ func TestRespondOpenAIErrorRedaction(t *testing.T) {
 
 func TestErrorPayloadForError(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve the branch holder path in structured worktree refusal details", func(t *testing.T) {
+		t.Parallel()
+
+		const holderPath = "/tmp/compozy/worktrees/payments-retry"
+		payload := ErrorPayloadForError(&worktree.RefusalError{
+			Cause:  worktree.ErrBranchHeld,
+			Detail: holderPath,
+		})
+		if payload.Code != "branch_held_by_worktree" ||
+			payload.Details["detail"] != holderPath ||
+			payload.Details["worktree_path"] != holderPath {
+			t.Fatalf("branch-held refusal payload = %#v, want structured holder path", payload)
+		}
+	})
 
 	t.Run("Should preserve machine-readable Loop lifecycle reason details", func(t *testing.T) {
 		t.Parallel()

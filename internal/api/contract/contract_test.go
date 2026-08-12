@@ -1666,7 +1666,7 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 			ClaimedBy:            &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
 			SessionID:            "sess-1",
 			WorktreeID:           "wt-run-1",
-			ResolvedWorktreeMode: taskpkg.WorktreeModePerRun,
+			ResolvedWorktreeMode: contract.ResolvedWorktreeModePerRun,
 			Origin:               taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
 			IdempotencyKey:       "key-1",
 			ResolvedNetworkParticipation: &participation.Spec{

@@ -19,8 +19,14 @@ import { cn } from "@/lib/utils";
  * when a menu owner is supplied, otherwise as truthful presentation.
  */
 export interface OsMenuBarProps extends React.ComponentProps<"header"> {
-  /** Active workspace identity. */
-  workspace: { name: string; monogram: string };
+  /**
+   * Active scope identity. `worktree` is present only while a worktree can
+   * actually receive work — a missing one reverts the chip to the workspace so
+   * the bar never advertises a scope that cannot run anything.
+   */
+  workspace: { name: string; monogram: string; worktree?: string | null };
+  /** Functional notice rendered outside `role="menu"` (e.g. scope fell back). */
+  scopeNotice?: React.ReactNode;
   /** Composed `<MenubarMenu>` children rendered after the workspace chip. */
   menus?: React.ReactNode;
   /** Approvals count from the bell aggregator; 0/undefined renders no badge. */
@@ -115,6 +121,7 @@ function NotificationBadge({ count }: { count: number }) {
 
 export function OsMenuBar({
   workspace,
+  scopeNotice,
   menus,
   notifications,
   status,
@@ -150,6 +157,19 @@ export function OsMenuBar({
         {workspace.monogram}
       </span>
       <span className="text-small-body font-semibold text-fg-strong">{workspace.name}</span>
+      {workspace.worktree ? (
+        <>
+          <span aria-hidden="true" className="text-small-body text-faint">
+            /
+          </span>
+          <span
+            data-slot="os-menubar-worktree"
+            className="max-w-40 truncate text-small-body text-fg"
+          >
+            {workspace.worktree}
+          </span>
+        </>
+      ) : null}
       <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
     </MenuControl>
   );
@@ -190,6 +210,9 @@ export function OsMenuBar({
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
+            not a menu item, and nesting it there breaks the menu's semantics. */}
+        {scopeNotice}
         {status}
         <Control
           data-slot="os-menubar-bell"

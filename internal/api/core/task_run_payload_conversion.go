@@ -28,7 +28,7 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
 		SessionID:                    run.SessionID,
 		WorktreeID:                   run.WorktreeID,
-		ResolvedWorktreeMode:         run.ResolvedWorktreeMode,
+		ResolvedWorktreeMode:         contract.ResolvedWorktreeMode(run.ResolvedWorktreeMode),
 		ResolvedWorktreeRef:          run.ResolvedWorktreeRef,
 		Origin:                       run.Origin,
 		IdempotencyKey:               run.IdempotencyKey,

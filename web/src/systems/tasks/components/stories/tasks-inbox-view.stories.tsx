@@ -111,6 +111,7 @@ const POPULATED: TaskInboxView = buildInboxFixture({
             owner: { kind: "agent_session", ref: "codex" },
           },
           run: {
+            resolved_worktree_mode: "none",
             attempt: 2,
             id: "run_i3",
             max_attempts: 3,

@@ -4,6 +4,14 @@ package contracts
 
 import "time"
 
+type RuntimeSelectionPayload struct {
+	Provider        string      `json:"provider"`
+	Model           string      `json:"model,omitempty"`
+	ReasoningEffort Effort      `json:"reasoning_effort,omitempty"`
+	Speed           Speed       `json:"speed,omitempty"`
+	SpeedResolution *Resolution `json:"speed_resolution,omitempty"`
+}
+
 type SandboxExecParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	SessionID   string `json:"session_id"`
@@ -237,23 +245,3 @@ type ScheduleSpec struct {
 type SchedulerCatchUpPolicy string
 
 type Scope string
-
-type SessionActivityHealth struct {
-	SessionID          string     `json:"session_id"`
-	TurnID             string     `json:"turn_id,omitempty"`
-	TurnSource         string     `json:"turn_source,omitempty"`
-	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
-	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
-	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
-	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
-	CurrentTool        string     `json:"current_tool,omitempty"`
-	ToolCallID         string     `json:"tool_call_id,omitempty"`
-	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current,omitempty"`
-	IterationMax       int        `json:"iteration_max,omitempty"`
-	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
-	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
-	Status             string     `json:"status"`
-	StallState         string     `json:"stall_state,omitempty"`
-	StallReason        string     `json:"stall_reason,omitempty"`
-}

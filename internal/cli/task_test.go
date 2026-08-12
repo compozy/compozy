@@ -359,6 +359,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					"--owner-kind", "pool",
 					"--owner-ref", "triage",
 					"--parent", "task-root",
+					"--worktree", "wt-alpha",
 					"--participation-channel", "builders",
 					"--limit", "3",
 					"-o", "json",
@@ -373,6 +374,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					listQuery.OwnerKind != taskpkg.OwnerKindPool ||
 					listQuery.OwnerRef != "triage" ||
 					listQuery.ParentTaskID != "task-root" ||
+					listQuery.Worktree != "wt-alpha" ||
 					listQuery.ParticipationChannel != "builders" ||
 					listQuery.Limit != 3 {
 					t.Fatalf("listQuery = %#v, want parsed filters", listQuery)
@@ -3098,7 +3100,7 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 				nil,
 				commandDeps{},
 				nil,
-				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", "", "", "", 0,
+				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", "", "", "", "", 0,
 			)
 			if err == nil || !strings.Contains(err.Error(), "--owner-kind and --owner-ref must be provided together") {
 				t.Fatalf("parseTaskListFilters() error = %v, want paired owner filter validation", err)
@@ -3113,11 +3115,25 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 			nil,
 			commandDeps{},
 			nil,
-			"", "", "", "", "", "", "", "invalid channel!", "", "", "", 0,
+			"", "", "", "", "", "", "", "", "invalid channel!", "", "", "", 0,
 		)
 		if err == nil || !strings.Contains(err.Error(), "invalid --participation-channel value") ||
 			strings.Contains(err.Error(), "invalid --channel value") {
 			t.Fatalf("parseTaskListFilters() error = %v, want current participation-channel diagnostic", err)
+		}
+	})
+
+	t.Run("Should reject a worktree filter without a workspace boundary", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := parseTaskListFilters(
+			nil,
+			commandDeps{},
+			nil,
+			"all", "", "", "", "", "", "", "wt-alpha", "", "", "", "", 0,
+		)
+		if err == nil || !strings.Contains(err.Error(), "--worktree requires a workspace") {
+			t.Fatalf("parseTaskListFilters() error = %v, want workspace boundary diagnostic", err)
 		}
 	})
 }

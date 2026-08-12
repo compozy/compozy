@@ -328,22 +328,26 @@ func taskRolePromptOverlay(activation taskRoleActivation) string {
 		activation.NetworkParticipation.Mode == participation.ModeLive {
 		channelLine = fmt.Sprintf("Coordination channel: %s", activation.NetworkParticipation.ChannelID)
 	}
-	return fmt.Sprintf(`A queued Compozy task run is assigned to this agent.
+	assignment := fmt.Sprintf(`A queued Compozy task run is assigned to this agent.
 
 Task: %s
-Run: %s
-%s
-%s
-%s
-%s %s`,
+Run: %s`,
 		title,
 		activation.RunID,
+	)
+	contextLines := strings.Join(uniqueNonEmptyStrings([]string{
 		channelLine,
 		designation,
 		worktree,
+	}), "\n")
+	if contextLines != "" {
+		assignment += "\n" + contextLines
+	}
+	instructions := fmt.Sprintf("%s %s",
 		taskClaimNativeInstruction(activation.RunID, activation.Capabilities),
 		taskLeaseNativeInstruction(),
 	)
+	return joinPromptOverlays(assignment, instructions)
 }
 
 func taskRoleWorktreeOverlay(policy taskpkg.WorktreePolicy) string {

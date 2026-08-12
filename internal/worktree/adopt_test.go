@@ -59,6 +59,90 @@ func TestServiceAdopt(t *testing.T) {
 		}
 	})
 
+	t.Run("Should restore a matching missing row after revalidating its Git identity", func(t *testing.T) {
+		t.Parallel()
+		fixture := newAdoptionTestFixture(t)
+		events := &recordingEventSink{}
+		fixture.service.events = events
+		catalogEvents, cancelCatalog, err := fixture.service.SubscribeWorktreeCatalogEvents(
+			context.Background(),
+		)
+		if err != nil {
+			t.Fatalf("SubscribeWorktreeCatalogEvents() error = %v", err)
+		}
+		defer cancelCatalog()
+		first, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		if err != nil {
+			t.Fatalf("Adopt(first) error = %v", err)
+		}
+		assertCatalogEvent(t, catalogEvents, CatalogEvent{
+			Kind: CatalogEventUpserted, WorkspaceID: fixture.workspace.ID, WorktreeID: first.ID,
+		})
+		if err := fixture.store.SetState(
+			context.Background(), fixture.workspace.ID, first.ID, StateMissing, first.UpdatedAt,
+		); err != nil {
+			t.Fatalf("SetState(missing) error = %v", err)
+		}
+		callsBefore := len(fixture.runner.invocations())
+		restored, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		if err != nil || restored.ID != first.ID || restored.State != StateReady {
+			t.Fatalf("Adopt(missing) = %#v, %v, want restored %q", restored, err, first.ID)
+		}
+		stored, err := fixture.store.Get(context.Background(), fixture.workspace.ID, first.ID)
+		if err != nil || stored.State != StateReady {
+			t.Fatalf("Get(restored) = %#v, %v, want ready", stored, err)
+		}
+		if got := len(fixture.runner.invocations()); got <= callsBefore+1 {
+			t.Fatalf("restoration Git calls = %d, want full identity revalidation", got-callsBefore)
+		}
+		if got := events.count(EventAdopted); got != 1 {
+			t.Fatalf("adopted events = %d, want no duplicate event during restoration", got)
+		}
+		assertCatalogEvent(t, catalogEvents, CatalogEvent{
+			Kind: CatalogEventUpserted, WorkspaceID: fixture.workspace.ID, WorktreeID: first.ID,
+		})
+	})
+
+	t.Run("Should preserve a missing row when its restored checkout has a different identity", func(t *testing.T) {
+		t.Parallel()
+		fixture := newAdoptionTestFixture(t)
+		first, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		if err != nil {
+			t.Fatalf("Adopt(first) error = %v", err)
+		}
+		if err := fixture.store.SetState(
+			context.Background(), fixture.workspace.ID, first.ID, StateMissing, first.UpdatedAt,
+		); err != nil {
+			t.Fatalf("SetState(missing) error = %v", err)
+		}
+		replacementAdmin := filepath.Join(fixture.commonDir, "worktrees", "replacement")
+		if err := os.MkdirAll(replacementAdmin, 0o700); err != nil {
+			t.Fatalf("MkdirAll(replacement admin) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(replacementAdmin, "commondir"), []byte("../..\n"), 0o600); err != nil {
+			t.Fatalf("write replacement commondir: %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(replacementAdmin, "gitdir"), []byte(filepath.Join(fixture.candidate, ".git")+"\n"), 0o600,
+		); err != nil {
+			t.Fatalf("write replacement backlink: %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(fixture.candidate, ".git"), []byte("gitdir: "+replacementAdmin+"\n"), 0o600,
+		); err != nil {
+			t.Fatalf("replace candidate identity: %v", err)
+		}
+		if _, err := fixture.service.Adopt(
+			context.Background(), fixture.workspace.ID, fixture.candidate,
+		); !errors.Is(err, ErrAdoptionUnreadable) || !strings.Contains(err.Error(), "identity changed") {
+			t.Fatalf("Adopt(replaced missing identity) error = %v, want classified refusal", err)
+		}
+		stored, err := fixture.store.Get(context.Background(), fixture.workspace.ID, first.ID)
+		if err != nil || stored.State != StateMissing {
+			t.Fatalf("Get(rejected restoration) = %#v, %v, want missing", stored, err)
+		}
+	})
+
 	t.Run("Should refuse idempotent adoption after the checkout identity is replaced", func(t *testing.T) {
 		t.Parallel()
 		fixture := newAdoptionTestFixture(t)
@@ -215,6 +299,18 @@ func TestServiceAdopt(t *testing.T) {
 			t.Fatalf("Adopt(admin symlink escape) error = %v, want classified unreadable", err)
 		}
 	})
+}
+
+func assertCatalogEvent(t *testing.T, events <-chan CatalogEvent, want CatalogEvent) {
+	t.Helper()
+	select {
+	case got := <-events:
+		if got != want {
+			t.Fatalf("catalog event = %#v, want %#v", got, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("catalog event = none, want %#v", want)
+	}
 }
 
 type adoptionTestFixture struct {

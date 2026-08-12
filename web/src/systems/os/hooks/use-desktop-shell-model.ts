@@ -1,8 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAgentCreateDialog, useAgents } from "@/systems/agent";
 import { useSessionCatalogStreams, useSessionCreateDialogController } from "@/systems/session";
-import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
+import {
+  pruneWorktreeScopes,
+  useActiveWorkspace,
+  useActiveWorktree,
+  useUserHomeDir,
+  useWorkspace,
+  useWorktreeCatalogStream,
+  useWorktreeListings,
+} from "@/systems/workspace";
+
+import { useDesktop } from "./use-desktop";
+import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 
 /**
  * Desktop-shell view model: the surviving responsibilities of the deleted
@@ -40,9 +51,34 @@ export function useDesktopShellModel() {
   });
   const workspaceAgents = runtimeWorkspaceId === null ? undefined : agents;
   const [isWorkspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
+  const [worktreeCreateWorkspaceId, setWorktreeCreateWorkspaceId] = useState<string | null>(null);
   const sessionCatalogStreamStatus = useSessionCatalogStreams(registeredWorkspaces, {
     enabled: registeredWorkspaces.length > 0,
   });
+
+  // One catalog subscription per shell; the query stays the snapshot authority
+  // and this only reconciles workspace-qualified invalidations into it.
+  const worktreeCatalogStreamStatus = useWorktreeCatalogStream(workspaces, {
+    enabled: hasWorkspaces,
+  });
+  // The switcher, the menubar menu, and the overview all list every workspace,
+  // so every authorized workspace's worktrees are loaded — scoping to the active
+  // one would silently drop the rest of the tree.
+  const worktreesByWorkspace = useWorktreeListings(workspaces, { enabled: hasWorkspaces });
+  const userHomeDir = useUserHomeDir();
+  const worktreeScopeId = useFocusedWorktreeScopeId();
+  // Selection still resolves against the active workspace's listing: that is the
+  // only workspace whose worktrees can currently receive work.
+  const activeWorktreeListing = activeWorkspaceId
+    ? worktreesByWorkspace[activeWorkspaceId]
+    : undefined;
+  const worktreeSelection = useActiveWorktree(worktreeScopeId, activeWorktreeListing);
+  // Windows close from any client, so scopes are pruned against the live set
+  // rather than released by whoever closed the window.
+  const liveWindowIds = useDesktop(state => Object.keys(state.windows).join(" "));
+  useEffect(() => {
+    pruneWorktreeScopes(liveWindowIds === "" ? [] : liveWindowIds.split(" "));
+  }, [liveWindowIds]);
   const sessionCreate = useSessionCreateDialogController();
   const agentCreate = useAgentCreateDialog({
     activeWorkspace,
@@ -80,6 +116,15 @@ export function useDesktopShellModel() {
     openWorkspaceSetup: () => setWorkspaceSetupOpen(true),
     sessionCreate,
     agentCreate,
+    userHomeDir,
+    worktreeCatalogStreamStatus,
+    worktreesByWorkspace,
+    worktreeListing: activeWorktreeListing,
+    worktreeScopeId,
+    worktreeSelection,
+    worktreeCreateWorkspaceId,
+    setWorktreeCreateWorkspaceId,
+    openWorktreeCreate: (workspaceId: string) => setWorktreeCreateWorkspaceId(workspaceId),
   };
 }
 

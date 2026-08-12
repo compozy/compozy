@@ -554,7 +554,8 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 		if payload.RecoveryCount != int(run.RecoveryCount) {
 			t.Fatalf("RecoveryCount = %d, want %d", payload.RecoveryCount, run.RecoveryCount)
 		}
-		if payload.WorktreeID != run.WorktreeID || payload.ResolvedWorktreeMode != run.ResolvedWorktreeMode ||
+		if payload.WorktreeID != run.WorktreeID ||
+			payload.ResolvedWorktreeMode != contract.ResolvedWorktreeMode(run.ResolvedWorktreeMode) ||
 			payload.ResolvedWorktreeRef != run.ResolvedWorktreeRef {
 			t.Fatalf("worktree projection = %#v, want run snapshot %#v", payload, run)
 		}

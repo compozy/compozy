@@ -19,6 +19,7 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 		ownerKindRaw            string
 		ownerRef                string
 		parentTaskID            string
+		worktreeID              string
 		participationChannelRaw string
 		queryRaw                string
 		sortRaw                 string
@@ -47,6 +48,7 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 				ownerKindRaw,
 				ownerRef,
 				parentTaskID,
+				worktreeID,
 				participationChannelRaw,
 				queryRaw,
 				sortRaw,
@@ -72,6 +74,7 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Filter by owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Filter by owner reference")
 	cmd.Flags().StringVar(&parentTaskID, "parent", "", "Filter by parent task ID")
+	cmd.Flags().StringVar(&worktreeID, "worktree", "", "Filter by active run worktree ID")
 	cmd.Flags().StringVar(
 		&participationChannelRaw,
 		"participation-channel",
@@ -96,6 +99,7 @@ func parseTaskListFilters(
 	ownerKindRaw string,
 	ownerRef string,
 	parentTaskID string,
+	worktreeID string,
 	participationChannelRaw string,
 	queryRaw string,
 	sortRaw string,
@@ -127,6 +131,10 @@ func parseTaskListFilters(
 			"cli: --owner-kind and --owner-ref must be provided together",
 		)
 	}
+	trimmedWorktreeID := strings.TrimSpace(worktreeID)
+	if trimmedWorktreeID != "" && strings.TrimSpace(workspace) == "" {
+		return TaskListQuery{}, errors.New("cli: --worktree requires a workspace scope or --workspace")
+	}
 	if err := validateTaskParticipationChannelFlag(participationChannelRaw); err != nil {
 		return TaskListQuery{}, err
 	}
@@ -148,6 +156,7 @@ func parseTaskListFilters(
 		OwnerKind:            ownerKind,
 		OwnerRef:             trimmedOwnerRef,
 		ParentTaskID:         strings.TrimSpace(parentTaskID),
+		Worktree:             trimmedWorktreeID,
 		ParticipationChannel: strings.TrimSpace(participationChannelRaw),
 		Query:                strings.TrimSpace(queryRaw),
 		Sort:                 sortKey,

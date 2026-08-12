@@ -1,3 +1,6 @@
+import { useScopedWorktreeFilter } from "@/systems/workspace";
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
+
 import { useOsSessionsModal } from "../../hooks/use-os-sessions-modal";
 import {
   type SessionLifecycleActionHandlers,
@@ -43,9 +46,14 @@ export function useSessionWindowSidebar({
   const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
   const { openForAgent } = useSessionCreateActions();
   const lifecycle = useSessionLifecycleActions({ workspaceId });
+  // Scoped to this window: two session windows can hold different worktrees and
+  // must list different sessions.
+  const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
+    enabled: sidebar.open,
+  });
   const sessionsQuery = useSessions(workspaceId, {
     enabled: sidebar.open,
-    filters: { include_health: true, limit: 100, sort: "last_activity" },
+    filters: { include_health: true, limit: 100, sort: "last_activity", worktree },
   });
 
   const onSelectSession = (target: SessionPayload) => {

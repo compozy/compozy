@@ -227,6 +227,7 @@ describe("TasksInboxView", () => {
                 title: "Sync embeddings",
               },
               run: {
+                resolved_worktree_mode: "none",
                 attempt: 3,
                 id: "run_fail",
                 max_attempts: 3,
@@ -348,6 +349,7 @@ describe("TasksInboxView", () => {
               lane: "failed_runs",
               task: { id: "task_a", scope: "workspace", status: "failed", title: "Task A" },
               run: {
+                resolved_worktree_mode: "none",
                 attempt: 1,
                 id: "run_a",
                 max_attempts: 3,
@@ -361,6 +363,7 @@ describe("TasksInboxView", () => {
               lane: "failed_runs",
               task: { id: "task_b", scope: "workspace", status: "failed", title: "Task B" },
               run: {
+                resolved_worktree_mode: "none",
                 attempt: 1,
                 id: "run_b",
                 max_attempts: 3,

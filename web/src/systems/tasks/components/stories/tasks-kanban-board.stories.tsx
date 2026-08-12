@@ -81,6 +81,7 @@ const KANBAN_TASKS: TaskListItem[] = [
     status: "failed",
     title: "Session timeout retry",
     active_run: {
+      resolved_worktree_mode: "none",
       id: "run_k6",
       task_id: "task_k6",
       attempt: 3,

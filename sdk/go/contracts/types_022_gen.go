@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+type SpawnTTLExpiredPayload struct {
+	Event                        HookEvent      `json:"event"`
+	Timestamp                    time.Time      `json:"timestamp"`
+	ParentSessionID              string         `json:"parent_session_id,omitempty"`
+	RootSessionID                string         `json:"root_session_id,omitempty"`
+	ChildSessionID               string         `json:"child_session_id,omitempty"`
+	WorkspaceID                  string         `json:"workspace_id,omitempty"`
+	Workspace                    string         `json:"workspace,omitempty"`
+	AgentName                    string         `json:"agent_name,omitempty"`
+	SpawnRole                    string         `json:"spawn_role,omitempty"`
+	SpawnDepth                   int            `json:"spawn_depth,omitempty"`
+	TTLSeconds                   int64          `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent             bool           `json:"auto_stop_on_parent,omitempty"`
+	TaskID                       string         `json:"task_id,omitempty"`
+	RunID                        string         `json:"run_id,omitempty"`
+	WorkflowID                   string         `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec          `json:"resolved_network_participation,omitempty"`
+	SoulSnapshotID               string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest                   string         `json:"soul_digest,omitempty"`
+	ParentSoulDigest             string         `json:"parent_soul_digest,omitempty"`
+	ParentPermissions            *PermissionSet `json:"parent_permissions,omitempty"`
+	ChildPermissions             *PermissionSet `json:"child_permissions,omitempty"`
+	StopReason                   string         `json:"stop_reason,omitempty"`
+	ReapReason                   string         `json:"reap_reason,omitempty"`
+	Error                        string         `json:"error,omitempty"`
+}
+
 type Spec struct {
 	Version         string          `json:"version"`
 	Mode            Mode            `json:"mode"`
@@ -152,24 +179,27 @@ type TaskCatalogOwnerFacetPayload struct {
 }
 
 type TaskCatalogRunPayload struct {
-	ID                           string         `json:"id"`
-	TaskID                       string         `json:"task_id"`
-	Status                       TaskRunStatus  `json:"status"`
-	Attempt                      int            `json:"attempt"`
-	RecoveryCount                int            `json:"recovery_count"`
-	PreviousRunID                string         `json:"previous_run_id,omitempty"`
-	FailureKind                  string         `json:"failure_kind,omitempty"`
-	MaxAttempts                  int            `json:"max_attempts"`
-	SessionID                    string         `json:"session_id,omitempty"`
-	ClaimedBy                    *ActorIdentity `json:"claimed_by,omitempty"`
-	LeaseUntil                   *time.Time     `json:"lease_until,omitempty"`
-	HeartbeatAt                  *time.Time     `json:"heartbeat_at,omitempty"`
-	ResolvedNetworkParticipation *Spec          `json:"resolved_network_participation,omitempty"`
-	QueuedAt                     time.Time      `json:"queued_at"`
-	ClaimedAt                    *time.Time     `json:"claimed_at,omitempty"`
-	StartedAt                    *time.Time     `json:"started_at,omitempty"`
-	EndedAt                      *time.Time     `json:"ended_at,omitempty"`
-	Error                        string         `json:"error,omitempty"`
+	ID                           string               `json:"id"`
+	TaskID                       string               `json:"task_id"`
+	Status                       TaskRunStatus        `json:"status"`
+	Attempt                      int                  `json:"attempt"`
+	RecoveryCount                int                  `json:"recovery_count"`
+	PreviousRunID                string               `json:"previous_run_id,omitempty"`
+	FailureKind                  string               `json:"failure_kind,omitempty"`
+	MaxAttempts                  int                  `json:"max_attempts"`
+	SessionID                    string               `json:"session_id,omitempty"`
+	WorktreeID                   string               `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode         ResolvedWorktreeMode `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef          string               `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy                    *ActorIdentity       `json:"claimed_by,omitempty"`
+	LeaseUntil                   *time.Time           `json:"lease_until,omitempty"`
+	HeartbeatAt                  *time.Time           `json:"heartbeat_at,omitempty"`
+	ResolvedNetworkParticipation *Spec                `json:"resolved_network_participation,omitempty"`
+	QueuedAt                     time.Time            `json:"queued_at"`
+	ClaimedAt                    *time.Time           `json:"claimed_at,omitempty"`
+	StartedAt                    *time.Time           `json:"started_at,omitempty"`
+	EndedAt                      *time.Time           `json:"ended_at,omitempty"`
+	Error                        string               `json:"error,omitempty"`
 }
 
 type TaskCatalogStatusFacetPayload struct {
@@ -273,14 +303,4 @@ type TaskDashboardFailedCardPayload struct {
 	FailedRuns   int    `json:"failed_runs"`
 	ForcedStops  int    `json:"forced_stops"`
 	HealthStatus string `json:"health_status"`
-}
-
-type TaskDashboardFreshnessPayload struct {
-	ObservedAt       time.Time `json:"observed_at"`
-	LatestActivityAt time.Time `json:"latest_activity_at"`
-	AgeMilli         int64     `json:"age_ms"`
-	StaleAfterMilli  int64     `json:"stale_after_ms"`
-	HasLiveWork      bool      `json:"has_live_work"`
-	Status           string    `json:"status"`
-	Stale            bool      `json:"stale"`
 }

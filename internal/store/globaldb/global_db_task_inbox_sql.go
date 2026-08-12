@@ -27,6 +27,7 @@ inbox_candidates AS (
 		c.identifier,
 		c.scope,
 		c.workspace_id,
+		c.active_run_worktree_id,
 		c.title,
 		c.priority,
 		c.status,
@@ -147,6 +148,7 @@ func taskInboxFilter(query taskpkg.InboxQuery) ([]string, []any) {
 	where, args := store.BuildClauses(
 		store.StringClause("status", string(query.Status)),
 		store.StringClause("lane", string(query.Lane)),
+		store.StringClause("active_run_worktree_id", query.WorktreeID),
 	)
 	if query.Unread != nil {
 		where = append(where, "is_unread = ?")

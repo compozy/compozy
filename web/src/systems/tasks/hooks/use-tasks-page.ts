@@ -33,7 +33,8 @@ import {
 import { useTasksDashboardPage } from "./use-tasks-dashboard-page";
 import { useTasksPageActions } from "./use-tasks-page-actions";
 import { taskScopeForActiveWorkspace } from "../lib/workspace-scope";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, useActiveWorktree, useWorktrees } from "@/systems/workspace";
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 type InboxLaneFilter = InboxLaneFilterId;
 const SEARCH_DEBOUNCE_MS = 200;
@@ -96,7 +97,19 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     onCommit: query => updateSearch({ inboxQuery: query.trim() ? query : undefined }),
   });
 
-  const activeTaskScope = taskScopeForActiveWorkspace(scope, activeWorkspaceId);
+  // This window's worktree scope. Filtering happens server-side on the derived
+  // active-run worktree id — a loaded page is never trimmed client-side.
+  // Global cannot bind a worktree; the scope helper drops it on that branch.
+  const worktreeScopeId = useWorktreeScopeId();
+  const worktreesQuery = useWorktrees(activeWorkspaceId, {
+    enabled: liveDataEnabled && activeWorkspaceId !== null,
+  });
+  const worktreeSelection = useActiveWorktree(worktreeScopeId, worktreesQuery.data);
+  const activeTaskScope = taskScopeForActiveWorkspace(
+    scope,
+    activeWorkspaceId,
+    worktreeSelection.activeWorktree?.id ?? null
+  );
   const hasActiveTaskScope = activeTaskScope !== null;
   const scopeSourceError =
     scope === "workspace" && !activeWorkspaceId ? (workspace.error ?? null) : null;
@@ -112,6 +125,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const dashboardFilters: TaskDashboardFilter = {
     scope: activeTaskScope?.scope,
     workspace: activeTaskScope?.workspace,
+    worktree: activeTaskScope?.worktree,
   };
   const inboxFilters: TaskInboxFilter = activeTaskScope
     ? taskInboxFilterFromRouteSearch(activeTaskScope, {
@@ -122,6 +136,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const inboxBadgeFilters: TaskInboxFilter = {
     scope: activeTaskScope?.scope,
     workspace: activeTaskScope?.workspace,
+    worktree: activeTaskScope?.worktree,
     limit: 1,
   };
 

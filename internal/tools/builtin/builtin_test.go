@@ -176,6 +176,11 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			if _, ok := schema.Properties["participation_channel"]; !ok {
 				t.Fatalf("%s input schema omits participation_channel", id)
 			}
+			if id == toolspkg.ToolIDTaskList {
+				if _, ok := schema.Properties["worktree"]; !ok {
+					t.Fatalf("%s input schema omits worktree", id)
+				}
+			}
 			for _, legacy := range []string{"network_channel", "coordination_channel_id"} {
 				if _, ok := schema.Properties[legacy]; ok {
 					t.Fatalf("%s input schema exposes removed %s", id, legacy)

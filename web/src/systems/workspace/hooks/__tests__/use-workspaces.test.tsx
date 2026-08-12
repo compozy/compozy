@@ -272,7 +272,7 @@ describe("useActiveWorkspace", () => {
     window.localStorage.setItem(
       ACTIVE_WORKSPACE_PERSIST_KEY,
       JSON.stringify({
-        context: { scope: "workspace", selectedWorkspaceId: "ws_beta" },
+        context: { scope: "workspace", selectedWorkspaceId: "ws_beta", worktreeByScope: {} },
         version: 0,
       })
     );

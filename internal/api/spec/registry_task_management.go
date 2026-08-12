@@ -43,6 +43,7 @@ func listTasksOperationSpec() OperationSpec {
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
 			queryParam("parent_task_id", "Filter by parent task ID", false),
+			queryParam("worktree", "Filter by active run worktree ID", false),
 			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			queryParam("query", "Filter by task title or identifier", false),
 			enumQueryParam("sort", "Order by recent activity or priority", taskCatalogSortValues()),

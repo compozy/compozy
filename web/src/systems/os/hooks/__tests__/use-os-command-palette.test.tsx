@@ -52,6 +52,13 @@ vi.mock("@/systems/session/hooks/use-session-create", () => ({
   useSessionCreateActions: () => ({ openForAgent: paletteMocks.openForAgent }),
 }));
 
+vi.mock("@/systems/workspace/hooks/use-worktrees", () => ({
+  useWorktrees: () => ({ data: undefined }),
+}));
+vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
+  useScopedWorktreeFilter: () => undefined,
+  useActiveWorktree: () => ({ selectedWorktreeId: null, activeWorktree: null, fallback: null }),
+}));
 vi.mock("@/systems/session/hooks/use-sessions", () => ({
   useSessions: (workspaceId: string | null) => {
     paletteMocks.sessionsWorkspaceId(workspaceId);

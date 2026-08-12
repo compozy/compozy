@@ -48,6 +48,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[taskpkg.WorkerMode]():                        taskWorkerModeValues(),
 		reflect.TypeFor[taskpkg.SandboxMode]():                       taskSandboxModeValues(),
 		reflect.TypeFor[taskpkg.WorktreeMode]():                      taskWorktreeModeValues(),
+		reflect.TypeFor[contract.ResolvedWorktreeMode]():             contract.ResolvedWorktreeModeValues(),
 		reflect.TypeFor[taskpkg.RuntimeMode]():                       taskRuntimeModeValues(),
 		reflect.TypeFor[taskpkg.ReviewPolicy]():                      taskReviewPolicyValues(),
 		reflect.TypeFor[taskpkg.RunReviewStatus]():                   taskRunReviewStatusValues(),

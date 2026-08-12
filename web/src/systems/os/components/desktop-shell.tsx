@@ -6,6 +6,13 @@ import { OsShellContext } from "../contexts/os-shell-context";
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-desktop-shell-model";
+import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
+import {
+  WorktreeAdoptDialogBoundary,
+  WorktreeCreateDialogBoundary,
+  WorktreeMissingDialogBoundary,
+  WorktreeRemoveDialogBoundary,
+} from "./worktree-dialog-boundaries";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopMenubar } from "./desktop-menubar";
 import { DesktopDock } from "./desktop-dock";
@@ -31,10 +38,11 @@ import {
 } from "@/systems/session";
 import { useSettingsSandboxes } from "@/systems/settings";
 import {
+  selectWorktreeForScope,
   useWorkspaceSetupContent,
+  WorkspaceSetupDialog,
   type WorkspaceSetupCollection,
   type WorkspaceSetupDefaultsModel,
-  WorkspaceSetupDialog,
 } from "@/systems/workspace";
 
 /**
@@ -145,6 +153,7 @@ function DesktopShellBody({
     firstRun,
     onNewSession: openNewSession,
   });
+  const worktreeDialogs = useWorktreeDialogTargets();
 
   return (
     <div
@@ -183,6 +192,17 @@ function DesktopShellBody({
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
         attention={attention}
+        worktreesByWorkspace={model.worktreesByWorkspace}
+        userHomeDir={model.userHomeDir}
+        worktreeSelection={model.worktreeSelection}
+        onSelectWorktree={(workspaceId, entry) => {
+          // A discovered row is the adoption gesture; anything else scopes.
+          if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
+          if (entry.worktree) {
+            selectWorktreeForScope(model.worktreeScopeId, workspaceId, entry.worktree.id);
+          }
+        }}
+        onCreateWorktree={model.openWorktreeCreate}
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
         <OsWallpaper wallpaper={desktop.wallpaper} />
@@ -296,6 +316,18 @@ function DesktopShellBody({
         details={workspaceDetails}
         presentation={pager.presentation}
         reducedMotion={reducedMotion}
+        worktreesByWorkspace={model.worktreesByWorkspace}
+        userHomeDir={model.userHomeDir}
+        selectedWorktreeId={model.worktreeSelection.selectedWorktreeId}
+        onSelectWorktree={(workspaceId, entry) => {
+          if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
+          if (entry.worktree) {
+            selectWorktreeForScope(model.worktreeScopeId, workspaceId, entry.worktree.id);
+          }
+        }}
+        onCreateWorktree={model.openWorktreeCreate}
+        onRemoveWorktree={worktreeDialogs.requestRemove}
+        onResolveMissing={worktreeDialogs.requestResolveMissing}
       />
       <WorkspaceSetupDialogBoundary
         defaults={workspaceSetupDefaults}
@@ -303,6 +335,42 @@ function DesktopShellBody({
         onWorkspaceResolved={model.setActiveWorkspaceId}
         open={model.isWorkspaceSetupOpen}
       />
+      {model.worktreeCreateWorkspaceId ? (
+        <WorktreeCreateDialogBoundary
+          workspaceId={model.worktreeCreateWorkspaceId}
+          workspaceName={
+            model.workspaces.find(workspace => workspace.id === model.worktreeCreateWorkspaceId)
+              ?.name ?? "workspace"
+          }
+          listing={model.worktreesByWorkspace[model.worktreeCreateWorkspaceId]}
+          scopeId={model.worktreeScopeId}
+          onOpenChange={open =>
+            model.setWorktreeCreateWorkspaceId(open ? model.worktreeCreateWorkspaceId : null)
+          }
+        />
+      ) : null}
+      {worktreeDialogs.adoptTarget ? (
+        <WorktreeAdoptDialogBoundary
+          workspaceId={worktreeDialogs.adoptTarget.workspaceId}
+          discovered={worktreeDialogs.adoptTarget.discovered}
+          scopeId={model.worktreeScopeId}
+          onClose={worktreeDialogs.closeAdopt}
+        />
+      ) : null}
+      {worktreeDialogs.removeTarget ? (
+        <WorktreeRemoveDialogBoundary
+          workspaceId={worktreeDialogs.removeTarget.workspaceId}
+          worktree={worktreeDialogs.removeTarget.worktree}
+          onClose={worktreeDialogs.closeRemove}
+        />
+      ) : null}
+      {worktreeDialogs.missingTarget ? (
+        <WorktreeMissingDialogBoundary
+          workspaceId={worktreeDialogs.missingTarget.workspaceId}
+          worktree={worktreeDialogs.missingTarget.worktree}
+          onClose={worktreeDialogs.closeMissing}
+        />
+      ) : null}
       <AgentCreateDialog
         draft={model.agentCreate.draft}
         hasActiveWorkspace={model.agentCreate.hasActiveWorkspace}
@@ -328,6 +396,11 @@ function DesktopShellBody({
   );
 }
 
+/**
+ * Mirrors `WorkspaceSetupDialogBoundary`: the domain hook runs in exactly one
+ * place and only while the dialog is mounted, so a closed dialog holds no
+ * mutation state.
+ */
 function WorkspaceSetupDialogBoundary({
   defaults,
   onOpenChange,

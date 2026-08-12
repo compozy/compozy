@@ -2,6 +2,7 @@ import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { primaryWorkspaceFixture, workspaceDetailFixture, workspaceFixtures } from "./fixtures";
+import { worktreeHandlers } from "./worktree-handlers";
 
 function resolveWorkspaceFromPath(path: string) {
   const trimmedPath = path.trim();
@@ -64,4 +65,5 @@ export const handlers: HttpHandler[] = [
       workspace: resolveWorkspaceFromPath(path),
     });
   }),
+  ...worktreeHandlers,
 ];

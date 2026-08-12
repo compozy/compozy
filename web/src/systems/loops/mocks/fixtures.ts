@@ -525,6 +525,9 @@ export const loopEffectiveConfigFixture: LoopEffectiveConfig = {
   budget_tokens: 750_000,
   budget_wall_sec: 0,
   enabled_checks_json: {},
+  // Resolved Loop environment: no node or Loop override, so runs execute at the
+  // workspace root.
+  environment: { mode: "root" },
   fan_out_width: 4,
   gate_max_revisions: 3,
   human_gate_enabled: true,

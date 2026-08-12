@@ -15,6 +15,9 @@ Use structured output for reads and mutations:
     compozy worktree inspect feature-auth -o json
     compozy worktree status feature-auth --refresh --forge -o json
 
+Adopting the same path again is idempotent. If a registered path is `missing`, adoption revalidates
+its Git identity and restores the existing record to `ready`; a different repository remains refused.
+
 Creation is asynchronous. Follow the per-worktree stream or inspect the record until it reaches
 `ready` or `failed`; `compozy worktree cancel <ref>` applies only while creation is pending.
 

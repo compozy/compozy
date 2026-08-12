@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+type SessionLifecyclePayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
 type SessionMessagePersistedPayload struct {
 	Event           HookEvent       `json:"event"`
 	Timestamp       time.Time       `json:"timestamp"`
@@ -275,18 +293,4 @@ type SessionStatus struct {
 type SessionStatusGetParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	SessionID   string `json:"session_id"`
-}
-
-type SessionStatusResponse struct {
-	SessionID           string                           `json:"session_id"`
-	WorkspaceID         string                           `json:"workspace_id"`
-	AgentName           string                           `json:"agent_name"`
-	State               SessionHealthState               `json:"state"`
-	Health              SessionHealthStatus              `json:"health"`
-	ActivePrompt        bool                             `json:"active_prompt"`
-	Attachable          bool                             `json:"attachable"`
-	EligibleForWake     bool                             `json:"eligible_for_wake"`
-	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
-	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
-	UpdatedAt           time.Time                        `json:"updated_at"`
 }

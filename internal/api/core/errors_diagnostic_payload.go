@@ -22,6 +22,13 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if code := WorktreeErrorCode(err); code != "" {
 		payload.Code = code
 	}
+	if refusal, ok := errors.AsType[*worktree.RefusalError](err); ok && refusal.Detail != "" {
+		detail := diagnosticspkg.Redact(taskpkg.RedactClaimTokens(refusal.Detail))
+		payload.Details = map[string]string{"detail": detail}
+		if errors.Is(err, worktree.ErrBranchHeld) {
+			payload.Details["worktree_path"] = detail
+		}
+	}
 	if cause := worktree.ForgeFailureCause(err); cause != "" {
 		payload.Details = map[string]string{"cause": cause}
 	}

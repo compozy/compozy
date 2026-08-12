@@ -78,6 +78,7 @@ func (h *HostAPIHandler) taskQueryFromParams(
 		OwnerKind:     params.OwnerKind.Normalize(),
 		OwnerRef:      strings.TrimSpace(params.OwnerRef),
 		ParentTaskID:  strings.TrimSpace(params.ParentTaskID),
+		WorktreeID:    strings.TrimSpace(params.Worktree),
 		Search:        strings.TrimSpace(params.Query),
 		Sort:          params.Sort.Normalize(),
 		Cursor:        strings.TrimSpace(params.Cursor),

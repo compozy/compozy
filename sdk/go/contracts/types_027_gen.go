@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type TurnEndPatch struct {
+	Deny       bool              `json:"deny,omitempty"`
+	DenyReason string            `json:"deny_reason,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+}
+
 type TurnEndPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -221,8 +227,6 @@ type WorktreeControlPatch struct {
 	Deny       bool   `json:"deny,omitempty"`
 	DenyReason string `json:"deny_reason,omitempty"`
 }
-
-type WorktreeMode string
 
 type WorktreeObservationPatch struct{}
 

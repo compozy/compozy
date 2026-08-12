@@ -18,6 +18,7 @@ function normalizeDashboardFilter(filters: TaskDashboardFilter = {}): TaskDashbo
   return {
     scope: filters.scope,
     workspace: normalizeOptionalText(filters.workspace),
+    worktree: normalizeOptionalText(filters.worktree),
     owner_kind: filters.owner_kind,
     owner_ref: normalizeOptionalText(filters.owner_ref),
     participation_channel: normalizeOptionalText(filters.participation_channel),

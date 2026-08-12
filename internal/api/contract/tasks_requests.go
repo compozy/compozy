@@ -30,6 +30,7 @@ type TaskStreamQuery struct {
 type TaskDashboardQuery struct {
 	Scope                taskpkg.Scope      `json:"scope,omitempty"`
 	Workspace            string             `json:"workspace,omitempty"`
+	Worktree             string             `json:"worktree,omitempty"`
 	OwnerKind            taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
 	OwnerRef             string             `json:"owner_ref,omitempty"`
 	ParticipationChannel string             `json:"participation_channel,omitempty"`

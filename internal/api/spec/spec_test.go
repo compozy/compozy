@@ -2195,6 +2195,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, listTasks, "priority", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "include_drafts", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "approval_state", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTasks, "worktree", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "query", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "sort", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "cursor", openapi3.ParameterInQuery, false)
@@ -2593,6 +2594,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertTagsContain(t, dashboard, "observe", "tasks")
 				assertParameter(t, dashboard, "scope", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, dashboard, "worktree", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_kind", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_ref", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "participation_channel", openapi3.ParameterInQuery, false)
@@ -2612,6 +2614,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				inbox := operationFor(t, doc, "/api/observe/tasks/inbox", "GET")
 				assertTagsContain(t, inbox, "observe", "tasks")
+				assertParameter(t, inbox, "worktree", openapi3.ParameterInQuery, false)
 				assertParameter(t, inbox, "lane", openapi3.ParameterInQuery, false)
 				assertParameter(t, inbox, "unread", openapi3.ParameterInQuery, false)
 				assertParameter(t, inbox, "query", openapi3.ParameterInQuery, false)
@@ -2764,6 +2767,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "TaskBlockKind", typ: taskpkg.BlockKindNeedsInput},
 		{name: "TaskBlockedSource", typ: taskpkg.BlockedSourceBlock},
 		{name: "TaskWorktreeMode", typ: taskpkg.WorktreeModePerRun},
+		{name: "ResolvedWorktreeMode", typ: contract.ResolvedWorktreeModePerRun},
 		{name: "TaskRuntimeMode", typ: taskpkg.RuntimeModeDefault},
 		{name: "LoopEnvironmentMode", typ: contract.LoopEnvironmentModePerRun},
 		{name: "AutomationSchedulerCatchUpPolicy", typ: automationpkg.SchedulerCatchUpPolicySkipMissed},

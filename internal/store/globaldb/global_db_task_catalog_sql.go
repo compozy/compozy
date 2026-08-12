@@ -348,6 +348,7 @@ func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 func taskCatalogFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 	return store.BuildClauses(
 		store.StringClause("status", string(query.Status)),
+		store.StringClause("active_run_worktree_id", query.WorktreeID),
 		store.StringClause("network_channel", query.ParticipationChannel),
 	)
 }

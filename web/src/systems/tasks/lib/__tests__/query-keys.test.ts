@@ -19,6 +19,7 @@ describe("tasksKeys", () => {
       tasksKeys.list({
         scope: "workspace",
         workspace: "ws_alpha",
+        worktree: "wt_payments",
         status: "ready",
         priority: "high",
         include_drafts: true,
@@ -37,6 +38,9 @@ describe("tasksKeys", () => {
       "list",
       "workspace",
       "ws_alpha",
+      // Worktree scope is part of the key so two window scopes never share a
+      // cache entry.
+      "wt_payments",
       "ready",
       "high",
       "1",
@@ -53,6 +57,7 @@ describe("tasksKeys", () => {
     expect(tasksKeys.list()).toEqual([
       "tasks",
       "list",
+      "",
       "",
       "",
       "",

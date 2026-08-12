@@ -23,7 +23,7 @@ func TaskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *contract.Tas
 		MaxAttempts:                  summary.MaxAttempts,
 		SessionID:                    summary.SessionID,
 		WorktreeID:                   summary.WorktreeID,
-		ResolvedWorktreeMode:         summary.ResolvedWorktreeMode,
+		ResolvedWorktreeMode:         contract.ResolvedWorktreeMode(summary.ResolvedWorktreeMode),
 		ResolvedWorktreeRef:          summary.ResolvedWorktreeRef,
 		ClaimedBy:                    cloneActorIdentity(summary.ClaimedBy),
 		ClaimTokenHash:               summary.ClaimTokenHash,

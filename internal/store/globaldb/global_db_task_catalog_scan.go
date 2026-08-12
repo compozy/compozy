@@ -228,6 +228,12 @@ func taskCatalogRunSummary(
 	if err != nil {
 		return nil, err
 	}
+	resolvedWorktreeMode := taskpkg.WorktreeMode(
+		strings.TrimSpace(fields.activeRunWorktreeMode.String),
+	).Normalize()
+	if resolvedWorktreeMode == "" {
+		resolvedWorktreeMode = taskpkg.WorktreeModeNone
+	}
 	run := &taskpkg.RunSummary{
 		ID:                           strings.TrimSpace(fields.activeRunID.String),
 		TaskID:                       strings.TrimSpace(taskID),
@@ -239,7 +245,7 @@ func taskCatalogRunSummary(
 		MaxAttempts:                  maxAttempts,
 		SessionID:                    strings.TrimSpace(fields.activeRunSessionID.String),
 		WorktreeID:                   strings.TrimSpace(fields.activeRunWorktreeID.String),
-		ResolvedWorktreeMode:         taskpkg.WorktreeMode(strings.TrimSpace(fields.activeRunWorktreeMode.String)),
+		ResolvedWorktreeMode:         resolvedWorktreeMode,
 		ResolvedWorktreeRef:          strings.TrimSpace(fields.activeRunWorktreeRef.String),
 		ResolvedNetworkParticipation: participation.CloneSpec(networkSpec),
 		Error:                        strings.TrimSpace(fields.activeRunError.String),
