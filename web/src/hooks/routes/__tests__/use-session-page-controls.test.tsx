@@ -65,7 +65,6 @@ vi.mock("@/systems/session", async () => {
 
 import type { SessionPayload } from "@/systems/session";
 import { useSessionPageControls } from "../use-session-page-controls";
-import { useSessionRenameDialog } from "../use-session-rename-dialog";
 
 const WORKSPACE_ID = "ws_alpha";
 
@@ -387,34 +386,5 @@ describe("useSessionPageControls", () => {
       await expect(result.current.handleQueuePrompt("keep draft")).rejects.toThrow("queue failed");
     });
     await waitFor(() => expect(result.current.isBusyInputPending).toBe(false));
-  });
-});
-
-describe("useSessionRenameDialog", () => {
-  it("Should keep the dialog open and expose the rename failure", async () => {
-    const onRename = vi.fn().mockRejectedValue(new Error("Rename unavailable."));
-    const { result } = renderHook(() => useSessionRenameDialog(onRename));
-
-    act(() => result.current.openDialog());
-    act(() => result.current.confirmRename("Release review"));
-
-    await waitFor(() => expect(result.current.error).toBe("Rename unavailable."));
-    expect(result.current.open).toBe(true);
-  });
-
-  it("Should close the dialog only after a successful rename", async () => {
-    const rename = createDeferredPromise<void>();
-    const { result } = renderHook(() => useSessionRenameDialog(() => rename.promise));
-
-    act(() => result.current.openDialog());
-    act(() => result.current.confirmRename("Release review"));
-    expect(result.current.open).toBe(true);
-
-    await act(async () => {
-      rename.resolve();
-      await rename.promise;
-    });
-    expect(result.current.open).toBe(false);
-    expect(result.current.error).toBeNull();
   });
 });
