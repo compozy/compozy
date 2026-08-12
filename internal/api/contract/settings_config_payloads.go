@@ -59,8 +59,10 @@ type SettingsPermissionsPayload struct {
 }
 
 type SettingsHTTPPayload struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
+	Host              string   `json:"host"`
+	Port              int      `json:"port"`
+	AllowRemoteAccess bool     `json:"allow_remote_access"`
+	AllowedIPs        []string `json:"allowed_ips"`
 }
 
 type SettingsDaemonPayload struct {

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
@@ -367,15 +368,24 @@ func requestBodyLimitMiddleware(maxBytes int64) gin.HandlerFunc {
 }
 
 func loopbackAPIGuard(boundHost string) gin.HandlerFunc {
-	return loopbackGuard(boundHost, errLoopbackAPIRequired, true)
+	return loopbackAPIGuardWithRemote(boundHost, false)
 }
 
-func loopbackMutationGuard(boundHost string) gin.HandlerFunc {
-	return loopbackGuard(boundHost, errLoopbackMutationRequired, false)
+func loopbackAPIGuardWithRemote(boundHost string, allowRemote bool) gin.HandlerFunc {
+	return loopbackGuardWithRemote(boundHost, errLoopbackAPIRequired, true, allowRemote)
 }
 
-func loopbackGuard(boundHost string, guardErr error, openAICompatible bool) gin.HandlerFunc {
-	allowed := isLoopbackHost(canonicalHost(boundHost))
+func loopbackMutationGuardWithRemote(boundHost string, allowRemote bool) gin.HandlerFunc {
+	return loopbackGuardWithRemote(boundHost, errLoopbackMutationRequired, false, allowRemote)
+}
+
+func loopbackGuardWithRemote(
+	boundHost string,
+	guardErr error,
+	openAICompatible bool,
+	allowRemote bool,
+) gin.HandlerFunc {
+	allowed := allowRemote || isLoopbackHost(canonicalHost(boundHost))
 	return func(c *gin.Context) {
 		if allowed {
 			c.Next()
@@ -388,6 +398,60 @@ func loopbackGuard(boundHost string, guardErr error, openAICompatible bool) gin.
 		}
 		c.Abort()
 	}
+}
+
+func parseAllowedRemoteIPs(values []string) []netip.Prefix {
+	allowed := make([]netip.Prefix, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if prefix, err := netip.ParsePrefix(trimmed); err == nil {
+			allowed = append(allowed, prefix.Masked())
+			continue
+		}
+		if address, err := netip.ParseAddr(trimmed); err == nil {
+			allowed = append(allowed, netip.PrefixFrom(address, address.BitLen()))
+		}
+	}
+	return allowed
+}
+
+func remoteNetworkAccessGuard(allowed []netip.Prefix) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if len(allowed) == 0 {
+			c.Next()
+			return
+		}
+		address, ok := remoteRequestAddress(c.Request)
+		if !ok || !remoteAddressAllowed(address, allowed) {
+			abortForbiddenRequest(c, errors.New("remote HTTP access is not allowed from this address"))
+			return
+		}
+		c.Next()
+	}
+}
+
+func remoteRequestAddress(request *http.Request) (netip.Addr, bool) {
+	if request == nil {
+		return netip.Addr{}, false
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(request.RemoteAddr))
+	if err != nil {
+		return netip.Addr{}, false
+	}
+	address, err := netip.ParseAddr(host)
+	return address, err == nil
+}
+
+func remoteAddressAllowed(address netip.Addr, allowed []netip.Prefix) bool {
+	for _, prefix := range allowed {
+		if prefix.Contains(address) {
+			return true
+		}
+	}
+	return false
 }
 
 func isOpenAICompatiblePath(c *gin.Context) bool {

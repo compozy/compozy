@@ -73,6 +73,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		homePaths:          s.homePaths,
 		config:             s.config,
 		boundHost:          s.host,
+		allowRemoteHTTP:    s.config.HTTP.AllowRemoteAccess,
 		logger:             s.logger,
 		startedAt:          s.startedAt,
 		now:                s.now,

@@ -125425,6 +125425,15 @@
                         },
                         "http": {
                           "properties": {
+                            "allow_remote_access": {
+                              "type": "boolean"
+                            },
+                            "allowed_ips": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
                             "host": {
                               "type": "string"
                             },
@@ -125433,6 +125442,8 @@
                             }
                           },
                           "required": [
+                            "allow_remote_access",
+                            "allowed_ips",
                             "host",
                             "port"
                           ],
@@ -125751,6 +125762,15 @@
                       },
                       "http": {
                         "properties": {
+                          "allow_remote_access": {
+                            "type": "boolean"
+                          },
+                          "allowed_ips": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
                           "host": {
                             "type": "string"
                           },
@@ -125759,6 +125779,8 @@
                           }
                         },
                         "required": [
+                          "allow_remote_access",
+                          "allowed_ips",
                           "host",
                           "port"
                         ],

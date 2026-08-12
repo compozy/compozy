@@ -2646,7 +2646,7 @@ func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.HTTP != want.HTTP || cfg.Defaults != want.Defaults || cfg.Limits != want.Limits ||
+	if !reflect.DeepEqual(cfg.HTTP, want.HTTP) || cfg.Defaults != want.Defaults || cfg.Limits != want.Limits ||
 		cfg.Permissions != want.Permissions {
 		t.Fatalf("Load() = %#v, want defaults %#v", cfg, want)
 	}

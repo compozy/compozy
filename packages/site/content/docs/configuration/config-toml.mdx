@@ -30,7 +30,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | ------------------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `[daemon]`                           | UDS socket, process-memory reports, and task-run escalation from subprocess health.  | `socket = "$COMPOZY_HOME/daemon.sock"`, memory reports every `5m`, escalation after `3` failed checks |
 | `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.         | providers `5s`, MCP `10s`, bridges `30s`                                                              |
-| `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                                   |
+| `[http]`                             | HTTP and SSE bind address, local-network access, and optional source allowlisting.   | `host = "localhost"`, `port = 2123`, `allow_remote_access = false`, `allowed_ips = []`                |
 | `[app]`                              | Desktop app update-check policy.                                                     | checks enabled every 6 hours                                                                          |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                     | `agent = "general"`, `provider = ""`, `sandbox = ""`                                                  |
@@ -880,10 +880,12 @@ Changing this field is restart-required.
 
 ## `[http]`
 
-| Field  | Type    | Default     | Valid values                    | Description           |
-| ------ | ------- | ----------- | ------------------------------- | --------------------- |
-| `host` | string  | `localhost` | Non-empty host or bind address. | HTTP/SSE server host. |
-| `port` | integer | `2123`      | `1` through `65535`             | HTTP/SSE server port. |
+| Field                 | Type    | Default     | Valid values                    | Description                                                                                                         |
+| --------------------- | ------- | ----------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `host`                | string  | `localhost` | Non-empty host or bind address. | HTTP/SSE server host.                                                                                               |
+| `port`                | integer | `2123`      | `1` through `65535`             | HTTP/SSE server port.                                                                                               |
+| `allow_remote_access` | boolean | `false`     | `true` or `false`               | Allows the HTTP/API surface on non-loopback binds; remote requests require device authentication; restart required. |
+| `allowed_ips`         | array   | `[]`        | IP addresses or CIDR prefixes   | Optional source allowlist for remote HTTP requests; an empty list allows any reachable source.                      |
 
 ## `[app]`
 

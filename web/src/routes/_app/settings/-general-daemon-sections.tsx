@@ -51,6 +51,68 @@ export function DaemonSection({ draft, setDraft }: DraftSectionProps) {
   );
 }
 
+export function HttpSection({ draft, setDraft }: DraftSectionProps) {
+  return (
+    <SettingsGroup
+      data-testid="settings-page-general-http"
+      description="Allow other devices on your local network to use this daemon."
+      title="Local network access"
+    >
+      <SettingRow
+        data-testid="settings-page-general-http-remote-access"
+        description="Binds HTTP to all network interfaces. Use only on a trusted local network."
+        label={
+          <>
+            Allow local network access <SettingsProvChip>restart required</SettingsProvChip>
+          </>
+        }
+        control={
+          <Switch
+            data-testid="settings-page-general-http-remote-access-switch"
+            checked={draft.http.allow_remote_access}
+            onCheckedChange={checked =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return {
+                  ...current,
+                  http: {
+                    ...current.http,
+                    host: checked ? "0.0.0.0" : "localhost",
+                    allow_remote_access: checked,
+                  },
+                };
+              })
+            }
+          />
+        }
+      />
+      <SettingRow
+        data-testid="settings-page-general-http-allowed-ips"
+        description="Optional comma-separated IP addresses or CIDR networks. Empty allows any reachable network address."
+        label="Allowed IPs or networks"
+        control={
+          <Input
+            className="w-64 font-mono"
+            data-testid="settings-page-general-http-allowed-ips-input"
+            onChange={event =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                const allowedIPs = event.target.value
+                  .split(",")
+                  .map(value => value.trim())
+                  .filter(Boolean);
+                return { ...current, http: { ...current.http, allowed_ips: allowedIPs } };
+              })
+            }
+            placeholder="192.168.1.0/24"
+            value={draft.http.allowed_ips.join(", ")}
+          />
+        }
+      />
+    </SettingsGroup>
+  );
+}
+
 export function RedactionSection({ draft, setDraft }: DraftSectionProps) {
   return (
     <SettingsGroup

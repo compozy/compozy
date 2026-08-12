@@ -48,7 +48,7 @@ const generalSectionFixture = {
   config: {
     daemon: { socket: "/tmp/compozy.sock" },
     defaults: { agent: "claude-code" },
-    http: { host: "127.0.0.1", port: 2123 },
+    http: { allow_remote_access: false, allowed_ips: [], host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 4 },
     permissions: { mode: "approve-reads" as const },
     session_timeout: "30m",
@@ -161,7 +161,7 @@ describe("section reads and updates", () => {
           socket: "/tmp/next.sock",
         },
         defaults: { agent: "claude-code" },
-        http: { host: "127.0.0.1", port: 2123 },
+        http: { allow_remote_access: false, allowed_ips: [], host: "127.0.0.1", port: 2123 },
         limits: { max_concurrent_agents: 4 },
         permissions: { mode: "approve-reads" as const },
         redact: { enabled: false },

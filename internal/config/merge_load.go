@@ -166,6 +166,12 @@ func (o httpOverlay) Apply(dst *HTTPConfig) {
 	if o.Port != nil {
 		dst.Port = *o.Port
 	}
+	if o.AllowRemoteAccess != nil {
+		dst.AllowRemoteAccess = *o.AllowRemoteAccess
+	}
+	if o.AllowedIPs != nil {
+		dst.AllowedIPs = append([]string(nil), o.AllowedIPs...)
+	}
 }
 
 func (o defaultsOverlay) Apply(dst *DefaultsConfig) {

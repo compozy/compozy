@@ -30,8 +30,10 @@ func (e FileError) Unwrap() error {
 }
 
 type httpOverlay struct {
-	Host *string `toml:"host"`
-	Port *int    `toml:"port"`
+	Host              *string  `toml:"host"`
+	Port              *int     `toml:"port"`
+	AllowRemoteAccess *bool    `toml:"allow_remote_access"`
+	AllowedIPs        []string `toml:"allowed_ips"`
 }
 
 type defaultsOverlay struct {

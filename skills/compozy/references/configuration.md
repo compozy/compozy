@@ -31,6 +31,13 @@ Read and write scalar keys with `compozy config show|list|get|set|unset|diff|pat
 
 ## Gateway
 
+The local HTTP listener is loopback-only by default. To use the web UI and API from another
+computer on a trusted local network, set `[http].host = "0.0.0.0"` and
+`[http].allow_remote_access = true`, optionally set `[http].allowed_ips = ["192.168.1.0/24"]`,
+then restart the daemon. Remote requests require an authenticated paired device; loopback
+requests keep the existing local behavior. Keep `allow_remote_access = false` unless the network
+is trusted; the setting controls access to the full local operator surface.
+
 `[gateway]` is the operator-global ceiling and tuning section for remote access. It defaults to
 `enabled = false` with OS-assigned private and public ports (`0`), pairing TTL `5m` and pending cap
 `8`, stream-ticket TTL `30s`, auth failure window `60s` with cap `10`, verification timeout `10s`,

@@ -21,6 +21,8 @@ http://localhost:2123
 
 If you changed `[http].host` or `[http].port` in `~/.compozy/config.toml`, use that address instead.
 
+To open the UI from another computer on the same trusted local network, enable **Local network access** in Settings, optionally enter allowed IPs or CIDR networks, save, and restart the daemon. The remote browser must pair as an authenticated device before it can use the operator API. This binds HTTP to all network interfaces; do not enable it on an untrusted network.
+
 ## 2. Find the session you created in Quick Start
 
 Open the session you already created from the CLI. The browser should show the same durable session

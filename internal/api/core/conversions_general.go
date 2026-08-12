@@ -20,8 +20,10 @@ func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.Se
 		},
 		SessionTimeout: value.SessionTimeout.String(),
 		HTTP: contract.SettingsHTTPPayload{
-			Host: strings.TrimSpace(value.HTTP.Host),
-			Port: value.HTTP.Port,
+			Host:              strings.TrimSpace(value.HTTP.Host),
+			Port:              value.HTTP.Port,
+			AllowRemoteAccess: value.HTTP.AllowRemoteAccess,
+			AllowedIPs:        append([]string(nil), value.HTTP.AllowedIPs...),
 		},
 		Daemon: settingsDaemonPayload(value.Daemon),
 		Redact: contract.SettingsRedactPayload{Enabled: value.Redact.Enabled},

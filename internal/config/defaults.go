@@ -13,7 +13,7 @@ const DefaultMCPClientMetadataURL = "https://compozy.com/.well-known/mcp-client.
 func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
 		Daemon:        defaultDaemonConfig(homePaths),
-		HTTP:          HTTPConfig{Host: "localhost", Port: 2123},
+		HTTP:          HTTPConfig{Host: "localhost", Port: 2123, AllowRemoteAccess: false},
 		App:           defaultAppConfig(),
 		WindowManager: DefaultWindowManagerConfig(),
 		Defaults: DefaultsConfig{

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"io/fs"
 	"log/slog"
+	"net/netip"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
@@ -90,6 +91,7 @@ type handlerConfig struct {
 	homePaths          compozyconfig.HomePaths
 	config             compozyconfig.Config
 	boundHost          string
+	allowRemoteHTTP    bool
 	logger             *slog.Logger
 	startedAt          time.Time
 	now                func() time.Time
@@ -107,6 +109,8 @@ type Handlers struct {
 	resourceAuth     []gin.HandlerFunc
 	Extensions       ExtensionService
 	boundHost        string
+	allowRemoteHTTP  bool
+	allowedRemoteIPs []netip.Prefix
 	deviceAuth       gateway.DeviceAuthenticator
 	gatewayAdmission gateway.AdmissionController
 	authLimiter      *gateway.AuthFailureLimiter
@@ -163,6 +167,8 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		resourceAuth:     append([]gin.HandlerFunc(nil), cfg.resourceAuth...),
 		Extensions:       cfg.extensions,
 		boundHost:        boundHost,
+		allowRemoteHTTP:  cfg.allowRemoteHTTP,
+		allowedRemoteIPs: parseAllowedRemoteIPs(cfg.config.HTTP.AllowedIPs),
 		deviceAuth:       cfg.deviceAuth,
 		gatewayAdmission: gatewayAdmission,
 		authLimiter:      authLimiter,
@@ -290,5 +296,9 @@ func (h *Handlers) privilegedMutationGuard() gin.HandlerFunc {
 	if h != nil {
 		boundHost = h.boundHost
 	}
-	return loopbackMutationGuard(boundHost)
+	allowRemote := false
+	if h != nil {
+		allowRemote = h.allowRemoteHTTP
+	}
+	return loopbackMutationGuardWithRemote(boundHost, allowRemote)
 }

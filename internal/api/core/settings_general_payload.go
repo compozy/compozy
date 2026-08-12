@@ -56,9 +56,14 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 		Limits:         compozyconfig.LimitsConfig{MaxConcurrentAgents: payload.Limits.MaxConcurrentAgents},
 		Permissions:    compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionMode(payload.Permissions.Mode)},
 		SessionTimeout: sessionTimeout,
-		HTTP:           compozyconfig.HTTPConfig{Host: strings.TrimSpace(payload.HTTP.Host), Port: payload.HTTP.Port},
-		Daemon:         daemonConfig,
-		Redact:         compozyconfig.RedactConfig{Enabled: payload.Redact.Enabled},
+		HTTP: compozyconfig.HTTPConfig{
+			Host:              strings.TrimSpace(payload.HTTP.Host),
+			Port:              payload.HTTP.Port,
+			AllowRemoteAccess: payload.HTTP.AllowRemoteAccess,
+			AllowedIPs:        append([]string(nil), payload.HTTP.AllowedIPs...),
+		},
+		Daemon: daemonConfig,
+		Redact: compozyconfig.RedactConfig{Enabled: payload.Redact.Enabled},
 	}
 
 	if err := value.Defaults.Validate(); err != nil {

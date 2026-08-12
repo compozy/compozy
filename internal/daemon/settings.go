@@ -312,7 +312,7 @@ func (s *settingsRuntimeSurface) InstalledExtensions(
 func (s *settingsRuntimeSurface) TransportParityStatus(
 	context.Context,
 ) (settingspkg.TransportParityStatus, error) {
-	httpMutationsAllowed := settingsHTTPMutationsAllowed(s.config.HTTP.Host)
+	httpMutationsAllowed := settingsHTTPMutationsAllowed(s.config.HTTP.Host, s.config.HTTP.AllowRemoteAccess)
 	return settingspkg.TransportParityStatus{
 		Known:          true,
 		SettingsHTTP:   httpMutationsAllowed,
@@ -322,7 +322,10 @@ func (s *settingsRuntimeSurface) TransportParityStatus(
 	}, nil
 }
 
-func settingsHTTPMutationsAllowed(host string) bool {
+func settingsHTTPMutationsAllowed(host string, allowRemote bool) bool {
+	if allowRemote {
+		return true
+	}
 	normalized := strings.Trim(strings.TrimSpace(host), "[]")
 	if strings.EqualFold(normalized, "localhost") {
 		return true

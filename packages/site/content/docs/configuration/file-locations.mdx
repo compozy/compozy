@@ -246,12 +246,12 @@ config file.
 
 ## Path Overrides
 
-| Setting                         | Affects                  | Notes                                                                                            |
-| ------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------ |
-| `COMPOZY_HOME`                  | All global home paths.   | Resolved before global config is loaded. Workspace `.env` can set it for workspace config loads. |
-| `[daemon].socket`               | Daemon socket path.      | `~` is expanded. Daemon boot resolves the final socket path to an absolute path.                 |
-| `[memory].global_dir`           | Global memory directory. | `~` is expanded. Empty overlay values are ignored and keep the previous directory.               |
-| `[http].host` and `[http].port` | HTTP/SSE bind address.   | These are not file paths but affect browser/API endpoint locations.                              |
+| Setting                                                        | Affects                           | Notes                                                                                            |
+| -------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `COMPOZY_HOME`                                                 | All global home paths.            | Resolved before global config is loaded. Workspace `.env` can set it for workspace config loads. |
+| `[daemon].socket`                                              | Daemon socket path.               | `~` is expanded. Daemon boot resolves the final socket path to an absolute path.                 |
+| `[memory].global_dir`                                          | Global memory directory.          | `~` is expanded. Empty overlay values are ignored and keep the previous directory.               |
+| `[http].host`, `[http].port`, and `[http].allow_remote_access` | HTTP/SSE bind and network access. | These are not file paths but affect browser/API endpoint locations and exposure.                 |
 
 ## Special Cases
 

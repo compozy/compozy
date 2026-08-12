@@ -36,7 +36,7 @@ import {
   Spinner,
 } from "@compozy/ui";
 
-import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
+import { DaemonSection, HttpSection, RedactionSection } from "./-general-daemon-sections";
 import { GeneralUpdateSection } from "./-general-update-section";
 
 const PERMISSION_OPTIONS = [
@@ -216,6 +216,7 @@ export function GeneralSettingsPage() {
         />
       </SettingsGroup>
 
+      <HttpSection draft={draft} setDraft={setDraft} />
       <DaemonSection draft={draft} setDraft={setDraft} />
       <RedactionSection draft={draft} setDraft={setDraft} />
 

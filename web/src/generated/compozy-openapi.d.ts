@@ -51759,6 +51759,8 @@ export interface operations {
                 sandbox?: string;
               };
               http: {
+                allow_remote_access: boolean;
+                allowed_ips: string[];
                 host: string;
                 port: number;
               };
@@ -51871,6 +51873,8 @@ export interface operations {
               sandbox?: string;
             };
             http: {
+              allow_remote_access: boolean;
+              allowed_ips: string[];
               host: string;
               port: number;
             };

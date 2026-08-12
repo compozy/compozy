@@ -1,6 +1,10 @@
 package settings
 
-import compozyconfig "github.com/compozy/compozy/internal/config"
+import (
+	"slices"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
+)
 
 const (
 	sectionsDaemonKey         = "daemon"
@@ -32,6 +36,12 @@ func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []s
 	}
 	if cfg.HTTP.Port != desired.HTTP.Port {
 		changed = append(changed, "http.port")
+	}
+	if cfg.HTTP.AllowRemoteAccess != desired.HTTP.AllowRemoteAccess {
+		changed = append(changed, "http.allow_remote_access")
+	}
+	if !slices.Equal(cfg.HTTP.AllowedIPs, desired.HTTP.AllowedIPs) {
+		changed = append(changed, "http.allowed_ips")
 	}
 	if cfg.Daemon.Socket != desired.Daemon.Socket {
 		changed = append(changed, "daemon.socket")
@@ -67,6 +77,8 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 		{path: []string{"permissions", sectionsModeKey}, value: string(settings.Permissions.Mode)},
 		{path: []string{sectionsHTTPKey, "host"}, value: settings.HTTP.Host},
 		{path: []string{sectionsHTTPKey, "port"}, value: settings.HTTP.Port},
+		{path: []string{sectionsHTTPKey, "allow_remote_access"}, value: settings.HTTP.AllowRemoteAccess},
+		{path: []string{sectionsHTTPKey, "allowed_ips"}, value: settings.HTTP.AllowedIPs},
 		{path: []string{sectionsDaemonKey, "socket"}, value: settings.Daemon.Socket},
 		{
 			path:  []string{sectionsDaemonKey, "memory_report_interval"},
