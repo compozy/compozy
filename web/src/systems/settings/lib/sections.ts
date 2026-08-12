@@ -20,8 +20,6 @@ import type {
   SettingsSectionSlug,
 } from "../types";
 
-export const SETTINGS_ROOT_PATH = "/settings" as const;
-
 /**
  * Daemon sections + browser Appearance, grouped so the nav reads as a mental
  * model (design system §03): Workspace = "how my work is set up", Runtime =
@@ -136,10 +134,6 @@ export const SETTINGS_SECTION_SLUGS: readonly SettingsSectionSlug[] = SETTINGS_S
   section => section.slug
 );
 
-export function settingsSectionPath(slug: SettingsSectionSlug): string {
-  return `${SETTINGS_ROOT_PATH}/${slug}`;
-}
-
 export function findSettingsSection(
   slug: string | undefined | null
 ): SettingsSectionDescriptor | undefined {
@@ -149,6 +143,8 @@ export function findSettingsSection(
 
   return SETTINGS_SECTIONS.find(section => section.slug === slug);
 }
+
+export { SETTINGS_ROOT_PATH, settingsSectionPath } from "./section-paths";
 
 export function filterSettingsSections(query: string): readonly SettingsSectionDescriptor[] {
   const normalized = query.trim().toLowerCase();

@@ -2,10 +2,9 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { cn } from "@compozy/ui";
 
-import type { WindowManagerConfig } from "@/systems/os";
-
 import { dragValueAria, useDragValue } from "../../hooks/use-drag-value";
 import { WINDOW_MANAGER_RANGES } from "../../lib/window-manager-snap-geometry";
+import type { WindowManagerConfig } from "@/systems/os";
 
 type GapKey = keyof WindowManagerConfig["gaps"];
 

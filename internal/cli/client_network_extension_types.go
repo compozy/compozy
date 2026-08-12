@@ -116,6 +116,9 @@ type ReloadExtensionRequest = contract.ReloadExtensionRequest
 // ExtensionLogRecord is one redacted extension stderr record.
 type ExtensionLogRecord = contract.ExtensionLogPayload
 
+// ExtensionLogsRecord is one cursor-addressable snapshot of an extension log ring.
+type ExtensionLogsRecord = contract.ExtensionLogsResponse
+
 // ExtensionProvenanceRecord is one installed extension provenance payload.
 type ExtensionProvenanceRecord = contract.ExtensionProvenancePayload
 

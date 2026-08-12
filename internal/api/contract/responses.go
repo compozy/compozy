@@ -341,7 +341,8 @@ type ExtensionResponse struct {
 
 // ExtensionLogsResponse wraps a bounded snapshot of redacted extension logs.
 type ExtensionLogsResponse struct {
-	Logs []ExtensionLogPayload `json:"logs"`
+	Logs        []ExtensionLogPayload `json:"logs"`
+	StreamEpoch string                `json:"stream_epoch"`
 }
 
 // ExtensionCommandsResponse wraps the storage-free contributed-command projection.

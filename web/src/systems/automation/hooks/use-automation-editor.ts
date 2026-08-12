@@ -2,8 +2,6 @@ import { useEffect, useEffectEvent, useLayoutEffect, useState } from "react";
 import { useSelector } from "@xstate/store-react";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
-import { useAgents } from "@/systems/agent";
-
 import { AutomationApiError } from "../adapters/automation-api";
 import {
   automationJobUpdateFromDraft,
@@ -34,6 +32,7 @@ import {
   type WorkspaceEditorFailure,
   type WorkspaceEditorValue,
 } from "./automation-editor-store";
+import { useAgents } from "@/systems/agent";
 
 type JobEditorState =
   | { draft: CreateAutomationJobRequest; mode: "create" }

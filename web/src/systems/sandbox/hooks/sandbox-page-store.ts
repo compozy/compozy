@@ -1,7 +1,7 @@
 import { createStoreLogic } from "@xstate/store";
 
-import type { SettingsMutationResult, SettingsSandboxEntry } from "@/systems/settings";
 import type { SandboxDraft } from "../lib/sandbox-profile-draft";
+import type { SettingsMutationResult, SettingsSandboxEntry } from "@/systems/settings";
 
 export type { SandboxDraft } from "../lib/sandbox-profile-draft";
 

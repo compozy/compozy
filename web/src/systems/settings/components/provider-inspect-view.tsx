@@ -2,16 +2,15 @@ import { RefreshCw } from "lucide-react";
 
 import { Button, Eyebrow, Pill, type PillTone, Spinner, Time } from "@compozy/ui";
 
-import {
-  modelRefreshStateTone,
-  useProviderModelStatus,
-  useRefreshProviderModels,
-  type ProviderModelSourceStatus,
-} from "@/systems/model-catalog";
-
 import type { SettingsProviderEntry } from "../types";
 import { ProviderLoginDescriptorView } from "./provider-login-descriptor";
 import { SettingsSourceBadge } from "./settings-source-badge";
+import {
+  modelRefreshStateTone,
+  type ProviderModelSourceStatus,
+  useProviderModelStatus,
+  useRefreshProviderModels,
+} from "@/systems/model-catalog";
 
 interface ProviderInspectViewProps {
   provider: SettingsProviderEntry;

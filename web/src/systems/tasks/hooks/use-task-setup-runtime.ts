@@ -1,11 +1,11 @@
 import {
   providerNeedsAuth,
-  useRuntimeModelCatalog,
   type RuntimeCatalogProvider,
+  useRuntimeModelCatalog,
 } from "@/systems/model-catalog";
 import type { RuntimeProviderOption } from "@/systems/runtime";
-import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/settings";
-import { useWorkspace, type SessionProviderOption } from "@/systems/workspace";
+import { type SettingsProviderEntry, useSettingsProviders } from "@/systems/settings";
+import { type SessionProviderOption, useWorkspace } from "@/systems/workspace";
 
 function settingsProviderOption(provider: SettingsProviderEntry): RuntimeProviderOption {
   return {
@@ -27,9 +27,15 @@ function workspaceProviderOption(provider: SessionProviderOption): RuntimeProvid
 }
 
 /** Runtime-selector data scoped to the task's workspace. */
-export function useTaskSetupRuntime(workspaceId?: string | null) {
-  const workspace = useWorkspace(workspaceId ?? "", { enabled: Boolean(workspaceId) });
-  const settings = useSettingsProviders();
+export function useTaskSetupRuntime(
+  workspaceId?: string | null,
+  options: { enabled?: boolean } = {}
+) {
+  const enabled = options.enabled ?? true;
+  const workspace = useWorkspace(workspaceId ?? "", {
+    enabled: enabled && Boolean(workspaceId),
+  });
+  const settings = useSettingsProviders({ enabled: enabled && !workspaceId });
   const providers = workspaceId
     ? (workspace.data?.providers ?? []).map(workspaceProviderOption)
     : (settings.data?.providers ?? []).map(settingsProviderOption);
@@ -37,7 +43,9 @@ export function useTaskSetupRuntime(workspaceId?: string | null) {
     id: provider.id,
     needsAuth: provider.needs_auth,
   }));
-  const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: providers.length > 0 });
+  const catalog = useRuntimeModelCatalog(catalogProviders, {
+    enabled: enabled && providers.length > 0,
+  });
 
   return {
     catalogError: catalog.error,

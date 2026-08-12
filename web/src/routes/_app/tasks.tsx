@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { createOsRouteSync } from "@/systems/os";
-import { validateTasksSearch, type TasksRouteSearch } from "@/systems/tasks";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadTasksRoute } from "./-tasks-preload";
+import { createOsRouteSync } from "@/systems/os";
+import { type TasksRouteSearch, validateTasksSearch } from "@/systems/tasks";
 
 export type TasksSurfaceMode = "list" | "kanban" | "dashboard" | "inbox";
 export type { TasksRouteSearch };
@@ -14,6 +13,7 @@ export const Route = createFileRoute("/_app/tasks")({
   }),
   validateSearch: validateTasksSearch,
   loaderDeps: ({ search }) => search,
-  loader: ({ context, deps }) => preloadTasksRoute(context.queryClient, deps),
+  loader: async ({ context, deps }) =>
+    (await import("./-tasks-preload")).preloadTasksRoute(context.queryClient, deps),
   component: createOsRouteSync("tasks"),
 });

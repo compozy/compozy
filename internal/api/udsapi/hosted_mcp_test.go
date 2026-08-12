@@ -11,9 +11,13 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
@@ -40,6 +44,66 @@ func TestHostedMCPStreamErrorData(t *testing.T) {
 			payload.Status != http.StatusForbidden ||
 			payload.Message != http.StatusText(http.StatusForbidden) {
 			t.Fatalf("hosted MCP stream error payload = %#v, want stable forbidden error", payload)
+		}
+	})
+}
+
+func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reuse one registry projection across stable stream polls", func(t *testing.T) {
+		t.Parallel()
+
+		registry, err := toolspkg.NewRegistry()
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		countingRegistry := &countingHostedMCPRegistry{Registry: registry}
+		done := make(chan struct{})
+		var projectionSamples atomic.Int32
+		var closeDone sync.Once
+		generation := func(context.Context, toolspkg.Scope) (string, bool) {
+			if projectionSamples.Add(1) >= 5 {
+				closeDone.Do(func() { close(done) })
+			}
+			return "stable", true
+		}
+		router, service, peer := newHostedMCPRouteTestHarnessWithConfig(t, mcppkg.HostedConfig{
+			Registry: func() toolspkg.Registry {
+				return countingRegistry
+			},
+			ProjectionGeneration: generation,
+		}, &core.BaseHandlerConfig{
+			PollInterval: time.Millisecond,
+			StreamDone:   done,
+		})
+		bind := launchAndBindHostedMCP(t, service, peer, "sess-stream-cache")
+
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/api/internal/hosted-mcp/projection/stream?bind_id="+bind.BindID,
+			http.NoBody,
+		)
+		request = request.WithContext(mcppkg.ContextWithPeerInfo(request.Context(), peer, nil))
+		router.ServeHTTP(recorder, request)
+
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if got, want := recorder.Header().Get("Content-Type"), "text/event-stream"; got != want {
+			t.Fatalf("Content-Type = %q, want %q", got, want)
+		}
+		if got := projectionSamples.Load(); got < 5 {
+			t.Fatalf("projection generation samples = %d, want at least 5", got)
+		}
+		if got, want := countingRegistry.listCalls.Load(), int32(1); got != want {
+			t.Fatalf("registry List() calls = %d, want %d", got, want)
+		}
+		records := parseSSE(t, recorder.Body.String())
+		if len(records) != 1 || records[0].Event != "projection" {
+			t.Fatalf("stream records = %#v, want one projection event", records)
 		}
 	})
 }
@@ -211,23 +275,36 @@ func newHostedMCPRouteTestHarnessWithRegistry(
 ) (*gin.Engine, *mcppkg.HostedService, mcppkg.PeerInfo) {
 	t.Helper()
 
+	return newHostedMCPRouteTestHarnessWithConfig(t, mcppkg.HostedConfig{
+		Registry: func() toolspkg.Registry {
+			return registry
+		},
+	}, nil)
+}
+
+func newHostedMCPRouteTestHarnessWithConfig(
+	t *testing.T,
+	config mcppkg.HostedConfig,
+	baseConfig *core.BaseHandlerConfig,
+) (*gin.Engine, *mcppkg.HostedService, mcppkg.PeerInfo) {
+	t.Helper()
+
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatalf("Executable() error = %v", err)
 	}
-	service, err := mcppkg.NewHostedService(mcppkg.HostedConfig{
-		Enabled:        true,
-		ExpectedBinary: executable,
-		Registry: func() toolspkg.Registry {
-			return registry
-		},
-	})
+	config.Enabled = true
+	config.ExpectedBinary = executable
+	service, err := mcppkg.NewHostedService(config)
 	if err != nil {
 		t.Fatalf("NewHostedService() error = %v", err)
 	}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	registerHostedMCPRoutes(router.Group("/api"), &Handlers{HostedMCP: service})
+	registerHostedMCPRoutes(router.Group("/api"), &Handlers{
+		BaseHandlers: core.NewBaseHandlers(baseConfig),
+		HostedMCP:    service,
+	})
 	peer := mcppkg.PeerInfo{
 		PID:            os.Getpid(),
 		UID:            os.Getuid(),
@@ -236,6 +313,19 @@ func newHostedMCPRouteTestHarnessWithRegistry(
 		Supported:      true,
 	}
 	return router, service, peer
+}
+
+type countingHostedMCPRegistry struct {
+	toolspkg.Registry
+	listCalls atomic.Int32
+}
+
+func (r *countingHostedMCPRegistry) List(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) ([]toolspkg.ToolView, error) {
+	r.listCalls.Add(1)
+	return r.Registry.List(ctx, scope)
 }
 
 func launchAndBindHostedMCP(

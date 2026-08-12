@@ -133,8 +133,10 @@ type extensionManifestTool struct {
 }
 
 type extensionToolProviderCache struct {
-	fingerprint string
-	tools       []extensionManifestTool
+	fingerprint        string
+	runtimeFingerprint string
+	generation         uint64
+	tools              []extensionManifestTool
 }
 
 type extensionToolHandle struct {
@@ -378,10 +380,11 @@ func (p *ExtensionToolProvider) cachedManifestTools(fingerprint string) ([]exten
 func (p *ExtensionToolProvider) storeManifestTools(fingerprint string, tools []extensionManifestTool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.cache = extensionToolProviderCache{
-		fingerprint: fingerprint,
-		tools:       cloneExtensionManifestTools(tools),
+	if p.cache.fingerprint != fingerprint {
+		p.cache.generation++
 	}
+	p.cache.fingerprint = fingerprint
+	p.cache.tools = cloneExtensionManifestTools(tools)
 }
 
 func extensionToolManifestFingerprint(workspaceID string, infos []ExtensionInfo) (string, error) {

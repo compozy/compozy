@@ -1,14 +1,14 @@
+import type { OsWindowRoute } from "../../lib/os-types";
 import {
   parseTasksSurfaceMode,
-  validateTaskCreateSearch,
-  validateTaskDetailSearch,
-  validateTasksSearch,
   type ResolvedTaskDetailSearch,
   type TaskCreateSearch,
   type TasksRouteSearch,
   type TaskViewMode,
+  validateTaskCreateSearch,
+  validateTaskDetailSearch,
+  validateTasksSearch,
 } from "@/systems/tasks";
-import type { OsWindowRoute } from "../../lib/os-types";
 
 /**
  * `create` and `edit` are dialog locations: they render the catalog or the task

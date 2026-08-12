@@ -4,13 +4,6 @@ import { useSelector } from "@xstate/store-react";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
-  SettingsApiError,
-  useRolesStatus,
-  useSettingsRoles,
-  useUpdateSettingsRoles,
-} from "@/systems/settings";
-
-import {
   addFallbackEntry,
   applyRoleFieldEdit,
   applyRoleRuntimeEdit,
@@ -31,6 +24,12 @@ import { useRolesDisclosure, type RolesDisclosure } from "./use-roles-disclosure
 import { useRolesRuntimeOptions, type RolesRuntimeOptions } from "./use-roles-runtime-options";
 import { useSettingsPage } from "./use-settings-page";
 import { settingsRolesDraftLogic, shouldAdoptRolesBaseline } from "./settings-roles-draft-logic";
+import {
+  SettingsApiError,
+  useRolesStatus,
+  useSettingsRoles,
+  useUpdateSettingsRoles,
+} from "@/systems/settings";
 
 type NumberErrors = Record<string, string | null>;
 

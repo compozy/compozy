@@ -267,7 +267,7 @@ func TestLoadRejectsInvalidAutomationPolicies(t *testing.T) {
 		wantErr  string
 	}{
 		{
-			name: "non-positive suggestion pending cap",
+			name: "Should reject a non-positive suggestion pending cap",
 			contents: `
 [automation.suggestions]
 pending_cap = 0
@@ -275,7 +275,7 @@ pending_cap = 0
 			wantErr: "automation.suggestions.pending_cap must be positive",
 		},
 		{
-			name: "unsupported schedule mode",
+			name: "Should reject an unsupported schedule mode",
 			contents: `
 [[automation.jobs]]
 scope = "global"
@@ -287,7 +287,7 @@ prompt = "Check system health"
 			wantErr: "schedule.mode",
 		},
 		{
-			name: "malformed retry settings",
+			name: "Should reject malformed retry settings",
 			contents: `
 [[automation.jobs]]
 scope = "global"
@@ -300,7 +300,7 @@ retry = { strategy = "backoff", max_retries = 0, base_delay = "2s" }
 			wantErr: "retry.max_retries",
 		},
 		{
-			name: "malformed fire limit window",
+			name: "Should reject a malformed fire limit window",
 			contents: `
 [[automation.triggers]]
 scope = "global"
@@ -311,6 +311,18 @@ prompt = "Summarize {{ .Kind }}"
 fire_limit = { max = 2, window = "later" }
 `,
 			wantErr: "fire_limit.window",
+		},
+		{
+			name: "Should reject a trigger event without an activation producer",
+			contents: `
+[[automation.triggers]]
+scope = "global"
+name = "loop-terminal"
+event = "loop.terminal"
+agent = "reviewer"
+prompt = "Review {{ .Kind }}"
+`,
+			wantErr: "no activation producer",
 		},
 	}
 

@@ -21,7 +21,7 @@ vi.mock("sonner", () => ({
   toast: { error: mocks.toastError, success: mocks.toastSuccess },
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
 }));
 

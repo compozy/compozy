@@ -2,17 +2,18 @@ import { fireEvent, screen } from "@testing-library/react";
 import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  VaultDeleteState,
-  VaultDraft,
-  VaultEditorState,
-  VaultLastAction,
-  VaultNamespaceFilter,
-} from "@/systems/vault/hooks/use-vault-page";
-import type { VaultListFilter, VaultSecret } from "@/systems/vault";
-import type { ListingViewMode } from "@compozy/ui";
+import {
+  type VaultListFilter,
+  VaultPage,
+  type VaultSecret,
+  type VaultDeleteState,
+  type VaultDraft,
+  type VaultEditorState,
+  type VaultLastAction,
+  type VaultNamespaceFilter,
+} from "@/systems/vault";
 
-import { VaultPage } from "@/systems/vault";
+import type { ListingViewMode } from "@compozy/ui";
 
 type PageState = {
   counts: { total: number; sessions: number; providers: number };

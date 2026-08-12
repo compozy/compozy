@@ -42,6 +42,11 @@ SET output_ref = json_set(
 )
 WHERE json_valid(lgo.output_ref)
   AND json_extract(lgo.output_ref, '$.kind') = 'watch_events_pending'
-  AND json_type(lgo.output_ref, '$.cursors.loop_run_events') IS NOT NULL;
+  AND json_type(lgo.output_ref, '$.cursors.loop_run_events') IS NOT NULL
+  AND EXISTS (
+    SELECT 1
+    FROM loop_runs parked
+    WHERE parked.id = lgo.loop_run_id
+  );
 -- enable back the enforcement of foreign-keys constraints
 PRAGMA foreign_keys = on;

@@ -1,4 +1,4 @@
-import { resolveAppForPath } from "./app-registry";
+import { resolveAppDescriptorForPath as resolveAppForPath } from "./app-catalog";
 import type {
   OsDesktopRuntimeStore,
   OsOpenTarget,

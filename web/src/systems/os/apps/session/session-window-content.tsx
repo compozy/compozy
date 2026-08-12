@@ -1,16 +1,35 @@
-import { SessionThread } from "@/components/assistant-ui/session-thread";
+import { lazy, Suspense } from "react";
+
+import { loadSessionThread } from "./session-window-module-loader";
+import { useSessionWindowController } from "./use-session-window-controller";
 import {
-  SessionInspector,
-  SessionDeleteDialog,
+  type SessionPayload,
   SessionPromptRuntimeSelector,
-  SessionRenameDialog,
   SessionResumeFailure,
   SessionSidebar,
-  type SessionPayload,
 } from "@/systems/session";
 
-import { SessionClearDialog } from "./session-window-dialogs";
-import { useSessionWindowController } from "./use-session-window-controller";
+const SessionThread = lazy(() =>
+  loadSessionThread().then(module => ({ default: module.SessionThread }))
+);
+const SessionClearDialog = lazy(() =>
+  import("./session-window-dialogs").then(module => ({ default: module.SessionClearDialog }))
+);
+const SessionDeleteDialog = lazy(() =>
+  import("@/systems/session/components/session-delete-dialog").then(module => ({
+    default: module.SessionDeleteDialog,
+  }))
+);
+const SessionRenameDialog = lazy(() =>
+  import("@/systems/session/components/session-rename-dialog").then(module => ({
+    default: module.SessionRenameDialog,
+  }))
+);
+const SessionInspector = lazy(() =>
+  import("@/systems/session/components/session-inspector").then(module => ({
+    default: module.SessionInspector,
+  }))
+);
 
 function workingStartedAt(value: string | null | undefined): number | undefined {
   if (!value) return undefined;
@@ -25,6 +44,7 @@ export function SessionWindowContent({
   session,
   workspaceId,
   onDeleteSuccess,
+  liveDataEnabled,
 }: {
   windowId: string;
   agentName: string;
@@ -32,6 +52,7 @@ export function SessionWindowContent({
   session: SessionPayload;
   workspaceId: string;
   onDeleteSuccess: () => void;
+  liveDataEnabled: boolean;
 }) {
   const page = useSessionWindowController({
     windowId,
@@ -39,6 +60,7 @@ export function SessionWindowContent({
     workspaceId,
     session,
     onDeleteSuccess,
+    liveDataEnabled,
   });
   const {
     controls,
@@ -83,6 +105,7 @@ export function SessionWindowContent({
           />
         ) : null}
         <SessionThread
+          liveDataEnabled={liveDataEnabled}
           sessionId={sessionId}
           workspaceId={workspaceId}
           agentName={agentName}
@@ -114,61 +137,79 @@ export function SessionWindowContent({
         />
       </div>
       {inspector.open ? (
-        <SessionInspector
-          messages={controls.messages}
-          sessionId={sessionId}
-          usage={inspectorUsage}
-          memory={inspectorMemory}
-          vaultSecrets={sessionVault.data ?? []}
-          vaultIsLoading={sessionVault.isLoading}
-          vaultError={sessionVault.error}
-          drawerOpen
-          onDrawerOpenChange={open => {
-            if (!open) {
-              inspector.close();
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <SessionInspector
+            messages={controls.messages}
+            sessionId={sessionId}
+            usage={inspectorUsage}
+            memory={inspectorMemory}
+            vaultSecrets={sessionVault.data ?? []}
+            vaultIsLoading={sessionVault.isLoading}
+            vaultError={sessionVault.error}
+            drawerOpen
+            onDrawerOpenChange={open => {
+              if (!open) {
+                inspector.close();
+              }
+            }}
+          />
+        </Suspense>
       ) : null}
-      <SessionDeleteDialog
-        open={deleteDialog.open}
-        onOpenChange={deleteDialog.setOpen}
-        session={session}
-        isDeleting={controls.isDeleting}
-        onConfirm={deleteDialog.confirmDelete}
-      />
-      <SessionRenameDialog
-        open={renameDialog.open}
-        onOpenChange={renameDialog.setOpen}
-        session={session}
-        isRenaming={controls.isRenaming}
-        requestError={renameDialog.error}
-        onConfirm={renameDialog.confirmRename}
-      />
-      {sidebar.rowDeleteDialog.session ? (
-        <SessionDeleteDialog
-          open={sidebar.rowDeleteDialog.open}
-          onOpenChange={sidebar.rowDeleteDialog.onOpenChange}
-          session={sidebar.rowDeleteDialog.session}
-          isDeleting={sidebar.rowDeleteDialog.isDeleting}
-          onConfirm={sidebar.rowDeleteDialog.onConfirm}
-        />
+      {deleteDialog.open ? (
+        <Suspense fallback={null}>
+          <SessionDeleteDialog
+            open
+            onOpenChange={deleteDialog.setOpen}
+            session={session}
+            isDeleting={controls.isDeleting}
+            onConfirm={deleteDialog.confirmDelete}
+          />
+        </Suspense>
       ) : null}
-      {sidebar.rowRenameDialog.session ? (
-        <SessionRenameDialog
-          open={sidebar.rowRenameDialog.open}
-          onOpenChange={sidebar.rowRenameDialog.onOpenChange}
-          session={sidebar.rowRenameDialog.session}
-          isRenaming={sidebar.rowRenameDialog.isRenaming}
-          onConfirm={sidebar.rowRenameDialog.onConfirm}
-        />
+      {renameDialog.open ? (
+        <Suspense fallback={null}>
+          <SessionRenameDialog
+            open
+            onOpenChange={renameDialog.setOpen}
+            session={session}
+            isRenaming={controls.isRenaming}
+            requestError={renameDialog.error}
+            onConfirm={renameDialog.confirmRename}
+          />
+        </Suspense>
       ) : null}
-      <SessionClearDialog
-        open={clearDialog.open}
-        onOpenChange={clearDialog.setOpen}
-        isClearing={controls.isClearing}
-        onConfirm={clearDialog.confirmClear}
-      />
+      {sidebar.rowDeleteDialog.open && sidebar.rowDeleteDialog.session ? (
+        <Suspense fallback={null}>
+          <SessionDeleteDialog
+            open
+            onOpenChange={sidebar.rowDeleteDialog.onOpenChange}
+            session={sidebar.rowDeleteDialog.session}
+            isDeleting={sidebar.rowDeleteDialog.isDeleting}
+            onConfirm={sidebar.rowDeleteDialog.onConfirm}
+          />
+        </Suspense>
+      ) : null}
+      {sidebar.rowRenameDialog.open && sidebar.rowRenameDialog.session ? (
+        <Suspense fallback={null}>
+          <SessionRenameDialog
+            open
+            onOpenChange={sidebar.rowRenameDialog.onOpenChange}
+            session={sidebar.rowRenameDialog.session}
+            isRenaming={sidebar.rowRenameDialog.isRenaming}
+            onConfirm={sidebar.rowRenameDialog.onConfirm}
+          />
+        </Suspense>
+      ) : null}
+      {clearDialog.open ? (
+        <Suspense fallback={null}>
+          <SessionClearDialog
+            open
+            onOpenChange={clearDialog.setOpen}
+            isClearing={controls.isClearing}
+            onConfirm={clearDialog.confirmClear}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

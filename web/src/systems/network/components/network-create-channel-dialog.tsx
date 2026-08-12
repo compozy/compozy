@@ -19,10 +19,10 @@ import {
   Pill,
   Textarea,
 } from "@compozy/ui";
-import { AgentCommandMultiSelect, type AgentPayload } from "@/systems/agent";
 
 import type { NetworkCreateChannelDraft, NetworkFanoutPolicy } from "../types";
 import { ChannelFanoutCards } from "./channel-fanout-cards";
+import { AgentCommandMultiSelect, type AgentPayload } from "@/systems/agent";
 
 /**
  * `coordinator` needs a `coordinator_peer_id`, and channel peers are only minted

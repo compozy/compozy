@@ -1,36 +1,24 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
+import type { LoopRunsRouteSearch } from "@/systems/loops";
+
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
-  isLoopNodeInventoryState,
   type LoopNodeInventorySort,
-  type LoopNodeInventoryState,
   type LoopOutcomeValue,
   useLoopNodeInventory,
-  useLoops,
   useLoopRuns,
+  useLoops,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
-
-export interface LoopRunsRouteSearch {
-  origin?: "catalog" | "session";
-  origin_session?: string;
-  /**
-   * Selects the node inventory view instead of the run roster. Absent → runs.
-   * It is a search param so a Waiting panel row can deep-link straight into the
-   * matching inventory (`/loop-runs?nodes=waiting`).
-   */
-  nodes?: LoopNodeInventoryState;
-  /** Inventory loop filter, passed straight through to `GET /loop-nodes`. */
-  nodes_loop?: string;
-  /** Inventory run filter, passed straight through to `GET /loop-nodes`. */
-  nodes_run?: string;
-}
 
 export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
   const workspaceLabel = activeWorkspace?.name ?? activeWorkspace?.id ?? "workspace";
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
+  const enabled = workspaceId !== "" && liveDataEnabled;
   const [outcome, setOutcome] = useState<LoopOutcomeValue>("all");
   // Sort is presentation over the loaded page, not a server contract — it stays
   // component state rather than a search param the API would have to honor.
@@ -39,7 +27,7 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
   const runsQuery = useLoopRuns(
     workspaceId,
     { origin: search.origin, origin_session: search.origin_session },
-    workspaceId !== ""
+    enabled
   );
 
   const setOrigin = (origin: LoopRunsRouteSearch["origin"]) => {
@@ -68,7 +56,7 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
   const catalogQuery = useLoops(
     workspaceId,
     { limit: 50, sort: "name" },
-    workspaceId !== "" && inventoryState !== undefined
+    enabled && inventoryState !== undefined
   );
   const loopOptions = [...new Set(catalogQuery.loops.map(loop => loop.name))].sort();
   const inventory = useLoopNodeInventory(
@@ -80,10 +68,10 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
       loop: search.nodes_loop || undefined,
       run_id: search.nodes_run || undefined,
     },
-    workspaceId !== "" && inventoryState !== undefined
+    enabled && inventoryState !== undefined
   );
 
-  const setInventoryState = (next: LoopNodeInventoryState | undefined) => {
+  const setInventoryState = (next: LoopRunsRouteSearch["nodes"]) => {
     void navigate({
       to: "/loop-runs",
       search: current => ({ ...current, nodes: next }),
@@ -123,21 +111,4 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
   };
 }
 
-export function validateLoopRunsSearch(search: Record<string, unknown>): LoopRunsRouteSearch {
-  const origin =
-    search.origin === "catalog" || search.origin === "session" ? search.origin : undefined;
-  const originSession =
-    typeof search.origin_session === "string" ? search.origin_session.trim() : "";
-  const nodes = isLoopNodeInventoryState(search.nodes) ? search.nodes : undefined;
-  const nodesLoop = typeof search.nodes_loop === "string" ? search.nodes_loop.trim() : "";
-  const nodesRun = typeof search.nodes_run === "string" ? search.nodes_run.trim() : "";
-  return {
-    origin,
-    origin_session: originSession || undefined,
-    nodes,
-    // Inventory filters only mean something with a selected view; drop them
-    // otherwise so the runs roster URL stays clean.
-    nodes_loop: nodes === undefined ? undefined : nodesLoop || undefined,
-    nodes_run: nodes === undefined ? undefined : nodesRun || undefined,
-  };
-}
+export type { LoopRunsRouteSearch } from "@/systems/loops";

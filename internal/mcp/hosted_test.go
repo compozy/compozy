@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -364,6 +366,268 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 	})
 }
 
+// Invariant: a hosted bind builds one isolated projection per logical descriptor generation, including after source-state expiry.
+// Owning layer: internal/mcp hosted projection cache.
+// Canonical suite: internal/mcp/hosted_test.go.
+func TestHostedServiceProjectionGenerationCache(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should rebuild a hosted projection when descriptors change after source expiry", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		source := tools.SourceRef{
+			Kind:          tools.SourceMCP,
+			Owner:         "fixture",
+			RawServerName: "fixture",
+			Scope:         "global",
+		}
+		alpha := []tools.MCPToolDescriptor{{ID: "mcp__fixture__alpha"}}
+		beta := []tools.MCPToolDescriptor{{ID: "mcp__fixture__beta"}}
+		executor := &CallExecutor{toolCache: mcpToolListCache{
+			projectionStates: make(map[string]mcpToolProjectionState),
+		}}
+		now := time.Now()
+		if err := executor.recordToolProjection(source, "", alpha, 60_000, now); err != nil {
+			t.Fatalf("recordToolProjection(alpha) error = %v", err)
+		}
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(ctx context.Context, _ tools.Scope) (string, bool) {
+				return executor.ProjectionGeneration(ctx, []tools.SourceRef{source})
+			},
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-expired-generation", peer)
+		baselineCalls := registry.listCallCount()
+
+		if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
+			t.Fatalf("Projection(alpha) error = %v", err)
+		}
+		if err := executor.recordToolProjection(source, "", alpha, 1, now.Add(-time.Second)); err != nil {
+			t.Fatalf("recordToolProjection(expire alpha) error = %v", err)
+		}
+		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
+		if err := executor.recordToolProjection(source, "", beta, 60_000, time.Now()); err != nil {
+			t.Fatalf("recordToolProjection(beta) error = %v", err)
+		}
+
+		projection, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(beta) error = %v", err)
+		}
+		if got, want := hostedToolIDs(projection.Tools), []string{"compozy__beta"}; !slices.Equal(got, want) {
+			t.Fatalf("Projection(beta) tools = %#v, want %#v", got, want)
+		}
+		if got, want := registry.listCallCount(), baselineCalls+2; got != want {
+			t.Fatalf("registry List calls = %d, want %d after descriptor generation changed", got, want)
+		}
+	})
+
+	t.Run("Should build once per bind and authoritative generation", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{
+			views: []tools.ToolView{hostedToolView("compozy__alpha")},
+		}
+		var generation atomic.Uint64
+		generation.Store(1)
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) {
+				return fmt.Sprint(generation.Load()), true
+			},
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-generation-cache", peer)
+		baselineCalls := registry.listCallCount()
+
+		first, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(first) error = %v", err)
+		}
+		second, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(second) error = %v", err)
+		}
+		if got, want := registry.listCallCount(), baselineCalls+1; got != want {
+			t.Fatalf("registry List calls = %d, want %d for unchanged generation", got, want)
+		}
+
+		wantSchema := string(second.Tools[0].Descriptor.InputSchema)
+		first.Tools[0].Descriptor.InputSchema[0] = '['
+		first.Tools[0].Decision.ReasonCodes = append(
+			first.Tools[0].Decision.ReasonCodes,
+			tools.ReasonPolicyDenied,
+		)
+		if string(second.Tools[0].Descriptor.InputSchema) != wantSchema {
+			t.Fatalf(
+				"cached schema = %s after caller mutation, want isolated %s",
+				second.Tools[0].Descriptor.InputSchema,
+				wantSchema,
+			)
+		}
+		if slices.Contains(second.Tools[0].Decision.ReasonCodes, tools.ReasonPolicyDenied) {
+			t.Fatalf("cached decision reasons leaked caller mutation: %#v", second.Tools[0].Decision.ReasonCodes)
+		}
+
+		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
+		generation.Add(1)
+		changed, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(changed generation) error = %v", err)
+		}
+		if got, want := hostedToolIDs(changed.Tools), []string{"compozy__beta"}; !slices.Equal(got, want) {
+			t.Fatalf("changed projection tools = %#v, want %#v", got, want)
+		}
+		if got, want := registry.listCallCount(), baselineCalls+2; got != want {
+			t.Fatalf("registry List calls = %d, want %d after generation advance", got, want)
+		}
+	})
+
+	t.Run("Should coalesce concurrent cold misses into one registry list", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		ctx := testContext(t)
+		generationReached := make(chan struct{}, 2)
+		releaseGeneration := make(chan struct{})
+		listStarted := make(chan struct{}, 1)
+		releaseList := make(chan struct{})
+		var releaseGenerationOnce sync.Once
+		var releaseListOnce sync.Once
+		t.Cleanup(func() {
+			releaseGenerationOnce.Do(func() { close(releaseGeneration) })
+			releaseListOnce.Do(func() { close(releaseList) })
+		})
+		var gateGeneration atomic.Bool
+		registry := &hostedRegistryStub{
+			views: []tools.ToolView{hostedToolView("compozy__alpha")},
+		}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(ctx context.Context, _ tools.Scope) (string, bool) {
+				if gateGeneration.Load() {
+					generationReached <- struct{}{}
+					select {
+					case <-releaseGeneration:
+					case <-ctx.Done():
+					}
+				}
+				return "1", true
+			},
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-concurrent-generation", peer)
+		baselineCalls := registry.listCallCount()
+		registry.listStarted = listStarted
+		registry.releaseList = releaseList
+		gateGeneration.Store(true)
+
+		type projectionResult struct {
+			response HostedProjectionResponse
+			err      error
+		}
+		results := make(chan projectionResult, 2)
+		for range 2 {
+			go func() {
+				response, err := service.Projection(ctx, bind.BindID, peer)
+				results <- projectionResult{response: response, err: err}
+			}()
+		}
+		for range 2 {
+			select {
+			case <-generationReached:
+			case <-ctx.Done():
+				t.Fatalf("concurrent projection did not reach generation lookup: %v", ctx.Err())
+			}
+		}
+		releaseGenerationOnce.Do(func() { close(releaseGeneration) })
+		select {
+		case <-listStarted:
+		case <-ctx.Done():
+			t.Fatalf("projection did not begin the registry list: %v", ctx.Err())
+		}
+		releaseListOnce.Do(func() { close(releaseList) })
+
+		for range 2 {
+			select {
+			case result := <-results:
+				if result.err != nil {
+					t.Fatalf("Projection() error = %v", result.err)
+				}
+				got := hostedToolIDs(result.response.Tools)
+				want := []string{"compozy__alpha"}
+				if !slices.Equal(got, want) {
+					t.Fatalf("Projection() tools = %#v, want %#v", got, want)
+				}
+			case <-ctx.Done():
+				t.Fatalf("concurrent projection did not return: %v", ctx.Err())
+			}
+		}
+		if got, want := registry.listCallCount(), baselineCalls+1; got != want {
+			t.Fatalf("registry List calls = %d, want %d for one concurrent cold miss", got, want)
+		}
+	})
+
+	t.Run("Should recompute when the generation is not authoritative", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) { return "", false },
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-unknown-generation", peer)
+		baselineCalls := registry.listCallCount()
+
+		for range 2 {
+			if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
+				t.Fatalf("Projection() error = %v", err)
+			}
+		}
+		if got, want := registry.listCallCount(), baselineCalls+2; got != want {
+			t.Fatalf("registry List calls = %d, want %d for unknown generation", got, want)
+		}
+	})
+
+	t.Run("Should discard a released bind cache entry", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(context.Context, tools.Scope) (string, bool) { return "1", true },
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-release-cache", peer)
+		if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
+			t.Fatalf("Projection() error = %v", err)
+		}
+		if err := service.ReleaseBindForPeer(t.Context(), bind.BindID, peer); err != nil {
+			t.Fatalf("ReleaseBindForPeer() error = %v", err)
+		}
+		if got := service.projectionCacheSize(); got != 0 {
+			t.Fatalf("projection cache entries = %d, want 0 after release", got)
+		}
+	})
+}
+
 func TestHostedServiceProjectionMatchesRegistrySessionProjection(t *testing.T) {
 	t.Parallel()
 
@@ -704,6 +968,26 @@ func newHostedTestService(
 	return service
 }
 
+func newHostedTestServiceWithProjectionGeneration(
+	t *testing.T,
+	executable string,
+	registry tools.Registry,
+	generation HostedProjectionGeneration,
+) *HostedService {
+	t.Helper()
+
+	service, err := NewHostedService(HostedConfig{
+		Enabled:              true,
+		ExpectedBinary:       executable,
+		Registry:             func() tools.Registry { return registry },
+		ProjectionGeneration: generation,
+	})
+	if err != nil {
+		t.Fatalf("NewHostedService() error = %v", err)
+	}
+	return service
+}
+
 func hostedTestBind(
 	t *testing.T,
 	service *HostedService,
@@ -914,20 +1198,52 @@ type hostedRegistryStub struct {
 	err            error
 	directCalls    int
 	bootstrapCalls int
+	listCalls      int
+	listStarted    chan<- struct{}
+	releaseList    <-chan struct{}
 }
 
 var _ tools.Registry = (*hostedRegistryStub)(nil)
 
-func (r *hostedRegistryStub) List(_ context.Context, scope tools.Scope) ([]tools.ToolView, error) {
+func (r *hostedRegistryStub) List(ctx context.Context, scope tools.Scope) ([]tools.ToolView, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.listCalls++
 	r.scopes = append(r.scopes, scope)
+	listStarted := r.listStarted
+	releaseList := r.releaseList
 	if r.err != nil {
+		r.mu.Unlock()
 		return nil, r.err
 	}
 	out := make([]tools.ToolView, len(r.views))
 	copy(out, r.views)
+	r.mu.Unlock()
+	if listStarted != nil {
+		select {
+		case listStarted <- struct{}{}:
+		default:
+		}
+	}
+	if releaseList != nil {
+		select {
+		case <-releaseList:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	return out, nil
+}
+
+func (r *hostedRegistryStub) listCallCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.listCalls
+}
+
+func (r *hostedRegistryStub) replaceViews(views []tools.ToolView) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.views = cloneToolViews(views)
 }
 
 func (r *hostedRegistryStub) BootstrapSessionProjection(

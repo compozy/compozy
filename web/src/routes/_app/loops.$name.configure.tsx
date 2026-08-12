@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadLoopConfigureRoute } from "./-loops-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/loops/$name/configure")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: "Configure" } },
   }),
-  loader: ({ context, params }) => preloadLoopConfigureRoute(context.queryClient, params.name),
+  loader: async ({ context, params }) =>
+    (await import("./-loops-preload")).preloadLoopConfigureRoute(context.queryClient, params.name),
   component: createOsRouteSync("loops"),
 });

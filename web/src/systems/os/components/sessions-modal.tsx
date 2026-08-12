@@ -10,14 +10,13 @@ import {
   Icon,
 } from "@compozy/ui";
 
-import {
-  SessionList,
-  useSessionSidebarState,
-  type SessionLifecycleActionHandlers,
-  type SessionPayload,
-} from "@/systems/session";
-
 import { useOsSessionsModal } from "../hooks/use-os-sessions-modal";
+import {
+  type SessionLifecycleActionHandlers,
+  SessionList,
+  type SessionPayload,
+  useSessionSidebarState,
+} from "@/systems/session";
 
 export interface OsSessionsModalProps {
   open: boolean;

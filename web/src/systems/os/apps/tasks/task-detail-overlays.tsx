@@ -1,3 +1,4 @@
+import type { TaskDetailLocationController } from "./use-task-detail-location";
 import {
   TaskDeleteAction,
   TaskFanOutDialog,
@@ -5,8 +6,6 @@ import {
   TaskPauseDialog,
   TaskSetupSheet,
 } from "@/systems/tasks";
-
-import type { TaskDetailLocationController } from "./use-task-detail-location";
 
 /** Window-scoped overlays for the task-detail location (dialogs, sheets, drawer). */
 export function TaskDetailOverlays({ controller }: { controller: TaskDetailLocationController }) {

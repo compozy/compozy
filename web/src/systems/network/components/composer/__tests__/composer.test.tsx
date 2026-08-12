@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+// Suite: Network composer interaction state
+// Invariant: transient availability never replaces a draft; submit/reset events remain the owner.
+// Boundary IN: Composer props and user input.
+// Boundary OUT: delivery mutations, owned by channel and thread composer hooks.
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -109,5 +113,24 @@ describe("Composer", () => {
     expect(textarea.placeholder).toBe("Network is off.");
     await user.click(screen.getByTestId("network-composer-send-thread"));
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Should retain a draft across a transient disabled state", async () => {
+    const user = userEvent.setup();
+    const props = {
+      onSubmit: vi.fn(),
+      placeholder: "Reply...",
+      sendLabel: "Send to #ops",
+      testIdSuffix: "thread",
+    };
+    const view = render(<Composer {...props} />);
+    const textarea = screen.getByTestId("network-composer-textarea-thread") as HTMLTextAreaElement;
+
+    await user.type(textarea, "Keep this draft");
+    view.rerender(<Composer {...props} disabled />);
+    expect(textarea.value).toBe("Keep this draft");
+
+    view.rerender(<Composer {...props} />);
+    expect(textarea.value).toBe("Keep this draft");
   });
 });

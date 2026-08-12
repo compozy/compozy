@@ -48,7 +48,7 @@ func TestNewSessionSpawnerContract(t *testing.T) {
 			memory.WithLogger(discardLogger()),
 		)
 		spawner := newTestSessionSpawner(sessions, &fakeWorkspaceResolver{}, &cfg)
-		if err := service.Run(context.Background(), spawner, ""); err != nil {
+		if _, err := service.Run(context.Background(), spawner, ""); err != nil {
 			t.Fatalf("service.Run() error = %v", err)
 		}
 

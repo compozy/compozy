@@ -18,6 +18,22 @@ type lateBootMarketplaceCatalog struct {
 	entry marketplacepkg.Entry
 }
 
+func lateBootMarketplaceEntry() marketplacepkg.Entry {
+	return marketplacepkg.Entry{
+		Kind:         marketplacepkg.KindExtension,
+		EntryID:      "late-boot-extension",
+		Name:         "Late boot extension",
+		Description:  "Attached after the native registry",
+		Version:      "1.0.0",
+		InstallSlug:  "acme/late-boot-extension",
+		DigestSHA256: strings.Repeat("a", 64),
+		Tier:         extensionpkg.ExtensionRegistryTierOfficial,
+		Payload: json.RawMessage(
+			`{"entry_id":"late-boot-extension","name":"Late boot extension","description":"Attached after the native registry","version":"1.0.0","install_slug":"acme/late-boot-extension","artifact_url":"https://downloads.example.test/late-boot-extension-v1.0.0.tar.gz","digest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`,
+		),
+	}
+}
+
 func (c lateBootMarketplaceCatalog) Browse(
 	context.Context,
 	marketplacepkg.Kind,
@@ -184,6 +200,26 @@ func (lateBootExtensionService) DeleteExtensionSecret(
 	return errors.New("unexpected DeleteExtensionSecret call")
 }
 
+type scopedLateBootExtensionService struct {
+	lateBootExtensionService
+	listScopedFn func(context.Context, taskpkg.ActorContext) ([]contract.ExtensionPayload, error)
+}
+
+func (s scopedLateBootExtensionService) ListScoped(
+	ctx context.Context,
+	actor taskpkg.ActorContext,
+) ([]contract.ExtensionPayload, error) {
+	return s.listScopedFn(ctx, actor)
+}
+
+func (scopedLateBootExtensionService) StatusScoped(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
+	return contract.ExtensionPayload{}, errors.New("unexpected StatusScoped call")
+}
+
 func TestMarketplaceNativeSearch(t *testing.T) {
 	t.Parallel()
 
@@ -211,19 +247,7 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 
 		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
-		entry := marketplacepkg.Entry{
-			Kind:         marketplacepkg.KindExtension,
-			EntryID:      "late-boot-extension",
-			Name:         "Late boot extension",
-			Description:  "Attached after the native registry",
-			Version:      "1.0.0",
-			InstallSlug:  "acme/late-boot-extension",
-			DigestSHA256: strings.Repeat("a", 64),
-			Tier:         extensionpkg.ExtensionRegistryTierOfficial,
-			Payload: json.RawMessage(
-				`{"entry_id":"late-boot-extension","name":"Late boot extension","description":"Attached after the native registry","version":"1.0.0","install_slug":"acme/late-boot-extension","artifact_url":"https://downloads.example.test/late-boot-extension-v1.0.0.tar.gz","digest_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`,
-			),
-		}
+		entry := lateBootMarketplaceEntry()
 		state := &bootState{
 			cfg: cfg,
 			deps: RuntimeDeps{
@@ -247,5 +271,60 @@ func TestMarketplaceNativeSearch(t *testing.T) {
 			t.Fatalf("Registry.Call(marketplace_search) error = %v", err)
 		}
 		requireNativeStructuredContains(t, result, []byte(`"entry_id":"late-boot-extension"`))
+	})
+
+	t.Run("Should preserve the trusted workspace actor for scoped extension discovery", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		entry := lateBootMarketplaceEntry()
+		var capturedActor taskpkg.ActorContext
+		service := scopedLateBootExtensionService{
+			listScopedFn: func(
+				_ context.Context,
+				actor taskpkg.ActorContext,
+			) ([]contract.ExtensionPayload, error) {
+				capturedActor = actor
+				return []contract.ExtensionPayload{{
+					Name: "workspace-extension", Version: "1.0.0", WorkspaceID: "ws-native",
+					Provenance: &contract.ExtensionProvenancePayload{CatalogEntryID: entry.EntryID},
+				}}, nil
+			},
+		}
+		state := &bootState{
+			cfg: cfg,
+			deps: RuntimeDeps{
+				MarketplaceCatalog: lateBootMarketplaceCatalog{entry: entry},
+				Extensions:         service,
+			},
+		}
+		daemon := &Daemon{homePaths: homePaths}
+		deps := daemon.nativeToolsDeps(state, func() toolspkg.Registry { return nil })
+		nativeTools := &daemonNativeTools{deps: &deps}
+
+		result, err := nativeTools.marketplaceSearch(
+			t.Context(),
+			toolspkg.Scope{
+				WorkspaceID: "ws-native",
+				SessionID:   "session-native",
+				AgentName:   "marketplace-agent",
+				ActorKind:   string(taskpkg.ActorKindAgentSession),
+			},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMarketplaceSearch,
+				Input:  json.RawMessage(`{"kind":"extension"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("marketplaceSearch(workspace agent) error = %v", err)
+		}
+		if capturedActor.Actor.Kind != taskpkg.ActorKindAgentSession ||
+			capturedActor.Actor.Ref != "session-native" ||
+			capturedActor.Scope.WorkspaceID != "ws-native" ||
+			!capturedActor.Authority.Read {
+			t.Fatalf("scoped marketplace actor = %#v, want readable native agent actor", capturedActor)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"installed":true`))
 	})
 }

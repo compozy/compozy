@@ -50,14 +50,17 @@ export {
 export { vaultSecretTitle } from "./lib/vault-secret-title";
 
 export {
-  normalizeVaultPrefixForNamespace,
-  parseVaultNamespaceFilter,
   useVaultPage,
-  validateVaultSearch,
+  type VaultDeleteState,
   type VaultDraft,
   type VaultEditorState,
   type VaultLastAction,
+} from "./hooks/use-vault-page";
+export {
+  normalizeVaultPrefixForNamespace,
+  parseVaultNamespaceFilter,
+  validateVaultSearch,
   type VaultNamespaceFilter,
   type VaultRouteSearch,
-} from "./hooks/use-vault-page";
+} from "./lib/vault-route-search";
 export { VaultPage } from "./routes/vault-page";

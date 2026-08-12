@@ -2,11 +2,10 @@ import type { RefObject } from "react";
 
 import { cn } from "@compozy/ui";
 
-import type { ProjectedSeam } from "@/systems/os";
-
 import { useLayoutDraftSeam } from "../../hooks/use-layout-draft-seam";
 import { LAYOUT_CANVAS_REFERENCE } from "../../lib/window-manager-layout-reference";
 import type { WindowManagerLayoutDesktop } from "../../lib/window-manager-layout-types";
+import type { ProjectedSeam } from "@/systems/os";
 
 interface LayoutCanvasSeamProps {
   seam: ProjectedSeam;

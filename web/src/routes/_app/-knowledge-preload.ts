@@ -1,11 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { settleRouteQueries } from "./-route-preload";
 import {
   DEFAULT_MEMORY_LIST_LIMIT,
-  memoriesListOptions,
   type KnowledgeListFilter,
+  memoriesListOptions,
 } from "@/systems/knowledge";
-import { settleRouteQueries } from "./-route-preload";
 
 const initialKnowledgeSelector: KnowledgeListFilter = {
   scope: "global",

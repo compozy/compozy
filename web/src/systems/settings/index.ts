@@ -108,6 +108,7 @@ export {
   SETTINGS_SECTION_SLUGS,
   settingsSectionPath,
 } from "./lib/sections";
+export { DEFAULT_SETTINGS_SECTION_SLUG } from "./lib/section-paths";
 
 // MCP page models (status matrix + editor draft)
 export {

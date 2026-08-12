@@ -49,3 +49,13 @@ func workspaceMCPJSONFile(root string) string {
 func workspaceConfigFile(root string) string {
 	return filepath.Join(root, DirName, ConfigName)
 }
+
+func hasDistinctWorkspaceOverlay(homePaths HomePaths, root string) bool {
+	if strings.TrimSpace(root) == "" {
+		return false
+	}
+
+	globalConfig := filepath.Clean(homePaths.ConfigFile)
+	workspaceConfig := filepath.Clean(workspaceConfigFile(root))
+	return !samePath(globalConfig, workspaceConfig)
+}

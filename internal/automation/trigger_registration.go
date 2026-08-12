@@ -10,7 +10,6 @@ func normalizeTriggerRegistration(registration TriggerRegistration) (TriggerRegi
 	trigger.AgentName = strings.TrimSpace(trigger.AgentName)
 	trigger.WorkspaceID = strings.TrimSpace(trigger.WorkspaceID)
 	trigger.Prompt = strings.TrimSpace(trigger.Prompt)
-	trigger.Event = strings.TrimSpace(trigger.Event)
 	trigger.WebhookID = strings.TrimSpace(trigger.WebhookID)
 	trigger.EndpointSlug = strings.TrimSpace(trigger.EndpointSlug)
 	trigger.WebhookSecretRef = strings.TrimSpace(trigger.WebhookSecretRef)

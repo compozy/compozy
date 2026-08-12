@@ -3,13 +3,13 @@ import { useState, type ComponentProps, type Ref } from "react";
 
 import { cn, ConnectionIndicator, SearchInput, type ConnectionStatus } from "@compozy/ui";
 
+import { settingsConnectionLabel } from "./settings-connection-label";
 import {
   filterSettingsSections,
   SETTINGS_SECTION_GROUPS,
-  settingsSectionPath,
   type SettingsSectionDescriptor,
+  settingsSectionPath,
 } from "@/systems/settings";
-import { settingsConnectionLabel } from "./settings-connection-label";
 
 export interface SettingsWindowNavProps extends Omit<ComponentProps<"nav">, "children"> {
   activeSlug: string;

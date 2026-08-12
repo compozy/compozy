@@ -27,7 +27,7 @@ func (h *BaseHandlers) marketplaceCuratedOrInstalledEntry(
 	var installedErr error
 	switch kind {
 	case marketplacepkg.KindExtension:
-		installed, installedErr = h.installedExtensionMarketplaceEntry(ctx, entryID, false)
+		installed, installedErr = h.installedExtensionMarketplaceEntry(ctx, entryID, scope, false)
 	case marketplacepkg.KindMCP:
 		installed, installedErr = h.installedMCPMarketplaceEntry(ctx, entryID, scope, false)
 	default:
@@ -48,15 +48,16 @@ func (h *BaseHandlers) marketplaceCuratedOrInstalledEntry(
 func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 	ctx context.Context,
 	entryID string,
+	scope marketplaceReadScope,
 	exactName bool,
 ) (contract.MarketplaceEntryResponse, error) {
-	if h == nil || h.Extensions == nil {
+	if h == nil {
 		return contract.MarketplaceEntryResponse{}, marketplaceInstalledEntryNotFound(
 			contract.MarketplaceKindExtension,
 			entryID,
 		)
 	}
-	items, err := h.Extensions.List(ctx)
+	items, err := h.marketplaceExtensions(ctx, scope)
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}
@@ -89,8 +90,9 @@ func (h *BaseHandlers) installedExtensionMarketplaceEntry(
 func (h *BaseHandlers) installedExtensionMarketplaceEntryByName(
 	ctx context.Context,
 	name string,
+	scope marketplaceReadScope,
 ) (contract.MarketplaceEntryResponse, error) {
-	return h.installedExtensionMarketplaceEntry(ctx, name, true)
+	return h.installedExtensionMarketplaceEntry(ctx, name, scope, true)
 }
 
 func (h *BaseHandlers) installedMCPMarketplaceEntry(

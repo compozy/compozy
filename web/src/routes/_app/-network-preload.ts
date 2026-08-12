@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { settleRouteQueries } from "./-route-preload";
 import {
   networkChannelDetailOptions,
   networkChannelsOptions,
@@ -12,8 +13,6 @@ import {
   networkThreadMessagesOptions,
   networkThreadsOptions,
 } from "@/systems/network";
-
-import { settleRouteQueries } from "./-route-preload";
 
 export async function preloadNetworkRootRoute(queryClient: QueryClient): Promise<void> {
   await settleRouteQueries([queryClient.ensureQueryData(networkStatusOptions())]);

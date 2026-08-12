@@ -4,16 +4,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
-  providerNeedsAuth,
-  useRuntimeModelCatalog,
-  type RuntimeCatalogProvider,
-} from "@/systems/model-catalog";
-import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
-import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/settings";
-import type { SessionProviderOption } from "@/systems/workspace";
-import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
-
-import {
   createAgentSettingsEditorLogic,
   shouldAdoptAgentSettingsSource,
   type AgentSettingsEditorState,
@@ -27,6 +17,14 @@ import type { AgentSettingsSection } from "../lib/agent-settings-search";
 import { useAgent, useUpdateAgent } from "./use-agents";
 import { useAgentDeleteFlow } from "./use-agent-delete-flow";
 import { useUnsavedGuard } from "./use-unsaved-guard";
+import {
+  providerNeedsAuth,
+  type RuntimeCatalogProvider,
+  useRuntimeModelCatalog,
+} from "@/systems/model-catalog";
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
+import { type SettingsProviderEntry, useSettingsProviders } from "@/systems/settings";
+import { type SessionProviderOption, useActiveWorkspace, useWorkspace } from "@/systems/workspace";
 
 function settingsProviderToOption(provider: SettingsProviderEntry): RuntimeProviderOption {
   const displayName = provider.settings.display_name?.trim();

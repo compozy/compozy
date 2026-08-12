@@ -1,10 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
+import { useCreateWorkspace, useResolveWorkspace } from "./use-workspaces";
 import { useDirectoryBrowser } from "@/systems/onboarding";
 import { useDaemonStatus } from "@/systems/status";
-
-import { useCreateWorkspace, useResolveWorkspace } from "./use-workspaces";
 
 type SubmissionMode = "global" | "create" | null;
 

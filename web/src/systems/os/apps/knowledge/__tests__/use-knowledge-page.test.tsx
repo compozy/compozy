@@ -28,7 +28,7 @@ let mockWriteError: Error | null = null;
 let mockRevertPending = false;
 let mockRevertError: Error | null = null;
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspace: {
       id: "ws_signalforge",
@@ -42,40 +42,39 @@ vi.mock("@/systems/workspace", () => ({
   }),
 }));
 
-vi.mock("@/systems/knowledge", async () => {
-  const actual = await vi.importActual("@/systems/knowledge");
-  return {
-    ...actual,
-    useMemories: (...args: unknown[]) => useMemoriesMock(...args),
-    useMemory: (...args: unknown[]) => useMemoryMock(...args),
-    useMemorySearch: (...args: unknown[]) => useMemorySearchMock(...args),
-    useMemoryDecisions: (...args: unknown[]) => useMemoryDecisionsMock(...args),
-    useDeleteMemory: () => ({
-      error: mockDeleteError,
-      isPending: mockDeletePending,
-      mutateAsync: deleteMutateAsync,
-      reset: deleteReset,
-    }),
-    useEditMemory: () => ({
-      error: mockEditError,
-      isPending: mockEditPending,
-      mutateAsync: editMutateAsync,
-      reset: editReset,
-    }),
-    useWriteMemory: () => ({
-      error: mockWriteError,
-      isPending: mockWritePending,
-      mutateAsync: writeMutateAsync,
-      reset: writeReset,
-    }),
-    useRevertMemoryDecision: () => ({
-      error: mockRevertError,
-      isPending: mockRevertPending,
-      mutateAsync: revertMutateAsync,
-      reset: revertReset,
-    }),
-  };
-});
+vi.mock("@/systems/knowledge/hooks/use-knowledge", () => ({
+  useMemories: (...args: unknown[]) => useMemoriesMock(...args),
+  useMemory: (...args: unknown[]) => useMemoryMock(...args),
+  useMemorySearch: (...args: unknown[]) => useMemorySearchMock(...args),
+  useMemoryDecisions: (...args: unknown[]) => useMemoryDecisionsMock(...args),
+}));
+
+vi.mock("@/systems/knowledge/hooks/use-knowledge-actions", () => ({
+  useDeleteMemory: () => ({
+    error: mockDeleteError,
+    isPending: mockDeletePending,
+    mutateAsync: deleteMutateAsync,
+    reset: deleteReset,
+  }),
+  useEditMemory: () => ({
+    error: mockEditError,
+    isPending: mockEditPending,
+    mutateAsync: editMutateAsync,
+    reset: editReset,
+  }),
+  useWriteMemory: () => ({
+    error: mockWriteError,
+    isPending: mockWritePending,
+    mutateAsync: writeMutateAsync,
+    reset: writeReset,
+  }),
+  useRevertMemoryDecision: () => ({
+    error: mockRevertError,
+    isPending: mockRevertPending,
+    mutateAsync: revertMutateAsync,
+    reset: revertReset,
+  }),
+}));
 
 import { useKnowledgePage } from "@/systems/os/apps/knowledge/use-knowledge-page";
 

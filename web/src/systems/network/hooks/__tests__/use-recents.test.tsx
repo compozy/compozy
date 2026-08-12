@@ -7,7 +7,7 @@ import type { NetworkChannelsResponse } from "../../types";
 import { buildLastReadStorageKey, networkLastReadStore } from "../use-last-read";
 import { useNetworkRecents } from "../use-recents";
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "stale-workspace" }),
 }));
 

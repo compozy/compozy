@@ -176,21 +176,22 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			watchEventsE2EInputs(parent.ID, child.ID),
 		)
 		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusWatching)
-		foreignWorkspaceID := assertWatchEventsReadModelParity(t, ctx, harness, run.ID)
+		assertWatchEventsReadModelParity(t, ctx, harness, run.ID)
+		foreignWorkspaceID := assertForeignWorkspaceLoopRunNotFound(t, ctx, harness, run.ID)
 		quietBaseline := readLoopRunDetailViaHTTP(t, ctx, harness, run.ID)
 		quietPromptCount := watchEventsMockPromptCount(t, harness, "watch-events-agent")
 
 		unrelatedParent := createTaskViaUDS(t, ctx, harness, "Unrelated parent")
 		unrelatedChild := createChildTaskViaUDS(t, ctx, harness, unrelatedParent.ID, "Unrelated child")
 		blockTaskThroughStoreForWatchEventsE2E(t, ctx, harness.HomePaths, unrelatedChild.ID)
-		assertLoopRunRemainsParked(
+		quietBaseline = waitForWatchEventsCursorAdvanceAndRemainParked(
 			t,
 			ctx,
 			harness,
 			run.ID,
 			quietBaseline,
 			quietPromptCount,
-			300*time.Millisecond,
+			looppkg.WatchEventsTaskStream,
 		)
 
 		foreignParent := createTaskViaUDSInWorkspace(t, ctx, harness, foreignWorkspaceID, "Foreign parent")
@@ -203,14 +204,13 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			"Foreign child",
 		)
 		blockTaskThroughStoreForWatchEventsE2E(t, ctx, harness.HomePaths, foreignChild.ID)
-		assertLoopRunRemainsParked(
+		assertNoWatchEventsGapWake(
 			t,
 			ctx,
 			harness,
 			run.ID,
 			quietBaseline,
 			quietPromptCount,
-			300*time.Millisecond,
 		)
 
 		lease := claimTaskRunViaAgentUDS(t, ctx, harness, child.ID)
@@ -967,7 +967,7 @@ func assertWatchEventsReadModelParity(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	runID string,
-) string {
+) {
 	t.Helper()
 
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
@@ -1030,6 +1030,15 @@ func assertWatchEventsReadModelParity(
 	if !bytes.Equal(nativeJSON, httpJSON) {
 		t.Fatalf("native parked watch-events read-model = %s, want HTTP %s", nativeJSON, httpJSON)
 	}
+}
+
+func assertForeignWorkspaceLoopRunNotFound(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+) string {
+	t.Helper()
 
 	foreignWorkspaceID := createWorkspaceViaUDS(t, ctx, harness, t.TempDir(), "foreign-workspace")
 	foreignPath := "/api/workspaces/" + url.PathEscape(foreignWorkspaceID) +
@@ -1066,56 +1075,84 @@ func readLoopRunDetailViaHTTP(
 	return response
 }
 
-func assertLoopRunRemainsParked(
+func waitForWatchEventsCursorAdvanceAndRemainParked(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	runID string,
 	baseline compozycontract.LoopRunResponse,
 	promptCount int,
-	duration time.Duration,
-) {
+	stream string,
+) compozycontract.LoopRunResponse {
 	t.Helper()
-	baselineWatch, err := json.Marshal(baseline.WatchEvents)
-	if err != nil {
-		t.Fatalf("marshal baseline parked watch-events read-model error = %v", err)
+	if baseline.WatchEvents == nil {
+		t.Fatal("baseline parked watch-events read-model = nil")
 	}
-	deadline := time.NewTimer(duration)
-	defer deadline.Stop()
-	ticker := time.NewTicker(25 * time.Millisecond)
+	baselineCursor := baseline.WatchEvents.Cursors[stream]
+	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {
+		response := readLoopRunDetailViaHTTP(t, ctx, harness, runID)
+		if loopRunStatusTerminal(response.Run.Status) {
+			t.Fatalf("loop after non-matching event = terminal status %s, want watching", response.Run.Status)
+		}
+		if current := watchEventsMockPromptCount(t, harness, "watch-events-agent"); current != promptCount {
+			t.Fatalf("watch-events prompt count after non-matching event = %d, want %d", current, promptCount)
+		}
+		if response.Run.Status == compozycontract.LoopRunStatusWatching &&
+			response.WatchEvents != nil &&
+			response.WatchEvents.Cursors[stream] > baselineCursor {
+			return response
+		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("context ended while asserting loop remains parked: %v", ctx.Err())
-		case <-deadline.C:
-			return
+			t.Fatalf("context ended before non-matching event advanced cursor: %v", ctx.Err())
 		case <-ticker.C:
-			response := readLoopRunDetailViaHTTP(t, ctx, harness, runID)
-			if response.Run.Status != compozycontract.LoopRunStatusWatching ||
-				response.Run.Generation != baseline.Run.Generation {
-				t.Fatalf(
-					"loop after non-matching event = status:%s generation:%d, want watching generation:%d",
-					response.Run.Status,
-					response.Run.Generation,
-					baseline.Run.Generation,
-				)
-			}
-			currentWatch, marshalErr := json.Marshal(response.WatchEvents)
-			if marshalErr != nil {
-				t.Fatalf("marshal current parked watch-events read-model error = %v", marshalErr)
-			}
-			if !bytes.Equal(currentWatch, baselineWatch) {
-				t.Fatalf(
-					"parked watch-events read-model after non-matching event = %s, want unchanged %s",
-					currentWatch,
-					baselineWatch,
-				)
-			}
-			if current := watchEventsMockPromptCount(t, harness, "watch-events-agent"); current != promptCount {
-				t.Fatalf("watch-events prompt count after non-matching event = %d, want %d", current, promptCount)
-			}
 		}
+	}
+}
+
+func assertNoWatchEventsGapWake(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+	baseline compozycontract.LoopRunResponse,
+	promptCount int,
+) {
+	t.Helper()
+	db, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(%q) error = %v", harness.HomePaths.DatabaseFile, err)
+	}
+	defer func() {
+		if closeErr := db.Close(ctx); closeErr != nil {
+			t.Fatalf("Close GlobalDB error = %v", closeErr)
+		}
+	}()
+	actor, err := taskpkg.DeriveDaemonActorContext("watch-events-e2e", "watch_events_gap")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext error = %v", err)
+	}
+	runs, err := db.EnqueueWatchEventsGapWakes(ctx, actor.Origin, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("EnqueueWatchEventsGapWakes error = %v", err)
+	}
+	if len(runs) != 0 {
+		t.Fatalf("foreign-workspace gap wakes = %#v, want none", runs)
+	}
+	response := readLoopRunDetailViaHTTP(t, ctx, harness, runID)
+	if response.Run.Status != compozycontract.LoopRunStatusWatching ||
+		response.Run.Generation != baseline.Run.Generation {
+		t.Fatalf(
+			"loop after foreign event = status:%s generation:%d, want watching generation:%d",
+			response.Run.Status,
+			response.Run.Generation,
+			baseline.Run.Generation,
+		)
+	}
+	if current := watchEventsMockPromptCount(t, harness, "watch-events-agent"); current != promptCount {
+		t.Fatalf("watch-events prompt count after foreign event = %d, want %d", current, promptCount)
 	}
 }
 

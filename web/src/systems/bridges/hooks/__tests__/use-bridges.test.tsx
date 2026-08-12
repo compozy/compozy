@@ -1,3 +1,7 @@
+// Suite: bridge query hooks
+// Invariant: bridge reads keep their scope and suspend provider polling when disabled.
+// Boundary IN: query keys, options, liveness gates, and hook projections.
+// Boundary OUT: bridge editing and rendering, owned by component suites.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -82,6 +86,7 @@ describe("useBridges", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -154,6 +159,7 @@ describe("useBridgeProviders", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -178,6 +184,19 @@ describe("useBridgeProviders", () => {
     });
 
     expect(listBridgeProviders).toHaveBeenCalledWith(expect.any(AbortSignal));
+  });
+
+  it("does not fetch or poll providers while the retained window is inactive", () => {
+    vi.useFakeTimers();
+
+    const { result } = renderHook(() => useBridgeProviders({ enabled: false }), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(listBridgeProviders).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(60_000);
+    expect(listBridgeProviders).not.toHaveBeenCalled();
   });
 });
 

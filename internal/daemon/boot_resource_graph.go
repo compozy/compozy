@@ -173,6 +173,7 @@ func (d *Daemon) bootResourceReconcile(
 	if state.windowLayoutCatalog == nil {
 		state.windowLayoutCatalog = newResourceCatalog(windowmanager.CloneLayoutResource)
 	}
+	bindToolProjectionCatalogInvalidation(state)
 
 	driver, err := d.newResourceReconcile(ctx, resourceReconcileDriverDeps{
 		Config:              state.cfg,

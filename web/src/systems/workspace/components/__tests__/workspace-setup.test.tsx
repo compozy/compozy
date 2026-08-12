@@ -46,15 +46,13 @@ vi.mock("sonner", () => ({
   toast: { success: mockToastSuccess, error: mockToastError },
 }));
 
-vi.mock("@/systems/status", () => ({
+vi.mock("@/systems/status/hooks/use-daemon-status", () => ({
   useDaemonStatus: () => mockDaemonStatusState,
 }));
 
-vi.mock("@/systems/onboarding", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/systems/onboarding")>("@/systems/onboarding");
-  return { ...actual, useDirectoryBrowser: () => mockBrowseState };
-});
+vi.mock("@/systems/onboarding/hooks/use-directory-browser", () => ({
+  useDirectoryBrowser: () => mockBrowseState,
+}));
 
 vi.mock("../../hooks/use-workspaces", () => ({
   useResolveWorkspace: () => ({ mutateAsync: mockResolveMutateAsync }),

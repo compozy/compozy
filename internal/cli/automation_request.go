@@ -55,7 +55,7 @@ func buildAutomationTriggerCreateRequest(
 		AgentName:          target.AgentName,
 		WorkspaceID:        workspaceID,
 		Prompt:             target.Prompt,
-		Event:              strings.TrimSpace(input.EventRaw),
+		Event:              input.EventRaw,
 		Filter:             filter,
 		LoopTarget:         target.LoopTarget,
 		WebhookID:          strings.TrimSpace(input.WebhookID),
@@ -83,7 +83,7 @@ func buildAutomationTriggerUpdateRequest(
 		request.Prompt = new(strings.TrimSpace(input.Prompt))
 	}
 	if cmd.Flags().Changed(automationEventKey) {
-		request.Event = new(strings.TrimSpace(input.EventRaw))
+		request.Event = new(input.EventRaw)
 	}
 	if cmd.Flags().Changed("filter") {
 		filter, err := parseAutomationFilterFlags(input.FilterFlags)

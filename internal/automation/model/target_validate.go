@@ -103,6 +103,9 @@ func (t Trigger) Validate(path string) error {
 	if strings.TrimSpace(t.Event) == "" {
 		return errors.New(nestedPath(path, "event") + " is required")
 	}
+	if err := ValidateTriggerEvent(t.Event, path); err != nil {
+		return err
+	}
 	if err := ValidateScopeBinding(t.Scope, t.WorkspaceID, path, "workspace_id"); err != nil {
 		return err
 	}

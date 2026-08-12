@@ -1,31 +1,13 @@
-import { useEffect, useRef, useState } from "react";
-
 import { TypingDots } from "@compozy/ui";
+import { useSecondClock } from "@/hooks/use-second-clock";
 import { formatWorkingElapsed } from "./session-working-row.logic";
 import type { SessionWorkingRow } from "./session-timeline.logic";
 
-// Self-ticking elapsed label: the span mutates its own text node on a one-second
-// interval, so a streaming turn never forces a React commit per second — the
-// whole transcript tree stays put while the clock advances (proven by the
-// render-count probe in the thread suite).
-function WorkingTimer({ startedAt }: { startedAt: number }) {
-  const textRef = useRef<HTMLSpanElement>(null);
-  const [initialText] = useState(() => formatWorkingElapsed(startedAt, Date.now()));
-
-  useEffect(() => {
-    const update = () => {
-      if (textRef.current) {
-        textRef.current.textContent = formatWorkingElapsed(startedAt, Date.now());
-      }
-    };
-    update();
-    const id = window.setInterval(update, 1000);
-    return () => window.clearInterval(id);
-  }, [startedAt]);
-
+function WorkingTimer({ enabled, startedAt }: { enabled: boolean; startedAt: number }) {
+  const now = useSecondClock(enabled);
   return (
-    <span ref={textRef} data-testid="session-working-timer" className="tabular-nums">
-      {initialText}
+    <span data-testid="session-working-timer" className="tabular-nums">
+      {formatWorkingElapsed(startedAt, now)}
     </span>
   );
 }
@@ -42,9 +24,11 @@ function WorkingTimer({ startedAt }: { startedAt: number }) {
 export function WorkingIndicator({
   startedAt,
   reducedMotion,
+  liveDataEnabled = true,
 }: {
   startedAt?: number;
   reducedMotion: boolean;
+  liveDataEnabled?: boolean;
 }) {
   return (
     <div
@@ -59,7 +43,7 @@ export function WorkingIndicator({
       <span aria-hidden="true" className="tabular-nums">
         {startedAt !== undefined ? (
           <>
-            Working for <WorkingTimer startedAt={startedAt} />
+            Working for <WorkingTimer enabled={liveDataEnabled} startedAt={startedAt} />
           </>
         ) : (
           "Working…"

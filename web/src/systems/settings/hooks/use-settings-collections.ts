@@ -19,8 +19,8 @@ interface MCPQueryOptions extends QueryEnabledOptions {
   refetchInterval?: number;
 }
 
-export function useSettingsProviders() {
-  return useQuery(settingsProvidersListOptions());
+export function useSettingsProviders(options: QueryEnabledOptions = {}) {
+  return useQuery(settingsProvidersListOptions(options.enabled ?? true));
 }
 
 export function useSettingsProvider(name: string, options: QueryEnabledOptions = {}) {

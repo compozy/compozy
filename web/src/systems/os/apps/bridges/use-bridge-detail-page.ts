@@ -3,9 +3,15 @@ import { toast } from "sonner";
 
 import type { EntityMode } from "@compozy/ui";
 
+import { useBridgeDeliveryTests } from "@/hooks/routes/use-bridge-delivery-tests";
+import { useBridgeSecretRotations } from "./use-bridge-secret-rotations";
+import { useBridgeSetupFlow } from "@/hooks/routes/use-bridge-setup-flow";
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
-  buildBridgeUpdateRequest,
   bridgeListFilterForScope,
+  type BridgeResolveTargetResponse,
+  type BridgeUpdateDraft,
+  buildBridgeUpdateRequest,
   createBridgeUpdateDraft,
   fingerprintBridgeProviderConfig,
   isBridgeUpdateDraftDirty,
@@ -13,23 +19,21 @@ import {
   useBridgeHealthStream,
   useBridgeProviders,
   useBridgeRoutes,
+  useBridges,
   useBridgeSecretBindings,
   useBridgeTargets,
-  useBridges,
   useDisableBridge,
   useEnableBridge,
-  useRestartBridge,
   useResolveBridgeTarget,
+  useRestartBridge,
   useUpdateBridge,
 } from "@/systems/bridges";
-import type { BridgeResolveTargetResponse, BridgeUpdateDraft } from "@/systems/bridges";
 import { useActiveWorkspace } from "@/systems/workspace";
-import { useBridgeDeliveryTests } from "@/hooks/routes/use-bridge-delivery-tests";
-import { useBridgeSecretRotations } from "./use-bridge-secret-rotations";
-import { useBridgeSetupFlow } from "@/hooks/routes/use-bridge-setup-flow";
 
 function useBridgeDetailPage(bridgeId: string) {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
+  const queryEnabled = Boolean(bridgeId) && liveDataEnabled;
 
   const [isEditDialogOpen, setEditDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState<EntityMode>("simple");
@@ -48,13 +52,13 @@ function useBridgeDetailPage(bridgeId: string) {
 
   const bridgeListFilters = bridgeListFilterForScope("all", activeWorkspaceId);
 
-  const bridgesQuery = useBridges(bridgeListFilters, { enabled: Boolean(bridgeId) });
+  const bridgesQuery = useBridges(bridgeListFilters, { enabled: queryEnabled });
   useBridgeHealthStream({
     bridgeIds: bridgeId ? [bridgeId] : [],
-    enabled: Boolean(bridgeId),
+    enabled: queryEnabled,
     filters: bridgeListFilters,
   });
-  const providersQuery = useBridgeProviders();
+  const providersQuery = useBridgeProviders({ enabled: liveDataEnabled });
   const updateBridgeMutation = useUpdateBridge();
   const enableBridgeMutation = useEnableBridge();
   const disableBridgeMutation = useDisableBridge();
@@ -67,15 +71,15 @@ function useBridgeDetailPage(bridgeId: string) {
 
   const listBridgeSummary = bridges.find(bridge => bridge.id === bridgeId);
 
-  const bridgeDetailQuery = useBridge(bridgeId, { enabled: Boolean(bridgeId) });
-  const bridgeRoutesQuery = useBridgeRoutes(bridgeId, { enabled: Boolean(bridgeId) });
+  const bridgeDetailQuery = useBridge(bridgeId, { enabled: queryEnabled });
+  const bridgeRoutesQuery = useBridgeRoutes(bridgeId, { enabled: queryEnabled });
   const bridgeTargetsQuery = useBridgeTargets(
     bridgeId,
     { limit: 50, q: deferredTargetSearchQuery },
-    { enabled: Boolean(bridgeId) }
+    { enabled: queryEnabled }
   );
   const bridgeSecretBindingsQuery = useBridgeSecretBindings(bridgeId, {
-    enabled: Boolean(bridgeId),
+    enabled: queryEnabled,
   });
 
   // Prefer the detail record; fall back to the list summary while it loads.

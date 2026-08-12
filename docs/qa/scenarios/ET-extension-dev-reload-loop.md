@@ -4,15 +4,15 @@ area: ET
 title: Iterate on a dev-linked extension without reinstalling
 persona: Bruno
 journey: J-extension-dev-lifecycle
-expected: `compozy extension dev` links the built generation to the current workspace with no trust prompt, an edit plus `reload` (or `--watch`) makes the next invocation return the new behavior while other workspaces keep serving the published build, `logs --follow` streams the redacted per-instance ring, and removing the dev instance restores the published one.
-entry_points: `compozy extension dev [dir] --watch`; `compozy extension reload <name>`; `compozy extension logs <name> --follow|--global`; `compozy extension remove <name>`; `POST /api/extensions/dev`; `POST /api/extensions/{name}/reload`; `GET /api/extensions/{name}/logs?follow=1`; `DELETE /api/extensions/{name}`; `compozy__extensions_dev|reload|logs|remove`
+expected: `compozy extension dev` links the built generation to the current workspace with no trust prompt, an edit plus `reload` (or `--watch`) makes the next invocation return the new behavior while other workspaces keep serving the published build, one-shot and followed logs return the redacted per-instance ring with a paired `(stream_epoch, sequence)` cursor, unlink/relink creates a new epoch and complete reset snapshot, and removing the dev instance restores the published one.
+entry_points: `compozy extension dev [dir] --watch`; `compozy extension reload <name>`; `compozy extension logs <name> --follow|--global|--after|--stream-epoch`; `compozy extension remove <name>`; `POST /api/extensions/dev`; `POST /api/extensions/{name}/reload`; `GET /api/extensions/{name}/logs?follow=1&after=&stream_epoch=`; `DELETE /api/extensions/{name}`; `compozy__extensions_dev|reload|logs|remove`
 qa_status: pass
 bug_ids: BUG-20260801-extension-cli-workspace-reads
 fix_status: fixed
 retest_status: pass
-fix_commits: 98feabf
-evidence: /Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json; /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa; /Users/pedronauck/dev/qa-labs/compozy-session-extension-boundary-20260801-140242-564687-lab/qa-artifacts/qa/boundary-verification.json; /Users/pedronauck/dev/qa-labs/compozy-session-extension-boundary-20260801-140242-564687-lab/qa-artifacts/qa/teardown.json; internal/daemon/daemon_extension_authoring_e2e_integration_test.go; internal/cli/extension_test.go; internal/cli/client_test.go; /tmp/compozy-loops-postrebase.N1iPVr/teardown.json
-last_report: docs/qa/reports/2026-08-01-loops-paper-adoption.md
+fix_commits: 98feabf; 72170640
+evidence: /Users/pedronauck/dev/qa-labs/compozy-frontend-performance-review-20260812-051926-937324-lab/qa-artifacts/qa/extension-epoch-replay.json; /Users/pedronauck/dev/qa-labs/compozy-frontend-performance-review-20260812-051926-937324-lab/qa-artifacts/qa/teardown.json
+last_report: docs/qa/reports/2026-08-11-frontend-performance.md
 overlaps: ET-extension-code-first-authoring; ET-020; ET-022
 ---
 
@@ -31,7 +31,8 @@ with status `errored (activation_failed)` instead of taking the extension down; 
 `generation_hash` returns 400 and a reload without a link returns 409.
 
 Logs: secrets redacted at ingestion across ring, one-shot read, and SSE alike; the bounded ring drops
-oldest without blocking; `--follow` delivers the named `extension_log` SSE event, resumable via `after`.
+oldest without blocking; `--follow` delivers `extension_log` deltas and `extension_log_reset` snapshots,
+resumable only via the paired `after` and `stream_epoch` cursor.
 
 Restore: `remove` inside the workspace unlinks only the overlay, emits `extension.dev.unlinked`, and the
 published instance serves again on the next invocation; the same verb outside a workspace scope still owns
@@ -65,3 +66,12 @@ generation `c9f43a2e…` returned `Final reload result for workspace overlay`. L
 removal unlinked only the overlay, a fresh scoped list omitted it, and scoped status returned not
 found. The replay discovered and verified BUG-20260801-extension-cli-workspace-reads. Teardown
 recorded zero surviving processes and listeners.
+
+QA impact 2026-08-12: the log resume contract now identifies the in-memory ring. Replay one reload
+(same epoch), then unlink/relink (new epoch), and prove CLI, HTTP/SSE, and `compozy__extensions_logs`
+return or consume the same paired cursor without carrying rows across the reset.
+
+QA result 2026-08-12: Bruno linked and invoked `epoch-probe`, then reloaded it without changing
+`stream_epoch`. Removing and relinking created a different epoch with an empty snapshot. Reusing the
+old cursor produced one atomic `extension_log_reset`; the native logs tool returned the same empty
+replacement. The isolated lab ended with no surviving processes.

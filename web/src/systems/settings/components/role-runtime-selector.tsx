@@ -1,7 +1,6 @@
-import { RuntimeSelector, type RuntimeSelectorValue } from "@/systems/runtime";
-
 import type { RoleRuntimeValue } from "../lib/roles-config";
 import type { RolesRuntimeOptions } from "../hooks/use-roles-runtime-options";
+import { RuntimeSelector, type RuntimeSelectorValue } from "@/systems/runtime";
 
 export interface RoleRuntimeSelectorProps {
   value: RoleRuntimeValue;

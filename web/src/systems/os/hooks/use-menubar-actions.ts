@@ -1,10 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-import { useAgentCreateHost } from "@/systems/agent";
-
 import { OS_COMPACT_BREAKPOINT, type OsAppId } from "../lib/os-types";
 import { useOsShell } from "./use-os-shell";
 import { useOsWindowCommands, type OsWindowCommandsModel } from "./use-os-window-commands";
+import { useAgentCreateHost } from "@/systems/agent";
 
 /** Below the compact breakpoint the app menus collapse (US-019.EC-3). */
 const COMPACT_QUERY = `(max-width: ${OS_COMPACT_BREAKPOINT - 0.02}px)`;

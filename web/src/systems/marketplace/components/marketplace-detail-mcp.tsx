@@ -11,12 +11,6 @@ import {
 
 import { cn, Empty, Eyebrow, Pill, PropertyRow } from "@compozy/ui";
 
-import {
-  composeMCPRowStatus,
-  probeToolLabel,
-  type SettingsMCPServerEntry,
-} from "@/systems/settings";
-
 import { useMarketplaceDetailMCPServer } from "../hooks/use-marketplace-detail-mcp-server";
 import type { MarketplaceEntryResponse } from "../types";
 import { MarketplaceDetailManageFallbackCard } from "./marketplace-detail-manage-state";
@@ -32,6 +26,11 @@ import {
   formatMarketplaceVersion,
   stripMarketplaceUrlScheme,
 } from "./marketplace-ui";
+import {
+  composeMCPRowStatus,
+  probeToolLabel,
+  type SettingsMCPServerEntry,
+} from "@/systems/settings";
 
 type MCPBlock = NonNullable<MarketplaceEntryResponse["mcp"]>;
 
@@ -39,17 +38,24 @@ interface MarketplaceDetailMCPViewProps {
   data: MarketplaceEntryResponse;
   scope?: "global" | "workspace";
   workspaceId?: string;
+  liveDataEnabled?: boolean;
 }
 
 /**
  * MCP server detail: authorization and connection are the story; the tools
  * section reports only what the daemon's probe actually discovered.
  */
-function MarketplaceDetailMCPView({ data, scope, workspaceId }: MarketplaceDetailMCPViewProps) {
+function MarketplaceDetailMCPView({
+  data,
+  scope,
+  workspaceId,
+  liveDataEnabled = true,
+}: MarketplaceDetailMCPViewProps) {
   const { query, queryEnabled, server } = useMarketplaceDetailMCPServer(
     data.entry,
     scope,
-    workspaceId
+    workspaceId,
+    liveDataEnabled
   );
   const mcp = data.mcp;
   const installedUnresolved = data.entry.installed && !server;

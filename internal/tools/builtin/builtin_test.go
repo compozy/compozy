@@ -510,7 +510,21 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 		descriptors := descriptorMap(NativeDescriptors())
 		inventory := descriptors[toolspkg.ToolIDExtensionsInventory]
+		logs := descriptors[toolspkg.ToolIDExtensionsLogs]
 		preview := descriptors[toolspkg.ToolIDExtensionsPreview]
+		assertNativeOutputSchemaAccepts(t, logs, `{
+			"stream_epoch":"epoch-a",
+			"logs":[{
+				"sequence":1,"timestamp":"2026-08-12T10:00:00Z","message":"ready",
+				"generation_hash":"generation-a","stream_epoch":"epoch-a"
+			}]
+		}`)
+		assertNativeOutputSchemaRejects(t, logs, `{
+			"logs":[{
+				"sequence":1,"timestamp":"2026-08-12T10:00:00Z","message":"ready",
+				"stream_epoch":"epoch-a"
+			}]
+		}`)
 		assertNativeOutputSchemaAccepts(t, inventory, `{
 			"extension":"kit","enabled":true,
 			"items":[{"kind":"skill","id":"review","name":"Review","live":true}]

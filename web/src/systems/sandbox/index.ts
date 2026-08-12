@@ -37,11 +37,10 @@ export {
 
 export {
   useSandboxPage,
-  validateSandboxSearch,
   type SandboxEditorState,
   type SandboxLastAction,
-  type SandboxRouteSearch,
 } from "./hooks/use-sandbox-page";
+export { validateSandboxSearch, type SandboxRouteSearch } from "./lib/sandbox-route-search";
 export {
   emptySandboxDraft,
   toSandboxDraft,

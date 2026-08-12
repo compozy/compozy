@@ -52,15 +52,18 @@ vi.mock("@/systems/agent/hooks/use-agent-delete-flow", () => ({
   }),
 }));
 
-vi.mock("@/systems/session", () => ({
+vi.mock("@/systems/session/hooks/use-session-create", () => ({
   useSessionCreateActions: () => ({ openForAgent: vi.fn() }),
   useSessionCreateHasActiveWorkspace: () => true,
   useSessionCreateIsCreating: () => false,
   useSessionCreatePendingAgentName: () => null,
+}));
+
+vi.mock("@/systems/session/hooks/use-session-lifecycle-actions", () => ({
   useSessionLifecycleActions: (options: unknown) => mockUseSessionLifecycleActions(options),
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: mockActiveWorkspaceId,
   }),

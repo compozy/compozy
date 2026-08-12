@@ -1,3 +1,7 @@
+// Suite: marketplace query hooks
+// Invariant: marketplace reads retain kind and entry scope while honoring liveness gates.
+// Boundary IN: query options, pagination state, cache keys, and hook projections.
+// Boundary OUT: installation interactions and rendering, owned by component suites.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -61,5 +65,17 @@ describe("marketplace query hooks", () => {
     await waitFor(() => expect(kind.result.current.data?.pages).toEqual([kindResponse]));
     await waitFor(() => expect(detail.result.current.data).toEqual(detailResponse));
     expect(client.getQueryCache().getAll()).toHaveLength(2);
+  });
+
+  it("Should suspend kind browsing when its retained window is inactive", () => {
+    const { wrapper } = setup();
+
+    const { result } = renderHook(
+      () => useMarketplaceKind({ kind: "skill", limit: 20, workspaceId: "ws-a" }, false),
+      { wrapper }
+    );
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(mocks.browse).not.toHaveBeenCalled();
   });
 });

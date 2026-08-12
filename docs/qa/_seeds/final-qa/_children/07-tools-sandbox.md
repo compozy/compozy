@@ -73,7 +73,7 @@ This child owns the runtime contract that turns a model's `tool_call` into an ob
 | `Register(ctx, RegisterConfig)`         | Lines 165-214. Generates `proc_<hex>` id, derives `StartedAt` from `procutil.StartedAt(pid)`, validates record, upserts to store, holds in-memory `activeProcess{record, interrupt}`. |
 | `Handle.Checkpoint(ctx, ProcessCheckpoint)` | Lines 224-229 → `checkpoint` (lines 360-402). Mutates owner / pid / pgid / state under lock and re-validates before upsert.                                                          |
 | `Handle.Complete(ctx, ProcessCompletion)` | Lines 232-242. `sync.Once`-gated terminal write, `Failed` if `Err != nil`, else `Completed`.                                                                                          |
-| `ReconcileBoot(ctx)`                    | Lines 244-286. Lists active records, calls `validateRecovered` (PID + start-time match via `procutil.MatchesStartTime`), marks recovered or stale, returns `BootReconcileReport`.    |
+| `ReconcileBoot(ctx)`                    | Lists active records, validates PID/start-time ownership, interrupts validated prior processes, marks ownership-lost records stale, and returns `BootReconcileReport` with `Interrupted`/`Stale` counters. |
 | `Interrupt(ctx, InterruptScope)`        | Lines 288-358. Pulls candidates by scope (live + durable), transitions to `interrupting`, fires owner-supplied `InterruptFunc` for live procs, falls back to `defaultInterrupter` for recovered procs. |
 | `defaultInterrupter`                    | `internal/toolruntime/interrupt.go:13-78`. **SIGTERM → 250ms poll → SIGKILL → 1s poll**, signaling process group when `ProcessGroupID > 0` (`signalRecord`, lines 52-57). Validates `MatchesStartTime` before AND after each signal. |
 
@@ -139,7 +139,7 @@ These five helpers — not a single `fileutil` symbol — are the path-security 
 
 ### 2.2 `internal/toolruntime/`
 
-- `registry_test.go` — Register / Checkpoint / Complete sync.Once gate; ReconcileBoot recovered/stale split; Interrupt scope filters; in-memory + durable candidate union.
+- `registry_test.go` — Register / Checkpoint / Complete sync.Once gate; ReconcileBoot interrupt-or-stale split; Interrupt scope filters; in-memory + durable candidate union.
 - `memory_store.go` — pure in-memory store implementation (test-only).
 - **Coverage gap**: there is no test that asserts `defaultInterrupter` actually walks SIGTERM → SIGKILL with the 250ms grace and 1s kill grace against a **real** child process group. The interrupt-policy logic is unit-tested via fake interrupter; the real-syscall path is exercised only indirectly through `internal/acp/launcher_tool_host_test.go:302,363`.
 

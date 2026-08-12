@@ -1,8 +1,9 @@
 import { AlertCircle, Repeat2 } from "lucide-react";
 
 import { Empty, Spinner } from "@compozy/ui";
-import { LoopDetailView } from "@/systems/loops";
+
 import { useLoopDetail } from "./use-loop-detail";
+import { LoopDetailView } from "@/systems/loops";
 
 export function LoopDetailLocation({ name }: { name: string }) {
   const {

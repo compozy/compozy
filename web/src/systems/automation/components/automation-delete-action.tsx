@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import { Button, ConfirmDialog, DialogTrigger } from "@compozy/ui";
+import { automationDeleteLogic } from "./automation-delete-store";
 
 interface AutomationDeleteActionProps {
   isPending: boolean;
@@ -24,35 +25,27 @@ export function AutomationDeleteAction({
   onOpenChange,
   hideTrigger = false,
 }: AutomationDeleteActionProps) {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const submissionRef = useRef(false);
+  const store = useStore(automationDeleteLogic);
+  const state = useSelector(store, snapshot => snapshot.context);
   const noun = kind === "jobs" ? "job" : "trigger";
-  const pending = isPending || isSubmitting;
+  const pending = isPending || state.phase === "submitting";
   const controlled = openProp !== undefined;
-  const open = controlled ? openProp : uncontrolledOpen;
+  const open = controlled ? openProp : state.open;
 
   const setOpen = (next: boolean) => {
     if (pending && next === false) return;
-    if (!controlled) setUncontrolledOpen(next);
+    if (!controlled) store.trigger.openChanged({ open: next });
     onOpenChange?.(next);
-    if (!next) setError(null);
+    if (!next && controlled) store.trigger.openChanged({ open: false });
   };
 
-  const handleConfirm = async () => {
-    if (submissionRef.current) return;
-    submissionRef.current = true;
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      await onConfirm();
-      setOpen(false);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : `Failed to delete automation ${noun}`);
-    }
-    submissionRef.current = false;
-    setIsSubmitting(false);
+  const handleConfirm = () => {
+    store.trigger.submissionRequested({
+      execute: onConfirm,
+      fallbackError: `Failed to delete automation ${noun}`,
+      permitted: !isPending,
+      onSucceeded: () => onOpenChange?.(false),
+    });
   };
 
   return (
@@ -76,7 +69,7 @@ export function AutomationDeleteAction({
             : "Matching events will no longer start the configured target."}
         </>
       }
-      error={error}
+      error={state.error}
       errorProps={{ "data-testid": "automation-delete-error" }}
       isPending={pending}
       onConfirm={handleConfirm}

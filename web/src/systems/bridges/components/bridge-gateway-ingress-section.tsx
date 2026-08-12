@@ -1,8 +1,7 @@
 import { Section } from "@compozy/ui";
 
-import { GatewayIngressStatus } from "@/systems/gateway";
-
 import type { BridgeSummary } from "../types";
+import { GatewayIngressStatus } from "@/systems/gateway";
 
 /**
  * Whether this bridge's inbound callbacks actually reach CompozyOS.

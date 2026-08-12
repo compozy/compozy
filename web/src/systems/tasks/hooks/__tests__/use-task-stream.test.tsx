@@ -1,10 +1,19 @@
+// Suite: task live stream
+// Invariant: one stream coalesces event refreshes and reconciles dirty catalogs before release.
+// Boundary IN: EventSource ownership, refresh admission, and cache invalidation sequencing.
+// Boundary OUT: task endpoint framing and visible task rendering, owned by adapter and component suites.
 import { QueryClient, QueryClientProvider, useInfiniteQuery } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildTaskStreamUrl, tasksKeys, useTaskStream } from "@/systems/tasks";
-import type { TaskListPage, TaskStreamPayload } from "@/systems/tasks";
+import {
+  buildTaskStreamUrl,
+  type TaskListPage,
+  tasksKeys,
+  type TaskStreamPayload,
+  useTaskStream,
+} from "@/systems/tasks";
 
 class FakeTaskStreamEventSource {
   public close = vi.fn();
@@ -80,6 +89,69 @@ describe("buildTaskStreamUrl", () => {
 });
 
 describe("useTaskStream", () => {
+  it("Should coalesce a synchronous event burst into one live refresh cycle", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const eventSource = new FakeTaskStreamEventSource();
+    const onEvent = vi.fn();
+
+    const stream = renderHook(
+      () =>
+        useTaskStream("task_001", {
+          afterSequence: 24,
+          eventSourceFactory: () => eventSource,
+          onEvent,
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    act(() => {
+      eventSource.emitMessage(buildStreamPayload({ sequence: 25 }));
+      eventSource.emitMessage(buildStreamPayload({ sequence: 26 }));
+      eventSource.emitMessage(buildStreamPayload({ sequence: 27 }));
+    });
+
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(2));
+
+    stream.unmount();
+  });
+
+  it("Should run one follow-up refresh when an event arrives during invalidation", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let settleFirstRefresh: (() => void) | undefined;
+    const firstRefresh = new Promise<void>(resolve => {
+      settleFirstRefresh = resolve;
+    });
+    const invalidateQueries = vi
+      .spyOn(queryClient, "invalidateQueries")
+      .mockImplementationOnce(() => firstRefresh)
+      .mockResolvedValue(undefined);
+    const eventSource = new FakeTaskStreamEventSource();
+
+    const stream = renderHook(
+      () =>
+        useTaskStream("task_001", {
+          eventSourceFactory: () => eventSource,
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    act(() => {
+      eventSource.emitMessage(buildStreamPayload({ sequence: 25 }));
+    });
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(2));
+
+    act(() => {
+      eventSource.emitMessage(buildStreamPayload({ sequence: 26 }));
+      settleFirstRefresh?.();
+    });
+
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(3));
+
+    stream.unmount();
+  });
+
   it("Should mark catalogs stale once per burst and reconcile them once on stream cleanup", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const filters = { limit: 1, scope: "workspace" as const, workspace: "ws_alpha" };
@@ -114,7 +186,6 @@ describe("useTaskStream", () => {
     await waitFor(() => expect(catalog.result.current.data?.pages).toHaveLength(2));
     expect(catalogQuery).not.toHaveBeenCalled();
 
-    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
     const eventSource = new FakeTaskStreamEventSource();
     const onEvent = vi.fn();
     const stream = renderHook(
@@ -135,10 +206,7 @@ describe("useTaskStream", () => {
     await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(3));
 
     expect(catalogQuery).not.toHaveBeenCalled();
-    const catalogInvalidations = invalidateQueries.mock.calls.filter(
-      ([filtersArg]) => JSON.stringify(filtersArg?.queryKey) === JSON.stringify(tasksKeys.lists())
-    );
-    expect(catalogInvalidations).toEqual([[{ queryKey: tasksKeys.lists(), refetchType: "none" }]]);
+    expect(queryClient.getQueryState(tasksKeys.list(filters))?.isInvalidated).toBe(true);
 
     stream.rerender({ afterSequence: 27 });
     await Promise.resolve();
@@ -149,9 +217,79 @@ describe("useTaskStream", () => {
     catalog.unmount();
   });
 
+  it("Should reconcile dirty catalogs when an enabled stream becomes inactive", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const filters = { limit: 1, scope: "workspace" as const, workspace: "ws_alpha" };
+    const firstPage: TaskListPage = {
+      facets: { owners: [], statuses: [{ count: 2, status: "ready" }] },
+      page: { has_more: true, limit: 1, next_cursor: "tasks:1", total: 2 },
+      tasks: [],
+    };
+    const secondPage: TaskListPage = {
+      facets: firstPage.facets,
+      page: { has_more: false, limit: 1, total: 2 },
+      tasks: [],
+    };
+    queryClient.setQueryData(tasksKeys.list(filters), {
+      pageParams: [undefined, "tasks:1"],
+      pages: [firstPage, secondPage],
+    });
+    const catalogQuery = vi.fn(({ pageParam }: { pageParam: unknown }) =>
+      Promise.resolve(pageParam === "tasks:1" ? secondPage : firstPage)
+    );
+    const catalog = renderHook(
+      () =>
+        useInfiniteQuery({
+          getNextPageParam: lastPage => lastPage.page.next_cursor,
+          initialPageParam: undefined as string | undefined,
+          queryFn: catalogQuery,
+          queryKey: tasksKeys.list(filters),
+          staleTime: Number.POSITIVE_INFINITY,
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() => expect(catalog.result.current.data?.pages).toHaveLength(2));
+
+    const eventSource = new FakeTaskStreamEventSource();
+    const stream = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useTaskStream("task_001", {
+          enabled,
+          eventSourceFactory: () => eventSource,
+        }),
+      { initialProps: { enabled: true }, wrapper: createWrapper(queryClient) }
+    );
+
+    act(() => {
+      eventSource.emitMessage(buildStreamPayload());
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryState(tasksKeys.list(filters))?.isInvalidated).toBe(true)
+    );
+
+    stream.rerender({ enabled: false });
+    await waitFor(() => expect(catalogQuery).toHaveBeenCalledTimes(2));
+
+    stream.rerender({ enabled: true });
+    act(() => {
+      eventSource.emitMessage(buildStreamPayload({ sequence: 26 }));
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryState(tasksKeys.list(filters))?.isInvalidated).toBe(true)
+    );
+
+    stream.unmount();
+    catalog.unmount();
+  });
+
   it("Should open a seeded stream and parse standard SSE message frames", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const detailKey = tasksKeys.detail("task_001");
+    const timelineKey = tasksKeys.timeline("task_001");
+    const contextKey = tasksKeys.agentContext({ agentName: "reviewer", sessionId: "session_1" });
+    queryClient.setQueryData(detailKey, { task: { id: "task_001" } });
+    queryClient.setQueryData(timelineKey, []);
+    queryClient.setQueryData(contextKey, {});
     const eventSource = new FakeTaskStreamEventSource();
     const factory = vi.fn(() => eventSource);
     const onEvent = vi.fn();
@@ -179,15 +317,9 @@ describe("useTaskStream", () => {
       expect(onEvent).toHaveBeenCalledWith(payload);
     });
 
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["tasks", "detail", "task_001"],
-    });
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["tasks", "timeline"],
-    });
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["tasks", "agent-context"],
-    });
+    await waitFor(() => expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true));
+    expect(queryClient.getQueryState(timelineKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(contextKey)?.isInvalidated).toBe(true);
 
     unmount();
     expect(eventSource.close).toHaveBeenCalledTimes(1);
@@ -197,7 +329,8 @@ describe("useTaskStream", () => {
 
   it("Should route each payload type through the standard message contract", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+    const detailKey = tasksKeys.detail("task_001");
+    queryClient.setQueryData(detailKey, { sequence: 30 });
     const eventSource = new FakeTaskStreamEventSource();
     const factory = vi.fn(() => eventSource);
     const onEvent = vi.fn();
@@ -221,11 +354,8 @@ describe("useTaskStream", () => {
     await waitFor(() => {
       expect(onEvent).toHaveBeenCalledWith(completed);
     });
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["tasks", "detail", "task_001"],
-    });
-
-    invalidateQueries.mockClear();
+    await waitFor(() => expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true));
+    queryClient.setQueryData(detailKey, { sequence: 31 });
     onEvent.mockClear();
 
     const statusChanged = buildStreamPayload({ sequence: 32, type: "task.status_changed" });
@@ -237,11 +367,8 @@ describe("useTaskStream", () => {
     await waitFor(() => {
       expect(onEvent).toHaveBeenCalledWith(statusChanged);
     });
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["tasks", "detail", "task_001"],
-    });
-
-    invalidateQueries.mockClear();
+    await waitFor(() => expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true));
+    queryClient.setQueryData(detailKey, { sequence: 32 });
     onEvent.mockClear();
 
     const blockExpired = buildStreamPayload({ sequence: 33, type: "task.block.expired" });
@@ -253,9 +380,7 @@ describe("useTaskStream", () => {
     await waitFor(() => {
       expect(onEvent).toHaveBeenCalledWith(blockExpired);
     });
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["tasks", "detail", "task_001"],
-    });
+    await waitFor(() => expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true));
   });
 
   it("Should not open a source when disabled", () => {

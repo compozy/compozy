@@ -3,9 +3,6 @@ import { toast } from "sonner";
 
 import { reconcileInstalledExtensionCaches } from "@/integrations/tanstack-query/reconcile-installed-extension";
 import { updateExtension } from "@/systems/extensions/adapters/extensions-api";
-import { settingsKeys } from "@/systems/settings";
-import { skillKeys } from "@/systems/skill";
-import { sessionKeys } from "@/systems/session";
 
 import {
   installMarketplaceExtension,
@@ -23,6 +20,9 @@ import type {
   SkillInstallRequest,
   SkillUpdateRequest,
 } from "../types";
+import { sessionKeys } from "@/systems/session";
+import { settingsKeys } from "@/systems/settings";
+import { skillKeys } from "@/systems/skill";
 
 function mcpInstalledPath(input: {
   entryId: string;

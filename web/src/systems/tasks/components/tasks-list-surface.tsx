@@ -3,8 +3,8 @@ import { AlertCircle, ListChecks, Search } from "lucide-react";
 import { Button, Empty, ListingPage, Skeleton, Spinner } from "@compozy/ui";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
-import { buildTaskListTree } from "../lib/task-hierarchy";
-import type { TaskListItem, TaskStatus } from "../types";
+import type { TaskListTree } from "../lib/task-hierarchy";
+import type { TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
 
@@ -17,7 +17,7 @@ const TASK_LIST_SKELETON_IDS = [
 ];
 
 export interface TasksListSurfaceProps {
-  tasks: TaskListItem[];
+  taskTree: TaskListTree;
   statusCounts: Record<TaskStatus, number>;
   isLoading?: boolean;
   errorMessage?: string | null;
@@ -30,7 +30,7 @@ export interface TasksListSurfaceProps {
 }
 
 export function TasksListSurface({
-  tasks,
+  taskTree,
   statusCounts,
   isLoading = false,
   errorMessage = null,
@@ -41,13 +41,12 @@ export function TasksListSurface({
   onLoadMore,
   onRetryLoad,
 }: TasksListSurfaceProps) {
-  const tree = buildTaskListTree(tasks);
-  const buckets = groupTasksForList(tree.roots).filter(
+  const buckets = groupTasksForList(taskTree.roots).filter(
     bucket =>
       bucket.tasks.length > 0 || taskStatusFacetTotal(bucket.group.statuses, statusCounts) > 0
   );
 
-  const visibleCount = tasks.length;
+  const visibleCount = taskTree.size;
   const hasFilters = filterState === "active" || searchQuery.trim() !== "";
 
   return (
@@ -106,7 +105,11 @@ export function TasksListSurface({
               totalCount={taskStatusFacetTotal(bucket.group.statuses, statusCounts)}
             >
               {bucket.tasks.map(task => (
-                <TaskCard key={task.id} subtasks={tree.childrenByParent.get(task.id)} task={task} />
+                <TaskCard
+                  key={task.id}
+                  subtasks={taskTree.childrenByParent.get(task.id)}
+                  task={task}
+                />
               ))}
             </TaskGroup>
           ))

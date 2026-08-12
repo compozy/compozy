@@ -11,8 +11,11 @@ interface QueryEnabledOptions {
   enabled?: boolean;
 }
 
-export function useVaultSecrets(filter: VaultListFilter = {}) {
-  return useQuery(vaultSecretsListOptions(filter));
+export function useVaultSecrets(filter: VaultListFilter = {}, options: QueryEnabledOptions = {}) {
+  return useQuery({
+    ...vaultSecretsListOptions(filter),
+    enabled: options.enabled ?? true,
+  });
 }
 
 export function useVaultSecret(ref: string, options: QueryEnabledOptions = {}) {

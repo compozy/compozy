@@ -3,22 +3,20 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { useRuntimeModelCatalog, type RuntimeCatalogProvider } from "@/systems/model-catalog";
-import type {
-  RuntimeModelOption,
-  RuntimeProviderOption,
-  RuntimeSelectorValue,
-} from "@/systems/runtime";
-import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
-import type { SessionProviderOption } from "@/systems/workspace";
-import { useWorkspace } from "@/systems/workspace";
-
 import { isAgentDigestConflict } from "../adapters/agent-api";
 import { resolveAgentRuntimeValue } from "../lib/agent-effective-runtime";
 import { buildSettingsDraftFromAgent, buildUpdateAgentParams } from "../lib/agent-settings-draft";
 import { agentKeys } from "../lib/query-keys";
 import type { AgentPayload } from "../types";
 import { useUpdateAgent } from "./use-agents";
+import { type RuntimeCatalogProvider, useRuntimeModelCatalog } from "@/systems/model-catalog";
+import type {
+  RuntimeModelOption,
+  RuntimeProviderOption,
+  RuntimeSelectorValue,
+} from "@/systems/runtime";
+import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
+import { type SessionProviderOption, useWorkspace } from "@/systems/workspace";
 
 function describeError(fallback: string, error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {

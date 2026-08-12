@@ -3,11 +3,11 @@ import { ArrowRightLeft } from "lucide-react";
 import { CommandGroup, CommandItem } from "@compozy/ui";
 
 import type { OsCommandPaletteModel } from "../hooks/use-os-command-palette";
-import { OS_APPS } from "../lib/app-registry";
+import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 
 const PALETTE_APPS = (() => {
   const apps = [];
-  for (const app of Object.values(OS_APPS)) {
+  for (const app of Object.values(OS_APP_DESCRIPTORS)) {
     if (app.id !== "new-tab" && app.id !== "session") apps.push(app);
   }
   return apps;
@@ -65,7 +65,7 @@ export function OsCommandPaletteResults({ destination, model }: OsCommandPalette
                 }}
                 disabled={!available}
               >
-                <OS_APPS.session.icon className="size-3.5 text-muted" />
+                <OS_APP_DESCRIPTORS.session.icon className="size-3.5 text-muted" />
                 <span className="min-w-0 truncate">{session.name?.trim() || session.id}</span>
                 <span className="ml-auto text-micro text-subtle">
                   {agentName || "Agent unavailable"}

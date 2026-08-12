@@ -29,14 +29,13 @@ const { mockRefreshMutation, mockStatusQuery } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/systems/model-catalog", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/model-catalog")>();
-  return {
-    ...actual,
-    useProviderModelStatus: () => mockStatusQuery,
-    useRefreshProviderModels: () => mockRefreshMutation,
-  };
-});
+vi.mock("@/systems/model-catalog/hooks/use-provider-models", () => ({
+  useProviderModelStatus: () => mockStatusQuery,
+}));
+
+vi.mock("@/systems/model-catalog/hooks/use-refresh-provider-models", () => ({
+  useRefreshProviderModels: () => mockRefreshMutation,
+}));
 
 function renderStatus() {
   return render(

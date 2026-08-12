@@ -2,7 +2,6 @@ import { Boxes, Pencil, Trash2 } from "lucide-react";
 
 import { Button, CatalogCard, Pill } from "@compozy/ui";
 
-import type { SettingsSandboxEntry } from "@/systems/settings";
 import {
   sandboxBackendLabel,
   sandboxBackendTone,
@@ -10,6 +9,7 @@ import {
   sandboxOrDash,
   sandboxUsageLabel,
 } from "../lib/sandbox-labels";
+import type { SettingsSandboxEntry } from "@/systems/settings";
 
 export interface SandboxProfileCardProps {
   entry: SettingsSandboxEntry;

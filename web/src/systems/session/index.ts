@@ -307,6 +307,7 @@ export {
   type SessionCreateDialogProps,
 } from "./components/session-create-dialog";
 export { SessionCreateDialogHost } from "./components/session-create-dialog-host";
+export { SessionLoadOlderButton } from "./components/session-load-older-button";
 export { SessionRewindMessageAction } from "./components/session-rewind-message-action";
 export {
   SessionResumeFailure,

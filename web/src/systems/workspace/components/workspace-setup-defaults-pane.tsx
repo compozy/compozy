@@ -20,13 +20,12 @@ import {
   Pill,
 } from "@compozy/ui";
 
-import { AgentCommandSelect } from "@/systems/agent";
-
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
 import type {
   WorkspaceSetupCollection,
   WorkspaceSetupDefaultsModel,
 } from "../lib/workspace-setup-defaults";
+import { AgentCommandSelect } from "@/systems/agent";
 
 interface WorkspaceSetupDefaultsPaneProps {
   setup: WorkspaceSetupContent;

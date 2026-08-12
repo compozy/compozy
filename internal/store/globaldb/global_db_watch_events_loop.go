@@ -19,12 +19,16 @@ func (g *WatchEventsRepo) readLoopWatchEventsCursor(
 	return scanWatchEventCursor(
 		g.db.QueryRowContext(
 			ctx,
-			`SELECT COALESCE(MAX(lre.watch_seq), 0)
-			   FROM loop_run_events lre
-			   JOIN loop_runs lr
-			     ON lr.id = lre.loop_run_id
-			    AND lr.workspace_id = lre.workspace_id
-			  WHERE `+loopWatchEventsEligibilitySQL(placeholders),
+			`SELECT COALESCE((
+				SELECT lre.watch_seq
+				  FROM loop_run_events lre
+				  JOIN loop_runs lr
+				    ON lr.id = lre.loop_run_id
+				   AND lr.workspace_id = lre.workspace_id
+				 WHERE `+loopWatchEventsEligibilitySQL(placeholders)+`
+				 ORDER BY lre.watch_seq DESC
+				 LIMIT 1
+			), 0)`,
 			args...,
 		),
 		looppkg.WatchEventsLoopStream,

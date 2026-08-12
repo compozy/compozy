@@ -11,9 +11,8 @@ import {
   Switch,
 } from "@compozy/ui";
 
-import { ModalSettingsFieldRow, SettingsEditorDialog } from "@/systems/settings";
-
 import type { VaultDraft, VaultEditorState } from "../hooks/use-vault-page";
+import { ModalSettingsFieldRow, SettingsEditorDialog } from "@/systems/settings";
 
 interface VaultEditorProps {
   editor: VaultEditorState;

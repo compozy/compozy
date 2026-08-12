@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useRef, type ComponentProps, type ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -8,7 +8,7 @@ export interface TranscriptDisclosureProps extends Omit<
   "children" | "onClick" | "onToggle"
 > {
   expanded: boolean;
-  onToggle: (button: HTMLElement | null) => void;
+  onToggle: () => void;
   icon: ReactNode;
   label: ReactNode;
   trailing?: ReactNode;
@@ -26,16 +26,14 @@ export function TranscriptDisclosure({
   className,
   ...props
 }: TranscriptDisclosureProps) {
-  const ref = useRef<HTMLButtonElement | null>(null);
   const turn = variant === "turn";
 
   return (
     <button
       {...props}
-      ref={ref}
       type="button"
       aria-expanded={expanded}
-      onClick={() => onToggle(ref.current)}
+      onClick={onToggle}
       className={cn(
         turn
           ? "-ml-0.5 inline-flex items-center gap-1 rounded-xs px-1 py-px text-transcript-body text-subtle tabular-nums"

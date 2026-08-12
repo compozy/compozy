@@ -8,6 +8,7 @@ import {
   settingsGeneralOptions,
   settingsMCPServersListOptions,
   settingsProviderDetailOptions,
+  settingsProvidersListOptions,
   settingsRestartStatusOptions,
 } from "../query-options";
 import { SettingsApiError } from "../../adapters/settings-api";
@@ -38,6 +39,10 @@ describe("settings section options", () => {
 });
 
 describe("settings collection options", () => {
+  it("disables the provider collection when its owner is inactive", () => {
+    expect(settingsProvidersListOptions(false).enabled).toBe(false);
+  });
+
   it("disables detail queries when name is empty", () => {
     expect(settingsProviderDetailOptions("").enabled).toBe(false);
     expect(settingsSandboxDetailOptions("").enabled).toBe(false);

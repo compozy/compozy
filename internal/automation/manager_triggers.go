@@ -43,6 +43,9 @@ func (m *Manager) CreateTrigger(
 	if ctx == nil {
 		return Trigger{}, errors.New("automation: create trigger context is required")
 	}
+	if err := ValidateTriggerEvent(trigger.Event, "trigger"); err != nil {
+		return Trigger{}, err
+	}
 	if m.resourceDefinitionsEnabled() {
 		return m.createTriggerResource(ctx, trigger, webhookSecret)
 	}
@@ -63,6 +66,9 @@ func (m *Manager) CreateTrigger(
 	}
 	next = applyWebhookSecretRef(next, nil, &webhookSecret)
 	if err := requireWebhookSecretRef(next); err != nil {
+		return Trigger{}, err
+	}
+	if err := next.Validate("trigger"); err != nil {
 		return Trigger{}, err
 	}
 	if err := m.validateTriggerLoopTarget(ctx, next); err != nil {
@@ -101,6 +107,9 @@ func (m *Manager) UpdateTrigger(
 	if ctx == nil {
 		return Trigger{}, errors.New("automation: update trigger context is required")
 	}
+	if err := ValidateTriggerEvent(trigger.Event, "trigger"); err != nil {
+		return Trigger{}, err
+	}
 	if m.resourceDefinitionsEnabled() {
 		return m.updateTriggerResource(ctx, trigger, webhookSecret)
 	}
@@ -122,13 +131,7 @@ func (m *Manager) UpdateTrigger(
 	next.Source = currentStored.Source
 	next.CreatedAt = currentStored.CreatedAt
 	next = applyWebhookSecretRef(next, &currentStored, webhookSecret)
-	if err := ValidateImmutableTriggerTarget(currentStored, next); err != nil {
-		return Trigger{}, err
-	}
-	if err := requireWebhookSecretRef(next); err != nil {
-		return Trigger{}, err
-	}
-	if err := m.validateTriggerLoopTarget(ctx, next); err != nil {
+	if err := m.validateTriggerUpdate(ctx, currentStored, next); err != nil {
 		return Trigger{}, err
 	}
 
@@ -171,6 +174,19 @@ func (m *Manager) UpdateTrigger(
 	}
 
 	return currentEffective, nil
+}
+
+func (m *Manager) validateTriggerUpdate(ctx context.Context, current Trigger, next Trigger) error {
+	if err := ValidateImmutableTriggerTarget(current, next); err != nil {
+		return err
+	}
+	if err := requireWebhookSecretRef(next); err != nil {
+		return err
+	}
+	if err := next.Validate("trigger"); err != nil {
+		return err
+	}
+	return m.validateTriggerLoopTarget(ctx, next)
 }
 
 // DeleteTrigger removes one dynamic trigger definition and clears any

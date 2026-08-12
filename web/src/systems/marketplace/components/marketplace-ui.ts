@@ -14,20 +14,6 @@ export function marketplaceKindIcon(kind: MarketplaceKind): LucideIcon {
   return MARKETPLACE_KIND_ICON[kind] ?? Box;
 }
 
-export const MARKETPLACE_KIND_ORDER: readonly MarketplaceKind[] = ["skill", "mcp", "extension"];
-
-export const MARKETPLACE_KIND_LABEL: Record<MarketplaceKind, string> = {
-  skill: "Skills",
-  extension: "Extensions",
-  mcp: "MCPs",
-};
-
-export const MARKETPLACE_KIND_SINGULAR: Record<MarketplaceKind, string> = {
-  skill: "skill",
-  extension: "extension",
-  mcp: "MCP server",
-};
-
 const STANDARD_COUNT_FORMATTER = new Intl.NumberFormat("en", {
   notation: "standard",
   maximumFractionDigits: 1,
@@ -36,10 +22,6 @@ const COMPACT_COUNT_FORMATTER = new Intl.NumberFormat("en", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
-
-export function isMarketplaceKind(value: unknown): value is MarketplaceKind {
-  return typeof value === "string" && MARKETPLACE_KIND_ORDER.includes(value as MarketplaceKind);
-}
 
 export function isMarketplaceViewSort(value: unknown): value is MarketplaceViewSort {
   return value === "relevance" || value === "downloads" || value === "name";
@@ -94,3 +76,10 @@ export function marketplaceErrorMessage(error: unknown, fallback: string): strin
 export function stripMarketplaceUrlScheme(url: string): string {
   return url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
 }
+
+export {
+  isMarketplaceKind,
+  MARKETPLACE_KIND_LABEL,
+  MARKETPLACE_KIND_ORDER,
+  MARKETPLACE_KIND_SINGULAR,
+} from "../lib/marketplace-kind";

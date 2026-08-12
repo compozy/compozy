@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadHomeRoute } from "./-app-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: "Home", to: "/" } },
   }),
-  loader: ({ context }) => preloadHomeRoute(context.queryClient),
+  loader: async ({ context }) =>
+    (await import("./-home-preload")).preloadHomeRoute(context.queryClient),
   component: createOsRouteSync("dashboard"),
 });

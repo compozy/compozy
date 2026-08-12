@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+BUNDLED_DIR="$ROOT_DIR/skills"
 SOURCE_DIR="$ROOT_DIR/.agents/skills"
 TARGET_DIR="$ROOT_DIR/.claude/skills"
 
@@ -17,6 +18,31 @@ link_skill() {
 
   ln -s "$source_path" "$target"
 }
+
+# Skills shipped inside the binary (skills/<name>) are also exposed to local
+# agents: each one is linked into .agents/skills with a relative symlink, so the
+# loop below picks it up and mirrors it into .claude/skills like any other skill.
+if [ -d "$BUNDLED_DIR" ]; then
+  mkdir -p "$SOURCE_DIR"
+
+  bundled_skills=0
+  for bundled in "$BUNDLED_DIR"/*/; do
+    bundled="${bundled%/}"
+    [ -f "$bundled/SKILL.md" ] || continue
+
+    skill_name="$(basename "$bundled")"
+    bundled_link="$SOURCE_DIR/$skill_name"
+
+    if [ -L "$bundled_link" ] || [ -e "$bundled_link" ]; then
+      rm -rf "$bundled_link"
+    fi
+
+    ln -s "../../skills/$skill_name" "$bundled_link"
+    bundled_skills=$((bundled_skills + 1))
+  done
+
+  echo "Linked $bundled_skills bundled skills from skills/ → .agents/skills"
+fi
 
 if [ -d "$SOURCE_DIR" ]; then
   mkdir -p "$TARGET_DIR"

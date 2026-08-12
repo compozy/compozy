@@ -2,11 +2,10 @@ import { ShieldCheck } from "lucide-react";
 
 import { Button, Empty, MonoId, Spinner } from "@compozy/ui";
 
-import { SettingsGroup } from "@/systems/settings";
-
 import { auditSeverityCopy } from "../lib/gateway-copy";
 import type { GatewayAuditReport } from "../types";
 import { GatewayStatusChip } from "./gateway-status-chip";
+import { SettingsGroup } from "@/systems/settings";
 
 export interface GatewayAuditPanelProps {
   hasRun: boolean;

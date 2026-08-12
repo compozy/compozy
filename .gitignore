@@ -44,6 +44,7 @@ ai-docs/
 .claude/ledger
 .impeccable
 .coderabbit/reviews/
+.agents/skills/compozy
 
 # Python
 __pycache__/

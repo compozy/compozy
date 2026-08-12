@@ -2,26 +2,26 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useOsShell } from "../../hooks/use-os-shell";
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
+import { copyTaskRecordId } from "./copy-record-id";
 import {
   computeElapsed,
+  type ResolvedTaskDetailSearch,
   resolveTaskCommandState,
   TASK_RESULT_ANCHOR_ID,
-  useProfileEditor,
+  type TaskDetailTab,
+  type TaskInspectTarget,
+  type TaskPriority,
   useDeleteTask,
   useLiveElapsed,
+  useProfileEditor,
   useTaskDetailPage,
   useTaskOperatorLayer,
   useTaskPauseDialog,
   useTaskSetupRuntime,
   useUpdateTask,
-  type ResolvedTaskDetailSearch,
-  type TaskDetailTab,
-  type TaskInspectTarget,
-  type TaskPriority,
 } from "@/systems/tasks";
-
-import { useOsShell } from "../../hooks/use-os-shell";
-import { copyTaskRecordId } from "./copy-record-id";
 
 function scrollToResult() {
   document.getElementById(TASK_RESULT_ANCHOR_ID)?.scrollIntoView({ block: "start" });
@@ -35,7 +35,8 @@ function scrollToResult() {
 export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetailSearch) {
   const navigate = useNavigate();
   const { coordinator } = useOsShell();
-  const page = useTaskDetailPage(taskId);
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
+  const page = useTaskDetailPage(taskId, { liveDataEnabled });
   const deleteMutation = useDeleteTask();
   const updateMutation = useUpdateTask();
   const [overlay, setOverlay] = useState<"setup" | "setup_clear" | "fan_out" | "delete" | null>(
@@ -44,8 +45,15 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   const inspectOpen = search.inspect !== undefined;
   const pauseDialog = useTaskPauseDialog(page.handlePauseTask);
   const latestEventSeq = page.detail?.task?.latest_event_seq ?? null;
-  const operator = useTaskOperatorLayer(taskId, { enabled: inspectOpen, latestEventSeq });
-  const setupRuntime = useTaskSetupRuntime(page.detail?.task.workspace_id);
+  const operator = useTaskOperatorLayer(taskId, {
+    enabled: inspectOpen && liveDataEnabled,
+    streamErrorMessage: page.streamErrorMessage,
+    streamSeedSequence: page.streamSeedSequence,
+    streamState: page.streamState,
+  });
+  const setupRuntime = useTaskSetupRuntime(page.detail?.task.workspace_id, {
+    enabled: liveDataEnabled && Boolean(page.detail),
+  });
   const setupEditor = useProfileEditor({
     onSetProfile: operator.handleSetProfile,
     profile: page.profile,
@@ -54,7 +62,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
 
   const detail = page.detail;
   const record = detail?.task ?? null;
-  const activeElapsed = useLiveElapsed(page.activeRun?.started_at, page.isLive);
+  const activeElapsed = useLiveElapsed(page.activeRun?.started_at, page.isLive && liveDataEnabled);
   const runDurations = new Map(
     page.runs.map(run => [
       run.id,
@@ -161,6 +169,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   };
 
   return {
+    activeElapsed,
     backToTasks,
     command,
     copyTaskId,
@@ -174,6 +183,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
     handlePriorityChange,
     inspectOpen,
     latestEventSeq,
+    liveDataEnabled,
     openEdit,
     openRun,
     openTask,

@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { useLoop, useLoopConfig, useLoopRuns } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -14,7 +15,8 @@ export function useLoopRunFormPage(name: string) {
   const navigate = useNavigate();
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
-  const enabled = workspaceId !== "";
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
+  const enabled = workspaceId !== "" && liveDataEnabled;
   const loopQuery = useLoop(workspaceId, name, enabled);
   const configQuery = useLoopConfig(workspaceId, name, enabled);
   const liveRunsQuery = useLoopRuns(workspaceId, { limit: 1, live: true, loop: name }, enabled);

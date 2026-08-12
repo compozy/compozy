@@ -1,11 +1,14 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,8 +18,9 @@ import (
 )
 
 type mcpToolListCache struct {
-	mu      sync.Mutex
-	entries map[string]mcpToolListCacheEntry
+	mu               sync.Mutex
+	entries          map[string]mcpToolListCacheEntry
+	projectionStates map[string]mcpToolProjectionState
 }
 
 type mcpToolListCacheEntry struct {
@@ -24,9 +28,16 @@ type mcpToolListCacheEntry struct {
 	expiresAt   time.Time
 }
 
+type mcpToolProjectionState struct {
+	generation  uint64
+	fingerprint [sha256.Size]byte
+	expiresAt   time.Time
+}
+
 func (e *CallExecutor) cachedTools(key string, now time.Time) ([]toolspkg.MCPToolDescriptor, bool) {
 	e.toolCache.mu.Lock()
 	defer e.toolCache.mu.Unlock()
+	e.pruneToolProjectionStatesLocked(now)
 	entry, ok := e.toolCache.entries[key]
 	if !ok || !now.Before(entry.expiresAt) {
 		delete(e.toolCache.entries, key)
@@ -43,6 +54,7 @@ func (e *CallExecutor) cacheTools(key string, descriptors []toolspkg.MCPToolDesc
 	if e.toolCache.entries == nil {
 		e.toolCache.entries = make(map[string]mcpToolListCacheEntry)
 	}
+	e.pruneToolProjectionStatesLocked(now)
 	for cachedKey, entry := range e.toolCache.entries {
 		if !now.Before(entry.expiresAt) {
 			delete(e.toolCache.entries, cachedKey)
@@ -64,10 +76,143 @@ func cloneMCPToolDescriptors(descriptors []toolspkg.MCPToolDescriptor) []toolspk
 	return cloned
 }
 
+// ProjectionGeneration reports the exact live tool-list cache generation for configured sources.
+func (e *CallExecutor) ProjectionGeneration(
+	ctx context.Context,
+	sources []toolspkg.SourceRef,
+) (string, bool) {
+	if e == nil || ctx == nil || ctx.Err() != nil {
+		return "", false
+	}
+	keys := make([]string, 0, len(sources))
+	for i := range sources {
+		key, ok := e.projectionSourceKey(ctx, sources[i])
+		if !ok {
+			return "", false
+		}
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+
+	now := time.Now()
+	e.toolCache.mu.Lock()
+	defer e.toolCache.mu.Unlock()
+	e.pruneToolProjectionStatesLocked(now)
+	var generation strings.Builder
+	for _, key := range keys {
+		state, ok := e.toolCache.projectionStates[key]
+		if !ok {
+			return "", false
+		}
+		fmt.Fprintf(&generation, "%d:%s%d:%x;", len(key), key, state.generation, state.fingerprint)
+	}
+	return generation.String(), true
+}
+
+func (e *CallExecutor) recordToolProjection(
+	source toolspkg.SourceRef,
+	authorizationHeader string,
+	descriptors []toolspkg.MCPToolDescriptor,
+	ttlMs int,
+	now time.Time,
+) error {
+	key := mcpProjectionSourceKey(source, authorizationHeader)
+	if ttlMs <= 0 {
+		e.toolCache.mu.Lock()
+		e.pruneToolProjectionStatesLocked(now)
+		delete(e.toolCache.projectionStates, key)
+		e.toolCache.mu.Unlock()
+		return nil
+	}
+	fingerprint, err := fingerprintMCPToolDescriptors(descriptors)
+	if err != nil {
+		return err
+	}
+	e.toolCache.mu.Lock()
+	if e.toolCache.projectionStates == nil {
+		e.toolCache.projectionStates = make(map[string]mcpToolProjectionState)
+	}
+	e.pruneToolProjectionStatesLocked(now)
+	state := e.toolCache.projectionStates[key]
+	if state.fingerprint != fingerprint {
+		state.generation++
+	}
+	if state.generation == 0 {
+		state.generation = 1
+	}
+	state.fingerprint = fingerprint
+	state.expiresAt = now.Add(time.Duration(ttlMs) * time.Millisecond)
+	e.toolCache.projectionStates[key] = state
+	e.toolCache.mu.Unlock()
+	return nil
+}
+
+func fingerprintMCPToolDescriptors(descriptors []toolspkg.MCPToolDescriptor) ([sha256.Size]byte, error) {
+	canonical := make([]json.RawMessage, 0, len(descriptors))
+	for index := range descriptors {
+		encoded, err := json.Marshal(descriptors[index])
+		if err != nil {
+			return [sha256.Size]byte{}, fmt.Errorf("mcp: encode tool projection descriptor: %w", err)
+		}
+		canonical = append(canonical, encoded)
+	}
+	slices.SortFunc(canonical, func(left, right json.RawMessage) int {
+		return bytes.Compare(left, right)
+	})
+	encoded, err := json.Marshal(canonical)
+	if err != nil {
+		return [sha256.Size]byte{}, fmt.Errorf("mcp: encode tool projection generation: %w", err)
+	}
+	return sha256.Sum256(encoded), nil
+}
+
+func (e *CallExecutor) projectionSourceKey(
+	ctx context.Context,
+	source toolspkg.SourceRef,
+) (string, bool) {
+	if e.servers == nil {
+		return mcpProjectionSourceKey(source, ""), true
+	}
+	resolved, err := e.resolveServer(ctx, source)
+	if err != nil {
+		return "", false
+	}
+	return mcpProjectionSourceKey(source, e.authorizationHeader(ctx, resolved)), true
+}
+
+func (e *CallExecutor) pruneToolProjectionStatesLocked(now time.Time) {
+	for key, state := range e.toolCache.projectionStates {
+		if !now.Before(state.expiresAt) {
+			delete(e.toolCache.projectionStates, key)
+		}
+	}
+}
+
+func mcpProjectionSourceKey(source toolspkg.SourceRef, authorizationHeader string) string {
+	authBinding := sha256.Sum256([]byte(authorizationHeader))
+	parts := []string{
+		string(source.Kind),
+		source.Owner,
+		source.RawServerName,
+		source.RawToolName,
+		source.Scope,
+		source.WorkspaceID,
+		source.ResourceID,
+		source.ResourceVersion,
+		hex.EncodeToString(authBinding[:]),
+	}
+	var key strings.Builder
+	for _, part := range parts {
+		fmt.Fprintf(&key, "%d:%s", len(part), part)
+	}
+	return key.String()
+}
+
 func (e *CallExecutor) toolCacheKey(
 	ctx context.Context,
 	resolved ResolvedServer,
 	protocolVersion string,
+	authorizationHeader string,
 ) (string, error) {
 	targetKey, err := resolved.Target.Key()
 	if err != nil {
@@ -91,7 +236,7 @@ func (e *CallExecutor) toolCacheKey(
 		sum := sha256.Sum256(definition)
 		fingerprint = hex.EncodeToString(sum[:])
 	}
-	authBinding := sha256.Sum256([]byte(e.authorizationHeader(ctx, resolved)))
+	authBinding := sha256.Sum256([]byte(authorizationHeader))
 	key := targetKey + "\x00" +
 		fingerprint + "\x00" +
 		protocolVersion + "\x00" +

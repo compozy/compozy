@@ -245,7 +245,7 @@ func (m *Manager) resolveConfigTrigger(ctx context.Context, raw compozyconfig.Au
 		AgentName:        strings.TrimSpace(raw.AgentName),
 		WorkspaceID:      workspaceID,
 		Prompt:           strings.TrimSpace(raw.Prompt),
-		Event:            strings.TrimSpace(raw.Event),
+		Event:            raw.Event,
 		Filter:           cloneFilter(raw.Filter),
 		TargetKind:       raw.TargetKind,
 		LoopTarget:       cloneLoopTarget(raw.LoopTarget),

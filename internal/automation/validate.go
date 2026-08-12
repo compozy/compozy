@@ -26,3 +26,8 @@ func ValidateScopeBinding(scope Scope, workspaceBinding string, path string, wor
 func ValidateTriggerFilter(filter map[string]string, path string) error {
 	return modelpkg.ValidateTriggerFilter(filter, path)
 }
+
+// ValidateTriggerEvent rejects trigger event names no activation producer emits.
+func ValidateTriggerEvent(event string, path string) error {
+	return modelpkg.ValidateTriggerEvent(event, path)
+}

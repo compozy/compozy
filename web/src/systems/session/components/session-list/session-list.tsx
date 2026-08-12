@@ -6,7 +6,7 @@ import { Icon, SearchInput } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
-import { buildSessionTree, collectThreadSessions } from "../../lib/session-hierarchy";
+import { buildSessionTree, filterThreadSessions } from "../../lib/session-hierarchy";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionListArchived } from "./session-list-archived";
@@ -74,25 +74,8 @@ export function SessionList({
   const tree = buildSessionTree(sessions);
   const threads: SessionThreadModel[] = [];
   for (const root of tree.roots) {
-    const descendants = collectThreadSessions(root.id, tree.childrenByParent);
-    const rootMatches = matchesFilter(root);
-    const matchingDescendants = descendants.filter(matchesFilter);
-    if (!rootMatches && matchingDescendants.length === 0) continue;
-    let childSessions = descendants;
-    if (!rootMatches) {
-      const visibleDescendantIds = new Set(matchingDescendants.map(session => session.id));
-      const descendantsById = new Map(descendants.map(session => [session.id, session]));
-      for (const matchingSession of matchingDescendants) {
-        let parentId = matchingSession.lineage?.parent_session_id ?? "";
-        while (parentId !== "" && parentId !== root.id) {
-          const ancestor = descendantsById.get(parentId);
-          if (!ancestor) break;
-          visibleDescendantIds.add(ancestor.id);
-          parentId = ancestor.lineage?.parent_session_id ?? "";
-        }
-      }
-      childSessions = descendants.filter(session => visibleDescendantIds.has(session.id));
-    }
+    const childSessions = filterThreadSessions(root, tree.childrenByParent, matchesFilter);
+    if (childSessions === null) continue;
     threads.push({
       session: root,
       childSessions,

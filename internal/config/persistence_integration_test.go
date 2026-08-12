@@ -60,6 +60,32 @@ enabled = true
 	})
 }
 
+func TestEditConfigOverlayGlobalWriteFromOperatorHomeWorkspace(t *testing.T) {
+	t.Run("Should load global-only settings without treating them as a workspace overlay", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := t.TempDir()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(operatorHome, DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		target, err := ResolveConfigWriteTarget(homePaths, operatorHome, WriteScopeGlobal)
+		if err != nil {
+			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+		}
+
+		cfg, err := EditConfigOverlay(homePaths, operatorHome, target, func(editor *OverlayEditor) error {
+			return editor.SetValue([]string{"gateway", "enabled"}, true)
+		})
+		if err != nil {
+			t.Fatalf("EditConfigOverlay() error = %v", err)
+		}
+		if !cfg.Gateway.Enabled {
+			t.Fatal("EditConfigOverlay() Gateway.Enabled = false, want true")
+		}
+	})
+}
+
 func TestEditConfigOverlayWorkspaceWriteLeavesGlobalConfigUntouched(t *testing.T) {
 	t.Run("Should leave global config untouched during workspace writes", func(t *testing.T) {
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))

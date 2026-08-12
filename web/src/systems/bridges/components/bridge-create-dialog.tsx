@@ -14,8 +14,6 @@ import {
   type EntityMode,
 } from "@compozy/ui";
 
-import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
-
 import { parseBridgeProviderConfig } from "../lib/bridge-drafts";
 import { findBridgeProviderByKey, isBridgeProviderSelectable } from "../lib/bridge-formatters";
 import { missingRequiredBridgeSecretSlots } from "../lib/bridge-secret-slot-submission";
@@ -27,6 +25,7 @@ import {
   BridgeManifestHandoff,
   type BridgeManifestCommittedState,
 } from "./bridge-manifest-handoff";
+import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 /**
  * Phase-two state after `POST /api/bridges` committed: the bridge exists, so the

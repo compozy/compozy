@@ -3,9 +3,11 @@
 // Owning layer: the browser-to-OS-hook interaction boundary.
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { type ReactNode, useEffect, useLayoutEffect } from "react";
+import type { Rnd } from "react-rnd";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import { WindowLiveDataContext } from "../../contexts/window-live-data-context";
 import type { OsWindowFrameModel } from "../../lib/group-projection";
 import { RoutingCoordinator } from "../../lib/routing-coordinator";
 import type {
@@ -24,6 +26,10 @@ import { useOsWindow } from "../use-os-window";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
 import { useOsWindowCommands } from "../use-os-window-commands";
 import { useWindowMergeTarget } from "../use-window-merge-target";
+import {
+  useCurrentWindowLiveDataEnabled,
+  useWindowLiveDataEnabled,
+} from "../use-window-live-data-enabled";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
 import { windowManagerStore } from "../../stores/window-manager-store";
@@ -332,6 +338,51 @@ describe("useAnimationFrameLatest", () => {
   });
 });
 
+describe("useWindowLiveDataEnabled", () => {
+  it("Should default to live outside the retained-window OS shell", () => {
+    const { result } = renderHook(() => useCurrentWindowLiveDataEnabled());
+
+    expect(result.current).toBe(true);
+  });
+
+  it("Should derive a retained descendant's live lease from its own window", () => {
+    const shell = createShell();
+    const Shell = shell.wrapper;
+    const LiveDataProvider = ({ children }: { children: ReactNode }) => {
+      const liveDataEnabled = useWindowLiveDataEnabled("window:primary");
+      return <WindowLiveDataContext value={liveDataEnabled}>{children}</WindowLiveDataContext>;
+    };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <Shell>
+        <LiveDataProvider>{children}</LiveDataProvider>
+      </Shell>
+    );
+    const { result } = renderHook(() => useCurrentWindowLiveDataEnabled(), { wrapper });
+
+    expect(result.current).toBe(true);
+    act(() => shell.setRuntimeState({ activeDesktopId: "desktop:other" }));
+    expect(result.current).toBe(false);
+  });
+
+  it("Should disable retained window work while the browser document is hidden", () => {
+    let visibilityState: DocumentVisibilityState = "visible";
+    vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibilityState);
+    const shell = createShell();
+    const { result } = renderHook(() => useWindowLiveDataEnabled("window:primary"), {
+      wrapper: shell.wrapper,
+    });
+
+    expect(result.current).toBe(true);
+    visibilityState = "hidden";
+    fireEvent(document, new Event("visibilitychange"));
+    expect(result.current).toBe(false);
+
+    visibilityState = "visible";
+    fireEvent(document, new Event("visibilitychange"));
+    expect(result.current).toBe(true);
+  });
+});
+
 describe("useOsWindow", () => {
   it("Should coalesce drag previews to the latest point in each animation frame", () => {
     const frames = installAnimationFrameQueue();
@@ -385,10 +436,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(
@@ -413,10 +461,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(
@@ -441,10 +486,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(
@@ -469,10 +511,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(
@@ -496,10 +535,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(
@@ -810,7 +846,7 @@ describe("useWindowMergeTarget", () => {
     });
   });
 
-  it("Should not advertise a head occluded by a higher floating frame", () => {
+  it("Should measure only the visible top frame when heads overlap", () => {
     const frames = installAnimationFrameQueue();
     const shell = createShell();
     const over: OsWindowFrameModel = {
@@ -822,16 +858,36 @@ describe("useWindowMergeTarget", () => {
       rect: { x: 0, y: 0, w: 1280, h: 800 },
     };
     shell.setRuntimeState({ frames: { "desktop:main": [targetFrame(), over] } });
-    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-    result.current.chromeRef.current = chromeWithHead();
+    const { result } = renderHook(
+      () => ({
+        lower: useWindowMergeTarget(targetFrame(), true),
+        upper: useWindowMergeTarget(over, true),
+      }),
+      { wrapper: shell.wrapper }
+    );
+    const lowerChrome = chromeWithHead();
+    const upperChrome = chromeWithHead();
+    const lowerHead = lowerChrome.querySelector('[data-slot="os-window-head"]');
+    const upperHead = upperChrome.querySelector('[data-slot="os-window-head"]');
+    if (!(lowerHead instanceof HTMLElement) || !(upperHead instanceof HTMLElement)) {
+      throw new Error("window head fixtures are required");
+    }
+    const measureLower = vi.spyOn(lowerHead, "getBoundingClientRect");
+    const measureUpper = vi.spyOn(upperHead, "getBoundingClientRect");
+    result.current.lower.chromeRef.current = lowerChrome;
+    result.current.upper.chromeRef.current = upperChrome;
 
     act(() => beginPrimarySnapGesture());
     act(() => pointerMove(200, 60));
     frames.flush();
 
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+    expect(measureUpper).toHaveBeenCalledOnce();
+    expect(measureLower).not.toHaveBeenCalled();
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
+      frameId: "frame:over",
+      targetWindowId: "window:over",
+      insertIndex: 1,
+    });
   });
 
   it("Should measure only the latest pointer position once per animation frame", () => {

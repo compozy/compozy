@@ -6,8 +6,12 @@ import { sessionKeys } from "../lib/query-keys";
 import type { AnswerClarificationBody, AnswerClarificationResult } from "../types";
 
 /** Read the live pending clarification projection for one session. */
-export function useSessionClarifications(workspaceId: string, id: string) {
-  return useQuery(sessionClarificationsOptions(workspaceId, id));
+export function useSessionClarifications(
+  workspaceId: string,
+  id: string,
+  options: { enabled?: boolean } = {}
+) {
+  return useQuery(sessionClarificationsOptions(workspaceId, id, options.enabled ?? true));
 }
 
 export interface AnswerClarificationVariables {

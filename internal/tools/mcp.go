@@ -46,6 +46,7 @@ type MCPProvider struct {
 }
 
 var _ Provider = (*MCPProvider)(nil)
+var _ ProjectionGenerationProvider = (*MCPProvider)(nil)
 
 // NewMCPProvider creates a registry provider for daemon-owned MCP call-through.
 func NewMCPProvider(

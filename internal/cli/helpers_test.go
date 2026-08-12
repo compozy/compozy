@@ -108,8 +108,8 @@ type stubClient struct {
 	previewExtensionEnableFn     func(context.Context, string) (ExtensionEnablePreviewRecord, error)
 	devExtensionFn               func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
 	reloadDevExtensionFn         func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
-	extensionLogsFn              func(context.Context, string, string, int64) ([]ExtensionLogRecord, error)
-	streamExtensionLogsFn        func(context.Context, string, string, int64, SSEHandler) error
+	extensionLogsFn              func(context.Context, string, string, int64, string) (ExtensionLogsRecord, error)
+	streamExtensionLogsFn        func(context.Context, string, string, int64, string, SSEHandler) error
 	removeDevExtensionFn         func(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
 	listBridgesFn                func(context.Context, BridgeListQuery) (BridgeListRecord, error)
 	createBridgeFn               func(context.Context, CreateBridgeRequest) (BridgeRecord, error)
@@ -1237,11 +1237,12 @@ func (s *stubClient) ExtensionLogs(
 	workspaceRef string,
 	name string,
 	after int64,
-) ([]ExtensionLogRecord, error) {
+	streamEpoch string,
+) (ExtensionLogsRecord, error) {
 	if s.extensionLogsFn != nil {
-		return s.extensionLogsFn(ctx, workspaceRef, name, after)
+		return s.extensionLogsFn(ctx, workspaceRef, name, after, streamEpoch)
 	}
-	return nil, errors.New("unexpected ExtensionLogs call")
+	return ExtensionLogsRecord{}, errors.New("unexpected ExtensionLogs call")
 }
 
 func (s *stubClient) StreamExtensionLogs(
@@ -1249,10 +1250,11 @@ func (s *stubClient) StreamExtensionLogs(
 	workspaceRef string,
 	name string,
 	after int64,
+	streamEpoch string,
 	handler SSEHandler,
 ) error {
 	if s.streamExtensionLogsFn != nil {
-		return s.streamExtensionLogsFn(ctx, workspaceRef, name, after, handler)
+		return s.streamExtensionLogsFn(ctx, workspaceRef, name, after, streamEpoch, handler)
 	}
 	return errors.New("unexpected StreamExtensionLogs call")
 }

@@ -2,19 +2,6 @@ import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector, useStore } from "@xstate/store-react";
 
-import {
-  providerNeedsAuth,
-  useRuntimeModelCatalog,
-  type RuntimeCatalogProvider,
-} from "@/systems/model-catalog";
-import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
-import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/settings";
-import {
-  useUserHomeDir,
-  type SessionProviderOption,
-  type WorkspacePayload,
-} from "@/systems/workspace";
-
 import { useCreateAgent, useDuplicateAgent } from "./use-agents";
 import { agentCreateDialogLogic } from "./agent-create-dialog-logic";
 import {
@@ -27,6 +14,18 @@ import {
   type AgentCreateDialogDraft,
 } from "../lib/agent-create-draft";
 import type { AgentPayload } from "../types";
+import {
+  providerNeedsAuth,
+  type RuntimeCatalogProvider,
+  useRuntimeModelCatalog,
+} from "@/systems/model-catalog";
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
+import { type SettingsProviderEntry, useSettingsProviders } from "@/systems/settings";
+import {
+  type SessionProviderOption,
+  useUserHomeDir,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 interface AgentCreateDialogContext {
   activeWorkspace: WorkspacePayload | undefined;

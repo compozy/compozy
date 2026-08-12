@@ -51,11 +51,39 @@ vi.mock("sonner", () => ({
 }));
 
 const workspaceMockState = vi.hoisted(() => ({
+  options: undefined as unknown,
   error: null as Error | null,
   hasHydrated: true,
   isLoading: false,
   selectedWorkspaceId: "ws_alpha" as string | null,
 }));
+
+const workspaceFixtures = vi.hoisted(() => [
+  {
+    add_dirs: [],
+    created_at: "2026-04-17T10:00:00Z",
+    id: "ws_home",
+    name: "Home",
+    root_dir: "/Users/operator",
+    updated_at: "2026-04-17T10:00:00Z",
+  },
+  {
+    add_dirs: [],
+    created_at: "2026-04-17T10:00:00Z",
+    id: "ws_alpha",
+    name: "Alpha",
+    root_dir: "/workspace/alpha",
+    updated_at: "2026-04-17T10:00:00Z",
+  },
+  {
+    add_dirs: [],
+    created_at: "2026-04-17T10:00:00Z",
+    id: "ws_beta",
+    name: "Beta",
+    root_dir: "/workspace/beta",
+    updated_at: "2026-04-17T10:00:00Z",
+  },
+]);
 
 const daemonStatusMockState = vi.hoisted(
   (): {
@@ -63,66 +91,42 @@ const daemonStatusMockState = vi.hoisted(
     error: Error | null;
     isLoading: boolean;
     isPending: boolean;
+    options: unknown;
   } => ({
     data: { user_home_dir: "/Users/operator" },
     error: null,
     isLoading: false,
     isPending: false,
+    options: undefined,
   })
 );
 
-vi.mock("@/systems/status", () => ({
-  useDaemonStatus: () => daemonStatusMockState,
+vi.mock("@/systems/status/hooks/use-daemon-status", () => ({
+  useDaemonStatus: (options: unknown) => {
+    daemonStatusMockState.options = options;
+    return daemonStatusMockState;
+  },
 }));
 
-vi.mock("@/systems/workspace", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/workspace")>();
-  const workspaces = [
-    {
-      add_dirs: [],
-      created_at: "2026-04-17T10:00:00Z",
-      id: "ws_home",
-      name: "Home",
-      root_dir: "/Users/operator",
-      updated_at: "2026-04-17T10:00:00Z",
-    },
-    {
-      add_dirs: [],
-      created_at: "2026-04-17T10:00:00Z",
-      id: "ws_alpha",
-      name: "Alpha",
-      root_dir: "/workspace/alpha",
-      updated_at: "2026-04-17T10:00:00Z",
-    },
-    {
-      add_dirs: [],
-      created_at: "2026-04-17T10:00:00Z",
-      id: "ws_beta",
-      name: "Beta",
-      root_dir: "/workspace/beta",
-      updated_at: "2026-04-17T10:00:00Z",
-    },
-  ];
-
-  return {
-    ...actual,
-    useActiveWorkspace: () => {
-      const activeWorkspace = workspaceMockState.hasHydrated
-        ? (workspaces.find(workspace => workspace.id === workspaceMockState.selectedWorkspaceId) ??
-          workspaces[0])
-        : undefined;
-      return {
-        activeWorkspace,
-        activeWorkspaceId: activeWorkspace?.id ?? null,
-        error: workspaceMockState.error,
-        hasHydrated: workspaceMockState.hasHydrated,
-        isLoading: workspaceMockState.isLoading,
-        isPending: workspaceMockState.isLoading,
-        workspaces,
-      };
-    },
-  };
-});
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  useActiveWorkspace: (options: unknown) => {
+    workspaceMockState.options = options;
+    const activeWorkspace = workspaceMockState.hasHydrated
+      ? (workspaceFixtures.find(
+          workspace => workspace.id === workspaceMockState.selectedWorkspaceId
+        ) ?? workspaceFixtures[0])
+      : undefined;
+    return {
+      activeWorkspace,
+      activeWorkspaceId: activeWorkspace?.id ?? null,
+      error: workspaceMockState.error,
+      hasHydrated: workspaceMockState.hasHydrated,
+      isLoading: workspaceMockState.isLoading,
+      isPending: workspaceMockState.isLoading,
+      workspaces: workspaceFixtures,
+    };
+  },
+}));
 
 import {
   approveTask,
@@ -142,11 +146,16 @@ import {
   taskDashboardFixture,
   taskTriageStateFixture,
 } from "@/systems/tasks/mocks/fixtures";
-import type { TaskListFilter, TaskListPage, TasksRouteSearch } from "@/systems/tasks";
-import { tasksKeys, validateTasksSearch } from "@/systems/tasks";
 
 import { useTasksPage } from "../use-tasks-page";
 import { tasksPageActionsLogic } from "../tasks-page-actions-store";
+import {
+  type TaskListFilter,
+  type TaskListPage,
+  tasksKeys,
+  type TasksRouteSearch,
+  validateTasksSearch,
+} from "@/systems/tasks";
 
 function createQueryClient() {
   return new QueryClient({
@@ -218,9 +227,11 @@ beforeEach(() => {
   daemonStatusMockState.error = null;
   daemonStatusMockState.isLoading = false;
   daemonStatusMockState.isPending = false;
+  daemonStatusMockState.options = undefined;
   workspaceMockState.error = null;
   workspaceMockState.hasHydrated = true;
   workspaceMockState.isLoading = false;
+  workspaceMockState.options = undefined;
   workspaceMockState.selectedWorkspaceId = "ws_alpha";
   vi.mocked(listTasks).mockImplementation((filters: TaskListFilter = {}) => {
     if (filters.query === "Fix") {
@@ -251,6 +262,19 @@ afterEach(() => {
 });
 
 describe("useTasksPage", () => {
+  it("disables scope-source observers while its window is inactive", () => {
+    const { result } = renderHook(() => useTasksPage({ liveDataEnabled: false }), {
+      wrapper: createWrapper(),
+    });
+
+    expect(workspaceMockState.options).toEqual({ enabled: false });
+    expect(daemonStatusMockState.options).toEqual({ enabled: false });
+    expect(result.current.activeWorkspaceName).toBe("Alpha");
+    expect(listTasks).not.toHaveBeenCalled();
+    expect(getTaskInbox).not.toHaveBeenCalled();
+    expect(getTaskDashboard).not.toHaveBeenCalled();
+  });
+
   it("ignores a stale row completion token", () => {
     const store = tasksPageActionsLogic.createStore();
     const request = {
@@ -283,8 +307,8 @@ describe("useTasksPage", () => {
     ).toEqual({ status: "failed", inboxUnread: true });
   });
 
-  it("exposes exact list state, counts, and derived flags", async () => {
-    const { result } = renderHook(() => useControlledTasksPage(), {
+  it("exposes exact Kanban state, counts, and derived columns", async () => {
+    const { result } = renderHook(() => useControlledTasksPage({ mode: "kanban" }), {
       wrapper: createWrapper(),
     });
 
@@ -292,7 +316,7 @@ describe("useTasksPage", () => {
       expect(result.current.visibleTasks).toHaveLength(3);
     });
 
-    expect(result.current.mode).toBe("list");
+    expect(result.current.mode).toBe("kanban");
     expect(result.current.tasksCount).toBe(21);
     expect(result.current.effectiveSelectedTaskId).toBe("task_001");
     expect(result.current.statusCounts.ready).toBe(10);

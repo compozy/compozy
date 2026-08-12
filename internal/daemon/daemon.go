@@ -207,7 +207,7 @@ type extensionDevRuntime interface {
 	ActivateDevelopmentLink(context.Context, extensionpkg.InstanceKey) (*extensionpkg.Extension, error)
 	ReloadExtension(context.Context, extensionpkg.InstanceKey, string) (*extensionpkg.Extension, error)
 	UnlinkDevelopment(context.Context, extensionpkg.InstanceKey) error
-	Logs(extensionpkg.InstanceKey, int64) ([]extensionpkg.ExtensionLogEntry, error)
+	Logs(extensionpkg.InstanceKey, extensionpkg.ExtensionLogCursor) (extensionpkg.ExtensionLogSnapshot, error)
 }
 
 type extensionManagerDeps struct {

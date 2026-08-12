@@ -2,25 +2,6 @@ import { Outlet } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";
 
-import { AgentCreateDialog, AgentCreateHostProvider, useAgents } from "@/systems/agent";
-import { useOnboardingStatus } from "@/systems/onboarding";
-import {
-  SessionCreateDialogHost,
-  SessionCreateProvider,
-  SessionDeleteDialog,
-  SessionRenameDialog,
-  useSessionCreateActions,
-  useSessionLifecycleActions,
-} from "@/systems/session";
-import { useSettingsSandboxes } from "@/systems/settings";
-import {
-  useWorkspaceSetupContent,
-  WorkspaceOnboarding,
-  WorkspaceSetupDialog,
-  type WorkspaceSetupCollection,
-  type WorkspaceSetupDefaultsModel,
-} from "@/systems/workspace";
-
 import { OsShellContext } from "../contexts/os-shell-context";
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
@@ -38,6 +19,24 @@ import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { OsWinLayer } from "./os-win-layer";
 import { OsSessionsModal } from "./sessions-modal";
+import { AgentCreateDialog, AgentCreateHostProvider, useAgents } from "@/systems/agent";
+import { useOnboardingStatus } from "@/systems/onboarding";
+import {
+  SessionCreateDialogHost,
+  SessionCreateProvider,
+  SessionDeleteDialog,
+  SessionRenameDialog,
+  useSessionCreateActions,
+  useSessionLifecycleActions,
+} from "@/systems/session";
+import { useSettingsSandboxes } from "@/systems/settings";
+import {
+  useWorkspaceSetupContent,
+  WorkspaceOnboarding,
+  type WorkspaceSetupCollection,
+  type WorkspaceSetupDefaultsModel,
+  WorkspaceSetupDialog,
+} from "@/systems/workspace";
 
 /**
  * The desktop shell replaces the AppShell chrome (ADR-001): onboarding gate,

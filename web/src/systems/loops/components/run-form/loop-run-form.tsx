@@ -1,7 +1,6 @@
 import { CheckCircle2, Info, Play } from "lucide-react";
 
 import { Button, Eyebrow, Section } from "@compozy/ui";
-import { NetworkParticipationFields } from "@/systems/network";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
 import { loopSourceLabel } from "../../lib/loop-catalog";
@@ -11,6 +10,7 @@ import { LoopRunActiveNotice } from "./loop-run-active-notice";
 import { LoopRunInputField } from "./loop-run-input-field";
 import { LoopRunOverrides } from "./loop-run-overrides";
 import { LoopRunPlan } from "./loop-run-plan";
+import { NetworkParticipationFields } from "@/systems/network";
 
 interface LoopRunFormProps {
   workspaceId: string;

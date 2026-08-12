@@ -23,6 +23,7 @@ export interface TaskOverviewPanelProps extends ComponentPropsWithoutRef<"div"> 
   nowHandlers: TaskNowStripHandlers;
   nowPending?: Parameters<typeof TaskNowStrip>[0]["pending"];
   onViewAllActivity: () => void;
+  activeRunElapsed?: string;
 }
 
 function CompletedTaskResult({ runs }: { runs: readonly TaskRun[] }) {
@@ -55,6 +56,7 @@ export function TaskOverviewPanel({
   nowHandlers,
   nowPending,
   onViewAllActivity,
+  activeRunElapsed,
   className,
   ...props
 }: TaskOverviewPanelProps) {
@@ -70,7 +72,13 @@ export function TaskOverviewPanel({
       className={cn("flex flex-col gap-6", className)}
       data-testid="tasks-detail-overview"
     >
-      <TaskNowStrip detail={detail} handlers={nowHandlers} pending={nowPending} runs={runs} />
+      <TaskNowStrip
+        activeRunElapsed={activeRunElapsed}
+        detail={detail}
+        handlers={nowHandlers}
+        pending={nowPending}
+        runs={runs}
+      />
 
       {record.status === "completed" ? <CompletedTaskResult runs={runs} /> : null}
 

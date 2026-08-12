@@ -37,8 +37,10 @@ func validateEffectiveConfigWrite(
 	if err != nil {
 		return Config{}, err
 	}
-	if err := applyWorkspaceConfigWrite(resolvedWorkspaceRoot, target, rendered, &cfg); err != nil {
-		return Config{}, err
+	if hasDistinctWorkspaceOverlay(homePaths, resolvedWorkspaceRoot) {
+		if err := applyWorkspaceConfigWrite(resolvedWorkspaceRoot, target, rendered, &cfg); err != nil {
+			return Config{}, err
+		}
 	}
 
 	if err := normalizeConfigPaths(&cfg); err != nil {

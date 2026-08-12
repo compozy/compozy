@@ -1,11 +1,10 @@
-import type { AgentPayload } from "@/systems/agent";
-import type { WorkspacePayload } from "@/systems/workspace";
-
 import {
   useSessionCreateDialogViewModel,
   type SessionCreateDialogController,
 } from "../hooks/use-session-create-dialog";
 import { SessionCreateDialog } from "./session-create-dialog";
+import type { AgentPayload } from "@/systems/agent";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 interface SessionCreateDialogHostProps extends SessionCreateDialogController {
   agents: AgentPayload[] | undefined;

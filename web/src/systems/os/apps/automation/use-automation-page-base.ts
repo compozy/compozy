@@ -1,22 +1,22 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useStore } from "@xstate/store-react";
 
 import type { ListingViewMode } from "@compozy/ui";
-import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
+import { useDebouncedInput } from "@/hooks/use-debounced-input";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
+
+import { automationListLoopFilter, type AutomationRouteSearch } from "@/systems/automation";
+
+import { automationCreateSeedLogic } from "./automation-create-seed-store";
 import {
   AutomationApiError,
-  parseAutomationEnabled,
-  parseAutomationScope,
-  parseAutomationSource,
+  type AutomationScopeFilter,
+  type AutomationSource,
+  type CreateAutomationJobRequest,
+  type CreateAutomationTriggerRequest,
 } from "@/systems/automation";
-import type {
-  AutomationScopeFilter,
-  AutomationSource,
-  CreateAutomationJobRequest,
-  CreateAutomationTriggerRequest,
-} from "@/systems/automation";
-import { useSettingsAutomation } from "@/systems/settings";
-import type { SettingsAutomationSection } from "@/systems/settings";
+import { type SettingsAutomationSection, useSettingsAutomation } from "@/systems/settings";
 import {
   toWorkspaceCommandSelectOptions,
   useActiveWorkspace,
@@ -35,21 +35,6 @@ export type TriggerEditorState =
 export interface AutomationCreateSeed {
   /** When set, the page opens the create sheet in Run-loop mode for this Loop. */
   loop?: string;
-}
-
-export interface AutomationRouteSearch {
-  create?: "loop";
-  enabled?: boolean;
-  event?: string;
-  loop?: string;
-  q?: string;
-  scope?: AutomationScopeFilter;
-  source?: AutomationSource;
-  view?: ListingViewMode;
-}
-
-export function automationListLoopFilter(search: AutomationRouteSearch): string | undefined {
-  return search.create === "loop" ? undefined : search.loop;
 }
 
 export function automationUnavailableMessage(
@@ -95,25 +80,25 @@ export function useAutomationCreateSeed(
   openLoopCreate: (loop: string) => void
 ): void {
   const navigate = useNavigate();
-  const consumedLoopRef = useRef<string | null>(null);
+  const store = useStore(automationCreateSeedLogic);
   useEffect(() => {
-    if (!seed.loop) {
-      consumedLoopRef.current = null;
-      return;
-    }
-    if (consumedLoopRef.current === seed.loop || !activeWorkspaceId) return;
-    consumedLoopRef.current = seed.loop;
-    openLoopCreate(seed.loop);
-    void navigate({
-      replace: true,
-      search: current => ({
-        ...(current as AutomationRouteSearch),
-        create: undefined,
-        loop: undefined,
-      }),
-      to: kind === "jobs" ? "/jobs" : "/triggers",
+    store.trigger.seedObserved({
+      activeWorkspaceId,
+      loop: seed.loop ?? null,
+      consume: loop => {
+        openLoopCreate(loop);
+        void navigate({
+          replace: true,
+          search: current => ({
+            ...(current as AutomationRouteSearch),
+            create: undefined,
+            loop: undefined,
+          }),
+          to: kind === "jobs" ? "/jobs" : "/triggers",
+        });
+      },
     });
-  }, [activeWorkspaceId, kind, navigate, openLoopCreate, seed.loop]);
+  }, [activeWorkspaceId, kind, navigate, openLoopCreate, seed.loop, store]);
 }
 
 /**
@@ -131,7 +116,7 @@ export function useAutomationPageBase(
   const settingsQuery = useSettingsAutomation();
 
   const scopeFilter = search.scope ?? "all";
-  const searchQuery = search.q ?? "";
+  const routeSearchQuery = search.q ?? "";
   const view: ListingViewMode = search.view ?? "rows";
   const sourceFilter = search.source ?? null;
   const enabledFilter = search.enabled ?? null;
@@ -140,16 +125,6 @@ export function useAutomationPageBase(
   const scopedWorkspaceId =
     scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
 
-  const listFilters = {
-    limit: 50,
-    enabled: search.enabled,
-    loop: automationListLoopFilter(search),
-    q: searchQuery,
-    scope: scopeFilter === "all" ? undefined : scopeFilter,
-    source: search.source,
-    workspace_id: scopedWorkspaceId,
-  };
-
   const updateSearch = (updates: Partial<AutomationRouteSearch>) => {
     void navigate({
       search: current => ({ ...(current as AutomationRouteSearch), ...updates }),
@@ -157,7 +132,24 @@ export function useAutomationPageBase(
     });
   };
 
-  const setSearchQuery = (q: string) => updateSearch({ q: normalizeListingSearchValue(q) });
+  const searchInput = useDebouncedInput({
+    externalValue: routeSearchQuery,
+    onCommit: q => updateSearch({ q: normalizeListingSearchValue(q) }),
+  });
+  const searchQuery = searchInput.draftValue;
+  const committedSearchQuery = normalizeListingSearchValue(searchInput.committedValue);
+
+  const listFilters = {
+    limit: 50,
+    enabled: search.enabled,
+    loop: automationListLoopFilter(search),
+    q: committedSearchQuery,
+    scope: scopeFilter === "all" ? undefined : scopeFilter,
+    source: search.source,
+    workspace_id: scopedWorkspaceId,
+  };
+
+  const setSearchQuery = searchInput.setDraftValue;
   const setScopeFilter = (scope: AutomationScopeFilter | null) =>
     updateSearch({ scope: scope && scope !== "all" ? scope : undefined });
   const setSourceFilter = (source: AutomationSource | null) =>
@@ -168,7 +160,8 @@ export function useAutomationPageBase(
     updateSearch({ event: event && event.trim() !== "" ? event.trim() : undefined });
   const setView = (nextView: ListingViewMode) =>
     updateSearch({ view: nextView === "rows" ? undefined : nextView });
-  const clearFilters = () =>
+  const clearFilters = () => {
+    searchInput.reset("");
     updateSearch({
       enabled: undefined,
       event: undefined,
@@ -176,6 +169,7 @@ export function useAutomationPageBase(
       scope: undefined,
       source: undefined,
     });
+  };
 
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
@@ -208,27 +202,5 @@ export function useAutomationPageBase(
   };
 }
 
-export function validateJobsSearch(search: Record<string, unknown>): AutomationRouteSearch {
-  return {
-    create: search.create === "loop" ? "loop" : undefined,
-    enabled: parseAutomationEnabled(search.enabled),
-    loop: normalizeListingSearchValue(search.loop),
-    q: normalizeListingSearchValue(search.q),
-    scope: parseAutomationScope(search.scope),
-    source: parseAutomationSource(search.source),
-    view: parseListingView(search.view),
-  };
-}
-
-export function validateTriggersSearch(search: Record<string, unknown>): AutomationRouteSearch {
-  return {
-    create: search.create === "loop" ? "loop" : undefined,
-    enabled: parseAutomationEnabled(search.enabled),
-    event: normalizeListingSearchValue(search.event),
-    loop: normalizeListingSearchValue(search.loop),
-    q: normalizeListingSearchValue(search.q),
-    scope: parseAutomationScope(search.scope),
-    source: parseAutomationSource(search.source),
-    view: parseListingView(search.view),
-  };
-}
+export { automationListLoopFilter };
+export type { AutomationRouteSearch };

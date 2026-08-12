@@ -1,5 +1,5 @@
 import { useDesktop } from "../../hooks/use-desktop";
-import { validateTriggersSearch } from "../automation/use-automation-page";
+import { validateTriggersSearch } from "@/systems/automation";
 import { TriggerDetailLocation } from "./trigger-detail-location";
 import { TriggersCatalogLocation } from "./triggers-catalog-location";
 

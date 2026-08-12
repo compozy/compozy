@@ -5,6 +5,7 @@ export type {
   ExtensionKitInventory,
   ExtensionKitItem,
   ExtensionLogEntry,
+  ExtensionLogsSnapshot,
   ExtensionProvenance,
   ExtensionUpdateRequest,
   InstalledExtensionView,
@@ -28,7 +29,11 @@ export type {
 } from "./hooks/use-extension-actions";
 export { useExtensionDetailState } from "./hooks/use-extension-detail-state";
 export type { ExtensionNetworkConfirm } from "./hooks/use-extension-detail-state";
-export { EXTENSION_LOG_EVENT_NAME, useExtensionLogs } from "./hooks/use-extension-logs";
+export {
+  EXTENSION_LOG_EVENT_NAME,
+  EXTENSION_LOG_RESET_EVENT_NAME,
+  useExtensionLogs,
+} from "./hooks/use-extension-logs";
 export type {
   ExtensionLogEventSource,
   ExtensionLogsModel,

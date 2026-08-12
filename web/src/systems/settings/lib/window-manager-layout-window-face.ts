@@ -1,6 +1,6 @@
 import { AppWindow } from "lucide-react";
 
-import { OS_APPS, getOsApp, type OsAppId } from "@/systems/os";
+import { getOsAppDescriptor, OS_APP_DESCRIPTORS, type OsAppId } from "@/systems/os";
 
 import type { WindowManagerLayoutWindow } from "./window-manager-layout-types";
 
@@ -11,7 +11,7 @@ export interface LayoutWindowFace {
 }
 
 function osAppId(value: string): OsAppId | null {
-  return Object.hasOwn(OS_APPS, value) ? (value as OsAppId) : null;
+  return Object.hasOwn(OS_APP_DESCRIPTORS, value) ? (value as OsAppId) : null;
 }
 
 /**
@@ -27,7 +27,7 @@ export function layoutWindowFace(
     return { title: windowId, detail: "Not in this workspace", icon: AppWindow };
   }
   const appId = osAppId(window.app);
-  const app = appId === null ? null : getOsApp(appId);
+  const app = appId === null ? null : getOsAppDescriptor(appId);
   return {
     title: app?.title ?? window.app,
     detail: window.minimized ? "Minimized" : window.route.pathname,

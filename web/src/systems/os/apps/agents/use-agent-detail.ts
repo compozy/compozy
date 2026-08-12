@@ -1,26 +1,26 @@
 import { useNavigate } from "@tanstack/react-router";
 
 import {
+  type AgentDetailSearch,
+  type AgentDetailTab,
+  type AgentInstructionFile,
+  type AgentPayload,
+  type AgentSessionFilter,
+  type AgentSettingsSection,
   resolveAgentDetailSearch,
+  type ResolvedAgentDetailSearch,
   useAgent,
   useAgentCatalogMetrics,
   useAgentCreateHost,
   useAgentDeleteFlow,
   useAgentSessions,
-  type AgentPayload,
-  type AgentDetailSearch,
-  type AgentDetailTab,
-  type AgentInstructionFile,
-  type AgentSessionFilter,
-  type AgentSettingsSection,
-  type ResolvedAgentDetailSearch,
 } from "@/systems/agent";
 import {
+  type SessionPayload,
   useSessionCreateActions,
   useSessionCreateIsCreating,
   useSessionCreatePendingAgentName,
   useSessionLifecycleActions,
-  type SessionPayload,
 } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 

@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { validateLoopRunsSearch } from "@/systems/os/apps/loops/use-loop-runs-route";
-import { createOsRouteSync } from "@/systems/os";
+import { validateLoopRunsSearch } from "@/systems/loops";
+
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadLoopRunsRoute } from "./-loops-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/loop-runs")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -13,10 +13,10 @@ export const Route = createFileRoute("/_app/loop-runs")({
     origin: search.origin,
     origin_session: search.origin_session,
   }),
-  loader: ({ context, deps, location }) =>
+  loader: async ({ context, deps, location }) =>
     location.pathname.split("/").filter(Boolean).length === 1
-      ? preloadLoopRunsRoute(context.queryClient, deps)
-      : Promise.resolve(),
+      ? (await import("./-loops-preload")).preloadLoopRunsRoute(context.queryClient, deps)
+      : undefined,
   validateSearch: validateLoopRunsSearch,
   component: createOsRouteSync("loops"),
 });

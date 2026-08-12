@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	extensionActionDev       = "dev"
-	extensionActionReload    = "reload"
-	extensionActionLogs      = "logs"
-	extensionLogSSEEventName = "extension_log"
-	extensionLogPollInterval = 100 * time.Millisecond
+	extensionActionDev            = "dev"
+	extensionActionReload         = "reload"
+	extensionActionLogs           = "logs"
+	extensionLogSSEEventName      = "extension_log"
+	extensionLogResetSSEEventName = "extension_log_reset"
+	extensionLogPollInterval      = 100 * time.Millisecond
 )
 
 // ExtensionDevService exposes workspace-bound development lifecycle operations.
@@ -38,8 +39,9 @@ type ExtensionDevService interface {
 		context.Context,
 		string,
 		int64,
+		string,
 		taskpkg.ActorContext,
-	) ([]contract.ExtensionLogPayload, error)
+	) (contract.ExtensionLogsResponse, error)
 }
 
 // ExtensionScopedReadService exposes caller-filtered read projections.
@@ -133,6 +135,15 @@ func (h *BaseHandlers) ExtensionLogs(c *gin.Context) {
 		h.respondExtensionError(c, http.StatusBadRequest, err)
 		return
 	}
+	streamEpoch := strings.TrimSpace(c.Query("stream_epoch"))
+	if after > 0 && streamEpoch == "" {
+		h.respondExtensionError(
+			c,
+			http.StatusBadRequest,
+			errors.New("stream_epoch is required when after is greater than zero"),
+		)
+		return
+	}
 	follow, err := ParseOptionalBool(c.Query("follow"))
 	if err != nil {
 		h.respondExtensionError(c, http.StatusBadRequest, err)
@@ -142,16 +153,16 @@ func (h *BaseHandlers) ExtensionLogs(c *gin.Context) {
 	if !ok {
 		return
 	}
-	entries, err := service.ExtensionLogs(c.Request.Context(), name, after, actor)
+	snapshot, err := service.ExtensionLogs(c.Request.Context(), name, after, streamEpoch, actor)
 	if err != nil {
 		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	if !follow {
-		c.JSON(http.StatusOK, contract.ExtensionLogsResponse{Logs: entries})
+		c.JSON(http.StatusOK, snapshot)
 		return
 	}
-	h.streamExtensionLogs(c, service, name, actor, after, entries)
+	h.streamExtensionLogs(c, service, name, actor, after, streamEpoch, snapshot)
 }
 
 func (h *BaseHandlers) streamExtensionLogs(
@@ -160,7 +171,8 @@ func (h *BaseHandlers) streamExtensionLogs(
 	name string,
 	actor taskpkg.ActorContext,
 	after int64,
-	initial []contract.ExtensionLogPayload,
+	requestedEpoch string,
+	initial contract.ExtensionLogsResponse,
 ) {
 	writer, err := PrepareSSE(c)
 	if err != nil {
@@ -173,7 +185,17 @@ func (h *BaseHandlers) streamExtensionLogs(
 		h.logSSEWriteFailure(extensionLogSSEEventName, err)
 		return
 	}
-	cursor := emitExtensionLogs(writer, after, initial)
+	streamEpoch := initial.StreamEpoch
+	var cursor int64
+	if requestedEpoch != "" && requestedEpoch != streamEpoch {
+		if err := emitExtensionLogReset(writer, initial); err != nil {
+			h.logSSEWriteFailure(extensionLogResetSSEEventName, err)
+			return
+		}
+		cursor = extensionLogSnapshotCursor(initial)
+	} else {
+		cursor = emitExtensionLogs(writer, after, initial.Logs)
+	}
 	ticker := time.NewTicker(extensionLogPollInterval)
 	defer ticker.Stop()
 	for {
@@ -181,14 +203,36 @@ func (h *BaseHandlers) streamExtensionLogs(
 		case <-c.Request.Context().Done():
 			return
 		case <-ticker.C:
-			entries, pollErr := service.ExtensionLogs(c.Request.Context(), name, cursor, actor)
+			snapshot, pollErr := service.ExtensionLogs(
+				c.Request.Context(), name, cursor, streamEpoch, actor,
+			)
 			if pollErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{Name: handlersErrorKey, Data: ErrorPayloadForError(pollErr)})
 				return
 			}
-			cursor = emitExtensionLogs(writer, cursor, entries)
+			if snapshot.StreamEpoch != streamEpoch {
+				if err := emitExtensionLogReset(writer, snapshot); err != nil {
+					h.logSSEWriteFailure(extensionLogResetSSEEventName, err)
+					return
+				}
+				streamEpoch = snapshot.StreamEpoch
+				cursor = extensionLogSnapshotCursor(snapshot)
+				continue
+			}
+			cursor = emitExtensionLogs(writer, cursor, snapshot.Logs)
 		}
 	}
+}
+
+func emitExtensionLogReset(writer FlushWriter, snapshot contract.ExtensionLogsResponse) error {
+	return WriteSSE(writer, SSEMessage{Name: extensionLogResetSSEEventName, Data: snapshot})
+}
+
+func extensionLogSnapshotCursor(snapshot contract.ExtensionLogsResponse) int64 {
+	if len(snapshot.Logs) == 0 {
+		return 0
+	}
+	return snapshot.Logs[len(snapshot.Logs)-1].Sequence
 }
 
 func emitExtensionLogs(writer FlushWriter, cursor int64, entries []contract.ExtensionLogPayload) int64 {

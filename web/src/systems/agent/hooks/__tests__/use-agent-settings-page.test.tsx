@@ -15,18 +15,19 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mocks.navigate }));
 vi.mock("sonner", () => ({ toast: { success: mocks.toastSuccess } }));
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: mocks.workspaceId,
     activeWorkspace: { name: "Test" },
   }),
+}));
+vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
   useWorkspace: () => ({ data: { providers: [] }, isLoading: false }),
 }));
-vi.mock("@/systems/settings", () => ({
+vi.mock("@/systems/settings/hooks/use-settings-collections", () => ({
   useSettingsProviders: () => ({ data: { providers: [] }, isLoading: false, isFetching: false }),
 }));
-vi.mock("@/systems/model-catalog", () => ({
-  providerNeedsAuth: () => false,
+vi.mock("@/systems/model-catalog/hooks/use-runtime-model-catalog", () => ({
   useRuntimeModelCatalog: () => ({
     models: [],
     loading: false,
@@ -35,6 +36,9 @@ vi.mock("@/systems/model-catalog", () => ({
     error: null,
     refresh: vi.fn(),
   }),
+}));
+vi.mock("@/systems/model-catalog/lib/to-runtime-selector-options", () => ({
+  providerNeedsAuth: () => false,
 }));
 vi.mock("../use-agents", () => ({
   useAgent: () => ({

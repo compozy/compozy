@@ -2,12 +2,12 @@ import { Fragment } from "react";
 import { Check, KeyRound } from "lucide-react";
 
 import { Eyebrow, Field, FieldLabel, Input, RadioCard, Spinner } from "@compozy/ui";
-import { RuntimeSelector } from "@/systems/runtime";
 
 import type { OnboardingDefaultModelApi } from "../hooks/use-onboarding-default-model";
 import type { OnboardingModelFact } from "../lib/model-facts";
 import { ONBOARDING_SUMMARY_ID } from "../lib/onboarding-summary";
 import type { OnboardingAuthMode } from "../stores/use-onboarding-draft-store";
+import { RuntimeSelector } from "@/systems/runtime";
 
 const AUTH_OPTIONS: { mode: OnboardingAuthMode; title: string; description: string }[] = [
   {

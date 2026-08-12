@@ -13,7 +13,7 @@ import {
 } from "@compozy/ui";
 
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
-import { MCPServerEditor } from "@/systems/settings";
+
 import { MarketplaceDegradedNotice } from "./marketplace-degraded-notice";
 import { MarketplaceKindResults } from "./marketplace-kind-results";
 import { useExtensionInstallDialog } from "./use-extension-install-dialog";
@@ -25,6 +25,7 @@ import { useMarketplaceMCPEditor } from "../hooks/use-marketplace-mcp-editor";
 import { marketplaceRouteKindFor, type MarketplaceKind } from "../types";
 import type { MarketplaceKindSearch } from "../lib/marketplace-kind-search";
 import { MARKETPLACE_KIND_LABEL, MARKETPLACE_KIND_ORDER } from "./marketplace-ui";
+import { MCPServerEditor } from "@/systems/settings";
 
 const MARKETPLACE_NAV_ITEMS = MARKETPLACE_KIND_ORDER.map(kind => ({
   kind,
@@ -36,11 +37,12 @@ const MARKETPLACE_NAV_ITEMS = MARKETPLACE_KIND_ORDER.map(kind => ({
 interface MarketplaceKindPageProps {
   kind: MarketplaceKind;
   search: MarketplaceKindSearch;
+  liveDataEnabled?: boolean;
 }
 
-function MarketplaceKindPage({ kind, search }: MarketplaceKindPageProps) {
+function MarketplaceKindPage({ kind, search, liveDataEnabled = true }: MarketplaceKindPageProps) {
   const searchInputRef = useListingSearchShortcut();
-  const page = useMarketplaceKindPage(kind, search);
+  const page = useMarketplaceKindPage(kind, search, { liveDataEnabled });
   return (
     <MarketplaceKindPageBody
       key={page.workspaceId ?? "none"}

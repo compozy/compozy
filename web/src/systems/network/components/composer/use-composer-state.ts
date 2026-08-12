@@ -1,8 +1,9 @@
-import { useState, type RefObject } from "react";
+import type { RefObject } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import type { SlashCommandEntry } from "./composer-slash-popover";
+import { composerStateLogic } from "./composer-state-store";
 
-const SLASH_PREFIX = /(^|\s)\/([\w-]*)$/u;
 const MENTION_PATTERN = /(^|\s)@([A-Za-z0-9_.:-]+)/gu;
 
 export interface ComposerSubmitArgs {
@@ -64,44 +65,15 @@ export function useComposerState({
   onSubmit,
   textareaRef,
 }: UseComposerStateArgs): UseComposerStateResult {
-  const [value, setValue] = useState("");
-  const [slashOpen, setSlashOpen] = useState(false);
-  const [slashFilter, setSlashFilter] = useState("");
-  const [previousDisabled, setPreviousDisabled] = useState(disabled);
-
-  // Reset during the disabled transition so descendants never render stale
-  // composer state. This follows React's guarded render-time adjustment pattern
-  // for state derived from a prop transition.
-  if (disabled !== previousDisabled) {
-    setPreviousDisabled(disabled);
-    if (disabled) {
-      setValue("");
-      setSlashOpen(false);
-      setSlashFilter("");
-    }
-  }
+  const store = useStore(composerStateLogic);
+  const state = useSelector(store, snapshot => snapshot.context);
 
   const reset = () => {
-    setValue("");
-    setSlashOpen(false);
-    setSlashFilter("");
-  };
-
-  const updateSlashState = (next: string) => {
-    const match = SLASH_PREFIX.exec(next);
-    if (match == null) {
-      setSlashOpen(false);
-      setSlashFilter("");
-      return;
-    }
-    setSlashOpen(true);
-    setSlashFilter(match[2] ?? "");
+    store.trigger.reset();
   };
 
   const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const next = event.target.value;
-    setValue(next);
-    updateSlashState(next);
+    store.trigger.changed({ value: event.target.value });
   };
 
   const submitInternal = (text: string) => {
@@ -113,7 +85,7 @@ export function useComposerState({
     if (disabled || isSending) {
       return;
     }
-    const text = value.trim();
+    const text = state.value.trim();
     if (text.length === 0) {
       return;
     }
@@ -123,7 +95,7 @@ export function useComposerState({
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
-      const text = value.trim();
+      const text = state.value.trim();
       if (text.length === 0 || disabled || isSending) {
         return;
       }
@@ -132,34 +104,29 @@ export function useComposerState({
   };
 
   const handleSlashSelect = (entry: SlashCommandEntry) => {
-    setValue(prev =>
-      prev.replace(SLASH_PREFIX, (_match, leading: string) => `${leading}/${entry.command} `)
-    );
-    setSlashOpen(false);
-    setSlashFilter("");
+    store.trigger.slashSelected({ command: entry.command });
     textareaRef.current?.focus();
   };
 
   const handleToolbarSlash = () => {
-    setSlashOpen(true);
-    setSlashFilter("");
+    store.trigger.slashOpened();
     textareaRef.current?.focus();
   };
 
   const handleSlashClose = () => {
-    setSlashOpen(false);
+    store.trigger.slashClosed();
   };
 
-  const trimmed = value.trim();
+  const trimmed = state.value.trim();
   const mentions = parseMentions(trimmed);
   const sendDisabled = disabled || isSending || trimmed.length === 0;
 
   return {
-    value,
+    value: state.value,
     trimmed,
     mentions,
-    slashOpen,
-    slashFilter,
+    slashOpen: state.slashOpen,
+    slashFilter: state.slashFilter,
     sendDisabled,
     handleChange,
     handleSubmit,

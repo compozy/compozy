@@ -1,12 +1,13 @@
 import { useState } from "react";
 
 import { useSettingsPage } from "./use-settings-page";
+
 import {
   SettingsApiError,
-  useSettingsHooksExtensions,
-  useUpdateSettingsHooksExtensions,
   type SettingsHooksExtensionsSection,
   type SettingsUpdateHooksExtensionsRequest,
+  useSettingsHooksExtensions,
+  useUpdateSettingsHooksExtensions,
 } from "@/systems/settings";
 
 type PolicyConfig = SettingsHooksExtensionsSection["config"];

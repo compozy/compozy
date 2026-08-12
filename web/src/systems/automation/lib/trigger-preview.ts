@@ -219,7 +219,7 @@ function buildSummary(
 ): SummarySegment[] {
   const segments: SummarySegment[] = [
     { tone: "weak", text: "When " },
-    { tone: "event", text: formatEventKind(selection, draft.event) },
+    { tone: "event", text: formatEventKind(selection) },
     { tone: "plain", text: " happens " },
   ];
 
@@ -341,7 +341,7 @@ export function buildTriggerPreview(
   const url = def?.family === "webhook" ? webhookUrl(normalizedDraft) : null;
 
   return {
-    eventKind: formatEventKind(selection, normalizedDraft.event),
+    eventKind: formatEventKind(selection),
     summary: buildSummary(normalizedDraft, def, selection, workspaces),
     json: buildJsonRows(env, filteredKeys),
     matchState,

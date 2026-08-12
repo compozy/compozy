@@ -11,7 +11,7 @@ const workspaceState = vi.hoisted(() => ({
   activeWorkspaceId: "ws_alpha" as string | null,
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: workspaceState.activeWorkspaceId,
   }),
@@ -38,8 +38,9 @@ import {
   updateSettingsGeneral,
 } from "@/systems/settings/adapters/settings-api";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
-import type { SettingsGeneralSection } from "@/systems/settings";
+
 import { useSettingsGeneralPage } from "../use-settings-general-page";
+import type { SettingsGeneralSection } from "@/systems/settings";
 
 const envelope: SettingsGeneralSection = {
   section: "general",

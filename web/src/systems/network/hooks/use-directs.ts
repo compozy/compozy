@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useNetworkLiveDataEnabled } from "./use-network-live-data-enabled";
 
 import { flattenNetworkDirects } from "../lib/infinite-data";
 import { networkDirectDetailOptions, networkDirectsOptions } from "../lib/query-options";
@@ -9,6 +9,7 @@ import type {
   NetworkDirectRoomSummary,
   NetworkDirectsListQuery,
 } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface UseNetworkDirectsResult {
   directs: NetworkDirectRoomSummary[];
@@ -33,9 +34,14 @@ export function useNetworkDirects(
   options: UseNetworkDirectsOptions = {}
 ): UseNetworkDirectsResult {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
-  const enabled = options.enabled !== false && Boolean(channel) && Boolean(selectedWorkspaceId);
+  const enabled =
+    liveDataEnabled &&
+    options.enabled !== false &&
+    Boolean(channel) &&
+    Boolean(selectedWorkspaceId);
   const query = useInfiniteQuery(
     networkDirectsOptions(
       workspaceId,
@@ -78,9 +84,11 @@ export function useNetworkDirectDetail(
   options: { enabled?: boolean; workspaceId?: string | null } = {}
 ): UseNetworkDirectDetailResult {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
   const enabled =
+    liveDataEnabled &&
     options.enabled !== false &&
     Boolean(channel) &&
     Boolean(directId) &&

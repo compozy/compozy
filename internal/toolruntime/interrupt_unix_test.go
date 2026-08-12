@@ -4,7 +4,11 @@ package toolruntime
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"os"
 	"os/exec"
+	"syscall"
 	"testing"
 	"time"
 
@@ -59,6 +63,46 @@ func TestDefaultInterrupterProcessGroups(t *testing.T) {
 		}
 		if err := procutil.WaitForProcessGroupIDExit(pgid, 100*time.Millisecond); err != nil {
 			t.Fatalf("process group still alive after InterruptProcess(): %v", err)
+		}
+	})
+
+	t.Run("Should classify signaling-time ownership loss as stale", func(t *testing.T) {
+		t.Parallel()
+
+		startedAt, err := procutil.StartedAt(os.Getpid())
+		if err != nil {
+			t.Fatalf("StartedAt(%d) error = %v", os.Getpid(), err)
+		}
+		record := ProcessRecord{
+			ID:        "proc-gone-before-signal",
+			PID:       os.Getpid(),
+			StartedAt: startedAt,
+		}
+		signalErr := fmt.Errorf("signal missing process: %w", syscall.ESRCH)
+		err = classifySignalError(record, syscall.SIGTERM, signalErr)
+		if !errors.Is(err, ErrOwnershipValidationFailed) {
+			t.Fatalf("classifySignalError() error = %v, want ErrOwnershipValidationFailed", err)
+		}
+		if !errors.Is(err, syscall.ESRCH) {
+			t.Fatalf("classifySignalError() error = %v, want wrapped ESRCH", err)
+		}
+	})
+
+	t.Run("Should preserve a signal error unrelated to a missing process", func(t *testing.T) {
+		t.Parallel()
+
+		record := ProcessRecord{
+			ID:        "proc-signal-denied",
+			PID:       1 << 30,
+			StartedAt: time.Now().UTC(),
+		}
+		signalErr := fmt.Errorf("signal process denied: %w", syscall.EPERM)
+		err := classifySignalError(record, syscall.SIGTERM, signalErr)
+		if !errors.Is(err, syscall.EPERM) {
+			t.Fatalf("classifySignalError() error = %v, want wrapped EPERM", err)
+		}
+		if errors.Is(err, ErrOwnershipValidationFailed) {
+			t.Fatalf("classifySignalError() error = %v, do not want ownership failure", err)
 		}
 	})
 }

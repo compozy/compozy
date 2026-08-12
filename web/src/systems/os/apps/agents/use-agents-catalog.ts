@@ -1,36 +1,44 @@
-import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import type { ListingViewMode } from "@compozy/ui";
 
+import { normalizeListingSearchValue } from "@/lib/listing-search";
+import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
+import { useDebouncedInput } from "@/hooks/use-debounced-input";
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
+  type AgentsFleetSearch,
   hasActiveAgentFleetFilters,
   projectAgentFleetRows,
   useAgentCatalog,
   useAgentCreateHost,
-  type AgentsFleetSearch,
 } from "@/systems/agent";
 import { useSessionCreateActions, useSessionCreateHasActiveWorkspace } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
-import { normalizeListingSearchValue } from "@/lib/listing-search";
-import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
 function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const workspaceId = activeWorkspaceId ?? "";
   const navigate = useNavigate({ from: "/agents" });
   const { openDialog } = useAgentCreateHost();
   const { openForAgent } = useSessionCreateActions();
   const hasActiveWorkspace = useSessionCreateHasActiveWorkspace();
-  const searchInputRef = useListingSearchShortcut(true);
+  const searchInputRef = useListingSearchShortcut(liveDataEnabled);
   const routeQuery = search.q ?? "";
-  const [draftQueryState, setDraftQueryState] = useState({ routeQuery, value: routeQuery });
-  const draftQuery = draftQueryState.routeQuery === routeQuery ? draftQueryState.value : routeQuery;
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updateSearch = (updater: (current: AgentsFleetSearch) => AgentsFleetSearch) => {
+    void navigate({ search: current => updater(current), to: "/agents" });
+  };
+  const queryInput = useDebouncedInput({
+    delayMs: SEARCH_DEBOUNCE_MS,
+    externalValue: routeQuery,
+    onCommit: nextQuery =>
+      updateSearch(current => ({ ...current, q: normalizeListingSearchValue(nextQuery) })),
+  });
 
-  const agentsEnabled = workspaceId !== "";
+  const agentsEnabled = liveDataEnabled && workspaceId !== "";
   const catalogQuery = useAgentCatalog(
     workspaceId,
     {
@@ -45,25 +53,6 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const sessionsPartial = catalogQuery.isSuccess && !catalogQuery.sessionsAvailable;
   const view: ListingViewMode = search.view ?? "rows";
 
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [routeQuery]);
-
-  const updateSearch = (updater: (current: AgentsFleetSearch) => AgentsFleetSearch) => {
-    void navigate({ search: current => updater(current), to: "/agents" });
-  };
-
-  const setDraftQueryAndDebounce = (nextQuery: string) => {
-    setDraftQueryState({ routeQuery, value: nextQuery });
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      debounceRef.current = null;
-      updateSearch(current => ({ ...current, q: normalizeListingSearchValue(nextQuery) }));
-    }, SEARCH_DEBOUNCE_MS);
-  };
-
   const setFilters = (next: Pick<AgentsFleetSearch, "category" | "status">) => {
     updateSearch(current => ({ ...current, category: next.category, status: next.status }));
   };
@@ -76,8 +65,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   };
 
   const clearFilters = () => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    setDraftQueryState({ routeQuery, value: "" });
+    queryInput.reset("");
     updateSearch(current => ({
       view: current.view,
     }));
@@ -113,10 +101,10 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     rows,
     categoryOptions: catalogQuery.facets?.categories ?? [],
     search,
-    draftQuery,
+    draftQuery: queryInput.draftValue,
     searchInputRef,
     view,
-    setDraftQuery: setDraftQueryAndDebounce,
+    setDraftQuery: queryInput.setDraftValue,
     setFilters,
     setView,
     clearFilters,

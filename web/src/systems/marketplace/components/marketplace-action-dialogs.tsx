@@ -1,14 +1,13 @@
 import type { ComponentProps } from "react";
 
-import {
-  MCPAuthorizeDialog,
-  useMCPAuthorize,
-  type SettingsMCPServerEntry,
-} from "@/systems/settings";
-
 import type { MarketplaceEntryResponse, MarketplaceListing } from "../types";
 import { ExtensionTrustDialog } from "./extension-trust-dialog";
 import { MCPInstallDialog } from "./mcp-install-dialog";
+import {
+  MCPAuthorizeDialog,
+  type SettingsMCPServerEntry,
+  useMCPAuthorize,
+} from "@/systems/settings";
 
 interface MarketplaceActionDialogsProps {
   authorize: ReturnType<typeof useMCPAuthorize>;

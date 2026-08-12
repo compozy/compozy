@@ -8,31 +8,36 @@ import {
   taskTreeOptions,
 } from "../lib/query-options";
 import type { TaskTimelineFilter } from "../types";
-
-interface QueryHookOptions {
-  enabled?: boolean;
-}
+import { type TaskQueryHookOptions, withTaskQueryHookOptions } from "./task-query-hook-options";
 
 export function useTaskTimeline(
   id: string,
   filters: TaskTimelineFilter = {},
-  options: QueryHookOptions = {}
+  options: TaskQueryHookOptions = {}
 ) {
-  return useQuery(taskTimelineOptions(id, filters, options.enabled ?? true));
+  return useQuery(
+    withTaskQueryHookOptions(taskTimelineOptions(id, filters, options.enabled ?? true), options)
+  );
 }
 
-export function useTaskTree(id: string, options: QueryHookOptions = {}) {
-  return useQuery(taskTreeOptions(id, options.enabled ?? true));
+export function useTaskTree(id: string, options: TaskQueryHookOptions = {}) {
+  return useQuery(withTaskQueryHookOptions(taskTreeOptions(id, options.enabled ?? true), options));
 }
 
-export function useTaskInspect(id: string, options: QueryHookOptions = {}) {
-  return useQuery(taskInspectOptions(id, options.enabled ?? true));
+export function useTaskInspect(id: string, options: TaskQueryHookOptions = {}) {
+  return useQuery(
+    withTaskQueryHookOptions(taskInspectOptions(id, options.enabled ?? true), options)
+  );
 }
 
-export function useTaskRunDetail(runId: string, options: QueryHookOptions = {}) {
-  return useQuery(taskRunDetailOptions(runId, options.enabled ?? true));
+export function useTaskRunDetail(runId: string, options: TaskQueryHookOptions = {}) {
+  return useQuery(
+    withTaskQueryHookOptions(taskRunDetailOptions(runId, options.enabled ?? true), options)
+  );
 }
 
-export function useTaskRunInspect(runId: string, options: QueryHookOptions = {}) {
-  return useQuery(taskRunInspectOptions(runId, options.enabled ?? true));
+export function useTaskRunInspect(runId: string, options: TaskQueryHookOptions = {}) {
+  return useQuery(
+    withTaskQueryHookOptions(taskRunInspectOptions(runId, options.enabled ?? true), options)
+  );
 }

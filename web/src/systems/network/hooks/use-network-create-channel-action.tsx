@@ -6,13 +6,13 @@ import { Plus } from "lucide-react";
 import { Button } from "@compozy/ui";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
-import { useAgents } from "@/systems/agent";
-import { useActiveWorkspace } from "@/systems/workspace";
 
 import { NetworkCreateChannelDialog } from "../components/network-create-channel-dialog";
 import { sortAgentsForNetwork } from "../lib/network-formatters";
 import { networkCreateChannelLogic } from "./network-create-channel-store";
 import { useCreateNetworkChannel } from "./use-network-actions";
+import { useAgents } from "@/systems/agent";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export function useNetworkCreateChannelAction({
   enabled,

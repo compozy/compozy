@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-
+import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { useTaskInbox, useTaskInboxBadge } from "./use-task-inbox";
 import { useTasks } from "./use-tasks";
 import type {
@@ -13,7 +12,7 @@ import type {
 } from "../types";
 import { groupTasksForKanban } from "@/systems/tasks/lib/task-grouping";
 import type { KanbanColumnGroup } from "@/systems/tasks/lib/task-grouping";
-import { buildTaskListTree } from "@/systems/tasks/lib/task-hierarchy";
+import { buildTaskListTree, type TaskListTree } from "@/systems/tasks/lib/task-hierarchy";
 import type { InboxLaneFilterId } from "@/systems/tasks/lib/inbox-grouping";
 import { taskStatusCountsFromFacets } from "@/systems/tasks/lib/task-list-query";
 import {
@@ -21,8 +20,6 @@ import {
   taskOwnerFilterValue,
   type TaskFilterOwnerOption,
 } from "@/systems/tasks/lib/tasks-list-filters";
-import { useDaemonStatus } from "@/systems/status";
-import { useActiveWorkspace } from "@/systems/workspace";
 
 import {
   taskInboxFilterFromRouteSearch,
@@ -36,15 +33,23 @@ import {
 import { useTasksDashboardPage } from "./use-tasks-dashboard-page";
 import { useTasksPageActions } from "./use-tasks-page-actions";
 import { taskScopeForActiveWorkspace } from "../lib/workspace-scope";
+import { useDaemonStatus } from "@/systems/status";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 type InboxLaneFilter = InboxLaneFilterId;
 const SEARCH_DEBOUNCE_MS = 200;
+const EMPTY_TASK_LIST_TREE: TaskListTree = {
+  childrenByParent: new Map(),
+  roots: [],
+  size: 0,
+};
 
 interface UseTasksPageOptions {
   /** Validated URL state. The route is the sole owner of catalog filters. */
   search?: TasksRouteSearch;
   onSearchChange?: (update: (current: TasksRouteSearch) => TasksRouteSearch) => void;
   forceListData?: boolean;
+  liveDataEnabled?: boolean;
 }
 
 function resolveTaskScopeError(
@@ -60,8 +65,9 @@ function resolveTaskScopeError(
 }
 
 function useTasksPage(options: UseTasksPageOptions = {}) {
-  const workspace = useActiveWorkspace();
-  const daemonStatus = useDaemonStatus();
+  const liveDataEnabled = options.liveDataEnabled ?? true;
+  const workspace = useActiveWorkspace({ enabled: liveDataEnabled });
+  const daemonStatus = useDaemonStatus({ enabled: liveDataEnabled });
   const { activeWorkspace } = workspace;
   const userHomeDir = daemonStatus.data?.user_home_dir;
   const routeSearch = options.search ?? {};
@@ -76,22 +82,6 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const inboxPriorityFilter = routeSearch.inboxPriority ?? null;
   const inboxUnreadOnly = routeSearch.inboxUnread === true;
   const routeInboxSearchQuery = routeSearch.inboxQuery ?? "";
-  const [searchDraft, setSearchDraft] = useState({
-    routeValue: routeSearchQuery,
-    value: routeSearchQuery,
-  });
-  const [inboxSearchDraft, setInboxSearchDraft] = useState({
-    routeValue: routeInboxSearchQuery,
-    value: routeInboxSearchQuery,
-  });
-  const searchQuery =
-    searchDraft.routeValue === routeSearchQuery ? searchDraft.value : routeSearchQuery;
-  const inboxSearchQuery =
-    inboxSearchDraft.routeValue === routeInboxSearchQuery
-      ? inboxSearchDraft.value
-      : routeInboxSearchQuery;
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inboxSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const updateSearch = (patch: Partial<TasksRouteSearch>) => {
     options.onSearchChange?.(current =>
       validateTasksSearch({
@@ -100,45 +90,16 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
       })
     );
   };
-
-  useEffect(() => {
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-      if (inboxSearchDebounceRef.current) clearTimeout(inboxSearchDebounceRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-      searchDebounceRef.current = null;
-    }
-  }, [routeSearchQuery]);
-
-  useEffect(() => {
-    if (inboxSearchDebounceRef.current) {
-      clearTimeout(inboxSearchDebounceRef.current);
-      inboxSearchDebounceRef.current = null;
-    }
-  }, [routeInboxSearchQuery]);
-
-  const setSearchQuery = (query: string) => {
-    setSearchDraft({ routeValue: routeSearchQuery, value: query });
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      searchDebounceRef.current = null;
-      updateSearch({ query: query.trim() ? query : undefined });
-    }, SEARCH_DEBOUNCE_MS);
-  };
-
-  const setInboxSearchQuery = (query: string) => {
-    setInboxSearchDraft({ routeValue: routeInboxSearchQuery, value: query });
-    if (inboxSearchDebounceRef.current) clearTimeout(inboxSearchDebounceRef.current);
-    inboxSearchDebounceRef.current = setTimeout(() => {
-      inboxSearchDebounceRef.current = null;
-      updateSearch({ inboxQuery: query.trim() ? query : undefined });
-    }, SEARCH_DEBOUNCE_MS);
-  };
+  const listSearch = useDebouncedInput({
+    delayMs: SEARCH_DEBOUNCE_MS,
+    externalValue: routeSearchQuery,
+    onCommit: query => updateSearch({ query: query.trim() ? query : undefined }),
+  });
+  const inboxSearch = useDebouncedInput({
+    delayMs: SEARCH_DEBOUNCE_MS,
+    externalValue: routeInboxSearchQuery,
+    onCommit: query => updateSearch({ inboxQuery: query.trim() ? query : undefined }),
+  });
 
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const hasActiveTaskScope = activeTaskScope !== null;
@@ -179,24 +140,29 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   };
 
   const isListTab =
-    hasActiveTaskScope && (mode === "list" || mode === "kanban" || options.forceListData === true);
+    liveDataEnabled &&
+    hasActiveTaskScope &&
+    (mode === "list" || mode === "kanban" || options.forceListData === true);
   const tasksQuery = useTasks(listFilters, { enabled: isListTab });
   const inboxQuery = useTaskInbox(inboxFilters, {
-    enabled: hasActiveTaskScope && mode === "inbox",
+    enabled: liveDataEnabled && hasActiveTaskScope && mode === "inbox",
   });
-  const inboxBadgeQuery = useTaskInboxBadge(inboxBadgeFilters, { enabled: hasActiveTaskScope });
+  const inboxBadgeQuery = useTaskInboxBadge(inboxBadgeFilters, {
+    enabled: liveDataEnabled && hasActiveTaskScope,
+  });
   const dashboard = useTasksDashboardPage(
     dashboardFilters,
-    hasActiveTaskScope && mode === "dashboard"
+    liveDataEnabled && hasActiveTaskScope && mode === "dashboard"
   );
 
   const allTasks = tasksQuery.data ?? [];
   const visibleTasks = allTasks;
   const statusCounts = taskStatusCountsFromFacets(tasksQuery.facets);
+  const taskTree =
+    mode === "list" || mode === "kanban" ? buildTaskListTree(visibleTasks) : EMPTY_TASK_LIST_TREE;
   // Kanban shows top-level cards; nested subtasks stay behind their parent.
-  const kanbanColumns: KanbanColumnGroup[] = groupTasksForKanban(
-    buildTaskListTree(visibleTasks).roots
-  );
+  const kanbanColumns: KanbanColumnGroup[] =
+    mode === "kanban" ? groupTasksForKanban(taskTree.roots) : [];
   const ownerOptions = tasksQuery.facets.owners.map(facet => ({
     kind: facet.owner.kind,
     ref: facet.owner.ref,
@@ -267,7 +233,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     inboxLaneFilter,
     inboxLoading: scopeLoading || (inboxQuery.isLoading && !inboxQuery.data),
     inboxPriorityFilter,
-    inboxSearchQuery,
+    inboxSearchQuery: inboxSearch.draftValue,
     inboxStatusFilter,
     inboxUnreadOnly,
     inboxUnreadCount: inboxBadgeQuery.data?.unread_total,
@@ -287,12 +253,13 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     priorityFilter,
     retryInbox,
     retryTasks,
-    searchQuery,
-    setInboxSearchQuery,
-    setSearchQuery,
+    searchQuery: listSearch.draftValue,
+    setInboxSearchQuery: inboxSearch.setDraftValue,
+    setSearchQuery: listSearch.setDraftValue,
     sortBy,
     statusCounts,
     statusFilter,
+    taskTree,
     hasActiveTaskScope,
     scopeError,
     scopeLoading,

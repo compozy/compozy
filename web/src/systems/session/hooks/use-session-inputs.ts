@@ -15,8 +15,12 @@ import type {
   SessionPromptPayload,
 } from "../types";
 
-export function useSessionInputs(workspaceId: string, sessionId: string) {
-  return useQuery(sessionInputsOptions(workspaceId, sessionId));
+export function useSessionInputs(
+  workspaceId: string,
+  sessionId: string,
+  options: { enabled?: boolean } = {}
+) {
+  return useQuery(sessionInputsOptions(workspaceId, sessionId, options.enabled ?? true));
 }
 
 export interface ReplaceSessionInputVariables {

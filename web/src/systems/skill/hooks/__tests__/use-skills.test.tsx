@@ -1,3 +1,7 @@
+// Suite: skill query hooks
+// Invariant: skill reads preserve workspace scope and suspend polling when disabled.
+// Boundary IN: skill query options, cache keys, liveness gates, and hook projections.
+// Boundary OUT: skill mutations and settings UI, owned by their dedicated suites.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -68,6 +72,15 @@ describe("useSkills", () => {
 
     await waitFor(() => expect(result.current.data).toEqual([validSkill]));
     expect(listSkills).toHaveBeenCalledWith("", expect.any(AbortSignal));
+  });
+
+  it("does not fetch skills while its retained window is inactive", () => {
+    const { result } = renderHook(() => useSkills("ws_123", false), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(listSkills).not.toHaveBeenCalled();
   });
 });
 

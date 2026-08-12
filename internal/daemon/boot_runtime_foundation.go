@@ -222,6 +222,7 @@ func (d *Daemon) bootRuntimeResourceGraph(state *bootState) error {
 	state.soulCatalog = newResourceCatalog(cloneSoulResourceSpec)
 	state.heartbeatCatalog = newResourceCatalog(cloneHeartbeatResourceSpec)
 	state.loopCatalog = newResourceCatalog(looppkg.CloneResourceSpec)
+	bindToolProjectionCatalogInvalidation(state)
 	if state.windowLayoutCatalog == nil {
 		state.windowLayoutCatalog = newResourceCatalog(windowmanager.CloneLayoutResource)
 	}

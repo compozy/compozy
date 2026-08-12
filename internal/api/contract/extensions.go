@@ -109,6 +109,7 @@ type ExtensionLogPayload struct {
 	Timestamp      time.Time `json:"timestamp"`
 	Message        string    `json:"message"`
 	GenerationHash string    `json:"generation_hash,omitempty"`
+	StreamEpoch    string    `json:"stream_epoch"`
 }
 
 // ExtensionTrustReportPayload records the trust decision for an extension.

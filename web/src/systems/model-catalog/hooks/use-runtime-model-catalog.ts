@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { RuntimeModelOption } from "@/systems/runtime";
-
 import { allModelsListOptions } from "../lib/query-options";
 import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
 import type { ProviderModelPayload } from "../types";
 import { useRefreshAllModels } from "./use-refresh-all-models";
+import type { RuntimeModelOption } from "@/systems/runtime";
 
 export interface RuntimeCatalogProvider {
   id: string;

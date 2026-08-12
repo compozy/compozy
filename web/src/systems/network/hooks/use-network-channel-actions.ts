@@ -1,10 +1,6 @@
 import { toast } from "@compozy/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { sessionKeys } from "@/systems/session";
-import { tasksKeys } from "@/systems/tasks";
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import {
   createNetworkChannel,
   deleteNetworkSubscription,
@@ -27,6 +23,9 @@ import type {
   UpdateNetworkChannelInput,
   UpsertNetworkSubscriptionInput,
 } from "./network-action-types";
+import { sessionKeys } from "@/systems/session";
+import { tasksKeys } from "@/systems/tasks";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export function useCreateNetworkChannel(options: { workspaceId?: string | null } = {}) {
   const queryClient = useQueryClient();

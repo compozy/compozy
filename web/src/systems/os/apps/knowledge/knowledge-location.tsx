@@ -1,13 +1,6 @@
 import { AlertCircle, BookOpen, Plus } from "lucide-react";
 
 import {
-  KnowledgeCreateDialog,
-  KnowledgeDetailPanel,
-  KnowledgeListPanel,
-  type KnowledgeAgentTier,
-  type KnowledgeScope,
-} from "@/systems/knowledge";
-import {
   Button,
   Empty,
   Input,
@@ -19,6 +12,13 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 import { useKnowledgePage } from "./use-knowledge-page";
+import {
+  type KnowledgeAgentTier,
+  KnowledgeCreateDialog,
+  KnowledgeDetailPanel,
+  KnowledgeListPanel,
+  type KnowledgeScope,
+} from "@/systems/knowledge";
 
 export function KnowledgeLocation() {
   const page = useKnowledgePage();

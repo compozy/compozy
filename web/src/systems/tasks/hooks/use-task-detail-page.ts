@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useSelector } from "@xstate/store-react";
+
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import {
   useApproveTask,
@@ -20,6 +23,7 @@ import { useTaskReviews } from "./use-task-reviews";
 import { useRecoverTaskRun } from "./use-task-run-recovery";
 import { useTaskStream } from "./use-task-stream";
 import { taskRunCanRecover } from "../lib/task-run-recovery";
+import { taskStreamStatusLogic } from "../lib/task-stream-state";
 import { notifyTaskMutation, submitTaskMutation } from "../lib/task-mutation";
 import type { FanOutTaskRunsRequest, TaskRunsFilter, TaskTimelineFilter } from "../types";
 
@@ -31,6 +35,7 @@ interface UseTaskDetailPageOptions {
   enableRuns?: boolean;
   enableInspect?: boolean;
   enableStream?: boolean;
+  liveDataEnabled?: boolean;
 }
 
 const DEFAULT_TIMELINE_LIMIT = 50;
@@ -45,28 +50,41 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const [timelineLimit, setTimelineLimit] = useState<number>(
     options.initialTimelineLimit ?? DEFAULT_TIMELINE_LIMIT
   );
-
   const hasTaskId = Boolean(taskId);
   const enableTimeline = options.enableTimeline ?? true;
   const enableRuns = options.enableRuns ?? true;
   const enableInspect = options.enableInspect ?? true;
   const enableStream = options.enableStream ?? true;
+  const liveDataEnabled = options.liveDataEnabled ?? true;
 
   const timelineFilters: TaskTimelineFilter = {
     limit: timelineLimit,
     after_sequence: options.timelineFilters?.after_sequence,
   };
 
-  const detailQuery = useTask(taskId, { enabled: hasTaskId });
+  const queryEnabled = hasTaskId && liveDataEnabled;
+  const detailQuery = useTask(taskId, { enabled: queryEnabled });
+  const detail = detailQuery.data ?? null;
+  const activeRun = detail?.summary?.active_run ?? null;
+  const isLive = isRunActive(activeRun?.status ?? null);
+  const refetchIntervalMs = isLive && liveDataEnabled ? undefined : false;
   const timelineQuery = useTaskTimeline(taskId, timelineFilters, {
-    enabled: hasTaskId && enableTimeline,
+    enabled: queryEnabled && enableTimeline,
+    refetchIntervalMs,
   });
   const runsQuery = useTaskRuns(taskId, options.runFilters ?? {}, {
-    enabled: hasTaskId && enableRuns,
+    enabled: queryEnabled && enableRuns,
+    refetchIntervalMs,
   });
-  const inspectQuery = useTaskInspect(taskId, { enabled: hasTaskId && enableInspect });
-  const profileQuery = useTaskExecutionProfile(taskId, { enabled: hasTaskId });
-  const reviewsQuery = useTaskReviews(taskId, {}, { enabled: hasTaskId });
+  const inspectQuery = useTaskInspect(taskId, {
+    enabled: queryEnabled && enableInspect,
+    refetchIntervalMs,
+  });
+  const profileQuery = useTaskExecutionProfile(taskId, {
+    enabled: queryEnabled,
+    refetchIntervalMs,
+  });
+  const reviewsQuery = useTaskReviews(taskId, {}, { enabled: queryEnabled, refetchIntervalMs });
 
   const publishMutation = usePublishTask();
   const cancelMutation = useCancelTask();
@@ -81,28 +99,40 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const clearBlockMutation = useClearTaskBlock();
   const fanOutMutation = useFanOutTaskRuns();
 
-  const detail = detailQuery.data ?? null;
   const runs = runsQuery.data ?? [];
   const timeline = timelineQuery.data ?? [];
   const inspect = inspectQuery.data ?? null;
   const profile = profileQuery.data ?? null;
   const reviews = reviewsQuery.data ?? [];
 
-  const activeRun = detail?.summary?.active_run ?? null;
   const activeRunNeedsAttention = activeRun?.status === "needs_attention";
   const recoverableRunId =
     activeRun && taskRunCanRecover(activeRun, detail?.task.max_attempts) ? activeRun.id : null;
-  const isLive = isRunActive(activeRun?.status ?? null);
-
   // Keep the page fresh from run-lifecycle SSE events. Wait for the detail
   // payload before connecting so we seed from the real cursor instead of
   // after_sequence=0 (a full-history replay + immediate reconnect when
   // latest_event_seq resolves).
   const detailEventSeq = detail?.task?.latest_event_seq;
   const hasEventSeq = typeof detailEventSeq === "number";
+  const streamEnabled = hasTaskId && enableStream && liveDataEnabled && hasEventSeq;
+  const streamKey = streamEnabled ? `${taskId}:${detailEventSeq}` : "disabled";
+  const { store: streamStatusStore } = useStoreBinding(streamKey, () =>
+    taskStreamStatusLogic.createStore({ enabled: streamEnabled })
+  );
+  const currentStreamStatus = useSelector(streamStatusStore, snapshot => snapshot.context);
   useTaskStream(taskId, {
-    enabled: hasTaskId && enableStream && hasEventSeq,
+    enabled: streamEnabled,
     afterSequence: hasEventSeq ? Math.max(0, detailEventSeq) : undefined,
+    onEvent: () => streamStatusStore.trigger.frameReceived(),
+    onError: error =>
+      streamStatusStore.trigger.streamFailed({
+        error:
+          error instanceof Error
+            ? error.message
+            : typeof error === "string"
+              ? error
+              : "Stream connection failed",
+      }),
   });
 
   const fatalError = hasTaskId ? (detailQuery.error ?? null) : new Error("Missing task id");
@@ -271,6 +301,9 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     runsError: runsQuery.error ?? null,
     runsLoading: runsQuery.isLoading && runs.length === 0,
     taskId,
+    streamErrorMessage: currentStreamStatus.error,
+    streamSeedSequence: hasEventSeq ? Math.max(0, detailEventSeq) : 0,
+    streamState: currentStreamStatus.state,
     timeline,
     timelineError: timelineQuery.error ?? null,
     timelineLimit,

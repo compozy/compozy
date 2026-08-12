@@ -4,9 +4,6 @@ export { useAutomationJobsPage } from "./use-automation-jobs-page";
 export { useAutomationTriggersPage } from "./use-automation-triggers-page";
 export { useAutomationJobDetailPage } from "./use-automation-job-detail-page";
 export { useAutomationTriggerDetailPage } from "./use-automation-trigger-detail-page";
-export {
-  automationListLoopFilter,
-  validateJobsSearch,
-  validateTriggersSearch,
-} from "./use-automation-page-base";
+export { automationListLoopFilter } from "./use-automation-page-base";
 export type { AutomationCreateSeed, AutomationRouteSearch } from "./use-automation-page-base";
+export { validateJobsSearch, validateTriggersSearch } from "@/systems/automation";

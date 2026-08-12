@@ -1,8 +1,7 @@
 import { Section } from "@compozy/ui";
 
-import { GatewayIngressStatus } from "@/systems/gateway";
-
 import type { AutomationTrigger } from "../types";
+import { GatewayIngressStatus } from "@/systems/gateway";
 
 /**
  * The public delivery URL a sender should post to, with the truth about whether

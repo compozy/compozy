@@ -16,7 +16,7 @@ vi.mock("../../../hooks/use-desktop", () => ({
   useDesktop: (selector: (state: typeof desktop) => unknown) => selector(desktop),
 }));
 
-vi.mock("@/systems/status", () => ({
+vi.mock("@/systems/status/hooks/use-daemon-health", () => ({
   useDaemonHealth: () => ({
     connectionStatus: connection.status,
     health: undefined,
@@ -24,7 +24,7 @@ vi.mock("@/systems/status", () => ({
   }),
 }));
 
-vi.mock("@/systems/session", () => ({
+vi.mock("@/systems/session/hooks/use-session-create", () => ({
   useSessionCreateActions: () => ({ openForAgent: vi.fn() }),
   useSessionCreateHasActiveWorkspace: () => true,
   useSessionCreateIsCreating: () => false,
@@ -35,7 +35,7 @@ vi.mock("@/systems/session", () => ({
 // stub's markup — testing-boss R22: test the behavior, never the mock.
 const homeDashboardSpy = vi.fn((_props: { liveEnabled: boolean }) => null);
 
-vi.mock("@/systems/dashboard", () => ({
+vi.mock("@/systems/dashboard/components/home-dashboard", () => ({
   HomeDashboard: (props: { liveEnabled: boolean }) => homeDashboardSpy(props),
 }));
 

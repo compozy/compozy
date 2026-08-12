@@ -1,8 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { schedulerKeys } from "@/systems/scheduler";
-
 import { tasksKeys } from "../lib/query-keys";
+import { schedulerKeys } from "@/systems/scheduler";
 
 export function invalidateTaskQueries(queryClient: QueryClient, id?: string) {
   const pending = [

@@ -1,5 +1,4 @@
 import { createContext, use } from "react";
-import { flushSync } from "react-dom";
 import { createStoreLogic } from "@xstate/store";
 
 export type TimelineExpansion = "work-group" | "turn" | "changed-files";
@@ -50,25 +49,17 @@ export function useTimelineRowContext(): TimelineRowStore {
 export function toggleTimelineExpansion(
   store: TimelineRowStore,
   expansion: TimelineExpansion,
-  id: string,
-  button: HTMLElement | null
+  id: string
 ): void {
-  const viewport = button?.closest<HTMLElement>('[data-testid="chat-view"]');
-  const previousHeight = viewport?.scrollHeight ?? 0;
-  const previousTop = viewport?.scrollTop ?? 0;
-  flushSync(() => {
-    switch (expansion) {
-      case "work-group":
-        store.trigger.workGroupExpansionToggled({ id });
-        break;
-      case "turn":
-        store.trigger.turnExpansionToggled({ id });
-        break;
-      case "changed-files":
-        store.trigger.changedFilesExpansionToggled({ id });
-        break;
-    }
-  });
-  if (!viewport) return;
-  viewport.scrollTop = previousTop + viewport.scrollHeight - previousHeight;
+  switch (expansion) {
+    case "work-group":
+      store.trigger.workGroupExpansionToggled({ id });
+      break;
+    case "turn":
+      store.trigger.turnExpansionToggled({ id });
+      break;
+    case "changed-files":
+      store.trigger.changedFilesExpansionToggled({ id });
+      break;
+  }
 }

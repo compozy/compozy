@@ -6,12 +6,14 @@ import { useNavigate } from "@tanstack/react-router";
 import { Empty, Spinner, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 import { useLoopRunPage } from "./use-loop-run-page";
 import { useLoopNodeControls } from "./use-loop-node-controls";
+
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
   LoopNodeControlDialog,
   LoopNodeRowActions,
   LoopQuarantineSheet,
-  LoopRunControlDialog,
   type LoopRunConfirmVerb,
+  LoopRunControlDialog,
   LoopRunControls,
   LoopRunOverflowMenu,
   LoopRunPageBody,
@@ -22,6 +24,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 export function LoopRunDetailLocation({ runId }: { runId: string }) {
   const navigate = useNavigate();
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const workspaceId = activeWorkspaceId ?? "";
   const backToRuns = () => {
     void navigate({ to: "/loop-runs" });
@@ -63,6 +66,7 @@ export function LoopRunDetailLocation({ runId }: { runId: string }) {
       key={runId}
       workspaceId={workspaceId}
       runId={runId}
+      liveDataEnabled={liveDataEnabled}
       topbarIdentity={topbarIdentity}
       workspaceName={activeWorkspace?.name}
     />
@@ -74,10 +78,17 @@ interface LoopRunDetailProps {
   runId: string;
   topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">;
   workspaceName?: string;
+  liveDataEnabled: boolean;
 }
 
-function LoopRunDetail({ workspaceId, runId, topbarIdentity, workspaceName }: LoopRunDetailProps) {
-  const page = useLoopRunPage(workspaceId, runId);
+function LoopRunDetail({
+  workspaceId,
+  runId,
+  topbarIdentity,
+  workspaceName,
+  liveDataEnabled,
+}: LoopRunDetailProps) {
+  const page = useLoopRunPage(workspaceId, runId, { liveDataEnabled });
   const nodeControls = useLoopNodeControls(workspaceId, runId);
   const [inspectOpen, setInspectOpen] = useState(false);
   // Cancel and kill are destructive and irreversible for this run, so both go

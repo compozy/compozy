@@ -198,7 +198,7 @@ func (h *HostAPIHandler) triggerFromCreateParams(
 		AgentName:    strings.TrimSpace(req.AgentName),
 		WorkspaceID:  workspaceID,
 		Prompt:       strings.TrimSpace(req.Prompt),
-		Event:        strings.TrimSpace(req.Event),
+		Event:        req.Event,
 		Filter:       cloneHostAPIStringMap(req.Filter),
 		LoopTarget:   cloneHostAPIAutomationLoopTarget(req.LoopTarget),
 		Enabled:      enabled,
@@ -229,7 +229,7 @@ func (h *HostAPIHandler) applyTriggerUpdateParams(
 		next.Prompt = strings.TrimSpace(*req.Prompt)
 	}
 	if req.Event != nil {
-		next.Event = strings.TrimSpace(*req.Event)
+		next.Event = *req.Event
 	}
 	if req.Filter != nil {
 		next.Filter = cloneHostAPIStringMap(req.Filter)

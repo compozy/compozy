@@ -35,7 +35,7 @@ func (r *Runtime) Trigger(ctx context.Context, workspace string) (bool, string, 
 	if !shouldRun {
 		return false, dreamGatesNotSatisfiedReason, nil
 	}
-	if err := r.service.Run(ctx, r.spawner, strings.TrimSpace(workspace)); err != nil {
+	if err := r.runConsolidation(ctx, r.service, r.spawner, strings.TrimSpace(workspace)); err != nil {
 		if errors.Is(err, memory.ErrLockUnavailable) {
 			return false, "dream consolidation is already running", nil
 		}

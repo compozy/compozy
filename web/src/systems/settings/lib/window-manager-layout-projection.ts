@@ -1,10 +1,9 @@
-import type { WindowManagerSnapshot } from "@/systems/os";
-
 import type {
   WindowManagerLayoutDocument,
   WindowManagerLayoutNode,
   WindowManagerLayoutState,
 } from "./window-manager-layout-types";
+import type { WindowManagerSnapshot } from "@/systems/os";
 
 type SnapshotLayoutNode = WindowManagerSnapshot["desktops"][number]["groups"][number]["root"];
 

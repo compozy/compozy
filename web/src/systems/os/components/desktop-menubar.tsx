@@ -1,7 +1,5 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
-import type { WorkspacePayload } from "@/systems/workspace";
-
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import type { OsAttentionRow } from "../lib/attention-model";
@@ -17,6 +15,7 @@ import { HelpMenu } from "./menubar/help-menu";
 import { SessionMenu } from "./menubar/session-menu";
 import { WindowMenu } from "./menubar/window-menu";
 import { WorkspaceMenu } from "./menubar/workspace-menu";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 export interface DesktopMenubarProps {
   /** Extra classes on the bar itself (first-run dimming). */

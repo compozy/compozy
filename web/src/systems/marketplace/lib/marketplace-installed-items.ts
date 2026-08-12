@@ -1,3 +1,4 @@
+import type { MarketplaceKind, MarketplaceListing } from "../types";
 import {
   extensionTrustFacts,
   type ExtensionTrustFacts,
@@ -5,8 +6,6 @@ import {
 } from "@/systems/extensions";
 import { mcpManagementScopeLabel, type SettingsMCPServerEntry } from "@/systems/settings";
 import type { SkillPayload } from "@/systems/skill";
-
-import type { MarketplaceKind, MarketplaceListing } from "../types";
 
 export interface MarketplaceInstalledItem {
   entry: MarketplaceListing;
@@ -36,6 +35,8 @@ interface InstalledItemsInput {
   mcpServers: readonly SettingsMCPServerEntry[];
   listingBySlug: Map<string, MarketplaceListing>;
   listingByEntryId: Map<string, MarketplaceListing>;
+  listingByInstalledName: Map<string, MarketplaceListing>;
+  listingByName: Map<string, MarketplaceListing>;
 }
 
 function matchesMarketplaceQuery(haystack: string, query: string): boolean {
@@ -76,12 +77,8 @@ function buildInstalledMCPItems(input: InstalledItemsInput): MarketplaceInstalle
     const catalogEntry = server.catalog_entry?.trim();
     const listing =
       (catalogEntry ? input.listingByEntryId.get(catalogEntry) : undefined) ??
-      input.marketItems.find(
-        entry =>
-          entry.entry_id === catalogEntry ||
-          entry.installed_name === server.name ||
-          entry.name === server.name
-      );
+      input.listingByInstalledName.get(server.name) ??
+      input.listingByName.get(server.name);
     const entry: MarketplaceListing = listing
       ? {
           ...listing,
@@ -134,12 +131,9 @@ function buildInstalledSkillItems(input: InstalledItemsInput): MarketplaceInstal
     const slug = skill.provenance?.slug?.trim();
     const listing =
       (slug ? input.listingBySlug.get(slug) : undefined) ??
-      input.marketItems.find(
-        entry =>
-          entry.installed_name === skill.name ||
-          entry.name === skill.name ||
-          entry.entry_id === skill.name
-      );
+      input.listingByInstalledName.get(skill.name) ??
+      input.listingByName.get(skill.name) ??
+      input.listingByEntryId.get(skill.name);
     const entry: MarketplaceListing = listing
       ? {
           ...listing,

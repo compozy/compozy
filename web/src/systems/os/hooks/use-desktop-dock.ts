@@ -4,7 +4,7 @@ import { dockBadgeFor } from "../components/dock-badges";
 import { DockIcons, type DockIconId } from "../components/os-dock-icons";
 import type { OsDockEntry } from "../components/os-dock-types";
 import type { OsAttentionBadges } from "../lib/attention-model";
-import { dockApps, OS_APPS } from "../lib/app-registry";
+import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 import { activationTarget, appRunState, type OsAppRunState } from "../lib/window-instance-lookup";
 import type { OsAppId, OsPresentation } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
@@ -42,15 +42,15 @@ export function useDesktopDock(
   // lights while any window of that app is live, whatever its instance key.
   const windowStates = useDesktop(state => {
     const byApp: Record<string, OsAppRunState> = {};
-    for (const app of Object.keys(OS_APPS) as OsAppId[]) {
+    for (const app of Object.keys(OS_APP_DESCRIPTORS) as OsAppId[]) {
       const runState = appRunState(state.windows, state.focusedId, app);
       if (runState !== "closed") byApp[app] = runState;
     }
     return byApp;
   }, shallowEqual);
 
-  const groups = dockApps();
-  const sessionApp = OS_APPS.session;
+  const groups = dockAppDescriptors();
+  const sessionApp = OS_APP_DESCRIPTORS.session;
   const entries: OsDockEntry[] = [
     {
       id: sessionApp.id,

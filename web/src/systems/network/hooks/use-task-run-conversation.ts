@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSelector } from "@xstate/store-react";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
+import { useStoreBinding } from "@/hooks/use-store-binding";
+import { taskRunDetailOptions, type TaskRunDetailView } from "@/systems/tasks";
 
 import { networkKeys } from "../lib/query-keys";
 import type { TaskRunNetworkProjection, TaskRunNetworkUsage } from "../types";
+import { taskRunConversationLogic } from "./task-run-conversation-store";
 import { useNetworkMessages, type UseNetworkMessagesResult } from "./use-messages";
 
 export interface UseTaskRunConversationResult extends UseNetworkMessagesResult {
@@ -14,67 +18,110 @@ export interface UseTaskRunConversationResult extends UseNetworkMessagesResult {
 
 export function useTaskRunConversation(
   runId: string,
-  network: TaskRunNetworkProjection | null | undefined
+  network: TaskRunNetworkProjection | null | undefined,
+  options: { enabled?: boolean } = {}
 ): UseTaskRunConversationResult | null {
   const queryClient = useQueryClient();
+  const enabled = options.enabled ?? true;
   const conversation = network?.conversation;
+  const conversationChannel = conversation?.channel ?? "";
+  const conversationStreamUrl = conversation?.stream_url ?? "";
+  const conversationThreadId = conversation?.thread_id ?? "";
+  const conversationWorkspaceId = conversation?.workspace_id ?? "";
+  const usageScope = network ? `${network.conversation.workspace_id}:${runId.trim()}` : "";
+  const taskRun = useQuery(taskRunDetailOptions(runId, false)).data;
+  const { store } = useStoreBinding(usageScope, () =>
+    taskRunConversationLogic.createStore({ scope: usageScope })
+  );
+  const usageState = useSelector(store, snapshot => snapshot.context);
   const messages = useNetworkMessages({
     workspaceId: conversation?.workspace_id,
     channel: conversation?.channel,
     surface: conversation?.surface === "thread" ? "thread" : null,
     containerId: conversation?.thread_id,
-    enabled: Boolean(network),
+    enabled: enabled && Boolean(network),
   });
-  const usageScope = network ? `${network.conversation.workspace_id}:${runId.trim()}` : "";
-  const [usageOverlay, setUsageOverlay] = useState<{
-    scope: string;
-    usage: TaskRunNetworkUsage;
-  } | null>(null);
-  const [streamError, setStreamError] = useState<Error | null>(null);
-  const usage = usageOverlay?.scope === usageScope ? usageOverlay.usage : (network?.usage ?? null);
+  const usage = taskRun?.network?.usage ?? null;
 
   useEffect(() => {
-    if (!conversation || !network || typeof EventSource === "undefined") return;
-    let active = true;
-    const source = createStreamEventSource(conversation.stream_url);
+    if (
+      !enabled ||
+      !conversationStreamUrl ||
+      !conversationWorkspaceId ||
+      typeof EventSource === "undefined"
+    ) {
+      store.trigger.streamSuspended({ scope: usageScope });
+      return;
+    }
+    const source = createStreamEventSource(conversationStreamUrl);
     const handleMessage = () => {
-      setStreamError(null);
+      store.trigger.frameReceived({ scope: usageScope });
       void queryClient.invalidateQueries({
         queryKey: networkKeys.threadMessagesRoot(
-          conversation.workspace_id,
-          conversation.channel,
-          conversation.thread_id
+          conversationWorkspaceId,
+          conversationChannel,
+          conversationThreadId
         ),
       });
     };
     const handleUsage = (event: MessageEvent<string>) => {
       try {
         const payload = JSON.parse(event.data) as { usage?: TaskRunNetworkUsage };
-        if (payload.usage && active) {
-          setUsageOverlay({ scope: usageScope, usage: payload.usage });
-        }
-        setStreamError(null);
-      } catch (error) {
-        setStreamError(
-          error instanceof Error ? error : new Error("Invalid task run conversation usage event")
+        const usage = payload.usage;
+        if (!usage || usage.workspace_id !== conversationWorkspaceId) return;
+
+        store.trigger.frameReceived({ scope: usageScope });
+        queryClient.setQueryData<TaskRunDetailView>(
+          taskRunDetailOptions(runId).queryKey,
+          current => {
+            if (
+              !current?.network ||
+              current.network.conversation.workspace_id !== conversationWorkspaceId ||
+              current.network.usage.workspace_id !== usage.workspace_id
+            ) {
+              return current;
+            }
+            return {
+              ...current,
+              network: { ...current.network, usage },
+            };
+          }
         );
+      } catch (error) {
+        store.trigger.streamFailed({
+          error:
+            error instanceof Error ? error : new Error("Invalid task run conversation usage event"),
+          scope: usageScope,
+        });
       }
     };
     const handleError = () => {
-      setStreamError(new Error("Live conversation updates are reconnecting"));
+      store.trigger.streamFailed({
+        error: new Error("Live conversation updates are reconnecting"),
+        scope: usageScope,
+      });
     };
     source.addEventListener("network.message", handleMessage);
     source.addEventListener("network.usage", handleUsage as EventListener);
     source.addEventListener("error", handleError);
     return () => {
-      active = false;
       source.removeEventListener("network.message", handleMessage);
       source.removeEventListener("network.usage", handleUsage as EventListener);
       source.removeEventListener("error", handleError);
       source.close();
     };
-  }, [conversation, network, queryClient, usageScope]);
+  }, [
+    conversationChannel,
+    conversationStreamUrl,
+    conversationThreadId,
+    conversationWorkspaceId,
+    enabled,
+    queryClient,
+    runId,
+    store,
+    usageScope,
+  ]);
 
   if (!network || !usage) return null;
-  return { ...messages, usage, streamError };
+  return { ...messages, usage, streamError: usageState.streamError };
 }

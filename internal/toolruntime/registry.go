@@ -67,9 +67,9 @@ type RegisterConfig struct {
 
 // BootReconcileReport summarizes restart reconciliation.
 type BootReconcileReport struct {
-	Checked   int
-	Recovered int
-	Stale     int
+	Checked     int
+	Interrupted int
+	Stale       int
 }
 
 // InterruptReport summarizes one scoped interrupt request.

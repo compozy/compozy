@@ -1,7 +1,7 @@
 /**
  * Bridges the curated catalog selection and the runtime `event` string.
  *
- * `draft.event` is the single source of truth (a free-form runtime string such
+ * `draft.event` is the single source of truth (a producer-backed runtime string such
  * as `session.stopped`, `hook.transform.completed`, `ext.release.deploy-started`,
  * or `webhook`). The catalog UI parses that string into a structured selection
  * and recomposes it whenever the hook/extension sub-config changes — no extra
@@ -49,7 +49,7 @@ export function parseEventSelection(event: string): EventSelection {
     return { catalogId: def.id, family: def.family, hookName: "", extExt: "", extEvent: "" };
   }
 
-  // Unknown / custom runtime event: keep it usable without a catalog match.
+  // Unknown events remain unmatched so the form cannot submit them.
   return { catalogId: "", family: "fixed", hookName: "", extExt: "", extEvent: "" };
 }
 
@@ -78,7 +78,7 @@ export function composeEventId(selection: {
  * for the parts the operator has not filled in yet (matches the summary and
  * sample-event preview).
  */
-export function formatEventKind(selection: EventSelection, fallback = ""): string {
+export function formatEventKind(selection: EventSelection): string {
   switch (selection.family) {
     case "webhook":
       return "webhook";
@@ -87,7 +87,7 @@ export function formatEventKind(selection: EventSelection, fallback = ""): strin
     case "ext":
       return `${EXT_PREFIX}${selection.extExt || "<ext>"}.${selection.extEvent || "<event>"}`;
     default:
-      return selection.catalogId || fallback;
+      return selection.catalogId;
   }
 }
 

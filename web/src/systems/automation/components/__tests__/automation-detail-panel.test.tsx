@@ -251,6 +251,28 @@ describe("AutomationDetailPanel", () => {
     expect(onDelete).toHaveBeenCalledOnce();
   });
 
+  it("Should expose a failed delete and allow a second confirmed attempt", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("Delete failed"))
+      .mockResolvedValueOnce(undefined);
+    renderPanel({ onDelete });
+
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    fireEvent.click(screen.getByTestId("delete-automation-btn"));
+    await user.type(screen.getByLabelText("Type to confirm"), jobFixture.name);
+    await user.click(screen.getByTestId("confirm-delete-automation-btn"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("automation-delete-error")).toHaveTextContent("Delete failed")
+    );
+    expect(screen.getByTestId("confirm-delete-automation-btn")).toBeEnabled();
+
+    await user.click(screen.getByTestId("confirm-delete-automation-btn"));
+    await waitFor(() => expect(onDelete).toHaveBeenCalledTimes(2));
+  });
+
   it("Should render a persisted Loop Job target, typed inputs, and delegated Loop correlation", () => {
     renderPanel({
       item: {

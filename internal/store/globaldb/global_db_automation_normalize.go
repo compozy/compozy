@@ -54,7 +54,6 @@ func normalizeAutomationTrigger(trigger automation.Trigger) automation.Trigger {
 	trigger.Name = strings.TrimSpace(trigger.Name)
 	trigger.AgentName = strings.TrimSpace(trigger.AgentName)
 	trigger.WorkspaceID = strings.TrimSpace(trigger.WorkspaceID)
-	trigger.Event = strings.TrimSpace(trigger.Event)
 	trigger.Source = automation.JobSource(strings.TrimSpace(string(trigger.Source)))
 	trigger.WebhookID = strings.TrimSpace(trigger.WebhookID)
 	trigger.EndpointSlug = strings.TrimSpace(trigger.EndpointSlug)

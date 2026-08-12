@@ -15,9 +15,9 @@ import {
 
 import {
   modelRefreshStateTone,
+  type ProviderModelSourceStatus,
   useProviderModelStatus,
   useRefreshProviderModels,
-  type ProviderModelSourceStatus,
 } from "@/systems/model-catalog";
 
 interface ProviderModelCatalogStatusProps {

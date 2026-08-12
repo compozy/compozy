@@ -3,8 +3,6 @@ import { Boxes } from "lucide-react";
 
 import { EntityModeToolbar, type EntityMode } from "@compozy/ui";
 
-import { SettingsEditorDialog, SettingsSourceBadge } from "@/systems/settings";
-
 import {
   sandboxEnvErrors,
   sandboxSecretEnvErrors,
@@ -13,6 +11,7 @@ import {
 import type { SandboxEditorState } from "../hooks/use-sandbox-page";
 import { SandboxEditorAdvancedSection } from "./sandbox-editor-advanced-section";
 import { SandboxEditorSimpleSection } from "./sandbox-editor-simple-section";
+import { SettingsEditorDialog, SettingsSourceBadge } from "@/systems/settings";
 
 export interface SandboxEditorProps {
   editor: SandboxEditorState;

@@ -29,7 +29,13 @@ const shell = vi.hoisted(() => ({
 vi.mock("@/systems/session", () => ({
   useSessions: () => ({ data: [] }),
 }));
+vi.mock("@/systems/session/hooks/use-sessions", () => ({
+  useSessions: () => ({ data: [] }),
+}));
 vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: "workspace:test" }),
+}));
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "workspace:test" }),
 }));
 vi.mock("../use-desktop", () => ({
@@ -165,16 +171,18 @@ function controllerFixture(state: OsDesktopRuntimeStore): WindowManagerControlle
 function installDeckGeometry(
   deck: ReturnType<typeof useOsWindowDeck>,
   memberIds: readonly string[]
-): void {
+): HTMLDivElement {
   const tabs = document.createElement("div");
   Object.defineProperty(tabs, "getBoundingClientRect", {
+    configurable: true,
     value: () => ({ left: 0, right: 200, top: 20, bottom: 57, width: 200, height: 37 }),
   });
-  (deck.tabsRef as React.MutableRefObject<HTMLDivElement | null>).current = tabs;
+  deck.registerTabs(tabs);
 
   for (const [index, member] of memberIds.entries()) {
     const tab = document.createElement("button");
     Object.defineProperty(tab, "getBoundingClientRect", {
+      configurable: true,
       value: () => ({
         left: index * 100,
         right: (index + 1) * 100,
@@ -186,6 +194,7 @@ function installDeckGeometry(
     });
     deck.registerTab(member, tab);
   }
+  return tabs;
 }
 
 function pointerEvent(type: string, clientX: number, clientY: number): Event {
@@ -206,8 +215,8 @@ function prepareDeck(frame = frameFixture()) {
   runtime.state = runtimeFixture(windows);
   shell.manager = controllerFixture(runtime.state);
   const hook = renderHook(() => useOsWindowDeck(frame));
-  act(() => installDeckGeometry(hook.result.current, frame.members));
-  return { ...hook, frame, windows, manager: shell.manager };
+  const tabs = installDeckGeometry(hook.result.current, frame.members);
+  return { ...hook, frame, tabs, windows, manager: shell.manager };
 }
 
 afterEach(() => {
@@ -215,6 +224,7 @@ afterEach(() => {
   runtime.state = null;
   shell.manager = null;
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe("useOsWindowDeck", () => {
@@ -252,6 +262,41 @@ describe("useOsWindowDeck", () => {
       h: 400,
     });
     expect(shell.coordinator.userActivateWindow).toHaveBeenCalledWith("window:one");
+  });
+
+  it("Should coalesce tab-drag layout reads and release browser listeners at pointer end", () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+    const removeListener = vi.spyOn(window, "removeEventListener");
+    const { result, tabs } = prepareDeck();
+    const measure = vi.spyOn(tabs, "getBoundingClientRect");
+
+    act(() => {
+      result.current.handleTabPointerDown("window:one", {
+        clientX: 30,
+        clientY: 38,
+      } as React.PointerEvent<HTMLElement>);
+    });
+    measure.mockClear();
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointermove", 80, 38));
+      window.dispatchEvent(pointerEvent("pointermove", 120, 38));
+      window.dispatchEvent(pointerEvent("pointermove", 160, 38));
+    });
+
+    expect(measure).not.toHaveBeenCalled();
+    act(() => animationFrames[0]?.(16));
+    expect(measure).toHaveBeenCalledOnce();
+
+    act(() => window.dispatchEvent(pointerEvent("pointerup", 160, 38)));
+    measure.mockClear();
+    act(() => window.dispatchEvent(pointerEvent("pointermove", 190, 38)));
+    expect(measure).not.toHaveBeenCalled();
+    expect(removeListener).toHaveBeenCalledWith("pointermove", expect.any(Function));
   });
 
   it.each([
@@ -352,7 +397,13 @@ describe("useOsWindowDeck", () => {
   });
 
   it("Should advertise the pointer-derived insertion index and edge-scroll only while a foreign frame is active [UT-095]", () => {
-    const { result, frame } = prepareDeck();
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+    const { result, frame, tabs } = prepareDeck();
 
     act(() => {
       windowManagerStore.trigger.workAreaMeasured({
@@ -369,9 +420,10 @@ describe("useOsWindowDeck", () => {
     act(() => {
       window.dispatchEvent(pointerEvent("pointermove", 190, 38));
     });
+    act(() => animationFrames.shift()?.(16));
 
     expect(result.current.dropIndex).toBe(2);
-    expect(result.current.tabsRef.current?.scrollLeft).toBe(12);
+    expect(tabs.scrollLeft).toBe(12);
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
       frameId: frame.id,
       targetWindowId: "window:one",
@@ -381,6 +433,7 @@ describe("useOsWindowDeck", () => {
     act(() => {
       window.dispatchEvent(pointerEvent("pointermove", 250, 100));
     });
+    act(() => animationFrames.shift()?.(32));
 
     expect(result.current.dropIndex).toBeNull();
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();

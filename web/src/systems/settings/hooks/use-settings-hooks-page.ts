@@ -1,21 +1,22 @@
 import { useState } from "react";
 
 import { useSettingsPage } from "./use-settings-page";
+
 import {
-  SettingsApiError,
-  usePutSettingsHook,
-  useSettingsHooksExtensions,
-  type SettingsHookEntry,
-  type SettingsHookRequest,
-} from "@/systems/settings";
-import {
+  type CreateNotificationPresetRequest,
+  type NotificationPresetEntry,
   useCreateNotificationPreset,
   useDeleteNotificationPreset,
   useNotificationPresets,
   useUpdateNotificationPreset,
-  type CreateNotificationPresetRequest,
-  type NotificationPresetEntry,
 } from "@/systems/notifications";
+import {
+  SettingsApiError,
+  type SettingsHookEntry,
+  type SettingsHookRequest,
+  usePutSettingsHook,
+  useSettingsHooksExtensions,
+} from "@/systems/settings";
 
 function errorMessage(error: unknown): string | null {
   if (error instanceof SettingsApiError || error instanceof Error) return error.message;

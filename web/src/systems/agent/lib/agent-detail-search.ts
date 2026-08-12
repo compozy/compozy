@@ -1,4 +1,5 @@
 import { isAgentSessionFailure } from "./session-status";
+
 import type { SessionPayload } from "@/systems/session";
 
 export const AGENT_DETAIL_TABS = ["overview", "instructions", "configuration", "sessions"] as const;

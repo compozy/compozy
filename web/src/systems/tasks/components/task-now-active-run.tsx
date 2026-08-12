@@ -2,7 +2,6 @@ import { ArrowUpRight } from "lucide-react";
 
 import { Button, Time } from "@compozy/ui";
 
-import { useLiveElapsed } from "../hooks/use-live-elapsed";
 import { runCoordinationChannelLabel, runIsCoordinated } from "../lib/task-formatters";
 import type { TaskDetailView } from "../types";
 
@@ -12,12 +11,12 @@ interface TaskNowActiveRunProps {
   run: ActiveRun;
   maxAttempts?: number | null;
   onOpenRun: (runId: string) => void;
+  elapsed?: string;
 }
 
 /** Active-run renderer for the task Overview Now strip. */
-export function TaskNowActiveRun({ run, maxAttempts, onOpenRun }: TaskNowActiveRunProps) {
+export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskNowActiveRunProps) {
   const isRunning = run.status === "running" || run.status === "starting";
-  const elapsed = useLiveElapsed(run.started_at ?? undefined, isRunning);
   const attempts = maxAttempts
     ? `Attempt ${run.attempt} of ${maxAttempts}`
     : `Attempt ${run.attempt}`;

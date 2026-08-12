@@ -5,10 +5,7 @@ import { taskExecutionProfileOptions } from "../lib/query-options";
 import { tasksKeys } from "../lib/query-keys";
 import { acknowledgeTaskMutationSettlement } from "../lib/task-mutation";
 import type { TaskExecutionProfileSetRequest } from "../types";
-
-interface QueryHookOptions {
-  enabled?: boolean;
-}
+import { type TaskQueryHookOptions, withTaskQueryHookOptions } from "./task-query-hook-options";
 
 interface SetExecutionProfileParams {
   id: string;
@@ -30,8 +27,10 @@ function invalidateProfileRelatedQueries(queryClient: QueryClient, taskId: strin
   ]);
 }
 
-export function useTaskExecutionProfile(taskId: string, options: QueryHookOptions = {}) {
-  return useQuery(taskExecutionProfileOptions(taskId, options.enabled ?? true));
+export function useTaskExecutionProfile(taskId: string, options: TaskQueryHookOptions = {}) {
+  return useQuery(
+    withTaskQueryHookOptions(taskExecutionProfileOptions(taskId, options.enabled ?? true), options)
+  );
 }
 
 export function useSetTaskExecutionProfile() {

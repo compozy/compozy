@@ -9,11 +9,10 @@ import {
 
 import { Spinner } from "@compozy/ui";
 
-import { SETTINGS_SECTIONS } from "@/systems/settings";
-import { useDaemonConnectionStatus } from "@/systems/status";
-
 import { useDesktop } from "../../hooks/use-desktop";
 import { SettingsWindowNav } from "./settings-window-nav";
+import { SETTINGS_SECTIONS } from "@/systems/settings";
+import { useDaemonConnectionStatus } from "@/systems/status";
 
 /**
  * Section pages stay in their route-colocated modules (the views are rehosted

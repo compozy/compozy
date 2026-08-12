@@ -1,17 +1,18 @@
-import { ThreadPrimitive } from "@assistant-ui/react";
 import { type ComponentPropsWithoutRef, useRef } from "react";
 
 import { cn } from "@/lib/utils";
-import { SessionLoadOlderButton } from "@/systems/session/components/session-load-older-button";
-import { useSessionTranscriptThreadState } from "@/systems/session";
-import type { SessionFailurePayload, SessionState } from "@/systems/session";
+
 import { useThreadScrollController } from "./hooks/use-thread-scroll-controller";
-import { useOlderTranscriptAnchor } from "./hooks/use-older-transcript-anchor";
 import { ScrollToBottomPill } from "./scroll-to-bottom-pill";
 import { ThreadContentRail, type SessionThreadContentInset } from "./session-thread-content-rail";
 import { ThreadMessages } from "./session-thread-messages";
+import {
+  type SessionFailurePayload,
+  type SessionState,
+  useSessionTranscriptThreadState,
+} from "@/systems/session";
 
-type ThreadViewportProps = ComponentPropsWithoutRef<typeof ThreadPrimitive.Viewport>;
+type ThreadViewportProps = ComponentPropsWithoutRef<"div">;
 
 /**
  * The transcript scroller: renders the thread rows inside the shared content
@@ -38,6 +39,7 @@ export function ThreadViewport({
   startupFailed: boolean;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const {
     messages: transcriptMessages,
     status: transcriptStatus,
@@ -48,29 +50,35 @@ export function ThreadViewport({
     retry: retryTranscript,
   } = useSessionTranscriptThreadState();
   const messageCount = transcriptMessages.length;
-  const { showScrollToBottom, scrollToEnd } = useThreadScrollController(
+  const showLoadOlder = hasOlder || isFetchingOlder;
+  const {
+    captureHistoryAnchor,
+    leadingItemCount,
+    measureVirtualElement,
+    showScrollToBottom,
+    scrollToEnd,
+    virtualItems,
+    virtualTotalSize,
+  } = useThreadScrollController(
     viewportRef,
-    transcriptMessages
+    contentRef,
+    transcriptMessages,
+    showLoadOlder && messageCount > 0
   );
-  const loadOlderWithAnchor = useOlderTranscriptAnchor({
-    viewportRef,
-    isFetchingOlder,
-    messageCount,
-    loadOlder,
-  });
+  const loadOlderWithAnchor = () => {
+    captureHistoryAnchor();
+    loadOlder();
+  };
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      <ThreadPrimitive.Viewport
+      <div
         {...props}
         ref={viewportRef}
         className={cn("min-h-0 flex-1 overflow-y-auto", className)}
         data-testid="chat-view"
       >
-        <ThreadContentRail inset={contentInset} className="min-h-full">
-          {hasOlder || isFetchingOlder ? (
-            <SessionLoadOlderButton isLoading={isFetchingOlder} onClick={loadOlderWithAnchor} />
-          ) : null}
+        <ThreadContentRail ref={contentRef} inset={contentInset} className="min-h-full">
           <ThreadMessages
             agentName={agentName}
             sessionId={sessionId}
@@ -80,12 +88,19 @@ export function ThreadViewport({
             transcriptError={transcriptError}
             retryTranscript={retryTranscript}
             transcriptMessages={transcriptMessages}
+            measureVirtualElement={measureVirtualElement}
+            virtualItems={virtualItems}
+            virtualTotalSize={virtualTotalSize}
+            leadingItemCount={leadingItemCount}
+            showLoadOlder={showLoadOlder}
+            isFetchingOlder={isFetchingOlder}
+            loadOlder={loadOlderWithAnchor}
             sessionState={sessionState}
             failure={failure}
             startupFailed={startupFailed}
           />
         </ThreadContentRail>
-      </ThreadPrimitive.Viewport>
+      </div>
       <ScrollToBottomPill visible={showScrollToBottom} onClick={scrollToEnd} />
     </div>
   );

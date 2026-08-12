@@ -132,6 +132,107 @@ func TestRuntimeTriggerStates(t *testing.T) {
 	})
 }
 
+func TestRuntimePublishesSuccessfulConsolidations(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should publish one manual completion without request cancellation or delivery failure changing success",
+		func(t *testing.T) {
+			t.Parallel()
+
+			completedAt := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+			service := &fakeDreamService{
+				shouldRun: true,
+				runResult: memory.ConsolidationResult{WorkspaceID: "ws-stable", CompletedAt: completedAt},
+			}
+			var logs strings.Builder
+			runtime := NewRuntime(
+				staticEnabled(true),
+				service,
+				noopSpawner,
+				time.Hour,
+				slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})),
+				nil,
+			)
+			var observed []memory.ConsolidationResult
+			observerErr := errors.New("automation unavailable")
+			runtime.SetCompletionObserver(func(ctx context.Context, result memory.ConsolidationResult) error {
+				if err := ctx.Err(); err != nil {
+					t.Fatalf("completion context error = %v, want detached context", err)
+				}
+				observed = append(observed, result)
+				return observerErr
+			})
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			triggered, reason, err := runtime.Trigger(ctx, "workspace-alias")
+			if err != nil {
+				t.Fatalf("Trigger() error = %v", err)
+			}
+			if !triggered || reason != "" {
+				t.Fatalf("Trigger() = (%t, %q), want (true, empty)", triggered, reason)
+			}
+			if len(observed) != 1 || observed[0] != service.runResult {
+				t.Fatalf("completion results = %#v, want [%#v]", observed, service.runResult)
+			}
+			if !strings.Contains(logs.String(), observerErr.Error()) {
+				t.Fatalf("warning logs = %q, want observer error", logs.String())
+			}
+		})
+
+	t.Run("Should not publish a failed consolidation", func(t *testing.T) {
+		t.Parallel()
+
+		runErr := errors.New("consolidation failed")
+		runtime := newTestRuntime(true, &fakeDreamService{shouldRun: true, runErr: runErr}, time.Hour)
+		observed := 0
+		runtime.SetCompletionObserver(func(context.Context, memory.ConsolidationResult) error {
+			observed++
+			return nil
+		})
+
+		if _, _, err := runtime.Trigger(context.Background(), "ws-1"); !errors.Is(err, runErr) {
+			t.Fatalf("Trigger() error = %v, want %v", err, runErr)
+		}
+		if observed != 0 {
+			t.Fatalf("completion calls = %d, want 0", observed)
+		}
+	})
+
+	t.Run("Should publish a queued completion through the same observer", func(t *testing.T) {
+		t.Parallel()
+
+		result := memory.ConsolidationResult{
+			WorkspaceID: "ws-queued",
+			CompletedAt: time.Date(2026, 8, 12, 12, 30, 0, 0, time.UTC),
+		}
+		runtime := newTestRuntime(
+			true,
+			&fakeDreamService{shouldRun: true, runResult: result},
+			time.Hour,
+		)
+		observed := make(chan memory.ConsolidationResult, 1)
+		runtime.SetCompletionObserver(func(_ context.Context, result memory.ConsolidationResult) error {
+			observed <- result
+			return nil
+		})
+		runtime.Start(t.Context())
+		t.Cleanup(runtime.Shutdown)
+
+		runtime.EnqueueCheck("session_stop", "ws-queued")
+		select {
+		case got := <-observed:
+			if got != result {
+				t.Fatalf("completion result = %#v, want %#v", got, result)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for queued completion")
+		}
+	},
+	)
+}
+
 func TestRuntimeLastConsolidatedAt(t *testing.T) {
 	t.Parallel()
 
@@ -1010,6 +1111,7 @@ type fakeDreamService struct {
 	shouldRun      bool
 	shouldRunErr   error
 	runErr         error
+	runResult      memory.ConsolidationResult
 	shouldRunCalls int
 	runCalls       int
 	workspaceRefs  []string
@@ -1022,12 +1124,16 @@ func (f *fakeDreamService) ShouldRun() (bool, error) {
 	return f.shouldRun, f.shouldRunErr
 }
 
-func (f *fakeDreamService) Run(_ context.Context, _ memory.SessionSpawner, workspace string) error {
+func (f *fakeDreamService) Run(
+	_ context.Context,
+	_ memory.SessionSpawner,
+	workspace string,
+) (memory.ConsolidationResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.runCalls++
 	f.workspaceRefs = append(f.workspaceRefs, workspace)
-	return f.runErr
+	return f.runResult, f.runErr
 }
 
 func (f *fakeDreamService) runCount() int {

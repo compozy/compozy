@@ -49,12 +49,16 @@ func TestExtensionLogRing(t *testing.T) {
 			t.Fatal("concurrent log writes blocked")
 		}
 
-		entries := ring.snapshot(0)
+		snapshot := ring.snapshot(ExtensionLogCursor{})
+		entries := snapshot.Entries
 		if len(entries) == 0 {
 			t.Fatal("snapshot() = empty, want retained records")
 		}
 		retainedBytes := 0
 		for index, entry := range entries {
+			if entry.StreamEpoch != snapshot.StreamEpoch {
+				t.Fatalf("entry stream epoch = %q, want %q", entry.StreamEpoch, snapshot.StreamEpoch)
+			}
 			retainedBytes += len(entry.Message)
 			if index > 0 && entry.Sequence <= entries[index-1].Sequence {
 				t.Fatalf("sequence[%d] = %d, want greater than %d", index, entry.Sequence, entries[index-1].Sequence)
@@ -68,11 +72,21 @@ func TestExtensionLogRing(t *testing.T) {
 		}
 
 		after := entries[len(entries)/2].Sequence
-		newer := ring.snapshot(after)
-		for _, entry := range newer {
+		newer := ring.snapshot(ExtensionLogCursor{Sequence: after, StreamEpoch: snapshot.StreamEpoch})
+		for _, entry := range newer.Entries {
 			if entry.Sequence <= after {
 				t.Fatalf("snapshot(%d) returned sequence %d", after, entry.Sequence)
 			}
+		}
+
+		otherRing := newExtensionLogRing(time.Now)
+		otherRing.append("new ring", "generation")
+		reset := otherRing.snapshot(ExtensionLogCursor{Sequence: after, StreamEpoch: snapshot.StreamEpoch})
+		if reset.StreamEpoch == snapshot.StreamEpoch {
+			t.Fatalf("new ring stream epoch = %q, want a new identity", reset.StreamEpoch)
+		}
+		if len(reset.Entries) != 1 || reset.Entries[0].Message != "new ring" {
+			t.Fatalf("new-ring snapshot = %#v, want complete replacement", reset)
 		}
 	})
 }
@@ -109,7 +123,7 @@ func TestExtensionStderrPipelineRedactsBeforeCapture(t *testing.T) {
 		t.Fatal("Process.Wait() error = nil, want helper exit error")
 	}
 
-	entries := ring.snapshot(0)
+	entries := ring.snapshot(ExtensionLogCursor{}).Entries
 	var retained strings.Builder
 	for _, entry := range entries {
 		retained.WriteString(entry.Message)
@@ -128,12 +142,12 @@ func TestExtensionStderrPipelineRedactsBeforeCapture(t *testing.T) {
 	}
 	manager := NewManager(env.registry)
 	manager.devLogs[key] = ring
-	logs, err := manager.Logs(key, 0)
+	logs, err := manager.Logs(key, ExtensionLogCursor{})
 	if err != nil {
 		t.Fatalf("Manager.Logs() error = %v", err)
 	}
 	var projected strings.Builder
-	for _, entry := range logs {
+	for _, entry := range logs.Entries {
 		projected.WriteString(entry.Message)
 	}
 	assertNoExtensionLogSecret(t, "Manager.Logs", projected.String(), dynamicSecret)

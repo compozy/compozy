@@ -1,9 +1,9 @@
+import type { OsWindowRoute } from "../../lib/os-types";
 import {
   validateAgentDetailSearch,
   validateAgentSettingsSearch,
   validateAgentsFleetSearch,
 } from "@/systems/agent";
-import type { OsWindowRoute } from "../../lib/os-types";
 
 export type AgentWindowLocation =
   | { kind: "catalog"; search: ReturnType<typeof validateAgentsFleetSearch> }

@@ -197,7 +197,7 @@ func TestMCPCallExecutor(t *testing.T) {
 					Request:    request,
 				}, nil
 			}),
-			header: func(context.Context) string { return "Bearer rejected" },
+			header: "Bearer rejected",
 		}
 		request, err := http.NewRequestWithContext(
 			t.Context(),
@@ -1265,6 +1265,9 @@ func TestMCPClientCleanup(t *testing.T) {
 	})
 }
 
+// Invariant: authoritative MCP projections change only with logical descriptor or credential state and retain no expired cache state.
+// Owning layer: internal/mcp unit cache.
+// Canonical suite: internal/mcp/executor_test.go.
 func TestMCPToolListCache(t *testing.T) {
 	t.Run("Should isolate cached descriptor schemas from caller mutation", func(t *testing.T) {
 		t.Parallel()
@@ -1311,6 +1314,314 @@ func TestMCPToolListCache(t *testing.T) {
 		executor.toolCache.mu.Unlock()
 		if retainedExpired || entryCount != 1 {
 			t.Fatalf("cache entries = %#v, want only current binding", entries)
+		}
+	})
+
+	t.Run("Should expose only live cacheable tool projections as authoritative", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &CallExecutor{toolCache: mcpToolListCache{
+			entries:          make(map[string]mcpToolListCacheEntry),
+			projectionStates: make(map[string]mcpToolProjectionState),
+		}}
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "fixture",
+			RawServerName: "fixture",
+			Scope:         "global",
+		}
+		first := []toolspkg.MCPToolDescriptor{{
+			ID:          "mcp__fixture__alpha",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}}
+		if err := executor.recordToolProjection(source, "", first, 60_000, time.Now()); err != nil {
+			t.Fatalf("recordToolProjection(first) error = %v", err)
+		}
+		firstGeneration, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || firstGeneration == "" {
+			t.Fatalf("ProjectionGeneration(first) = %q, %t, want authoritative token", firstGeneration, known)
+		}
+
+		second := []toolspkg.MCPToolDescriptor{{
+			ID:          "mcp__fixture__beta",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}}
+		if err := executor.recordToolProjection(source, "", second, 60_000, time.Now()); err != nil {
+			t.Fatalf("recordToolProjection(second) error = %v", err)
+		}
+		secondGeneration, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || secondGeneration == firstGeneration {
+			t.Fatalf(
+				"ProjectionGeneration(second) = %q, %t, want token different from %q",
+				secondGeneration,
+				known,
+				firstGeneration,
+			)
+		}
+
+		if err := executor.recordToolProjection(source, "", second, 0, time.Now()); err != nil {
+			t.Fatalf("recordToolProjection(uncacheable) error = %v", err)
+		}
+		if generation, authoritative := executor.ProjectionGeneration(
+			t.Context(),
+			[]toolspkg.SourceRef{source},
+		); authoritative || generation != "" {
+			t.Fatalf(
+				"ProjectionGeneration(uncacheable) = %q, %t, want unknown",
+				generation,
+				authoritative,
+			)
+		}
+		executor.toolCache.mu.Lock()
+		projectionStateCount := len(executor.toolCache.projectionStates)
+		executor.toolCache.mu.Unlock()
+		if projectionStateCount != 0 {
+			t.Fatalf("projection state count = %d, want 0 after uncacheable response", projectionStateCount)
+		}
+	})
+
+	t.Run("Should preserve generation for reordered equivalent descriptors", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &CallExecutor{toolCache: mcpToolListCache{
+			projectionStates: make(map[string]mcpToolProjectionState),
+		}}
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "fixture",
+			RawServerName: "fixture",
+			Scope:         "global",
+		}
+		alpha := toolspkg.MCPToolDescriptor{ID: "mcp__fixture__alpha"}
+		beta := toolspkg.MCPToolDescriptor{ID: "mcp__fixture__beta"}
+		now := time.Now()
+		if err := executor.recordToolProjection(
+			source,
+			"",
+			[]toolspkg.MCPToolDescriptor{alpha, beta},
+			60_000,
+			now,
+		); err != nil {
+			t.Fatalf("recordToolProjection(initial) error = %v", err)
+		}
+		initial, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || initial == "" {
+			t.Fatalf("ProjectionGeneration(initial) = %q, %t, want authoritative generation", initial, known)
+		}
+
+		reorderedDescriptors := []toolspkg.MCPToolDescriptor{beta, alpha}
+		if err := executor.recordToolProjection(
+			source,
+			"",
+			reorderedDescriptors,
+			60_000,
+			now.Add(time.Millisecond),
+		); err != nil {
+			t.Fatalf("recordToolProjection(reordered) error = %v", err)
+		}
+		if got, want := []toolspkg.ToolID{
+			reorderedDescriptors[0].ID,
+			reorderedDescriptors[1].ID,
+		}, []toolspkg.ToolID{beta.ID, alpha.ID}; !slices.Equal(got, want) {
+			t.Fatalf("reordered descriptors = %#v, want original server order %#v", got, want)
+		}
+		reordered, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || reordered != initial {
+			t.Fatalf(
+				"ProjectionGeneration(reordered) = %q, %t, want unchanged %q",
+				reordered,
+				known,
+				initial,
+			)
+		}
+	})
+
+	t.Run("Should reject a projection state recorded with a replaced authorization token", func(t *testing.T) {
+		t.Parallel()
+
+		server := authEnabledServer(
+			"fixture",
+			compozyconfig.MCPServerTransportHTTP,
+			"https://mcp.example.test/mcp",
+		)
+		auth := &fakeAuthService{}
+		auth.setAuthorizationToken(mcpauth.TokenRecord{AccessToken: "first-token", TokenType: "Bearer"})
+		executor := newTestMCPExecutor(t, server, withAuthService(auth))
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "fixture",
+			RawServerName: "fixture",
+			Scope:         "global",
+		}
+		descriptors := []toolspkg.MCPToolDescriptor{{
+			ID:          "mcp__fixture__alpha",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}}
+		if err := executor.recordToolProjection(
+			source,
+			"Bearer first-token",
+			descriptors,
+			60_000,
+			time.Now(),
+		); err != nil {
+			t.Fatalf("recordToolProjection(first token) error = %v", err)
+		}
+		firstGeneration, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || firstGeneration == "" {
+			t.Fatalf("ProjectionGeneration(first token) = %q, %t, want authoritative token", firstGeneration, known)
+		}
+
+		auth.setAuthorizationToken(mcpauth.TokenRecord{AccessToken: "second-token", TokenType: "Bearer"})
+		if generation, authoritative := executor.ProjectionGeneration(
+			t.Context(),
+			[]toolspkg.SourceRef{source},
+		); authoritative || generation != "" {
+			t.Fatalf(
+				"ProjectionGeneration(replaced token) = %q, %t, want unknown",
+				generation,
+				authoritative,
+			)
+		}
+	})
+
+	t.Run("Should bind one authorization snapshot to discovery and cache writes", func(t *testing.T) {
+		t.Parallel()
+
+		var listCalls atomic.Int32
+		sdkServer := newFakeSDKServer(nil)
+		sdkServer.AddReceivingMiddleware(func(next mcpsdk.MethodHandler) mcpsdk.MethodHandler {
+			return func(ctx context.Context, method string, request mcpsdk.Request) (mcpsdk.Result, error) {
+				result, err := next(ctx, method, request)
+				if err != nil || method != mcpToolsListMethod {
+					return result, err
+				}
+				listCalls.Add(1)
+				listResult, ok := result.(*mcpsdk.ListToolsResult)
+				if !ok {
+					return nil, errors.New("test: tools/list returned an unexpected result type")
+				}
+				listResult.TTLMs = 60_000
+				return listResult, nil
+			}
+		})
+		mcpHandler := newTestMCPHandler(sdkServer)
+		store := newMemoryTokenStore()
+		var rotatedToken mcpauth.TokenRecord
+		rotationResult := make(chan error, 1)
+		var rotateOnce sync.Once
+		var headersMu sync.Mutex
+		headers := make([]string, 0, 4)
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			headersMu.Lock()
+			headers = append(headers, request.Header.Get("Authorization"))
+			headersMu.Unlock()
+			rotateOnce.Do(func() {
+				rotationResult <- store.SaveMCPAuthToken(request.Context(), rotatedToken)
+			})
+			mcpHandler.ServeHTTP(writer, request)
+		}))
+		t.Cleanup(server.Close)
+
+		configuredServer := authEnabledServer(
+			"credential-snapshot",
+			compozyconfig.MCPServerTransportHTTP,
+			server.URL,
+		)
+		target := globalMCPExecutorTarget(configuredServer.Name)
+		firstToken := mcpauth.TokenRecord{
+			Target:                target,
+			DefinitionFingerprint: definitionFingerprint(t, target, configuredServer),
+			Issuer:                "https://issuer.example.test",
+			ClientID:              "client-id",
+			Scopes:                []string{"tools.read"},
+			AccessToken:           "first-token",
+			TokenType:             "Bearer",
+			ExpiresAt:             time.Now().Add(time.Hour),
+			UpdatedAt:             time.Now(),
+		}
+		rotatedToken = firstToken
+		rotatedToken.AccessToken = "second-token"
+		rotatedToken.UpdatedAt = firstToken.UpdatedAt.Add(time.Second)
+		if err := store.SaveMCPAuthToken(t.Context(), firstToken); err != nil {
+			t.Fatalf("SaveMCPAuthToken(first) error = %v", err)
+		}
+		executor := newTestMCPExecutor(t, configuredServer, WithTokenStore(store))
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         configuredServer.Name,
+			RawServerName: configuredServer.Name,
+		}
+
+		if _, err := executor.ListTools(t.Context(), source); err != nil {
+			t.Fatalf("ListTools(first token) error = %v", err)
+		}
+		if err := <-rotationResult; err != nil {
+			t.Fatalf("SaveMCPAuthToken(second) error = %v", err)
+		}
+		headersMu.Lock()
+		firstRequestCount := len(headers)
+		firstHeaders := append([]string(nil), headers...)
+		headersMu.Unlock()
+		if firstRequestCount == 0 {
+			t.Fatal("first discovery sent no HTTP requests")
+		}
+		for index, header := range firstHeaders {
+			if want := "Bearer first-token"; header != want {
+				t.Fatalf("first discovery Authorization[%d] = %q, want %q", index, header, want)
+			}
+		}
+
+		if _, err := executor.ListTools(t.Context(), source); err != nil {
+			t.Fatalf("ListTools(second token) error = %v", err)
+		}
+		if got, want := listCalls.Load(), int32(2); got != want {
+			t.Fatalf("tools/list calls = %d, want %d after credential rotation", got, want)
+		}
+		headersMu.Lock()
+		secondHeaders := append([]string(nil), headers[firstRequestCount:]...)
+		headersMu.Unlock()
+		if len(secondHeaders) == 0 {
+			t.Fatal("second discovery sent no HTTP requests")
+		}
+		for index, header := range secondHeaders {
+			if want := "Bearer second-token"; header != want {
+				t.Fatalf("second discovery Authorization[%d] = %q, want %q", index, header, want)
+			}
+		}
+	})
+
+	t.Run("Should prune expired projection states", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &CallExecutor{toolCache: mcpToolListCache{
+			projectionStates: make(map[string]mcpToolProjectionState),
+		}}
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "fixture",
+			RawServerName: "fixture",
+			Scope:         "global",
+		}
+		if err := executor.recordToolProjection(
+			source,
+			"",
+			[]toolspkg.MCPToolDescriptor{{ID: "mcp__fixture__alpha"}},
+			1,
+			time.Now().Add(-time.Second),
+		); err != nil {
+			t.Fatalf("recordToolProjection(expired) error = %v", err)
+		}
+		if generation, authoritative := executor.ProjectionGeneration(
+			t.Context(),
+			[]toolspkg.SourceRef{source},
+		); authoritative || generation != "" {
+			t.Fatalf("ProjectionGeneration(expired) = %q, %t, want unknown", generation, authoritative)
+		}
+		executor.toolCache.mu.Lock()
+		projectionStateCount := len(executor.toolCache.projectionStates)
+		executor.toolCache.mu.Unlock()
+		if projectionStateCount != 0 {
+			t.Fatalf("projection state count = %d, want 0 after expiry", projectionStateCount)
 		}
 	})
 }
@@ -1824,7 +2135,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 		}
 		executor := newTestMCPExecutor(t, server, WithSecretLookup(os.Getenv))
 		resolved := ResolvedServer{Server: server, Target: globalMCPExecutorTarget(server.Name)}
-		client, err := executor.openClient(ctx, resolved)
+		client, err := executor.openClient(ctx, resolved, "")
 		if err != nil {
 			t.Fatalf("openClient() error = %v", err)
 		}
@@ -3032,12 +3343,14 @@ func assertJSONDoesNotContain(t *testing.T, label string, value any, forbidden .
 }
 
 type fakeAuthService struct {
-	mu         sync.Mutex
-	status     mcpauth.Status
-	refresh    mcpauth.Status
-	refreshErr error
-	calls      int
-	lastConfig mcpauth.ServerConfig
+	mu                    sync.Mutex
+	status                mcpauth.Status
+	refresh               mcpauth.Status
+	refreshErr            error
+	calls                 int
+	lastConfig            mcpauth.ServerConfig
+	authorizationToken    mcpauth.TokenRecord
+	hasAuthorizationToken bool
 }
 
 func (s *fakeAuthService) Status(ctx context.Context, cfg mcpauth.ServerConfig) (mcpauth.Status, error) {
@@ -3073,8 +3386,23 @@ func (s *fakeAuthService) Refresh(ctx context.Context, cfg mcpauth.ServerConfig)
 	return status, nil
 }
 
-func (s *fakeAuthService) AuthorizationToken(context.Context, mcpauth.ServerConfig) (mcpauth.TokenRecord, error) {
-	return mcpauth.TokenRecord{}, mcpauth.ErrTokenNotFound
+func (s *fakeAuthService) AuthorizationToken(
+	_ context.Context,
+	_ mcpauth.ServerConfig,
+) (mcpauth.TokenRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.hasAuthorizationToken {
+		return mcpauth.TokenRecord{}, mcpauth.ErrTokenNotFound
+	}
+	return s.authorizationToken, nil
+}
+
+func (s *fakeAuthService) setAuthorizationToken(token mcpauth.TokenRecord) {
+	s.mu.Lock()
+	s.authorizationToken = token
+	s.hasAuthorizationToken = true
+	s.mu.Unlock()
 }
 
 func (s *fakeAuthService) refreshCallCount() int {

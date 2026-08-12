@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
+import { useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
-import { sessionStore, useSessionComposerDraft } from "@/systems/session";
 import type { SessionComposerInputHandle } from "../session-composer-lexical-plugins";
+import { sessionComposerSyncLogic } from "./session-composer-sync-store";
+import { sessionStore, useSessionComposerDraft } from "@/systems/session";
 
 export interface SessionComposerState {
   clearComposer: () => void;
@@ -20,10 +22,8 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   const draftText = useSessionComposerDraft(sessionId);
   const composerText = useAuiState(state => state.composer.text);
   const isRunning = useAuiState(state => state.thread.isRunning);
+  const syncStore = useStore(sessionComposerSyncLogic);
   const composerInputHandleRef = useRef<SessionComposerInputHandle | null>(null);
-  const hydratedSessionIdRef = useRef<string | null>(null);
-  const hydratedDraftTextRef = useRef<string | null>(null);
-  const skipNextComposerSyncRef = useRef(false);
 
   const setComposerInputElement = (handle: SessionComposerInputHandle | null) => {
     composerInputHandleRef.current = handle;
@@ -57,25 +57,21 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   };
 
   useLayoutEffect(() => {
-    const sameSession = hydratedSessionIdRef.current === sessionId;
-    const composerText = aui.composer.getState().text;
-    if (sameSession && composerText !== hydratedDraftTextRef.current) {
-      return;
-    }
-    hydratedSessionIdRef.current = sessionId;
-    hydratedDraftTextRef.current = draftText;
-    skipNextComposerSyncRef.current = true;
-    aui.composer.setText(draftText);
-  }, [aui, draftText, sessionId]);
+    syncStore.trigger.draftObserved({
+      composerText: aui.composer.getState().text,
+      draftText,
+      hydrate: text => aui.composer.setText(text),
+      sessionId,
+    });
+  }, [aui, draftText, sessionId, syncStore]);
 
   useEffect(() => {
-    if (skipNextComposerSyncRef.current) {
-      skipNextComposerSyncRef.current = false;
-      return;
-    }
-    if (composerText === draftText) return;
-    sessionStore.trigger.composerDraftChanged({ sessionId, text: composerText });
-  }, [composerText, draftText, sessionId]);
+    syncStore.trigger.composerObserved({
+      composerText,
+      draftText,
+      persist: text => sessionStore.trigger.composerDraftChanged({ sessionId, text }),
+    });
+  }, [composerText, draftText, sessionId, syncStore]);
 
   useAuiEvent("composer.send", clearDraftForSession);
 

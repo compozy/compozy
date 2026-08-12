@@ -2,8 +2,8 @@ import { AlertCircle, Plus, RefreshCw, Users2 } from "lucide-react";
 
 import { Button, Empty, ListingPage, useTopbarSlot } from "@compozy/ui";
 
-import { AgentFleetList, AgentFleetToolbar, type AgentsFleetSearch } from "@/systems/agent";
 import { useAgentsFleetPage } from "./use-agents-catalog";
+import { AgentFleetList, AgentFleetToolbar, type AgentsFleetSearch } from "@/systems/agent";
 
 export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch }) {
   const page = useAgentsFleetPage(search);

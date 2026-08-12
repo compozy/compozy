@@ -1,21 +1,28 @@
-import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useEffectEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSelector } from "@xstate/store-react";
 
+import { useStoreBinding } from "@/hooks/use-store-binding";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import {
-  appendExtensionLogEntries,
+  appendExtensionLogEntry,
   buildExtensionLogsStreamUrl,
   extensionLogCursor,
+  normalizeExtensionLogSnapshot,
   parseExtensionLogEvent,
+  parseExtensionLogResetEvent,
 } from "../lib/extension-log-stream";
 import { extensionLogsOptions } from "../lib/query-options";
-import type { ExtensionLogEntry } from "../types";
+import type { ExtensionLogsSnapshot } from "../types";
+import { extensionLogsLogic, type ExtensionLogStreamStatus } from "./extension-logs-store";
 
-/** The daemon publishes log records as the named `extension_log` SSE event (never `message`). */
+/** The daemon publishes one delta as this named SSE event (never `message`). */
 export const EXTENSION_LOG_EVENT_NAME = "extension_log";
+/** A recreated daemon ring publishes its complete replacement snapshot through this event. */
+export const EXTENSION_LOG_RESET_EVENT_NAME = "extension_log_reset";
 
-export type ExtensionLogStreamStatus = "idle" | "connecting" | "live" | "reconnecting" | "paused";
+export type { ExtensionLogStreamStatus } from "./extension-logs-store";
 
 export interface ExtensionLogEventSource {
   addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
@@ -33,7 +40,7 @@ export interface UseExtensionLogsOptions {
 }
 
 export interface ExtensionLogsModel {
-  entries: readonly ExtensionLogEntry[];
+  entries: ExtensionLogsSnapshot["logs"];
   error: Error | null;
   follow: boolean;
   isLoading: boolean;
@@ -46,10 +53,14 @@ function defaultEventSourceFactory(url: string): ExtensionLogEventSource {
   return createStreamEventSource(url);
 }
 
+function extensionLogError(error: unknown, fallback: string): Error {
+  return error instanceof Error ? error : new Error(fallback);
+}
+
 /**
- * Initial history comes from the REST read; the follow stream appends on top. Both bind the same
- * `(name, workspace)` instance, and streamed rows are retained across reconnects so an outage never
- * blanks the panel.
+ * Query owns the scoped log snapshot. The effect owns only its EventSource and serialized cache
+ * writes: it fetches one fresh `(stream_epoch, sequence)` baseline before opening the stream, then
+ * applies deltas or an atomic replacement snapshot when the daemon recreates its in-memory ring.
  */
 export function useExtensionLogs({
   name,
@@ -57,79 +68,188 @@ export function useExtensionLogs({
   enabled = true,
   eventSourceFactory,
 }: UseExtensionLogsOptions): ExtensionLogsModel {
-  const instance = `${workspaceId ?? ""}\u0000${name}`;
+  const queryClient = useQueryClient();
+  const normalizedName = name.trim();
+  const normalizedWorkspaceId = workspaceId?.trim() || undefined;
+  const instance = `${normalizedWorkspaceId ?? ""}\u0000${normalizedName}`;
+  const { store } = useStoreBinding(instance, () => extensionLogsLogic.createStore());
+  const connectionError = useSelector(store, snapshot => snapshot.context.error);
+  const follow = useSelector(store, snapshot => snapshot.context.follow);
+  const retryToken = useSelector(store, snapshot => snapshot.context.retryToken);
+  const streamStatus = useSelector(store, snapshot => snapshot.context.streamStatus);
+  const canStream = eventSourceFactory !== undefined || typeof EventSource !== "undefined";
+  const openEventSource = useEffectEvent((url: string) =>
+    (eventSourceFactory ?? defaultEventSourceFactory)(url)
+  );
+  const historyOptions = extensionLogsOptions(normalizedName, {
+    workspaceId: normalizedWorkspaceId,
+  });
   const history = useQuery({
-    ...extensionLogsOptions(name, { workspaceId }),
-    enabled: enabled && name !== "",
+    ...historyOptions,
+    enabled: enabled && normalizedName !== "" && !canStream,
   });
-  const [streamed, setStreamed] = useState<{ instance: string; entries: ExtensionLogEntry[] }>({
-    entries: [],
-    instance,
-  });
-  const [follow, setFollow] = useState(true);
-  const [streamStatus, setStreamStatus] = useState<ExtensionLogStreamStatus>("idle");
-  const cursorRef = useRef(0);
 
-  const streamedEntries = streamed.instance === instance ? streamed.entries : [];
-  const entries = appendExtensionLogEntries(history.data ?? [], streamedEntries);
   const status: ExtensionLogStreamStatus = !follow
     ? "paused"
-    : enabled && name !== ""
+    : enabled && normalizedName !== ""
       ? streamStatus
       : "idle";
 
-  if (streamed.instance !== instance) {
-    setStreamed({ entries: [], instance });
-  }
-
   useEffect(() => {
-    cursorRef.current = extensionLogCursor(entries);
-  }, [entries]);
+    if (!enabled || normalizedName === "" || !follow || !canStream) return undefined;
 
-  useEffect(() => {
-    cursorRef.current = 0;
-  }, [instance]);
+    const cacheKey = extensionLogsOptions(normalizedName, {
+      workspaceId: normalizedWorkspaceId,
+    }).queryKey;
+    store.trigger.connecting();
+    const generation = store.getSnapshot().context.generation;
+    let closed = false;
+    let source: ExtensionLogEventSource | undefined;
+    let handleLog: EventListener | undefined;
+    let handleReset: EventListener | undefined;
+    let writeQueue = Promise.resolve();
 
-  useEffect(() => {
-    if (!enabled || name === "" || !follow) {
-      return undefined;
-    }
-    const factory = eventSourceFactory ?? defaultEventSourceFactory;
-    if (!eventSourceFactory && typeof EventSource === "undefined") return undefined;
-    setStreamStatus("connecting");
-    const source = factory(
-      buildExtensionLogsStreamUrl(name, { after: cursorRef.current, workspaceId })
-    );
-    const handleLog = (event: Event) => {
-      const entry = parseExtensionLogEvent((event as MessageEvent).data);
-      if (!entry) return;
-      setStreamStatus("live");
-      setStreamed(current =>
-        current.instance === instance
-          ? { entries: appendExtensionLogEntries(current.entries, [entry]), instance }
-          : { entries: [entry], instance }
-      );
+    const generationIsCurrent = () =>
+      !closed && store.getSnapshot().context.generation === generation;
+
+    const queueSnapshotWrite = (
+      update: (current: ExtensionLogsSnapshot | undefined) => ExtensionLogsSnapshot | undefined
+    ) => {
+      writeQueue = writeQueue.then(async () => {
+        if (!generationIsCurrent()) return;
+        try {
+          await queryClient.cancelQueries({ exact: true, queryKey: cacheKey });
+        } catch (error) {
+          console.error("Failed to fence the extension log history read", error);
+          return;
+        }
+        if (!generationIsCurrent()) return;
+        queryClient.setQueryData<ExtensionLogsSnapshot>(cacheKey, update);
+      });
     };
-    const handleOpen = () => setStreamStatus("live");
-    const handleError = () => setStreamStatus("reconnecting");
-    source.addEventListener(EXTENSION_LOG_EVENT_NAME, handleLog);
-    source.onopen = handleOpen;
-    source.onerror = handleError;
+
+    const start = async () => {
+      let baseline: ExtensionLogsSnapshot;
+      try {
+        await queryClient.cancelQueries({ exact: true, queryKey: cacheKey });
+      } catch (error) {
+        if (generationIsCurrent()) {
+          store.trigger.streamFailed({
+            error: extensionLogError(error, "Failed to fence the extension log history read"),
+            generation,
+          });
+          console.error("Failed to fence the extension log history read", error);
+        }
+        return;
+      }
+      try {
+        baseline = normalizeExtensionLogSnapshot(
+          await queryClient.fetchQuery(
+            extensionLogsOptions(normalizedName, { workspaceId: normalizedWorkspaceId })
+          )
+        );
+      } catch (error) {
+        const retained = queryClient.getQueryData<ExtensionLogsSnapshot>(cacheKey);
+        if (!generationIsCurrent() || !retained) {
+          if (generationIsCurrent()) {
+            store.trigger.streamFailed({
+              error: extensionLogError(error, "Failed to load the extension log baseline"),
+              generation,
+            });
+            console.error("Failed to load the extension log baseline", error);
+          }
+          return;
+        }
+        baseline = normalizeExtensionLogSnapshot(retained);
+        console.error("Failed to refresh the extension log baseline; using retained cursor", error);
+      }
+      if (!generationIsCurrent()) return;
+      queryClient.setQueryData(cacheKey, baseline);
+      try {
+        source = openEventSource(
+          buildExtensionLogsStreamUrl(normalizedName, {
+            after: extensionLogCursor(baseline.logs),
+            streamEpoch: baseline.stream_epoch,
+            workspaceId: normalizedWorkspaceId,
+          })
+        );
+      } catch (error) {
+        if (generationIsCurrent()) {
+          store.trigger.streamFailed({
+            error: extensionLogError(error, "Failed to open the extension log stream"),
+            generation,
+          });
+          console.error("Failed to open the extension log stream", error);
+        }
+        return;
+      }
+
+      handleLog = (event: Event) => {
+        if (!generationIsCurrent()) return;
+        const entry = parseExtensionLogEvent((event as MessageEvent).data);
+        if (!entry) return;
+        queueSnapshotWrite(current =>
+          current
+            ? appendExtensionLogEntry(current, entry)
+            : { logs: [entry], stream_epoch: entry.stream_epoch }
+        );
+        store.trigger.streamOpened({ generation });
+      };
+      handleReset = (event: Event) => {
+        if (!generationIsCurrent()) return;
+        const snapshot = parseExtensionLogResetEvent((event as MessageEvent).data);
+        if (!snapshot) return;
+        queueSnapshotWrite(() => snapshot);
+        store.trigger.streamOpened({ generation });
+      };
+      const handleOpen = () => store.trigger.streamOpened({ generation });
+      const handleError = () => store.trigger.streamFailed({ generation });
+      source.addEventListener(EXTENSION_LOG_EVENT_NAME, handleLog);
+      source.addEventListener(EXTENSION_LOG_RESET_EVENT_NAME, handleReset);
+      source.onopen = handleOpen;
+      source.onerror = handleError;
+    };
+
+    void start();
     return () => {
-      source.removeEventListener?.(EXTENSION_LOG_EVENT_NAME, handleLog);
-      source.onopen = null;
-      source.onerror = null;
-      source.close();
+      closed = true;
+      if (source) {
+        if (handleLog) source.removeEventListener?.(EXTENSION_LOG_EVENT_NAME, handleLog);
+        if (handleReset) source.removeEventListener?.(EXTENSION_LOG_RESET_EVENT_NAME, handleReset);
+        source.onopen = null;
+        source.onerror = null;
+        source.close();
+      }
+      store.trigger.streamSuspended({ generation });
     };
-  }, [enabled, eventSourceFactory, follow, instance, name, workspaceId]);
+  }, [
+    enabled,
+    canStream,
+    follow,
+    instance,
+    normalizedName,
+    normalizedWorkspaceId,
+    queryClient,
+    retryToken,
+    store,
+  ]);
 
   return {
-    entries,
-    error: history.error ?? null,
+    entries: history.data?.logs ?? [],
+    error: history.error ?? connectionError,
     follow,
-    isLoading: history.isLoading,
-    refetch: () => void history.refetch(),
-    setFollow,
+    isLoading:
+      enabled &&
+      normalizedName !== "" &&
+      follow &&
+      history.data === undefined &&
+      history.error === null &&
+      status !== "reconnecting",
+    refetch: () => {
+      if (follow && canStream) store.trigger.retryRequested();
+      else void history.refetch();
+    },
+    setFollow: next => store.trigger.followChanged({ follow: next }),
     status,
   };
 }

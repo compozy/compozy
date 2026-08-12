@@ -45,33 +45,21 @@ vi.mock("@tanstack/react-router", async () => {
   };
 });
 
-vi.mock("@/systems/skill", async () => {
-  const actual = await vi.importActual<typeof import("@/systems/skill")>("@/systems/skill");
-  return {
-    ...actual,
-    useRemoveSkillMarketplace: () => ({ mutateAsync: mocks.removeSkill }),
-  };
-});
+vi.mock("@/systems/skill/hooks/use-skill-actions", () => ({
+  useRemoveSkillMarketplace: () => ({ mutateAsync: mocks.removeSkill }),
+}));
 
-vi.mock("@/systems/extensions", async () => {
+vi.mock("@/systems/extensions/hooks/use-extension-actions", () => ({
+  useRemoveExtension: () => ({ mutateAsync: mocks.removeExtension }),
+  useToggleExtension: () => ({ mutateAsync: mocks.toggleExtension }),
+}));
+
+vi.mock("@/systems/settings/hooks/use-mcp-authorize", async importOriginal => {
   const actual =
-    await vi.importActual<typeof import("@/systems/extensions")>("@/systems/extensions");
-  return {
-    ...actual,
-    useRemoveExtension: () => ({ mutateAsync: mocks.removeExtension }),
-    useToggleExtension: () => ({ mutateAsync: mocks.toggleExtension }),
-  };
-});
-
-vi.mock("@/systems/settings", async () => {
-  const actual = await vi.importActual<typeof import("@/systems/settings")>("@/systems/settings");
+    await importOriginal<typeof import("@/systems/settings/hooks/use-mcp-authorize")>();
   const { useState } = await vi.importActual<typeof import("react")>("react");
   return {
     ...actual,
-    MCPAuthorizeDialog: ({ scope }: { scope: string }) => (
-      <output aria-label="Authorization scope">{scope}</output>
-    ),
-    useDeleteSettingsMCPServer: () => ({ mutateAsync: mocks.deleteMCP }),
     useMCPAuthorize: () => {
       const [phase, setPhase] = useState("idle");
       return {
@@ -96,6 +84,17 @@ vi.mock("@/systems/settings", async () => {
     },
   };
 });
+
+vi.mock("@/systems/settings/hooks/use-settings-mutations", () => ({
+  useDeleteSettingsMCPServer: () => ({ mutateAsync: mocks.deleteMCP }),
+}));
+
+vi.mock("@/systems/settings/components", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/settings/components")>()),
+  MCPAuthorizeDialog: ({ scope }: { scope: string }) => (
+    <output aria-label="Authorization scope">{scope}</output>
+  ),
+}));
 
 vi.mock("../../hooks/use-marketplace-actions", () => ({
   useInstallMarketplaceExtension: () => ({

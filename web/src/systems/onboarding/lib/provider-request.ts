@@ -1,7 +1,7 @@
 import type { ReasoningEffort } from "@/lib/api-contract";
-import type { SettingsProviderRequest } from "@/systems/settings";
 
 import type { OnboardingAuthMode } from "../stores/use-onboarding-draft-store";
+import type { SettingsProviderRequest } from "@/systems/settings";
 
 export interface ProviderRequestInputs {
   model: string;

@@ -12,6 +12,7 @@ import { MarketplaceDetailMCPView } from "../marketplace-detail-mcp";
 import { MarketplaceMCPDetailTopbarActions } from "../marketplace-detail-mcp-topbar";
 import { MarketplaceDetailSkillInstalled } from "../marketplace-detail-skill-installed";
 import type { MarketplaceEntryResponse } from "../../types";
+
 import {
   SETTINGS_QUERY_INTERVALS,
   type SettingsMCPServerCollection,
@@ -31,7 +32,12 @@ const mocks = vi.hoisted(() => ({
   extensionNetworkConfirm: null as { action: "enable" | "update"; digest: string } | null,
   extensionNetworkConfirmationRequired: false,
   extensionNetworkDigest: undefined as string | undefined,
-  extensionLogs: [] as Array<{ message: string; sequence: number; timestamp: string }>,
+  extensionLogs: [] as Array<{
+    message: string;
+    sequence: number;
+    stream_epoch: string;
+    timestamp: string;
+  }>,
   extensionNavigate: vi.fn(),
   extensionOriginPath: undefined as string | undefined,
   extensionInstalledFrom: "marketplace_registry",
@@ -122,16 +128,13 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "workspace-a" }),
 }));
 
-vi.mock("@/systems/skill", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/skill")>();
+vi.mock("@/systems/skill/hooks/use-skill-actions", async () => {
   const { useState } = await vi.importActual<typeof import("react")>("react");
   return {
-    ...actual,
-    skillSourceTone: () => "neutral",
     useDisableSkill: () => {
       const [error, setError] = useState<Error | null>(null);
       return {
@@ -144,81 +147,84 @@ vi.mock("@/systems/skill", async importOriginal => {
       };
     },
     useEnableSkill: () => ({ error: null, isPending: false, mutate: vi.fn() }),
-    useSkill: () => ({
-      data: mocks.skillError
-        ? undefined
-        : {
-            activation: {
-              active: false,
-              reasons: [
-                {
-                  gate: "requires_capabilities",
-                  code: "missing_capability",
-                  missing: ["browser.operate"],
-                  message: "gate requires_capabilities unmet: browser.operate",
-                },
-              ],
-            },
-            enabled: mocks.skillEnabled,
-            metadata: {
-              capabilities: ["git.inspect", "git.review"],
-              recent_calls: [
-                {
-                  label: "Review pull request",
-                  status: "success",
-                  timestamp: "2026-07-18T12:00:00Z",
-                },
-              ],
-            },
-            name: "bundled-skill",
-            provenance: {
-              installed_from_extension: "ops-extension",
-              precedence_tier: "bundled",
-              registry: "builtin",
-              slug: "bundled-skill",
-              version: "1.2.0",
-            },
-            source: "bundled",
-          },
-      error: mocks.skillError,
-      isLoading: false,
-      refetch: vi.fn(),
-    }),
-    useSkillContent: (_name: string, _workspace: string, enabled: boolean) => ({
-      data: enabled ? mocks.skillContent : undefined,
-      error: null,
-      isLoading: false,
-      refetch: vi.fn(),
-    }),
-    useSkillShadows: () => ({
-      data: {
-        shadows: [
-          {
-            detected_at: "2026-07-18T12:00:00Z",
-            path: "/workspace/.agents/skills/bundled-skill/SKILL.md",
-            resolved_to_winner: true,
-            tier: "workspace",
-          },
-        ],
-      },
-      error: null,
-      isLoading: false,
-    }),
   };
 });
 
-vi.mock("@/systems/extensions", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/extensions")>();
-  return {
-    ...actual,
-    ExtensionProvenanceDialog: () => null,
-    RemoveExtensionDialog: () => null,
-    useExtensionDetailState: (_name: string, options?: { updateVersion?: string }) => {
-      mocks.extensionDetailOptions = options;
-      return extensionDetailStateStub();
+vi.mock("@/systems/skill/hooks/use-skills", () => ({
+  useSkill: () => ({
+    data: mocks.skillError
+      ? undefined
+      : {
+          activation: {
+            active: false,
+            reasons: [
+              {
+                gate: "requires_capabilities",
+                code: "missing_capability",
+                missing: ["browser.operate"],
+                message: "gate requires_capabilities unmet: browser.operate",
+              },
+            ],
+          },
+          enabled: mocks.skillEnabled,
+          metadata: {
+            capabilities: ["git.inspect", "git.review"],
+            recent_calls: [
+              {
+                label: "Review pull request",
+                status: "success",
+                timestamp: "2026-07-18T12:00:00Z",
+              },
+            ],
+          },
+          name: "bundled-skill",
+          provenance: {
+            installed_from_extension: "ops-extension",
+            precedence_tier: "bundled",
+            registry: "builtin",
+            slug: "bundled-skill",
+            version: "1.2.0",
+          },
+          source: "bundled",
+        },
+    error: mocks.skillError,
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
+  useSkillContent: (_name: string, _workspace: string, enabled: boolean) => ({
+    data: enabled ? mocks.skillContent : undefined,
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
+  useSkillShadows: () => ({
+    data: {
+      shadows: [
+        {
+          detected_at: "2026-07-18T12:00:00Z",
+          path: "/workspace/.agents/skills/bundled-skill/SKILL.md",
+          resolved_to_winner: true,
+          tier: "workspace",
+        },
+      ],
     },
-  };
-});
+    error: null,
+    isLoading: false,
+  }),
+}));
+
+vi.mock("@/systems/extensions/hooks/use-extension-detail-state", () => ({
+  useExtensionDetailState: (_name: string, options?: { updateVersion?: string }) => {
+    mocks.extensionDetailOptions = options;
+    return extensionDetailStateStub();
+  },
+}));
+
+vi.mock("@/systems/extensions/components/extension-dialogs", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/extensions/components/extension-dialogs")>()),
+  ExtensionProvenanceDialog: () => null,
+  RemoveExtensionDialog: () => null,
+}));
 
 function extensionDetailStateStub() {
   return {
@@ -499,7 +505,12 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionConsecutiveFailures = 3;
     mocks.extensionRestartBackoffMs = 4000;
     mocks.extensionLogs = [
-      { message: "listening on :7788", sequence: 12, timestamp: "2026-07-20T10:00:00Z" },
+      {
+        message: "listening on :7788",
+        sequence: 12,
+        stream_epoch: "epoch-marketplace-test",
+        timestamp: "2026-07-20T10:00:00Z",
+      },
     ];
     render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 

@@ -7,10 +7,10 @@ import { Dialog, DialogContent, EntityDialogHeader, dialogShellClass } from "@co
 import type { AutomationDialogHandle } from "../lib/dialog-handle";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../types";
-import type { AgentPayload } from "@/systems/agent";
 
 import { AutomationJobForm } from "./automation-job-form";
 import { AutomationTriggerForm } from "./automation-trigger-form";
+import type { AgentPayload } from "@/systems/agent";
 
 type AutomationDialogEditorState =
   | {

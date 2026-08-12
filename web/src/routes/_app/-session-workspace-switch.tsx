@@ -1,9 +1,9 @@
 import { useLocation } from "@tanstack/react-router";
 import { useLayoutEffect } from "react";
 
-import { useOsShell } from "@/systems/os";
-import { SessionWorkspaceSwitchDialog, type SessionOwnerDialogState } from "@/systems/session";
 import { confirmSessionWorkspaceSwitch } from "./-session-workspace-switch-action";
+import { useOsShell } from "@/systems/os";
+import { type SessionOwnerDialogState, SessionWorkspaceSwitchDialog } from "@/systems/session";
 
 interface SessionWorkspaceSwitchRouteDecisionProps {
   open: boolean;

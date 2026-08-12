@@ -74436,7 +74436,7 @@
             }
           },
           {
-            "description": "Stream new entries as extension_log SSE events",
+            "description": "Stream extension_log deltas and atomic extension_log_reset snapshots",
             "in": "query",
             "name": "follow",
             "schema": {
@@ -74444,9 +74444,17 @@
             }
           },
           {
-            "description": "Return entries after this monotonic sequence",
+            "description": "Return entries after this sequence within stream_epoch",
             "in": "query",
             "name": "after",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque ring identity; required when after is greater than zero",
+            "in": "query",
+            "name": "stream_epoch",
             "schema": {
               "type": "string"
             }
@@ -74471,6 +74479,9 @@
                             "format": "int64",
                             "type": "integer"
                           },
+                          "stream_epoch": {
+                            "type": "string"
+                          },
                           "timestamp": {
                             "format": "date-time",
                             "type": "string"
@@ -74479,21 +74490,99 @@
                         "required": [
                           "message",
                           "sequence",
+                          "stream_epoch",
                           "timestamp"
                         ],
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "stream_epoch": {
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "logs"
+                    "logs",
+                    "stream_epoch"
                   ],
                   "type": "object"
                 }
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid extension log cursor"
           },
           "403": {
             "content": {

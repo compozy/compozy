@@ -10,7 +10,8 @@ import type { TasksListSurfaceProps } from "../tasks-list-surface";
 import { TasksListToolbar } from "../tasks-list-toolbar";
 import type { TaskFilterOwnerOption } from "../../lib/tasks-list-filters";
 import { countTasksByStatus } from "../../lib/task-formatters";
-import type { TaskListSortKey, TaskPriority, TaskStatus } from "../../types";
+import { buildTaskListTree } from "../../lib/task-hierarchy";
+import type { TaskListItem, TaskListSortKey, TaskPriority, TaskStatus } from "../../types";
 import { buildTaskFixture } from "./fixtures";
 
 const FIXTURE_TASKS = [
@@ -57,7 +58,11 @@ const OWNER_OPTIONS: TaskFilterOwnerOption[] = [
   { ref: "pedro@", kind: "human" },
 ];
 
-function Stateful(props: Partial<TasksListSurfaceProps>) {
+interface TasksListStoryProps extends Omit<Partial<TasksListSurfaceProps>, "taskTree"> {
+  tasks?: TaskListItem[];
+}
+
+function Stateful(props: TasksListStoryProps) {
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<TaskFilterOwnerOption | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
@@ -105,7 +110,7 @@ function TasksListStoryRoute({
 }: {
   ownerFilter: TaskFilterOwnerOption | null;
   priorityFilter: TaskPriority | null;
-  props: Partial<TasksListSurfaceProps>;
+  props: TasksListStoryProps;
   searchQuery: string;
   setOwnerFilter: (value: TaskFilterOwnerOption | null) => void;
   setPriorityFilter: (value: TaskPriority | null) => void;
@@ -114,8 +119,9 @@ function TasksListStoryRoute({
   setStatusFilter: (value: TaskStatus | null) => void;
   sortBy: TaskListSortKey;
   statusFilter: TaskStatus | null;
-  tasks: TasksListSurfaceProps["tasks"];
+  tasks: TaskListItem[];
 }) {
+  const { tasks: _tasks, ...surfaceProps } = props;
   useTopbarSlot({
     glyph: <ListChecks />,
     count: tasks.length,
@@ -143,8 +149,8 @@ function TasksListStoryRoute({
       }
       searchQuery={searchQuery}
       statusCounts={props.statusCounts ?? countTasksByStatus(tasks)}
-      tasks={tasks}
-      {...props}
+      taskTree={buildTaskListTree(tasks)}
+      {...surfaceProps}
     />
   );
 }

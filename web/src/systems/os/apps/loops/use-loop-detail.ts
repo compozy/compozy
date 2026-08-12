@@ -1,6 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
+import { useLoopBindings } from "@/hooks/routes/use-loop-bindings";
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
   LoopsApiError,
   readLoopGraph,
@@ -13,8 +15,6 @@ import {
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-import { useLoopBindings } from "@/hooks/routes/use-loop-bindings";
-
 const RECENT_RUNS_LIMIT = 5;
 
 /** View-model for the Loop detail route: definition, 30d aggregate, recent runs, bindings, nav. */
@@ -22,7 +22,8 @@ export function useLoopDetail(name: string) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
   const navigate = useNavigate();
-  const active = workspaceId !== "";
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
+  const active = workspaceId !== "" && liveDataEnabled;
 
   const loopQuery = useLoop(workspaceId, name, active);
   const configQuery = useLoopConfig(workspaceId, name, active);

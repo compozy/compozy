@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadNetworkThreadDetailRoute } from "./-network-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 interface ThreadDetailSearch {
   view?: "full";
@@ -13,8 +12,8 @@ export const Route = createFileRoute("/_app/network/$workspaceId/$channel/thread
     topbar: { crumb: { label: `#${params.channel} · Thread` } },
   }),
   component: createOsRouteSync("network"),
-  loader: ({ context, params }) =>
-    preloadNetworkThreadDetailRoute(
+  loader: async ({ context, params }) =>
+    (await import("./-network-preload")).preloadNetworkThreadDetailRoute(
       context.queryClient,
       params.workspaceId,
       params.channel,

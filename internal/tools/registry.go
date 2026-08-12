@@ -28,6 +28,8 @@ type RuntimeRegistry struct {
 	workspaceIDResolver   WorkspaceIDResolver
 	processor             ResultProcessor
 	events                ToolEventSink
+	projectionInvalidator func()
+	projectionGeneration  ProjectionGenerationResolver
 	defaultMaxResultBytes int64
 	sensitiveFields       []string
 	usePolicyInput        bool
@@ -267,6 +269,9 @@ func (r *RuntimeRegistry) DiagnosticGet(ctx context.Context, scope Scope, id Too
 
 // Call runs the central provider-agnostic registry dispatch pipeline.
 func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error) {
+	if r != nil && r.projectionInvalidator != nil {
+		defer r.projectionInvalidator()
+	}
 	return r.dispatch(ctx, scope, req)
 }
 
@@ -326,7 +331,7 @@ func (r *RuntimeRegistry) viewFor(
 	entry *registryEntry,
 ) (ToolView, error) {
 	availability := r.availabilityFor(ctx, scope, entry)
-	decision, err := evaluator.Evaluate(ctx, scope, entry.descriptor)
+	decision, err := evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
 	if err != nil {
 		return ToolView{}, err
 	}

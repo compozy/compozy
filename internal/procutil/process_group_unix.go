@@ -51,11 +51,20 @@ func SignalCommandProcessGroup(cmd *exec.Cmd, sig syscall.Signal) error {
 
 // SignalProcessGroupID delivers sig to the process group identified by pgid.
 func SignalProcessGroupID(pgid int, sig syscall.Signal) error {
+	return signalProcessGroupID(pgid, sig, true)
+}
+
+// SignalProcessGroupIDStrict reports when no member remains to receive the signal.
+func SignalProcessGroupIDStrict(pgid int, sig syscall.Signal) error {
+	return signalProcessGroupID(pgid, sig, false)
+}
+
+func signalProcessGroupID(pgid int, sig syscall.Signal, ignoreMissing bool) error {
 	if pgid <= 0 {
 		return fmt.Errorf("procutil: invalid process group id %d", pgid)
 	}
 	if runtime.GOOS == "linux" {
-		err := signalProcessGroupMembersLinux(pgid, sig)
+		err := signalProcessGroupMembersLinux(pgid, sig, ignoreMissing)
 		switch {
 		case err == nil:
 			return nil
@@ -65,7 +74,7 @@ func SignalProcessGroupID(pgid int, sig syscall.Signal) error {
 	}
 
 	if err := syscall.Kill(-pgid, sig); err != nil {
-		if errors.Is(err, syscall.ESRCH) {
+		if ignoreMissing && errors.Is(err, syscall.ESRCH) {
 			return nil
 		}
 		return fmt.Errorf("signal process group (pid %d, sig %v): %w", pgid, sig, err)
@@ -137,7 +146,7 @@ func joinProcessGroupKillResult(signalErr error, waitErr error) error {
 	return errors.Join(signalErr, waitErr)
 }
 
-func signalProcessGroupMembersLinux(pgid int, sig syscall.Signal) error {
+func signalProcessGroupMembersLinux(pgid int, sig syscall.Signal, ignoreMissing bool) error {
 	members, err := linuxProcessGroupMembers(pgid)
 	if err != nil {
 		return err
@@ -146,12 +155,17 @@ func signalProcessGroupMembersLinux(pgid int, sig syscall.Signal) error {
 		return errProcessGroupEnumerationUnavailable
 	}
 
+	signaled := false
 	for _, pid := range members {
 		if pid == pgid {
 			continue
 		}
-		if err := signalPID(pid, sig); err != nil {
-			return err
+		delivered, signalErr := signalPID(pid, sig, ignoreMissing)
+		if signalErr != nil && !errors.Is(signalErr, syscall.ESRCH) {
+			return signalErr
+		}
+		if delivered {
+			signaled = true
 		}
 	}
 
@@ -159,7 +173,17 @@ func signalProcessGroupMembersLinux(pgid int, sig syscall.Signal) error {
 		waitForLinuxDescendantsToExit(pgid, processGroupDrainDeadline)
 	}
 
-	return signalPID(pgid, sig)
+	delivered, signalErr := signalPID(pgid, sig, ignoreMissing)
+	if signalErr != nil {
+		if errors.Is(signalErr, syscall.ESRCH) && signaled {
+			return nil
+		}
+		return signalErr
+	}
+	if delivered || ignoreMissing {
+		return nil
+	}
+	return syscall.ESRCH
 }
 
 func waitForLinuxDescendantsToExit(pgid int, timeout time.Duration) {
@@ -247,13 +271,16 @@ func linuxProcessGroupID(pid int) (int, error) {
 	return pgid, nil
 }
 
-func signalPID(pid int, sig syscall.Signal) error {
+func signalPID(pid int, sig syscall.Signal, ignoreMissing bool) (bool, error) {
 	if pid <= 0 {
-		return nil
+		return false, nil
 	}
 
-	if err := syscall.Kill(pid, sig); err != nil && !errors.Is(err, syscall.ESRCH) {
-		return err
+	if err := syscall.Kill(pid, sig); err != nil {
+		if ignoreMissing && errors.Is(err, syscall.ESRCH) {
+			return false, nil
+		}
+		return false, err
 	}
-	return nil
+	return true, nil
 }

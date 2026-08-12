@@ -6,22 +6,13 @@ import { describe, expect, it, vi } from "vitest";
 const useSessions = vi.fn();
 const useTaskDashboard = vi.fn();
 
-vi.mock("@/systems/session", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/session")>();
-  return {
-    ...actual,
-    useSessions: (...args: Parameters<typeof actual.useSessions>) => useSessions(...args),
-  };
-});
+vi.mock("@/systems/session/hooks/use-sessions", () => ({
+  useSessions: (...args: unknown[]) => useSessions(...args),
+}));
 
-vi.mock("@/systems/tasks", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/tasks")>();
-  return {
-    ...actual,
-    useTaskDashboard: (...args: Parameters<typeof actual.useTaskDashboard>) =>
-      useTaskDashboard(...args),
-  };
-});
+vi.mock("@/systems/tasks/hooks/use-task-dashboard", () => ({
+  useTaskDashboard: (...args: unknown[]) => useTaskDashboard(...args),
+}));
 
 import { useHomeWorkingNow } from "../hooks/use-home-working-now";
 import type { HomeScope } from "../lib/home-scope";

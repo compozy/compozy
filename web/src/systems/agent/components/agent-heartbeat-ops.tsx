@@ -8,6 +8,7 @@ import {
 } from "@compozy/ui";
 
 import type { AgentHeartbeatStatusPayload, WakeAgentHeartbeatResponse } from "../types";
+
 import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 
 export interface AgentHeartbeatOpsProps {

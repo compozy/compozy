@@ -9,6 +9,7 @@ import { ClarificationDock } from "./clarification-dock";
 import { PermissionDock } from "./permission-dock";
 
 export interface SessionDecisionDockProps {
+  enabled?: boolean;
   sessionId: string;
   workspaceId: string;
 }
@@ -19,9 +20,13 @@ export interface SessionDecisionDockProps {
  * clarifications — with a mono "1/N" counter when decisions queue up. The
  * transcript keeps only one-line receipts.
  */
-export function SessionDecisionDock({ sessionId, workspaceId }: SessionDecisionDockProps) {
+export function SessionDecisionDock({
+  enabled = true,
+  sessionId,
+  workspaceId,
+}: SessionDecisionDockProps) {
   const decisionMessages = useSessionDecisionMessages();
-  const clarifications = useSessionClarifications(workspaceId, sessionId);
+  const clarifications = useSessionClarifications(workspaceId, sessionId, { enabled });
   // Locally-resolved ids hide a decided ask before the durable transcript /
   // pending-list catch up, so the next queued decision surfaces immediately.
   const [resolvedIds, setResolvedIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -45,6 +50,7 @@ export function SessionDecisionDock({ sessionId, workspaceId }: SessionDecisionD
     const total = pendingPermissions.length + pendingClarifications.length;
     return (
       <PermissionDock
+        enabled={enabled}
         key={permission.requestId}
         permission={permission}
         sessionId={sessionId}
@@ -77,6 +83,7 @@ export function SessionDecisionDock({ sessionId, workspaceId }: SessionDecisionD
   }
   return (
     <ClarificationDock
+      enabled={enabled}
       key={clarification.request_id}
       clarification={clarification}
       sessionId={sessionId}

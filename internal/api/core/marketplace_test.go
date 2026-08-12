@@ -21,6 +21,7 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-cmp/cmp"
 )
@@ -992,6 +993,150 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 					t.Fatalf("installed detail = %#v, want kind/name/installed/manage path", payload.Entry)
 				}
 			})
+		}
+	})
+
+	t.Run("Should resolve workspace extension listings and details from one scoped projection", func(t *testing.T) {
+		t.Parallel()
+
+		entry := marketplaceEntriesForTest()[marketplacepkg.KindExtension]
+		resolvedActor, err := taskpkg.DeriveHumanActorContextForWorkspace(
+			"marketplace-resolver",
+			"ws-alpha",
+			taskpkg.OriginKindWeb,
+			"marketplace.test",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContextForWorkspace() error = %v", err)
+		}
+		scopedCalls := 0
+		resolvedActions := make([]string, 0, 2)
+		service := extensionServiceStub{
+			listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+				return []contract.ExtensionPayload{}, nil
+			},
+			listScopedFn: func(
+				_ context.Context,
+				actor taskpkg.ActorContext,
+			) ([]contract.ExtensionPayload, error) {
+				scopedCalls++
+				if actor.Actor.Ref != "marketplace-resolver" ||
+					actor.Scope.WorkspaceID != "ws-alpha" || !actor.Authority.Read {
+					t.Fatalf("scoped extension actor = %#v, want resolved readable workspace actor", actor)
+				}
+				return []contract.ExtensionPayload{{
+					Name: "epoch-probe", Version: "0.1.0", Source: "workspace", Dev: true,
+					WorkspaceID: "ws-alpha",
+					Provenance:  &contract.ExtensionProvenancePayload{Slug: entry.InstallSlug},
+				}}, nil
+			},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			MarketplaceCatalog: marketplaceCatalogStub{
+				browseFn: func(
+					_ context.Context,
+					kind marketplacepkg.Kind,
+					_ string,
+					_ int,
+				) (marketplacepkg.BrowseResult, error) {
+					if kind != marketplacepkg.KindExtension {
+						return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{}}, nil
+					}
+					return marketplacepkg.BrowseResult{Entries: []marketplacepkg.Entry{entry}, Total: 1}, nil
+				},
+				detailFn: func(context.Context, marketplacepkg.Kind, string) (*marketplacepkg.Entry, error) {
+					return nil, marketplacepkg.ErrEntryNotFound
+				},
+			},
+			Extensions: service,
+			Logger:     testutil.DiscardLogger(),
+			TaskActorContextResolver: func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
+				resolvedActions = append(resolvedActions, action)
+				return resolvedActor, nil
+			},
+		})
+		engine := gin.New()
+		engine.GET("/marketplace/:kind", handlers.BrowseMarketplaceKind)
+		engine.GET("/marketplace/:kind/:entry_id", handlers.GetMarketplaceEntry)
+
+		workspaceResponse := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/marketplace/extension?scope=workspace&workspace_id=ws-alpha",
+			nil,
+		)
+		if workspaceResponse.Code != http.StatusOK {
+			t.Fatalf(
+				"workspace listing status = %d, want %d; body=%s",
+				workspaceResponse.Code,
+				http.StatusOK,
+				workspaceResponse.Body.String(),
+			)
+		}
+		var workspace contract.MarketplaceKindResponse
+		if err := json.Unmarshal(workspaceResponse.Body.Bytes(), &workspace); err != nil {
+			t.Fatalf("json.Unmarshal(workspace listing) error = %v", err)
+		}
+		if len(workspace.Items) != 1 || !workspace.Items[0].Installed ||
+			workspace.Items[0].InstalledName != "epoch-probe" {
+			t.Fatalf("workspace extension listing = %#v, want scoped installation", workspace.Items)
+		}
+
+		globalResponse := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/marketplace/extension?scope=global",
+			nil,
+		)
+		if globalResponse.Code != http.StatusOK {
+			t.Fatalf(
+				"global listing status = %d, want %d; body=%s",
+				globalResponse.Code,
+				http.StatusOK,
+				globalResponse.Body.String(),
+			)
+		}
+		var global contract.MarketplaceKindResponse
+		if err := json.Unmarshal(globalResponse.Body.Bytes(), &global); err != nil {
+			t.Fatalf("json.Unmarshal(global listing) error = %v", err)
+		}
+		if len(global.Items) != 1 || global.Items[0].Installed {
+			t.Fatalf("global extension listing = %#v, want no workspace installation", global.Items)
+		}
+
+		detailResponse := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/marketplace/extension/"+entry.EntryID+
+				"?installed_name=epoch-probe&scope=workspace&workspace_id=ws-alpha",
+			nil,
+		)
+		if detailResponse.Code != http.StatusOK {
+			t.Fatalf(
+				"workspace detail status = %d, want %d; body=%s",
+				detailResponse.Code,
+				http.StatusOK,
+				detailResponse.Body.String(),
+			)
+		}
+		var detail contract.MarketplaceEntryResponse
+		if err := json.Unmarshal(detailResponse.Body.Bytes(), &detail); err != nil {
+			t.Fatalf("json.Unmarshal(workspace detail) error = %v", err)
+		}
+		if !detail.Entry.Installed || detail.Entry.Name != "epoch-probe" {
+			t.Fatalf("workspace extension detail = %#v, want scoped installed identity", detail.Entry)
+		}
+		if scopedCalls != 2 {
+			t.Fatalf("ListScoped() calls = %d, want listing and detail", scopedCalls)
+		}
+		if diff := cmp.Diff(
+			[]string{"marketplace.browse", "marketplace.entry"},
+			resolvedActions,
+		); diff != "" {
+			t.Fatalf("resolved marketplace actions mismatch (-want +got):\n%s", diff)
 		}
 	})
 

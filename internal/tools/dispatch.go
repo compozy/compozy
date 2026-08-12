@@ -28,6 +28,9 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 		return ToolResult{}, invalidInputError(req.ToolID, "tool id is invalid", err)
 	}
 	target, err := r.resolveDispatchTarget(ctx, scope, req.ToolID)
+	if contextError := contextErr(ctx, req.ToolID); contextError != nil {
+		err = contextError
+	}
 	if err != nil {
 		if target.descriptor.ID == "" {
 			return ToolResult{}, normalizeToolError(req.ToolID, err)
@@ -95,6 +98,9 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
 	providerResult, err := target.handle.Call(ctx, patchedReq)
+	if contextError := contextErr(ctx, target.descriptor.ID); contextError != nil {
+		err = contextError
+	}
 	if err != nil {
 		normalized := normalizeBackendError(target.descriptor.ID, err)
 		if hookErr := r.runPostErrorHook(ctx, target, patchedReq, normalized); hookErr != nil {
@@ -194,7 +200,7 @@ func (r *RuntimeRegistry) resolveDispatchTarget(
 		return dispatchTarget{}, err
 	}
 	handle, availability := r.resolveHandleForDispatch(ctx, scope, entry)
-	decision, err := evaluator.Evaluate(ctx, scope, entry.descriptor)
+	decision, err := evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
 	if err != nil {
 		return dispatchTarget{}, err
 	}

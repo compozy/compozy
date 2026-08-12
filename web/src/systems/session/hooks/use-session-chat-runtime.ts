@@ -4,7 +4,7 @@ import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
 import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
 import { reportGatewayResponse } from "@/lib/gateway-access-signal";
-import { loopsKeys } from "@/systems/loops";
+
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
@@ -14,6 +14,7 @@ import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { getSessionPromptRuntimeSnapshot } from "./use-session-prompt-runtime";
 import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
+import { loopsKeys } from "@/systems/loops";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 

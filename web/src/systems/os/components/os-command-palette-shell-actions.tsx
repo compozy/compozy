@@ -3,7 +3,7 @@ import { Palette, PanelsTopLeft, Plus, RefreshCcw } from "lucide-react";
 import { CommandGroup, CommandItem, CommandShortcut } from "@compozy/ui";
 
 import type { OsCommandPaletteModel } from "../hooks/use-os-command-palette";
-import { OS_APPS } from "../lib/app-registry";
+import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 
 interface OsCommandPaletteShellActionsProps {
   destination: boolean;
@@ -24,7 +24,7 @@ export function OsCommandPaletteShellActions({
         data-testid="os-palette-toggle-sessions"
         onSelect={model.toggleSessions}
       >
-        <OS_APPS.session.icon className="size-3.5 text-muted" />
+        <OS_APP_DESCRIPTORS.session.icon className="size-3.5 text-muted" />
         Toggle sessions
       </CommandItem>
       <CommandItem

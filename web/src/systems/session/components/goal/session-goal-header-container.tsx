@@ -5,13 +5,19 @@ interface SessionGoalHeaderContainerProps {
   sessionId: string;
   workspaceId: string;
   onPrefillComposer?: (text: string) => void;
+  enabled?: boolean;
 }
 
 export function SessionGoalHeaderContainer({
   sessionId,
   workspaceId,
   onPrefillComposer,
+  enabled = true,
 }: SessionGoalHeaderContainerProps) {
-  const goal = useSessionGoalHeader(workspaceId, sessionId, { onPrefillComposer });
+  const goal = useSessionGoalHeader(workspaceId, sessionId, {
+    enabled,
+    onPrefillComposer,
+    stream: enabled,
+  });
   return <SessionGoalHeader {...goal} />;
 }

@@ -1,9 +1,10 @@
-import { useRef } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
+import { sessionBusyInputLogic, type SessionBusyInputHandler } from "./session-busy-input-store";
 import type { QueuedPrompt } from "@/systems/session";
 
-export type SessionBusyInputHandler = (message: string) => void | Promise<unknown>;
+export type { SessionBusyInputHandler } from "./session-busy-input-store";
 
 interface UseSessionBusyInputActionsOptions {
   canSubmitBusyInput: boolean;
@@ -43,32 +44,34 @@ export function useSessionBusyInputActions({
   setComposerText,
   trimmedComposerText,
 }: UseSessionBusyInputActionsOptions) {
-  const editingQueuedPromptId = useRef<string | null>(null);
+  const store = useStore(sessionBusyInputLogic);
+  const editingQueuedPromptId = useSelector(
+    store,
+    snapshot => snapshot.context.editingQueuedPromptId
+  );
 
   const handleBusyInputAction = (
     handler: SessionBusyInputHandler | undefined,
     failureMessage: string,
     onSuccess?: () => void
   ) => {
-    if (!handler || !canSubmitBusyInput) {
-      return;
-    }
-
-    void Promise.resolve()
-      .then(() => handler(trimmedComposerText))
-      .then(() => {
-        clearComposer();
-        onSuccess?.();
-      })
-      .catch(error => {
-        if (isAbortError(error)) return;
-        toast.error(describeComposerActionError(error, failureMessage));
-      });
+    store.trigger.submissionRequested({
+      canSubmit: canSubmitBusyInput,
+      clearComposer,
+      handler,
+      message: trimmedComposerText,
+      onFailure: error => {
+        if (!isAbortError(error)) {
+          toast.error(describeComposerActionError(error, failureMessage));
+        }
+      },
+      onSuccess,
+    });
   };
 
   const handleQueueAction = () => {
     const editingQueuedPrompt =
-      queuedPrompts.find(prompt => prompt.id === editingQueuedPromptId.current) ?? null;
+      queuedPrompts.find(prompt => prompt.id === editingQueuedPromptId) ?? null;
     if (editingQueuedPrompt) {
       if (!onReplaceQueuedPrompt) {
         toast.error("Couldn't update queued prompt.");
@@ -78,7 +81,7 @@ export function useSessionBusyInputActions({
         message => onReplaceQueuedPrompt(editingQueuedPrompt, message),
         "Couldn't update queued prompt.",
         () => {
-          editingQueuedPromptId.current = null;
+          store.trigger.editCompleted();
         }
       );
       return;
@@ -100,13 +103,11 @@ export function useSessionBusyInputActions({
       return;
     }
     setComposerText(prompt.text);
-    editingQueuedPromptId.current = prompt.id;
+    store.trigger.editStarted({ id: prompt.id });
   };
 
   const handleRemoveQueuedPrompt = (id: string) => {
-    if (editingQueuedPromptId.current === id) {
-      editingQueuedPromptId.current = null;
-    }
+    store.trigger.promptRemoved({ id });
     onRemoveQueuedPrompt?.(id);
   };
 

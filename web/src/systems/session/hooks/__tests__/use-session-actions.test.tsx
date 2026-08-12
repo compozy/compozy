@@ -32,7 +32,8 @@ import type {
   SessionsResponse,
 } from "../../types";
 
-vi.mock("../../adapters/session-api", () => ({
+vi.mock("../../adapters/session-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/session-api")>()),
   clearSessionConversation: vi.fn(),
   archiveSession: vi.fn(),
   cancelQueuedSessionPrompt: vi.fn(),
@@ -50,7 +51,7 @@ vi.mock("../../adapters/session-api", () => ({
   unarchiveSession: vi.fn(),
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha" }),
 }));
 

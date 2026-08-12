@@ -60,14 +60,13 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     return () => manager.stop();
   }, [manager]);
 
-  const client = useWindowManagerClient(
-    activeWorkspaceId,
-    view => {
-      manager.setClient(view);
-      shell.coordinator.reportAuthoritativeState();
-    },
-    error => manager.setLoadError(error)
-  );
+  const client = useWindowManagerClient(activeWorkspaceId);
+
+  useEffect(() => {
+    manager.setClient(client.client);
+    manager.setLoadError(client.error);
+    shell.coordinator.reportAuthoritativeState();
+  }, [activeWorkspaceId, client.client, client.error, manager, shell]);
 
   useEffect(() => subscribeWorkspaceSwitchBarrier(shell.coordinator), [shell]);
 

@@ -10,6 +10,11 @@ import {
   ListingToolbar,
   useTopbarSlot,
 } from "@compozy/ui";
+
+import {
+  useAutomationJobsPage,
+  type AutomationRouteSearch,
+} from "../automation/use-automation-page";
 import {
   AutomationEditorDialog,
   AutomationJobsCatalog,
@@ -17,10 +22,6 @@ import {
   AutomationSuggestionsPanel,
 } from "@/systems/automation";
 import { useActiveWorkspace } from "@/systems/workspace";
-import {
-  useAutomationJobsPage,
-  type AutomationRouteSearch,
-} from "../automation/use-automation-page";
 
 export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch }) {
   const page = useAutomationJobsPage(

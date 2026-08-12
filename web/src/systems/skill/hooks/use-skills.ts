@@ -7,8 +7,8 @@ import {
   skillsListOptions,
 } from "@/systems/skill/lib/query-options";
 
-export function useSkills(workspace: string) {
-  return useQuery(skillsListOptions(workspace));
+export function useSkills(workspace: string, enabled = true) {
+  return useQuery(skillsListOptions(workspace, enabled));
 }
 
 export function useSkill(name: string, workspace: string) {

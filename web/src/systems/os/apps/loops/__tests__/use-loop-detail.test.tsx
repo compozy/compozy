@@ -23,7 +23,7 @@ vi.mock("sonner", () => ({
   toast: { error: mocks.toastError, success: mocks.toastSuccess },
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws_default" }),
 }));
 
@@ -33,7 +33,7 @@ vi.mock("@/systems/automation", async importOriginal => ({
   useAutomationTriggers: mocks.useAutomationTriggers,
 }));
 
-vi.mock("@/systems/loops", () => {
+vi.mock("@/systems/loops/adapters/loops-api", () => {
   class LoopsApiError extends Error {
     status: number;
 
@@ -43,25 +43,32 @@ vi.mock("@/systems/loops", () => {
     }
   }
 
-  return {
-    LoopsApiError,
-    readLoopGraph: vi.fn(),
-    useCreateLoop: () => ({ isPending: false, mutateAsync: mocks.createMutateAsync }),
-    useDeleteLoop: () => ({
-      error: null,
-      isPending: false,
-      mutateAsync: mocks.deleteMutateAsync,
-      reset: mocks.deleteReset,
-    }),
-    useLoop: () => ({ data: { source: mocks.loopSource } }),
-    useLoopConfig: () => ({ data: null }),
-    useLoopRuns: () => ({ data: [] }),
-    useLoops: () => ({ loops: [] }),
-  };
+  return { LoopsApiError };
 });
 
+vi.mock("@/systems/loops/lib/loop-graph", () => ({
+  readLoopGraph: vi.fn(),
+}));
+
+vi.mock("@/systems/loops/hooks/use-loop-actions", () => ({
+  useCreateLoop: () => ({ isPending: false, mutateAsync: mocks.createMutateAsync }),
+  useDeleteLoop: () => ({
+    error: null,
+    isPending: false,
+    mutateAsync: mocks.deleteMutateAsync,
+    reset: mocks.deleteReset,
+  }),
+}));
+
+vi.mock("@/systems/loops/hooks/use-loops", () => ({
+  useLoop: () => ({ data: { source: mocks.loopSource } }),
+  useLoopConfig: () => ({ data: null }),
+  useLoopRuns: () => ({ data: [] }),
+  useLoops: () => ({ loops: [] }),
+}));
+
 const { useLoopDetail } = await import("@/systems/os/apps/loops/use-loop-detail");
-const { LoopsApiError } = await import("@/systems/loops");
+const { LoopsApiError } = await import("@/systems/loops/adapters/loops-api");
 
 describe("useLoopDetail", () => {
   beforeEach(() => {

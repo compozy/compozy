@@ -1,8 +1,13 @@
+// Suite: tool process registry
+// Invariant: persisted process ownership is reconciled without leaking or adopting prior-daemon work.
+// Boundary IN: registry lifecycle, validation, interruption, and persisted checkpoints.
+// Boundary OUT: operating-system process signaling, owned by procutil suites.
 package toolruntime
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -150,56 +155,198 @@ func TestMemoryStoreProcessStateUpdateContract(t *testing.T) {
 	})
 }
 
-func TestRegistryReconcileBootValidatesRecoveredStartTime(t *testing.T) {
+func TestRegistryReconcileBootRetiresPersistedPriorDaemonProcesses(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should recover valid records and stale invalid records", func(t *testing.T) {
+	t.Run(
+		"Should interrupt valid records and mark invalid records stale regardless of starter PID",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			store := NewMemoryStore()
+			startedAt := time.Date(2026, 4, 24, 9, 30, 0, 0, time.UTC)
+			for _, record := range []ProcessRecord{
+				{
+					ID:             "proc-prior-valid",
+					Source:         ProcessSourceSubprocess,
+					Owner:          ProcessOwner{SessionID: "sess-prior"},
+					PID:            12345,
+					ProcessGroupID: 12345,
+					StartedAt:      startedAt,
+					StartedByPID:   111,
+					State:          ProcessStateRunning,
+					CreatedAt:      startedAt,
+					UpdatedAt:      startedAt,
+				},
+				{
+					ID:             "proc-prior-stale",
+					Source:         ProcessSourceSubprocess,
+					Owner:          ProcessOwner{SessionID: "sess-stale"},
+					PID:            22222,
+					ProcessGroupID: 22222,
+					StartedAt:      startedAt,
+					StartedByPID:   111,
+					State:          ProcessStateRunning,
+					CreatedAt:      startedAt,
+					UpdatedAt:      startedAt,
+				},
+				{
+					ID:             "proc-prior-with-reused-daemon-pid",
+					Source:         ProcessSourceSubprocess,
+					Owner:          ProcessOwner{SessionID: "sess-prior-reused-pid"},
+					PID:            33333,
+					ProcessGroupID: 33333,
+					StartedAt:      startedAt,
+					StartedByPID:   4242,
+					State:          ProcessStateRunning,
+					CreatedAt:      startedAt,
+					UpdatedAt:      startedAt,
+				},
+			} {
+				if err := store.UpsertProcessRecord(ctx, record); err != nil {
+					t.Fatalf("UpsertProcessRecord(%q) error = %v", record.ID, err)
+				}
+			}
+
+			interrupter := &recordingInterrupter{}
+			registry := NewRegistry(
+				store,
+				WithDaemonPID(4242),
+				WithVerifier(func(pid int, got time.Time) bool {
+					return (pid == 12345 || pid == 33333) && got.Equal(startedAt)
+				}),
+				WithInterrupter(interrupter),
+			)
+			report, err := registry.ReconcileBoot(ctx)
+			if err != nil {
+				t.Fatalf("ReconcileBoot() error = %v", err)
+			}
+			if report.Checked != 3 || report.Interrupted != 2 || report.Stale != 1 {
+				t.Fatalf("ReconcileBoot() = %#v, want checked:3 interrupted:2 stale:1", report)
+			}
+			if interrupter.calls != 2 || len(interrupter.records) != 2 {
+				t.Fatalf("interrupter records = %#v, want two valid prior records", interrupter.records)
+			}
+			states := make(map[string]ProcessRecord)
+			for _, record := range listAllRecords(t, store) {
+				states[record.ID] = record
+			}
+			if states["proc-prior-valid"].State != ProcessStateInterrupted ||
+				states["proc-prior-valid"].CompletedAt == nil {
+				t.Fatalf("valid prior record = %#v, want terminal interrupted state", states["proc-prior-valid"])
+			}
+			if states["proc-prior-stale"].State != ProcessStateStale ||
+				states["proc-prior-stale"].CompletedAt == nil {
+				t.Fatalf("stale prior record = %#v, want terminal stale state", states["proc-prior-stale"])
+			}
+			if states["proc-prior-with-reused-daemon-pid"].State != ProcessStateInterrupted ||
+				states["proc-prior-with-reused-daemon-pid"].CompletedAt == nil {
+				t.Fatalf(
+					"reused daemon PID record = %#v, want terminal interrupted state",
+					states["proc-prior-with-reused-daemon-pid"],
+				)
+			}
+		},
+	)
+
+	t.Run("Should mark a process stale and continue when ownership is lost after validation", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
 		store := NewMemoryStore()
 		startedAt := time.Date(2026, 4, 24, 9, 30, 0, 0, time.UTC)
 		if err := store.UpsertProcessRecord(ctx, ProcessRecord{
-			ID:        "proc-recovered",
-			Source:    ProcessSourceSubprocess,
-			Owner:     ProcessOwner{SessionID: "sess-1"},
-			PID:       12345,
-			StartedAt: startedAt,
-			State:     ProcessStateRunning,
-			CreatedAt: startedAt,
-			UpdatedAt: startedAt,
+			ID:           "proc-ownership-lost",
+			Source:       ProcessSourceSubprocess,
+			Owner:        ProcessOwner{SessionID: "sess-ownership-lost"},
+			PID:          12345,
+			StartedAt:    startedAt,
+			StartedByPID: 111,
+			State:        ProcessStateRunning,
+			CreatedAt:    startedAt,
+			UpdatedAt:    startedAt,
 		}); err != nil {
 			t.Fatalf("UpsertProcessRecord() error = %v", err)
 		}
 
-		registry := NewRegistry(store, WithVerifier(func(pid int, got time.Time) bool {
-			return pid == 12345 && got.Equal(startedAt)
-		}))
+		interrupter := &recordingInterrupter{
+			err: fmt.Errorf(
+				"%w: process exited before signaling",
+				ErrOwnershipValidationFailed,
+			),
+		}
+		registry := NewRegistry(
+			store,
+			WithVerifier(func(pid int, got time.Time) bool {
+				return pid == 12345 && got.Equal(startedAt)
+			}),
+			WithInterrupter(interrupter),
+		)
+
 		report, err := registry.ReconcileBoot(ctx)
 		if err != nil {
-			t.Fatalf("ReconcileBoot() error = %v", err)
+			t.Fatalf("ReconcileBoot() error = %v, want nil", err)
 		}
-		if report.Checked != 1 || report.Recovered != 1 || report.Stale != 0 {
-			t.Fatalf("ReconcileBoot() = %#v, want one recovered record", report)
+		if report.Checked != 1 || report.Interrupted != 0 || report.Stale != 1 {
+			t.Fatalf("ReconcileBoot() = %#v, want checked:1 interrupted:0 stale:1", report)
 		}
-		if got := listAllRecords(t, store)[0].State; got != ProcessStateRunning {
-			t.Fatalf("record.State = %q, want running", got)
+		if interrupter.calls != 1 {
+			t.Fatalf("interrupter.calls = %d, want 1", interrupter.calls)
 		}
 
-		staleRegistry := NewRegistry(store, WithVerifier(func(int, time.Time) bool { return false }))
-		report, err = staleRegistry.ReconcileBoot(ctx)
-		if err != nil {
-			t.Fatalf("ReconcileBoot(stale) error = %v", err)
+		records := listAllRecords(t, store)
+		if got, want := len(records), 1; got != want {
+			t.Fatalf("records = %d, want %d", got, want)
 		}
-		if report.Checked != 1 || report.Recovered != 0 || report.Stale != 1 {
-			t.Fatalf("ReconcileBoot(stale) = %#v, want one stale record", report)
+		if records[0].State != ProcessStateStale || records[0].CompletedAt == nil {
+			t.Fatalf("record = %#v, want terminal stale state", records[0])
 		}
-		record := listAllRecords(t, store)[0]
-		if record.State != ProcessStateStale {
-			t.Fatalf("record.State = %q, want stale", record.State)
+	})
+
+	t.Run("Should return interruption failures unrelated to ownership validation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		store := NewMemoryStore()
+		startedAt := time.Date(2026, 4, 24, 9, 30, 0, 0, time.UTC)
+		if err := store.UpsertProcessRecord(ctx, ProcessRecord{
+			ID:           "proc-interrupt-failure",
+			Source:       ProcessSourceSubprocess,
+			Owner:        ProcessOwner{SessionID: "sess-interrupt-failure"},
+			PID:          12345,
+			StartedAt:    startedAt,
+			StartedByPID: 111,
+			State:        ProcessStateRunning,
+			CreatedAt:    startedAt,
+			UpdatedAt:    startedAt,
+		}); err != nil {
+			t.Fatalf("UpsertProcessRecord() error = %v", err)
 		}
-		if record.CompletedAt == nil {
-			t.Fatal("record.CompletedAt = nil, want stale cleanup timestamp")
+
+		wantErr := errors.New("interrupt failed")
+		registry := NewRegistry(
+			store,
+			WithVerifier(func(pid int, got time.Time) bool {
+				return pid == 12345 && got.Equal(startedAt)
+			}),
+			WithInterrupter(&recordingInterrupter{err: wantErr}),
+		)
+
+		report, err := registry.ReconcileBoot(ctx)
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("ReconcileBoot() error = %v, want %v", err, wantErr)
+		}
+		if report.Checked != 1 || report.Interrupted != 0 || report.Stale != 0 {
+			t.Fatalf("ReconcileBoot() = %#v, want checked:1 interrupted:0 stale:0", report)
+		}
+
+		records := listAllRecords(t, store)
+		if got, want := len(records), 1; got != want {
+			t.Fatalf("records = %d, want %d", got, want)
+		}
+		if got, want := records[0].State, ProcessStateInterrupting; got != want {
+			t.Fatalf("record.State = %q, want %q", got, want)
 		}
 	})
 }
@@ -366,12 +513,15 @@ func (s *failOnceUpdateStore) UpdateProcessRecordState(ctx context.Context, upda
 }
 
 type recordingInterrupter struct {
-	calls int
+	calls   int
+	records []ProcessRecord
+	err     error
 }
 
-func (i *recordingInterrupter) InterruptProcess(context.Context, ProcessRecord) error {
+func (i *recordingInterrupter) InterruptProcess(_ context.Context, record ProcessRecord) error {
 	i.calls++
-	return nil
+	i.records = append(i.records, record)
+	return i.err
 }
 
 func fixedClock(value time.Time) func() time.Time {

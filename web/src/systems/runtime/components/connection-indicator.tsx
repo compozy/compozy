@@ -1,7 +1,7 @@
 import { type ConnectionStatus, Pill, cn } from "@compozy/ui";
 
-import { type HealthPayload, useDaemonHealth } from "@/systems/status";
 import { resolveRuntimeConnectionState } from "./connection-indicator.logic";
+import { type HealthPayload, useDaemonHealth } from "@/systems/status";
 
 export interface RuntimeConnectionIndicatorProps extends React.ComponentProps<"div"> {
   /** Override the resolved connection status. Tests inject this to bypass TanStack Query. */

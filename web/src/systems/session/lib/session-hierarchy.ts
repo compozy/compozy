@@ -74,15 +74,43 @@ export function collectThreadSessions(
   childrenByParent: SessionListTree["childrenByParent"]
 ): SessionPayload[] {
   const collected: SessionPayload[] = [];
-  const stack = [...(childrenByParent.get(rootId) ?? [])];
+  const stack = [...(childrenByParent.get(rootId) ?? [])].reverse();
   while (stack.length > 0) {
-    const next = stack.shift();
+    const next = stack.pop();
     if (!next) break;
     collected.push(next);
     const grandchildren = childrenByParent.get(next.id);
-    if (grandchildren) stack.unshift(...grandchildren);
+    if (grandchildren) {
+      for (let index = grandchildren.length - 1; index >= 0; index -= 1) {
+        stack.push(grandchildren[index]!);
+      }
+    }
   }
   return collected;
+}
+
+/**
+ * Keep matching descendants and their ancestor path in one reverse tree pass.
+ * A matching root keeps its complete thread, matching the unfiltered catalog.
+ */
+export function filterThreadSessions(
+  root: SessionPayload,
+  childrenByParent: SessionListTree["childrenByParent"],
+  matches: (session: SessionPayload) => boolean
+): SessionPayload[] | null {
+  const descendants = collectThreadSessions(root.id, childrenByParent);
+  if (matches(root)) return descendants;
+
+  const visibleIds = new Set<string>();
+  for (let index = descendants.length - 1; index >= 0; index -= 1) {
+    const session = descendants[index]!;
+    const hasVisibleChild = (childrenByParent.get(session.id) ?? []).some(child =>
+      visibleIds.has(child.id)
+    );
+    if (matches(session) || hasVisibleChild) visibleIds.add(session.id);
+  }
+  if (visibleIds.size === 0) return null;
+  return descendants.filter(session => visibleIds.has(session.id));
 }
 
 export type ChildSessionSignalTone = "danger" | "warning" | "accent";

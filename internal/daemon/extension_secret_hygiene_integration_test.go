@@ -378,7 +378,7 @@ func waitForSecretExtensionLogs(
 	marker string,
 ) []contract.ExtensionLogPayload {
 	t.Helper()
-	return waitForSecretExtensionLogsAfter(t, service, name, actor, 0, marker).logs
+	return waitForSecretExtensionLogsAfter(t, service, name, actor, 0, "", marker).logs
 }
 
 func waitForSecretExtensionLogsAfter(
@@ -387,24 +387,25 @@ func waitForSecretExtensionLogsAfter(
 	name string,
 	actor taskpkg.ActorContext,
 	after int64,
+	streamEpoch string,
 	marker string,
 ) secretExtensionLogMatch {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		logs, err := service.ExtensionLogs(t.Context(), name, after, actor)
+		snapshot, err := service.ExtensionLogs(t.Context(), name, after, streamEpoch, actor)
 		if err != nil {
 			t.Fatalf("ExtensionLogs() error = %v", err)
 		}
-		for _, entry := range logs {
+		for _, entry := range snapshot.Logs {
 			if strings.Contains(entry.Message, marker) {
-				return secretExtensionLogMatch{logs: logs, matched: entry}
+				return secretExtensionLogMatch{logs: snapshot.Logs, matched: entry}
 			}
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	status, statusErr := service.Status(t.Context(), name)
-	logs, logsErr := service.ExtensionLogs(t.Context(), name, after, actor)
+	logs, logsErr := service.ExtensionLogs(t.Context(), name, after, streamEpoch, actor)
 	t.Fatalf(
 		"extension log ring did not receive marker %q; status=%#v status_error=%v logs=%#v logs_error=%v",
 		marker,

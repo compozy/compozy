@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 
 import {
-  WINDOW_MANAGER_ACTIONS,
   chordFromKeyboardEvent,
   findShortcutConflicts,
   type ShortcutConflict,
+  WINDOW_MANAGER_ACTIONS,
   type WindowManagerActionId,
 } from "@/systems/os";
 

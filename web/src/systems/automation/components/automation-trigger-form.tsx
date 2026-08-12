@@ -14,9 +14,6 @@ import {
   Input,
 } from "@compozy/ui";
 
-import type { AgentPayload } from "@/systems/agent";
-import { ScopeSelector } from "@/systems/workspace";
-
 import { useAutomationTriggerForm } from "../hooks/use-automation-trigger-form";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type { CreateAutomationTriggerRequest } from "../types";
@@ -25,6 +22,8 @@ import { FilterConditions } from "./trigger-form/filter-conditions";
 import { TriggerPreview } from "./trigger-form/preview/trigger-preview";
 import { ReliabilitySection } from "./trigger-form/reliability-section";
 import { TriggerTargetStep } from "./trigger-form/target-step";
+import type { AgentPayload } from "@/systems/agent";
+import { ScopeSelector } from "@/systems/workspace";
 
 interface AutomationTriggerFormProps {
   activeWorkspaceId?: string | null;

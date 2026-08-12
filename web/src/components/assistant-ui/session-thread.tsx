@@ -2,8 +2,7 @@ import { ThreadPrimitive, useAui } from "@assistant-ui/react";
 
 import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/session-goal-header-container";
 import { SessionGoalCommandErrorNotice } from "@/systems/session/components/goal/session-goal-command-error-notice";
-import { SessionDecisionDock } from "@/systems/session";
-import type { SessionFailurePayload, SessionState } from "@/systems/session";
+
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
 import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import { SessionComposer, type SessionComposerProps } from "./session-composer";
@@ -15,6 +14,11 @@ import {
 } from "./session-thread-content-rail";
 import { ThreadViewport } from "./session-thread-viewport";
 import { WorkingIndicator } from "./session-working-row";
+import {
+  SessionDecisionDock,
+  type SessionFailurePayload,
+  type SessionState,
+} from "@/systems/session";
 
 const EMPTY_QUEUED_PROMPTS: NonNullable<SessionComposerProps["queuedPrompts"]> = [];
 
@@ -26,6 +30,7 @@ interface SessionThreadProps extends SessionComposerProps {
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
   workingStartedAt?: number;
+  liveDataEnabled?: boolean;
 }
 
 /**
@@ -55,6 +60,7 @@ export function SessionThread({
   sessionState,
   failure,
   workingStartedAt,
+  liveDataEnabled = true,
   runtimeControl,
   commandCatalog,
   commandCatalogStatus,
@@ -84,6 +90,7 @@ export function SessionThread({
         {workspaceId && sessionState !== "starting" ? (
           <ThreadContentRail inset={contentInset}>
             <SessionGoalHeaderContainer
+              enabled={liveDataEnabled}
               onPrefillComposer={composerState.prefillComposer}
               sessionId={sessionId}
               workspaceId={workspaceId}
@@ -102,7 +109,11 @@ export function SessionThread({
         <ThreadContentRail inset={contentInset} className="pt-2">
           <SessionGoalCommandErrorNotice sessionId={sessionId} />
           {runtimeRunning ? (
-            <WorkingIndicator startedAt={workingStartedAt} reducedMotion={reducedMotion} />
+            <WorkingIndicator
+              liveDataEnabled={liveDataEnabled}
+              startedAt={workingStartedAt}
+              reducedMotion={reducedMotion}
+            />
           ) : null}
         </ThreadContentRail>
         <SessionComposer
@@ -110,7 +121,11 @@ export function SessionThread({
           contentInset={contentInset}
           decisionDock={
             workspaceId ? (
-              <SessionDecisionDock sessionId={sessionId} workspaceId={workspaceId} />
+              <SessionDecisionDock
+                enabled={liveDataEnabled}
+                sessionId={sessionId}
+                workspaceId={workspaceId}
+              />
             ) : undefined
           }
           canPrompt={lifecycleCanPrompt}

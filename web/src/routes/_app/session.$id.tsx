@@ -2,12 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
-import { validateSessionDeepLinkSearch } from "@/systems/session";
-import {
-  redirectSessionPermalinkRoute,
-  type SessionPermalinkRouteContext,
-} from "./-session-permalink-route";
+import type { SessionPermalinkRouteContext } from "./-session-permalink-route";
 import { SessionWorkspaceSwitchRouteDecision } from "./-session-workspace-switch";
+import { validateSessionDeepLinkSearch } from "@/systems/session";
 
 /**
  * Permalink-by-id redirect. Resolves the agent name for a session and
@@ -19,7 +16,8 @@ import { SessionWorkspaceSwitchRouteDecision } from "./-session-workspace-switch
  */
 export const Route = createFileRoute("/_app/session/$id")({
   validateSearch: validateSessionDeepLinkSearch,
-  beforeLoad: redirectSessionPermalinkRoute,
+  beforeLoad: async options =>
+    (await import("./-session-permalink-route")).redirectSessionPermalinkRoute(options),
   component: SessionPermalinkFallback,
 });
 

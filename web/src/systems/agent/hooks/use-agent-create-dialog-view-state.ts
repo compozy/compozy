@@ -2,9 +2,8 @@ import { useState } from "react";
 
 import type { EntityMode } from "@compozy/ui";
 
-import type { RuntimeProviderOption } from "@/systems/runtime";
-
 import { validateAgentCreateDraft, type AgentCreateDialogDraft } from "../lib/agent-create-draft";
+import type { RuntimeProviderOption } from "@/systems/runtime";
 
 interface AgentCreateDialogViewStateArgs {
   draft: AgentCreateDialogDraft;

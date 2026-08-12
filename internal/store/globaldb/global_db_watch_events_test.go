@@ -1228,7 +1228,7 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 	t.Run("Should preserve durable loop cursor semantics across migration and reopen", func(t *testing.T) {
 		t.Parallel()
 
-		// Invariant: migration 00060 preserves loop event order/public per-run seq,
+		// Invariant: migration 00061 preserves loop event order/public per-run seq,
 		// gives the watch stream a never-reused position, and rearms legacy parked
 		// cursors at the migration fence without removing them from the durable index.
 		// Owning layer: GlobalDB migration stream. Canonical suite: this test.
@@ -1236,7 +1236,7 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 		prefixDB, err := openGlobalMigrationPrefixDatabase(
 			t,
 			path,
-			globalMigrationPrefixBefore(t, "00060_schema.sql"),
+			globalMigrationPrefixBefore(t, "00061_schema.sql"),
 		)
 		if err != nil {
 			t.Fatalf("open v59 GlobalDB error = %v", err)

@@ -17,15 +17,6 @@ import {
   Time,
 } from "@compozy/ui";
 
-import {
-  deriveSkillCapabilities,
-  deriveSkillRecentCalls,
-  SkillActivationPill,
-  SkillActivationReasons,
-  skillSourceTone,
-  type SkillPayload,
-} from "@/systems/skill";
-
 import { useMarketplaceDetailSkillManage } from "../hooks/use-marketplace-detail-skill-manage";
 import { MarketplaceDetailManageFallbackBody } from "./marketplace-detail-manage-state";
 import {
@@ -41,6 +32,14 @@ import {
 } from "./marketplace-detail-skill";
 import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
 import type { MarketplaceEntryResponse } from "../types";
+import {
+  deriveSkillCapabilities,
+  deriveSkillRecentCalls,
+  SkillActivationPill,
+  SkillActivationReasons,
+  type SkillPayload,
+  skillSourceTone,
+} from "@/systems/skill";
 
 interface MarketplaceDetailSkillInstalledProps {
   data: MarketplaceEntryResponse;

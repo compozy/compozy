@@ -706,8 +706,8 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "b2f96297b65dbda6a71c78a55cf3a6f6c337a6851f57f4023ccfacc52ede9611",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "input_schema_digest": "688813a82ae6c95a2887d6e8a5f00747545ea9214c903a5b36232fb67244ad56",
+    "output_schema_digest": "9f0e5714fe207ae8358880a8212194f50ff9e8f843f1f0d3b6f6a2454ec44504"
   },
   {
     "tool_id": "compozy__extensions_preview",

@@ -4,6 +4,7 @@ import { useSelector } from "@xstate/store-react";
 import { toast } from "@compozy/ui";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
+import { loopRunPageLogic } from "./use-loop-run-page-state";
 import {
   buildNodeNowLines,
   isTerminalLoopStatus,
@@ -24,7 +25,6 @@ import {
   useResumeLoopRun,
   useRunLoop,
 } from "@/systems/loops";
-import { loopRunPageLogic } from "./use-loop-run-page-state";
 
 /**
  * The live run-page view-model (redesign spec §2-§5): composes the run
@@ -34,7 +34,11 @@ import { loopRunPageLogic } from "./use-loop-run-page-state";
  * on one derivation. Controls and the gate decision go through the sanctioned
  * mutation hooks.
  */
-export function useLoopRunPage(workspaceId: string, runId: string) {
+export function useLoopRunPage(
+  workspaceId: string,
+  runId: string,
+  { liveDataEnabled = true }: { liveDataEnabled?: boolean } = {}
+) {
   const navigate = useNavigate();
   const bindingKey = `${workspaceId}\u0000${runId}`;
   const { store: runPageStore } = useStoreBinding(bindingKey, () =>
@@ -42,7 +46,8 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   );
   const live = useSelector(runPageStore, state => state.context.live);
   const enabled = workspaceId !== "" && runId !== "";
-  const runQuery = useLoopRun(workspaceId, runId, enabled);
+  const queryEnabled = enabled && liveDataEnabled;
+  const runQuery = useLoopRun(workspaceId, runId, queryEnabled);
   const run = runQuery.data?.run;
   const generations = runQuery.data?.generations;
   const watchEvents = runQuery.data?.watch_events ?? undefined;
@@ -52,7 +57,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   const loopQuery = useLoop(
     workspaceId,
     loopName,
-    enabled && loopName !== "" && !executedDefinition
+    queryEnabled && loopName !== "" && !executedDefinition
   );
   const definition = executedDefinition ?? loopQuery.data?.definition;
 
@@ -60,14 +65,16 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   // Terminal runs replay their retained status event once so generation-zero
   // failures remain visible after navigation or reload; the hook closes on it.
   useLoopStream(workspaceId, runId, {
-    enabled: runQuery.isSuccess,
+    enabled: runQuery.isSuccess && liveDataEnabled,
     onEvent: (frame, subscription) =>
       runPageStore.trigger.streamFrameReceived({
         frame,
         subscription,
       }),
   });
-  const goalTurnsQuery = useGoalTurns(workspaceId, runId, { enabled: runQuery.isSuccess });
+  const goalTurnsQuery = useGoalTurns(workspaceId, runId, {
+    enabled: runQuery.isSuccess && liveDataEnabled,
+  });
   const goalTurns = mergeGoalTurnTimeline(goalTurnsQuery.data?.turns ?? [], live.goalTurns);
 
   const pauseMutation = usePauseLoopRun();
@@ -77,7 +84,7 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
   const approveMutation = useApproveLoopRun();
   const runLoopMutation = useRunLoop();
 
-  const nowMs = useNowTick(run?.status === "running");
+  const nowMs = useNowTick(run?.status === "running" && liveDataEnabled);
   const view = run
     ? projectLoopRunPageView({
         run,

@@ -1,9 +1,9 @@
 import { createStoreLogic } from "@xstate/store";
 
 import { type RuntimeSpeed } from "@/lib/api-contract";
-import type { RuntimeSelectorValue } from "@/systems/runtime";
 
 import type { SessionRuntimeEffective, SessionRuntimeSelection } from "../types";
+import type { RuntimeSelectorValue } from "@/systems/runtime";
 
 interface SessionPromptRuntimeInput {
   canPrompt: boolean;
