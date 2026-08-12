@@ -650,6 +650,34 @@ func TestTriggerValidate(t *testing.T) {
 			wantErr: "must name a hook",
 		},
 		{
+			name: "Should reject a leading-whitespace event name",
+			trigger: Trigger{
+				Scope:     AutomationScopeGlobal,
+				Name:      "padded-start",
+				AgentName: "reviewer",
+				Prompt:    `{{ .Kind }}`,
+				Event:     " session.created",
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+			wantErr: "surrounding whitespace",
+		},
+		{
+			name: "Should reject a trailing-whitespace event name",
+			trigger: Trigger{
+				Scope:     AutomationScopeGlobal,
+				Name:      "padded-end",
+				AgentName: "reviewer",
+				Prompt:    `{{ .Kind }}`,
+				Event:     "session.created ",
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+			wantErr: "surrounding whitespace",
+		},
+		{
 			name: "Should reject a bare extension event prefix",
 			trigger: Trigger{
 				Scope:     AutomationScopeGlobal,

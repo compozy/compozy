@@ -25,6 +25,9 @@ func (r ExtensionTriggerRequest) Validate(path string) error {
 	if !strings.HasPrefix(event, "ext.") {
 		return errors.New(nestedPath(path, "event") + " must start with \"ext.\"")
 	}
+	if strings.TrimSpace(strings.TrimPrefix(event, "ext.")) == "" {
+		return errors.New(nestedPath(path, "event") + " must name an extension event after the \"ext.\" prefix")
+	}
 	if err := ValidateScopeBinding(r.Scope, r.WorkspaceID, path, "workspace_id"); err != nil {
 		return err
 	}
