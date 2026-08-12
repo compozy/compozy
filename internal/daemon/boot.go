@@ -257,6 +257,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		}
 		state.commandService = newSessionCommandService(
 			state.skillsRegistry,
+			func() session.AgentResolver { return agentCatalogDependency(state.agentCatalog) },
 			func() promptSkillsWorkspaceResolver { return state.workspaceResolver },
 		)
 		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)

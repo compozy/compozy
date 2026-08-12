@@ -7,6 +7,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	memorypkg "github.com/compozy/compozy/internal/memory"
+	sessionpkg "github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -65,6 +66,7 @@ type daemonNativeToolsDeps struct {
 	Observer                   core.Observer
 	HookBindings               hookBindingPublisher
 	AgentCatalog               core.AgentCatalog
+	AgentResolver              sessionpkg.AgentResolver
 	HeartbeatStatus            core.HeartbeatStatusService
 	HeartbeatWake              core.HeartbeatWakeService
 	SessionHealth              core.SessionHealthReader

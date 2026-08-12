@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -168,6 +169,10 @@ func sourceQualifiedSkillViewPayload(skill *skillspkg.Skill) map[string]any {
 	}
 }
 
+// resolveSkillViewTarget resolves the skill a skill_view call targets: a workspace-fenced skill
+// by name, or a source-qualified skill by command_id within one session's command catalog. The
+// command_id path uses the same concrete session-agent snapshot and lazy catalog fallback as the
+// session command service, preserving workspace fencing and authored-agent validation.
 func (n *daemonNativeTools) resolveSkillViewTarget(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -223,9 +228,11 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 			"source-qualified skill registry is unavailable",
 		)
 	}
-	service := newSessionCommandService(registry, func() promptSkillsWorkspaceResolver {
-		return n.deps.WorkspaceResolver
-	})
+	service := newSessionCommandService(
+		registry,
+		func() session.AgentResolver { return n.deps.AgentResolver },
+		func() promptSkillsWorkspaceResolver { return n.deps.WorkspaceResolver },
+	)
 	_, byCommandID, err := service.project(ctx, info, agent)
 	if err != nil {
 		return nil, err
