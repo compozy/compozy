@@ -73,7 +73,7 @@ export const automationTriggerFixtures: AutomationTrigger[] = [
     agent_name: storyAgentNames.support,
     prompt:
       "Investigate the support lane when launch-day SLA exceeds {{ .Data.sla_minutes }} minutes and prepare the operator response.",
-    event: "support.launch.sla_breach",
+    event: "ext.support.launch.sla_breach",
     filter: {
       "data.sla_minutes": ">=4",
     },
@@ -104,7 +104,7 @@ export const automationTriggerFixtures: AutomationTrigger[] = [
     agent_name: storyAgentNames.compliance,
     prompt:
       "Review any launch copy revision that changes pricing language or merchant guarantees before publish.",
-    event: "marketing.copy.updated",
+    event: "ext.marketing.copy.updated",
     filter: {
       "data.claim_class": "=pricing",
     },

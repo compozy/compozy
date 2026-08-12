@@ -115,7 +115,9 @@ CompozyOS stores trigger events as strings. The current runtime emits these buil
 The event name must match one of these families. CompozyOS rejects any other name at creation,
 because no activation producer would ever fire it — a trigger for an unknown event would sit
 enabled and permanently silent. Extension names are free-form after the `ext.` prefix; hook
-completions require a hook name between `hook.` and `.completed`.
+completions require a hook name between `hook.` and `.completed`. Surrounding whitespace is
+rejected, including whitespace immediately inside the hook delimiters; extension suffixes remain
+free-form, so values such as `ext. release` are valid.
 
 ## Matching and filters
 

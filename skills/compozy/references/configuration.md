@@ -92,6 +92,8 @@ Automation schedule catch-up policy is part of the public schedule contract. Rec
 
 CLI automation creation supports the Agent-or-Loop target union. Use `automation jobs create --loop` with repeatable `--loop-input` values for scheduled Loop starts; triggers also accept repeatable `--loop-input-mapping` templates. Global definitions require `--loop-workspace`. CLI updates change common fields without replacing the target; use native tools or HTTP/UDS for target replacement.
 
+Trigger events are `session.created`, `session.stopped`, `memory.consolidated`, `hook.<hook_name>.completed`, `webhook`, or `ext.*`. Unknown names and surrounding whitespace are rejected; `ext.*` suffixes stay free-form.
+
 ## Session Compaction
 
 `[session.compaction]` controls pressure-triggered checkpoint coverage and replay archiving. Defaults

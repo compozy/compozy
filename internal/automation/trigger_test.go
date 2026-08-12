@@ -746,9 +746,15 @@ func TestTriggerEngineRegisterUpdateUnregisterAndLifecycle(t *testing.T) {
 func TestTriggerRegistrationAndWebhookRequestValidation(t *testing.T) {
 	t.Parallel()
 
+	paddedTrigger := testEventTrigger(AutomationScopeGlobal, "padded-event", "", " session.stopped")
+	err := (TriggerRegistration{Trigger: paddedTrigger}).Validate("registration")
+	if err == nil || !strings.Contains(err.Error(), "surrounding whitespace") {
+		t.Fatalf("TriggerRegistration.Validate(padded event) error = %v, want surrounding whitespace", err)
+	}
+
 	eventTrigger := testEventTrigger(AutomationScopeGlobal, "bad-secret", "", "session.stopped")
 	eventTrigger.WebhookSecretRef = "env:UNEXPECTED_WEBHOOK_SECRET"
-	err := (TriggerRegistration{Trigger: eventTrigger}).Validate("registration")
+	err = (TriggerRegistration{Trigger: eventTrigger}).Validate("registration")
 	if err == nil {
 		t.Fatal("TriggerRegistration.Validate(non-webhook secret) error = nil, want non-nil")
 	}

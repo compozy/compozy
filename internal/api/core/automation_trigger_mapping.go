@@ -40,7 +40,7 @@ func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.T
 		AgentName:    strings.TrimSpace(req.AgentName),
 		WorkspaceID:  strings.TrimSpace(req.WorkspaceID),
 		Prompt:       strings.TrimSpace(req.Prompt),
-		Event:        strings.TrimSpace(req.Event),
+		Event:        req.Event,
 		Filter:       cloneAutomationFilter(req.Filter),
 		LoopTarget:   cloneAutomationLoopTarget(req.LoopTarget),
 		Enabled:      enabled,
@@ -72,7 +72,7 @@ func applyTriggerPatch(
 		next.Prompt = strings.TrimSpace(*req.Prompt)
 	}
 	if req.Event != nil {
-		next.Event = strings.TrimSpace(*req.Event)
+		next.Event = *req.Event
 	}
 	if req.Filter != nil {
 		next.Filter = cloneAutomationFilter(req.Filter)
@@ -90,6 +90,9 @@ func applyTriggerPatch(
 		next.FireLimit = *req.FireLimit
 	}
 	if err := automationpkg.ValidateImmutableTriggerTarget(current, next); err != nil {
+		return automationpkg.Trigger{}, err
+	}
+	if err := automationpkg.ValidateTriggerEvent(next.Event, "trigger"); err != nil {
 		return automationpkg.Trigger{}, err
 	}
 

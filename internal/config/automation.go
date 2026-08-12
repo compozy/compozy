@@ -245,6 +245,9 @@ func (t AutomationTrigger) validateWithEnv(path string, _ envLookup) error {
 	if strings.TrimSpace(t.Event) == "" {
 		return errors.New(path + ".event is required")
 	}
+	if err := automationpkg.ValidateTriggerEvent(t.Event, path); err != nil {
+		return err
+	}
 	if err := automationpkg.ValidateScopeBinding(t.Scope, t.Workspace, path, "workspace"); err != nil {
 		return err
 	}

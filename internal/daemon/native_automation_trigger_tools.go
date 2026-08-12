@@ -43,6 +43,9 @@ func (n *daemonNativeTools) automationTriggersCreate(
 		return toolspkg.ToolResult{}, err
 	}
 	trigger := core.AutomationTriggerFromCreateRequest(input.request())
+	if err := automationpkg.ValidateTriggerEvent(trigger.Event, "trigger"); err != nil {
+		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
+	}
 	created, err := n.automationManager().CreateTrigger(ctx, trigger, input.webhookSecretWrite())
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)

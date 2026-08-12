@@ -39,14 +39,17 @@ func ValidateTriggerEvent(event string, path string) error {
 	}
 	if rest, ok := strings.CutPrefix(event, triggerEventHookPrefix); ok {
 		hookName, isCompletion := strings.CutSuffix(rest, triggerEventHookSuffix)
-		if isCompletion && strings.TrimSpace(hookName) != "" {
-			return nil
+		if !isCompletion || strings.TrimSpace(hookName) == "" {
+			return fmt.Errorf(
+				"%s %q must name a hook: use hook.<hook_name>.completed",
+				field,
+				event,
+			)
 		}
-		return fmt.Errorf(
-			"%s %q must name a hook: use hook.<hook_name>.completed",
-			field,
-			event,
-		)
+		if hookName != strings.TrimSpace(hookName) {
+			return fmt.Errorf("%s %q hook name must not contain padding inside the event delimiters", field, event)
+		}
+		return nil
 	}
 	if rest, ok := strings.CutPrefix(event, triggerEventExtensionPrefix); ok {
 		if strings.TrimSpace(rest) != "" {

@@ -32,7 +32,7 @@ expr = "0 * * * *"
 name = "on-task"
 agent = "writer"
 prompt = "Handle the event."
-event = "task.completed"
+event = "ext.task.completed"
 `)
 		jobs, triggers, err := LoadAutomationResources(rootDir, "kit", []string{"automation"})
 		if err != nil {
@@ -227,7 +227,7 @@ interval = "1h"
 name = "on-task"
 agent = "writer"
 prompt = "Handle it."
-event = "task.completed"
+event = "ext.task.completed"
 `)
 		managed := &managedExtension{
 			info:    ExtensionInfo{Name: "kit"},

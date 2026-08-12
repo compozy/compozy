@@ -12,15 +12,19 @@ import (
 
 // Run acquires the consolidation lock when needed and invokes the spawner with
 // the embedded prompt and a normalized workspace ID when provided.
-func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef string) error {
+func (s *Service) Run(
+	ctx context.Context,
+	spawn SessionSpawner,
+	workspaceRef string,
+) (ConsolidationResult, error) {
 	if err := s.validate(); err != nil {
-		return err
+		return ConsolidationResult{}, err
 	}
 	if ctx == nil {
-		return errors.New("memory: context is required")
+		return ConsolidationResult{}, errors.New("memory: context is required")
 	}
 	if spawn == nil {
-		return errors.New("memory: session spawner is required")
+		return ConsolidationResult{}, errors.New("memory: session spawner is required")
 	}
 
 	s.runMu.Lock()
@@ -28,31 +32,43 @@ func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef st
 
 	runID, err := s.newDreamRunID()
 	if err != nil {
-		return fmt.Errorf("memory: generate dream run id: %w", err)
+		return ConsolidationResult{}, fmt.Errorf("memory: generate dream run id: %w", err)
 	}
 	priorMtime, err := s.ensureLock()
 	if err != nil {
-		return err
+		return ConsolidationResult{}, err
 	}
 
 	workspace, err := s.prepareWorkspace(ctx, workspaceRef)
 	if err != nil {
-		return s.failBeforeDreamStart("prepare workspace", workspaceRef, priorMtime, err)
+		return ConsolidationResult{}, s.failBeforeDreamStart("prepare workspace", workspaceRef, priorMtime, err)
 	}
 	gate, err := s.evaluateDreamSignalGate(ctx, workspace, runID)
 	if err != nil {
-		return s.failBeforeDreamStart("evaluate dream signal gate", workspace.id, priorMtime, err)
+		return ConsolidationResult{}, s.failBeforeDreamStart(
+			"evaluate dream signal gate",
+			workspace.id,
+			priorMtime,
+			err,
+		)
 	}
 	if err := s.handleDreamGateResult(ctx, workspace, gate, priorMtime); err != nil {
-		return err
+		return ConsolidationResult{}, err
 	}
 
 	s.logger.Debug("memory: starting consolidation run", "goal", s.goal, "workspace_id", workspace.id)
 
 	if err := spawn(ctx, s.goal, s.prompt, workspace.id, priorMtime); errors.Is(err, ErrDreamRoleDisabled) {
-		return s.skipDreamRun(ctx, workspace, gate, priorMtime)
+		return ConsolidationResult{}, s.skipDreamRun(ctx, workspace, gate, priorMtime)
 	} else if err != nil {
-		return s.failDreamRun(ctx, workspace, gate, priorMtime, err, "spawn consolidation session")
+		return ConsolidationResult{}, s.failDreamRun(
+			ctx,
+			workspace,
+			gate,
+			priorMtime,
+			err,
+			"spawn consolidation session",
+		)
 	}
 	if !gate.active {
 		s.logger.Debug(
@@ -62,14 +78,14 @@ func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef st
 			"workspace_id",
 			workspace.id,
 		)
-		return s.completeRun(true, priorMtime)
+		return s.completeSuccessfulRun(workspace.id, priorMtime)
 	}
 
 	if err := s.promoteDreamRun(ctx, workspace, gate, priorMtime); err != nil {
-		return err
+		return ConsolidationResult{}, err
 	}
 	s.logger.Debug("memory: consolidation run completed; releasing lock", "goal", s.goal, "workspace_id", workspace.id)
-	return s.completeRun(true, priorMtime)
+	return s.completeSuccessfulRun(workspace.id, priorMtime)
 }
 
 func (s *Service) skipDreamRun(

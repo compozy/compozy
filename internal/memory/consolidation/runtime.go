@@ -21,7 +21,7 @@ import (
 // Service evaluates dream gates and coordinates lock-aware consolidation runs.
 type Service interface {
 	ShouldRun() (bool, error)
-	Run(ctx context.Context, spawn memory.SessionSpawner, workspace string) error
+	Run(ctx context.Context, spawn memory.SessionSpawner, workspace string) (memory.ConsolidationResult, error)
 }
 
 // ServiceFactory constructs a consolidation service using memory package options.
@@ -43,6 +43,7 @@ type Runtime struct {
 	logger             *slog.Logger
 	interval           time.Duration
 	lastConsolidatedAt func() (time.Time, error)
+	completionObserver CompletionObserver
 
 	mu      sync.Mutex
 	checkCh chan checkRequest
@@ -216,7 +217,7 @@ func (r *Runtime) runCheck(
 	}
 
 	logger.Info("daemon: starting dream consolidation", "reason", reason, "workspace_ref", workspaceRef)
-	if err := service.Run(ctx, spawner, workspaceRef); err != nil {
+	if err := r.runConsolidation(ctx, service, spawner, workspaceRef); err != nil {
 		if ctx != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 			logger.Debug(
 				"daemon: dream consolidation stopped with runtime context",

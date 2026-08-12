@@ -153,7 +153,6 @@ func TestManagerStartSyncsConfigDefinitionsAndPreservesDynamicEntries(t *testing
 			t.Fatalf("manager.Shutdown() error = %v", err)
 		}
 	})
-
 	jobs, err := manager.Jobs(h.ctx)
 	if err != nil {
 		t.Fatalf("manager.Jobs() error = %v", err)
@@ -1420,6 +1419,22 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 			t.Fatalf("manager.Shutdown() error = %v", err)
 		}
 	})
+	invalidTrigger := Trigger{
+		Scope:       AutomationScopeWorkspace,
+		Name:        "padded-event",
+		AgentName:   "reviewer",
+		WorkspaceID: h.workspace.ID,
+		Prompt:      "Review the event.",
+		Event:       " session.stopped",
+		Enabled:     true,
+		Retry:       DefaultRetryConfig(),
+		FireLimit:   DefaultFireLimitConfig(),
+	}
+	if _, err := manager.CreateTrigger(h.ctx, invalidTrigger, WebhookSecretWrite{}); err == nil {
+		t.Fatal("manager.CreateTrigger(padded event) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), "surrounding whitespace") {
+		t.Fatalf("manager.CreateTrigger(padded event) error = %v, want surrounding whitespace", err)
+	}
 
 	webhookTrigger := Trigger{
 		ID:           "trigger-webhook-crud",
@@ -1535,6 +1550,13 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 	createdExtension, err := manager.CreateTrigger(h.ctx, extensionTrigger, WebhookSecretWrite{})
 	if err != nil {
 		t.Fatalf("manager.CreateTrigger(extension) error = %v", err)
+	}
+	paddedUpdate := createdExtension
+	paddedUpdate.Event = "ext.github.push "
+	if _, err := manager.UpdateTrigger(h.ctx, paddedUpdate, nil); err == nil {
+		t.Fatal("manager.UpdateTrigger(padded event) error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), "surrounding whitespace") {
+		t.Fatalf("manager.UpdateTrigger(padded event) error = %v, want surrounding whitespace", err)
 	}
 
 	fireResult, err := manager.FireExtensionTrigger(h.ctx, ExtensionTriggerRequest{

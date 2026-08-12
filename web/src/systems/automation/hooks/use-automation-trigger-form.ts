@@ -75,12 +75,16 @@ function computeCanSubmit(
     draft.name.trim() !== "" &&
     targetValid &&
     draft.event.trim() !== "" &&
+    draft.event === draft.event.trim() &&
+    selection.catalogId !== "" &&
     (draft.scope === "global" || Boolean(draft.workspace_id));
   if (!baseValid) return false;
 
-  if (selection.family === "hook") return selection.hookName.trim() !== "";
+  if (selection.family === "hook") {
+    return selection.hookName !== "" && selection.hookName === selection.hookName.trim();
+  }
   if (selection.family === "ext") {
-    return selection.extExt.trim() !== "" && selection.extEvent.trim() !== "";
+    return draft.event.slice("ext.".length).trim() !== "";
   }
   if (selection.family === "webhook") {
     const hasIds = Boolean(draft.endpoint_slug?.trim()) && Boolean(draft.webhook_id?.trim());
@@ -105,7 +109,7 @@ export function useAutomationTriggerForm({
   const disabledCatalogIds =
     mode === "edit" && draft.scope === "workspace" ? new Set(["webhook"]) : undefined;
   const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
-  const eventKind = formatEventKind(selection, draft.event);
+  const eventKind = formatEventKind(selection);
 
   const resolvedWorkspaces: WorkspaceOption[] =
     workspaces && workspaces.length > 0

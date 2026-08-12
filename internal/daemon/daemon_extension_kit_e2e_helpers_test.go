@@ -106,7 +106,7 @@ expr = "0 0 * * *"
 name = "on-task"
 agent = %q
 prompt = "Handle the completed task."
-event = "task.completed"
+event = "ext.task.completed"
 `, jobName, extensionKitE2EAgentName, extensionKitE2EAgentName)
 	writeExtensionKitE2EFile(t, sourceDir, "automation/main.toml", body)
 }

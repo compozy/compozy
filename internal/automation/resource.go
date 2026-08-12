@@ -130,7 +130,6 @@ func normalizeTriggerResourceSpec(spec Trigger) Trigger {
 	next.AgentName = strings.TrimSpace(next.AgentName)
 	next.WorkspaceID = strings.TrimSpace(next.WorkspaceID)
 	next.Prompt = strings.TrimSpace(next.Prompt)
-	next.Event = strings.TrimSpace(next.Event)
 	next.WebhookID = strings.TrimSpace(next.WebhookID)
 	next.EndpointSlug = strings.TrimSpace(next.EndpointSlug)
 	next.WebhookSecretRef = strings.TrimSpace(next.WebhookSecretRef)

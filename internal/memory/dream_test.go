@@ -274,7 +274,7 @@ func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspaceID(t *testing.T)
 	var gotPrompt string
 	var gotWorkspace string
 	var gotCutoff time.Time
-	err := service.Run(testutil.Context(t), func(
+	result, err := service.Run(testutil.Context(t), func(
 		_ context.Context,
 		goal string,
 		prompt string,
@@ -289,6 +289,12 @@ func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspaceID(t *testing.T)
 	}, workspaceID)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
+	}
+	if result.WorkspaceID != workspaceID {
+		t.Fatalf("Run() workspace = %q, want %q", result.WorkspaceID, workspaceID)
+	}
+	if result.CompletedAt.IsZero() {
+		t.Fatal("Run() completed_at is zero")
 	}
 	if gotGoal != "custom-goal" {
 		t.Fatalf("goal = %q, want custom-goal", gotGoal)
@@ -333,7 +339,7 @@ func TestServiceRunIdentifierAllocation(t *testing.T) {
 				},
 			)
 
-			err := service.Run(
+			_, err := service.Run(
 				testutil.Context(t),
 				func(context.Context, string, string, string, time.Time) error {
 					spawnCalls++
@@ -384,7 +390,7 @@ func TestServiceRunDreamSignalGateBlocksWhenNoUnpromotedSignals(t *testing.T) {
 		)
 
 		spawnCalls := 0
-		err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
+		_, err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
 			spawnCalls++
 			return nil
 		}, "")
@@ -452,13 +458,16 @@ func TestServiceRunDreamSignalGatePromotesEligibleSignals(t *testing.T) {
 		)
 
 		gotWorkspace := ""
-		err := service.Run(testutil.Context(t), func(_ context.Context, _, _, workspace string, _ time.Time) error {
+		result, err := service.Run(testutil.Context(t), func(_ context.Context, _, _, workspace string, _ time.Time) error {
 			gotWorkspace = workspace
 			return nil
 		}, env.workspaceID)
 
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
+		}
+		if result.WorkspaceID != env.workspaceID {
+			t.Fatalf("Run() workspace = %q, want %q", result.WorkspaceID, env.workspaceID)
 		}
 		if gotWorkspace != env.workspaceID {
 			t.Fatalf("spawn workspace = %q, want %q", gotWorkspace, env.workspaceID)
@@ -516,7 +525,7 @@ func TestServiceRunSkipsWorkspaceDisabledDreamWithoutPromotion(t *testing.T) {
 			withNow(func() time.Time { return now }),
 		)
 
-		err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
+		_, err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
 			return ErrDreamRoleDisabled
 		}, env.workspaceID)
 		if !errors.Is(err, ErrDreamRoleDisabled) {
@@ -535,7 +544,7 @@ func TestServiceRunSkipsWorkspaceDisabledDreamWithoutPromotion(t *testing.T) {
 
 		rollbackErr := errors.New("rollback disabled dream run")
 		service := NewService(withLock(&stubLock{rollbackErr: rollbackErr}))
-		err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
+		_, err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
 			return ErrDreamRoleDisabled
 		}, "")
 		if !errors.Is(err, rollbackErr) {
@@ -581,7 +590,7 @@ func TestServiceRunDreamSignalGateUsesStableWorkspaceIdentity(t *testing.T) {
 		)
 
 		gotWorkspace := ""
-		err := service.Run(testutil.Context(t), func(_ context.Context, _, _, workspace string, _ time.Time) error {
+		_, err := service.Run(testutil.Context(t), func(_ context.Context, _, _, workspace string, _ time.Time) error {
 			gotWorkspace = workspace
 			return nil
 		}, registrationID)
@@ -630,7 +639,7 @@ func TestServiceRunDreamFailureWritesDLQAndDoesNotMarkPromoted(t *testing.T) {
 			withNow(func() time.Time { return now }),
 		)
 
-		err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
+		_, err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
 			return spawnErr
 		}, env.workspaceID)
 
@@ -782,7 +791,7 @@ func TestServiceRunRequiresWorkspaceResolverForExplicitWorkspace(t *testing.T) {
 		WithMemoryStore(newOpenTestStore(t, filepath.Join(t.TempDir(), "memory"))),
 	)
 
-	err := service.Run(
+	_, err := service.Run(
 		testutil.Context(t),
 		func(context.Context, string, string, string, time.Time) error { return nil },
 		"ws-missing",
@@ -820,7 +829,7 @@ func TestServiceRunResolvesWorkspaceRefBeforeSpawn(t *testing.T) {
 	)
 
 	var gotWorkspace string
-	err := service.Run(testutil.Context(t), func(_ context.Context, _, _, workspace string, _ time.Time) error {
+	_, err := service.Run(testutil.Context(t), func(_ context.Context, _, _, workspace string, _ time.Time) error {
 		gotWorkspace = workspace
 		return nil
 	}, "workspace-alias")
@@ -852,7 +861,7 @@ func TestServiceRunWrapsWorkspaceResolveErrors(t *testing.T) {
 		WithWorkspaceResolver(&fakeDreamWorkspaceResolver{err: resolveErr}),
 	)
 
-	err := service.Run(
+	_, err := service.Run(
 		testutil.Context(t),
 		func(context.Context, string, string, string, time.Time) error { return nil },
 		"workspace-alias",
@@ -890,7 +899,7 @@ func TestServiceRunWrapsWorkspaceEnsureDirsErrors(t *testing.T) {
 		WithMemoryStore(newOpenTestStore(t, "")),
 	)
 
-	err := service.Run(
+	_, err := service.Run(
 		testutil.Context(t),
 		func(context.Context, string, string, string, time.Time) error { return nil },
 		"workspace-alias",
@@ -917,7 +926,7 @@ func TestServiceRunRollsBackLockOnSessionSpawnerFailure(t *testing.T) {
 	}
 	service := NewService(withLock(lock))
 
-	err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
+	_, err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
 		return errors.New("boom")
 	}, "")
 	if err == nil {
@@ -948,7 +957,7 @@ func TestServiceRunReturnsJoinedSpawnAndRollbackErrors(t *testing.T) {
 	}
 	service := NewService(withLock(lock))
 
-	err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
+	_, err := service.Run(testutil.Context(t), func(context.Context, string, string, string, time.Time) error {
 		return spawnErr
 	}, "")
 	if err == nil {
@@ -972,7 +981,7 @@ func TestServiceRunReturnsErrLockUnavailableWhenBusy(t *testing.T) {
 	}
 	service := NewService(withLock(lock))
 
-	err := service.Run(
+	_, err := service.Run(
 		testutil.Context(t),
 		func(context.Context, string, string, string, time.Time) error { return nil },
 		"",
@@ -993,14 +1002,14 @@ func TestServiceRunValidatesInputs(t *testing.T) {
 
 	nilContext := func() context.Context { return nil }
 
-	if err := service.Run(
+	if _, err := service.Run(
 		nilContext(),
 		func(context.Context, string, string, string, time.Time) error { return nil },
 		"",
 	); err == nil {
 		t.Fatal("Run(nil context, spawner) error = nil, want non-nil")
 	}
-	if err := service.Run(testutil.Context(t), nil, ""); err == nil {
+	if _, err := service.Run(testutil.Context(t), nil, ""); err == nil {
 		t.Fatal("Run(ctx, nil) error = nil, want non-nil")
 	}
 }
@@ -1230,12 +1239,14 @@ func TestServiceRunSerializesConcurrentCalls(t *testing.T) {
 	}
 
 	go func() {
-		errCh <- service.Run(testutil.Context(t), spawner, "")
+		_, err := service.Run(testutil.Context(t), spawner, "")
+		errCh <- err
 	}()
 	<-started
 
 	go func() {
-		errCh <- service.Run(testutil.Context(t), spawner, "")
+		_, err := service.Run(testutil.Context(t), spawner, "")
+		errCh <- err
 	}()
 
 	select {
