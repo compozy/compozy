@@ -17,7 +17,7 @@ export type SeamGestureHandlers = {
 };
 
 const SEAM_CLASS_BASE = cn(
-  "absolute z-30 touch-none rounded-pill outline-none",
+  "absolute z-[2] touch-none rounded-pill outline-none",
   "before:absolute before:rounded-pill before:bg-line-strong",
   "hover:before:bg-accent focus-visible:shadow-focus-ring focus-visible:before:bg-accent"
 );

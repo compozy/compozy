@@ -43,6 +43,7 @@ function sessionActions(): SessionLifecycleActionHandlers {
     pendingSessionId: null,
     onArchive: vi.fn(),
     onDelete: vi.fn(),
+    onRename: vi.fn(),
     onStop: vi.fn(),
     onUnarchive: vi.fn(),
   };

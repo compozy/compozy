@@ -14,12 +14,14 @@ import { useSessionTopbarSlot } from "../use-session-topbar-slot";
 
 function SessionPublisher({
   onStop,
+  onRename = vi.fn(),
   inspectorOpen = false,
   onInspectorToggle = vi.fn(),
   sidebarOpen = false,
   onSidebarToggle = vi.fn(),
 }: {
   onStop: () => void;
+  onRename?: () => void;
   inspectorOpen?: boolean;
   onInspectorToggle?: () => void;
   sidebarOpen?: boolean;
@@ -28,6 +30,7 @@ function SessionPublisher({
   useSessionTopbarSlot({
     session: primarySessionFixture,
     isDeleting: false,
+    isRenaming: false,
     isStopping: false,
     isResuming: false,
     isUnarchiving: false,
@@ -38,6 +41,7 @@ function SessionPublisher({
     onInspectorToggle,
     onSidebarToggle,
     onDelete: vi.fn(),
+    onRename,
     onStop,
     onResume: vi.fn(),
     onUnarchive: vi.fn(),
@@ -114,6 +118,7 @@ describe("useSessionTopbarSlot", () => {
       useSessionTopbarSlot({
         session: { ...primarySessionFixture, badge: "idle" },
         isDeleting: false,
+        isRenaming: false,
         isStopping: false,
         isResuming: false,
         isUnarchiving: false,
@@ -124,6 +129,7 @@ describe("useSessionTopbarSlot", () => {
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
         onDelete: vi.fn(),
+        onRename: vi.fn(),
         onStop,
         onResume: vi.fn(),
         onUnarchive: vi.fn(),
@@ -155,6 +161,7 @@ describe("useSessionTopbarSlot", () => {
           archived_at: "2026-08-04T12:00:00Z",
         },
         isDeleting: false,
+        isRenaming: false,
         isStopping: false,
         isResuming: false,
         isUnarchiving: false,
@@ -165,6 +172,7 @@ describe("useSessionTopbarSlot", () => {
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
         onDelete: vi.fn(),
+        onRename: vi.fn(),
         onStop: vi.fn(),
         onResume: vi.fn(),
         onUnarchive,
@@ -179,5 +187,15 @@ describe("useSessionTopbarSlot", () => {
     expect(onUnarchive).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Attach session" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
+  });
+
+  it("Should offer rename from overflow for a user session", () => {
+    const onRename = vi.fn();
+    renderWithTopbar(<SessionPublisher onStop={vi.fn()} onRename={onRename} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename session" }));
+
+    expect(onRename).toHaveBeenCalledTimes(1);
   });
 });

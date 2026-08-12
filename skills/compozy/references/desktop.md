@@ -74,3 +74,10 @@ equivalent; use the local `compozy app` control surface.
 
 After every app mutation, perform a structured status read. Do not infer success from a process,
 window, or human-readable message alone.
+
+## Page zoom
+
+The desktop main window supports the standard page zoom shortcuts: `Command` + `+`, `Command` +
+`-`, and `Command` + `0` on macOS; use `Control` instead of `Command` on Windows and Linux. These
+shortcuts scale the whole product interface. The in-product Window > Zoom action has a different
+purpose: it expands one CompozyOS window inside the desktop workspace.

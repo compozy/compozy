@@ -168,6 +168,7 @@ export function useWorkspaceSetupContent({
       currentPath: browseData?.path ?? browsePath,
       parentPath: browseData?.parent ?? null,
       homePath: browseData?.home ?? null,
+      roots: browseData?.roots ?? [],
       entries: browseData?.entries ?? [],
       isBrowsing: browse.isLoading || browse.isFetching,
       browseError: browse.error

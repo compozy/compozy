@@ -27,6 +27,7 @@ import {
   fetchSessionTranscript,
   fetchSessions,
   repairSession,
+  renameSession,
   promoteSessionInputToSteer,
   replaceSessionInput,
   rewindSession,
@@ -315,6 +316,24 @@ describe("fetchSession", () => {
     await fetchSession(WORKSPACE_ID, "id with spaces");
 
     await expectFetchRequest({ path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces" });
+  });
+});
+
+describe("renameSession", () => {
+  it("patches the workspace-scoped session name and returns the durable session", async () => {
+    const renamed = { ...mockSession, name: "Release review" };
+    mockJsonResponse({ session: renamed });
+    const controller = new AbortController();
+
+    await expect(
+      renameSession(WORKSPACE_ID, "sess-001", { name: "Release review" }, controller.signal)
+    ).resolves.toEqual(renamed);
+    await expectFetchRequest({
+      body: { name: "Release review" },
+      method: "PATCH",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001",
+      signal: controller.signal,
+    });
   });
 });
 

@@ -22,6 +22,7 @@ export interface SessionWindowSidebarModel {
   onNewSession: () => void;
   sessionActions: SessionLifecycleActionHandlers;
   rowDeleteDialog: ReturnType<typeof useSessionLifecycleActions>["deleteDialog"];
+  rowRenameDialog: ReturnType<typeof useSessionLifecycleActions>["renameDialog"];
 }
 
 /**
@@ -73,5 +74,6 @@ export function useSessionWindowSidebar({
     onNewSession: () => openForAgent(""),
     sessionActions: lifecycle.actions,
     rowDeleteDialog: lifecycle.deleteDialog,
+    rowRenameDialog: lifecycle.renameDialog,
   };
 }

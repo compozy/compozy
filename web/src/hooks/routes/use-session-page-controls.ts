@@ -14,6 +14,7 @@ import {
   useQueueSessionPrompt,
   usePromoteSessionInput,
   useReplaceSessionInput,
+  useRenameSession,
   useResumeSession,
   useSteerSessionPrompt,
   useStopSession,
@@ -60,6 +61,7 @@ export function useSessionPageControls(
   const stopMutation = useStopSession({ workspaceId });
   const resumeMutation = useResumeSession({ workspaceId });
   const unarchiveMutation = useUnarchiveSession({ workspaceId });
+  const renameMutation = useRenameSession({ workspaceId });
   const clearMutation = useClearSessionConversation({ workspaceId });
   const queuePromptMutation = useQueueSessionPrompt({ workspaceId });
   const interruptPromptMutation = useInterruptSessionPrompt({ workspaceId });
@@ -102,6 +104,7 @@ export function useSessionPageControls(
   const isResuming = controlsState.resume.phase === "pending";
   const isUnarchiving = unarchiveMutation.isPending;
   const isDeleting = deleteMutation.isPending;
+  const isRenaming = renameMutation.isPending;
   const isClearing = clearMutation.isPending;
   const busyInputPending =
     isBusyInputPending(controlsState) ||
@@ -109,7 +112,13 @@ export function useSessionPageControls(
     replaceSessionInput.isPending ||
     promoteSessionInput.isPending;
   const controlsBusy =
-    isStopping || isResuming || isUnarchiving || isDeleting || isClearing || busyInputPending;
+    isStopping ||
+    isResuming ||
+    isUnarchiving ||
+    isDeleting ||
+    isRenaming ||
+    isClearing ||
+    busyInputPending;
   const hasConversationContent = messages.length > 0 || transcriptMessages.length > 0;
   const canClear = hasConversationContent && !controlsBusy && !effectiveRunning;
 
@@ -285,6 +294,19 @@ export function useSessionPageControls(
     });
   };
 
+  const handleRename = async (name: string) => {
+    if (controlsBusy) {
+      throw new Error("Session controls are busy.");
+    }
+    try {
+      await renameMutation.mutateAsync({ id: sessionId, name });
+      toast.success("Session renamed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to rename session");
+      throw error;
+    }
+  };
+
   const handleClear = () => {
     if (controlsBusy || effectiveRunning) {
       return;
@@ -309,6 +331,7 @@ export function useSessionPageControls(
     handleQueuePrompt,
     handleRemoveQueuedPrompt,
     handleReplaceQueuedPrompt,
+    handleRename,
     handleResume,
     handleSteerPrompt,
     handleSteerQueuedPrompt,
@@ -317,6 +340,7 @@ export function useSessionPageControls(
     isBusyInputPending: busyInputPending,
     isClearing,
     isDeleting,
+    isRenaming,
     isResuming,
     isSessionRunning: daemonRunning,
     isStopping,

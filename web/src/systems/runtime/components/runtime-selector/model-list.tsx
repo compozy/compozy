@@ -109,7 +109,10 @@ export function ModelList({
     // Outer scroller owns the overflow so sticky group heads stick to its top,
     // while the `role="listbox"` stays PURE options — the custom-ID affordance is an
     // action, not a selectable option, so it sits OUTSIDE the listbox.
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-1 pt-0.5 pb-1.5">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain px-1 pt-0.5 pb-1.5"
+      data-testid="runtime-selector-scroll"
+    >
       {listModel.exactEntry ? null : (
         <div
           role={showsOptions ? "listbox" : "status"}

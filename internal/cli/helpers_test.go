@@ -147,6 +147,7 @@ type stubClient struct {
 	stopSessionFn                func(context.Context, string) error
 	archiveSessionFn             func(context.Context, string) (SessionRecord, error)
 	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
+	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	deleteSessionFn              func(context.Context, string) error
 	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
 	setSessionRuntimeFn          func(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)
@@ -1582,6 +1583,17 @@ func (s *stubClient) UnarchiveSession(ctx context.Context, id string) (SessionRe
 		return s.unarchiveSessionFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected UnarchiveSession call")
+}
+
+func (s *stubClient) RenameSession(
+	ctx context.Context,
+	id string,
+	request RenameSessionRequest,
+) (SessionRecord, error) {
+	if s.renameSessionFn != nil {
+		return s.renameSessionFn(ctx, id, request)
+	}
+	return SessionRecord{}, errors.New("unexpected RenameSession call")
 }
 
 func (s *stubClient) DeleteSession(ctx context.Context, id string) error {

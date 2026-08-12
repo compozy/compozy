@@ -84,7 +84,12 @@ const browseLoading = storybookMswParameters({
   workspace: [
     compozyApiMock.get("/api/fs/browse", async () => {
       await delay("infinite");
-      return HttpResponse.json({ entries: [], home: "/Users/pedro", path: "/Users/pedro" });
+      return HttpResponse.json({
+        entries: [],
+        home: "/Users/pedro",
+        path: "/Users/pedro",
+        roots: ["/"],
+      });
     }),
   ],
 });
@@ -97,6 +102,7 @@ const browseEmpty = storybookMswParameters({
         home: "/Users/pedro",
         parent: "/Users",
         path: "/Users/pedro",
+        roots: ["/"],
       })
     ),
   ],

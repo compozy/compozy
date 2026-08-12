@@ -5677,6 +5677,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		var clearedRuntimeRevision int64
 		var archiveTarget string
 		var unarchiveTarget string
+		var renamedTarget string
+		var renamedName string
 		promptSubmitCalls := 0
 		var listedInputSessionID string
 		var replacedInput struct {
@@ -5776,6 +5778,13 @@ func TestDaemonNativeTools(t *testing.T) {
 					restored := *info
 					restored.State = session.StateStopped
 					return &restored, nil
+				},
+				RenameFn: func(_ context.Context, workspaceID string, id string, name string) (*session.Info, error) {
+					renamedTarget = workspaceID + "/" + id
+					renamedName = name
+					renamed := *info
+					renamed.Name = name
+					return &renamed, nil
 				},
 				SetRuntimeSelectionFn: func(
 					_ context.Context,
@@ -6462,8 +6471,25 @@ func TestDaemonNativeTools(t *testing.T) {
 			}
 			requireNativeStructuredContains(t, result, []byte(`"archived_at":null`))
 		})
+		t.Run("Should rename a session", func(t *testing.T) {
+			result, callErr := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionRename,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","name":"Release review"}`),
+				},
+			)
+			if callErr != nil {
+				t.Fatalf("Registry.Call(session_rename) error = %v", callErr)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"name":"Release review"`))
+		})
 		if archiveTarget != "ws-1/sess-1" || unarchiveTarget != "ws-1/sess-1" {
 			t.Fatalf("archive targets = %q/%q, want ws-1/sess-1", archiveTarget, unarchiveTarget)
+		}
+		if renamedTarget != "ws-1/sess-1" || renamedName != "Release review" {
+			t.Fatalf("rename request = %q/%q, want ws-1/sess-1 and Release review", renamedTarget, renamedName)
 		}
 
 		registryWithoutHealth := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{

@@ -3,6 +3,7 @@ import {
   SessionInspector,
   SessionDeleteDialog,
   SessionPromptRuntimeSelector,
+  SessionRenameDialog,
   SessionResumeFailure,
   SessionSidebar,
   type SessionPayload,
@@ -47,6 +48,7 @@ export function SessionWindowContent({
     inspectorUsage,
     sessionVault,
     deleteDialog,
+    renameDialog,
     clearDialog,
     commandCatalog,
     commandCatalogStatus,
@@ -135,6 +137,13 @@ export function SessionWindowContent({
         isDeleting={controls.isDeleting}
         onConfirm={deleteDialog.confirmDelete}
       />
+      <SessionRenameDialog
+        open={renameDialog.open}
+        onOpenChange={renameDialog.setOpen}
+        session={session}
+        isRenaming={controls.isRenaming}
+        onConfirm={renameDialog.confirmRename}
+      />
       {sidebar.rowDeleteDialog.session ? (
         <SessionDeleteDialog
           open={sidebar.rowDeleteDialog.open}
@@ -142,6 +151,15 @@ export function SessionWindowContent({
           session={sidebar.rowDeleteDialog.session}
           isDeleting={sidebar.rowDeleteDialog.isDeleting}
           onConfirm={sidebar.rowDeleteDialog.onConfirm}
+        />
+      ) : null}
+      {sidebar.rowRenameDialog.session ? (
+        <SessionRenameDialog
+          open={sidebar.rowRenameDialog.open}
+          onOpenChange={sidebar.rowRenameDialog.onOpenChange}
+          session={sidebar.rowRenameDialog.session}
+          isRenaming={sidebar.rowRenameDialog.isRenaming}
+          onConfirm={sidebar.rowRenameDialog.onConfirm}
         />
       ) : null}
       <SessionClearDialog

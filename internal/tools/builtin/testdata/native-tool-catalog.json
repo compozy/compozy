@@ -2449,6 +2449,19 @@
     "output_schema_digest": "6bfe42af616ce76f2d303ffc1e98fb3a27f3f8665cef1dd03b1cee33a2b1b37f"
   },
   {
+    "tool_id": "compozy__session_rename",
+    "native_name": "session_rename",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "75fc8f99cefd0c271f7da0841b51b84e9f7d79c163d909b1c2d01138a5980711",
+    "output_schema_digest": "8d3bfa6a8b156cf8a52edb3e5af7f23d716bd0da84f9851445772d9ab8db3ee9"
+  },
+  {
     "tool_id": "compozy__session_rewind",
     "native_name": "session_rewind",
     "toolsets": [

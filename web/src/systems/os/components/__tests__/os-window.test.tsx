@@ -1,6 +1,7 @@
 // Suite: OS window runtime component
 // Invariant: the live OsWindow frame mounts safely in StrictMode, keeps every member mounted
-// across minimize/compact/tab switches, and hosts the deck only at ≥2 members.
+// across minimize/compact/tab switches, hosts the deck only at ≥2 members, and maps semantic
+// frame order onto visual layers where floating windows remain above tiled resize seams.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef, StrictMode, useState } from "react";
 import type { Rnd } from "react-rnd";
@@ -165,6 +166,20 @@ describe("OsWindow", () => {
       "data-window-placement",
       "floating"
     );
+  });
+
+  it("Should render floating frames above tiled windows and their resize seams", () => {
+    const view = render(<OsWindow frame={frameModel({ layer: 2 })} />);
+
+    expect(screen.getByTestId("os-window-frame-window:tasks").parentElement).toHaveStyle({
+      zIndex: 4,
+    });
+
+    const tiledFrame = frameModel({ kind: "tiled", layer: 1 });
+    view.rerender(<OsWindow frame={tiledFrame} />);
+    expect(screen.getByTestId("os-window-frame-window:tasks").parentElement).toHaveStyle({
+      zIndex: 1,
+    });
   });
 
   it("Should keep minimized frames mounted while hiding floating and compact presentations", () => {

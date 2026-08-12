@@ -299,6 +299,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/workspaces/:workspace_id/network/channels/:channel",
 			"PATCH /api/workspaces/:workspace_id",
 			"PATCH /api/workspaces/:workspace_id/loops/:name",
+			"PATCH /api/workspaces/:workspace_id/sessions/:session_id",
 			"POST /api/automation/jobs",
 			"POST /api/automation/jobs/:id/trigger",
 			"POST /api/automation/triggers",

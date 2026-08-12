@@ -100,6 +100,7 @@ export function WorkspaceSetupLocationPane({ setup, size }: WorkspaceSetupLocati
               onPick={setup.selectRoot}
               parentPath={setup.browse.parentPath}
               pickRowLabel={name => `Use ${name} as the workspace root`}
+              roots={setup.browse.roots}
               testIdPrefix="workspace-setup-browser"
             />
           </div>

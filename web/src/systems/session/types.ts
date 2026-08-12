@@ -15,6 +15,7 @@ export type SessionRuntimePayload = SessionPayload["runtime"];
 export type SessionRuntimeEffective = NonNullable<SessionRuntimePayload["effective"]>;
 export type SessionRuntimeSelection = NonNullable<SessionRuntimePayload["selected"]>;
 export type SetSessionRuntimeRequest = OperationRequestBody<"setSessionRuntime">;
+export type RenameSessionRequest = OperationRequestBody<"renameSession">;
 export type ACPCaps = NonNullable<SessionRuntimePayload["acp_caps"]>;
 export type SessionState = SessionPayload["state"];
 export type SessionFailurePayload = NonNullable<SessionPayload["failure"]>;

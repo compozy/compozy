@@ -1,4 +1,4 @@
-import { ChevronUp, Folder, FolderPlus, House, Plus, Spline } from "lucide-react";
+import { ChevronUp, Folder, FolderPlus, HardDrive, House, Plus, Spline } from "lucide-react";
 import type { ComponentProps } from "react";
 
 import { Button, Spinner, cn } from "@compozy/ui";
@@ -9,6 +9,7 @@ interface DirectoryBrowserProps extends ComponentProps<"div"> {
   currentPath: string;
   parentPath: string | null;
   homePath: string | null;
+  roots: string[];
   entries: FSEntry[];
   isBrowsing: boolean;
   browseError: string | null;
@@ -42,6 +43,7 @@ export function DirectoryBrowser({
   currentPath,
   parentPath,
   homePath,
+  roots,
   entries,
   isBrowsing,
   browseError,
@@ -101,6 +103,26 @@ export function DirectoryBrowser({
           </Button>
         </span>
       </div>
+
+      {roots.length > 0 ? (
+        <div className="flex flex-none items-center gap-1.5 overflow-x-auto border-b border-line px-3 py-1.5">
+          <span className="mr-0.5 text-micro font-medium text-faint">Locations</span>
+          {roots.map(root => (
+            <Button
+              aria-current={currentPath === root ? "location" : undefined}
+              aria-label={`Go to location ${root}`}
+              data-testid={`${testIdPrefix}-location`}
+              key={root}
+              onClick={() => onNavigate(root)}
+              size="sm"
+              variant="ghost"
+            >
+              <HardDrive className="size-3.5" />
+              {root}
+            </Button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {isBrowsing ? (

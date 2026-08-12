@@ -19,7 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func newFilesystemFixture(t *testing.T) *gin.Engine {
+func newFilesystemFixture(t *testing.T) (*gin.Engine, compozyconfig.HomePaths) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	homePaths := testutil.NewTestHomePaths(t)
@@ -37,7 +37,7 @@ func newFilesystemFixture(t *testing.T) *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Recovery())
 	engine.GET("/api/fs/browse", handlers.BrowseDirectory)
-	return engine
+	return engine, homePaths
 }
 
 func browse(
@@ -95,7 +95,30 @@ func TestBrowseDirectoryHandler(t *testing.T) {
 		t.Fatalf("EvalSymlinks(%q): %v", root, err)
 	}
 
-	engine := newFilesystemFixture(t)
+	engine, homePaths := newFilesystemFixture(t)
+	expectedHome, err := compozyconfig.ResolveOperatorHomeDir(homePaths)
+	if err != nil {
+		t.Fatalf("ResolveOperatorHomeDir() error = %v", err)
+	}
+
+	t.Run("Should default to the operator home and expose absolute filesystem roots", func(t *testing.T) {
+		t.Parallel()
+		rec, resp := browse(t, engine, nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("browse = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+		}
+		if resp.Home != expectedHome || resp.Path != expectedHome {
+			t.Fatalf("home/path = %q/%q, want %q", resp.Home, resp.Path, expectedHome)
+		}
+		if len(resp.Roots) == 0 {
+			t.Fatal("roots are empty")
+		}
+		for _, root := range resp.Roots {
+			if !filepath.IsAbs(root) {
+				t.Fatalf("root = %q, want an absolute path", root)
+			}
+		}
+	})
 
 	t.Run("Should list directories first then files, hiding dotfiles", func(t *testing.T) {
 		t.Parallel()
