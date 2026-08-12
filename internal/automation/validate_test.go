@@ -596,6 +596,74 @@ func TestTriggerValidate(t *testing.T) {
 		wantErr string
 	}{
 		{
+			name: "Should accept a named hook completion event",
+			trigger: Trigger{
+				Scope:     AutomationScopeGlobal,
+				Name:      "after-qa-hook",
+				AgentName: "reviewer",
+				Prompt:    `{{ .Kind }}`,
+				Event:     "hook.qa-check.completed",
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+		},
+		{
+			name: "Should accept an extension event name",
+			trigger: Trigger{
+				Scope:     AutomationScopeGlobal,
+				Name:      "on-release",
+				AgentName: "reviewer",
+				Prompt:    `{{ .Kind }}`,
+				Event:     "ext.release",
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+		},
+		{
+			name: "Should reject an event no activation producer emits",
+			trigger: Trigger{
+				Scope:     AutomationScopeGlobal,
+				Name:      "on-loop-terminal",
+				AgentName: "reviewer",
+				Prompt:    `{{ .Kind }}`,
+				Event:     "loop.terminal",
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+			wantErr: "no activation producer",
+		},
+		{
+			name: "Should reject a hook completion event without a hook name",
+			trigger: Trigger{
+				Scope:     AutomationScopeGlobal,
+				Name:      "after-anonymous-hook",
+				AgentName: "reviewer",
+				Prompt:    `{{ .Kind }}`,
+				Event:     "hook..completed",
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+			wantErr: "must name a hook",
+		},
+		{
+			name: "Should reject a bare extension event prefix",
+			trigger: Trigger{
+				Scope:     AutomationScopeGlobal,
+				Name:      "on-extension",
+				AgentName: "reviewer",
+				Prompt:    `{{ .Kind }}`,
+				Event:     "ext.",
+				Retry:     DefaultRetryConfig(),
+				FireLimit: DefaultFireLimitConfig(),
+				Source:    JobSourceConfig,
+			},
+			wantErr: "extension event",
+		},
+		{
 			name: "webhook valid",
 			trigger: Trigger{
 				Scope:            AutomationScopeGlobal,

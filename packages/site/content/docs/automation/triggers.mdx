@@ -112,8 +112,10 @@ CompozyOS stores trigger events as strings. The current runtime emits these buil
 | `webhook`                    | Signed HTTP webhook ingress  | React to CI, deploy, incident, or repository events from external systems. |
 | `ext.*`                      | Extension trigger API        | Let an extension publish its own automation event family.                  |
 
-The event name must be non-empty. CompozyOS does not restrict custom extension event names beyond the
-extension ingress contract.
+The event name must match one of these families. CompozyOS rejects any other name at creation,
+because no activation producer would ever fire it — a trigger for an unknown event would sit
+enabled and permanently silent. Extension names are free-form after the `ext.` prefix; hook
+completions require a hook name between `hook.` and `.completed`.
 
 ## Matching and filters
 

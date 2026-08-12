@@ -42,7 +42,13 @@ func bindAutomationTriggerCreateFlags(
 ) {
 	cmd.Flags().StringVar(&input.Name, automationNameKey, "", "Trigger name")
 	cmd.Flags().StringVar(&input.ScopeRaw, automationScopeKey, "", "Trigger scope: global or workspace")
-	cmd.Flags().StringVar(&input.EventRaw, automationEventKey, "", "Trigger event name")
+	cmd.Flags().StringVar(
+		&input.EventRaw,
+		automationEventKey,
+		"",
+		"Trigger event name: session.created, session.stopped, memory.consolidated, "+
+			"hook.<hook_name>.completed, webhook, or ext.*",
+	)
 	cmd.Flags().
 		StringVar(&input.WorkspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	bindAutomationCreateTargetFlags(cmd, &input.automationCreateTargetInput, true)
