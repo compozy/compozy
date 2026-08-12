@@ -18,17 +18,21 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	api.GET("/mcp/oauth/callback", handlers.completeMCPAuthCallback)
 	api.Use(browserRequestProtectionMiddleware(handlers.boundHost))
 
-	if handlers.allowRemoteHTTP && !isLoopbackHost(canonicalHost(handlers.boundHost)) {
+	switch {
+	case handlers.allowRemoteHTTP && !isLoopbackHost(canonicalHost(handlers.boundHost)):
 		api.Use(remoteNetworkAccessGuard(handlers.allowedRemoteIPs))
+		registerGatewayRedeemRoute(api, handlers)
 		api.Use(handlers.remoteDeviceAuthMiddleware())
-	} else if !isLoopbackHost(canonicalHost(handlers.boundHost)) {
+	case !isLoopbackHost(canonicalHost(handlers.boundHost)):
 		api = api.Group("", loopbackAPIGuard(handlers.boundHost))
+		registerGatewayRedeemRoute(api, handlers)
+	default:
+		registerGatewayRedeemRoute(api, handlers)
 	}
 
 	registerOperatorRoutes(api, handlers, true)
 	registerAgentKernelRoutes(api, handlers)
 	registerResourceRoutes(api, handlers)
-	registerGatewayRedeemRoute(api, handlers)
 	registerGatewayManagementRoutes(api, handlers, false)
 
 	if engine, ok := router.(*gin.Engine); ok {

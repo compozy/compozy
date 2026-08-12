@@ -5,7 +5,7 @@ title: Pair, manage, and revoke a remote device
 persona: Iris
 journey: J-expose-and-pair-gateway
 expected: A one-time local pairing shown as both QR and copyable text admits exactly one named device, device state agrees across web, HTTP, UDS, and CLI, and revocation closes live work before rejecting the credential.
-entry_points: Web /settings/gateway; UDS POST /api/gateway/pairings; private POST /api/gateway/pairings/redeem; HTTP/UDS /api/gateway/devices; compozy device list -o json
+entry_points: Web /settings/gateway; UDS POST /api/gateway/pairings; LAN HTTP POST /api/gateway/pairings/redeem; private POST /api/gateway/pairings/redeem; HTTP/UDS /api/gateway/devices; compozy device list -o json
 qa_status: blocked-verify
 bug_ids:
 fix_status:
@@ -23,3 +23,7 @@ and the empty inventory. The local daemon remains the recovery root after every 
 QA walk 2026-08-07: local pairing, rename, revoke, empty inventory, and replacement pairing passed
 through product surfaces. The remote tier admission and live-stream cancellation leg remains
 blocked without an authorized provider address and a second remote device.
+
+LAN verification 2026-08-12: the non-loopback HTTP listener served the UI and accepted the pairing
+redeem route without a device session while protected routes remained authenticated. Full browser
+pairing, refresh, and device revocation remain blocked for human verification on a LAN client.

@@ -264,6 +264,58 @@ func TestGatewayTierRouteMatricesIT063IT064(t *testing.T) {
 	})
 }
 
+func TestRemoteLANPairingRedeemBypassesOnlyDeviceBootstrap(t *testing.T) {
+	t.Parallel()
+
+	redeemed := false
+	service := gatewayHTTPServiceStub{
+		redeem: func(context.Context, gateway.RedeemRequest) (gateway.IssuedCredential, error) {
+			redeemed = true
+			return gateway.IssuedCredential{Device: gateway.DeviceSession{ID: "device-lan"}}, nil
+		},
+	}
+	handlers := newHandlers(&handlerConfig{
+		gateway:         service,
+		deviceAuth:      gatewayHTTPAuthenticatorStub{},
+		boundHost:       "0.0.0.0:2123",
+		allowRemoteHTTP: true,
+	})
+	router := gin.New()
+	api := router.Group("/api")
+	api.Use(remoteNetworkAccessGuard(nil))
+	registerGatewayRedeemRoute(api, handlers)
+	api.Use(handlers.remoteDeviceAuthMiddleware())
+	api.GET("/protected", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"http://10.0.5.155:2123/api/gateway/pairings/redeem",
+		strings.NewReader(`{"artifact":"cpz_gwp_pairing","name":"LAN browser","actor_kind":"operator_device"}`),
+	)
+	request.RemoteAddr = "10.0.5.42:54321"
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !redeemed {
+		t.Fatalf(
+			"LAN pairing redeem = %d/%s, redeemed=%t; want 200 and service call",
+			recorder.Code,
+			recorder.Body.String(),
+			redeemed,
+		)
+	}
+
+	protectedRequest := httptest.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://10.0.5.155:2123/api/protected", http.NoBody,
+	)
+	protectedRequest.RemoteAddr = "10.0.5.42:54321"
+	protectedRecorder := httptest.NewRecorder()
+	router.ServeHTTP(protectedRecorder, protectedRequest)
+	if protectedRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("protected LAN route = %d/%s, want 401", protectedRecorder.Code, protectedRecorder.Body.String())
+	}
+}
+
 func TestGatewayOperatorResponsesIdentifyListenerTier(t *testing.T) {
 	t.Parallel()
 

@@ -2630,6 +2630,24 @@ port = 0
 	}
 }
 
+func TestLoadSkipsGlobalConfigWhenWorkspaceOverlayIsTheSameFile(t *testing.T) {
+	homeRoot := filepath.Join(t.TempDir(), ".compozy")
+	workspaceRoot := filepath.Dir(homeRoot)
+	homePaths, err := ResolveHomePathsFrom(homeRoot)
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	writeFile(t, homePaths.ConfigFile, "[gateway]\nenabled = true\n")
+
+	cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	if !cfg.Gateway.Enabled {
+		t.Fatal("LoadForHome() Gateway.Enabled = false, want true")
+	}
+}
+
 func TestLoadMissingConfigReturnsDefaults(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")

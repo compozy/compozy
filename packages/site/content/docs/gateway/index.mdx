@@ -11,7 +11,7 @@ its own switch, each off until you turn it on, each reversible with one command.
 ## What you can do with it
 
 - **Use CompozyOS from your other devices.** Your phone and laptop reach the full web UI and API over
-  your own private Tailscale network. Follow the [quickstart](/docs/gateway/quickstart).
+  a trusted LAN or your own private Tailscale network. Follow the [quickstart](/docs/gateway/quickstart).
 - **Let a repository push start work on your machine.** GitHub delivers signed events to a stable
   public URL that serves deliveries and nothing else. Follow
   [Receive GitHub webhooks](/docs/gateway/webhooks).
@@ -22,11 +22,12 @@ its own switch, each off until you turn it on, each reversible with one command.
 
 | Switch                 | Who can reach it                      | What becomes reachable                                                                   |
 | ---------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Local network HTTP     | Sources allowed by the HTTP listener  | The full product, to devices you have paired. Everything else sees a pairing gate.       |
 | Private overlay        | Devices on your own Tailscale network | The full product, to devices you have paired. Everything else sees a pairing gate.       |
 | Public delivery        | The internet                          | Signed webhook and bridge deliveries only. No UI, no API, no pairing.                    |
 | Public operator access | The internet                          | The web UI and management API, still behind device pairing. Asks for consent every time. |
 
-Start private. Turn on public delivery only when a sender outside your network — a GitHub
+Start with a trusted LAN or private overlay. Turn on public delivery only when a sender outside your network — a GitHub
 repository, a messaging platform — needs to reach you. Turn on public operator access only when a
 device that cannot join your Tailscale network needs the UI, and read
 [Gateway security](/docs/gateway/security) first.
@@ -36,9 +37,9 @@ last asked for and never re-enables something you turned off.
 
 ## How it works
 
-1. The daemon never listens on a public address itself. Gateway listeners bind only to loopback —
-   the address that is reachable from this machine alone.
-2. A connectivity extension — the bundled [Tailscale extension](/docs/gateway/tailscale) — carries
+1. Gateway listeners bind only to loopback — the address that is reachable from this machine alone.
+   Separately, the optional HTTP listener can bind a trusted LAN when `[http].allow_remote_access = true`.
+2. For overlay access, a connectivity extension — the bundled [Tailscale extension](/docs/gateway/tailscale) — carries
    outside traffic to that local listener using your own Tailscale account. CompozyOS operates no
    relay, server, or account on your behalf.
 3. Before an address is shown to you or handed to a sender, the daemon proves it works: it fetches a

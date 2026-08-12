@@ -123,8 +123,11 @@ func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool, 
 		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}
 	if workspaceRoot != "" {
-		if err := applyWorkspaceConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
-			return Config{}, fmt.Errorf("load workspace config: %w", err)
+		workspaceConfigPath := workspaceConfigFile(workspaceRoot)
+		if workspaceConfigPath != homePaths.ConfigFile {
+			if err := applyWorkspaceConfigOverlayFile(workspaceConfigPath, &cfg); err != nil {
+				return Config{}, fmt.Errorf("load workspace config: %w", err)
+			}
 		}
 		if err := applyConfigMCPSidecarFile(workspaceMCPJSONFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace MCP JSON: %w", err)

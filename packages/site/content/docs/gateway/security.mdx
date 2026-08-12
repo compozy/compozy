@@ -10,12 +10,13 @@ authority.
 
 ## What each switch exposes
 
-| State                  | Who can reach it          | What they get                                                             | What is not there                                                        |
-| ---------------------- | ------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Local only (default)   | Processes on this machine | Loopback HTTP and the Unix socket                                         | Any remote path at all                                                   |
-| Private overlay        | Devices on your tailnet   | The pairing gate; the full product only after device authentication       | Any access without a device session                                      |
-| Public delivery        | The internet              | Webhook and bridge delivery endpoints that verify each request themselves | The UI, the API, pairing — those routes are not built into this listener |
-| Public operator access | The internet              | The pairing gate in front of the UI and API, after explicit consent       | Pairing mint and redeem — a device session can only be created privately |
+| State                  | Who can reach it                        | What they get                                                             | What is not there                                                        |
+| ---------------------- | --------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Local only (default)   | Processes on this machine               | Loopback HTTP and the Unix socket                                         | Any remote path at all                                                   |
+| Local network HTTP     | Sources allowed by `[http].allowed_ips` | The pairing gate; the full product only after device authentication       | Access from sources outside the HTTP allowlist                           |
+| Private overlay        | Devices on your tailnet                 | The pairing gate; the full product only after device authentication       | Any access without a device session                                      |
+| Public delivery        | The internet                            | Webhook and bridge delivery endpoints that verify each request themselves | The UI, the API, pairing — those routes are not built into this listener |
+| Public operator access | The internet                            | The pairing gate in front of the UI and API, after explicit consent       | Pairing mint and redeem — a device session can only be created privately |
 
 Two properties hold across the whole table. The agent kernel, hosted MCP, task mutations, and
 resource mutations exist only on local access and never move. And a tier is a property of the
@@ -24,9 +25,10 @@ cannot ask to be treated as another tier — the route it wants does not exist w
 
 ## Who can see your traffic
 
-- Connections terminate inside your daemon's embedded Tailscale node, with an HTTPS certificate
-  issued to it. On the public path, Tailscale's Funnel relay forwards encrypted bytes; it cannot
-  read them.
+- LAN connections terminate at the daemon's HTTP listener and remain on the configured local network.
+  No external relay is involved. Overlay connections terminate inside your daemon's embedded
+  Tailscale node, with an HTTPS certificate issued to it. On the public path, Tailscale's Funnel
+  relay forwards encrypted bytes; it cannot read them.
 - A connectivity provider sees the traffic it forwards. For the bundled extension that provider is
   Tailscale operating under your own account. Third-party providers are gated by install-source
   trust and a control digest that is re-checked on every enable and every boot — a changed digest
@@ -71,8 +73,8 @@ The guarantees above do not replace these duties:
    `compozy device revoke <device-id>` is the response, and it is immediate.
 3. **Treat pairing files as secrets.** A minted pairing code is written to a private file; move it
    through a trusted channel and delete it after use. It expires in five minutes regardless.
-4. **Review who is on your tailnet.** Private-tier reachability is scoped by your Tailscale
-   network; membership there is yours to manage.
+4. **Review who can reach the listener.** LAN reachability is scoped by `[http].allowed_ips` and
+   your host/network firewall; private-tier reachability is scoped by your Tailscale network.
 5. **Re-run the audit after every change.** `compozy gateway audit` names findings with concrete
    remediations. Make "no findings" your steady state.
 

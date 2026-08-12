@@ -1,11 +1,60 @@
 ---
 title: Gateway quickstart
-description: Reach CompozyOS from your phone or laptop in about ten minutes — enable the gateway, pair a device, and open the web UI from anywhere.
+description: Reach CompozyOS from your phone or laptop over a trusted LAN or private Tailscale network — enable access, pair a device, and open the web UI.
 ---
 
-At the end of this page you will have one address, `https://compozy-gateway.<your-tailnet>.ts.net:8443`,
-that opens the full CompozyOS web UI from your phone or laptop — from anywhere, over your own private
-Tailscale network. Nothing becomes reachable from the public internet.
+Choose the network path that matches your deployment:
+
+- **Trusted LAN:** the HTTP listener binds to a local network interface. Traffic stays on that network;
+  no external relay or internet traffic is required. This is suitable for an isolated network or a DMZ
+  with firewall rules that restrict the allowed source addresses. Continue with [Local network access](#local-network-access).
+- **Private Tailscale network:** the gateway keeps its listeners on loopback and uses the bundled
+  Tailscale provider to carry traffic over your tailnet. Continue with [Tailscale private overlay](#tailscale-private-overlay).
+
+## Local network access
+
+Use this path when the browser and daemon are on the same trusted network. The HTTP listener is the
+reachable surface; the Gateway device credential still protects the UI and API after pairing.
+
+Set the global gateway ceiling and the HTTP listener configuration:
+
+```bash
+compozy config set gateway.enabled true
+```
+
+Edit the global `$COMPOZY_HOME/config.toml`:
+
+```toml
+[http]
+host = "0.0.0.0"
+allow_remote_access = true
+allowed_ips = ["192.168.1.0/24"]
+```
+
+Replace the CIDR range with the network that should reach the daemon. An empty `allowed_ips` list
+allows any reachable source, so use an explicit range when the host has more than one network or is
+placed in a DMZ. Restart the daemon after changing the HTTP bind settings.
+
+On the daemon machine, create a short-lived pairing artifact:
+
+```bash
+compozy pair mint
+```
+
+Move the private artifact to the browser machine through a trusted channel, open
+`http://<daemon-lan-address>:2123`, and enter the code at the pairing gate. The redeem request is
+the only unauthenticated bootstrap route; after it succeeds, the browser receives its device
+credential and all other remote requests require that credential. Pairing codes are single-use and
+expire after five minutes by default.
+
+This flow does not enable a Tailscale provider, public gateway surface, or external relay. Keep the
+LAN itself trusted and enforce the intended boundary with host and network firewalls.
+
+## Tailscale private overlay
+
+The steps below use the bundled Tailscale provider. At the end of this flow you will have one address,
+`https://compozy-gateway.<your-tailnet>.ts.net:8443`, that opens the full CompozyOS web UI from your
+phone or laptop over your own private Tailscale network. Nothing becomes reachable from the public internet.
 
 Expect about ten minutes, most of it waiting for the first certificate.
 

@@ -366,9 +366,11 @@ Manage tier surfaces, providers, pairings, and devices through the private authe
 listener or UDS under `/api/gateway`. Mint pairing artifacts with `POST /api/gateway/pairings`, redeem them with
 `POST /api/gateway/pairings/redeem`, and list, rename, or revoke devices with `GET /api/gateway/devices`,
 `PATCH /api/gateway/devices/{id}`, and `DELETE /api/gateway/devices/{id}`. Pairing mint and redeem are physically absent from
-the public listener. Browser redemption installs a `Secure`, `HttpOnly`, `SameSite=Lax` cookie and
-does not return the raw credential. CLI redemption generates and durably stores the credential on
-the client before sending it over TLS; the daemon stores only its hash.
+the public listener. On a trusted LAN HTTP listener, browser redemption is the unauthenticated
+bootstrap route for a valid, short-lived artifact; every other remote route still requires device
+authentication. Browser redemption installs a `Secure`, `HttpOnly`, `SameSite=Lax` cookie and does
+not return the raw credential. CLI redemption generates and durably stores the credential on the
+client before sending it over TLS; the daemon stores only its hash.
 
 Select a connectivity provider with `POST /providers/{name}/enable`, naming the exact tier, live
 install source, current confirmed control digest, and expected generation. Read status first and do
