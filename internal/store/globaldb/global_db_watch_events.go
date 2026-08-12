@@ -155,6 +155,9 @@ func normalizeWatchEventsQuery(query looppkg.WatchEventsQuery) (normalizedWatchE
 	}, nil
 }
 
+// readWatchEventsCursor returns one stream's current replay position for the
+// queried workspace and kinds. Every stream cursors on a value that is
+// monotonic across the whole stream.
 func (g *WatchEventsRepo) readWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
@@ -163,10 +166,10 @@ func (g *WatchEventsRepo) readWatchEventsCursor(
 	if len(query.kinds) == 0 {
 		return 0, nil
 	}
-	// dynamic-sql: task and loop cursors use caller-selected kind sets with variable-width IN lists.
-	placeholders, args := sqlInPlaceholders(query.kinds)
 	switch stream {
 	case looppkg.WatchEventsTaskStream:
+		// dynamic-sql: task cursors use caller-selected kind sets with variable-width IN lists.
+		placeholders, args := sqlInPlaceholders(query.kinds)
 		args = append([]any{query.workspaceID}, args...)
 		return scanWatchEventCursor(
 			g.db.QueryRowContext(
@@ -181,18 +184,7 @@ func (g *WatchEventsRepo) readWatchEventsCursor(
 			stream,
 		)
 	case looppkg.WatchEventsLoopStream:
-		args = append([]any{query.workspaceID}, args...)
-		return scanWatchEventCursor(
-			g.db.QueryRowContext(
-				ctx,
-				`SELECT COALESCE(MAX(lre.seq), 0)
-				   FROM loop_run_events lre
-				  WHERE lre.workspace_id = ?
-				    AND lre.kind IN (`+placeholders+`)`,
-				args...,
-			),
-			stream,
-		)
+		return g.readLoopWatchEventsCursor(ctx, query)
 	case looppkg.WatchEventsAutomationStream:
 		return g.readAutomationWatchEventsCursor(ctx, query)
 	case looppkg.WatchEventsNetworkStream:

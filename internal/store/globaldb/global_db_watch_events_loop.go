@@ -8,29 +8,46 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
+// readLoopWatchEventsCursor returns the latest durable position in the same
+// eligible population that readLoopWatchEvents can return.
+func (g *WatchEventsRepo) readLoopWatchEventsCursor(
+	ctx context.Context,
+	query normalizedWatchEventsQuery,
+) (int64, error) {
+	placeholders, args := loopWatchEventsEligibility(query.workspaceID, query.kinds)
+	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
+	return scanWatchEventCursor(
+		g.db.QueryRowContext(
+			ctx,
+			`SELECT COALESCE((
+				SELECT lre.watch_seq
+				  FROM loop_run_events lre
+				  JOIN loop_runs lr
+				    ON lr.id = lre.loop_run_id
+				   AND lr.workspace_id = lre.workspace_id
+				 WHERE `+loopWatchEventsEligibilitySQL(placeholders)+`
+				 ORDER BY lre.watch_seq DESC
+				 LIMIT 1
+			), 0)`,
+			args...,
+		),
+		looppkg.WatchEventsLoopStream,
+	)
+}
+
+// readLoopWatchEvents returns loop-stream ledger rows strictly after the
+// stream cursor, projecting each row's watch sequence as the cursor value.
 func (g *WatchEventsRepo) readLoopWatchEvents(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) ([]looppkg.WatchEvent, error) {
-	// dynamic-sql: caller-selected loop event kinds require a variable-width IN list.
-	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
-	args := append([]any{query.workspaceID, query.streams[looppkg.WatchEventsLoopStream]}, kindArgs...)
-	args = append(args,
-		loopRunEventStatusChanged,
-		string(looppkg.StatusDone),
-		string(looppkg.StatusNoOp),
-		string(looppkg.StatusBlocked),
-		string(looppkg.StatusFailed),
-		string(looppkg.StatusExhausted),
-		string(looppkg.StatusStalled),
-		string(looppkg.StatusCanceled),
-		query.limit,
-	)
+	placeholders, args := loopWatchEventsEligibility(query.workspaceID, query.kinds)
+	args = append(args, query.streams[looppkg.WatchEventsLoopStream], query.limit)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT
-			lre.seq,
+			lre.watch_seq,
 			lre.kind,
 			lre.loop_run_id,
 			lre.workspace_id,
@@ -38,18 +55,12 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 			lre.at,
 			COALESCE(lr.loop_name, '')
 		   FROM loop_run_events lre
-		   JOIN loop_runs lr ON lr.id = lre.loop_run_id
-		  WHERE lre.workspace_id = ?
-		    AND lre.seq > ?
-		    AND lre.kind IN (`+placeholders+`)
-		    AND (
-			lre.kind <> ?
-			OR COALESCE(
-				json_extract(lre.payload_json, '$.to'),
-				json_extract(lre.payload_json, '$.status')
-			) IN (?, ?, ?, ?, ?, ?, ?)
-		    )
-		  ORDER BY lre.seq ASC
+		   JOIN loop_runs lr
+		     ON lr.id = lre.loop_run_id
+		    AND lr.workspace_id = lre.workspace_id
+		  WHERE `+loopWatchEventsEligibilitySQL(placeholders)+`
+		    AND lre.watch_seq > ?
+		  ORDER BY lre.watch_seq ASC
 		  LIMIT ?`,
 		args...,
 	)
@@ -75,6 +86,36 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 		return nil, err
 	}
 	return events, nil
+}
+
+// loopWatchEventsEligibility is shared by cursor and row reads so a row that
+// advances the gap cursor is always readable by the replay path.
+func loopWatchEventsEligibility(workspaceID string, kinds []string) (string, []any) {
+	placeholders, kindArgs := sqlInPlaceholders(kinds)
+	args := append([]any{workspaceID}, kindArgs...)
+	args = append(args,
+		loopRunEventStatusChanged,
+		string(looppkg.StatusDone),
+		string(looppkg.StatusNoOp),
+		string(looppkg.StatusBlocked),
+		string(looppkg.StatusFailed),
+		string(looppkg.StatusExhausted),
+		string(looppkg.StatusStalled),
+		string(looppkg.StatusCanceled),
+	)
+	return placeholders, args
+}
+
+func loopWatchEventsEligibilitySQL(placeholders string) string {
+	return `lre.workspace_id = ?
+	    AND lre.kind IN (` + placeholders + `)
+	    AND (
+		lre.kind <> ?
+		OR COALESCE(
+			json_extract(lre.payload_json, '$.to'),
+			json_extract(lre.payload_json, '$.status')
+		) IN (?, ?, ?, ?, ?, ?, ?)
+	    )`
 }
 
 func scanLoopWatchEvent(row rowScanner) (looppkg.WatchEvent, error) {

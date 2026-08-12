@@ -450,7 +450,9 @@ subscription is `{ kind, filter }` where `kind` is a supported hook-event name a
 optional CEL condition over `event`, `inputs`, and `nodes`. Multiple subscriptions OR together; an
 empty filter matches every event of that kind in the workspace. Hook dispatch is only the doorbell —
 the matched batch is re-derived from the durable ledger at wake, so subscriptions survive daemon
-downtime and dropped hooks. The batch lands at `nodes.<id>.output`.
+downtime and dropped hooks. `event.seq` is the durable, monotonic replay position within its ledger
+stream. For loop events, it is shared across runs and is separate from the per-run SSE sequence on
+`GET /loop-runs/:run_id/events`. The batch lands at `nodes.<id>.output`.
 
 Supported kinds are validated at publish against the family registry; an unsupported kind fails lint
 (`watch_events_kind_unsupported`, which names the supported set). Only post-state observation hooks

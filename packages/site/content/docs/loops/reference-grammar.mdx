@@ -194,7 +194,9 @@ and `nodes`. An omitted `filter` matches every event of that kind in the Loop's 
 The `event` root exposes the promoted correlation fields — `event.kind`, `event.seq`, `event.at`,
 `event.workspace_id`, `event.task_id`, `event.run_id`, `event.loop_run_id`, `event.loop_name`,
 `event.session_id` — plus `event.payload`, a per-kind map (e.g. `event.payload.to_status` for
-`task.status_changed`). Filters over `event` and `inputs` are exact; a filter that references
+`task.status_changed`). `event.seq` is the durable, monotonic replay position within its watch
+stream. For loop events, it is shared across runs and is separate from the per-run SSE sequence on
+`GET /loop-runs/:run_id/events`. Filters over `event` and `inputs` are exact; a filter that references
 `nodes.*` is intentionally over-inclusive at the doorbell and re-checked exactly at wake, so prefer
 `inputs`-only filters when you want a precise wake.
 

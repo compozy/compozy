@@ -745,6 +745,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"last_used_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_run_events", []string{
+		"watch_seq",
 		"id",
 		"loop_run_id",
 		"workspace_id",
@@ -845,7 +846,13 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	assertTableHasColumn(t, globalDB.db, "task_runs", "run_kind")
 	assertTableHasColumn(t, globalDB.db, "task_runs", "loop_run_id")
 	assertTableHasColumn(t, globalDB.db, "task_runs", "tokens_used")
-	assertIndexesPresent(t, globalDB.db, "loop_run_events", "idx_loop_run_events_run_seq")
+	assertIndexesPresent(
+		t,
+		globalDB.db,
+		"loop_run_events",
+		"idx_loop_run_events_run_seq",
+		"idx_loop_run_events_watch_stream",
+	)
 	assertIndexesPresent(t, globalDB.db, "loop_run_events", "uq_loop_run_events_delivery")
 	assertIndexesPresent(
 		t,
@@ -864,7 +871,27 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	)
 	assertIndexesPresent(t, globalDB.db, "loop_effect_outbox", "idx_loop_effect_outbox_pending")
 	assertIndexesPresent(t, globalDB.db, "loop_admission_claims", "idx_loop_admission_claims_expiry")
-	assertIndexSQLContains(t, globalDB.db, "idx_loop_run_events_run_seq", "ON loop_run_events(loop_run_id, seq)")
+	assertSchemaSQLContainsNormalized(
+		t,
+		globalDB.db,
+		"index",
+		"idx_loop_run_events_run_seq",
+		"ON loop_run_events(loop_run_id, seq)",
+	)
+	assertSchemaSQLContainsNormalized(
+		t,
+		globalDB.db,
+		"index",
+		"idx_loop_run_events_watch_stream",
+		"ON loop_run_events(workspace_id, watch_seq)",
+	)
+	assertSchemaSQLContainsNormalized(
+		t,
+		globalDB.db,
+		"table",
+		"loop_run_events",
+		"watch_seq INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT",
+	)
 	assertIndexSQLContains(t, globalDB.db, "uq_loop_run_events_delivery", "WHERE delivery_key IS NOT NULL")
 	assertIndexesPresent(t, globalDB.db, "loop_gate_decisions", "idx_loop_gate_decisions_workspace_run")
 	assertIndexesPresent(t, globalDB.db, "loop_gate_verdicts", "idx_loop_gate_verdicts_route_cause")
@@ -975,4 +1002,23 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	assertTableSQLContains(t, globalDB.db, "loop_ui_annotations", "PRIMARY KEY (workspace_id, loop_name, node_id)")
 	assertTableSQLContains(t, globalDB.db, "loop_config", "PRIMARY KEY (workspace_id, loop_name)")
 	assertGoalDurableStateSchema(t, globalDB)
+}
+
+func assertSchemaSQLContainsNormalized(
+	t *testing.T,
+	db *sql.DB,
+	objectType string,
+	name string,
+	want string,
+) {
+	t.Helper()
+
+	normalize := func(value string) string {
+		value = strings.NewReplacer("`", "", `"`, "").Replace(strings.ToLower(value))
+		return strings.Join(strings.Fields(value), "")
+	}
+	sqlText := schemaObjectSQL(t, db, objectType, name)
+	if !strings.Contains(normalize(sqlText), normalize(want)) {
+		t.Fatalf("sqlite schema for %s %s = %q, want normalized substring %q", objectType, name, sqlText, want)
+	}
 }

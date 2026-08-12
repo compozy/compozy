@@ -14,6 +14,9 @@ const (
 	outputKindConfirmed            = "watch_source_confirmed"
 	outputKindWatchEventsPending   = "watch_events_pending"
 	outputKindWatchEventsConfirmed = "watch_events_confirmed"
+
+	// EventsCursorVersion namespaces durable watch-event cursor values.
+	EventsCursorVersion = 1
 )
 
 // OutputRef is the JSON payload persisted in loop_generation_outputs.output_ref
@@ -26,6 +29,7 @@ type OutputRef struct {
 	SettledAt     *time.Time             `json:"settled_at,omitempty"`
 	Subscriptions []EventSubscriptionRef `json:"subscriptions,omitempty"`
 	Cursors       map[string]int64       `json:"cursors,omitempty"`
+	CursorVersion int                    `json:"cursor_version,omitempty"`
 	Events        json.RawMessage        `json:"events,omitempty"`
 }
 
@@ -40,6 +44,7 @@ type EventSubscriptionRef struct {
 type EventsPendingState struct {
 	Subscriptions []EventSubscriptionRef `json:"subscriptions"`
 	Cursors       map[string]int64       `json:"cursors"`
+	CursorVersion int                    `json:"cursor_version"`
 }
 
 // PendingOutputRef stores the last observed source digest while a loop is watching.
@@ -85,6 +90,7 @@ func EventsPendingOutputRef(state EventsPendingState) (string, error) {
 		Kind:          outputKindWatchEventsPending,
 		Subscriptions: cloneEventSubscriptionRefs(state.Subscriptions),
 		Cursors:       cloneCursors(state.Cursors),
+		CursorVersion: EventsCursorVersion,
 	})
 }
 
@@ -101,9 +107,16 @@ func EventsPendingFromOutputRef(ref string) (EventsPendingState, bool, error) {
 	if strings.TrimSpace(output.Kind) != outputKindWatchEventsPending {
 		return EventsPendingState{}, false, nil
 	}
+	if output.CursorVersion != EventsCursorVersion {
+		return EventsPendingState{}, false, fmt.Errorf(
+			"loop watch-events cursor version %d is unsupported",
+			output.CursorVersion,
+		)
+	}
 	return EventsPendingState{
 		Subscriptions: cloneEventSubscriptionRefs(output.Subscriptions),
 		Cursors:       cloneCursors(output.Cursors),
+		CursorVersion: output.CursorVersion,
 	}, true, nil
 }
 

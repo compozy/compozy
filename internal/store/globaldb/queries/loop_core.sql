@@ -106,7 +106,7 @@ DELETE FROM loop_config
 WHERE workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
 
 -- name: ListLoopRunEvents :many
-SELECT id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
+SELECT watch_seq, id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
 FROM loop_run_events
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND loop_run_id = sqlc.arg(loop_run_id)

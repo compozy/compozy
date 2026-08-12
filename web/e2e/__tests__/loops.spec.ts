@@ -55,6 +55,84 @@ const loopRuntimeName = "runtime-provenance-e2e";
 const loopFeedbackWorker = "loop-feedback-worker";
 const loopFeedbackJudge = "loop-feedback-exhaust-judge";
 const loopFeedbackName = "feedback-best-on-exhaustion-web";
+const loopWatchEventsName = "watch-events-read-model-web";
+const loopWatchCursorSeedName = "watch-events-cursor-seed-web";
+
+const loopWatchCursorSeedDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: loopWatchCursorSeedName,
+    description: "Create one eligible loop ledger event before arming a watcher.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  contract: {
+    goal: "Record a terminal loop event.",
+    definition_of_done: "The transform completes.",
+    stop_when: "nodes.finish.status == 'succeeded'",
+    iteration_cap: 1,
+    no_progress: { window: 2, hash_fields: ["nodes.finish.output.done"] },
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
+  },
+  graph: {
+    nodes: [
+      {
+        id: "finish",
+        class: "action",
+        kind: "transform",
+        params: { map: { done: { value: true } } },
+      },
+    ],
+    edges: [],
+  } as LoopDefinition["graph"],
+  start: [{ kind: "http" }],
+};
+
+const loopWatchEventsDefinition: LoopDefinition = {
+  apiVersion: "compozy.loop/v1",
+  kind: "Loop",
+  meta: {
+    name: loopWatchEventsName,
+    description: "Render a parked watch-events subscription from the real daemon.",
+    catalog: { category: "Testing" },
+  },
+  concurrency: "allow",
+  contract: {
+    goal: "Wait for a blocked task before recording the wake.",
+    definition_of_done: "The blocked task event was observed.",
+    stop_when: "nodes.record_wake.status == 'succeeded'",
+    iteration_cap: 1,
+    no_progress: { window: 2, hash_fields: ["nodes.task_activity.output.events"] },
+    budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+    terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
+  },
+  graph: {
+    nodes: [
+      {
+        id: "task_activity",
+        class: "source",
+        kind: "watch-events",
+        events: [
+          {
+            kind: "task.status_changed",
+            filter: "event.payload.to_status == 'blocked'",
+          },
+          { kind: "loop.terminal" },
+        ],
+      },
+      {
+        id: "record_wake",
+        class: "action",
+        kind: "transform",
+        params: { map: { observed: { value: true } } },
+      },
+    ],
+    edges: [{ from: "task_activity", to: "record_wake" }],
+  } as LoopDefinition["graph"],
+  start: [{ kind: "http" }],
+};
 
 const loopRuntimeDefinition: LoopDefinition = {
   apiVersion: "compozy.loop/v1",
@@ -677,6 +755,82 @@ test("CompozyOS migration E2E-004: loop run renders API runtime provenance witho
     0
   );
   await browserArtifacts.captureScreenshot("loop-run-runtime-provenance", appPage);
+});
+
+test("Parked watch-events run renders its durable cursor from the real daemon", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  if (!runtime.paths) {
+    throw new Error("Loop watch-events browser test requires launch-mode runtime paths");
+  }
+
+  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  await useGlobalWorkspaceIfPrompted(appPage);
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopWatchCursorSeedDefinition }),
+  });
+  const seed = await runtime.requestJSON<RunLoopResult>(
+    `${workspacePath}/loops/${encodeURIComponent(loopWatchCursorSeedName)}/run`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  if (!seed.run) throw new Error("Loop watch-events cursor seed did not create a run");
+  const seedPath = `${workspacePath}/loop-runs/${encodeURIComponent(seed.run.id)}`;
+  await expect
+    .poll(async () => (await runtime.requestJSON<LoopRunDetail>(seedPath)).run.status, {
+      timeout: 30_000,
+    })
+    .toBe("done");
+
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({ definition: loopWatchEventsDefinition }),
+  });
+  const started = await runtime.requestJSON<RunLoopResult>(
+    `${workspacePath}/loops/${encodeURIComponent(loopWatchEventsName)}/run`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  if (!started.run) throw new Error("Loop watch-events browser seed did not create a run");
+
+  const runPath = `${workspacePath}/loop-runs/${encodeURIComponent(started.run.id)}`;
+  await expect
+    .poll(async () => (await runtime.requestJSON<LoopRunDetail>(runPath)).run.status, {
+      timeout: 30_000,
+    })
+    .toBe("watching");
+  const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
+  const loopCursor = detail.watch_events?.cursors?.loop_run_events;
+  expect(loopCursor).toEqual(expect.any(Number));
+  expect(loopCursor).toBeGreaterThan(0);
+  expect(detail.watch_events?.last_wake_at).toEqual(expect.any(String));
+
+  await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(started.run.id)}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  await expect(appPage.getByText(/last woke/i)).toBeVisible();
+  await appPage.getByTestId("loop-run-open-inspect").click();
+  const watch = appPage.getByTestId("loop-run-inspect-watch");
+  await watch.scrollIntoViewIfNeeded();
+  await expect(watch).toBeVisible();
+  await expect(watch).toContainText("task.status_changed");
+  await expect(watch).toContainText("event.payload.to_status == 'blocked'");
+  const cursors = appPage.getByTestId("loop-run-inspect-cursors");
+  await expect(cursors.getByText("loop_run_events", { exact: true })).toBeVisible();
+  await expect(cursors.getByText(String(loopCursor), { exact: true })).toBeVisible();
+  await browserArtifacts.captureScreenshot("loop-run-watch-events-cursor", appPage);
+
+  await appPage.goto(runtime.url(`/loop-runs/${encodeURIComponent(seed.run.id)}`), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
+  await appPage.getByTestId("loop-run-open-inspect").click();
+  await expect(appPage.getByTestId("loop-run-inspect-watch")).toHaveCount(0);
 });
 
 test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, and best link", async ({

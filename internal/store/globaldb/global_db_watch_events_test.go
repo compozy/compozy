@@ -194,26 +194,390 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 	})
 
+	// Invariant: loop watch positions are durable, stream-global, workspace-scoped,
+	// and drawn from exactly the rows the replay reader can return.
+	// Owning layer: GlobalDB watch-event reader. Canonical suite: this test.
+	t.Run("Should surface loop events from a fresh run after another run advanced the cursor", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		base := time.Date(2026, 7, 8, 17, 0, 0, 0, time.UTC)
+		noisy := testLoopRun("watch-loop-noisy", base, looppkg.StatusRunning)
+		noisy.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, noisy, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(noisy) error = %v", err)
+		}
+		for index := range 8 {
+			if err := appendLoopRunEventWithExecutor(
+				ctx,
+				globalDB.db,
+				noisy.ID,
+				noisy.WorkspaceID,
+				loopRunEventStatusChanged,
+				map[string]string{"from": "paused", "to": "running", "status": "running"},
+				base.Add(time.Duration(index+1)*time.Millisecond),
+			); err != nil {
+				t.Fatalf("append noisy status event %d error = %v", index, err)
+			}
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			noisy.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			base.Add(time.Minute),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(noisy) error = %v", err)
+		}
+		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{"status_changed"},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(after noisy) error = %v", err)
+		}
+		armedCursor := cursors[looppkg.WatchEventsLoopStream]
+		if armedCursor == 0 {
+			t.Fatal("armed loop cursor = 0, want non-zero")
+		}
+
+		fresh := testLoopRun("watch-loop-fresh", base.Add(2*time.Minute), looppkg.StatusRunning)
+		fresh.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, fresh, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(fresh) error = %v", err)
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			fresh.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			base.Add(3*time.Minute),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(fresh) error = %v", err)
+		}
+		noisyMaxSeq := maxLoopRunEventSeqForTest(ctx, t, globalDB, noisy.ID)
+		freshMaxSeq := maxLoopRunEventSeqForTest(ctx, t, globalDB, fresh.ID)
+		if freshMaxSeq >= noisyMaxSeq {
+			t.Fatalf(
+				"fresh per-run seq = %d, want below noisy maximum %d so a per-run cursor would hide it",
+				freshMaxSeq,
+				noisyMaxSeq,
+			)
+		}
+
+		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: armedCursor},
+			Kinds:       []string{"status_changed"},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(after fresh terminal) error = %v", err)
+		}
+		terminalSeen := false
+		for _, event := range events {
+			if event.LoopRunID == string(fresh.ID) && event.Payload["to"] == string(looppkg.StatusDone) {
+				terminalSeen = true
+			}
+			if event.Seq <= armedCursor {
+				t.Fatalf("loop event seq = %d, want > armed cursor %d: %#v", event.Seq, armedCursor, event)
+			}
+		}
+		if !terminalSeen {
+			t.Fatalf("fresh terminal event missing after armed cursor %d: %#v", armedCursor, events)
+		}
+		refreshed, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{"status_changed"},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(after fresh) error = %v", err)
+		}
+		if got := refreshed[looppkg.WatchEventsLoopStream]; got <= armedCursor {
+			t.Fatalf("loop cursor after fresh terminal = %d, want > %d", got, armedCursor)
+		}
+	})
+
+	t.Run("Should never reuse a delivered loop cursor after deleting the latest event", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		base := time.Date(2026, 7, 8, 17, 30, 0, 0, time.UTC)
+		first := testLoopRun("watch-loop-delete-first", base, looppkg.StatusRunning)
+		first.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, first, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(first) error = %v", err)
+		}
+		second := testLoopRun("watch-loop-delete-second", base.Add(time.Minute), looppkg.StatusRunning)
+		second.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, second, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(second) error = %v", err)
+		}
+		if err := appendLoopRunEventWithExecutor(
+			ctx,
+			globalDB.db,
+			first.ID,
+			first.WorkspaceID,
+			loopRunEventStatusChanged,
+			map[string]string{"from": "running", "to": "done", "status": "done"},
+			base.Add(2*time.Minute),
+		); err != nil {
+			t.Fatalf("append first terminal event error = %v", err)
+		}
+		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{loopRunEventStatusChanged},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(first terminal) error = %v", err)
+		}
+		deliveredCursor := cursors[looppkg.WatchEventsLoopStream]
+		if deliveredCursor == 0 {
+			t.Fatal("delivered loop cursor = 0, want durable position")
+		}
+		firstTerminalSeq := maxLoopRunEventSeqForTest(ctx, t, globalDB, first.ID)
+		result, err := globalDB.db.ExecContext(
+			ctx,
+			`DELETE FROM loop_run_events WHERE loop_run_id = ? AND seq = ?`,
+			first.ID,
+			firstTerminalSeq,
+		)
+		if err != nil {
+			t.Fatalf("delete first terminal event error = %v", err)
+		}
+		deleted, err := result.RowsAffected()
+		if err != nil {
+			t.Fatalf("delete first terminal RowsAffected error = %v", err)
+		}
+		if got, want := deleted, int64(1); got != want {
+			t.Fatalf("deleted terminal rows = %d, want %d", got, want)
+		}
+		if err := appendLoopRunEventWithExecutor(
+			ctx,
+			globalDB.db,
+			second.ID,
+			second.WorkspaceID,
+			loopRunEventStatusChanged,
+			map[string]string{"from": "running", "to": "done", "status": "done"},
+			base.Add(3*time.Minute),
+		); err != nil {
+			t.Fatalf("append second terminal event error = %v", err)
+		}
+
+		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: deliveredCursor},
+			Kinds:       []string{loopRunEventStatusChanged},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(after deletion) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want || events[0].LoopRunID != string(second.ID) {
+			t.Fatalf("events after deleted cursor = %#v, want second run %q", events, second.ID)
+		}
+		if events[0].Seq <= deliveredCursor {
+			t.Fatalf("second cursor = %d, want > delivered cursor %d", events[0].Seq, deliveredCursor)
+		}
+	})
+
+	t.Run("Should page loop rows without gaps after the limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		base := time.Date(2026, 7, 8, 17, 35, 0, 0, time.UTC)
+		for index := range 5 {
+			run := testLoopRun(
+				fmt.Sprintf("watch-loop-page-%d", index),
+				base.Add(time.Duration(index)*time.Minute),
+				looppkg.StatusRunning,
+			)
+			run.WorkspaceID = "ws-a"
+			if _, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+				t.Fatalf("CreateLoopRunForStart(%d) error = %v", index, err)
+			}
+			if err := globalDB.CompareAndSwapLoopRunStatus(
+				ctx,
+				run.ID,
+				looppkg.StatusRunning,
+				looppkg.StatusDone,
+				looppkg.TransitionCauseContract,
+				base.Add(time.Duration(index)*time.Minute+time.Second),
+			); err != nil {
+				t.Fatalf("CompareAndSwapLoopRunStatus(%d) error = %v", index, err)
+			}
+		}
+		cursor := int64(0)
+		seen := make([]looppkg.WatchEvent, 0, 5)
+		for page := range 3 {
+			events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+				WorkspaceID: "ws-a",
+				Streams:     map[string]int64{looppkg.WatchEventsLoopStream: cursor},
+				Kinds:       []string{loopRunEventStatusChanged},
+				Limit:       2,
+			})
+			if err != nil {
+				t.Fatalf("ReadMatches(page %d) error = %v", page, err)
+			}
+			wantPageSize := 2
+			if page == 2 {
+				wantPageSize = 1
+			}
+			if got := len(events); got != wantPageSize {
+				t.Fatalf("page %d rows = %d, want %d: %#v", page, got, wantPageSize, events)
+			}
+			for _, event := range events {
+				if event.Seq <= cursor {
+					t.Fatalf("page %d cursor = %d after %d", page, event.Seq, cursor)
+				}
+				cursor = event.Seq
+			}
+			seen = append(seen, events...)
+		}
+		if got, want := len(seen), 5; got != want {
+			t.Fatalf("paged rows = %d, want %d", got, want)
+		}
+		current, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{loopRunEventStatusChanged},
+			Limit:       2,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(after pages) error = %v", err)
+		}
+		if got, want := current[looppkg.WatchEventsLoopStream], cursor; got != want {
+			t.Fatalf("current cursor = %d, want last paged cursor %d", got, want)
+		}
+	})
+
+	t.Run("Should keep loop cursor quiet for nonterminal-only rows", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		base := time.Date(2026, 7, 8, 17, 40, 0, 0, time.UTC)
+		run := testLoopRun("watch-loop-nonterminal", base, looppkg.StatusRunning)
+		run.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		query := looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{loopRunEventStatusChanged},
+			Limit:       10,
+		}
+		before, err := globalDB.ReadCursors(ctx, query)
+		if err != nil {
+			t.Fatalf("ReadCursors(before nonterminal) error = %v", err)
+		}
+		if err := appendLoopRunEventWithExecutor(
+			ctx,
+			globalDB.db,
+			run.ID,
+			run.WorkspaceID,
+			loopRunEventStatusChanged,
+			map[string]string{"from": "paused", "to": "running", "status": "running"},
+			base.Add(time.Minute),
+		); err != nil {
+			t.Fatalf("append nonterminal event error = %v", err)
+		}
+		after, err := globalDB.ReadCursors(ctx, query)
+		if err != nil {
+			t.Fatalf("ReadCursors(after nonterminal) error = %v", err)
+		}
+		if got, want := after[looppkg.WatchEventsLoopStream], before[looppkg.WatchEventsLoopStream]; got != want {
+			t.Fatalf("cursor after nonterminal row = %d, want unchanged %d", got, want)
+		}
+		query.Streams[looppkg.WatchEventsLoopStream] = before[looppkg.WatchEventsLoopStream]
+		events, err := globalDB.ReadMatches(ctx, query)
+		if err != nil {
+			t.Fatalf("ReadMatches(after nonterminal) error = %v", err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("nonterminal matches = %#v, want none", events)
+		}
+	})
+
+	t.Run("Should keep loop cursor quiet for orphan rows", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		query := looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{loopRunEventStatusChanged},
+			Limit:       10,
+		}
+		before, err := globalDB.ReadCursors(ctx, query)
+		if err != nil {
+			t.Fatalf("ReadCursors(before orphan) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_run_events (
+				id, loop_run_id, workspace_id, seq, kind, payload_json, at
+			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			"watch-loop-orphan-event",
+			"watch-loop-missing-run",
+			"ws-a",
+			1,
+			loopRunEventStatusChanged,
+			`{"from":"running","to":"done","status":"done"}`,
+			store.FormatTimestamp(time.Date(2026, 7, 8, 17, 50, 0, 0, time.UTC)),
+		); err != nil {
+			t.Fatalf("insert orphan loop event error = %v", err)
+		}
+		after, err := globalDB.ReadCursors(ctx, query)
+		if err != nil {
+			t.Fatalf("ReadCursors(after orphan) error = %v", err)
+		}
+		if got, want := after[looppkg.WatchEventsLoopStream], before[looppkg.WatchEventsLoopStream]; got != want {
+			t.Fatalf("cursor after orphan row = %d, want unchanged %d", got, want)
+		}
+		query.Streams[looppkg.WatchEventsLoopStream] = before[looppkg.WatchEventsLoopStream]
+		events, err := globalDB.ReadMatches(ctx, query)
+		if err != nil {
+			t.Fatalf("ReadMatches(after orphan) error = %v", err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("orphan matches = %#v, want none", events)
+		}
+	})
+
 	t.Run("Should scope loop cursors and matches to the requested workspace", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		base := time.Date(2026, 7, 8, 16, 0, 0, 0, time.UTC)
-		local := testLoopRun("watch-loop-local", base, looppkg.StatusRunning)
-		local.WorkspaceID = "ws-a"
-		if _, err := globalDB.CreateLoopRunForStart(ctx, local, dsl.ConcurrencyAllow); err != nil {
-			t.Fatalf("CreateLoopRunForStart(local) error = %v", err)
+		firstLocal := testLoopRun("watch-loop-local-first", base, looppkg.StatusRunning)
+		firstLocal.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, firstLocal, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(first local) error = %v", err)
 		}
 		if err := globalDB.CompareAndSwapLoopRunStatus(
 			ctx,
-			local.ID,
+			firstLocal.ID,
 			looppkg.StatusRunning,
 			looppkg.StatusDone,
 			looppkg.TransitionCauseContract,
 			base.Add(time.Minute),
 		); err != nil {
-			t.Fatalf("CompareAndSwapLoopRunStatus(local) error = %v", err)
+			t.Fatalf("CompareAndSwapLoopRunStatus(first local) error = %v", err)
 		}
 		foreign := testLoopRun("watch-loop-foreign", base.Add(2*time.Minute), looppkg.StatusRunning)
 		foreign.WorkspaceID = "ws-b"
@@ -230,6 +594,21 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		); err != nil {
 			t.Fatalf("CompareAndSwapLoopRunStatus(foreign) error = %v", err)
 		}
+		secondLocal := testLoopRun("watch-loop-local-second", base.Add(4*time.Minute), looppkg.StatusRunning)
+		secondLocal.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, secondLocal, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(second local) error = %v", err)
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			secondLocal.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			base.Add(5*time.Minute),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(second local) error = %v", err)
+		}
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
 			WorkspaceID: "ws-a",
@@ -240,11 +619,14 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadMatches(loop workspace) error = %v", err)
 		}
-		if got, want := len(events), 1; got != want {
+		if got, want := len(events), 2; got != want {
 			t.Fatalf("loop events len = %d, want %d: %#v", got, want, events)
 		}
-		if got := events[0]; got.WorkspaceID != "ws-a" || got.LoopRunID != string(local.ID) {
-			t.Fatalf("loop event = %#v, want local workspace/run", got)
+		if got := events[0]; got.WorkspaceID != "ws-a" || got.LoopRunID != string(firstLocal.ID) {
+			t.Fatalf("first loop event = %#v, want first local workspace/run", got)
+		}
+		if got := events[1]; got.WorkspaceID != "ws-a" || got.LoopRunID != string(secondLocal.ID) {
+			t.Fatalf("second loop event = %#v, want second local workspace/run", got)
 		}
 		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
 			WorkspaceID: "ws-a",
@@ -255,8 +637,20 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadCursors(loop workspace) error = %v", err)
 		}
-		if got, want := cursors[looppkg.WatchEventsLoopStream], events[0].Seq; got != want {
-			t.Fatalf("loop cursor = %d, want local terminal seq %d", got, want)
+		if got, want := cursors[looppkg.WatchEventsLoopStream], events[1].Seq; got != want {
+			t.Fatalf("loop cursor = %d, want latest local terminal seq %d", got, want)
+		}
+		afterFirst, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: events[0].Seq},
+			Kinds:       []string{loopRunEventStatusChanged},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(after first local) error = %v", err)
+		}
+		if got, want := len(afterFirst), 1; got != want || afterFirst[0].LoopRunID != string(secondLocal.ID) {
+			t.Fatalf("events after first local = %#v, want second local only", afterFirst)
 		}
 	})
 
@@ -824,6 +1218,244 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 		if strings.Contains(string(encoded), "do not leak") || strings.Contains(string(encoded), "content") {
 			t.Fatalf("event.post_record encoded event leaked content: %s", encoded)
+		}
+	})
+}
+
+func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve durable loop cursor semantics across migration and reopen", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: migration 00061 preserves loop event order/public per-run seq,
+		// gives the watch stream a never-reused position, and rearms legacy parked
+		// cursors at the migration fence without removing them from the durable index.
+		// Owning layer: GlobalDB migration stream. Canonical suite: this test.
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00061_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open v59 GlobalDB error = %v", err)
+		}
+		ctx := globalMigrationTestContext(t)
+		prefixClosed := false
+		t.Cleanup(func() {
+			if prefixClosed {
+				return
+			}
+			if closeErr := prefixDB.Close(); closeErr != nil {
+				t.Errorf("close v59 GlobalDB cleanup error = %v", closeErr)
+			}
+		})
+		now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: func() time.Time { return now }}
+		prefixGlobalDB.initializeRepositories(openConfig{})
+		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "watch-cursor-migration", t.TempDir())
+		definition := compileLoopTerminalWatchEventsDefinitionForTest(t)
+		watcher := testLoopRun("watch-cursor-legacy-watcher", now, looppkg.StatusRunning)
+		watcher.WorkspaceID = looppkg.WorkspaceID(workspaceID)
+		pinLoopRunDefinitionForTest(t, &watcher, definition)
+		if _, err := prefixGlobalDB.CreateLoopRunForStart(ctx, watcher, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(watcher) error = %v", err)
+		}
+		target := testLoopRun("watch-cursor-target", now.Add(time.Minute), looppkg.StatusRunning)
+		target.WorkspaceID = looppkg.WorkspaceID(workspaceID)
+		if _, err := prefixGlobalDB.CreateLoopRunForStart(ctx, target, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(target) error = %v", err)
+		}
+		if err := appendLoopRunEventWithExecutor(
+			ctx,
+			prefixDB,
+			target.ID,
+			target.WorkspaceID,
+			loopRunEventStatusChanged,
+			map[string]string{"from": "running", "to": "done", "status": "done"},
+			now.Add(2*time.Minute),
+		); err != nil {
+			t.Fatalf("append v59 terminal event error = %v", err)
+		}
+		var oldRowID, publicSeq int64
+		var eventID string
+		if err := prefixDB.QueryRowContext(
+			ctx,
+			`SELECT rowid, id, seq FROM loop_run_events
+		 WHERE loop_run_id = ? ORDER BY rowid DESC LIMIT 1`,
+			target.ID,
+		).Scan(&oldRowID, &eventID, &publicSeq); err != nil {
+			t.Fatalf("read v59 loop event identity error = %v", err)
+		}
+		legacyRef := `{"kind":"watch_events_pending","subscriptions":[{"kind":"loop.terminal"}],` +
+			`"cursors":{"loop_run_events":999999}}`
+		if _, err := prefixDB.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET status = 'watching', generation = 1 WHERE id = ?`,
+			watcher.ID,
+		); err != nil {
+			t.Fatalf("park v59 watcher run error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+			loop_run_id, generation, node_id, item_index, status, output_ref
+		 ) VALUES (?, 1, 'watch_loops', 0, 'pending', ?)`,
+			watcher.ID,
+			legacyRef,
+		); err != nil {
+			t.Fatalf("insert v59 pending cursor error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("close v59 GlobalDB error = %v", err)
+		}
+		prefixClosed = true
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("open upgraded GlobalDB error = %v", err)
+		}
+		ctx = globalMigrationTestContext(t)
+		upgradedClosed := false
+		t.Cleanup(func() {
+			if upgradedClosed {
+				return
+			}
+			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("close upgraded GlobalDB cleanup error = %v", closeErr)
+			}
+		})
+		var watchSeq, migratedPublicSeq int64
+		if err := upgraded.db.QueryRowContext(
+			ctx,
+			`SELECT watch_seq, seq FROM loop_run_events WHERE id = ?`,
+			eventID,
+		).Scan(&watchSeq, &migratedPublicSeq); err != nil {
+			t.Fatalf("read migrated loop event identity error = %v", err)
+		}
+		if watchSeq != oldRowID || migratedPublicSeq != publicSeq {
+			t.Fatalf(
+				"migrated identities = (watch %d, public %d), want old rowid/public (%d, %d)",
+				watchSeq,
+				migratedPublicSeq,
+				oldRowID,
+				publicSeq,
+			)
+		}
+		var migratedRef string
+		if err := upgraded.db.QueryRowContext(
+			ctx,
+			`SELECT output_ref FROM loop_generation_outputs
+		 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'watch_loops'`,
+			watcher.ID,
+		).Scan(&migratedRef); err != nil {
+			t.Fatalf("read migrated pending ref error = %v", err)
+		}
+		state, ok, err := watchpkg.EventsPendingFromOutputRef(migratedRef)
+		if err != nil || !ok {
+			t.Fatalf("EventsPendingFromOutputRef(migrated) = (_, %v, %v), want pending state", ok, err)
+		}
+		if got, want := state.CursorVersion, watchpkg.EventsCursorVersion; got != want {
+			t.Fatalf("migrated cursor version = %d, want %d", got, want)
+		}
+		var migrationFence int64
+		if err := upgraded.db.QueryRowContext(
+			ctx,
+			`SELECT COALESCE(MAX(lre.watch_seq), 0)
+		 FROM loop_run_events lre
+		 JOIN loop_runs lr
+		   ON lr.id = lre.loop_run_id AND lr.workspace_id = lre.workspace_id
+		 WHERE lr.workspace_id = ?`,
+			workspaceID,
+		).Scan(&migrationFence); err != nil {
+			t.Fatalf("read migration fence error = %v", err)
+		}
+		if got := state.Cursors[looppkg.WatchEventsLoopStream]; got != migrationFence || got == 999999 {
+			t.Fatalf("migrated loop cursor = %d, want migration fence %d", got, migrationFence)
+		}
+		parked, err := upgraded.ListParkedWatchEventSubscriptions(ctx)
+		if err != nil {
+			t.Fatalf("ListParkedWatchEventSubscriptions(after migration) error = %v", err)
+		}
+		if got, want := len(parked), 1; got != want || parked[0].LoopRunID != string(watcher.ID) {
+			t.Fatalf("parked subscriptions after migration = %#v, want watcher %q", parked, watcher.ID)
+		}
+		hasGap, err := upgraded.parkedWatchEventSubscriptionHasGap(ctx, parked[0])
+		if err != nil {
+			t.Fatalf("parkedWatchEventSubscriptionHasGap(at fence) error = %v", err)
+		}
+		if hasGap {
+			t.Fatal("parkedWatchEventSubscriptionHasGap(at fence) = true, want false")
+		}
+		beforeNew, err := upgraded.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: workspaceID,
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: migrationFence},
+			Kinds:       []string{loopRunEventStatusChanged},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(at migration fence) error = %v", err)
+		}
+		if len(beforeNew) != 0 {
+			t.Fatalf("events at migration fence = %#v, want no replay", beforeNew)
+		}
+		if err := appendLoopRunEventWithExecutor(
+			ctx,
+			upgraded.db,
+			target.ID,
+			target.WorkspaceID,
+			loopRunEventStatusChanged,
+			map[string]string{"from": "running", "to": "failed", "status": "failed"},
+			now.Add(3*time.Minute),
+		); err != nil {
+			t.Fatalf("append post-migration terminal event error = %v", err)
+		}
+		afterNew, err := upgraded.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: workspaceID,
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: migrationFence},
+			Kinds:       []string{loopRunEventStatusChanged},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(after migration fence) error = %v", err)
+		}
+		if got, want := len(afterNew), 1; got != want || afterNew[0].Seq <= migrationFence {
+			t.Fatalf("post-migration matches = %#v, want one new durable position", afterNew)
+		}
+		hasGap, err = upgraded.parkedWatchEventSubscriptionHasGap(ctx, parked[0])
+		if err != nil {
+			t.Fatalf("parkedWatchEventSubscriptionHasGap(after new event) error = %v", err)
+		}
+		if !hasGap {
+			t.Fatal("parkedWatchEventSubscriptionHasGap(after new event) = false, want true")
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("close upgraded GlobalDB error = %v", err)
+		}
+		upgradedClosed = true
+
+		ctx = globalMigrationTestContext(t)
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopened) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("close reopened GlobalDB error = %v", closeErr)
+			}
+		})
+		replayed, err := reopened.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: workspaceID,
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: migrationFence},
+			Kinds:       []string{loopRunEventStatusChanged},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(after reopen) error = %v", err)
+		}
+		if got, want := len(replayed), 1; got != want || replayed[0].Seq != afterNew[0].Seq {
+			t.Fatalf("reopened matches = %#v, want durable post-migration event %#v", replayed, afterNew[0])
 		}
 	})
 }
@@ -2184,6 +2816,37 @@ func compileWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.Resol
 	return resolved
 }
 
+func compileLoopTerminalWatchEventsDefinitionForTest(t *testing.T) *looppkg.ResolvedDefinition {
+	t.Helper()
+	resolved, err := looppkg.NewCompiler().Compile(dsl.Definition{
+		APIVersion: dsl.APIVersion,
+		Kind:       dsl.KindLoop,
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID:     "watch_loops",
+					Class:  dsl.NodeClassSource,
+					Kind:   string(dsl.SourceWatchEvents),
+					Events: []dsl.EventSubscription{{Kind: string(hookspkg.HookLoopTerminal)}},
+				},
+				{
+					ID:    "summarize",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionTransform),
+					Params: dsl.NodeParams{
+						"map": map[string]any{"ok": map[string]any{"value": true}},
+					},
+				},
+			},
+			Edges: []dsl.Edge{{From: "watch_loops", To: "summarize"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Compile(loop terminal watch-events) error = %v", err)
+	}
+	return resolved
+}
+
 func compileCoordinatorStoppedWatchEventsIntegrationDefinitionForTest(t *testing.T) *looppkg.ResolvedDefinition {
 	t.Helper()
 	resolved, err := looppkg.NewCompiler().Compile(dsl.Definition{
@@ -2410,6 +3073,26 @@ func decodeWatchEventsConfirmedRefForTest(
 		t.Fatalf("watch-events ref kind = %q, want watch_events_confirmed", confirmed.Kind)
 	}
 	return confirmed
+}
+
+// maxLoopRunEventSeqForTest reads one run's persisted per-run ledger maximum so
+// tests can pin preconditions about the per-run seq namespace.
+func maxLoopRunEventSeqForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID looppkg.RunID,
+) int64 {
+	t.Helper()
+	var maxSeq int64
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COALESCE(MAX(seq), 0) FROM loop_run_events WHERE loop_run_id = ?`,
+		runID,
+	).Scan(&maxSeq); err != nil {
+		t.Fatalf("read max loop run event seq for %q: %v", runID, err)
+	}
+	return maxSeq
 }
 
 func watchEventCountsByStream(events []looppkg.WatchEvent) map[string]int {
