@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	goruntime "runtime"
 	"strings"
 	"time"
 
@@ -127,6 +128,13 @@ func applyAvailableUpdate(
 	if err != nil {
 		record.Status = string(compozyupdate.StatusFailed)
 		record.Message = err.Error()
+		var artifactSizeErr *compozyupdate.ArtifactSizeError
+		if errors.As(err, &artifactSizeErr) {
+			record.Recommendation = compozyupdate.ManualDirectBinaryRecommendation(
+				record.ReleaseURL,
+				goruntime.GOOS,
+			)
+		}
 		return writeUpdateFailure(cmd, record, err)
 	}
 	if !running {
@@ -161,6 +169,7 @@ func finishLocalUpdate(
 	}
 	record.Status = string(compozyupdate.StatusUpdated)
 	record.CurrentVersion = strings.TrimSpace(release.Version)
+	record.Recommendation = ""
 	record.Message = "Updated CompozyOS to " + strings.TrimSpace(release.Version) + "."
 	return writeCommandOutput(cmd, updateBundle(record))
 }
@@ -240,6 +249,7 @@ func restartDaemonAfterUpdate(
 	}
 	record.Status = string(compozyupdate.StatusUpdated)
 	record.CurrentVersion = strings.TrimSpace(release.Version)
+	record.Recommendation = ""
 	record.DaemonRestarted = true
 	record.Message = "Updated CompozyOS to " + strings.TrimSpace(release.Version) + " and restarted the daemon."
 	return writeCommandOutput(cmd, updateBundle(record))

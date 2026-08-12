@@ -25,6 +25,10 @@ Do not manage runtime state by editing SQLite databases, process internals, or g
 build tracks newer beta releases. For install channels and moving between lines, follow the
 compozy.com docs instead of package managers, which may lag the active line.
 
+When an artifact-policy failure prevents an in-place update, follow the command's release-specific
+manual replacement recommendation. The same release cannot succeed through another immediate
+`compozy update` attempt.
+
 ## Daemon Drain
 
 Use `compozy drain -o json` (or `POST /api/drain` over HTTP/UDS) to close daemon-global new-work admission while admitted prompts and claimed runs finish. The stable response is `{"state":"draining"}`; repeated calls are no-ops. New session/prompt, task-run enqueue, retry/recover, and run-claim attempts return 503 with `daemon is draining; new work admission is closed`, while cancellation, terminal transitions, and teardown remain available.

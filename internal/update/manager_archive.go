@@ -64,10 +64,82 @@ func extractBinaryFromTarGz(
 	archivePath string,
 	tempDir string,
 	binaryName string,
-) (_ string, _ os.FileMode, err error) {
+	policy ArtifactPolicy,
+) (string, os.FileMode, error) {
+	resolvedPolicy, err := resolveArtifactPolicy(policy)
+	if err != nil {
+		return "", 0, err
+	}
+	targetPath := filepath.Join(tempDir, binaryName)
+	writeBinary := func(reader io.Reader, size int64) error {
+		target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+		if err != nil {
+			return fmt.Errorf("update: create extracted binary %q: %w", targetPath, err)
+		}
+		if err := copyArchiveEntry(target, reader, size); err != nil {
+			return errors.Join(
+				fmt.Errorf("update: extract binary %q: %w", targetPath, err),
+				target.Close(),
+			)
+		}
+		if err := target.Close(); err != nil {
+			return fmt.Errorf("update: close extracted binary %q: %w", targetPath, err)
+		}
+		return nil
+	}
+	mode, err := inspectArchiveBinary(archivePath, binaryName, resolvedPolicy, writeBinary)
+	if err != nil {
+		return "", 0, err
+	}
+	if mode != 0 {
+		if err := os.Chmod(targetPath, mode); err != nil {
+			return "", 0, fmt.Errorf("update: chmod extracted binary %q: %w", targetPath, err)
+		}
+	}
+	return targetPath, mode, nil
+}
+
+// ValidateReleaseArchive checks one direct-update archive without applying its binary.
+func ValidateReleaseArchive(
+	archivePath string,
+	binaryName string,
+	policy ArtifactPolicy,
+) error {
+	resolvedPolicy, err := resolveArtifactPolicy(policy)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(archivePath)
+	if err != nil {
+		return fmt.Errorf("update: stat archive %q: %w", archivePath, err)
+	}
+	if err := validateArtifactSize(
+		ArtifactKindArchive,
+		info.Size(),
+		resolvedPolicy.MaxArchiveBytes,
+	); err != nil {
+		return err
+	}
+
+	_, err = inspectArchiveBinary(archivePath, binaryName, resolvedPolicy, func(reader io.Reader, size int64) error {
+		return copyArchiveEntry(io.Discard, reader, size)
+	})
+	return err
+}
+
+func inspectArchiveBinary(
+	archivePath string,
+	binaryName string,
+	policy ArtifactPolicy,
+	consume func(io.Reader, int64) error,
+) (_ os.FileMode, err error) {
+	resolvedPolicy, err := resolveArtifactPolicy(policy)
+	if err != nil {
+		return 0, err
+	}
 	file, err := os.Open(archivePath)
 	if err != nil {
-		return "", 0, fmt.Errorf("update: open archive %q: %w", archivePath, err)
+		return 0, fmt.Errorf("update: open archive %q: %w", archivePath, err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
@@ -77,7 +149,7 @@ func extractBinaryFromTarGz(
 
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
-		return "", 0, fmt.Errorf("update: open gzip archive %q: %w", archivePath, err)
+		return 0, fmt.Errorf("update: open gzip archive %q: %w", archivePath, err)
 	}
 	defer func() {
 		if closeErr := gzipReader.Close(); closeErr != nil {
@@ -90,9 +162,9 @@ func extractBinaryFromTarGz(
 		header, err := tarReader.Next()
 		switch {
 		case errors.Is(err, io.EOF):
-			return "", 0, fmt.Errorf("update: archive %q did not contain %s", archivePath, binaryName)
+			return 0, fmt.Errorf("update: archive %q did not contain %s", archivePath, binaryName)
 		case err != nil:
-			return "", 0, fmt.Errorf("update: read archive %q: %w", archivePath, err)
+			return 0, fmt.Errorf("update: read archive %q: %w", archivePath, err)
 		case header == nil:
 			continue
 		case !isRegularArchiveFile(header):
@@ -101,28 +173,18 @@ func extractBinaryFromTarGz(
 			continue
 		}
 
-		targetPath := filepath.Join(tempDir, binaryName)
-		target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
-		if err != nil {
-			return "", 0, fmt.Errorf("update: create extracted binary %q: %w", targetPath, err)
-		}
-		if err := copyArchiveEntry(target, tarReader, header.Size); err != nil {
-			return "", 0, errors.Join(
-				fmt.Errorf("update: extract binary %q: %w", targetPath, err),
-				target.Close(),
-			)
-		}
-		if err := target.Close(); err != nil {
-			return "", 0, fmt.Errorf("update: close extracted binary %q: %w", targetPath, err)
-		}
-
 		mode := header.FileInfo().Mode().Perm()
-		if mode != 0 {
-			if err := os.Chmod(targetPath, mode); err != nil {
-				return "", 0, fmt.Errorf("update: chmod extracted binary %q: %w", targetPath, err)
-			}
+		if err := validateArtifactSize(
+			ArtifactKindBinary,
+			header.Size,
+			resolvedPolicy.MaxBinaryBytes,
+		); err != nil {
+			return 0, err
 		}
-		return targetPath, mode, nil
+		if err := consume(tarReader, header.Size); err != nil {
+			return 0, err
+		}
+		return mode, nil
 	}
 }
 
@@ -148,16 +210,9 @@ func executableBinaryMode(candidate os.FileMode, fallback os.FileMode) os.FileMo
 	return 0o755
 }
 
-func copyArchiveEntry(target *os.File, reader io.Reader, size int64) error {
+func copyArchiveEntry(target io.Writer, reader io.Reader, size int64) error {
 	if size <= 0 {
 		return errors.New("archive entry size must be positive")
-	}
-	if size > maxExtractedBinaryBytes {
-		return fmt.Errorf(
-			"archive entry size %d exceeds the allowed limit of %d bytes",
-			size,
-			maxExtractedBinaryBytes,
-		)
 	}
 
 	limitedReader := io.LimitReader(reader, size)

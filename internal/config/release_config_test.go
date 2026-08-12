@@ -85,6 +85,32 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		}
 	})
 
+	t.Run("Should validate update archives with the runtime policy before publishing", func(t *testing.T) {
+		t.Parallel()
+
+		hooks := sliceAt(t, cfg, "before_publish")
+		if len(hooks) != 1 {
+			t.Fatalf("before_publish len = %d, want 1 update archive policy hook", len(hooks))
+		}
+		hook := asMap(t, hooks[0], "before_publish[0]")
+		if !stringSliceContains(sliceAt(t, hook, "ids"), "compozy-archive") {
+			t.Fatalf("before_publish[0].ids = %#v, want compozy-archive", hook["ids"])
+		}
+		if got, want := stringAt(t, hook, "artifacts"), "archive"; got != want {
+			t.Fatalf("before_publish[0].artifacts = %q, want %q", got, want)
+		}
+		command := stringAt(t, hook, "cmd")
+		for _, want := range []string{"updateArchiveCheck", "{{ .ArtifactPath }}"} {
+			if !strings.Contains(command, want) {
+				t.Fatalf("before_publish[0].cmd = %q, want %q", command, want)
+			}
+		}
+		output, ok := hook["output"].(bool)
+		if !ok || !output {
+			t.Fatalf("before_publish[0].output = %#v, want true", hook["output"])
+		}
+	})
+
 	t.Run("Should publish stable archives and curl installer asset", func(t *testing.T) {
 		t.Parallel()
 

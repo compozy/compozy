@@ -36,6 +36,7 @@ func TestUpdateCommandFlows(t *testing.T) {
 						LatestVersion:  "v1.1.0",
 						Available:      true,
 						Status:         compozyupdate.StatusAvailable,
+						Recommendation: "Run `compozy update`.",
 						Message:        "A newer stable CompozyOS release is available.",
 					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
 				},
@@ -74,6 +75,9 @@ func TestUpdateCommandFlows(t *testing.T) {
 		}
 		if record.Status != string(compozyupdate.StatusUpdated) || record.DaemonRestarted {
 			t.Fatalf("record = %#v, want updated without daemon restart", record)
+		}
+		if record.Recommendation != "" {
+			t.Fatalf("record.Recommendation = %q, want no action after successful update", record.Recommendation)
 		}
 	})
 
@@ -221,6 +225,51 @@ func TestUpdateCommandFlows(t *testing.T) {
 		}
 		if record.Status != string(compozyupdate.StatusCurrent) || record.CurrentVersion != "v1.1.0" {
 			t.Fatalf("record = %#v, want current latest snapshot", record)
+		}
+	})
+
+	t.Run("Should recommend manual recovery when the release binary exceeds the artifact policy", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
+			return stubUpdateManager{
+				checkFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error) {
+					return compozyupdate.State{
+						Supported:      true,
+						InstallMethod:  string(compozyupdate.InstallMethodDirectBinary),
+						CurrentVersion: "v1.0.0",
+						LatestVersion:  "v1.1.0",
+						Available:      true,
+						Status:         compozyupdate.StatusAvailable,
+						Recommendation: "Run `compozy update`.",
+						ReleaseURL:     "https://github.com/compozy/compozy/releases/tag/v1.1.0",
+					}, &compozyupdate.Release{Version: "v1.1.0"}, nil
+				},
+				applyFn: func(context.Context, *compozyupdate.Release) (compozyupdate.AppliedBinary, error) {
+					policy := compozyupdate.DefaultArtifactPolicy()
+					return compozyupdate.AppliedBinary{}, &compozyupdate.ArtifactSizeError{
+						Kind:  compozyupdate.ArtifactKindBinary,
+						Size:  policy.MaxBinaryBytes + 1,
+						Limit: policy.MaxBinaryBytes,
+					}
+				},
+			}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "update", "-o", "json")
+		if err == nil {
+			t.Fatal("executeRootCommand() error = nil, want artifact policy failure")
+		}
+		var record updateRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(update failure) error = %v", err)
+		}
+		if strings.Contains(record.Recommendation, "compozy update") {
+			t.Fatalf("record.Recommendation = %q, must not repeat the failed command", record.Recommendation)
+		}
+		if !strings.Contains(record.Recommendation, record.ReleaseURL) {
+			t.Fatalf("record.Recommendation = %q, want release URL %q", record.Recommendation, record.ReleaseURL)
 		}
 	})
 }

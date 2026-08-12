@@ -155,12 +155,7 @@ func (m *Manager) downloadFile(ctx context.Context, url string, path string, max
 		return fmt.Errorf("update: download %q returned %s", url, resp.Status)
 	}
 	if resp.ContentLength > maxBytes {
-		return fmt.Errorf(
-			"update: download %q size %d exceeds limit %d",
-			url,
-			resp.ContentLength,
-			maxBytes,
-		)
+		return &downloadSizeError{Path: url, Size: resp.ContentLength, Limit: maxBytes}
 	}
 
 	file, err := os.Create(path)

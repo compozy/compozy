@@ -113,7 +113,7 @@ func (m *Manager) composeState(install installInfo, latest *Release, checkedAt *
 	}
 
 	if state.InstallMethod == string(InstallMethodDirectBinary) && !supportedPlatform {
-		state.Recommendation = manualDirectBinaryRecommendation(state.ReleaseURL, m.runtimeOS)
+		state.Recommendation = ManualDirectBinaryRecommendation(state.ReleaseURL, m.runtimeOS)
 	}
 	return state
 }
@@ -148,7 +148,7 @@ func (m *Manager) updateRecommendation(installMethod string, release *Release) s
 		case string(InstallMethodGoInstall):
 			return "Use `go install " + goInstallModulePath + "@" + releaseVersion + "`."
 		case string(InstallMethodDirectBinary):
-			return manualDirectBinaryRecommendation(releaseURL, m.runtimeOS)
+			return ManualDirectBinaryRecommendation(releaseURL, m.runtimeOS)
 		default:
 			return "Install the v0.3 beta with `curl -fsSL https://compozy.com/install.sh | sh`."
 		}
@@ -172,7 +172,7 @@ func (m *Manager) updateRecommendation(installMethod string, release *Release) s
 	case string(InstallMethodGoInstall):
 		return "Use `go install " + goInstallModulePath + "@latest`."
 	case string(InstallMethodDirectBinary):
-		return manualDirectBinaryRecommendation(releaseURL, m.runtimeOS)
+		return ManualDirectBinaryRecommendation(releaseURL, m.runtimeOS)
 	default:
 		if strings.TrimSpace(installMethod) == "" {
 			return ""
@@ -181,7 +181,8 @@ func (m *Manager) updateRecommendation(installMethod string, release *Release) s
 	}
 }
 
-func manualDirectBinaryRecommendation(releaseURL string, runtimeOS string) string {
+// ManualDirectBinaryRecommendation returns the recovery path when in-place update is unavailable.
+func ManualDirectBinaryRecommendation(releaseURL string, runtimeOS string) string {
 	if runtimeOS == runtimeOSWindows {
 		if strings.TrimSpace(releaseURL) == "" {
 			return "Download the latest CompozyOS Windows release archive and replace `compozy.exe` manually."
