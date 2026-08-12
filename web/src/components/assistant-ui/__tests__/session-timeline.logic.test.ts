@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  computeStableSessionRows,
   deriveSessionRows,
-  EMPTY_STABLE_SESSION_ROWS,
   visibleWorkEntries,
   type SessionTimelinePart,
   type SessionTimelineToolPart,
@@ -203,49 +201,6 @@ describe("session timeline derivation", () => {
     );
   });
 
-  it("Should keep unchanged row references across passes and leave prior rows intact on append", () => {
-    const first = deriveSessionRows([text("stable-text", "Stable"), tool(1)]);
-    const firstStable = computeStableSessionRows(first, EMPTY_STABLE_SESSION_ROWS);
-
-    // Re-parse with fresh part objects of identical content (simulates the hook's
-    // per-message re-parse): unchanged rows must keep referential identity.
-    const second = deriveSessionRows([text("stable-text", "Stable"), tool(1)]);
-    const secondStable = computeStableSessionRows(second, firstStable);
-    expect(secondStable).toBe(firstStable);
-    expect(secondStable.result[0]).toBe(firstStable.result[0]);
-    expect(secondStable.result[1]).toBe(firstStable.result[1]);
-
-    const third = deriveSessionRows([
-      text("stable-text", "Stable"),
-      tool(1),
-      text("appended", "New", "turn-1", "2026-07-07T12:00:12Z"),
-    ]);
-    const thirdStable = computeStableSessionRows(third, secondStable);
-    expect(thirdStable).not.toBe(secondStable);
-    expect(thirdStable.result[0]).toBe(secondStable.result[0]);
-    expect(thirdStable.result[1]).toBe(secondStable.result[1]);
-    expect(thirdStable.result[2]?.kind).toBe("text");
-  });
-
-  it("Should give only the mutated row a new reference while sibling rows keep identity", () => {
-    const first = deriveSessionRows([text("stable-a", "Alpha"), text("mutating-b", "Bravo")]);
-    const firstStable = computeStableSessionRows(first, EMPTY_STABLE_SESSION_ROWS);
-
-    // Re-derive with fresh part objects where only the second row's visible text
-    // changed (simulates a streaming chunk landing on the live row).
-    const second = deriveSessionRows([
-      text("stable-a", "Alpha"),
-      text("mutating-b", "Bravo, revised"),
-    ]);
-    const secondStable = computeStableSessionRows(second, firstStable);
-
-    expect(secondStable).not.toBe(firstStable);
-    // The unchanged sibling keeps its reference; only the mutated row is fresh.
-    expect(secondStable.result[0]).toBe(firstStable.result[0]);
-    expect(secondStable.result[1]).not.toBe(firstStable.result[1]);
-    expect(secondStable.result[1]).toBe(second[1]);
-  });
-
   it("Should treat the derivation as a pure view that never mutates the message parts", () => {
     const parts = Object.freeze([tool(1), tool(2), tool(3)]) as readonly SessionTimelinePart[];
     const snapshot = parts.map(part => ({ ...part }));
@@ -258,20 +213,6 @@ describe("session timeline derivation", () => {
     parts.forEach((part, index) => {
       expect(part).toEqual(snapshot[index]);
     });
-  });
-
-  it("Should return the previous stable state when a re-derivation reorders rows to a new result", () => {
-    const rows = deriveSessionRows([
-      text("first", "First", undefined, "2026-07-07T12:00:00Z"),
-      text("second", "Second", undefined, "2026-07-07T12:00:10Z"),
-    ]);
-    const initial = computeStableSessionRows(rows, EMPTY_STABLE_SESSION_ROWS);
-
-    const reordered = computeStableSessionRows([rows[1]!, rows[0]!], initial);
-
-    expect(reordered).not.toBe(initial);
-    expect(reordered.result[0]).toBe(initial.result[1]);
-    expect(reordered.result[1]).toBe(initial.result[0]);
   });
 
   it("Should fold settled turns while leaving the terminal assistant text visible", () => {
@@ -525,19 +466,6 @@ describe("session timeline derivation", () => {
     // A still-streaming reasoning part keeps the row live so the turn stays open.
     expect(second.streaming).toBe(true);
   });
-
-  it("Should keep a grouped reasoning row referentially stable across an unchanged re-derive", () => {
-    const parts: SessionTimelinePart[] = [
-      { kind: "reasoning", id: "reason-x", text: "One", turnId: "turn-1", state: "done" },
-      { kind: "reasoning", id: "reason-y", text: "Two", turnId: "turn-1", state: "done" },
-    ];
-
-    const first = computeStableSessionRows(deriveSessionRows(parts), EMPTY_STABLE_SESSION_ROWS);
-    const second = computeStableSessionRows(deriveSessionRows(parts), first);
-
-    expect(second).toBe(first);
-    expect(second.result[0]).toBe(first.result[0]);
-  });
 });
 
 describe("changed-files roll-up derivation", () => {
@@ -632,27 +560,6 @@ describe("changed-files roll-up derivation", () => {
     );
 
     expect(rows.some(row => row.kind === "changed-files")).toBe(false);
-  });
-
-  it("Should keep the changed-files row referentially stable across an unchanged re-derive", () => {
-    const parts: SessionTimelinePart[] = [
-      tool(1, {
-        toolName: "Write",
-        turnId: "turn-1",
-        args: { file_path: "/src/a.ts", content: "a\nb\nc" },
-      }),
-      text("t1", "Wrote the file.", "turn-1"),
-    ];
-    const options = { foldSettledTurns: true };
-
-    const first = computeStableSessionRows(
-      deriveSessionRows(parts, options),
-      EMPTY_STABLE_SESSION_ROWS
-    );
-    const second = computeStableSessionRows(deriveSessionRows(parts, options), first);
-
-    expect(second).toBe(first);
-    expect(second.result.some(row => row.kind === "changed-files")).toBe(true);
   });
 });
 

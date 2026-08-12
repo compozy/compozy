@@ -122,7 +122,7 @@ From `UIMessagePart` / `SessionTimelineToolPart` / `ToolUseResult`:
 5. **Receipts are persistent rows** — permission/clarification outcomes stay outside turn
    folds (`isPersistentTurnRow` already does this — keep).
 6. Update `web/src/components/assistant-ui/timeline-row-estimates.ts` (trow ≈ 26px, marker ≈ 24px) and keep
-   `isRowUnchanged` in sync with new row fields.
+   `sessionRowEqual` in sync with new row fields.
 
 ## 6. Behaviors
 
@@ -270,7 +270,7 @@ repos are **visual-grammar references only** — Compozy's data layer (`UIMessag
 
 | Path | What it carries | Port? |
 |---|---|---|
-| `.resources/t3code/apps/web/src/components/chat/MessagesTimeline.logic.ts` | `MAX_VISIBLE_WORK_LOG_ENTRIES = 1` (:12) — t3code shows only the last live entry; `TIMELINE_CONTENT_MAX_WIDTH = 768` (:16) — the one-column premise; `computeMessageDurationStart` (:185); "Worked for ${duration}" derivation (:391); `deriveMessagesTimelineRows` (:405) with the hidden/visible slice for the "+N previous" overflow (:482–493); `computeStableMessagesTimelineRows` (:577) — the stable-row identity pattern our `isRowUnchanged` mirrors | pattern yes; our tail limit is `ACTIVE_WORK_VISIBLE_LIMIT = 4`, not 1 |
+| `.resources/t3code/apps/web/src/components/chat/MessagesTimeline.logic.ts` | `MAX_VISIBLE_WORK_LOG_ENTRIES = 1` (:12) — t3code shows only the last live entry; `TIMELINE_CONTENT_MAX_WIDTH = 768` (:16) — the one-column premise; `computeMessageDurationStart` (:185); "Worked for ${duration}" derivation (:391); `deriveMessagesTimelineRows` (:405) with the hidden/visible slice for the "+N previous" overflow (:482–493); `computeStableMessagesTimelineRows` (:577) — the semantic row-equality pattern our `sessionRowEqual` mirrors | pattern yes; our tail limit is `ACTIVE_WORK_VISIBLE_LIMIT = 4`, not 1 |
 | `.resources/t3code/apps/web/src/components/chat/MessagesTimeline.tsx` | fold row anchoring, `WorkingTimer`/`LiveElapsed` ticker components (comment :121 — elapsed handled outside React commits) | ticker discipline yes; minimap no |
 | `.resources/t3code/apps/web/src/components/chat/MessagesTimeline.logic.test.ts` + `MessagesTimeline.test.tsx` | test shapes for row derivation and folding | mirror the cases in `session-timeline.logic` suites |
 | `.resources/synara/apps/web/src/components/chat/MessagesTimeline.logic.ts` | `MAX_VISIBLE_WORK_LOG_ENTRIES = 6` (:23); `chunkCollapsedTurnItems` (:43) + `chunkWorkEntries` (:77) — consecutive-kind chunking; `planWorkEntryRenderChunks` (:103) / `capOpenWorkEntryRenderChunks` (:128) — live-tail capping; `findLastLiveWorkGroupId` (:174) — only the last live run stays open; live-turn header mirroring the settled fold (:244); `collapseSettledTurns` post-pass (:634, contract comment :691) — **collapse on settle, even mid-turn** | yes — this is the §5 grouping engine |
@@ -340,7 +340,7 @@ is `session.css` (class contracts in §2); token authority stays `packages/ui/sr
    `SessionTimelineToolPart`, `MIN_COLLAPSIBLE_TOOL_GROUP_SIZE = 2`. Add collapse-on-settle
    (synara `collapseSettledTurns` post-pass) and marker clustering (×N). Delete
    `SETTLED_WORK_VISIBLE_LIMIT`; keep `ACTIVE_WORK_VISIBLE_LIMIT = 4`. Update
-   `timeline-row-estimates.ts` (trow ≈ 26px, marker ≈ 24px) and `isRowUnchanged`.
+   `timeline-row-estimates.ts` (trow ≈ 26px, marker ≈ 24px) and `sessionRowEqual`.
    Extend the existing logic test suite with the reference cases (§10.1 test files).
 2. **Primitives — `packages/ui`** (story + test each, per reuse-before-create):
    retoned `tool-call-row` (`.trow` grammar), new `marker`, `receipt`, `dock` (incl.
