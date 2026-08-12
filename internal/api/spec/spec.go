@@ -178,6 +178,7 @@ const (
 	specToolsetsKey                                          = "toolsets"
 	specVaultKey                                             = "vault"
 	specWorkspacesKey                                        = "workspaces"
+	specWorktreesKey                                         = "worktrees"
 )
 
 const (
@@ -288,6 +289,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specToolsetsKey},
 			{Name: specVaultKey},
 			{Name: specWorkspacesKey},
+			{Name: specWorktreesKey},
 		},
 	}
 	if err := registerExtensionAuthoringComponentSchemas(doc.Components.Schemas); err != nil {

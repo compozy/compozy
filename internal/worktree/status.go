@@ -18,9 +18,6 @@ func (s *Service) Status(ctx context.Context, workspaceID, id string, refresh bo
 	if err != nil {
 		return nil, fmt.Errorf("worktree: read status target: %w", err)
 	}
-	if _, err := s.capability.Check(ctx); err != nil {
-		return nil, err
-	}
 	if item.State == StateMissing {
 		return nil, ErrMissing
 	}
@@ -32,6 +29,10 @@ func (s *Service) Status(ctx context.Context, workspaceID, id string, refresh bo
 		if cached != nil {
 			return cached, nil
 		}
+		return &Status{WorktreeID: item.ID}, nil
+	}
+	if _, err := s.capability.Check(ctx); err != nil {
+		return nil, err
 	}
 	return s.refreshStatus(ctx, *item)
 }

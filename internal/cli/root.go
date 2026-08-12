@@ -178,6 +178,7 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newChannelCommand(deps), newSessionCommand(deps), newProviderCommand(deps), newBridgeCommand(deps),
 		newGatewayCommand(deps), newPairCommand(deps), newDeviceCommand(deps), newConnectCommand(deps),
 		newNotificationsCommand(deps), newMarketplaceCommand(deps), newWorkspaceCommand(deps), newDesktopCommand(deps),
+		newWorktreeCommand(deps),
 		newWindowCommand(deps), newLayoutCommand(deps), newLayoutProfileCommand(deps), newAgentCommand(deps),
 		newRolesCommand(deps), newExtensionCommand(deps), newHooksCommand(deps), newAutomationCommand(deps),
 		newLoopCommand(deps), newSchedulerCommand(deps), newTaskCommand(deps), newSkillCommand(deps),
@@ -284,6 +285,12 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 	}](err); ok {
 		return marshalWindowManagerExecutionError(args, windowManagerErr.windowManagerErrorPayload())
 	}
+	if worktreeRemovalErr, ok := errors.AsType[interface {
+		error
+		worktreeRemovalErrorPayload() contract.WorktreeRemovalRefusalPayload
+	}](err); ok {
+		return marshalWorktreeRemovalExecutionError(args, worktreeRemovalErr.worktreeRemovalErrorPayload())
+	}
 	if goalErr, ok := errors.AsType[*goalCommandAPIError](err); ok {
 		return marshalGoalCommandExecutionError(args, goalErr)
 	}
@@ -310,6 +317,36 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 			return nil, false
 		}
 		return payload, true
+	default:
+		return nil, false
+	}
+}
+
+func marshalWorktreeRemovalExecutionError(
+	args []string,
+	payload contract.WorktreeRemovalRefusalPayload,
+) ([]byte, bool) {
+	switch requestedOutputFormat(args) {
+	case OutputJSON:
+		encoded, err := json.Marshal(payload)
+		return encoded, err == nil
+	case OutputJSONL:
+		encoded, err := json.Marshal(payload)
+		return append(encoded, '\n'), err == nil
+	case OutputToon:
+		return []byte(renderToonObject(
+			"worktree_removal_refusal",
+			[]string{cliCodeKey, "changed_files", "insertions", "deletions", "unpushed_commits", "exists_on_remote", "downgrade"},
+			[]string{
+				payload.Code,
+				fmt.Sprintf("%d", payload.Risk.ChangedFiles),
+				fmt.Sprintf("%d", payload.Risk.Insertions),
+				fmt.Sprintf("%d", payload.Risk.Deletions),
+				fmt.Sprintf("%d", payload.Risk.UnpushedCommits),
+				fmt.Sprintf("%t", payload.Risk.ExistsOnRemote),
+				fmt.Sprintf("%t", payload.Downgrade),
+			},
+		)), true
 	default:
 		return nil, false
 	}

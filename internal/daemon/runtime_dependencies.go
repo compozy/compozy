@@ -21,6 +21,10 @@ func (d *Daemon) runtimeDeps(
 	if state.memoryProviderRegistry != nil {
 		memoryProviders = daemonMemoryProviderService{registry: state.memoryProviderRegistry}
 	}
+	var worktrees core.WorktreeService
+	if state.worktrees != nil {
+		worktrees = state.worktrees
+	}
 	roles := roleResolverForState(state)
 	return RuntimeDeps{
 		Config:              state.cfg,
@@ -41,6 +45,7 @@ func (d *Daemon) runtimeDeps(
 		DeadEntities:        state.deadEntities,
 		WorkspaceResolver:   state.workspaceResolver,
 		WorkspaceService:    state.workspaceResolver,
+		Worktrees:           worktrees,
 		WorkspaceAccess:     state.accessPolicy,
 		WindowManager:       state.windowManager,
 		ModelCatalog:        state.modelCatalog,

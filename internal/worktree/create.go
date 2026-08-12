@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/redact"
 )
 
@@ -34,6 +33,10 @@ func (s *Service) Create(ctx context.Context, workspaceID string, options Create
 }
 
 func (s *Service) CancelCreate(ctx context.Context, workspaceID, id string) error {
+	canceled, err := s.cancelAcceptedCreation(ctx, workspaceID, id)
+	if canceled {
+		return err
+	}
 	item, err := s.store.Get(ctx, workspaceID, id)
 	if errors.Is(err, ErrNotFound) || item == nil {
 		return ErrNotFound
@@ -106,21 +109,7 @@ func (s *Service) MaterializeForRun(
 }
 
 func (s *Service) create(ctx context.Context, workspaceID string, options CreateOptions) (*Worktree, error) {
-	if _, err := s.capability.Check(ctx); err != nil {
-		return nil, err
-	}
-	workspace, err := s.resolveWorkspace(ctx, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	item, err := s.prepareCreate(ctx, workspace, options)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.refuseRemovingBranch(ctx, workspace.ID, item.Branch); err != nil {
-		return nil, err
-	}
-	commonDir, err := s.commonDir(ctx, workspace.Root)
+	workspace, item, commonDir, err := s.prepareCreation(ctx, workspaceID, options)
 	if err != nil {
 		return nil, err
 	}
@@ -130,14 +119,8 @@ func (s *Service) create(ctx context.Context, workspaceID string, options Create
 	}
 	defer release()
 
-	if err := s.validateCreateUnderLock(ctx, workspace, commonDir, item, options); err != nil {
+	if err := s.insertPendingUnderLock(ctx, workspace, commonDir, item, options); err != nil {
 		return nil, err
-	}
-	if err := s.dispatchGate(ctx, EventPreCreate, eventPayloadFromWorktree(item, workspace.Root)); err != nil {
-		return nil, err
-	}
-	if err := s.store.Insert(ctx, item); err != nil {
-		return nil, mapInsertError(err, item)
 	}
 	if err := s.materializePending(ctx, workspace, &item, options); err != nil {
 		rollbackErr := s.rollbackCreate(context.WithoutCancel(ctx), workspace, commonDir, item)
@@ -145,11 +128,60 @@ func (s *Service) create(ctx context.Context, workspaceID string, options Create
 			return nil, errors.Join(err, rollbackErr)
 		}
 		deleteErr := s.store.DeletePending(context.WithoutCancel(ctx), item.WorkspaceID, item.ID)
+		if deleteErr == nil {
+			s.publishCatalogEvent(CatalogEventDeleted, item)
+		}
 		return nil, errors.Join(err, deleteErr)
 	}
 	s.invalidateDiscovery(workspaceID)
 	s.emit(ctx, EventCreated, item)
 	return &item, nil
+}
+
+func (s *Service) prepareCreation(
+	ctx context.Context,
+	workspaceID string,
+	options CreateOptions,
+) (Workspace, Worktree, string, error) {
+	if _, err := s.capability.Check(ctx); err != nil {
+		return Workspace{}, Worktree{}, "", err
+	}
+	workspace, err := s.resolveWorkspace(ctx, workspaceID)
+	if err != nil {
+		return Workspace{}, Worktree{}, "", err
+	}
+	item, err := s.prepareCreate(ctx, workspace, options)
+	if err != nil {
+		return Workspace{}, Worktree{}, "", err
+	}
+	if err := s.refuseRemovingBranch(ctx, workspace.ID, item.Branch); err != nil {
+		return Workspace{}, Worktree{}, "", err
+	}
+	commonDir, err := s.commonDir(ctx, workspace.Root)
+	if err != nil {
+		return Workspace{}, Worktree{}, "", err
+	}
+	return workspace, item, commonDir, nil
+}
+
+func (s *Service) insertPendingUnderLock(
+	ctx context.Context,
+	workspace Workspace,
+	commonDir string,
+	item Worktree,
+	options CreateOptions,
+) error {
+	if err := s.validateCreateUnderLock(ctx, workspace, commonDir, item, options); err != nil {
+		return err
+	}
+	if err := s.dispatchGate(ctx, EventPreCreate, eventPayloadFromWorktree(item, workspace.Root)); err != nil {
+		return err
+	}
+	if err := s.store.Insert(ctx, item); err != nil {
+		return mapInsertError(err, item)
+	}
+	s.publishCatalogEvent(CatalogEventUpserted, item)
+	return nil
 }
 
 func (s *Service) refuseRemovingBranch(ctx context.Context, workspaceID, branch string) error {
@@ -361,10 +393,14 @@ func (s *Service) materializePending(
 func (s *Service) setPending(ctx context.Context, item *Worktree, phase PendingPhase) error {
 	item.PendingPhase = phase
 	item.UpdatedAt = s.now().UTC()
-	return s.store.UpdatePending(ctx, item.WorkspaceID, item.ID, PendingUpdate{
+	err := s.store.UpdatePending(ctx, item.WorkspaceID, item.ID, PendingUpdate{
 		Phase: phase, Branch: item.Branch, GitDir: item.GitDir, BaseRef: item.BaseRef,
 		CreatedBranch: item.CreatedBranch, RunNamespace: item.RunNamespace, CreatedHead: item.CreatedHead,
 	})
+	if err == nil {
+		s.publishCatalogEvent(CatalogEventUpserted, *item)
+	}
+	return err
 }
 
 func mapInsertError(err error, item Worktree) error {
@@ -384,59 +420,6 @@ func eventPayloadFromWorktree(item Worktree, workspaceRoot string) HookWorktree 
 		WorkspaceRoot: redact.String(workspaceRoot), Branch: redact.String(item.Branch),
 		Path: redact.String(item.Path), Origin: item.Origin,
 	}
-}
-
-func (s *Service) resolveBaseRef(ctx context.Context, root, requested string) (string, string, error) {
-	ref := strings.TrimSpace(requested)
-	if strings.TrimSpace(requested) != "" {
-		ref = strings.TrimSpace(requested)
-	} else {
-		stdout, _, err := s.runner.Run(ctx, root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
-		if err == nil && strings.TrimSpace(string(stdout)) != "" {
-			ref = strings.TrimPrefix(strings.TrimSpace(string(stdout)), "origin/")
-		} else {
-			stdout, stderr, headErr := s.runner.Run(ctx, root, "symbolic-ref", "--quiet", "--short", "HEAD")
-			if headErr != nil {
-				return "", "", refusal(ErrBaseRefNotFound, diagnostics.RedactAndBound(string(stderr), 2048))
-			}
-			ref = strings.TrimSpace(string(stdout))
-		}
-	}
-	stdout, stderr, err := s.runner.Run(ctx, root, "rev-parse", "--verify", ref+"^{commit}")
-	if err != nil {
-		return "", "", refusal(ErrBaseRefNotFound, diagnostics.RedactAndBound(string(stderr), 2048))
-	}
-	return ref, strings.TrimSpace(string(stdout)), nil
-}
-
-func (s *Service) commonDir(ctx context.Context, root string) (string, error) {
-	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", ErrWorkspaceNotGitBacked
-		}
-		return "", fmt.Errorf("worktree: inspect workspace Git metadata: %w", err)
-	}
-	stdout, stderr, err := s.runner.Run(ctx, root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	if err != nil {
-		return "", fmt.Errorf("worktree: resolve Git common directory: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
-	}
-	return fileutil.CanonicalExistingDirectory(strings.TrimSpace(string(stdout)))
-}
-
-func (s *Service) resolveGitDir(ctx context.Context, root string) (string, error) {
-	stdout, stderr, err := s.runner.Run(ctx, root, "rev-parse", "--path-format=absolute", "--git-dir")
-	if err != nil {
-		return "", fmt.Errorf("worktree: resolve Git directory: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
-	}
-	return fileutil.CanonicalExistingDirectory(strings.TrimSpace(string(stdout)))
-}
-
-func (s *Service) readWorktreeList(ctx context.Context, root, commonDir string) ([]GitWorktree, error) {
-	stdout, stderr, err := s.runner.Run(ctx, root, "--git-dir", commonDir, "worktree", "list", "--porcelain", "-z")
-	if err != nil {
-		return nil, fmt.Errorf("worktree: list Git worktrees: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
-	}
-	return ParseWorktreeList(stdout)
 }
 
 func (s *Service) rollbackCreate(

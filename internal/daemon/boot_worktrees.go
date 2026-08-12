@@ -179,5 +179,6 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 		return fmt.Errorf("daemon: recover worktree lifecycle: %w", err)
 	}
 	state.worktrees = service
+	state.deps.Worktrees = service
 	return nil
 }

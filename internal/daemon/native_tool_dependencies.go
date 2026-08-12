@@ -43,6 +43,7 @@ type daemonNativeToolsDeps struct {
 	Skills                     daemonNativeSkillsRegistry
 	Sessions                   core.SessionManager
 	Workspaces                 core.WorkspaceService
+	Worktrees                  core.WorktreeService
 	WorkspaceResolver          workspacepkg.RuntimeResolver
 	ModelCatalog               core.ModelCatalogService
 	MarketplaceCatalog         core.MarketplaceCatalogService

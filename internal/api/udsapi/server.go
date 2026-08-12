@@ -86,6 +86,7 @@ type Server struct {
 	settingsUpdate     core.SettingsUpdateController
 	vault              core.VaultService
 	workspaces         core.WorkspaceService
+	worktrees          core.WorktreeService
 	workspaceAccess    workspaceaccess.Policy
 	onboarding         core.OnboardingStore
 	agentCatalog       core.AgentCatalog
@@ -208,6 +209,13 @@ func WithVaultService(service core.VaultService) Option {
 func WithWorkspaceResolver(workspaces core.WorkspaceService) Option {
 	return func(server *Server) {
 		server.workspaces = workspaces
+	}
+}
+
+// WithWorktreeService injects the workspace-scoped worktree service.
+func WithWorktreeService(worktrees core.WorktreeService) Option {
+	return func(server *Server) {
+		server.worktrees = worktrees
 	}
 }
 

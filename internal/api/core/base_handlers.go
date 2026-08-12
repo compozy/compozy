@@ -58,6 +58,7 @@ type BaseHandlerConfig struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	Worktrees                    WorktreeService
 	WorkspaceAccess              workspaceaccess.Policy
 	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
@@ -139,6 +140,7 @@ type BaseHandlers struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	Worktrees                    WorktreeService
 	WorkspaceAccess              workspaceaccess.Policy
 	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
@@ -230,6 +232,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		SettingsUpdate:               cfg.SettingsUpdate,
 		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
+		Worktrees:                    cfg.Worktrees,
 		WorkspaceAccess:              cfg.WorkspaceAccess,
 		WindowManager:                cfg.WindowManager,
 		Onboarding:                   cfg.Onboarding,

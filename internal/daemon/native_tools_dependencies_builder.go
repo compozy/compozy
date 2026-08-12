@@ -27,6 +27,7 @@ func (d *Daemon) nativeToolsDeps(
 		Skills:                     skillsRegistryAPI(state.skillsRegistry),
 		Sessions:                   state.sessions,
 		Workspaces:                 state.workspaceResolver,
+		Worktrees:                  state.worktrees,
 		WorkspaceResolver:          state.workspaceResolver,
 		ModelCatalog:               state.deps.ModelCatalog,
 		MarketplaceCatalog:         state.deps.MarketplaceCatalog,

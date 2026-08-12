@@ -56,34 +56,27 @@ func (s *Service) Get(ctx context.Context, workspaceID, ref string) (*Worktree, 
 	if err != nil {
 		return nil, fmt.Errorf("worktree: read registry row: %w", err)
 	}
-	if _, err := s.capability.Check(ctx); err != nil {
-		return nil, err
-	}
 	return item, nil
 }
 
 func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*Listing, error) {
-	diagnostic, capabilityErr := s.capability.Check(ctx)
-	if capabilityErr != nil {
-		return &Listing{Repo: RepoState{Diagnostic: diagnostic.Code}}, nil
-	}
 	workspace, err := s.resolveWorkspace(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
-	listing := &Listing{Repo: RepoState{GitAvailable: true}}
-	if _, err := os.Stat(filepath.Join(workspace.Root, ".git")); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return listing, nil
-		}
-		return nil, fmt.Errorf("worktree: inspect workspace Git metadata: %w", err)
+	repo, err := s.repoState(ctx, workspace)
+	if err != nil {
+		return nil, err
 	}
-	listing.Repo.GitBacked = true
+	listing := &Listing{Repo: repo}
 	rows, err := s.store.List(ctx, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: list registry rows: %w", err)
 	}
 	listing.Worktrees = rows
+	if !repo.GitAvailable {
+		return listing, nil
+	}
 	entries, scanDiagnostic, cached := s.cachedDiscoveryEntries(workspaceID, refresh)
 	if !cached {
 		commonDir, commonDirErr := s.commonDir(ctx, workspace.Root)
@@ -137,6 +130,24 @@ func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*
 		}
 	}
 	return listing, nil
+}
+
+func (s *Service) repoState(ctx context.Context, workspace Workspace) (RepoState, error) {
+	state := RepoState{}
+	if _, err := os.Stat(filepath.Join(workspace.Root, ".git")); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return state, nil
+		}
+		return RepoState{}, fmt.Errorf("worktree: inspect workspace Git metadata: %w", err)
+	}
+	state.GitBacked = true
+	diagnostic, err := s.capability.Check(ctx)
+	if err != nil {
+		state.Diagnostic = diagnostic.Code
+		return state, nil
+	}
+	state.GitAvailable = true
+	return state, nil
 }
 
 func (s *Service) cachedDiscoveryEntries(workspaceID string, refresh bool) ([]GitWorktree, string, bool) {

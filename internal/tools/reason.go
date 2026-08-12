@@ -40,6 +40,10 @@ const (
 	ReasonExtensionGitUnavailable ReasonCode = "extension_git_unavailable"
 	// ReasonExtensionGitVersionUnsupported reports that the resolved Git version is too old.
 	ReasonExtensionGitVersionUnsupported ReasonCode = "extension_git_version_unsupported"
+	// ReasonWorktreeGitUnavailable reports that Git cannot support worktree operations.
+	ReasonWorktreeGitUnavailable ReasonCode = "worktree_git_unavailable"
+	// ReasonWorktreeGitVersionUnsupported reports that Git is too old for worktree operations.
+	ReasonWorktreeGitVersionUnsupported ReasonCode = "worktree_git_version_unsupported"
 	// ReasonRuntimeDescriptorMissing reports a missing runtime descriptor.
 	ReasonRuntimeDescriptorMissing ReasonCode = "runtime_descriptor_missing"
 	// ReasonRuntimeDescriptorMismatch reports a runtime descriptor mismatch.

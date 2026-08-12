@@ -183,6 +183,8 @@ var (
 	ErrConfigInvalid          = errors.New("worktree_config_invalid")
 	ErrDeniedByHook           = errors.New("worktree_denied_by_hook")
 	ErrNotPending             = errors.New("worktree_not_pending")
+	ErrForgeUnavailable       = errors.New("forge_unavailable")
+	ErrForge                  = errors.New("forge_error")
 )
 
 type RefusalError struct {

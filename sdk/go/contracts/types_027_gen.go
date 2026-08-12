@@ -121,3 +121,64 @@ type WindowManagerWindowOpenedPayload struct {
 	Actor       WindowManagerActor   `json:"actor"`
 	Origin      string               `json:"origin,omitempty"`
 }
+
+type WorktreeContext struct {
+	WorktreeID    string `json:"worktree_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	Name          string `json:"name"`
+	Branch        string `json:"branch"`
+	Path          string `json:"path"`
+	Origin        string `json:"origin"`
+}
+
+type WorktreeControlPatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
+type WorktreeObservationPatch struct{}
+
+type WorktreeObservationPayload struct {
+	Event         HookEvent `json:"event"`
+	Timestamp     time.Time `json:"timestamp"`
+	WorktreeID    string    `json:"worktree_id"`
+	WorkspaceID   string    `json:"workspace_id"`
+	WorkspaceRoot string    `json:"workspace_root,omitempty"`
+	Name          string    `json:"name"`
+	Branch        string    `json:"branch"`
+	Path          string    `json:"path"`
+	Origin        string    `json:"origin"`
+}
+
+type WorktreePreCreatePayload struct {
+	Event         HookEvent `json:"event"`
+	Timestamp     time.Time `json:"timestamp"`
+	WorktreeID    string    `json:"worktree_id"`
+	WorkspaceID   string    `json:"workspace_id"`
+	WorkspaceRoot string    `json:"workspace_root,omitempty"`
+	Name          string    `json:"name"`
+	Branch        string    `json:"branch"`
+	Path          string    `json:"path"`
+	Origin        string    `json:"origin"`
+	Denied        bool      `json:"denied,omitempty"`
+	DenyReason    string    `json:"deny_reason,omitempty"`
+}
+
+type WorktreePreRemovePayload struct {
+	Event      HookEvent       `json:"event"`
+	Timestamp  time.Time       `json:"timestamp"`
+	Worktree   WorktreeContext `json:"worktree"`
+	Force      bool            `json:"force"`
+	Risk       WorktreeRisk    `json:"risk"`
+	Denied     bool            `json:"denied,omitempty"`
+	DenyReason string          `json:"deny_reason,omitempty"`
+}
+
+type WorktreeRisk struct {
+	ChangedFiles    int  `json:"changed_files"`
+	Insertions      int  `json:"insertions"`
+	Deletions       int  `json:"deletions"`
+	UnpushedCommits int  `json:"unpushed_commits"`
+	ExistsOnRemote  bool `json:"exists_on_remote"`
+}

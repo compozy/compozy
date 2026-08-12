@@ -160,6 +160,26 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 		Name:  sdkAuthoredContextObservationPatchValue,
 		Value: hooks.AuthoredContextObservationPatch{},
 	},
+	"WorktreePreCreatePayload": {
+		Name:  "WorktreePreCreatePayload",
+		Value: hooks.WorktreePreCreatePayload{},
+	},
+	"WorktreePreRemovePayload": {
+		Name:  "WorktreePreRemovePayload",
+		Value: hooks.WorktreePreRemovePayload{},
+	},
+	"WorktreeObservationPayload": {
+		Name:  "WorktreeObservationPayload",
+		Value: hooks.WorktreeObservationPayload{},
+	},
+	"WorktreeControlPatch": {
+		Name:  "WorktreeControlPatch",
+		Value: hooks.WorktreeControlPatch{},
+	},
+	"WorktreeObservationPatch": {
+		Name:  "WorktreeObservationPatch",
+		Value: hooks.WorktreeObservationPatch{},
+	},
 	sdkNetworkPayloadValue:       {Name: sdkNetworkPayloadValue, Value: hooks.NetworkPayload{}},
 	"NetworkPeerJoinedPayload":   {Name: "NetworkPeerJoinedPayload", Value: hooks.NetworkPeerJoinedPayload{}},
 	"NetworkPeerLeftPayload":     {Name: "NetworkPeerLeftPayload", Value: hooks.NetworkPeerLeftPayload{}},

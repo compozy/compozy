@@ -54,6 +54,7 @@ type HookMatcher struct {
 	AgentName           string           `json:"agent_name,omitempty"`
 	AgentType           string           `json:"agent_type,omitempty"`
 	WorkspaceID         string           `json:"workspace_id,omitempty"`
+	WorktreeID          string           `json:"worktree_id,omitempty"`
 	WorkspaceRoot       string           `json:"workspace_root,omitempty"`
 	SessionType         string           `json:"session_type,omitempty"`
 	SandboxID           string           `json:"sandbox_id,omitempty"`

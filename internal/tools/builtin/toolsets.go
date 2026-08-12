@@ -102,6 +102,15 @@ var builtinToolsets = []toolspkg.Toolset{
 		},
 	},
 	{
+		ID: toolspkg.ToolsetIDWorktrees,
+		Tools: []string{
+			toolspkg.ToolIDWorktreeList.String(),
+			toolspkg.ToolIDWorktreeInspect.String(),
+			toolspkg.ToolIDWorktreeCreate.String(),
+			toolspkg.ToolIDWorktreeRemove.String(),
+		},
+	},
+	{
 		ID: toolspkg.ToolsetIDProviderModels,
 		Tools: []string{
 			toolspkg.ToolIDProviderModelsList.String(),

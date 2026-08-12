@@ -45,6 +45,7 @@ type handlerConfig struct {
 	settingsUpdate     core.SettingsUpdateController
 	vault              core.VaultService
 	workspaces         core.WorkspaceService
+	worktrees          core.WorktreeService
 	workspaceAccess    workspaceaccess.Policy
 	onboarding         core.OnboardingStore
 	agentCatalog       core.AgentCatalog

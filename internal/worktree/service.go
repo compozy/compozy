@@ -48,6 +48,10 @@ type Service struct {
 	cacheMu    sync.Mutex
 	discovery  map[string]discoveryCacheEntry
 	cacheEpoch uint64
+	catalogMu  sync.Mutex
+	catalog    *catalogBroadcaster
+	createMu   sync.Mutex
+	creates    map[string]*createOperation
 }
 
 type Option func(*Service)
@@ -57,6 +61,7 @@ func NewService(store Store, runner GitRunner, opts ...Option) *Service {
 		store: store, runner: runner, capability: NewCapabilityGate(runner),
 		locks: NewRepositoryLocks(8), now: time.Now, newID: generateID, getenv: os.Getenv, environ: os.Environ,
 		logger: slog.Default(), discovery: make(map[string]discoveryCacheEntry),
+		catalog: newCatalogBroadcaster(), creates: make(map[string]*createOperation),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -145,6 +150,14 @@ func (s *Service) resolveWorkspace(ctx context.Context, workspaceID string) (Wor
 		return Workspace{}, refusal(ErrNotFound, "workspace is unavailable")
 	}
 	return s.resolver.ResolveWorktreeWorkspace(ctx, workspaceID)
+}
+
+// Capability reports whether the Git dependency required by worktree mutations is ready.
+func (s *Service) Capability(ctx context.Context) (CapabilityDiagnostic, error) {
+	if s == nil || s.capability == nil {
+		return CapabilityDiagnostic{Code: ErrGitUnavailable.Error()}, ErrGitUnavailable
+	}
+	return s.capability.Check(ctx)
 }
 
 func (s *Service) worktreeSettings(workspace Workspace) (config.WorktreesConfig, string) {

@@ -150,6 +150,42 @@ func TestServiceDiscovery(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain durable rows when Git is unavailable", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDiscoveryTestFixture(t)
+		fixture.service.capability = &CapabilityGate{}
+		if err := fixture.store.Insert(context.Background(), Worktree{
+			ID: "wt-offline", WorkspaceID: fixture.workspace.ID, Name: "offline", Path: t.TempDir(),
+			State: StateReady, Origin: OriginManual, SetupState: SetupNone,
+			CreatedAt: fixture.now, UpdatedAt: fixture.now,
+		}); err != nil {
+			t.Fatalf("seed offline worktree: %v", err)
+		}
+		listing, err := fixture.service.List(context.Background(), fixture.workspace.ID, false)
+		if err != nil {
+			t.Fatalf("List(Git unavailable) error = %v", err)
+		}
+		if len(listing.Worktrees) != 1 || listing.Worktrees[0].ID != "wt-offline" ||
+			!listing.Repo.GitBacked || listing.Repo.GitAvailable ||
+			listing.Repo.Diagnostic != ErrGitUnavailable.Error() {
+			t.Fatalf("List(Git unavailable) = %#v, want durable row and capability diagnostic", listing)
+		}
+		if calls := fixture.runner.invocations(); len(calls) != 0 {
+			t.Fatalf("List(Git unavailable) calls = %#v, want no Git I/O", calls)
+		}
+		inspection, err := fixture.service.Inspect(context.Background(), fixture.workspace.ID, "wt-offline")
+		if err != nil {
+			t.Fatalf("Inspect(Git unavailable) error = %v", err)
+		}
+		if !inspection.Repo.GitBacked || inspection.Repo.GitAvailable ||
+			inspection.Repo.Diagnostic != ErrGitUnavailable.Error() {
+			t.Fatalf("Inspect(Git unavailable) repo = %#v, want capability diagnostic", inspection.Repo)
+		}
+		if calls := fixture.runner.invocations(); len(calls) != 0 {
+			t.Fatalf("Inspect(Git unavailable) calls = %#v, want no Git I/O after cached probe", calls)
+		}
+	})
+
 	t.Run("Should mark a vanished registry row missing exactly once", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDiscoveryTestFixture(t)

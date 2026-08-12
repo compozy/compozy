@@ -167,6 +167,57 @@ func TestServiceCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return a durable pending row before detached materialization completes", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		materializationStarted := make(chan struct{})
+		continueMaterialization := make(chan struct{})
+		baseRun := fixture.runner.run
+		fixture.runner.run = func(call gitInvocation) gitResponse {
+			if strings.HasPrefix(strings.Join(call.args, " "), "branch accepted-create ") {
+				close(materializationStarted)
+				<-continueMaterialization
+			}
+			return baseRun(call)
+		}
+		requestContext, cancelRequest := context.WithCancel(context.Background())
+		item, err := fixture.service.CreateAccepted(
+			requestContext,
+			fixture.workspace.ID,
+			CreateOptions{Name: "Accepted Create"},
+		)
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		cancelRequest()
+		select {
+		case <-materializationStarted:
+		case <-time.After(time.Second):
+			t.Fatal("detached materialization did not start")
+		}
+		if item.State != StatePending {
+			t.Fatalf("CreateAccepted() state = %q, want pending", item.State)
+		}
+		persisted, err := fixture.store.Get(context.Background(), fixture.workspace.ID, item.ID)
+		if err != nil || persisted.State != StatePending {
+			t.Fatalf("pending row = %#v, %v, want durable pending", persisted, err)
+		}
+		operation := fixture.service.getCreateOperation(fixture.workspace.ID, item.ID)
+		if operation == nil {
+			t.Fatal("accepted creation operation = nil")
+		}
+		close(continueMaterialization)
+		select {
+		case <-operation.done:
+		case <-time.After(time.Second):
+			t.Fatal("detached materialization did not complete")
+		}
+		persisted, err = fixture.store.Get(context.Background(), fixture.workspace.ID, item.ID)
+		if err != nil || persisted.State != StateReady {
+			t.Fatalf("completed row = %#v, %v, want ready after request cancellation", persisted, err)
+		}
+	})
+
 	t.Run("Should reuse an existing branch without minting or configuring it", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())

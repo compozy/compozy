@@ -202,7 +202,12 @@ export type HookEvent =
   | "window_manager.window.closed"
   | "window_manager.stack.grouped"
   | "window_manager.stack.ungrouped"
-  | "window_manager.stack.activated";
+  | "window_manager.stack.activated"
+  | "worktree.pre_create"
+  | "worktree.pre_remove"
+  | "worktree.created"
+  | "worktree.adopted"
+  | "worktree.removed";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -2158,6 +2163,7 @@ export interface HookMatcher {
   agent_name?: string;
   agent_type?: string;
   workspace_id?: string;
+  worktree_id?: string;
   workspace_root?: string;
   session_type?: string;
   sandbox_id?: string;
@@ -2226,7 +2232,8 @@ export type HookEventFamily =
   | "loop"
   | "spawn"
   | "network"
-  | "window_manager";
+  | "window_manager"
+  | "worktree";
 
 export type HookRunOutcome = "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
 
@@ -6646,6 +6653,67 @@ export interface WindowManagerWindowOpenedPayload {
   origin?: string;
 }
 
+export interface WorktreeControlPatch {
+  deny?: boolean;
+  deny_reason?: string;
+}
+
+export type WorktreeObservationPatch = Record<string, never>;
+
+export interface WorktreeObservationPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  worktree_id: string;
+  workspace_id: string;
+  workspace_root?: string;
+  name: string;
+  branch: string;
+  path: string;
+  origin: string;
+}
+
+export interface WorktreePreCreatePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  worktree_id: string;
+  workspace_id: string;
+  workspace_root?: string;
+  name: string;
+  branch: string;
+  path: string;
+  origin: string;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
+export interface WorktreeContext {
+  worktree_id: string;
+  workspace_id: string;
+  workspace_root?: string;
+  name: string;
+  branch: string;
+  path: string;
+  origin: string;
+}
+
+export interface WorktreeRisk {
+  changed_files: number;
+  insertions: number;
+  deletions: number;
+  unpushed_commits: number;
+  exists_on_remote: boolean;
+}
+
+export interface WorktreePreRemovePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  worktree: WorktreeContext;
+  force: boolean;
+  risk: WorktreeRisk;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
 export interface HookPayloadByEvent {
   "session.pre_create": SessionPreCreatePayload;
   "session.post_create": SessionPostCreatePayload;
@@ -6742,6 +6810,11 @@ export interface HookPayloadByEvent {
   "window_manager.stack.grouped": WindowManagerStackGroupedPayload;
   "window_manager.stack.ungrouped": WindowManagerStackUngroupedPayload;
   "window_manager.stack.activated": WindowManagerStackActivatedPayload;
+  "worktree.pre_create": WorktreePreCreatePayload;
+  "worktree.pre_remove": WorktreePreRemovePayload;
+  "worktree.created": WorktreeObservationPayload;
+  "worktree.adopted": WorktreeObservationPayload;
+  "worktree.removed": WorktreeObservationPayload;
 }
 
 export interface HookPatchByEvent {
@@ -6840,6 +6913,11 @@ export interface HookPatchByEvent {
   "window_manager.stack.grouped": WindowManagerObservationPatch;
   "window_manager.stack.ungrouped": WindowManagerObservationPatch;
   "window_manager.stack.activated": WindowManagerObservationPatch;
+  "worktree.pre_create": WorktreeControlPatch;
+  "worktree.pre_remove": WorktreeControlPatch;
+  "worktree.created": WorktreeObservationPatch;
+  "worktree.adopted": WorktreeObservationPatch;
+  "worktree.removed": WorktreeObservationPatch;
 }
 
 export interface HostAPIMethodMap {

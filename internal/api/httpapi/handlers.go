@@ -53,6 +53,7 @@ type handlerConfig struct {
 	settingsUpdate     core.SettingsUpdateController
 	vault              core.VaultService
 	workspaces         core.WorkspaceService
+	worktrees          core.WorktreeService
 	workspaceAccess    workspaceaccess.Policy
 	onboarding         core.OnboardingStore
 	agentCatalog       core.AgentCatalog
@@ -207,6 +208,7 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		SettingsUpdate:               cfg.settingsUpdate,
 		Vault:                        cfg.vault,
 		Workspaces:                   cfg.workspaces,
+		Worktrees:                    cfg.worktrees,
 		WorkspaceAccess:              cfg.workspaceAccess,
 		Onboarding:                   cfg.onboarding,
 		AgentCatalog:                 cfg.agentCatalog,

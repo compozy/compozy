@@ -110,4 +110,9 @@ func (s *Service) emit(ctx context.Context, name string, item Worktree) {
 			)
 		}
 	}
+	kind := CatalogEventUpserted
+	if name == EventCreationCanceled || name == EventDismissed {
+		kind = CatalogEventDeleted
+	}
+	s.publishCatalogEvent(kind, item)
 }
