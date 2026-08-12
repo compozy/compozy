@@ -61,6 +61,17 @@ func (h *Handlers) deviceAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+func (h *Handlers) remoteDeviceAuthMiddleware() gin.HandlerFunc {
+	deviceAuth := h.deviceAuthMiddleware()
+	return func(c *gin.Context) {
+		if address, ok := remoteRequestAddress(c.Request); ok && address.IsLoopback() {
+			c.Next()
+			return
+		}
+		deviceAuth(c)
+	}
+}
+
 func (h *Handlers) authenticateGatewayStream(c *gin.Context, limiter *gateway.AuthFailureLimiter, source string) {
 	ticket := strings.TrimSpace(c.Query(gatewayStreamTicketKey))
 	device, err := h.deviceAuth.ConsumeStreamTicket(c.Request.Context(), ticket)

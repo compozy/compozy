@@ -20,7 +20,7 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 
 	if handlers.allowRemoteHTTP && !isLoopbackHost(canonicalHost(handlers.boundHost)) {
 		api.Use(remoteNetworkAccessGuard(handlers.allowedRemoteIPs))
-		api.Use(handlers.deviceAuthMiddleware())
+		api.Use(handlers.remoteDeviceAuthMiddleware())
 	} else if !isLoopbackHost(canonicalHost(handlers.boundHost)) {
 		api = api.Group("", loopbackAPIGuard(handlers.boundHost))
 	}

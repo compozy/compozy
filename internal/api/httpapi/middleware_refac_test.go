@@ -448,3 +448,45 @@ func TestRemoteNetworkAccessGuard(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoteDeviceAuthMiddleware(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		remoteAddr string
+		wantStatus int
+	}{
+		{
+			name:       "Should allow loopback requests without device authentication",
+			remoteAddr: "127.0.0.1:2123",
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name:       "Should require device authentication for remote requests",
+			remoteAddr: "192.168.1.42:2123",
+			wantStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			engine := gin.New()
+			handlers := &Handlers{}
+			engine.GET("/guarded", handlers.remoteDeviceAuthMiddleware(), func(c *gin.Context) {
+				c.Status(http.StatusNoContent)
+			})
+
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/guarded", http.NoBody)
+			request.RemoteAddr = tt.remoteAddr
+			engine.ServeHTTP(recorder, request)
+
+			if recorder.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, tt.wantStatus, recorder.Body.String())
+			}
+		})
+	}
+}
