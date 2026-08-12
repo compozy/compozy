@@ -243,6 +243,60 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should fence new session bindings after removal starts without blocking bound session updates", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"session-removal-fence",
+			filepath.Join(t.TempDir(), "workspace"),
+		)
+		now := time.Date(2026, 8, 12, 19, 15, 0, 0, time.UTC)
+		item := worktreepkg.Worktree{
+			ID: "wt_session_removal_fence", WorkspaceID: workspaceID, Name: "session-removal-fence",
+			Path: filepath.Join(t.TempDir(), "worktree"), State: worktreepkg.StateReady,
+			Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+			CreatedAt: now, UpdatedAt: now,
+		}
+		if err := globalDB.Worktrees.Insert(ctx, item); err != nil {
+			t.Fatalf("Insert() error = %v", err)
+		}
+		bound := store.SessionInfo{
+			ID: "session-before-removal", AgentName: "coder", Provider: "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID, WorktreeID: item.ID,
+			State: "active", CreatedAt: now, UpdatedAt: now,
+		}
+		if err := globalDB.RegisterSession(ctx, bound); err != nil {
+			t.Fatalf("RegisterSession(bound) error = %v", err)
+		}
+		if err := globalDB.Worktrees.SetState(
+			ctx, workspaceID, item.ID, worktreepkg.StateRemoving, now.Add(time.Minute),
+		); err != nil {
+			t.Fatalf("SetState(removing) error = %v", err)
+		}
+
+		bound.State = "stopped"
+		bound.UpdatedAt = now.Add(2 * time.Minute)
+		if err := globalDB.RegisterSession(ctx, bound); err != nil {
+			t.Fatalf("RegisterSession(existing bound update) error = %v", err)
+		}
+		newBinding := bound
+		newBinding.ID = "session-after-removal"
+		newBinding.State = "active"
+		if err := globalDB.RegisterSession(ctx, newBinding); !errors.Is(err, worktreepkg.ErrNotReady) {
+			t.Fatalf("RegisterSession(new binding) error = %v, want %v", err, worktreepkg.ErrNotReady)
+		}
+		rows, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: newBinding.ID})
+		if err != nil {
+			t.Fatalf("ListSessions(new binding) error = %v", err)
+		}
+		if len(rows) != 0 {
+			t.Fatalf("new binding rows = %#v, want none", rows)
+		}
+	})
+
 	t.Run("Should dismiss a tombstone without cascading session or task-run history", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()

@@ -58,7 +58,7 @@ INSERT INTO sessions (
   id, name, agent_name, provider, model, reasoning_effort, speed, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed,
-  runtime_selection_revision, workspace_id, session_type,
+  runtime_selection_revision, workspace_id, worktree_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, spawn_budget_json, permission_policy_json,
@@ -68,12 +68,13 @@ INSERT INTO sessions (
   sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
   sandbox_state, sandbox_provider_state_json, sandbox_last_sync_at, sandbox_last_sync_error,
   created_at, updated_at
-) VALUES (
+) SELECT
   sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(model),
   sqlc.arg(reasoning_effort), sqlc.arg(speed), sqlc.arg(speed_resolution_json),
   sqlc.arg(runtime_status), sqlc.arg(runtime_transition), sqlc.arg(runtime_failure),
   sqlc.arg(selected_provider), sqlc.arg(selected_model), sqlc.arg(selected_reasoning_effort),
   sqlc.arg(selected_speed), sqlc.arg(runtime_selection_revision), sqlc.arg(workspace_id),
+  sqlc.narg(worktree_id),
   sqlc.arg(session_type), sqlc.arg(network_spec_json), sqlc.arg(network_mode),
   sqlc.narg(network_channel), sqlc.arg(network_source), sqlc.arg(state), sqlc.narg(parent_session_id),
   sqlc.narg(root_session_id), sqlc.arg(spawn_depth), sqlc.narg(spawn_role), sqlc.narg(ttl_expires_at),
@@ -87,7 +88,21 @@ INSERT INTO sessions (
   sqlc.arg(sandbox_instance_id), sqlc.arg(sandbox_state), sqlc.arg(sandbox_provider_state_json),
   sqlc.narg(sandbox_last_sync_at), sqlc.arg(sandbox_last_sync_error),
   sqlc.arg(created_at), sqlc.arg(updated_at)
-)
+WHERE sqlc.narg(worktree_id) IS NULL
+   OR EXISTS (
+      SELECT 1
+      FROM worktrees
+      WHERE worktrees.workspace_id = sqlc.arg(workspace_id)
+        AND worktrees.id = sqlc.narg(worktree_id)
+        AND worktrees.state = 'ready'
+   )
+   OR EXISTS (
+      SELECT 1
+      FROM sessions AS existing_session
+      WHERE existing_session.id = sqlc.arg(id)
+        AND existing_session.workspace_id = sqlc.arg(workspace_id)
+        AND existing_session.worktree_id IS sqlc.narg(worktree_id)
+   )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   agent_name = excluded.agent_name,
@@ -105,6 +120,7 @@ ON CONFLICT(id) DO UPDATE SET
 	selected_speed = excluded.selected_speed,
 	runtime_selection_revision = excluded.runtime_selection_revision,
   workspace_id = excluded.workspace_id,
+	worktree_id = excluded.worktree_id,
   session_type = excluded.session_type,
   state = excluded.state,
   parent_session_id = excluded.parent_session_id,
@@ -141,6 +157,7 @@ ON CONFLICT(id) DO UPDATE SET
   sandbox_last_sync_error = excluded.sandbox_last_sync_error,
   updated_at = excluded.updated_at
 WHERE sessions.workspace_id = excluded.workspace_id
+  AND sessions.worktree_id IS excluded.worktree_id
   AND sessions.network_spec_json IS excluded.network_spec_json
   AND sessions.network_mode IS excluded.network_mode
   AND sessions.network_channel IS excluded.network_channel

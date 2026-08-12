@@ -223,15 +223,24 @@ func (m *Manager) preparePromptRuntimePlan(
 	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), workspace.ID); err != nil {
 		return nil, err
 	}
-	cwd, err := resumeSessionCWD(meta, workspace.RootDir)
+	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, workspace.ID, meta.WorktreeID)
+	if err != nil {
+		return nil, fmt.Errorf("session: resolve runtime worktree: %w", err)
+	}
+	executionRoot := workspace.RootDir
+	if worktreeRoot != "" {
+		executionRoot = worktreeRoot
+	}
+	cwd, err := resumeSessionCWD(meta, executionRoot)
 	if err != nil {
 		return nil, err
 	}
-
 	spec, err := sessionStartSpecFromMeta(meta, &workspace, cwd)
 	if err != nil {
 		return nil, fmt.Errorf("session: reconstruct runtime start spec: %w", err)
 	}
+	spec.worktreeID = worktreeID
+	spec.worktreeRoot = worktreeRoot
 	spec.provider = selection.Provider
 	spec.model = selection.Model
 	spec.reasoningEffort = selection.ReasoningEffort

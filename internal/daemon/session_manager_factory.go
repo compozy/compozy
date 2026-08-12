@@ -34,6 +34,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithToolsetCatalog(toolsets),
 			session.WithMCPResolver(deps.MCPResolver),
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
+			session.WithWorktreeResolver(deps.WorktreeResolver),
 			session.WithParticipationResolver(deps.ParticipationResolver),
 			session.WithSandboxRegistry(deps.SandboxRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),

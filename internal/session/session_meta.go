@@ -39,6 +39,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 		),
 		EffectivePermissions: s.EffectivePermissions,
 		WorkspaceID:          s.WorkspaceID,
+		WorktreeID:           s.WorktreeID,
 		CWD:                  s.CWD,
 		NetworkParticipation: participation.CloneSpec(s.NetworkParticipation),
 		SessionType:          string(normalizeSessionType(s.Type)),

@@ -119,6 +119,7 @@ func (m *Manager) dispatchSessionPreResume(ctx context.Context, meta store.Sessi
 			SessionType:  string(normalizeSessionType(Type(meta.SessionType))),
 			AgentName:    strings.TrimSpace(meta.AgentName),
 			WorkspaceID:  strings.TrimSpace(meta.WorkspaceID),
+			WorktreeID:   strings.TrimSpace(meta.WorktreeID),
 			ACPSessionID: strings.TrimSpace(derefString(meta.ACPSessionID)),
 			State:        strings.TrimSpace(meta.State),
 			CreatedAt:    meta.CreatedAt,

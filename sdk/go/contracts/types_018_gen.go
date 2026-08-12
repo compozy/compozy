@@ -21,6 +21,7 @@ type SandboxPreparePayload struct {
 	AgentName           string                `json:"agent_name,omitempty"`
 	WorkspaceID         string                `json:"workspace_id,omitempty"`
 	Workspace           string                `json:"workspace,omitempty"`
+	WorktreeID          string                `json:"worktree_id,omitempty"`
 	ACPSessionID        string                `json:"acp_session_id,omitempty"`
 	State               string                `json:"state,omitempty"`
 	SoulSnapshotID      string                `json:"soul_snapshot_id,omitempty"`
@@ -63,6 +64,7 @@ type SandboxReadyPayload struct {
 	AgentName             string    `json:"agent_name,omitempty"`
 	WorkspaceID           string    `json:"workspace_id,omitempty"`
 	Workspace             string    `json:"workspace,omitempty"`
+	WorktreeID            string    `json:"worktree_id,omitempty"`
 	ACPSessionID          string    `json:"acp_session_id,omitempty"`
 	State                 string    `json:"state,omitempty"`
 	SoulSnapshotID        string    `json:"soul_snapshot_id,omitempty"`
@@ -91,6 +93,7 @@ type SandboxStopPayload struct {
 	AgentName      string    `json:"agent_name,omitempty"`
 	WorkspaceID    string    `json:"workspace_id,omitempty"`
 	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
 	ACPSessionID   string    `json:"acp_session_id,omitempty"`
 	State          string    `json:"state,omitempty"`
 	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
@@ -129,6 +132,7 @@ type SandboxSyncAfterPayload struct {
 	AgentName        string    `json:"agent_name,omitempty"`
 	WorkspaceID      string    `json:"workspace_id,omitempty"`
 	Workspace        string    `json:"workspace,omitempty"`
+	WorktreeID       string    `json:"worktree_id,omitempty"`
 	ACPSessionID     string    `json:"acp_session_id,omitempty"`
 	State            string    `json:"state,omitempty"`
 	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
@@ -163,6 +167,7 @@ type SandboxSyncBeforePayload struct {
 	AgentName       string    `json:"agent_name,omitempty"`
 	WorkspaceID     string    `json:"workspace_id,omitempty"`
 	Workspace       string    `json:"workspace,omitempty"`
+	WorktreeID      string    `json:"worktree_id,omitempty"`
 	ACPSessionID    string    `json:"acp_session_id,omitempty"`
 	State           string    `json:"state,omitempty"`
 	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
@@ -238,6 +243,7 @@ type SessionContext struct {
 	AgentName      string    `json:"agent_name,omitempty"`
 	WorkspaceID    string    `json:"workspace_id,omitempty"`
 	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
 	ACPSessionID   string    `json:"acp_session_id,omitempty"`
 	State          string    `json:"state,omitempty"`
 	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`

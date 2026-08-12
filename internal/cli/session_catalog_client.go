@@ -14,6 +14,7 @@ import (
 // SessionListQuery captures the CLI filters for one session catalog page.
 type SessionListQuery struct {
 	Workspace     string
+	Worktree      string
 	State         string
 	Type          string
 	Agent         string
@@ -80,6 +81,9 @@ func sessionListValues(query SessionListQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
 		values.Set("workspace", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Worktree); trimmed != "" {
+		values.Set("worktree", trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.State); trimmed != "" {
 		values.Set("state", trimmed)

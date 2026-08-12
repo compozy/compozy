@@ -27,16 +27,18 @@ compozy session new [flags]
 ### Options
 
 ```
-      --agent string                      Agent definition name (defaults to config default)
-      --cwd string                        Absolute workspace directory to auto-register
-  -h, --help                              help for new
-      --name string                       Optional session label
-      --network string                    Network participation mode: local or live
-      --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
-      --network-channel string            Named channel id when strategy is named
-      --network-channel-strategy string   Live channel strategy: named
-      --parent string                     Record a same-workspace parent session as creation provenance
-      --workspace string                  Override workspace (ID, name, or path)
+      --agent string                               Agent definition name (defaults to config default)
+      --cwd string                                 Absolute workspace directory to auto-register
+  -h, --help                                       help for new
+      --name string                                Optional session label
+      --network string                             Network participation mode: local or live
+      --network-bounds string                      JSON object for live participation bounds (one object, not flag explosion)
+      --network-channel string                     Named channel id when strategy is named
+      --network-channel-strategy string            Live channel strategy: named
+      --new-worktree string[="__compozy_auto__"]   Create a worktree before starting; optionally provide its name
+      --parent string                              Record a same-workspace parent session as creation provenance
+      --workspace string                           Override workspace (ID, name, or path)
+      --worktree string                            Start in an existing ready worktree
 ```
 
 ### Options inherited from parent commands

@@ -14,6 +14,7 @@ import (
 type sessionInfoRow struct {
 	session              store.SessionInfo
 	name                 sql.NullString
+	worktreeID           sql.NullString
 	speedResolutionJSON  string
 	selectedProvider     string
 	selectedModel        string
@@ -109,6 +110,9 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		return store.SessionInfo{}, err
 	}
 	session.SetNetworkSpec(networkSpec)
+	if worktreeID := store.NullString(row.worktreeID); worktreeID != nil {
+		session.WorktreeID = *worktreeID
+	}
 	session.SessionType = store.NormalizeSessionType(row.sessionType)
 	lineage, err := scanSessionLineage(
 		session.ID,
@@ -247,6 +251,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.selectedSpeed,
 		&row.session.RuntimeSelectionRevision,
 		&row.session.WorkspaceID,
+		&row.worktreeID,
 		&row.networkSpecJSON,
 		&row.networkMode,
 		&row.networkChannel,

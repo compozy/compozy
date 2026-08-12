@@ -32,6 +32,7 @@ type SessionManagerDeps struct {
 	SkillRegistry          session.SkillRegistry
 	MCPResolver            session.MCPResolver
 	WorkspaceResolver      workspacepkg.RuntimeResolver
+	WorktreeResolver       session.SessionWorktreeResolver
 	ParticipationResolver  participation.Resolver
 	SandboxRegistry        *sandbox.Registry
 	SessionSupervision     compozyconfig.SessionSupervisionConfig
@@ -81,6 +82,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SkillRegistry:          skillRegistryDependency(state.skillsRegistry),
 		MCPResolver:            mcpResolverDependency(state.mcpResolver),
 		WorkspaceResolver:      state.workspaceResolver,
+		WorktreeResolver:       daemonSessionWorktreeResolver{state: state},
 		ParticipationResolver:  state.participationResolver,
 		SandboxRegistry:        state.sandboxRegistry,
 		SessionSupervision:     state.cfg.Session.Supervision,

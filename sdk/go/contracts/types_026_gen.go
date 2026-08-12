@@ -46,6 +46,7 @@ type ToolPostCallPayload struct {
 	AgentName      string          `json:"agent_name,omitempty"`
 	WorkspaceID    string          `json:"workspace_id,omitempty"`
 	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
 	ACPSessionID   string          `json:"acp_session_id,omitempty"`
 	State          string          `json:"state,omitempty"`
 	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
@@ -78,6 +79,7 @@ type ToolPostErrorPayload struct {
 	AgentName      string          `json:"agent_name,omitempty"`
 	WorkspaceID    string          `json:"workspace_id,omitempty"`
 	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
 	ACPSessionID   string          `json:"acp_session_id,omitempty"`
 	State          string          `json:"state,omitempty"`
 	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
@@ -102,6 +104,7 @@ type ToolPreCallPayload struct {
 	AgentName      string          `json:"agent_name,omitempty"`
 	WorkspaceID    string          `json:"workspace_id,omitempty"`
 	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
 	ACPSessionID   string          `json:"acp_session_id,omitempty"`
 	State          string          `json:"state,omitempty"`
 	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
@@ -199,6 +202,7 @@ type TurnEndPayload struct {
 	AgentName      string    `json:"agent_name,omitempty"`
 	WorkspaceID    string    `json:"workspace_id,omitempty"`
 	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
 	ACPSessionID   string    `json:"acp_session_id,omitempty"`
 	State          string    `json:"state,omitempty"`
 	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
@@ -225,6 +229,7 @@ type TurnPayload struct {
 	AgentName      string    `json:"agent_name,omitempty"`
 	WorkspaceID    string    `json:"workspace_id,omitempty"`
 	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
 	ACPSessionID   string    `json:"acp_session_id,omitempty"`
 	State          string    `json:"state,omitempty"`
 	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
@@ -251,6 +256,7 @@ type TurnStartPayload struct {
 	AgentName      string    `json:"agent_name,omitempty"`
 	WorkspaceID    string    `json:"workspace_id,omitempty"`
 	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
 	ACPSessionID   string    `json:"acp_session_id,omitempty"`
 	State          string    `json:"state,omitempty"`
 	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`

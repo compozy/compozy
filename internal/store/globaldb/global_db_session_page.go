@@ -19,7 +19,7 @@ const (
 const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, model, reasoning_effort, speed,
 	speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
 	selected_provider, selected_model, selected_reasoning_effort, selected_speed,
-	runtime_selection_revision, workspace_id,
+	runtime_selection_revision, workspace_id, worktree_id,
 	network_spec_json, network_mode, network_channel, network_source, session_type,
 	parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
 	auto_stop_on_parent, spawn_budget_json, permission_policy_json,
@@ -130,6 +130,7 @@ func sessionCatalogPageFilters(
 ) ([]string, []any, error) {
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),
+		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("state", query.State),
 		store.StringClause(sessionCatalogSessionTypeColumn, query.SessionType),
 		store.StringClause("agent_name", query.AgentName),

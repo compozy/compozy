@@ -27,9 +27,38 @@ func (m *Manager) CommandCatalog(ctx context.Context, id string) (commandpkg.Cat
 		if err != nil {
 			return commandpkg.Catalog{}, fmt.Errorf("session: build command catalog for %q: %w", info.ID, err)
 		}
-		return catalog, nil
+		return applyWorktreeCommandAvailability(catalog, info, m.IsPrompting(info.ID)), nil
 	}
-	return commandCatalogWithoutSkills(info)
+	catalog, err := commandCatalogWithoutSkills(info)
+	if err != nil {
+		return commandpkg.Catalog{}, err
+	}
+	return applyWorktreeCommandAvailability(catalog, info, m.IsPrompting(info.ID)), nil
+}
+
+func applyWorktreeCommandAvailability(
+	catalog commandpkg.Catalog,
+	info *Info,
+	prompting bool,
+) commandpkg.Catalog {
+	switch {
+	case info == nil || info.State != StateActive:
+		return commandpkg.SetBuiltinAvailability(
+			catalog,
+			"worktree",
+			false,
+			"Start or resume the session before forking it.",
+		)
+	case prompting:
+		return commandpkg.SetBuiltinAvailability(
+			catalog,
+			"worktree",
+			false,
+			"Wait for the current turn to finish.",
+		)
+	default:
+		return commandpkg.SetBuiltinAvailability(catalog, "worktree", true, "")
+	}
 }
 
 func commandCatalogWithoutSkills(info *Info) (commandpkg.Catalog, error) {

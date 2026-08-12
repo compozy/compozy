@@ -85,6 +85,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	}
 	query := session.ListQuery{
 		WorkspaceID:     workspaceID,
+		WorktreeID:      strings.TrimSpace(c.Query("worktree")),
 		State:           strings.TrimSpace(c.Query("state")),
 		SessionType:     sessionType,
 		AgentName:       strings.TrimSpace(c.Query("agent")),

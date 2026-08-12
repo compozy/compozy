@@ -105,6 +105,41 @@ func TestBundledBuiltinSessionFallback(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject explicit coordinator execution targets before launch", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name string
+			opts CreateOpts
+		}{
+			{name: "worktree", opts: CreateOpts{Worktree: "wt-forbidden"}},
+			{name: "cwd", opts: CreateOpts{CWD: "/tmp/forbidden"}},
+		} {
+			t.Run("Should reject "+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				h := newHarness(t)
+				configureBundledBuiltinFallbackWorkspace(t, h)
+				ttl := time.Now().UTC().Add(time.Hour)
+				tc.opts.AgentName = compozyconfig.BuiltinCoordinatorAgentName
+				tc.opts.Provider = "claude"
+				tc.opts.Workspace = h.workspaceID
+				tc.opts.Type = SessionTypeCoordinator
+				tc.opts.Lineage = &store.SessionLineage{
+					SpawnRole:    string(SessionTypeCoordinator),
+					TTLExpiresAt: &ttl,
+				}
+				created, err := h.manager.Create(testutil.Context(t), tc.opts)
+				if created != nil || !errors.Is(err, ErrValidation) {
+					t.Fatalf("Create(coordinator %s) = (%#v, %v), want nil and ErrValidation", tc.name, created, err)
+				}
+				if got := len(h.driver.startCalls); got != 0 {
+					t.Fatalf("driver starts after coordinator %s refusal = %d, want 0", tc.name, got)
+				}
+			})
+		}
+	})
+
 	t.Run("Should resume a coordinator session without a materialized agent definition", func(t *testing.T) {
 		t.Parallel()
 

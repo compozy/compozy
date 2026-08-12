@@ -412,6 +412,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/attach",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/worktree-fork",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/archive",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/stop",

@@ -416,7 +416,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		for _, descriptor := range catalog.Commands {
 			tokens = append(tokens, descriptor.CanonicalToken)
 		}
-		if got, want := strings.Join(tokens, ","), "/goal,/compact,/ops:review,/review"; got != want {
+		if got, want := strings.Join(tokens, ","), "/goal,/worktree,/compact,/ops:review,/review"; got != want {
 			t.Fatalf("Catalog() tokens = %q, want %q", got, want)
 		}
 		invocations, err := commandpkg.ParseSkillInvocations("Please /ops:review this", catalog)

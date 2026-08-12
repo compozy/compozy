@@ -49,6 +49,7 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/compozy/compozy/internal/worktree"
 	skillbundled "github.com/compozy/compozy/skills"
 )
 
@@ -971,6 +972,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildCatalog() error = %v", err)
 		}
+		catalog = commandpkg.SetBuiltinAvailability(
+			catalog,
+			"worktree",
+			false,
+			"Wait for the current turn to finish.",
+		)
 		manager := &nativeSessionCommandManager{
 			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
 			catalog:            catalog,
@@ -993,8 +1000,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(command_list) error = %v", err)
 		}
-		if payload.Revision != catalog.Revision || len(payload.Commands) != 2 ||
-			payload.Commands[1].CanonicalToken != "/review" {
+		if payload.Revision != catalog.Revision || len(payload.Commands) != 3 ||
+			payload.Commands[1].CanonicalToken != "/worktree" || payload.Commands[1].Available ||
+			payload.Commands[1].UnavailableReason != "Wait for the current turn to finish." ||
+			payload.Commands[2].CanonicalToken != "/review" {
 			t.Fatalf("command_list payload = %#v", payload)
 		}
 	})
@@ -5830,6 +5839,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		workspaceResolveCalls := 0
 		var seenListQuery session.ListQuery
 		var acceptedCreate session.CreateAcceptedOpts
+		createdWorktrees := 0
 		var submittedPrompt session.SendPromptOpts
 		var submittedRewind session.ConversationRewindOptions
 		rewindSubmitCalls := 0
@@ -5905,6 +5915,7 @@ func TestDaemonNativeTools(t *testing.T) {
 						ID:          "sess-created",
 						AgentName:   opts.Session.AgentName,
 						WorkspaceID: opts.Session.Workspace,
+						WorktreeID:  opts.Session.Worktree,
 						State:       session.StateActive,
 					}, nil
 				},
@@ -6138,9 +6149,21 @@ func TestDaemonNativeTools(t *testing.T) {
 				},
 			},
 		}
+		worktrees := &nativeWorktreeServiceStub{create: func(
+			_ context.Context,
+			workspaceID string,
+			opts worktree.CreateOptions,
+		) (*worktree.Worktree, error) {
+			createdWorktrees++
+			if workspaceID != registryWorkspaceID || opts.Name != "native-feature" || opts.Origin != worktree.OriginManual {
+				t.Fatalf("Create() = workspace %q opts %#v", workspaceID, opts)
+			}
+			return &worktree.Worktree{ID: "wt-created", WorkspaceID: workspaceID}, nil
+		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Workspaces: workspaces,
 			Sessions:   manager,
+			Worktrees:  worktrees,
 		}, nativeApproveAllPolicyInputs())
 
 		for _, tc := range []struct {
@@ -6208,7 +6231,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionCreate,
 				Input: json.RawMessage(
-					`{"workspace":"ws-stable","agent":"coder","name":"native",` +
+					`{"workspace":"ws-stable","agent":"coder","name":"native","worktree":"wt-ready",` +
 						`"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"builders"}}`,
 				),
 			},
@@ -6217,7 +6240,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(session_create) error = %v", err)
 		}
 		if acceptedCreate.Session.AgentName != "coder" || acceptedCreate.Session.Name != "native" ||
-			acceptedCreate.Session.Workspace != registryWorkspaceID {
+			acceptedCreate.Session.Workspace != registryWorkspaceID || acceptedCreate.Session.Worktree != "wt-ready" {
 			t.Fatalf("session_create opts = %#v", acceptedCreate)
 		}
 		if got := acceptedCreate.Session.NetworkParticipation; got == nil ||
@@ -6233,6 +6256,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			)
 		}
 		requireNativeStructuredContains(t, createdResult, []byte(`"sess-created"`))
+
+		materializedResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionCreate,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","agent":"coder","new_worktree":{"name":"native-feature"}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_create new worktree) error = %v", err)
+		}
+		if createdWorktrees != 1 || acceptedCreate.Session.Worktree != "wt-created" {
+			t.Fatalf("session_create new worktree calls = %d opts = %#v", createdWorktrees, acceptedCreate)
+		}
+		requireNativeStructuredContains(t, materializedResult, []byte(`"worktree_id":"wt-created"`))
 
 		boundCreateResult, err := registry.Call(
 			t.Context(),
@@ -6569,7 +6610,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionList,
 				Input: json.RawMessage(
-					`{"workspace":"ws-stable","state":"active","type":"user","agent":"coder","q":"review",` +
+					`{"workspace":"ws-stable","worktree":"wt-filtered","state":"active","type":"user","agent":"coder","q":"review",` +
 						`"resumable":true,"archive":"only","include_health":true,"sort":"last_activity",` +
 						`"cursor":"cursor-prev","limit":2}`,
 				),
@@ -6578,7 +6619,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(session_list page) error = %v; cause=%v", err, errors.Unwrap(err))
 		}
-		if seenListQuery.WorkspaceID == "" || seenListQuery.State != "active" ||
+		if seenListQuery.WorkspaceID == "" || seenListQuery.WorktreeID != "wt-filtered" ||
+			seenListQuery.State != "active" ||
 			seenListQuery.SessionType != session.SessionTypeUser ||
 			seenListQuery.AgentName != "coder" || seenListQuery.Search != "review" ||
 			!seenListQuery.Resumable || seenListQuery.Archive != session.ArchiveOnly ||

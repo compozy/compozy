@@ -180,5 +180,6 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 	}
 	state.worktrees = service
 	state.deps.Worktrees = service
+	registerWorktreeTurnRefresh(state.sessions, service, state.logger)
 	return nil
 }

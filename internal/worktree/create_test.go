@@ -218,6 +218,168 @@ func TestServiceCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose pending state while CreateReady waits and return the ready row", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		materializationStarted := make(chan struct{})
+		continueMaterialization := make(chan struct{})
+		baseRun := fixture.runner.run
+		fixture.runner.run = func(call gitInvocation) gitResponse {
+			if strings.HasPrefix(strings.Join(call.args, " "), "branch ready-create ") {
+				close(materializationStarted)
+				<-continueMaterialization
+			}
+			return baseRun(call)
+		}
+		result := make(chan *Worktree, 1)
+		errResult := make(chan error, 1)
+		go func() {
+			item, err := fixture.service.CreateReady(
+				context.Background(),
+				fixture.workspace.ID,
+				CreateOptions{Name: "Ready Create"},
+			)
+			result <- item
+			errResult <- err
+		}()
+		select {
+		case <-materializationStarted:
+		case <-time.After(time.Second):
+			t.Fatal("ready materialization did not start")
+		}
+		rows, err := fixture.store.List(context.Background(), fixture.workspace.ID)
+		if err != nil || len(rows) != 1 || rows[0].State != StatePending {
+			t.Fatalf("rows while CreateReady waits = %#v, %v, want one pending row", rows, err)
+		}
+		close(continueMaterialization)
+		if err := <-errResult; err != nil {
+			t.Fatalf("CreateReady() error = %v", err)
+		}
+		if item := <-result; item == nil || item.State != StateReady {
+			t.Fatalf("CreateReady() = %#v, want ready row", item)
+		}
+	})
+
+	t.Run("Should cancel and roll back CreateReady when its caller stops waiting", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		materializationStarted := make(chan struct{})
+		continueMaterialization := make(chan struct{})
+		baseRun := fixture.runner.run
+		fixture.runner.run = func(call gitInvocation) gitResponse {
+			if strings.HasPrefix(strings.Join(call.args, " "), "branch canceled-ready ") {
+				close(materializationStarted)
+				<-continueMaterialization
+			}
+			return baseRun(call)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		errResult := make(chan error, 1)
+		go func() {
+			_, err := fixture.service.CreateReady(
+				ctx,
+				fixture.workspace.ID,
+				CreateOptions{Name: "Canceled Ready"},
+			)
+			errResult <- err
+		}()
+		select {
+		case <-materializationStarted:
+		case <-time.After(time.Second):
+			t.Fatal("cancelable materialization did not start")
+		}
+		rows, err := fixture.store.List(context.Background(), fixture.workspace.ID)
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("rows before CreateReady cancellation = %#v, %v", rows, err)
+		}
+		fixture.failWorktreeAdd.Store(true)
+		cancel()
+		close(continueMaterialization)
+		if err := <-errResult; !errors.Is(err, context.Canceled) {
+			t.Fatalf("CreateReady() error = %v, want context.Canceled", err)
+		}
+		if _, err := fixture.store.Get(context.Background(), fixture.workspace.ID, rows[0].ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("Get(canceled CreateReady) error = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("Should remove a completed CreateReady when cancellation wins delivery", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		events := newBlockingCreatedEventSink()
+		fixture.service.events = events
+		baseRun := fixture.runner.run
+		fixture.runner.run = func(call gitInvocation) gitResponse {
+			switch strings.Join(call.args, " ") {
+			case "status --porcelain=v2 --branch -z":
+				return gitResponse{stdout: []byte("# branch.oid created-head\x00# branch.head canceled-after-ready\x00")}
+			case "diff --numstat -z", "diff --cached --numstat -z", "branch -r --contains HEAD":
+				return gitResponse{}
+			case "rev-list --count main..HEAD":
+				return gitResponse{stdout: []byte("0\n")}
+			default:
+				return baseRun(call)
+			}
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		result := make(chan *Worktree, 1)
+		errResult := make(chan error, 1)
+		go func() {
+			item, err := fixture.service.CreateReady(
+				ctx,
+				fixture.workspace.ID,
+				CreateOptions{Name: "Canceled After Ready"},
+			)
+			result <- item
+			errResult <- err
+		}()
+
+		select {
+		case <-events.entered:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for completed creation event")
+		}
+		rows, err := fixture.store.List(context.Background(), fixture.workspace.ID)
+		if err != nil || len(rows) != 1 || rows[0].State != StateReady {
+			t.Fatalf("rows before delivery cancellation = %#v, %v, want one ready row", rows, err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(rows[0].Path, ".git"),
+			[]byte("gitdir: "+fixture.adminGitDir+"\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("write worktree pointer: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(fixture.adminGitDir, "commondir"), []byte("../..\n"), 0o600); err != nil {
+			t.Fatalf("write common pointer: %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(fixture.adminGitDir, "gitdir"),
+			[]byte(filepath.Join(rows[0].Path, ".git")+"\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("write worktree backlink: %v", err)
+		}
+		cancel()
+		close(events.release)
+		if item := <-result; item != nil {
+			t.Fatalf("CreateReady() item = %#v, want nil after caller cancellation", item)
+		}
+		createErr := <-errResult
+		if !errors.Is(createErr, context.Canceled) {
+			t.Fatalf("CreateReady() error = %v, want context.Canceled", createErr)
+		}
+		stored, err := fixture.store.Get(context.Background(), fixture.workspace.ID, rows[0].ID)
+		if err != nil || stored.State != StateRemoved {
+			t.Fatalf(
+				"worktree after delivery cancellation = %#v, %v (create error %v), want removed tombstone",
+				stored,
+				err,
+				createErr,
+			)
+		}
+	})
+
 	t.Run("Should reuse an existing branch without minting or configuring it", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
@@ -706,6 +868,24 @@ func TestServiceCreate(t *testing.T) {
 			}
 		}
 	})
+}
+
+type blockingCreatedEventSink struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingCreatedEventSink() *blockingCreatedEventSink {
+	return &blockingCreatedEventSink{entered: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (s *blockingCreatedEventSink) PublishWorktreeEvent(_ context.Context, event LifecycleEvent) error {
+	if event.Name == EventCreated {
+		s.once.Do(func() { close(s.entered) })
+		<-s.release
+	}
+	return nil
 }
 
 type insertErrorWorktreeStore struct {

@@ -247,6 +247,7 @@ const sessionListInputSchema = `{
 	"type":"object",
 	"properties":{
 		"workspace":{"type":"string"},
+		"worktree":{"type":"string"},
 		"state":{"type":"string","enum":["starting","active","stopping","stopped"]},
 		"type":{"type":"string","enum":["user","system","coordinator","spawned"]},
 		"agent":{"type":"string"},
@@ -259,18 +260,6 @@ const sessionListInputSchema = `{
 		"sort":{"type":"string","enum":["recent","last_activity"]},
 		"cursor":{"type":"string"},
 		"limit":{"type":"integer","minimum":1,"maximum":100}
-	},
-	"additionalProperties":false
-}`
-
-var sessionCreateInputSchema = `{
-	"type":"object",
-	"required":["agent"],
-	"properties":{
-		"workspace":{"type":"string"},
-		"agent":` + agentNameInputSchema + `,
-		"name":{"type":"string"},
-		"network_participation":` + networkParticipationRequestSchema + `
 	},
 	"additionalProperties":false
 }`
@@ -316,39 +305,6 @@ const sessionListOutputSchema = `{
 				"limit":{"type":"integer","minimum":1,"maximum":100}
 			},
 			"additionalProperties":false
-		}
-	},
-	"additionalProperties":false
-}`
-
-const sessionCreateOutputSchema = `{
-	"type":"object",
-	"required":["session"],
-	"properties":{
-		"session":{
-			"type":"object",
-			"required":["id","agent_name","runtime","state"],
-			"properties":{
-				"id":{"type":"string"},
-				"agent_name":{"type":"string"},
-				"runtime":{
-					"type":"object",
-					"required":["status"],
-					"properties":{
-						"status":{"type":"string","enum":["unbound","binding","ready","reconfiguring","failed"]},
-						"transition":{"type":"string","enum":["","initial_bind","live_configuration","process_replacement"]},
-						"failure":{"type":"string"},
-						"selected":{"type":"object"},
-						"selection_revision":{"type":"integer","minimum":0},
-						"effective":{"type":"object"},
-						"acp_session_id":{"type":"string"},
-						"acp_caps":{"type":"object"}
-					},
-					"additionalProperties":false
-				},
-				"state":{"type":"string","enum":["starting","active","stopping","stopped"]}
-			},
-			"additionalProperties":true
 		}
 	},
 	"additionalProperties":false

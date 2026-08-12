@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -18,12 +19,482 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/sandbox"
+	localsandbox "github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 	skillbundled "github.com/compozy/compozy/skills"
 )
+
+func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
+	h := newHarness(t)
+	initializeSessionIntegrationGitRepository(t, h.workspace)
+	worktreesRoot := t.TempDir()
+	worktreeA := filepath.Join(worktreesRoot, "worktree-a")
+	worktreeB := filepath.Join(worktreesRoot, "worktree-b")
+	runSessionIntegrationGit(t, h.workspace, "branch", "worktree-a", "main")
+	runSessionIntegrationGit(t, h.workspace, "branch", "worktree-b", "main")
+	runSessionIntegrationGit(t, h.workspace, "worktree", "add", worktreeA, "worktree-a")
+	runSessionIntegrationGit(t, h.workspace, "worktree", "add", worktreeB, "worktree-b")
+
+	missingErr := errors.New("worktree_missing")
+	worktreeResolver := &fakeSessionWorktreeResolver{resolve: func(
+		_ context.Context,
+		_ string,
+		ref string,
+	) (string, string, error) {
+		roots := map[string]string{"wt-a": worktreeA, "wt-b": worktreeB}
+		root := roots[strings.TrimSpace(ref)]
+		if root == "" {
+			return "", "", errors.New("worktree_not_found")
+		}
+		if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
+			return "", "", missingErr
+		} else if err != nil {
+			return "", "", err
+		}
+		return strings.TrimSpace(ref), root, nil
+	}}
+	var contextsMu sync.Mutex
+	contexts := make([]StartupPromptContext, 0, 5)
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithWorktreeResolver(worktreeResolver),
+		WithPromptAssembler(startupPromptAssemblerFunc(func(
+			_ context.Context,
+			startup StartupPromptContext,
+			agent compozyconfig.AgentDef,
+			_ *workspacepkg.ResolvedWorkspace,
+		) (string, error) {
+			contextsMu.Lock()
+			contexts = append(contexts, startup)
+			contextsMu.Unlock()
+			return agent.Prompt, nil
+		})),
+	)
+
+	parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-a",
+		Lineage: &store.SessionLineage{
+			SpawnBudget: store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create(bound parent) error = %v", err)
+	}
+	sameWorktree, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-a",
+	})
+	if err != nil {
+		t.Fatalf("Create(second same-worktree session) error = %v", err)
+	}
+	otherWorktree, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-b",
+	})
+	if err != nil {
+		t.Fatalf("Create(other-worktree session) error = %v", err)
+	}
+	rootSession, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create(root session) error = %v", err)
+	}
+	for _, item := range []*Session{parent, sameWorktree, otherWorktree, rootSession} {
+		item := item
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, item.ID) })
+	}
+
+	canonicalA := resolveIntegrationWorkspaceRoot(t, worktreeA)
+	canonicalB := resolveIntegrationWorkspaceRoot(t, worktreeB)
+	if got := h.driver.startCalls[0].Cwd; got != canonicalA {
+		t.Fatalf("parent cmd.Dir = %q, want %q", got, canonicalA)
+	}
+	if got := h.driver.startCalls[1].Cwd; got != canonicalA {
+		t.Fatalf("second cmd.Dir = %q, want %q", got, canonicalA)
+	}
+	if got := h.driver.startCalls[2].Cwd; got != canonicalB {
+		t.Fatalf("other cmd.Dir = %q, want %q", got, canonicalB)
+	}
+	if err := os.WriteFile(filepath.Join(h.driver.startCalls[0].Cwd, "isolated.txt"), []byte("worktree-a\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(worktree A) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(h.driver.startCalls[2].Cwd, "isolated.txt"), []byte("worktree-b\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(worktree B) error = %v", err)
+	}
+	assertIntegrationFileContent(t, filepath.Join(worktreeA, "isolated.txt"), "worktree-a\n")
+	assertIntegrationFileContent(t, filepath.Join(worktreeB, "isolated.txt"), "worktree-b\n")
+
+	child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("Spawn(bound child) error = %v", err)
+	}
+	t.Cleanup(func() { stopActiveIntegrationSession(t, h, child.ID) })
+	if child.Info().WorktreeID != "wt-a" || h.driver.startCalls[len(h.driver.startCalls)-1].Cwd != canonicalA {
+		t.Fatalf("bound child = %#v start=%#v, want wt-a at %q", child.Info(), h.driver.startCalls, canonicalA)
+	}
+
+	contextsMu.Lock()
+	contextsSnapshot := append([]StartupPromptContext(nil), contexts...)
+	contextsMu.Unlock()
+	if len(contextsSnapshot) < 5 {
+		t.Fatalf("startup contexts = %#v, want bound, root, and child contexts", contextsSnapshot)
+	}
+	for _, index := range []int{0, 1, 2, 4} {
+		if contextsSnapshot[index].WorkspaceID != h.workspaceID || contextsSnapshot[index].Workspace != h.workspace {
+			t.Fatalf("startup context[%d] = %#v, want parent workspace", index, contextsSnapshot[index])
+		}
+	}
+	if contextsSnapshot[0].WorktreeID != "wt-a" || contextsSnapshot[2].WorktreeID != "wt-b" ||
+		contextsSnapshot[3].WorktreeID != "" {
+		t.Fatalf("startup worktree contexts = %#v", contextsSnapshot)
+	}
+
+	if parent.Info().WorkspaceID != h.workspaceID || rootSession.Info().WorkspaceID != h.workspaceID {
+		t.Fatalf("session workspace ids = %q/%q, want %q", parent.Info().WorkspaceID, rootSession.Info().WorkspaceID, h.workspaceID)
+	}
+
+	runSessionIntegrationGit(t, h.workspace, "worktree", "remove", "--force", worktreeA)
+	startsBeforeRefusal := len(h.driver.startCalls)
+	_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
+	})
+	if !errors.Is(err, missingErr) {
+		t.Fatalf("Spawn(missing worktree) error = %v, want %v", err, missingErr)
+	}
+	if len(h.driver.startCalls) != startsBeforeRefusal {
+		t.Fatalf("driver starts after missing spawn = %d, want %d", len(h.driver.startCalls), startsBeforeRefusal)
+	}
+	if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {
+		t.Fatalf("Stop(bound parent) error = %v", err)
+	}
+	_, err = h.manager.Resume(testutil.Context(t), parent.ID)
+	if !errors.Is(err, missingErr) {
+		t.Fatalf("Resume(missing worktree) error = %v, want %v", err, missingErr)
+	}
+}
+
+func TestManagerIntegrationLocalSandboxContainsBoundWorktree(t *testing.T) {
+	worktreeRoot := filepath.Join(t.TempDir(), "worktree")
+	if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(worktree root) error = %v", err)
+	}
+	h := newHarness(
+		t,
+		WithWorktreeResolver(&fakeSessionWorktreeResolver{id: "wt-sandbox", root: worktreeRoot}),
+		WithSandboxRegistry(newRegistryForProvider(t, localsandbox.NewProvider(
+			localsandbox.WithPermissionMode(compozyconfig.PermissionModeApproveAll),
+		))),
+	)
+	created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-sandbox",
+	})
+	if err != nil {
+		t.Fatalf("Create(bound local sandbox) error = %v", err)
+	}
+	t.Cleanup(func() { stopActiveIntegrationSession(t, h, created.ID) })
+
+	canonicalRoot := resolveIntegrationWorkspaceRoot(t, worktreeRoot)
+	if created.Info().Sandbox == nil {
+		t.Fatal("sandbox metadata = nil, want local sandbox")
+	}
+	runtimeRoot := resolveIntegrationWorkspaceRoot(t, created.Info().Sandbox.RuntimeRootDir)
+	if runtimeRoot != canonicalRoot {
+		t.Fatalf("sandbox metadata = %#v, want runtime root %q", created.Info().Sandbox, canonicalRoot)
+	}
+	process := created.processHandle()
+	if process == nil || process.ToolHost() == nil {
+		t.Fatal("bound session tool host is unavailable")
+	}
+	inside := filepath.Join(worktreeRoot, "nested", "inside.txt")
+	if err := process.ToolHost().WriteTextFile(testutil.Context(t), inside, "inside"); err != nil {
+		t.Fatalf("WriteTextFile(inside worktree) error = %v", err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	if err := process.ToolHost().WriteTextFile(testutil.Context(t), outside, "outside"); !errors.Is(
+		err,
+		acp.ErrPathOutsideWorkspace,
+	) {
+		t.Fatalf("WriteTextFile(outside worktree) error = %v, want %v", err, acp.ErrPathOutsideWorkspace)
+	}
+}
+
+func TestManagerIntegrationWorktreeRemovalBindingRace(t *testing.T) {
+	t.Run("Should let an active session binding win before removal", func(t *testing.T) {
+		fixture := newSessionWorktreeRaceFixture(t, nil)
+
+		bound, err := fixture.h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: fixture.h.workspaceID, Worktree: fixture.item.ID,
+		})
+		if err != nil {
+			t.Fatalf("Create(bound winner) error = %v", err)
+		}
+		if got := bound.Info().WorktreeID; got != fixture.item.ID {
+			t.Fatalf("bound winner worktree_id = %q, want %q", got, fixture.item.ID)
+		}
+
+		if _, err := fixture.service.Remove(
+			testutil.Context(t), fixture.h.workspaceID, fixture.item.ID, false,
+		); !errors.Is(err, worktreepkg.ErrSessionActive) {
+			t.Fatalf("Remove(after binding) error = %v, want %v", err, worktreepkg.ErrSessionActive)
+		}
+		stored, err := fixture.database.Worktrees.Get(
+			testutil.Context(t), fixture.h.workspaceID, fixture.item.ID,
+		)
+		if err != nil || stored == nil || stored.State != worktreepkg.StateReady {
+			t.Fatalf("worktree after binding winner = %#v, %v, want ready", stored, err)
+		}
+
+		if err := fixture.h.manager.Stop(testutil.Context(t), bound.ID); err != nil {
+			t.Fatalf("Stop(bound winner) error = %v", err)
+		}
+		if _, err := fixture.service.Remove(
+			testutil.Context(t), fixture.h.workspaceID, fixture.item.ID, true,
+		); err != nil {
+			t.Fatalf("Remove(cleanup) error = %v", err)
+		}
+	})
+
+	t.Run("Should let the removal fence reject a stale new session binding", func(t *testing.T) {
+		hook := newBlockingSessionWorktreeRemovalHook()
+		fixture := newSessionWorktreeRaceFixture(t, hook)
+		removeDone := make(chan error, 1)
+		go func() {
+			_, err := fixture.service.Remove(
+				context.Background(), fixture.h.workspaceID, fixture.item.ID, false,
+			)
+			removeDone <- err
+		}()
+
+		select {
+		case <-hook.entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for removal fence")
+		}
+
+		bound, err := fixture.h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: fixture.h.workspaceID, Worktree: fixture.item.ID,
+		})
+		if bound != nil || !errors.Is(err, worktreepkg.ErrNotReady) {
+			t.Fatalf("Create(after removal fence) = (%#v, %v), want nil and %v", bound, err, worktreepkg.ErrNotReady)
+		}
+		if got := len(fixture.h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls after rejected binding = %d, want 0", got)
+		}
+		sessions, listErr := fixture.database.ListSessions(testutil.Context(t), store.SessionListQuery{
+			WorkspaceID: fixture.h.workspaceID,
+			WorktreeID:  fixture.item.ID,
+		})
+		if listErr != nil {
+			t.Fatalf("ListSessions(rejected binding) error = %v", listErr)
+		}
+		if len(sessions) != 0 {
+			t.Fatalf("sessions after rejected binding = %#v, want none", sessions)
+		}
+
+		close(hook.release)
+		select {
+		case removeErr := <-removeDone:
+			if removeErr != nil {
+				t.Fatalf("Remove(fenced winner) error = %v", removeErr)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for fenced removal")
+		}
+		stored, getErr := fixture.database.Worktrees.Get(
+			testutil.Context(t), fixture.h.workspaceID, fixture.item.ID,
+		)
+		if getErr != nil || stored == nil || stored.State != worktreepkg.StateRemoved {
+			t.Fatalf("worktree after removal winner = %#v, %v, want removed", stored, getErr)
+		}
+	})
+}
+
+type sessionWorktreeRaceFixture struct {
+	h        *harness
+	database *globaldb.GlobalDB
+	service  *worktreepkg.Service
+	item     *worktreepkg.Worktree
+}
+
+func newSessionWorktreeRaceFixture(
+	t *testing.T,
+	hooks worktreepkg.HookDispatcher,
+) *sessionWorktreeRaceFixture {
+	t.Helper()
+	ctx := testutil.Context(t)
+	h := newHarness(t)
+	if err := h.manager.Shutdown(ctx); err != nil {
+		t.Fatalf("Shutdown(initial manager) error = %v", err)
+	}
+	initializeSessionIntegrationGitRepository(t, h.workspace)
+
+	database, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := database.Close(testutil.Context(t)); err != nil {
+			t.Errorf("GlobalDB.Close() error = %v", err)
+		}
+	})
+	if err := database.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID: h.workspaceID, Name: h.workspaceName, RootDir: h.workspace,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+
+	runner, err := worktreepkg.NewRealGitRunner(10 * time.Second)
+	if err != nil {
+		t.Fatalf("NewRealGitRunner() error = %v", err)
+	}
+	settings := compozyconfig.DefaultWorktreesConfig()
+	service := worktreepkg.NewService(
+		database.Worktrees,
+		runner,
+		worktreepkg.WithWorkspaceResolver(sessionWorktreeWorkspaceResolver{workspace: worktreepkg.Workspace{
+			ID: h.workspaceID, Name: h.workspaceName, Root: h.workspace,
+		}}),
+		worktreepkg.WithSessionGuard(sessionWorktreeGlobalDBGuard{database: database}),
+		worktreepkg.WithConfig(settings, t.TempDir()),
+		worktreepkg.WithHooks(hooks),
+		worktreepkg.WithIDGenerator(func(string) (string, error) { return "wt-session-race", nil }),
+	)
+	item, err := service.Create(ctx, h.workspaceID, worktreepkg.CreateOptions{Name: "Session Race"})
+	if err != nil {
+		t.Fatalf("worktree Create() error = %v", err)
+	}
+	resolver := &fakeSessionWorktreeResolver{resolve: func(
+		_ context.Context,
+		_ string,
+		_ string,
+	) (string, string, error) {
+		// Deliberately return the admitted path even after the SQL removal fence.
+		// The catalog must still reject the stale new binding atomically.
+		return item.ID, item.Path, nil
+	}}
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithSessionCatalog(database),
+		WithWorktreeResolver(resolver),
+	)
+	cleanupTestManager(t, h.manager)
+
+	return &sessionWorktreeRaceFixture{h: h, database: database, service: service, item: item}
+}
+
+type sessionWorktreeWorkspaceResolver struct {
+	workspace worktreepkg.Workspace
+}
+
+func (r sessionWorktreeWorkspaceResolver) ResolveWorktreeWorkspace(
+	_ context.Context,
+	workspaceID string,
+) (worktreepkg.Workspace, error) {
+	if workspaceID != r.workspace.ID {
+		return worktreepkg.Workspace{}, worktreepkg.ErrNotFound
+	}
+	return r.workspace, nil
+}
+
+func (r sessionWorktreeWorkspaceResolver) ListWorktreeWorkspaces(
+	context.Context,
+) ([]worktreepkg.Workspace, error) {
+	return []worktreepkg.Workspace{r.workspace}, nil
+}
+
+type sessionWorktreeGlobalDBGuard struct {
+	database *globaldb.GlobalDB
+}
+
+func (g sessionWorktreeGlobalDBGuard) HasActiveSession(
+	ctx context.Context,
+	workspaceID string,
+	worktreeID string,
+) (bool, error) {
+	return g.database.HasActiveWorktreeSession(ctx, workspaceID, worktreeID)
+}
+
+type blockingSessionWorktreeRemovalHook struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingSessionWorktreeRemovalHook() *blockingSessionWorktreeRemovalHook {
+	return &blockingSessionWorktreeRemovalHook{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (h *blockingSessionWorktreeRemovalHook) DispatchWorktreeHook(
+	ctx context.Context,
+	request worktreepkg.HookRequest,
+) (worktreepkg.HookVerdict, error) {
+	if request.Event != worktreepkg.EventPreRemove {
+		return worktreepkg.HookVerdict{}, nil
+	}
+	h.once.Do(func() { close(h.entered) })
+	select {
+	case <-h.release:
+		return worktreepkg.HookVerdict{}, nil
+	case <-ctx.Done():
+		return worktreepkg.HookVerdict{}, ctx.Err()
+	}
+}
+
+func initializeSessionIntegrationGitRepository(t *testing.T, root string) {
+	t.Helper()
+	runSessionIntegrationGit(t, root, "init", "-b", "main")
+	runSessionIntegrationGit(t, root, "config", "user.name", "Compozy Integration")
+	runSessionIntegrationGit(t, root, "config", "user.email", "integration@compozy.test")
+	if err := os.WriteFile(filepath.Join(root, "shared.txt"), []byte("initial\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(shared.txt) error = %v", err)
+	}
+	runSessionIntegrationGit(t, root, "add", "shared.txt")
+	runSessionIntegrationGit(t, root, "commit", "-m", "initial")
+}
+
+func runSessionIntegrationGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	command := exec.CommandContext(t.Context(), "git", args...)
+	command.Dir = dir
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s error = %v; output=%s", strings.Join(args, " "), err, output)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func stopActiveIntegrationSession(t *testing.T, h *harness, sessionID string) {
+	t.Helper()
+	current, ok := h.manager.Get(sessionID)
+	if !ok || current.Info().State == StateStopped {
+		return
+	}
+	if err := h.manager.Stop(testutil.Context(t), sessionID); err != nil {
+		t.Errorf("Stop(%q) cleanup error = %v", sessionID, err)
+	}
+}
+
+func assertIntegrationFileContent(t *testing.T, path string, want string) {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	if string(content) != want {
+		t.Fatalf("ReadFile(%q) = %q, want %q", path, content, want)
+	}
+}
 
 func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	h := newHarness(t)

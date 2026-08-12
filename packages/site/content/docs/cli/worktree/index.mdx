@@ -1,0 +1,45 @@
+---
+title: "compozy worktree"
+description: "Manage workspace worktrees"
+---
+
+## compozy worktree
+
+Manage workspace worktrees
+
+### Options
+
+```
+  -h, --help   help for worktree
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                | Description                              |
+| ------------------------------------------------------ | ---------------------------------------- |
+| [compozy worktree adopt](/docs/cli/worktree/adopt)     | Adopt an existing linked worktree        |
+| [compozy worktree cancel](/docs/cli/worktree/cancel)   | Cancel a pending worktree creation       |
+| [compozy worktree create](/docs/cli/worktree/create)   | Create a worktree                        |
+| [compozy worktree dismiss](/docs/cli/worktree/dismiss) | Dismiss a worktree tombstone             |
+| [compozy worktree inspect](/docs/cli/worktree/inspect) | Inspect a worktree                       |
+| [compozy worktree list](/docs/cli/worktree/list)       | List registered and discovered worktrees |
+| [compozy worktree remove](/docs/cli/worktree/remove)   | Remove a worktree                        |
+| [compozy worktree status](/docs/cli/worktree/status)   | Read or refresh worktree status          |

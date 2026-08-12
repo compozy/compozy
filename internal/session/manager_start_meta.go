@@ -34,6 +34,7 @@ func sessionStartSpecFromMeta(
 		runtimeSelectionRevision: selectionRevision,
 		permissions:              compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
 		workspace:                *workspace,
+		worktreeID:               strings.TrimSpace(meta.WorktreeID),
 		networkParticipation:     meta.NetworkSpecSnapshot(),
 		networkOwnerKey:          meta.NetworkOwnerKeySnapshot(),
 		cwd:                      cwd,

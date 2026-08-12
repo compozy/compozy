@@ -153,6 +153,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		RuntimeSelectionRevision: selectionRevision,
 		EffectivePermissions:     strings.TrimSpace(meta.EffectivePermissions),
 		WorkspaceID:              meta.WorkspaceID,
+		WorktreeID:               meta.WorktreeID,
 		NetworkParticipation:     meta.NetworkSpecSnapshot(),
 		NetworkOwnerKey:          meta.NetworkOwnerKeySnapshot(),
 		Type:                     normalizeSessionType(Type(meta.SessionType)),

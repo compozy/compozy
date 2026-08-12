@@ -14,6 +14,7 @@ import (
 type sessionListFlags struct {
 	includeAll      bool
 	workspaceFilter string
+	worktreeFilter  string
 	stateFilter     string
 	typeFilter      string
 	agentFilter     string
@@ -46,6 +47,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&flags.includeAll, "all", false, "Include every session state when --state is omitted")
 	cmd.Flags().
 		StringVar(&flags.workspaceFilter, workspaceSkillSource, "", "Override workspace filter (ID, name, or path)")
+	cmd.Flags().StringVar(&flags.worktreeFilter, "worktree", "", "Filter by exact worktree ID")
 	cmd.Flags().StringVar(&flags.stateFilter, "state", "", "Filter by state (starting|active|stopping|stopped)")
 	cmd.Flags().StringVar(
 		&flags.typeFilter,
@@ -102,6 +104,7 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 	}
 	page, err := client.ListSessions(cmd.Context(), SessionListQuery{
 		Workspace:     workspaceID,
+		Worktree:      flags.worktreeFilter,
 		State:         state,
 		Type:          flags.typeFilter,
 		Agent:         flags.agentFilter,

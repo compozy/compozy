@@ -26,7 +26,7 @@ func (m *Manager) sessionStartOpts(
 		AgentName:       resolved.Name,
 		Command:         resolved.Command,
 		Cwd:             s.cwd,
-		AdditionalDirs:  append([]string(nil), s.workspace.AdditionalDirs...),
+		AdditionalDirs:  s.executionAdditionalDirs(),
 		Env:             env,
 		MCPServers:      mcpServers,
 		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),

@@ -8,6 +8,7 @@ import (
 
 type WorktreeService interface {
 	CreateAccepted(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
+	CreateReady(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	CancelCreate(context.Context, string, string) error
 	Adopt(context.Context, string, string) (*worktree.Worktree, error)
 	ListDetails(context.Context, string, bool) (*worktree.DetailedListing, error)

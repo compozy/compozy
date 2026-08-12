@@ -46,6 +46,7 @@ func SessionCommandsResponseFromCatalog(catalog commandpkg.Catalog) contract.Ses
 			ID: descriptor.ID, CanonicalToken: descriptor.CanonicalToken,
 			DisplayName: descriptor.DisplayName, Description: descriptor.Description,
 			Lane: string(descriptor.Lane), Placements: placements, InputHint: descriptor.InputHint,
+			Available: descriptor.Available, UnavailableReason: descriptor.UnavailableReason,
 			Source: contract.SessionCommandSource{
 				Kind: descriptor.Source.Kind, ID: descriptor.Source.ID,
 				Key: descriptor.Source.Key, Scope: descriptor.Source.Scope,

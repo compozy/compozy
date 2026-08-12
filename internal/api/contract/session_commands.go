@@ -10,14 +10,16 @@ type SessionCommandSource struct {
 
 // SessionCommandPayload is one command available in a session composer.
 type SessionCommandPayload struct {
-	ID             string               `json:"id"`
-	CanonicalToken string               `json:"canonical_token"`
-	DisplayName    string               `json:"display_name"`
-	Description    string               `json:"description"`
-	Lane           string               `json:"lane"`
-	Source         SessionCommandSource `json:"source"`
-	Placements     []string             `json:"placements"`
-	InputHint      string               `json:"input_hint,omitempty"`
+	ID                string               `json:"id"`
+	CanonicalToken    string               `json:"canonical_token"`
+	DisplayName       string               `json:"display_name"`
+	Description       string               `json:"description"`
+	Lane              string               `json:"lane"`
+	Source            SessionCommandSource `json:"source"`
+	Placements        []string             `json:"placements"`
+	InputHint         string               `json:"input_hint,omitempty"`
+	Available         bool                 `json:"available"`
+	UnavailableReason string               `json:"unavailable_reason,omitempty"`
 }
 
 // SessionCommandsResponse is the session-scoped command catalog projection.

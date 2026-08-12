@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -12,13 +13,20 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
+type sessionCreateWorktreeInput struct {
+	Name string `json:"name,omitempty"`
+}
+
 type sessionCreateInput struct {
-	Workspace            string                 `json:"workspace,omitempty"`
-	Agent                string                 `json:"agent"`
-	Name                 string                 `json:"name,omitempty"`
-	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Workspace            string                      `json:"workspace,omitempty"`
+	Agent                string                      `json:"agent"`
+	Name                 string                      `json:"name,omitempty"`
+	Worktree             string                      `json:"worktree,omitempty"`
+	NewWorktree          *sessionCreateWorktreeInput `json:"new_worktree,omitempty"`
+	NetworkParticipation *participation.Request      `json:"network_participation,omitempty"`
 }
 
 type sessionPromptInput struct {
@@ -67,10 +75,15 @@ func (n *daemonNativeTools) sessionCreate(
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("daemon: durable session acceptance is required")
 	}
+	worktreeTarget, err := n.resolveNativeSessionWorktree(ctx, workspaceID, input)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	opts := session.CreateOpts{
 		AgentName: agent,
 		Name:      strings.TrimSpace(input.Name),
 		Workspace: workspaceID,
+		Worktree:  worktreeTarget.ID,
 		Type:      session.SessionTypeUser,
 		NetworkParticipation: participation.CloneRequest(
 			input.NetworkParticipation,
@@ -86,10 +99,58 @@ func (n *daemonNativeTools) sessionCreate(
 	}
 	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: opts})
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, errors.Join(err, n.rollbackNativeSessionWorktree(ctx, worktreeTarget))
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+}
+
+const nativeSessionWorktreeRollbackTimeout = 30 * time.Second
+
+type nativeSessionWorktreeTarget struct {
+	ID          string
+	WorkspaceID string
+	Created     bool
+}
+
+func (n *daemonNativeTools) resolveNativeSessionWorktree(
+	ctx context.Context,
+	workspaceID string,
+	input sessionCreateInput,
+) (nativeSessionWorktreeTarget, error) {
+	ref := strings.TrimSpace(input.Worktree)
+	if ref != "" && input.NewWorktree != nil {
+		return nativeSessionWorktreeTarget{}, errors.New("daemon: worktree and new_worktree are mutually exclusive")
+	}
+	if input.NewWorktree == nil {
+		return nativeSessionWorktreeTarget{ID: ref}, nil
+	}
+	if n.deps.Worktrees == nil {
+		return nativeSessionWorktreeTarget{}, errors.New("daemon: worktree creation is unavailable")
+	}
+	item, err := n.deps.Worktrees.CreateReady(ctx, workspaceID, worktree.CreateOptions{
+		Name:   strings.TrimSpace(input.NewWorktree.Name),
+		Origin: worktree.OriginManual,
+	})
+	if err != nil {
+		return nativeSessionWorktreeTarget{}, err
+	}
+	return nativeSessionWorktreeTarget{ID: item.ID, WorkspaceID: workspaceID, Created: true}, nil
+}
+
+func (n *daemonNativeTools) rollbackNativeSessionWorktree(
+	ctx context.Context,
+	target nativeSessionWorktreeTarget,
+) error {
+	if !target.Created || n.deps.Worktrees == nil {
+		return nil
+	}
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), nativeSessionWorktreeRollbackTimeout)
+	defer cancel()
+	if _, err := n.deps.Worktrees.Remove(rollbackCtx, target.WorkspaceID, target.ID, true); err != nil {
+		return fmt.Errorf("daemon: roll back materialized session worktree: %w", err)
+	}
+	return nil
 }
 
 func (n *daemonNativeTools) sessionPrompt(

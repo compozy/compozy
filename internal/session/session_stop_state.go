@@ -24,6 +24,9 @@ func (s *Session) beginPromptSetup() error {
 	if s.conversationRewindReserved {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
+	if s.worktreeForkReserved {
+		return ErrPromptInProgress
+	}
 	if s.process == nil {
 		return errors.New("session: agent process is not available")
 	}
@@ -51,6 +54,9 @@ func (s *Session) beginExclusivePromptSetup() (*AgentProcess, error) {
 	if s.conversationRewindReserved {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
+	if s.worktreeForkReserved {
+		return nil, ErrPromptInProgress
+	}
 	if s.promptSetupCount > 0 || s.currentTurnSource != "" {
 		return nil, ErrPromptInProgress
 	}
@@ -73,7 +79,8 @@ func (s *Session) reserveConversationRewind() error {
 	if s.State != StateActive {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.conversationRewindReserved || s.promptSetupCount > 0 || s.currentTurnSource != "" || s.currentTurnID != "" {
+	if s.conversationRewindReserved || s.worktreeForkReserved || s.promptSetupCount > 0 ||
+		s.currentTurnSource != "" || s.currentTurnID != "" {
 		return fmt.Errorf("%w: %s", ErrConversationRewindBusy, s.ID)
 	}
 	if s.process != nil && s.process.HasPendingPermission() {

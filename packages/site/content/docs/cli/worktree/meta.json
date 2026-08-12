@@ -1,0 +1,14 @@
+{
+    "title": "Worktree",
+    "pages": [
+        "index",
+        "adopt",
+        "cancel",
+        "create",
+        "dismiss",
+        "inspect",
+        "list",
+        "remove",
+        "status"
+    ]
+}

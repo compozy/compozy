@@ -24,17 +24,83 @@ func (s *Service) CreateAccepted(
 	workspaceID string,
 	options CreateOptions,
 ) (*Worktree, error) {
-	workspace, item, commonDir, err := s.prepareCreation(ctx, workspaceID, options)
+	item, _, err := s.startAcceptedCreation(ctx, workspaceID, options)
+	return item, err
+}
+
+// CreateReady inserts a visible pending worktree, waits for materialization,
+// and returns only after the worktree is ready for session binding.
+func (s *Service) CreateReady(
+	ctx context.Context,
+	workspaceID string,
+	options CreateOptions,
+) (*Worktree, error) {
+	item, operation, err := s.startAcceptedCreation(ctx, workspaceID, options)
 	if err != nil {
 		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, errors.Join(ctx.Err(), s.cancelReadyCreation(ctx, workspaceID, item.ID, operation))
+	case <-operation.done:
+	}
+	operationErr, canceled := operation.result()
+	if operationErr != nil {
+		return nil, fmt.Errorf("worktree: materialize accepted creation: %w", operationErr)
+	}
+	if canceled {
+		return nil, context.Canceled
+	}
+	ready, err := s.store.Get(ctx, workspaceID, item.ID)
+	if err != nil {
+		return nil, fmt.Errorf("worktree: read ready creation: %w", err)
+	}
+	if ready == nil || ready.State != StateReady {
+		return nil, fmt.Errorf("%w: %s", ErrNotReady, item.ID)
+	}
+	return ready, nil
+}
+
+func (s *Service) cancelReadyCreation(
+	ctx context.Context,
+	workspaceID string,
+	worktreeID string,
+	operation *createOperation,
+) error {
+	operation.once.Do(operation.cancel)
+	cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), defaultGitTimeout)
+	defer cancelCleanup()
+	select {
+	case <-operation.done:
+	case <-cleanupCtx.Done():
+		return fmt.Errorf("worktree: cancel ready creation: %w", cleanupCtx.Err())
+	}
+	operationErr, canceled := operation.result()
+	if operationErr != nil || canceled {
+		return operationErr
+	}
+	if _, err := s.Remove(cleanupCtx, workspaceID, worktreeID, true); err != nil {
+		return fmt.Errorf("worktree: remove completed creation after caller cancellation: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) startAcceptedCreation(
+	ctx context.Context,
+	workspaceID string,
+	options CreateOptions,
+) (*Worktree, *createOperation, error) {
+	workspace, item, commonDir, err := s.prepareCreation(ctx, workspaceID, options)
+	if err != nil {
+		return nil, nil, err
 	}
 	release, err := s.locks.Acquire(ctx, commonDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := s.insertPendingUnderLock(ctx, workspace, commonDir, item, options); err != nil {
 		release()
-		return nil, err
+		return nil, nil, err
 	}
 
 	operationContext, cancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -43,7 +109,7 @@ func (s *Service) CreateAccepted(
 	go s.runAcceptedCreation(
 		operationContext, operation, release, workspace, commonDir, item, options,
 	)
-	return &item, nil
+	return &item, operation, nil
 }
 
 func (s *Service) runAcceptedCreation(

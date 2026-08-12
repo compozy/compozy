@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 )
@@ -59,6 +60,128 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	) {
 		t.Fatalf("ResolveWorktreeWorkspace(nil) error = %v, want ErrNotFound", err)
 	}
+}
+
+func TestDaemonSessionWorktreeResolver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve only ready attached worktrees", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		var gotWorkspace, gotRef string
+		resolver := daemonSessionWorktreeResolver{lookup: func() sessionWorktreeLookup {
+			return sessionWorktreeLookupFunc(func(_ context.Context, workspaceID, ref string) (*worktree.Worktree, error) {
+				gotWorkspace, gotRef = workspaceID, ref
+				return &worktree.Worktree{ID: "wt-ready", WorkspaceID: workspaceID, Path: root, State: worktree.StateReady}, nil
+			})
+		}}
+
+		id, gotRoot, err := resolver.ResolveSessionWorktree(context.Background(), " ws-1 ", " wt-ref ")
+		if err != nil {
+			t.Fatalf("ResolveSessionWorktree(ready) error = %v", err)
+		}
+		if id != "wt-ready" || gotRoot != root || gotWorkspace != "ws-1" || gotRef != "wt-ref" {
+			t.Fatalf(
+				"ResolveSessionWorktree(ready) = (%q, %q), lookup (%q, %q)",
+				id,
+				gotRoot,
+				gotWorkspace,
+				gotRef,
+			)
+		}
+	})
+
+	for _, test := range []struct {
+		name    string
+		state   worktree.State
+		getErr  error
+		path    string
+		wantErr error
+	}{
+		{name: "unknown", getErr: worktree.ErrNotFound, wantErr: worktree.ErrNotFound},
+		{name: "pending", state: worktree.StatePending, wantErr: worktree.ErrNotReady},
+		{name: "failed", state: worktree.StateFailed, wantErr: worktree.ErrNotReady},
+		{name: "removing", state: worktree.StateRemoving, wantErr: worktree.ErrNotReady},
+		{name: "missing", state: worktree.StateMissing, wantErr: worktree.ErrMissing},
+		{name: "removed", state: worktree.StateRemoved, wantErr: worktree.ErrMissing},
+		{name: "ready with vanished path", state: worktree.StateReady, path: filepath.Join(t.TempDir(), "gone"), wantErr: worktree.ErrMissing},
+	} {
+		t.Run("Should classify "+test.name+" deterministically", func(t *testing.T) {
+			t.Parallel()
+
+			resolver := daemonSessionWorktreeResolver{lookup: func() sessionWorktreeLookup {
+				return sessionWorktreeLookupFunc(func(context.Context, string, string) (*worktree.Worktree, error) {
+					if test.getErr != nil {
+						return nil, test.getErr
+					}
+					return &worktree.Worktree{ID: "wt-target", Path: test.path, State: test.state}, nil
+				})
+			}}
+			_, _, err := resolver.ResolveSessionWorktree(context.Background(), "ws-1", "target")
+			if !errors.Is(err, test.wantErr) {
+				t.Fatalf("ResolveSessionWorktree(%s) error = %v, want %v", test.name, err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestWorktreeTurnRefreshNotifier(t *testing.T) {
+	t.Parallel()
+
+	refresher := &recordingTurnWorktreeRefresher{}
+	notify := worktreeTurnRefreshNotifier(
+		turnWorktreeSessionReader{info: &session.Info{
+			ID: "sess-bound", WorkspaceID: "ws-bound", WorktreeID: "wt-bound",
+		}},
+		refresher,
+		nil,
+	)
+	notify("sess-bound")
+	if refresher.workspaceID != "ws-bound" || refresher.worktreeID != "wt-bound" || !refresher.refresh {
+		t.Fatalf(
+			"Status() = workspace %q worktree %q refresh %v, want exact bound worktree refresh",
+			refresher.workspaceID,
+			refresher.worktreeID,
+			refresher.refresh,
+		)
+	}
+}
+
+type turnWorktreeSessionReader struct {
+	info *session.Info
+}
+
+func (r turnWorktreeSessionReader) Status(context.Context, string) (*session.Info, error) {
+	return r.info, nil
+}
+
+type recordingTurnWorktreeRefresher struct {
+	workspaceID string
+	worktreeID  string
+	refresh     bool
+}
+
+func (r *recordingTurnWorktreeRefresher) Status(
+	_ context.Context,
+	workspaceID string,
+	worktreeID string,
+	refresh bool,
+) (*worktree.Status, error) {
+	r.workspaceID = workspaceID
+	r.worktreeID = worktreeID
+	r.refresh = refresh
+	return &worktree.Status{WorktreeID: worktreeID}, nil
+}
+
+type sessionWorktreeLookupFunc func(context.Context, string, string) (*worktree.Worktree, error)
+
+func (f sessionWorktreeLookupFunc) Get(
+	ctx context.Context,
+	workspaceID string,
+	ref string,
+) (*worktree.Worktree, error) {
+	return f(ctx, workspaceID, ref)
 }
 
 type daemonWorktreeResolverStub struct {

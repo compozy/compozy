@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	goalCommandName = "goal"
-	runCommandName  = "run"
+	goalCommandName     = "goal"
+	worktreeCommandName = "worktree"
+	runCommandName      = "run"
 )
 
 var errCanonicalNameRequired = errors.New("command: canonical name is required")
@@ -30,7 +31,9 @@ func BuildCatalog(builtins []BuiltinSpec, agents []AgentSpec, skills []SkillSpec
 		claimedBare[strings.TrimPrefix(descriptor.CanonicalToken, "/")] = struct{}{}
 		if !builtin.Available {
 			unavailable[descriptor.CanonicalToken] = struct{}{}
-			continue
+			if strings.TrimSpace(builtin.UnavailableReason) == "" {
+				continue
+			}
 		}
 		descriptors = append(descriptors, descriptor)
 	}
@@ -94,6 +97,11 @@ func DefaultBuiltins() []BuiltinSpec {
 			InputHint:   "objective or Goal command",
 			Available:   true,
 		},
+		{
+			Name:        worktreeCommandName,
+			Description: "Create a new session in a worktree.",
+			Available:   true,
+		},
 		{Name: runCommandName, Available: false},
 	}
 }
@@ -104,14 +112,16 @@ func builtinDescriptor(spec BuiltinSpec) (Descriptor, error) {
 		return Descriptor{}, errCanonicalNameRequired
 	}
 	return Descriptor{
-		ID:             "builtin:" + name,
-		CanonicalToken: slashToken(name),
-		DisplayName:    "/" + name,
-		Description:    strings.TrimSpace(spec.Description),
-		Lane:           LaneBuiltin,
-		Source:         Source{Kind: "builtin", Scope: "session"},
-		Placements:     []Placement{PlacementStandalone},
-		InputHint:      strings.TrimSpace(spec.InputHint),
+		ID:                "builtin:" + name,
+		CanonicalToken:    slashToken(name),
+		DisplayName:       "/" + name,
+		Description:       strings.TrimSpace(spec.Description),
+		Lane:              LaneBuiltin,
+		Source:            Source{Kind: "builtin", Scope: "session"},
+		Placements:        []Placement{PlacementStandalone},
+		InputHint:         strings.TrimSpace(spec.InputHint),
+		Available:         spec.Available,
+		UnavailableReason: strings.TrimSpace(spec.UnavailableReason),
 	}, nil
 }
 
@@ -129,6 +139,7 @@ func agentDescriptor(spec AgentSpec) (Descriptor, error) {
 		Source:         Source{Kind: "acp", ID: Slug(spec.SourceID), Scope: "session"},
 		Placements:     []Placement{PlacementStandalone},
 		InputHint:      strings.TrimSpace(spec.InputHint),
+		Available:      true,
 	}, nil
 }
 
@@ -170,6 +181,7 @@ func skillDescriptor(spec SkillSpec) (Descriptor, error) {
 		Source:         source,
 		Placements:     []Placement{PlacementStandalone, PlacementInline},
 		Skill:          &ref,
+		Available:      true,
 	}, nil
 }
 
@@ -222,9 +234,44 @@ func catalogRevision(descriptors []Descriptor) string {
 		}
 		material.WriteString(descriptor.InputHint)
 		material.WriteByte(0)
+		if descriptor.Available {
+			material.WriteByte(1)
+		} else {
+			material.WriteByte(2)
+		}
+		material.WriteString(descriptor.UnavailableReason)
+		material.WriteByte(0)
 	}
 	hash := sha256.Sum256([]byte(material.String()))
 	return hex.EncodeToString(hash[:])
+}
+
+// SetBuiltinAvailability updates one visible daemon-owned command while
+// preserving catalog ordering and parser refusal state.
+func SetBuiltinAvailability(catalog Catalog, name string, available bool, reason string) Catalog {
+	id := "builtin:" + Slug(name)
+	commands := append([]Descriptor(nil), catalog.Commands...)
+	unavailable := make(map[string]struct{}, len(catalog.unavailable)+1)
+	for token := range catalog.unavailable {
+		unavailable[token] = struct{}{}
+	}
+	for index := range commands {
+		if commands[index].ID != id {
+			continue
+		}
+		commands[index].Available = available
+		commands[index].UnavailableReason = strings.TrimSpace(reason)
+		if available {
+			delete(unavailable, commands[index].CanonicalToken)
+		} else {
+			unavailable[commands[index].CanonicalToken] = struct{}{}
+		}
+		break
+	}
+	catalog.Commands = commands
+	catalog.unavailable = unavailable
+	catalog.Revision = catalogRevision(commands)
+	return catalog
 }
 
 func slashToken(name string) string {

@@ -27,6 +27,7 @@ func (p SessionCatalogPosition) Validate() error {
 // decoding and active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
 	WorkspaceID         string
+	WorktreeID          string
 	State               string
 	SessionType         string
 	AgentName           string

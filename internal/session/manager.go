@@ -218,6 +218,26 @@ func (m *Manager) SetTurnEndNotifier(fn TurnEndNotifier) {
 	m.turnEndNotifier = fn
 }
 
+// AddTurnEndNotifier appends a post-construction callback without replacing
+// callbacks already installed by other daemon subsystems.
+func (m *Manager) AddTurnEndNotifier(fn TurnEndNotifier) {
+	if m == nil || fn == nil {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	previous := m.turnEndNotifier
+	if previous == nil {
+		m.turnEndNotifier = fn
+		return
+	}
+	m.turnEndNotifier = func(sessionID string) {
+		previous(sessionID)
+		fn(sessionID)
+	}
+}
+
 // IsPrompting reports whether the target session currently has an in-flight
 // prompt setup or active turn.
 func (m *Manager) IsPrompting(id string) bool {

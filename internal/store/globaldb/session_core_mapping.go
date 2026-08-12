@@ -36,6 +36,7 @@ func upsertSessionParams(record sessionCatalogRecord) (sqlcgen.UpsertSessionPara
 		SelectedSpeed:            selectedRuntimeSpeed(session.SelectedRuntime),
 		RuntimeSelectionRevision: session.RuntimeSelectionRevision,
 		WorkspaceID:              session.WorkspaceID,
+		WorktreeID:               nullableSessionString(session.WorktreeID),
 		SessionType:              store.NormalizeSessionType(session.SessionType),
 		NetworkSpecJson:          network.JSON,
 		NetworkMode:              network.Mode,

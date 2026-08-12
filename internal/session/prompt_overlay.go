@@ -19,6 +19,7 @@ type StartupPromptContext struct {
 	Provider             string
 	WorkspaceID          string
 	Workspace            string
+	WorktreeID           string
 	NetworkParticipation participation.Spec
 	SessionType          Type
 	SoulSnapshot         *soul.Snapshot

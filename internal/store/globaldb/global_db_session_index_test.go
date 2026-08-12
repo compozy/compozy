@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 const (
@@ -247,6 +248,110 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 		if page.Total != 1 {
 			t.Fatalf("PageSessions().Total = %d, want 1", page.Total)
+		}
+	})
+
+	t.Run("Should filter sessions by the exact workspace and worktree pair", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-worktree-filter",
+			filepath.Join(t.TempDir(), "workspace-worktree-filter"),
+		)
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-worktree-filter-foreign",
+			filepath.Join(t.TempDir(), "workspace-worktree-filter-foreign"),
+		)
+		baseAt := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+		worktrees := []worktreepkg.Worktree{
+			{
+				ID: "wt-target", WorkspaceID: workspaceID, Name: "target", Branch: "feature/target",
+				Path: filepath.Join(t.TempDir(), "target"), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				CreatedAt: baseAt, UpdatedAt: baseAt,
+			},
+			{
+				ID: "wt-other", WorkspaceID: workspaceID, Name: "other", Branch: "feature/other",
+				Path: filepath.Join(t.TempDir(), "other"), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				CreatedAt: baseAt, UpdatedAt: baseAt,
+			},
+			{
+				ID: "wt-foreign", WorkspaceID: foreignWorkspaceID, Name: "foreign", Branch: "feature/foreign",
+				Path: filepath.Join(t.TempDir(), "foreign"), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				CreatedAt: baseAt, UpdatedAt: baseAt,
+			},
+		}
+		for _, item := range worktrees {
+			if err := globalDB.Worktrees.Insert(ctx, item); err != nil {
+				t.Fatalf("Insert(worktree %q) error = %v", item.ID, err)
+			}
+		}
+
+		bound := sessionInfoForWorkspaceStateIndexTest(
+			"sess-bound-target",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt.Add(3*time.Minute),
+		)
+		bound.WorktreeID = "wt-target"
+		other := sessionInfoForWorkspaceStateIndexTest(
+			"sess-bound-other",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt.Add(2*time.Minute),
+		)
+		other.WorktreeID = "wt-other"
+		root := sessionInfoForWorkspaceStateIndexTest(
+			"sess-root-workspace",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt.Add(time.Minute),
+		)
+		foreign := sessionInfoForWorkspaceStateIndexTest(
+			"sess-bound-foreign",
+			foreignWorkspaceID,
+			globalDBSessionStateActive,
+			baseAt,
+		)
+		foreign.WorktreeID = "wt-foreign"
+		for _, info := range []store.SessionInfo{bound, other, root, foreign} {
+			if err := globalDB.RegisterSession(ctx, info); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
+			}
+		}
+
+		page, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			WorkspaceID: workspaceID,
+			WorktreeID:  "wt-target",
+			Sort:        sessionCatalogSortRecent,
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("PageSessions(worktree) error = %v", err)
+		}
+		want := []string{bound.ID}
+		if got := sessionIDsForWorkspaceStateIndexTest(page.Sessions); !slices.Equal(got, want) || page.Total != 1 {
+			t.Fatalf("PageSessions(worktree) ids = %#v total=%d, want %#v total=1", got, page.Total, want)
+		}
+
+		listed, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			WorkspaceID: workspaceID,
+			WorktreeID:  "wt-target",
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ListSessions(worktree) error = %v", err)
+		}
+		if got := sessionIDsForWorkspaceStateIndexTest(listed); !slices.Equal(got, want) {
+			t.Fatalf("ListSessions(worktree) ids = %#v, want %#v", got, want)
 		}
 	})
 

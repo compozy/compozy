@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 const sessionStateOrphaned = "orphaned"
@@ -105,6 +106,7 @@ func (g *SessionRepo) ListSessions(
 		store.StringClause("state", query.State),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("workspace_id", query.WorkspaceID),
+		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("session_type", query.SessionType),
 		store.StringClause("parent_session_id", query.ParentSessionID),
 		store.StringClause("root_session_id", query.RootSessionID),
@@ -337,6 +339,9 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 		return mapSessionArchivedConstraint(session.ID, err)
 	}
 	if affected == 0 {
+		if availabilityErr := sessionWorktreeAvailabilityError(ctx, queries, session); availabilityErr != nil {
+			return availabilityErr
+		}
 		existingWorkspaceID, err := queries.GetSessionWorkspaceID(ctx, session.ID)
 		if err != nil {
 			return fmt.Errorf("store: read existing workspace owner for session %q: %w", session.ID, err)
@@ -347,6 +352,35 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 		return fmt.Errorf("%w: %s", store.ErrSessionParticipationMismatch, session.ID)
 	}
 	return nil
+}
+
+func sessionWorktreeAvailabilityError(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	session store.SessionInfo,
+) error {
+	worktreeID := strings.TrimSpace(session.WorktreeID)
+	if worktreeID == "" {
+		return nil
+	}
+	row, err := queries.GetWorktree(ctx, sqlcgen.GetWorktreeParams{
+		WorkspaceID: strings.TrimSpace(session.WorkspaceID),
+		Ref:         worktreeID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return worktree.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("store: read session worktree binding: %w", err)
+	}
+	switch worktree.State(row.State) {
+	case worktree.StateMissing, worktree.StateRemoved, worktree.StateDismissed:
+		return worktree.ErrMissing
+	case worktree.StateReady:
+		return nil
+	default:
+		return worktree.ErrNotReady
+	}
 }
 
 type sessionCatalogRecord struct {

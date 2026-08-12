@@ -212,6 +212,13 @@ func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
 	}
 }
 
+// WithWorktreeResolver injects ready-worktree resolution for bound sessions.
+func WithWorktreeResolver(resolver SessionWorktreeResolver) Option {
+	return func(manager *Manager) {
+		manager.worktreeResolver = resolver
+	}
+}
+
 // WithParticipationResolver injects the shared resolver used before session creation writes.
 func WithParticipationResolver(resolver participation.Resolver) Option {
 	return func(manager *Manager) {

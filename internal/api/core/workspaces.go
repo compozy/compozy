@@ -257,7 +257,19 @@ func (h *BaseHandlers) ResolveWorkspace(c *gin.Context) {
 }
 
 func (h *BaseHandlers) validateCreateSessionRequest(req contract.CreateSessionRequest) error {
-	return validateCreateSessionRequest(h.transportName(), req.Workspace, req.WorkspacePath)
+	if err := validateCreateSessionRequest(h.transportName(), req.Workspace, req.WorkspacePath); err != nil {
+		return err
+	}
+	hasWorktree := strings.TrimSpace(req.Worktree) != ""
+	hasNewWorktree := req.NewWorktree != nil
+	switch {
+	case hasWorktree && hasNewWorktree:
+		return prefixedError(h.transportName(), "worktree and new_worktree are mutually exclusive")
+	case (hasWorktree || hasNewWorktree) && strings.TrimSpace(req.WorkspacePath) != "":
+		return prefixedError(h.transportName(), "worktree selection requires workspace, not workspace_path")
+	default:
+		return nil
+	}
 }
 
 func (h *BaseHandlers) lookupWorkspaceID(ctx context.Context, ref string) (string, error) {

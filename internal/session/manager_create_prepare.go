@@ -16,6 +16,8 @@ import (
 
 type createWorkspaceContext struct {
 	workspace       workspacepkg.ResolvedWorkspace
+	worktreeID      string
+	worktreeRoot    string
 	sandboxDisabled bool
 	cwd             string
 	agentName       string
@@ -26,12 +28,15 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
+	sessionType := normalizeSessionType(opts.Type)
+	if err := validateCoordinatorExecutionTarget(opts, sessionType); err != nil {
+		return sessionStartSpec{}, err
+	}
 
 	workspaceContext, err := m.prepareCreateWorkspaceContext(ctx, opts)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	sessionType := normalizeSessionType(opts.Type)
 	sessionID, err := m.createSessionID(opts.DesiredSessionID)
 	if err != nil {
 		return sessionStartSpec{}, err
@@ -72,6 +77,8 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		permissions:              opts.Permissions,
 		sandboxDisabled:          workspaceContext.sandboxDisabled,
 		workspace:                workspaceContext.workspace,
+		worktreeID:               workspaceContext.worktreeID,
+		worktreeRoot:             workspaceContext.worktreeRoot,
 		cwd:                      workspaceContext.cwd,
 		networkParticipation:     networkParticipation,
 		networkOwnerKey:          networkOwnerKey,
@@ -102,11 +109,19 @@ func (m *Manager) prepareCreateWorkspaceContext(
 	if err != nil {
 		return createWorkspaceContext{}, err
 	}
+	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, resolvedWorkspace.ID, opts.Worktree)
+	if err != nil {
+		return createWorkspaceContext{}, err
+	}
 	sandboxDisabled, err := applyCreateSandboxOverride(&resolvedWorkspace, opts)
 	if err != nil {
 		return createWorkspaceContext{}, err
 	}
-	cwd, err := ResolveSessionCWD(resolvedWorkspace.RootDir, opts.CWD)
+	executionRoot := resolvedWorkspace.RootDir
+	if worktreeRoot != "" {
+		executionRoot = worktreeRoot
+	}
+	cwd, err := ResolveSessionCWD(executionRoot, opts.CWD)
 	if err != nil {
 		return createWorkspaceContext{}, err
 	}
@@ -116,10 +131,25 @@ func (m *Manager) prepareCreateWorkspaceContext(
 	}
 	return createWorkspaceContext{
 		workspace:       resolvedWorkspace,
+		worktreeID:      worktreeID,
+		worktreeRoot:    worktreeRoot,
 		sandboxDisabled: sandboxDisabled,
 		cwd:             cwd,
 		agentName:       agentName,
 	}, nil
+}
+
+func validateCoordinatorExecutionTarget(opts CreateOpts, sessionType Type) error {
+	if sessionType != SessionTypeCoordinator {
+		return nil
+	}
+	if strings.TrimSpace(opts.Worktree) != "" {
+		return fmt.Errorf("%w: coordinator sessions cannot bind a worktree", ErrValidation)
+	}
+	if strings.TrimSpace(opts.CWD) != "" {
+		return fmt.Errorf("%w: coordinator sessions cannot set cwd", ErrValidation)
+	}
+	return nil
 }
 
 func (m *Manager) prepareCreateSandboxID(disabled bool) (string, error) {
@@ -187,12 +217,12 @@ func (m *Manager) createSessionID(desired string) (string, error) {
 	return sessionID, nil
 }
 
-// ResolveSessionCWD normalizes a creation CWD and rejects workspace escape.
+// ResolveSessionCWD normalizes a creation CWD and rejects execution-root escape.
 func ResolveSessionCWD(root string, requested string) (string, error) {
 	target, err := resolveContainedDirectory(root, requested)
 	if err != nil {
 		return "", fmt.Errorf(
-			"%w: session cwd must remain within the workspace: %w",
+			"%w: session cwd escapes root: %w",
 			ErrValidation,
 			err,
 		)

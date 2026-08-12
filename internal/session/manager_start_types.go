@@ -27,6 +27,8 @@ type sessionStartSpec struct {
 	permissions              compozyconfig.PermissionMode
 	sandboxDisabled          bool
 	workspace                workspacepkg.ResolvedWorkspace
+	worktreeID               string
+	worktreeRoot             string
 	cwd                      string
 	networkParticipation     participation.Spec
 	networkOwnerKey          string

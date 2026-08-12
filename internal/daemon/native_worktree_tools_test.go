@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -17,9 +18,21 @@ import (
 )
 
 type nativeWorktreeServiceStub struct {
+	create        func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	list          func(context.Context, string, bool) (*worktree.DetailedListing, error)
 	remove        func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
 	capabilityErr error
+}
+
+func (s *nativeWorktreeServiceStub) Create(
+	ctx context.Context,
+	workspaceID string,
+	opts worktree.CreateOptions,
+) (*worktree.Worktree, error) {
+	if s.create == nil {
+		return nil, fmt.Errorf("unexpected Create call")
+	}
+	return s.create(ctx, workspaceID, opts)
 }
 
 func (s *nativeWorktreeServiceStub) Capability(
@@ -34,6 +47,17 @@ func (s *nativeWorktreeServiceStub) CreateAccepted(
 	worktree.CreateOptions,
 ) (*worktree.Worktree, error) {
 	return nil, fmt.Errorf("unexpected CreateAccepted call")
+}
+
+func (s *nativeWorktreeServiceStub) CreateReady(
+	ctx context.Context,
+	workspaceID string,
+	opts worktree.CreateOptions,
+) (*worktree.Worktree, error) {
+	if s.create == nil {
+		return nil, fmt.Errorf("unexpected CreateReady call")
+	}
+	return s.create(ctx, workspaceID, opts)
 }
 
 func (s *nativeWorktreeServiceStub) CancelCreate(context.Context, string, string) error {
@@ -235,6 +259,53 @@ func TestNativeWorktreeTools(t *testing.T) {
 					t.Fatalf("worktree availability = %#v, want %q", availability, testCase.reason)
 				}
 			})
+		}
+	})
+
+	t.Run("Should roll back a newly materialized session target after acceptance fails", func(t *testing.T) {
+		t.Parallel()
+
+		removed := 0
+		service := &nativeWorktreeServiceStub{
+			create: func(
+				_ context.Context,
+				workspaceID string,
+				opts worktree.CreateOptions,
+			) (*worktree.Worktree, error) {
+				if workspaceID != "registry-a" || opts.Name != "native-fork" {
+					t.Fatalf("CreateReady() workspace/options = %q/%#v", workspaceID, opts)
+				}
+				return &worktree.Worktree{ID: "wt-native", WorkspaceID: workspaceID, State: worktree.StateReady}, nil
+			},
+			remove: func(
+				_ context.Context,
+				workspaceID string,
+				worktreeID string,
+				force bool,
+			) (*worktree.RemovalRefusal, error) {
+				removed++
+				if workspaceID != "registry-a" || worktreeID != "wt-native" || !force {
+					t.Fatalf("Remove() = workspace %q worktree %q force %v", workspaceID, worktreeID, force)
+				}
+				return nil, nil
+			},
+		}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Workspaces: nativeWorktreeWorkspaceService(),
+			Worktrees:  service,
+			Sessions: apitest.StubSessionManager{CreateAcceptedFn: func(
+				context.Context,
+				session.CreateAcceptedOpts,
+			) (*session.Info, error) {
+				return nil, errors.New("accept failed")
+			}},
+		}}
+		_, err := native.sessionCreate(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionCreate,
+			Input:  json.RawMessage(`{"workspace":"ws-a","agent":"coder","new_worktree":{"name":"native-fork"}}`),
+		})
+		if err == nil || !strings.Contains(err.Error(), "accept failed") || removed != 1 {
+			t.Fatalf("sessionCreate() error/removals = %v/%d, want acceptance failure and one removal", err, removed)
 		}
 	})
 }

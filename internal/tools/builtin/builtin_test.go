@@ -1557,8 +1557,13 @@ func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
 	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"agent", "name", "network_participation", "workspace",
+		"agent", "name", "network_participation", "new_worktree", "workspace", "worktree",
 	})
+	var newWorktree nativeObjectSchema
+	if err := json.Unmarshal(input.Properties["new_worktree"], &newWorktree); err != nil {
+		t.Fatalf("%s new_worktree schema unmarshal error = %v", descriptor.ID, err)
+	}
+	assertClosedObjectSchema(t, descriptor.ID.String()+" new_worktree", newWorktree, []string{"name"})
 	assertTypedNetworkParticipationSchema(
 		t,
 		descriptor.ID.String(),

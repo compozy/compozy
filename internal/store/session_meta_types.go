@@ -41,6 +41,7 @@ type SessionMeta struct {
 	RuntimeSelection     *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
 	EffectivePermissions string                        `json:"effective_permissions,omitempty"`
 	WorkspaceID          string                        `json:"workspace_id,omitempty"`
+	WorktreeID           string                        `json:"worktree_id,omitempty"`
 	CWD                  string                        `json:"cwd,omitempty"`
 	NetworkParticipation *participation.Spec           `json:"network_participation"`
 	SessionType          string                        `json:"session_type,omitempty"`

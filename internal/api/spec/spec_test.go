@@ -803,6 +803,25 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeConfirmedWorktreeForkContract",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				fork := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork",
+					"POST",
+				)
+				request := jsonRequestSchema(t, fork)
+				assertRequired(t, request, "confirmed")
+				assertNotRequired(t, request, "worktree", "new_worktree")
+				assertSchemaHasAdditionalProperties(t, request, false)
+				assertResponseStatus(t, fork, 201)
+				assertResponseStatus(t, fork, 409)
+			},
+		},
+		{
 			name: "ShouldDescribeCreateAgentContract",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

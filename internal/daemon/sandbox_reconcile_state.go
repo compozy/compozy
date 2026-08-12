@@ -107,14 +107,37 @@ func sandboxReconcileResolvedSandbox(
 	return resolved
 }
 
-func sandboxReconcileLocalRoots(
+func (d *Daemon) resolveSandboxReconcileLocalRoots(
+	ctx context.Context,
+	state *bootState,
+	meta store.SessionMeta,
+	envMeta *store.SessionSandboxMeta,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 	workspaceResolved bool,
-) (string, []string) {
+) (string, []string, bool) {
 	if !workspaceResolved || resolvedWorkspace == nil {
-		return "", nil
+		if strings.TrimSpace(meta.WorktreeID) == "" {
+			return "", nil, true
+		}
+		return "", nil, false
 	}
-	return strings.TrimSpace(resolvedWorkspace.RootDir), append([]string(nil), resolvedWorkspace.AdditionalDirs...)
+	if strings.TrimSpace(meta.WorktreeID) == "" {
+		return strings.TrimSpace(resolvedWorkspace.RootDir),
+			append([]string(nil), resolvedWorkspace.AdditionalDirs...), true
+	}
+	_, root, err := (daemonSessionWorktreeResolver{state: state}).ResolveSessionWorktree(
+		ctx,
+		meta.WorkspaceID,
+		meta.WorktreeID,
+	)
+	if err != nil {
+		sandboxReconcileLogger(state).Warn(
+			"daemon: sandbox reconciliation worktree resolve failed",
+			sandboxReconcileLogAttrs(meta, envMeta, 0, err)...,
+		)
+		return "", nil, false
+	}
+	return root, nil, true
 }
 
 func sandboxSessionStateFromMeta(meta *store.SessionSandboxMeta) sandbox.SessionState {

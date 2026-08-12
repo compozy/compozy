@@ -49,6 +49,9 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	if info == nil || info.Type != session.SessionTypeCoordinator {
 		t.Fatalf("bootstrapRun() info = %#v, want coordinator info", info)
 	}
+	if info.WorktreeID != "" {
+		t.Fatalf("bootstrapRun() worktree_id = %q, want unbound coordinator", info.WorktreeID)
+	}
 
 	call := sessions.createCall(0)
 	if call.Type != session.SessionTypeCoordinator {
@@ -68,6 +71,13 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 			"CreateOpts workspace/participation = %q/%#v, want ws-1/local",
 			call.Workspace,
 			call.ResolvedNetworkParticipation,
+		)
+	}
+	if call.CWD != "" || call.Worktree != "" {
+		t.Fatalf(
+			"CreateOpts coordinator execution target = cwd %q worktree %q, want workspace root",
+			call.CWD,
+			call.Worktree,
 		)
 	}
 	if call.Lineage == nil || call.Lineage.SpawnRole != string(session.SessionTypeCoordinator) {

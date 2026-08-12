@@ -40,6 +40,7 @@ function command(
     canonical_token: token,
     display_name: token,
     description: `${token} description`,
+    available: true,
     lane,
     placements,
     source: { kind: lane, scope: "session" },

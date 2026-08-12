@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,8 +15,18 @@ import (
 func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	session := createSession(t, h)
+	worktreeRoot := filepath.Join(t.TempDir(), "resume-hook-worktree")
+	if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(worktree root) error = %v", err)
+	}
+	resolver := &fakeSessionWorktreeResolver{id: "wt-resume-hook", root: worktreeRoot}
+	h := newHarness(t, WithWorktreeResolver(resolver))
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-resume-hook",
+	})
+	if err != nil {
+		t.Fatalf("Create(bound) error = %v", err)
+	}
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
@@ -23,6 +35,9 @@ func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 	postResumeCh := make(chan hookspkg.SessionPostResumePayload, 1)
 	dispatcher := &spyHookDispatcher{
 		dispatchSessionPreResumeFn: func(_ context.Context, payload hookspkg.SessionPreResumePayload) (hookspkg.SessionPreResumePayload, error) {
+			if payload.WorktreeID != "wt-resume-hook" {
+				t.Fatalf("session.pre_resume worktree_id = %q, want wt-resume-hook", payload.WorktreeID)
+			}
 			payload.SessionName = patchedName
 			return payload, nil
 		},
@@ -32,7 +47,12 @@ func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 		},
 	}
 
-	h.manager = newManagerWithHarness(t, h, WithHookSet(fullHookSet(dispatcher)))
+	h.manager = newManagerWithHarness(
+		t,
+		h,
+		WithWorktreeResolver(resolver),
+		WithHookSet(fullHookSet(dispatcher)),
+	)
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
 	if err != nil {
 		t.Fatalf("Resume() error = %v", err)

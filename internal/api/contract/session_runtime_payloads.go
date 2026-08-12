@@ -21,10 +21,12 @@ const (
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
-	AgentName     string `json:"agent_name,omitempty"`
-	Name          string `json:"name,omitempty"`
-	Workspace     string `json:"workspace,omitempty"`
-	WorkspacePath string `json:"workspace_path,omitempty"`
+	AgentName     string                     `json:"agent_name,omitempty"`
+	Name          string                     `json:"name,omitempty"`
+	Workspace     string                     `json:"workspace,omitempty"`
+	WorkspacePath string                     `json:"workspace_path,omitempty"`
+	Worktree      string                     `json:"worktree,omitempty"`
+	NewWorktree   *NewSessionWorktreeRequest `json:"new_worktree,omitempty"`
 	// ParentSessionID records creation provenance; the parent must live in the
 	// target workspace and the link never narrows the child's lifecycle.
 	ParentSessionID      string                 `json:"parent_session_id,omitempty"`
@@ -34,6 +36,19 @@ type CreateSessionRequest struct {
 // RenameSessionRequest changes the durable display name of one user session.
 type RenameSessionRequest struct {
 	Name string `json:"name"`
+}
+
+// NewSessionWorktreeRequest materializes one worktree before the session starts.
+type NewSessionWorktreeRequest struct {
+	Name string `json:"name,omitempty"`
+}
+
+// ForkSessionWorktreeRequest creates a clean child session in one worktree.
+// Confirmed is mandatory because the origin session is never moved in place.
+type ForkSessionWorktreeRequest struct {
+	Worktree    string                     `json:"worktree,omitempty"`
+	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitempty"`
+	Confirmed   bool                       `json:"confirmed"`
 }
 
 // ApproveSessionRequest is the interactive permission approval payload.
@@ -51,6 +66,7 @@ type SessionPayload struct {
 	Runtime                      SessionRuntimePayload `json:"runtime"`
 	WorkspaceID                  string                `json:"workspace_id,omitempty"`
 	WorkspacePath                string                `json:"workspace_path,omitempty"`
+	WorktreeID                   string                `json:"worktree_id,omitempty"`
 	ResolvedNetworkParticipation *participation.Spec   `json:"resolved_network_participation,omitempty"`
 	Type                         session.Type          `json:"type,omitempty"`
 	State                        session.State         `json:"state"`

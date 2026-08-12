@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/worktree"
 
 	"github.com/gin-gonic/gin"
 )
@@ -63,18 +64,6 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		h.respondError(c, StatusForAgentIdentityError(err), err)
 		return
 	}
-
-	opts := session.CreateOpts{
-		AgentName:            req.AgentName,
-		Name:                 req.Name,
-		Workspace:            req.Workspace,
-		WorkspacePath:        req.WorkspacePath,
-		NetworkParticipation: req.NetworkParticipation,
-		Type:                 session.SessionTypeUser,
-	}
-	if parentSessionID != "" {
-		opts.Lineage = &store.SessionLineage{ParentSessionID: parentSessionID}
-	}
 	if h.SessionAcceptance == nil {
 		h.respondError(
 			c,
@@ -83,13 +72,60 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		)
 		return
 	}
+	worktreeTarget, err := h.resolveCreateSessionWorktree(c, req)
+	if err != nil {
+		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+
+	opts := session.CreateOpts{
+		AgentName:            req.AgentName,
+		Name:                 req.Name,
+		Workspace:            req.Workspace,
+		WorkspacePath:        req.WorkspacePath,
+		Worktree:             worktreeTarget.ID,
+		NetworkParticipation: req.NetworkParticipation,
+		Type:                 session.SessionTypeUser,
+	}
+	if parentSessionID != "" {
+		opts.Lineage = &store.SessionLineage{ParentSessionID: parentSessionID}
+	}
 	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{Session: opts})
 	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+		status := StatusForSessionError(err)
+		err = errors.Join(err, h.rollbackMaterializedSessionWorktree(c.Request.Context(), worktreeTarget))
+		h.respondError(c, status, err)
 		return
 	}
 
 	c.JSON(http.StatusCreated, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
+}
+
+func (h *BaseHandlers) resolveCreateSessionWorktree(
+	c *gin.Context,
+	req contract.CreateSessionRequest,
+) (materializedSessionWorktree, error) {
+	if ref := strings.TrimSpace(req.Worktree); ref != "" {
+		return materializedSessionWorktree{ID: ref}, nil
+	}
+	if req.NewWorktree == nil {
+		return materializedSessionWorktree{}, nil
+	}
+	if h.Worktrees == nil {
+		return materializedSessionWorktree{}, errors.New("api: worktree creation is unavailable")
+	}
+	workspaceID, err := h.lookupWorkspaceID(c.Request.Context(), req.Workspace)
+	if err != nil {
+		return materializedSessionWorktree{}, err
+	}
+	item, err := h.Worktrees.CreateReady(c.Request.Context(), workspaceID, worktree.CreateOptions{
+		Name:   strings.TrimSpace(req.NewWorktree.Name),
+		Origin: worktree.OriginManual,
+	})
+	if err != nil {
+		return materializedSessionWorktree{}, err
+	}
+	return materializedSessionWorktree{ID: item.ID, WorkspaceID: workspaceID, Created: true}, nil
 }
 
 // resolveCreateSessionParent picks the provenance parent for one create request:

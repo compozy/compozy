@@ -680,6 +680,49 @@ func TestResumeFailureRestoresStoppedMetadata(t *testing.T) {
 	}
 }
 
+func TestResumeRejectsMissingWorktreeWithoutMutatingMetadata(t *testing.T) {
+	t.Parallel()
+
+	worktreeRoot := filepath.Join(t.TempDir(), "worktree")
+	if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(worktree root) error = %v", err)
+	}
+	resolver := &fakeSessionWorktreeResolver{id: "wt-resume", root: worktreeRoot}
+	h := newHarness(t, WithWorktreeResolver(resolver))
+	created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-resume",
+	})
+	if err != nil {
+		t.Fatalf("Create(bound) error = %v", err)
+	}
+	if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+		t.Fatalf("Stop(bound) error = %v", err)
+	}
+
+	metaBefore := readMeta(t, created.MetaPath())
+	encodedBefore, err := json.Marshal(metaBefore)
+	if err != nil {
+		t.Fatalf("json.Marshal(meta before) error = %v", err)
+	}
+	missingErr := errors.New("worktree_missing")
+	resolver.setError(missingErr)
+
+	if _, err := h.manager.Resume(testutil.Context(t), created.ID); !errors.Is(err, missingErr) {
+		t.Fatalf("Resume(missing worktree) error = %v, want %v", err, missingErr)
+	}
+	if got := len(h.driver.startCalls); got != 1 {
+		t.Fatalf("driver starts after missing resume = %d, want original create only", got)
+	}
+	metaAfter := readMeta(t, created.MetaPath())
+	encodedAfter, err := json.Marshal(metaAfter)
+	if err != nil {
+		t.Fatalf("json.Marshal(meta after) error = %v", err)
+	}
+	if string(encodedAfter) != string(encodedBefore) {
+		t.Fatalf("metadata changed after missing resume:\nbefore: %s\nafter:  %s", encodedBefore, encodedAfter)
+	}
+}
+
 func TestResumeReplayFallback(t *testing.T) {
 	t.Parallel()
 

@@ -128,6 +128,7 @@ type MessageDeltaPayload struct {
 	AgentName      string          `json:"agent_name,omitempty"`
 	WorkspaceID    string          `json:"workspace_id,omitempty"`
 	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
 	ACPSessionID   string          `json:"acp_session_id,omitempty"`
 	State          string          `json:"state,omitempty"`
 	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
@@ -159,6 +160,7 @@ type MessageEndPayload struct {
 	AgentName      string          `json:"agent_name,omitempty"`
 	WorkspaceID    string          `json:"workspace_id,omitempty"`
 	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
 	ACPSessionID   string          `json:"acp_session_id,omitempty"`
 	State          string          `json:"state,omitempty"`
 	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
@@ -190,6 +192,7 @@ type MessagePayload struct {
 	AgentName      string          `json:"agent_name,omitempty"`
 	WorkspaceID    string          `json:"workspace_id,omitempty"`
 	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
 	ACPSessionID   string          `json:"acp_session_id,omitempty"`
 	State          string          `json:"state,omitempty"`
 	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
@@ -227,6 +230,7 @@ type MessageStartPayload struct {
 	AgentName      string          `json:"agent_name,omitempty"`
 	WorkspaceID    string          `json:"workspace_id,omitempty"`
 	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
 	ACPSessionID   string          `json:"acp_session_id,omitempty"`
 	State          string          `json:"state,omitempty"`
 	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`

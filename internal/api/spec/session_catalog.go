@@ -29,6 +29,7 @@ func sessionCatalogListOperation() OperationSpec {
 			queryParam("agent", "Filter by exact agent definition name", false),
 			queryParam("parent", "Filter by exact parent session id", false),
 			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
+			queryParam("worktree", "Filter by exact bound worktree id", false),
 			queryParam("q", "Search session id, name, agent, provider, or channel", false),
 			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
 			enumQueryParam(

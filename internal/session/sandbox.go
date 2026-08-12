@@ -99,8 +99,8 @@ func (m *Manager) prepareSandboxForStart(
 		WorkspaceID:         session.WorkspaceID,
 		SandboxID:           sandboxID,
 		InstanceID:          meta.InstanceID,
-		LocalRootDir:        spec.workspace.RootDir,
-		LocalAdditionalDirs: append([]string(nil), spec.workspace.AdditionalDirs...),
+		LocalRootDir:        spec.executionRoot(),
+		LocalAdditionalDirs: spec.executionAdditionalDirs(),
 		Sandbox:             resolvedEnv,
 		AgentCommand:        opts.Command,
 		AgentEnv:            sandboxAgentEnv(opts.Env, resolvedEnv),
@@ -140,7 +140,7 @@ func (m *Manager) prepareSandboxForStart(
 		return acp.StartOpts{}, err
 	}
 
-	return sandboxStartOpts(opts, prepared, state, spec.workspace.RootDir)
+	return sandboxStartOpts(opts, prepared, state, spec.executionRoot())
 }
 
 func (m *Manager) initializeSandboxMetaForStart(

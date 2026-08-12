@@ -43,7 +43,7 @@ func TestBuildCatalog(t *testing.T) {
 		for _, descriptor := range catalog.Commands {
 			got = append(got, descriptor.CanonicalToken)
 		}
-		want := []string{"/goal", "/review", "/deploy", "/ops:inspect"}
+		want := []string{"/goal", "/worktree", "/review", "/deploy", "/ops:inspect"}
 		if strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Fatalf("BuildCatalog() tokens = %#v, want %#v", got, want)
 		}
@@ -85,6 +85,38 @@ func TestBuildCatalog(t *testing.T) {
 		}
 		if !strings.Contains(catalog.Commands[0].ID, "skill:marketplace:official-") {
 			t.Fatalf("BuildCatalog() ID = %q, want package-qualified identity", catalog.Commands[0].ID)
+		}
+	})
+
+	t.Run("Should keep a disabled builtin visible with its refusal reason", func(t *testing.T) {
+		t.Parallel()
+		catalog, err := commandpkg.BuildCatalog(commandpkg.DefaultBuiltins(), nil, nil)
+		if err != nil {
+			t.Fatalf("BuildCatalog() error = %v", err)
+		}
+		originalRevision := catalog.Revision
+		catalog = commandpkg.SetBuiltinAvailability(
+			catalog,
+			"worktree",
+			false,
+			"Wait for the current turn to finish.",
+		)
+		var descriptor *commandpkg.Descriptor
+		for index := range catalog.Commands {
+			if catalog.Commands[index].CanonicalToken == "/worktree" {
+				descriptor = &catalog.Commands[index]
+				break
+			}
+		}
+		if descriptor == nil || descriptor.Available ||
+			descriptor.UnavailableReason != "Wait for the current turn to finish." {
+			t.Fatalf("disabled worktree descriptor = %#v", descriptor)
+		}
+		if catalog.Revision == originalRevision {
+			t.Fatal("disabled worktree catalog revision did not change")
+		}
+		if _, err := commandpkg.ParseSkillInvocations("/worktree", catalog); !errors.Is(err, commandpkg.ErrUnavailable) {
+			t.Fatalf("ParseSkillInvocations(/worktree) error = %v, want ErrUnavailable", err)
 		}
 	})
 }
