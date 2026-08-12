@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "global-workspace/gw-workspace-menu.html",
+  "entry": "global-workspace/gw-workspace-menu.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-12T16:45:10.839Z",
+  "updatedAt": "2026-08-12T16:45:10.839Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,234 @@
+/* ============================================================
+   GLOBAL-WORKSPACE DOMAIN LAYER — global-workspace.css
+   Companion to design-system/ds-core.css + ds-shell.css
+   (link all three, core → shell → this file).
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css + web/src production components
+     2. design-system/ds-core.css + ds-shell.css (+ GUIDE.md hard rules)
+     3. _done/modals/modal-system.css (dialog chrome, transcribed here
+        with bare token names — never link both files in one page)
+     4. This file (global-scope vocabulary per DESIGN-NOTES.md)
+
+   Semantic contract (locked in DESIGN-NOTES.md):
+     Global scope is ONE runtime state with ONE owner control — the
+     menubar toggle. Accent marks the active-global state on the
+     toggle only; the chip identity stays neutral (house monogram).
+     Every other surface DERIVES scope; none may re-select it.
+   ============================================================ */
+
+/* ============ WINDOW SCAFFOLD (verbatim anatomy from worktree.css) ============ */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2head .w2-back svg{width:14px;height:14px}
+.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2head .w2-flex{flex:1;min-width:8px}
+.w2head .w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:880px;margin:0 auto;padding:24px 24px 80px}
+
+/* ============ LAB SCAFFOLD (states sheets — worktree.css grammar) ============ */
+.lab-sec{margin:0 0 40px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto}
+.spec{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11px;line-height:1.55;color:var(--subtle)}
+.spec__note b{display:block;font-size:11.5px;font-weight:600;color:var(--fg);margin-bottom:2px}
+.spec__note code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+@media (max-width:760px){.spec{grid-template-columns:1fr}}
+
+/* ============ BEFORE / AFTER SCAFFOLD (audit + modal surgery pages) ============ */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+.ba--stack{grid-template-columns:1fr}
+.ba__panel{min-width:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+.ba__tag{display:flex;align-items:center;gap:7px;padding:7px 12px;border-bottom:1px solid var(--line-soft);
+  font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+.ba__tag .mono{font-size:9px;color:var(--faint);letter-spacing:0;text-transform:none;margin-left:auto}
+.ba__panel[data-kind="proposed"] .ba__tag{color:var(--success)}
+.ba__panel[data-kind="removed"] .ba__tag{color:var(--danger)}
+.ba__body{padding:14px}
+/* removed-component marker — audit exhibits only, never inside a proposed mock */
+.gw-removed{position:relative;border-radius:var(--radius-md);
+  outline:1px dashed color-mix(in srgb,var(--danger) 45%,transparent);outline-offset:3px}
+.gw-removed::after{content:"removed";position:absolute;top:-9px;right:6px;padding:0 5px;
+  font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--danger);background:var(--canvas-soft);border-radius:var(--radius-xxs)}
+@media (max-width:760px){.ba{grid-template-columns:1fr}}
+
+/* ============ MENUBAR DEMO WRAPPER (inline, non-fixed shell strips) ============ */
+.mb-demo{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--rail)}
+.mb-demo .menubar{border-bottom:0}
+.mb-drop{display:flex;gap:0;align-items:flex-start;padding:0 0 18px 46px;background:var(--rail)}
+.popover--demo{position:static;animation:none;width:280px}
+
+/* ============ THE CONTROL · GLOBAL-SCOPE TOGGLE (menubar, left cluster) ============
+   Sits directly after .ws-trigger. 28px like .mb-icon; pressed = the ONE
+   accent instance of the global-on state. Never rendered anywhere else. */
+.gw-toggle{position:relative;width:28px;height:28px;flex:none;border-radius:7px;
+  display:grid;place-items:center;color:var(--subtle);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+.gw-toggle svg{width:15px;height:15px}
+.gw-toggle:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.gw-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.gw-toggle[aria-pressed="true"]{background:var(--accent-tint);color:var(--accent-strong);
+  box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.gw-toggle[aria-pressed="true"]:hover{background:var(--accent-tint-strong,var(--accent-tint));color:var(--accent-strong)}
+/* menubar tooltip — dock .tip anatomy, anchored below the bar */
+.gw-toggle .tip{position:absolute;top:calc(100% + 10px);left:50%;translate:-50% -4px;
+  padding:4px 9px;border-radius:7px;white-space:nowrap;z-index:950;
+  background:var(--shell-glass-pop);border:1px solid var(--line-strong);
+  font-size:11px;font-weight:500;color:var(--fg-strong);
+  opacity:0;pointer-events:none;transition:opacity .14s,translate .14s var(--ease-spring)}
+.gw-toggle .tip .mono{color:var(--subtle);font-size:10px}
+.gw-toggle:hover .tip,.gw-toggle:focus-visible .tip,.gw-toggle .tip[data-show]{opacity:1;translate:-50% 0}
+
+/* ============ CHIP · GLOBAL STATE (ws-trigger identity swap, calm) ============
+   Toggle carries the accent; the chip stays neutral — house monogram
+   replaces the workspace initials, label reads "Global". */
+.ws-trigger[data-scope="global"] .ws-avatar{color:var(--fg)}
+.ws-trigger[data-scope="global"] .ws-avatar svg{width:11px;height:11px}
+.ws-trigger[data-scope="global"] .ws-name{color:var(--fg-strong)}
+
+/* ============ DERIVED-TARGET CHIP (modals · sheets · composer) ============
+   Read-only statement of where the action lands. Never a control:
+   no chevron, no popover, no pressed state. Scope changes happen at
+   the menubar toggle only. */
+.gw-scope{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--badge-fill);
+  font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap;cursor:default}
+.gw-scope svg{width:12px;height:12px;flex:none;color:var(--subtle)}
+.gw-scope b{font-weight:600;color:var(--fg)}
+.gw-scope[data-scope="global"] svg{color:var(--accent-strong)}
+.gw-scope .mono{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+/* footnote form — foot-note grammar with the same derivation statement */
+.gw-scope-note{display:flex;min-width:0;flex:1;align-items:center;gap:7px;color:var(--muted);font-size:11.5px;line-height:1.4}
+.gw-scope-note svg{width:13px;height:13px;flex:none;color:var(--faint)}
+.gw-scope-note b{color:var(--fg);font-weight:500}
+.gw-scope-note[data-scope="global"] svg{color:var(--accent-strong)}
+
+/* ============ COMMAND SELECT (worktree.css transcription — workspace pickers in demos) ============ */
+.command-select{display:flex;min-height:36px;width:100%;align-items:center;gap:8px;padding:0 12px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--elevated);color:var(--fg);text-align:left;
+  transition:border-color var(--dur) var(--ease)}
+.command-select:hover{border-color:var(--line-strong)}
+.command-select__avatar{display:inline-grid;width:22px;height:22px;flex:none;place-items:center;border-radius:var(--radius-sm);
+  background:var(--canvas-tint);border:1px solid var(--line);color:var(--muted);
+  font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em}
+.command-select__avatar svg{width:12px;height:12px}
+.command-select__label{min-width:0;flex:1;font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.command-select__label .path{display:block;font-family:var(--font-mono);font-size:10px;font-weight:400;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.command-select__chev{width:13px;height:13px;flex:none;color:var(--faint)}
+
+/* popover list (32px search · eyebrow group heading · check on active) */
+.cs-pop{width:340px;overflow:hidden;background:var(--elevated);border:1px solid var(--line-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay)}
+.cs-pop__search{display:flex;align-items:center;gap:8px;height:32px;padding:0 11px;border-bottom:1px solid var(--line)}
+.cs-pop__search svg{width:13px;height:13px;color:var(--subtle);flex:none}
+.cs-pop__search input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:12px;color:var(--fg)}
+.cs-pop__search input::placeholder{color:var(--subtle)}
+.cs-pop__list{max-height:380px;overflow-y:auto;padding:5px;scrollbar-width:thin}
+.cs-group__h{display:flex;align-items:center;gap:6px;padding:5px 8px 4px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+.cs-item{display:flex;width:100%;align-items:center;gap:9px;min-height:32px;padding:5px 8px;border-radius:var(--radius-sm);
+  color:var(--fg);text-align:left;transition:background var(--dur) var(--ease)}
+.cs-item:hover{background:var(--row-hover)}
+.cs-item[aria-selected="true"]{background:var(--row-selected)}
+.cs-item__label{min-width:0;flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-item__label .sub{display:block;font-family:var(--font-mono);font-size:10px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-item__check{width:14px;height:14px;flex:none;color:var(--fg-strong)}
+.cs-item__badge{flex:none;font-size:9.5px;font-weight:600;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:1px 6px}
+.cs-foot{border-top:1px solid var(--line);padding:5px}
+.cs-foot .cs-item{color:var(--muted)}
+.cs-foot .cs-item svg{width:13px;height:13px;color:var(--subtle)}
+
+/* ============ DIALOG CHROME (modal-system transcription — bare tokens, worktree.css lineage) ============ */
+.scrim--demo{position:relative;inset:auto;z-index:auto;padding:32px 24px;border-radius:var(--radius-lg);
+  background:color-mix(in srgb,var(--rail) 72%,transparent);display:grid;place-items:center}
+.dialog{display:flex;flex-direction:column;width:min(720px,100%);max-height:min(720px,92vh);overflow:hidden;
+  background:var(--canvas);border:1px solid var(--line-strong);border-radius:var(--radius-xl);box-shadow:var(--shadow-overlay)}
+.dialog--compact{width:min(560px,100%)}
+.dialog__head{display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--canvas-soft)}
+.head-icon{display:grid;width:36px;height:36px;flex:none;place-items:center;border-radius:10px;
+  background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.head-icon--neutral{background:var(--canvas-tint);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.head-icon svg{width:16px;height:16px}
+.head-copy{min-width:0;flex:1}
+.dialog__head .eyebrow{color:var(--accent-strong)}
+.head-copy h3{margin-top:2px;color:var(--fg-strong);font-size:14px;font-weight:500;letter-spacing:-.012em;line-height:1.35}
+.head-copy p{max-width:66ch;margin-top:4px;color:var(--muted);font-size:12.5px;line-height:1.45}
+.head-copy p b{color:var(--fg);font-weight:500}
+.icon-button{display:grid;width:26px;height:26px;flex:none;place-items:center;border-radius:var(--radius-md);color:var(--muted);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.icon-button:hover{background:var(--row-hover);color:var(--fg-strong)}
+.icon-button svg{width:16px;height:16px}
+.dialog__body{min-height:0;flex:1;overflow-y:auto;padding:18px 20px;scrollbar-width:thin}
+.dialog__foot{display:flex;min-height:56px;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--canvas-tint)}
+
+/* modebar — dialog context strip (modal-system grammar) */
+.modebar{display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 20px;
+  border-bottom:1px solid var(--line);background:var(--canvas-tint)}
+.modebar__label{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);flex:none}
+.modebar__value{font-size:12px;font-weight:500;color:var(--fg)}
+.modebar__spacer{flex:1;min-width:8px}
+.modebar__status{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+
+/* scope pillgroup — CURRENT component, audit exhibits only */
+.pillgroup{display:inline-flex;gap:1px;padding:2px;border-radius:var(--radius-md);background:var(--canvas-soft)}
+.pill{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 10px;border-radius:var(--radius-xs);
+  font-size:12px;font-weight:500;color:var(--subtle)}
+.pill svg{width:13px;height:13px}
+.pill[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--highlight)}
+
+/* form fields inside dialogs (modal-system grammar) */
+.fgroup{margin-bottom:16px}
+.fgroup:last-child{margin-bottom:0}
+.flabel{display:flex;align-items:baseline;gap:7px;margin-bottom:6px;font-size:12.5px;font-weight:500;color:var(--fg)}
+.flabel .opt{margin-left:auto;font-size:10.5px;font-weight:400;color:var(--faint)}
+.fhint{font-size:11.5px;color:var(--subtle);margin-top:6px;line-height:1.45}
+.fhint code,.fhint .mono{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+
+/* marketplace install-sheet scope radios — CURRENT component, audit exhibits only */
+.scope{display:flex;gap:8px}
+.scope label{flex:1;display:flex;gap:9px;align-items:flex-start;padding:12px;border:1px solid var(--line);
+  border-radius:var(--radius-md);background:var(--canvas-soft);cursor:pointer}
+.scope label:has(input:checked){border-color:var(--line-strong);background:var(--elevated)}
+.scope input{margin-top:2px}
+.scope b{display:block;font-size:12.5px;font-weight:500;color:var(--fg)}
+.scope span{display:block;font-size:11.5px;color:var(--subtle);margin-top:2px;line-height:1.4}
+
+/* ============ ONBOARDING EXHIBITS ============ */
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{display:flex;flex-direction:column;gap:4px;padding:13px 14px;text-align:left;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);
+  transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.opt:hover{border-color:var(--line-strong);background:var(--elevated)}
+.opt__t{font-size:12.5px;font-weight:550;color:var(--fg-strong)}
+.opt__d{font-size:11.5px;line-height:1.45;color:var(--subtle)}
+.opt__path{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-top:2px}
+.wsl{display:flex;flex-direction:column;gap:7px;margin-top:10px;list-style:none}
+.wsl li{display:flex;align-items:center;gap:10px;padding:8px 9px;background:var(--canvas-soft);
+  border:1px solid var(--line);border-radius:var(--radius-md)}
+.wsl__ico{width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:var(--radius-sm);
+  background:var(--elevated);color:var(--warning)}
+.wsl__ico svg{width:15px;height:15px}
+.wsl__main{min-width:0;flex:1}
+.wsl__n{font-size:12.5px;font-weight:540;color:var(--fg-strong)}
+.wsl__p{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wsl__x{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.wsl__x:hover{background:var(--row-hover);color:var(--fg-strong)}
+.wsl__x svg{width:13px;height:13px}
+.folder__badge{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;padding:2px 6px;
+  border-radius:var(--radius-xs);background:var(--accent-tint);color:var(--accent-strong);flex:none}
+
+@media (max-width:760px){.opt-grid{grid-template-columns:1fr}}

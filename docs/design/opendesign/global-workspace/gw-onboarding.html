@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Onboarding without a global row · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="global-workspace.css">
+<!--
+  gw-onboarding · setup registers PROJECT folders only; global exists out of the box.
+  Spec: global-workspace/DESIGN-NOTES.md · shared story: ~ = /Users/pedro.
+  Provenance:
+    production        — wizard step from onboarding/components/step-workspaces.tsx
+                        (browser + selected list, registration on pick); setup dialog panes
+                        from workspace-setup.tsx + workspace-setup-location-pane.tsx;
+                        global OptionCard copy from workspace-setup-copy.ts
+    redesign proposal — "Use global workspace" OptionCard and the old "Use home directory"
+                        card deleted; zero-workspace finish allowed ("Skip — start in
+                        Global scope"); post-skip shell boots with the toggle locked-on
+    authorized delta  — panes cropped; menubar rendered inline (.mb-demo)
+-->
+<style>
+  a{color:inherit;text-decoration:none}
+  .pane{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);overflow:hidden}
+  .pane__head{display:flex;align-items:baseline;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line-soft)}
+  .pane__eyebrow{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+  .pane__count{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .pane__body{padding:12px 14px}
+  .dirb-row{display:flex;align-items:center;gap:9px;min-height:30px;padding:4px 8px;border-radius:var(--radius-sm);font-size:12.5px;color:var(--fg)}
+  .dirb-row:hover{background:var(--row-hover)}
+  .dirb-row svg{width:14px;height:14px;color:var(--muted);flex:none}
+  .dirb-row .add{margin-left:auto;font-size:10.5px;font-weight:600;color:var(--info);opacity:0}
+  .dirb-row:hover .add{opacity:1}
+  .dirb-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line-soft)}
+  .dirb-bar .icon-button{width:24px;height:24px}
+  .dirb-bar .icon-button svg{width:13px;height:13px}
+  .dirb-path{flex:1;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wsempty{border:1px dashed var(--line-strong);border-radius:var(--radius-md);padding:18px 16px;font-size:12px;color:var(--faint);text-align:center}
+  .skiprow{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--muted)}
+  .skiprow .btn{flex:none}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="gw-ob-head">
+    <a class="w2-back" href="index.html" aria-label="Back to global-workspace set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Global workspace</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Onboarding &amp; setup</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="gw-modal-scope.html">← Modal scope</a>
+      <a class="btn" href="gw-states.html">States →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · WIZARD STEP ════ -->
+    <section class="lab-sec" data-od-id="gw-ob-step">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Wizard — workspace step</h2>
+        <span class="lab-sec__gist">project folders only · zero is a valid finish</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Proposed step</b>Browser + selected list survive verbatim (<code>step-workspaces.tsx</code>). What changes: the step is completable with zero folders, because global scope exists out of the box — the skip row says exactly where the user lands. Title copy shifts from "add at least one to finish" to project framing.</div>
+        <div class="spec__demo">
+          <div style="display:grid;grid-template-columns:1.12fr 1fr;gap:12px" data-od-id="gw-ob-panes">
+            <div class="pane">
+              <div class="pane__head"><span class="pane__eyebrow">Browse for a folder</span></div>
+              <div class="dirb-bar">
+                <button class="icon-button" aria-label="Go to home directory"><svg data-lucide="house"></svg></button>
+                <button class="icon-button" aria-label="Up one level"><svg data-lucide="arrow-up"></svg></button>
+                <span class="dirb-path">/Users/pedro/dev</span>
+                <button class="btn btn--sm">Use this folder</button>
+              </div>
+              <div class="pane__body" style="padding:6px">
+                <!-- gating: POST /api/workspaces on pick — the wizard has no deferred commit -->
+                <div class="dirb-row"><svg data-lucide="folder"></svg>compozy<span class="add">Add as workspace</span></div>
+                <div class="dirb-row"><svg data-lucide="folder"></svg>branas<span class="add">Add as workspace</span></div>
+                <div class="dirb-row"><svg data-lucide="folder"></svg>experiments<span class="add">Add as workspace</span></div>
+              </div>
+            </div>
+            <div class="pane">
+              <div class="pane__head"><span class="pane__eyebrow">Selected workspaces</span><span class="pane__count">1 folder</span></div>
+              <div class="pane__body">
+                <ul class="wsl">
+                  <li><span class="wsl__ico"><svg data-lucide="folder"></svg></span><span class="wsl__main"><span class="wsl__n">compozy</span><span class="wsl__p">~/dev/compozy</span></span><button class="wsl__x" aria-label="Remove compozy"><svg data-lucide="x"></svg></button></li>
+                </ul>
+                <!-- gating: workspaces.length === 0 → wizard still finishes; shell boots global-on -->
+                <div class="skiprow" data-od-id="gw-ob-skip">
+                  <button class="btn">Skip</button>
+                  <span>Start in <b style="color:var(--fg)">Global scope</b> — your home folder, <span class="mono" style="font-size:10.5px">~</span>. Add project folders any time.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · SETUP DIALOG ════ -->
+    <section class="lab-sec" data-od-id="gw-ob-setup">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Add-workspace dialog</h2>
+        <span class="lab-sec__gist">the "Use global workspace" OptionCard is deleted</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Current → proposed</b>The one-click global card (<code>workspace-setup-location-pane.tsx:43-76</code>: "Register your OS home directory as the default CompozyOS workspace…") registered <code>$HOME</code> as a workspace row — the identity this redesign retires. The Location pane now opens directly with the browser; nothing else changes in the pane.</div>
+        <div class="spec__demo">
+          <div class="ba">
+            <div class="ba__panel" data-kind="removed">
+              <div class="ba__tag">Current<span class="mono">workspace-setup-location-pane.tsx:43</span></div>
+              <div class="ba__body">
+                <div class="gw-removed">
+                  <div class="opt" style="width:100%">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span class="opt__t" style="flex:1">Use global workspace</span>
+                      <span class="folder__badge" style="background:var(--success-tint);color:var(--success)">HOME</span>
+                    </div>
+                    <span class="opt__d">Register your OS home directory as the default CompozyOS workspace and start with one click.</span>
+                    <span class="opt__path">/Users/pedro</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ba__panel" data-kind="proposed">
+              <div class="ba__tag">Proposed<span class="mono">Location pane opens at the browser</span></div>
+              <div class="ba__body">
+                <div class="pane" style="border-radius:var(--radius-md)">
+                  <div class="dirb-bar">
+                    <button class="icon-button" aria-label="Go to home directory"><svg data-lucide="house"></svg></button>
+                    <button class="icon-button" aria-label="Up one level"><svg data-lucide="arrow-up"></svg></button>
+                    <span class="dirb-path">/Users/pedro/dev</span>
+                    <button class="btn btn--sm">Use this folder</button>
+                  </div>
+                  <div class="pane__body" style="padding:6px">
+                    <div class="dirb-row"><svg data-lucide="folder"></svg>compozy<span class="add">Pick</span></div>
+                    <div class="dirb-row"><svg data-lucide="folder"></svg>branas<span class="add">Pick</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · POST-SKIP SHELL ════ -->
+    <section class="lab-sec" data-od-id="gw-ob-shell">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">First run after skip</h2>
+        <span class="lab-sec__gist">the shell boots global-on · nothing reads "No workspace"</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Landing state</b>Skipping the step boots the desktop with global scope on and the toggle locked-on (zero workspaces — see <a href="gw-menubar-toggle.html" style="color:var(--muted);text-decoration:underline">toggle §03</a>). The old <code>UNBOUND_WORKSPACE</code> "No workspace / ··" chip is a delete target; first-run users are never nowhere.</div>
+        <div class="spec__demo">
+          <div class="mb-demo" data-od-id="gw-ob-shell-strip">
+            <header class="menubar">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="ws-trigger" data-scope="global">
+                  <span class="ws-avatar"><svg data-lucide="house"></svg></span>
+                  <span class="ws-name">Global</span>
+                  <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
+                </button>
+                <button class="gw-toggle" aria-pressed="true" aria-disabled="true" aria-label="Global scope — add a workspace to scope down" style="cursor:default"><svg data-lucide="house"></svg></button>
+                <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button><button class="mb-menu">Help</button></nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" aria-label="Approvals"><svg data-lucide="bell"></svg></button>
+                <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      Setup surfaces of the global-workspace set — the retired cards are catalogued in the
+      <a href="gw-current-audit.html" style="color:var(--subtle)">audit</a>; the boot state's toggle contract in
+      <a href="gw-menubar-toggle.html" style="color:var(--subtle)">menubar toggle</a>.
+      Contract: <span class="mono">DESIGN-NOTES.md</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

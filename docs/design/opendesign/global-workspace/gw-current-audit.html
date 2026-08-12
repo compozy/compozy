@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Current global-workspace UI · audit · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="global-workspace.css">
+<!--
+  gw-current-audit · lab — exhibits of every component the redesign removes, with sources.
+  Spec: global-workspace/DESIGN-NOTES.md §Change map (full production table lives there).
+  Provenance:
+    production        — every exhibit transcribes a real component: workspace-command-select.tsx,
+                        scope-selector.tsx + call sites, mcp-install-dialog.tsx,
+                        workspace-setup-location-pane.tsx, compozy-onboarding (prototype),
+                        task-bridge-subscription-create-dialog.tsx
+    authorized delta  — exhibits are cropped and inert; .gw-removed markers are audit-only
+                        chrome and never appear inside a proposed mock
+-->
+<style>
+  a{color:inherit;text-decoration:none}
+  .tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+  .tbl th{text-align:left;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);
+    padding:6px 10px;border-bottom:1px solid var(--line)}
+  .tbl td{padding:7px 10px;border-bottom:1px solid var(--line-soft);color:var(--fg);vertical-align:top}
+  .tbl code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+  .fate{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .fate[data-f="delete"]{color:var(--danger)}
+  .fate[data-f="derive"]{color:var(--success)}
+  .fate[data-f="keep"]{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="gw-audit-head">
+    <a class="w2-back" href="index.html" aria-label="Back to global-workspace set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Global workspace</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Current-state audit</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="gw-menubar-toggle.html">Toggle →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · FOUR ENCARNATIONS ════ -->
+    <section class="lab-sec" data-od-id="gw-audit-four">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Global today — four disconnected encarnations</h2>
+        <span class="lab-sec__gist">same concept, four unrelated components · all removed</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>1 · A list row</b>The <code>$HOME</code> workspace renders pinned-first with a house avatar and a "Home workspace" badge (<code>workspace-command-select.tsx:186-196</code>) — but only in <i>this</i> picker. The menubar menu, overview cards and ⌘K show it undistinguished. Selecting it inside a ScopeSelector silently flips scope to global without firing <code>onChange</code> (<code>:74-82</code>) — no affordance says so.</div>
+        <div class="spec__demo">
+          <div class="gw-removed" style="max-width:340px" data-od-id="gw-audit-homerow">
+            <div class="cs-pop" style="width:100%">
+              <div class="cs-pop__list">
+                <div class="cs-group__h">Workspaces</div>
+                <button class="cs-item"><span class="command-select__avatar"><svg data-lucide="house"></svg></span><span class="cs-item__label">operator home<span class="sub">/Users/pedro</span></span><span class="cs-item__badge">Home workspace</span></button>
+                <button class="cs-item" aria-selected="true"><span class="command-select__avatar">CO</span><span class="cs-item__label">compozy<span class="sub">~/dev/compozy</span></span><svg class="cs-item__check" data-lucide="check"></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>2 · A setup card</b>"Use global workspace" registers <code>$HOME</code> as a workspace row (<code>workspace-setup-location-pane.tsx:43-76</code>, `resolveWorkspace({path: userHomeDir})`). The older onboarding prototype had the same card as "Use home directory". Both die — global needs no registration.</div>
+        <div class="spec__demo">
+          <div class="gw-removed" style="max-width:380px" data-od-id="gw-audit-card">
+            <div class="opt" style="width:100%">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="opt__t" style="flex:1">Use global workspace</span>
+                <span class="folder__badge" style="background:var(--success-tint);color:var(--success)">HOME</span>
+              </div>
+              <span class="opt__d">Register your OS home directory as the default CompozyOS workspace and start with one click.</span>
+              <span class="opt__path">/Users/pedro</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>3 · A scope pill pair</b>Global|Workspace pills + compact picker (<code>scope-selector.tsx</code>), re-implemented by hand twice more (<code>agent-create-dialog.tsx:134-181</code>, <code>marketplace-kind-page.tsx:153-172</code>). In 3 of 4 shared-component call sites the embedded picker is display-only — it can't pick anything the shell doesn't already know.</div>
+        <div class="spec__demo">
+          <div class="gw-removed" style="display:inline-flex;align-items:center;gap:10px;padding:6px" data-od-id="gw-audit-pills">
+            <div class="pillgroup" aria-label="Scope">
+              <button class="pill"><svg data-lucide="globe"></svg>Global</button>
+              <button class="pill" aria-pressed="true"><svg data-lucide="box"></svg>Workspace</button>
+            </div>
+            <button class="command-select" disabled style="min-width:150px;min-height:28px"><span class="command-select__avatar" style="width:16px;height:16px;font-size:8px">CO</span><span class="command-select__label">compozy</span><svg class="command-select__chev" data-lucide="chevrons-up-down"></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>4 · Install radios &amp; selects</b>Marketplace MCP installs ask again with radio cards (<code>mcp-install-dialog.tsx:119-146</code>); bridge subscriptions ask with a native select + a read-only workspace-id echo (<code>task-bridge-subscription-create-dialog.tsx:123-154</code>). Defaults disagree across surfaces — workspace here, global there, catalog-decided elsewhere.</div>
+        <div class="spec__demo">
+          <div class="gw-removed" style="max-width:420px" data-od-id="gw-audit-radios">
+            <div class="scope" role="radiogroup" aria-label="MCP install scope">
+              <label><input type="radio" name="audit-scope" checked><div><b>Workspace</b><span>Available only in this workspace.</span></div></label>
+              <label><input type="radio" name="audit-scope"><div><b>Global</b><span>Available in every workspace.</span></div></label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · THE FOUR MEANINGS ════ -->
+    <section class="lab-sec" data-od-id="gw-audit-meanings">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">"Global" means four things today</h2>
+        <span class="lab-sec__gist">the redesign unifies the first two · the rest are named, not merged</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Disambiguation</b>The toggle owns meanings 1+2 (they were always the same intent). Meaning 3 stays a per-artifact property with its own words. Meaning 4 is a different axis and keeps its control.</div>
+        <div class="spec__demo">
+          <table class="tbl" data-od-id="gw-audit-meanings-table">
+            <thead><tr><th></th><th>Meaning</th><th>Where</th><th>After</th></tr></thead>
+            <tbody>
+              <tr><td class="mono" style="color:var(--faint)">1</td><td>Not workspace-scoped (<code>scope:"global"</code>, no <code>workspace_id</code>)</td><td>automation · bridges · tasks · MCP · knowledge</td><td><b>The toggle.</b> Derived, stated, never re-asked</td></tr>
+              <tr><td class="mono" style="color:var(--faint)">2</td><td>"The <code>$HOME</code> workspace" identity</td><td>pickers · setup cards · <code>home-workspace.ts</code></td><td><b>Deleted.</b> Global is a mode, not a row</td></tr>
+              <tr><td class="mono" style="color:var(--faint)">3</td><td>Visibility "every workspace on this daemon"</td><td>layout profiles (<code>layout-profile-editor.tsx:17-28</code>)</td><td>Derives from the toggle too — phase-2 candidate</td></tr>
+              <tr><td class="mono" style="color:var(--faint)">4</td><td>Not <i>agent</i>-scoped</td><td>Settings → Skills (Global|Agent)</td><td>Untouched — different axis, keeps its control</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · CHANGE MAP ════ -->
+    <section class="lab-sec" data-od-id="gw-audit-map">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Change map</h2>
+        <span class="lab-sec__gist">summary — the full file:line table lives in DESIGN-NOTES.md</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Fates</b><span class="fate" data-f="delete">delete</span> = component removed with its state · <span class="fate" data-f="derive">derive</span> = surface keeps purpose, reads the store instead of asking · <span class="fate" data-f="keep">keep</span> = untouched on purpose.</div>
+        <div class="spec__demo">
+          <table class="tbl" data-od-id="gw-audit-map-table">
+            <thead><tr><th>Surface</th><th>Today</th><th>Fate</th></tr></thead>
+            <tbody>
+              <tr><td>Menubar</td><td>chip only — no scope control</td><td><span class="fate" data-f="derive">derive</span> + new <code>.gw-toggle</code></td></tr>
+              <tr><td>Workspace menu / overview / ⌘K</td><td>home row undistinguished or badged</td><td><span class="fate" data-f="delete">delete</span> home row · global-on notice</td></tr>
+              <tr><td>WorkspaceCommandSelect</td><td>pinned home row + badge + silent scope handoff</td><td><span class="fate" data-f="delete">delete</span> the branch</td></tr>
+              <tr><td>ScopeSelector (+ 2 hand-rolled twins)</td><td>Global|Workspace pills ×6 surfaces</td><td><span class="fate" data-f="delete">delete</span> → <code>.gw-scope</code>/<code>.gw-scope-note</code></td></tr>
+              <tr><td>MCP install · bridge subscription</td><td>radios / native select</td><td><span class="fate" data-f="delete">delete</span> → derived foot note</td></tr>
+              <tr><td>Setup global card · onboarding home card</td><td>registers <code>$HOME</code> as a row</td><td><span class="fate" data-f="delete">delete</span> · skip-to-global instead</td></tr>
+              <tr><td>Active-workspace store</td><td><code>selectedWorkspaceId</code> only</td><td><span class="fate" data-f="derive">derive</span> + <code>scope</code> field (v3 key)</td></tr>
+              <tr><td>Webhook-trigger always-global alert</td><td>alert + disabled pill</td><td><span class="fate" data-f="keep">keep</span> alert · <span class="fate" data-f="delete">delete</span> pill</td></tr>
+              <tr><td>List scope filters (jobs · triggers · bridges)</td><td>Global/Workspace query filter</td><td><span class="fate" data-f="keep">keep</span> — filters describe queries</td></tr>
+              <tr><td>Settings → Skills Global|Agent</td><td>different axis</td><td><span class="fate" data-f="keep">keep</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      Anchor lab of the global-workspace set — proposals in
+      <a href="gw-menubar-toggle.html" style="color:var(--subtle)">menubar toggle</a>,
+      <a href="gw-workspace-menu.html" style="color:var(--subtle)">workspace menu</a>,
+      <a href="gw-modal-scope.html" style="color:var(--subtle)">modal scope</a> and
+      <a href="gw-onboarding.html" style="color:var(--subtle)">onboarding</a>.
+      Contract + full production table: <span class="mono">DESIGN-NOTES.md</span>.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

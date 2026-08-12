@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "global-workspace/gw-current-audit.html",
+  "entry": "global-workspace/gw-current-audit.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-12T16:47:55.469Z",
+  "updatedAt": "2026-08-12T16:47:55.469Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

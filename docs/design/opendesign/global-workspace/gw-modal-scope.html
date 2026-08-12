@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Derived scope in modals · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="global-workspace.css">
+<!--
+  gw-modal-scope · scope controls leave every modal; a derived statement replaces them.
+  Spec: global-workspace/DESIGN-NOTES.md · shared story: ws compozy · MCP github · job Nightly triage.
+  Provenance:
+    production        — ScopeSelector pill-group from scope-selector.tsx (call sites:
+                        automation-job-form.tsx:180-192, automation-trigger-form.tsx:87-101,
+                        bridge-create-dialog.tsx:179-190, task-editor-surface.tsx:137-148);
+                        hand-rolled twins in agent-create-dialog.tsx:134-181 and
+                        marketplace-kind-page.tsx:153-172; RadioCards in
+                        mcp-install-dialog.tsx:119-146; NativeSelect in
+                        task-bridge-subscription-create-dialog.tsx:123-154; vault ref
+                        derivation use-mcp-install-dialog.ts:50-55
+    redesign proposal — all of the above deleted; .gw-scope / .gw-scope-note derive from
+                        the menubar toggle (store.scope) and only STATE the target
+    authorized delta  — dialogs cropped to the relevant region (head/toolbar/foot), demo scrims
+-->
+<style>
+  a{color:inherit;text-decoration:none}
+  .crop{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas)}
+  .crop .dialog{border:0;border-radius:0;box-shadow:none;width:100%;max-height:none}
+  .vref{display:flex;flex-direction:column;gap:4px;padding:9px 11px;border:1px solid var(--line);
+    border-radius:var(--radius-md);background:var(--canvas-tint);font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+  .vref b{color:var(--fg);font-weight:500}
+  .alert-neutral{display:flex;gap:8px;align-items:flex-start;padding:9px 11px;border:1px solid var(--line);
+    border-radius:var(--radius-md);background:var(--canvas-soft);font-size:11.5px;line-height:1.45;color:var(--muted)}
+  .alert-neutral svg{width:13px;height:13px;flex:none;margin-top:1px;color:var(--subtle)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="gw-modal-head">
+    <a class="w2-back" href="index.html" aria-label="Back to global-workspace set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Global workspace</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Modal scope</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="gw-workspace-menu.html">← Workspace menu</a>
+      <a class="btn" href="gw-onboarding.html">Onboarding →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · THE RULE ════ -->
+    <section class="lab-sec" data-od-id="gw-rule">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The rule</h2>
+        <span class="lab-sec__gist">modals state the target · only the menubar changes it</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Derived statement</b>Two forms, both read-only: a chip (<code>.gw-scope</code>, toolbars) and a foot note (<code>.gw-scope-note</code>, dialog feet). No chevron, no popover, no pressed state — if the target is wrong, the user flips the menubar toggle or switches workspace and the statement follows live.</div>
+        <div class="spec__demo" style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap" data-od-id="gw-scope-chips">
+            <!-- gating: store.scope="workspace" → chip names the active workspace -->
+            <span class="gw-scope"><svg data-lucide="box"></svg>Creates in <b>compozy</b></span>
+            <!-- gating: store.scope="global" → house icon (the one accent besides the primary CTA) -->
+            <span class="gw-scope" data-scope="global"><svg data-lucide="house"></svg>Creates in <b>Global</b><span class="mono">~</span></span>
+          </div>
+          <div class="gw-scope-note" data-od-id="gw-scope-note-ws"><svg data-lucide="box"></svg>Creates in <b>compozy</b>.</div>
+          <div class="gw-scope-note" data-scope="global" data-od-id="gw-scope-note-global"><svg data-lucide="house"></svg>Creates in <b>Global</b> — visible to every workspace.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · CREATE AGENT ════ -->
+    <section class="lab-sec" data-od-id="gw-agent">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Create agent</h2>
+        <span class="lab-sec__gist">pill-group + dead compact picker → one foot sentence</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Current → proposed</b>Today: a hand-rolled Global|Workspace pill pair plus a <i>disabled</i> compact workspace select that can only show the active workspace (<code>agent-create-dialog.tsx:134-181</code> — <code>onChange=()=&gt;undefined</code>). The control cannot choose anything the menubar doesn't already know. Proposed: the toolbar row disappears; the foot states the derived target.</div>
+        <div class="spec__demo">
+          <div class="ba">
+            <div class="ba__panel" data-kind="removed">
+              <div class="ba__tag">Current<span class="mono">agent-create-dialog.tsx:134</span></div>
+              <div class="ba__body">
+                <div class="gw-removed" style="display:inline-flex;align-items:center;gap:10px;padding:6px">
+                  <div class="pillgroup" aria-label="Scope">
+                    <button class="pill"><svg data-lucide="globe"></svg>Global</button>
+                    <button class="pill" aria-pressed="true"><svg data-lucide="box"></svg>Workspace</button>
+                  </div>
+                  <button class="command-select" disabled style="min-width:150px;min-height:28px"><span class="command-select__avatar" style="width:16px;height:16px;font-size:8px">CO</span><span class="command-select__label">compozy</span><svg class="command-select__chev" data-lucide="chevrons-up-down"></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="ba__panel" data-kind="proposed">
+              <div class="ba__tag">Proposed</div>
+              <div class="ba__body" style="padding:0">
+                <div class="crop"><div class="dialog dialog--compact">
+                  <div class="dialog__foot">
+                    <!-- gating: derived from store.scope + selectedWorkspaceId; updates live on toggle flip -->
+                    <div class="gw-scope-note" data-od-id="gw-agent-foot"><svg data-lucide="box"></svg>Creates in <b>compozy</b>.</div>
+                    <button class="btn">Cancel</button>
+                    <button class="btn btn--primary">Create agent</button>
+                  </div>
+                </div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · MARKETPLACE INSTALL ════ -->
+    <section class="lab-sec" data-od-id="gw-install">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Marketplace — MCP install</h2>
+        <span class="lab-sec__gist">radio cards → derived target · vault refs follow</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Current → proposed</b>The install sheet's Scope radio-group (<code>mcp-install-dialog.tsx:119-146</code>) leaves; the sheet keeps configuration only. The foot states the install target; the Vault ref namespace derives with it (<code>use-mcp-install-dialog.ts:50-55</code>) — flipping the menubar toggle re-renders both. Catalog defaults (<code>default_scope</code>) become a detail-page fact, not a control.</div>
+        <div class="spec__demo">
+          <div class="ba ba--stack">
+            <div class="ba__panel" data-kind="removed">
+              <div class="ba__tag">Current<span class="mono">mcp-install-dialog.tsx:119</span></div>
+              <div class="ba__body">
+                <div class="gw-removed">
+                  <div class="scope" role="radiogroup" aria-label="MCP install scope">
+                    <label><input type="radio" name="demo-scope" checked><div><b>Workspace</b><span>Available only in this workspace.</span></div></label>
+                    <label><input type="radio" name="demo-scope"><div><b>Global</b><span>Available in every workspace.</span></div></label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ba__panel" data-kind="proposed">
+              <div class="ba__tag">Proposed<span class="mono">github · MCP server</span></div>
+              <div class="ba__body" style="padding:0">
+                <div class="crop"><div class="dialog dialog--compact">
+                  <div class="dialog__body">
+                    <div class="fgroup">
+                      <div class="flabel">Personal access token</div>
+                      <!-- gating: vault ref namespace derives from store.scope (ws/{id} ↔ global) -->
+                      <div class="vref" data-od-id="gw-vault-ref"><span>Stored as</span><b>vault:mcp/ws/compozy/github/inputs/GITHUB_PERSONAL_ACCESS_TOKEN</b></div>
+                    </div>
+                  </div>
+                  <div class="dialog__foot">
+                    <div class="gw-scope-note" data-od-id="gw-install-foot"><svg data-lucide="box"></svg>Installs to <b>compozy</b>.</div>
+                    <button class="btn">Cancel</button>
+                    <button class="btn btn--primary">Install server</button>
+                  </div>
+                </div></div>
+              </div>
+            </div>
+            <div class="ba__panel" data-kind="proposed">
+              <div class="ba__tag">Proposed · global scope on<span class="mono">same sheet, toggle flipped</span></div>
+              <div class="ba__body" style="padding:0">
+                <div class="crop"><div class="dialog dialog--compact">
+                  <div class="dialog__body">
+                    <div class="fgroup">
+                      <div class="flabel">Personal access token</div>
+                      <div class="vref"><span>Stored as</span><b>vault:mcp/global/github/inputs/GITHUB_PERSONAL_ACCESS_TOKEN</b></div>
+                    </div>
+                  </div>
+                  <div class="dialog__foot">
+                    <div class="gw-scope-note" data-scope="global"><svg data-lucide="house"></svg>Installs at <b>Global</b> — available in every workspace.</div>
+                    <button class="btn">Cancel</button>
+                    <button class="btn btn--primary">Install server</button>
+                  </div>
+                </div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · AUTOMATION · TASKS ════ -->
+    <section class="lab-sec" data-od-id="gw-automation">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Automation &amp; tasks</h2>
+        <span class="lab-sec__gist">toolbar pills → chip · the webhook exception stays honest</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Job / task toolbars</b>The <code>EntityDialogToolbar</code> trailing ScopeSelector (<code>automation-job-form.tsx:180-192</code>, <code>task-editor-surface.tsx:137-148</code>) becomes the derived chip in the same trailing slot. Edit mode already froze scope — now create matches: scope is context, not a form field.</div>
+        <div class="spec__demo">
+          <div class="crop" data-od-id="gw-job-toolbar"><div class="modebar">
+            <span class="modebar__label">Job</span>
+            <span class="modebar__value">Nightly triage</span>
+            <span class="modebar__spacer"></span>
+            <!-- gating: trailing slot renders .gw-scope instead of ScopeSelector -->
+            <span class="gw-scope"><svg data-lucide="box"></svg>Creates in <b>compozy</b></span>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Webhook triggers</b>Always global regardless of the toggle — the existing alert survives as the statement (<code>automation-trigger-form.tsx:114-121</code>); the disabled Workspace pill it used to justify is gone. Stated, never selectable.</div>
+        <div class="spec__demo">
+          <div class="alert-neutral" data-od-id="gw-webhook-note"><svg data-lucide="info"></svg>Webhook triggers are always global; they aren't tied to a workspace.</div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Bridge subscriptions</b>The Scope <code>NativeSelect</code> + read-only "Workspace id" echo (<code>task-bridge-subscription-create-dialog.tsx:123-154</code>) collapse into the same foot note — the id echo was already derived state pretending to be a field.</div>
+        <div class="spec__demo">
+          <div class="crop"><div class="dialog dialog--compact"><div class="dialog__foot">
+            <div class="gw-scope-note" data-od-id="gw-bridge-foot"><svg data-lucide="box"></svg>Subscribes in <b>compozy</b>.</div>
+            <button class="btn">Cancel</button>
+            <button class="btn btn--primary">Create subscription</button>
+          </div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · EDIT MODE ════ -->
+    <section class="lab-sec" data-od-id="gw-edit">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Edit mode — scope is immutable</h2>
+        <span class="lab-sec__gist">edit surfaces echo the entity, not the toggle</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>No relation to the toggle</b>An entity's scope is set at create and never changes. Edit surfaces echo the entity's own scope in the head region and ignore the menubar state — editing a workspace job while global is on is fine and says so. Only <i>creation</i> derives.</div>
+        <div class="spec__demo">
+          <div class="crop" data-od-id="gw-edit-echo"><div class="modebar">
+            <span class="modebar__label">Editing</span>
+            <span class="modebar__value">Nightly triage</span>
+            <span class="modebar__spacer"></span>
+            <!-- gating: entity.scope / entity.workspace_id — store.scope is NOT read here -->
+            <span class="gw-scope"><svg data-lucide="box"></svg>Lives in <b>compozy</b></span>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      Modal consequences of the global-workspace set — the control is in
+      <a href="gw-menubar-toggle.html" style="color:var(--subtle)">menubar toggle</a>; the removed components are catalogued in the
+      <a href="gw-current-audit.html" style="color:var(--subtle)">audit</a>; session-create and other edges in
+      <a href="gw-states.html" style="color:var(--subtle)">states</a>.
+      Contract: <span class="mono">DESIGN-NOTES.md</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

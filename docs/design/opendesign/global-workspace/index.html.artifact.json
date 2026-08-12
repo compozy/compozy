@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "global-workspace/index.html",
+  "entry": "global-workspace/index.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-12T16:49:11.682Z",
+  "updatedAt": "2026-08-12T16:49:11.682Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

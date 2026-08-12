@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Global workspace · one scope toggle · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<!--
+  gw-index · set map — the global-workspace redesign: one menubar toggle owns scope.
+  Contract + change map: DESIGN-NOTES.md · shared story: ws compozy · ~ = /Users/pedro.
+  Provenance:
+    redesign proposal — map page only; no product surface transcribed, tokens from ds-core
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:66ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="gw-index">
+  <h1>Global workspace · one scope toggle</h1>
+  <p class="lede">Design references for retiring the four disconnected encarnations of "global" — the pinned <b>Home workspace</b> row, the <b>Use global workspace</b> setup card, the <b>Global|Workspace</b> pill-groups and the install-sheet radios — in favor of one menubar toggle that owns scope. ON → everything lands in <code>~</code> (Global); OFF → the selected workspace. Every other surface derives the target and states it. Start at the <b>audit</b>; contract and production change map live in <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="grp" data-od-id="gw-index-anchor">
+    <div class="grp__t">Anchor · current state</div>
+    <div class="cards">
+      <a class="card" href="gw-current-audit.html" data-od-id="card-audit">
+        <span class="card__top"><span class="card__name">Current-state audit</span><span class="tag">lab</span><span class="card__file">gw-current-audit.html</span></span>
+        <span class="card__sub">Exhibits of every removed component with production sources; the four meanings of "global"; the change map with fates (delete · derive · keep).</span>
+      </a>
+      <a class="card" href="gw-states.html" data-od-id="card-states">
+        <span class="card__top"><span class="card__name">States &amp; edges</span><span class="tag">lab</span><span class="card__file">gw-states.html</span></span>
+        <span class="card__sub">Scope × workspace matrix (one row unrepresentable by contract), remembered-workspace deletion, session-create derivation, result-toast copy, keyboard &amp; ARIA.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="gw-index-finals">
+    <div class="grp__t">Proposals</div>
+    <div class="cards">
+      <a class="card" href="gw-menubar-toggle.html" data-od-id="card-toggle">
+        <span class="card__top"><span class="card__name">Menubar toggle</span><span class="tag tag--final">final</span><span class="card__file">gw-menubar-toggle.html</span></span>
+        <span class="card__sub">The one control — 28px house toggle after the workspace chip; off/hover/on/focus states, chip identity swap, zero-workspace locked-on, mobile survival, ⇧⌘G.</span>
+      </a>
+      <a class="card" href="gw-workspace-menu.html" data-od-id="card-menu">
+        <span class="card__top"><span class="card__name">Workspace menu &amp; lists</span><span class="tag tag--final">final</span><span class="card__file">gw-workspace-menu.html</span></span>
+        <span class="card__sub">Every list drops the global row — menubar menu, ⌘K, overview cards, command-select. Global-on interplay: no checks, one notice, selecting exits in one gesture.</span>
+      </a>
+      <a class="card" href="gw-modal-scope.html" data-od-id="card-modal">
+        <span class="card__top"><span class="card__name">Derived scope in modals</span><span class="tag tag--final">final</span><span class="card__file">gw-modal-scope.html</span></span>
+        <span class="card__sub">ScopeSelector, hand-rolled pill twins, install radios and scope selects all removed — replaced by the read-only derived statement; vault refs follow; edit mode echoes the entity.</span>
+      </a>
+      <a class="card" href="gw-onboarding.html" data-od-id="card-onboarding">
+        <span class="card__top"><span class="card__name">Onboarding &amp; setup</span><span class="tag tag--final">final</span><span class="card__file">gw-onboarding.html</span></span>
+        <span class="card__sub">Setup registers project folders only; the global OptionCard dies; zero-workspace finish ("Skip — start in Global scope") boots the shell global-on.</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">This page loads its tokens from <span class="mono">design-system/ds-core.css</span>; the artboards layer <span class="mono">ds-shell.css</span> + <span class="mono">global-workspace.css</span> on top, with dialog chrome transcribed from <span class="mono">_done/modals/modal-system.css</span>. Production inventory sourced from <span class="mono">web/src</span> (workspace, os, marketplace, automation systems). Content is illustrative; runtime truth owns final values.</p>
+</div>
+</body>
+</html>

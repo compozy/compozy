@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Workspace menu without global · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="global-workspace.css">
+<!--
+  gw-workspace-menu · every workspace list drops the global row; interplay with the toggle.
+  Spec: global-workspace/DESIGN-NOTES.md · shared story: compozy · branas-site · notes.
+  Provenance:
+    production        — menubar menu skeleton from workspace-menu.tsx:32-59 (monogram items,
+                        accent check on active, "Workspaces overview…", "Add workspace…");
+                        command-select popover canon from workspace-command-select.tsx:158-218;
+                        overview cards from os-workspaces-overview.tsx; palette rows from
+                        os-command-palette-shell-actions.tsx:59-72
+    redesign proposal — home/global rows deleted everywhere (home-workspace.ts is a delete
+                        target); global-on menu state: no checks + one info notice; selecting
+                        a workspace turns global off in the same gesture
+    authorized delta  — popovers pinned static (.popover--demo) so states render inline
+-->
+<style>
+  a{color:inherit;text-decoration:none}
+  .mb-notice{display:flex;align-items:center;gap:7px;min-height:28px;padding:4px 10px;border-radius:var(--radius-sm);
+    background:var(--info-tint);color:var(--info);font-size:11px;line-height:1.4}
+  .mb-notice svg{width:12px;height:12px;flex:none}
+  .pop-item .pi-check--accent{margin-left:auto;color:var(--accent);width:12px;height:12px}
+  .pal-demo{width:min(560px,100%);background:var(--shell-glass-pop);border:1px solid var(--line-strong);
+    border-radius:14px;box-shadow:var(--shadow-overlay);overflow:hidden}
+  .ovg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .ovcard{border:1px solid var(--line);border-radius:12px;background:var(--canvas-soft);padding:14px;display:flex;flex-direction:column;gap:8px}
+  .ovcard[data-current]{border-color:var(--accent)}
+  .ovcard__top{display:flex;align-items:center;gap:8px}
+  .ovcard__name{font-size:13px;font-weight:600;color:var(--fg-strong);flex:1}
+  .ovcard__cur{font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-sm);padding:1px 5px}
+  .ovcard__meta{font-size:11px;color:var(--muted)}
+  .ovcard__foot{display:flex;align-items:center;gap:6px;margin-top:2px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  @media (max-width:760px){.ovg{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="gw-menu-head">
+    <a class="w2-back" href="index.html" aria-label="Back to global-workspace set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Global workspace</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Workspace menu</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="gw-menubar-toggle.html">← Toggle</a>
+      <a class="btn" href="gw-modal-scope.html">Modal scope →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · MENU · WORKSPACE SCOPE ════ -->
+    <section class="lab-sec" data-od-id="gw-menu-ws">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Menu — workspace scope</h2>
+        <span class="lab-sec__gist">project workspaces only · no home row, no badge</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Proposed list</b>Production skeleton verbatim (<code>workspace-menu.tsx:32-59</code>) minus the <code>$HOME</code>-rooted row — global is a mode, not a list entry. Accent check marks the active workspace. Footer keeps Workspaces overview… and Add workspace….</div>
+        <div class="spec__demo">
+          <div class="mb-demo">
+            <header class="menubar">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="ws-trigger" aria-expanded="true"><span class="ws-avatar">CO</span><span class="ws-name">compozy</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
+                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope"><svg data-lucide="house"></svg></button>
+                <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" aria-label="Approvals"><svg data-lucide="bell"></svg></button>
+                <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+            <div class="mb-drop">
+              <div class="popover popover--demo" role="menu" data-od-id="gw-menu-list">
+                <p class="pop-eyebrow">Workspaces</p>
+                <!-- gating: GET /api/workspaces → project rows only; the ~-rooted row never renders
+                     (home-workspace.ts split/pin logic = delete target) -->
+                <button class="pop-item"><span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>compozy<svg class="pi-check pi-check--accent" data-lucide="check"></svg></button>
+                <button class="pop-item"><span class="ws-avatar" style="width:16px;height:16px;font-size:8px">B</span>branas-site</button>
+                <button class="pop-item"><span class="ws-avatar" style="width:16px;height:16px;font-size:8px">N</span>notes</button>
+                <div class="pop-sep"></div>
+                <button class="pop-item" data-od-id="gw-menu-overview">Workspaces overview…</button>
+                <button class="pop-item" data-od-id="gw-menu-add">Add workspace…</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · MENU · GLOBAL ON ════ -->
+    <section class="lab-sec" data-od-id="gw-menu-global">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Menu — global scope on</h2>
+        <span class="lab-sec__gist">no row is checked · one notice · selecting turns global off</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Interplay</b>While global is on, no workspace is the scope — so no row carries a check (a check on the remembered workspace would be a lie). One info-tone notice states the mode and the exit. Selecting any row turns global off and switches in one gesture; the toggle is the other exit.</div>
+        <div class="spec__demo">
+          <div class="mb-demo">
+            <header class="menubar">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="ws-trigger" data-scope="global" aria-expanded="true">
+                  <span class="ws-avatar"><svg data-lucide="house"></svg></span>
+                  <span class="ws-name">Global</span>
+                  <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
+                </button>
+                <button class="gw-toggle" aria-pressed="true" aria-label="Global scope"><svg data-lucide="house"></svg></button>
+                <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" aria-label="Approvals"><svg data-lucide="bell"></svg></button>
+                <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+            <div class="mb-drop" style="flex-direction:column;align-items:flex-start;gap:6px">
+              <!-- notice = functional label (why nothing is checked), info tone, outside role="menu" -->
+              <div class="mb-notice" role="status" style="width:280px" data-od-id="gw-global-notice">
+                <svg data-lucide="info"></svg>
+                Global scope is on — picking a workspace turns it off
+              </div>
+              <div class="popover popover--demo" role="menu" data-od-id="gw-menu-global-list">
+                <p class="pop-eyebrow">Workspaces</p>
+                <!-- gating: click → store.send(workspaceSelected) + scope="workspace" in one event -->
+                <button class="pop-item"><span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>compozy</button>
+                <button class="pop-item"><span class="ws-avatar" style="width:16px;height:16px;font-size:8px">B</span>branas-site</button>
+                <button class="pop-item"><span class="ws-avatar" style="width:16px;height:16px;font-size:8px">N</span>notes</button>
+                <div class="pop-sep"></div>
+                <button class="pop-item">Workspaces overview…</button>
+                <button class="pop-item">Add workspace…</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · COMMAND PALETTE ════ -->
+    <section class="lab-sec" data-od-id="gw-palette">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Command palette</h2>
+        <span class="lab-sec__gist">scope is a first-class action · switches state their side effect</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Actions</b>"Turn on/off Global scope" joins the shell actions with <code>⇧⌘G</code>. While global is on, workspace switches carry a quiet meta naming the side effect — no surprise scope changes (<code>os-command-palette-shell-actions.tsx:59-72</code> today has undistinguished rows).</div>
+        <div class="spec__demo">
+          <div class="pal-demo" data-od-id="gw-palette-demo">
+            <div class="palette-head"><svg data-lucide="search"></svg><input value="glo" readonly></div>
+            <div class="palette-results">
+              <div class="pal-group">Actions</div>
+              <!-- gating: store.scope drives the verb (Turn on ↔ Turn off) -->
+              <button class="pal-item is-active" data-od-id="gw-pal-toggle"><svg data-lucide="house"></svg>Turn off Global scope<span class="pal-meta">⇧⌘G</span></button>
+              <button class="pal-item"><svg data-lucide="refresh-ccw"></svg>Switch to compozy<span class="pal-meta">turns Global off</span></button>
+              <button class="pal-item"><svg data-lucide="refresh-ccw"></svg>Switch to branas-site<span class="pal-meta">turns Global off</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · WORKSPACES OVERVIEW ════ -->
+    <section class="lab-sec" data-od-id="gw-overview">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Workspaces overview</h2>
+        <span class="lab-sec__gist">the $HOME card disappears · counts count projects</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Cards</b>The overview (<code>os-workspaces-overview.tsx</code>) lists project workspaces only — the raw <code>$HOME</code>-path card is gone. Subtitle counts follow: "3 workspaces". While global is on, no card reads Current; the menubar chip already states the scope.</div>
+        <div class="spec__demo">
+          <div class="ovg" data-od-id="gw-overview-cards">
+            <div class="ovcard" data-current>
+              <div class="ovcard__top"><span class="ws-avatar" style="width:20px;height:20px;font-size:9px">CO</span><span class="ovcard__name">compozy</span><span class="ovcard__cur">Current</span></div>
+              <div class="ovcard__meta">3 agents · 5 sessions</div>
+              <div class="ovcard__foot">~/dev/compozy</div>
+            </div>
+            <div class="ovcard">
+              <div class="ovcard__top"><span class="ws-avatar" style="width:20px;height:20px;font-size:9px">B</span><span class="ovcard__name">branas-site</span></div>
+              <div class="ovcard__meta">1 agent · 2 sessions</div>
+              <div class="ovcard__foot">~/dev/branas/site</div>
+            </div>
+            <div class="ovcard">
+              <div class="ovcard__top"><span class="ws-avatar" style="width:20px;height:20px;font-size:9px">N</span><span class="ovcard__name">notes</span></div>
+              <div class="ovcard__meta">1 agent · 1 session</div>
+              <div class="ovcard__foot">~/notes</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · COMMAND-SELECT (per-surface picker) ════ -->
+    <section class="lab-sec" data-od-id="gw-cselect">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Workspace command-select</h2>
+        <span class="lab-sec__gist">home row + "Home workspace" badge deleted · geometry untouched</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Proposed popover</b>Canonical anatomy survives (<code>workspace-command-select.tsx:158-218</code> — 32px search, eyebrow group, check on active, Add workspace footer). Deleted: the pinned home row, its house avatar branch, the "Home workspace" badge, the hidden scope-context handoff on select. The list is honest: rows you can actually pick.</div>
+        <div class="spec__demo">
+          <div class="cs-pop" data-od-id="gw-cselect-pop">
+            <div class="cs-pop__search"><svg data-lucide="search"></svg><input placeholder="Search workspaces..." readonly></div>
+            <div class="cs-pop__list">
+              <div class="cs-group__h">Workspaces</div>
+              <!-- gating: options = project workspaces; selecting fires onChange(workspace.id) — no scope side channel -->
+              <button class="cs-item" aria-selected="true"><span class="command-select__avatar">CO</span><span class="cs-item__label">compozy<span class="sub">~/dev/compozy</span></span><svg class="cs-item__check" data-lucide="check"></svg></button>
+              <button class="cs-item"><span class="command-select__avatar">B</span><span class="cs-item__label">branas-site<span class="sub">~/dev/branas/site</span></span></button>
+              <button class="cs-item"><span class="command-select__avatar">N</span><span class="cs-item__label">notes<span class="sub">~/notes</span></span></button>
+            </div>
+            <div class="cs-foot">
+              <button class="cs-item"><svg data-lucide="plus"></svg>Add workspace</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      Lists of the global-workspace set — the control lives in
+      <a href="gw-menubar-toggle.html" style="color:var(--subtle)">menubar toggle</a>; what the removed rows looked like is in the
+      <a href="gw-current-audit.html" style="color:var(--subtle)">audit</a>; modal consequences in
+      <a href="gw-modal-scope.html" style="color:var(--subtle)">modal scope</a>.
+      Contract: <span class="mono">DESIGN-NOTES.md</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

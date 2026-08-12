@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Global-scope states &amp; edges · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="global-workspace.css">
+<!--
+  gw-states · lab — the scope × workspace matrix and every edge the toggle must survive.
+  Spec: global-workspace/DESIGN-NOTES.md · shared story: ws compozy · ~ = /Users/pedro.
+  Provenance:
+    production        — session create field from session-create-advanced-section.tsx:41-60;
+                        install toast copy precedent os-v2.js:772; store contract
+                        active-workspace-store.ts; reconciliation workspace-list-reconciliation.ts
+    redesign proposal — matrix row 4 (off + zero workspaces) is unrepresentable by contract;
+                        remembered-workspace deletion falls back to global with a notice
+    authorized delta  — toasts and dialogs pinned inline
+-->
+<style>
+  a{color:inherit;text-decoration:none}
+  .mtx{width:100%;border-collapse:collapse;font-size:11.5px}
+  .mtx th{text-align:left;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);
+    padding:6px 10px;border-bottom:1px solid var(--line)}
+  .mtx td{padding:7px 10px;border-bottom:1px solid var(--line-soft);color:var(--fg);vertical-align:top}
+  .mtx .mono{font-size:10px;color:var(--muted)}
+  .mb-notice{display:flex;align-items:center;gap:7px;min-height:28px;padding:4px 10px;border-radius:var(--radius-sm);
+    background:var(--info-tint);color:var(--info);font-size:11px;line-height:1.4}
+  .mb-notice svg{width:12px;height:12px;flex:none}
+  .toast-demo{width:340px;padding:11px 13px;background:var(--shell-glass-pop);border:1px solid var(--line-strong);
+    border-radius:13px;box-shadow:var(--shadow-overlay);display:flex;flex-direction:column;gap:6px}
+  .toast-demo .toast-head{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}
+  .toast-demo .toast-head strong{color:var(--fg-strong);font-weight:600}
+  .toast-demo .toast-body{font-size:12.5px;line-height:1.45;color:var(--fg)}
+  .toast-demo code{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="gw-states-head">
+    <a class="w2-back" href="index.html" aria-label="Back to global-workspace set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Global workspace</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">States &amp; edges</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="gw-onboarding.html">← Onboarding</a>
+      <a class="btn" href="gw-current-audit.html">Audit →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · THE MATRIX ════ -->
+    <section class="lab-sec" data-od-id="gw-matrix">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Scope × workspace matrix</h2>
+        <span class="lab-sec__gist">four combinations · one is unrepresentable by contract</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Contract</b>Store = <code>{scope, selectedWorkspaceId}</code>. The chip renders scope; the toggle renders + owns it; the id is remembered across flips. Row 4 cannot exist: with zero workspaces the store coerces scope to global (see <a href="gw-menubar-toggle.html" style="color:var(--muted);text-decoration:underline">toggle §03</a>).</div>
+        <div class="spec__demo">
+          <table class="mtx" data-od-id="gw-matrix-table">
+            <thead><tr><th>Scope</th><th>Workspaces</th><th>Chip</th><th>Toggle</th></tr></thead>
+            <tbody>
+              <tr><td>workspace</td><td>≥1 · compozy selected</td><td>CO · compozy</td><td>off</td></tr>
+              <tr><td>global</td><td>≥1 · compozy remembered</td><td>⌂ · Global</td><td>on · accent</td></tr>
+              <tr><td>global</td><td>0</td><td>⌂ · Global</td><td>locked-on</td></tr>
+              <tr><td style="color:var(--faint)">workspace</td><td style="color:var(--faint)">0</td><td colspan="2" style="color:var(--faint)">unrepresentable — store coerces to global</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · REMEMBERED WORKSPACE DELETED ════ -->
+    <section class="lab-sec" data-od-id="gw-deleted">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Remembered workspace deleted</h2>
+        <span class="lab-sec__gist">toggle-off with nowhere to return → stay global, say why</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Fallback</b>compozy was remembered; it got deleted while global was on. Toggle-off has no target — the shell <i>stays</i> in global and explains with one notice; the workspace menu is the way forward. Never silently jump to <code>workspaces[0]</code> (that arbitrary fallback is a delete target).</div>
+        <div class="spec__demo">
+          <div class="mb-notice" role="status" style="max-width:360px" data-od-id="gw-deleted-notice">
+            <svg data-lucide="info"></svg>
+            compozy was removed — pick a workspace to leave Global scope
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · SESSION CREATE ════ -->
+    <section class="lab-sec" data-od-id="gw-session">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Session create</h2>
+        <span class="lab-sec__gist">the advanced Workspace picker becomes the derived statement</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Derived root</b>The advanced fold's full-size workspace picker (<code>session-create-advanced-section.tsx:41-60</code>) asked the question the menubar already answered. Proposed: a derived statement of the session root; with global on, the session runs at <code>~</code>. The "Choose an active workspace before starting" blocker dies with the zero-workspace state.</div>
+        <div class="spec__demo" style="display:flex;flex-direction:column;gap:10px">
+          <!-- gating: session root = selected workspace root, or ~ when store.scope="global" -->
+          <div class="gw-scope-note" data-od-id="gw-session-ws"><svg data-lucide="box"></svg>Runs in <b>compozy</b> — <span class="mono" style="font-size:10.5px">~/dev/compozy</span></div>
+          <div class="gw-scope-note" data-scope="global" data-od-id="gw-session-global"><svg data-lucide="house"></svg>Runs in <b>Global</b> — <span class="mono" style="font-size:10.5px">/Users/pedro</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · RESULT TOASTS ════ -->
+    <section class="lab-sec" data-od-id="gw-toasts">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Result toasts</h2>
+        <span class="lab-sec__gist">outcomes name the scope they landed in — the last honesty check</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Named target</b>Because nothing asked, the confirmation must say. Both toasts reuse the copy register: workspace name, or "Global — available in every workspace".</div>
+        <div class="spec__demo" style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="toast-demo" data-od-id="gw-toast-ws">
+            <div class="toast-head"><strong>Marketplace</strong></div>
+            <div class="toast-body"><b>github</b> installed to <code>compozy</code>.</div>
+          </div>
+          <div class="toast-demo" data-od-id="gw-toast-global">
+            <div class="toast-head"><strong>Marketplace</strong></div>
+            <div class="toast-body"><b>github</b> installed at <code>Global</code> — available in every workspace.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · KEYBOARD & ARIA ════ -->
+    <section class="lab-sec" data-od-id="gw-a11y">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Keyboard &amp; ARIA</h2>
+        <span class="lab-sec__gist">a toggle button, announced as one</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Contract</b><code>&lt;button aria-pressed&gt;</code> with a stable accessible name — state comes from <code>aria-pressed</code>, never from a name swap. Locked-on (zero workspaces) uses <code>aria-disabled</code> and keeps the reason in the name. <code>⇧⌘G</code> toggles from anywhere; the flip announces via a polite live region ("Global scope on").</div>
+        <div class="spec__demo">
+          <table class="mtx" data-od-id="gw-a11y-table">
+            <thead><tr><th>State</th><th>aria</th><th>Announces</th></tr></thead>
+            <tbody>
+              <tr><td>off</td><td class="mono">aria-pressed="false" · label "Global scope"</td><td>"Global scope, toggle button, off"</td></tr>
+              <tr><td>on</td><td class="mono">aria-pressed="true"</td><td>"Global scope, toggle button, on"</td></tr>
+              <tr><td>locked-on</td><td class="mono">aria-pressed="true" aria-disabled="true" · label "Global scope — add a workspace to scope down"</td><td>reason included</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      Edge lab of the global-workspace set — the control in
+      <a href="gw-menubar-toggle.html" style="color:var(--subtle)">menubar toggle</a>, list interplay in
+      <a href="gw-workspace-menu.html" style="color:var(--subtle)">workspace menu</a>, derived targets in
+      <a href="gw-modal-scope.html" style="color:var(--subtle)">modal scope</a>.
+      Contract: <span class="mono">DESIGN-NOTES.md</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>
