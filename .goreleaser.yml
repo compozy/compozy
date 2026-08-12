@@ -119,7 +119,8 @@ signs:
 before_publish:
   - ids:
       - compozy-archive
-    artifacts: archive
+    artifacts:
+      - archive
     cmd: go run github.com/magefile/mage@v1.17.2 updateArchiveCheck "{{ .ArtifactPath }}"
     output: true
 

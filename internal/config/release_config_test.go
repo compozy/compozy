@@ -96,8 +96,9 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		if !stringSliceContains(sliceAt(t, hook, "ids"), "compozy-archive") {
 			t.Fatalf("before_publish[0].ids = %#v, want compozy-archive", hook["ids"])
 		}
-		if got, want := stringAt(t, hook, "artifacts"), "archive"; got != want {
-			t.Fatalf("before_publish[0].artifacts = %q, want %q", got, want)
+		gotArtifacts := stringsFromSlice(t, sliceAt(t, hook, "artifacts"), "before_publish[0].artifacts")
+		if wantArtifacts := []string{"archive"}; !slices.Equal(gotArtifacts, wantArtifacts) {
+			t.Fatalf("before_publish[0].artifacts = %#v, want %#v", gotArtifacts, wantArtifacts)
 		}
 		command := stringAt(t, hook, "cmd")
 		for _, want := range []string{"updateArchiveCheck", "{{ .ArtifactPath }}"} {
