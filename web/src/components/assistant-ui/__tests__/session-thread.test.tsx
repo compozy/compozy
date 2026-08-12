@@ -278,6 +278,87 @@ describe("SessionThread transcript states", () => {
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
+  it("Should render past a resolved clarification with an unstable structured payload", async () => {
+    const transcript: SessionMessage[] = [
+      {
+        id: "assistant-resolved-clarification",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "clarify",
+              session_id: primarySessionFixture.id,
+              turn_id: "clarify:req-render-loop",
+              raw: {
+                status: "resolved",
+                request: {
+                  request_id: "req-render-loop",
+                  workspace_id: primarySessionFixture.workspace_id,
+                  session_id: primarySessionFixture.id,
+                  agent_name: primarySessionFixture.agent_name,
+                  question: "Which environment should deploy?",
+                  choices: ["staging", "production"],
+                  asked_at: "2026-08-12T12:00:00Z",
+                  deadline: "2026-08-12T12:05:00Z",
+                },
+                answer: { choice: 1, text: "", fallback: false },
+                at: "2026-08-12T12:00:10Z",
+              },
+            },
+          },
+        ],
+      },
+      {
+        id: "assistant-after-resolved-clarification",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Deployment checks completed after the clarification.",
+            state: "done",
+          },
+        ],
+      },
+    ];
+
+    const messages = toReadonlyThreadMessages(transcript);
+    const clarificationMessage = messages[0];
+    expect.assert(clarificationMessage);
+    const clarificationPart = clarificationMessage.content[0];
+    expect.assert(clarificationPart);
+    const volatilePart = new Proxy(clarificationPart, {
+      get(target, property, receiver) {
+        const value = Reflect.get(target, property, receiver);
+        return property === "data" ? structuredClone(value) : value;
+      },
+    });
+    const volatileContent = [volatilePart, ...clarificationMessage.content.slice(1)];
+    const volatileClarification = new Proxy(clarificationMessage, {
+      get(target, property, receiver) {
+        if (property === "content") {
+          return volatileContent;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    renderThreadState({
+      status: "success",
+      messages: [volatileClarification, ...messages.slice(1)],
+    });
+
+    expect(await screen.findByTestId("clarification-receipt")).toHaveAttribute(
+      "data-status",
+      "resolved"
+    );
+    expect(screen.getByTestId("clarification-receipt-answer")).toHaveTextContent("production");
+    expect(
+      screen.getByText("Deployment checks completed after the clarification.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("session-thread-error-boundary")).not.toBeInTheDocument();
+  });
+
   it("Should render ThreadEmpty only for success with zero messages", async () => {
     renderThreadState({ status: "success" });
 
@@ -1461,10 +1542,9 @@ describe("SessionThread transcript states", () => {
 });
 
 // Suite: streaming render-count probe (task 39).
-// Invariant: derive-layer structural sharing + compiler-stabilized `TimelineRowContent` mean
-// streaming N chunk updates change only the live row's visible subtree; settled
-// rows keep both their data reference and mounted DOM subtree.
-// Boundary IN: `computeStableSessionRows` row identity + the compiler-managed row renderer.
+// Invariant: semantic row equality + compiler-stabilized `TimelineRowContent` mean streaming N
+// chunk updates change only the live row's visible subtree; settled rows keep their mounted DOM.
+// Boundary IN: `sessionRowEqual` + the compiler-managed row renderer.
 // Boundary OUT: SSE/query wiring (owned by use-session-live-tail.test.tsx).
 describe("SessionThread streaming render-count", () => {
   function streamingTranscript(liveText: string): readonly ThreadMessage[] {

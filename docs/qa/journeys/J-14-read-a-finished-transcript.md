@@ -68,7 +68,7 @@ design_reference:
     - ".resources/t3code/apps/web/src/components/chat/MessagesTimeline.tsx:1900-2036 (SimpleWorkEntryRow visual baseline)"
     - ".resources/synara/apps/web/src/components/chat/MessagesTimeline.tsx:2942-3374 (Synara row baseline)"
     - ".resources/synara/apps/web/src/components/chat/MessagesTimeline.logic.ts:226-590 (+N previous tool calls, settled-turn collapse)"
-    - ".resources/t3code/apps/web/src/components/chat/MessagesTimeline.logic.test.ts (grouping/folds/structural-sharing invariants to spot-check)"
+    - ".resources/t3code/apps/web/src/components/chat/MessagesTimeline.logic.test.ts (grouping/folds/semantic-row-equality invariants to spot-check)"
   truthful_ui_checks:
     - "Tool call = one ~24–28px line, never a 44px filled card; consecutive calls fold with '+N previous tool calls' (tasks 25/26)."
     - "Any tool kind's Input + Output is inspectable inline (structured, not a lossy blob) (task 27)."
@@ -88,5 +88,5 @@ e2e_backbone:
   telemetry:
     - "None specific — read-path perf rides the transcript assembly-duration counter (task 40) via J-12."
   followups:
-    - "AB-007 — pure-logic grouping/fold regression (mirror MessagesTimeline.logic.test.ts: +N previous, settled-turn collapse, structural sharing) + an axe/a11y pass over the redesigned thread (row a11y unit-owned today, task 25)."
+    - "AB-007 — pure-logic grouping/fold regression (mirror MessagesTimeline.logic.test.ts: +N previous, settled-turn collapse, semantic row equality) + an axe/a11y pass over the redesigned thread (row a11y unit-owned today, task 25)."
 ```

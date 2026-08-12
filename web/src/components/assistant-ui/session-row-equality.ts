@@ -1,7 +1,6 @@
-// Structural sharing for the derived row list: reuses row references from the
-// previous pass when a freshly derived row is content-equal, so unchanged rows
-// stay referentially stable across derive passes (append leaves prior rows
-// intact) and the virtualizer plus memoized children avoid needless re-renders.
+// Semantic row equality for the memoized timeline renderer. Fresh derivations
+// may allocate new row objects; this comparator keeps unchanged row subtrees
+// from rendering again without feeding derived data back into React state.
 
 import type {
   ChangedFileEntry,
@@ -17,36 +16,6 @@ import type {
   SessionWorkRow,
   SessionWorkToggleRow,
 } from "./session-timeline.logic";
-
-export interface StableSessionRowsState {
-  byId: Map<string, SessionRow>;
-  result: SessionRow[];
-}
-
-export const EMPTY_STABLE_SESSION_ROWS: StableSessionRowsState = {
-  byId: new Map(),
-  result: [],
-};
-
-export function computeStableSessionRows(
-  rows: SessionRow[],
-  previous: StableSessionRowsState
-): StableSessionRowsState {
-  const next = new Map<string, SessionRow>();
-  let anyChanged = rows.length !== previous.byId.size;
-
-  const result = rows.map((row, index) => {
-    const previousRow = previous.byId.get(row.id);
-    const stableRow = previousRow && sessionRowEqual(previousRow, row) ? previousRow : row;
-    next.set(row.id, stableRow);
-    if (!anyChanged && previous.result[index] !== stableRow) {
-      anyChanged = true;
-    }
-    return stableRow;
-  });
-
-  return anyChanged ? { byId: next, result } : previous;
-}
 
 /** Shallow, per-variant content comparison — avoids serialization cost. */
 export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {

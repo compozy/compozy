@@ -9,8 +9,8 @@
 // Failed and interrupted calls never disappear into a summary. Consecutive
 // reasoning parts fold into one row; consecutive same-kind runtime markers merge
 // into one data row carrying a ×N count. The settled-turn "Worked for Xs" fold
-// layer lives in `./session-timeline-fold`; structural sharing lives in
-// `./session-timeline-stable`; the run summarizer in `./session-timeline-summary`.
+// layer lives in `./session-timeline-fold`; semantic row equality lives in
+// `./session-row-equality`; the run summarizer in `./session-timeline-summary`.
 
 import { foldSettledTurns } from "./session-timeline-fold";
 import { markerClusterKey } from "./session-timeline-markers";
@@ -22,12 +22,7 @@ import {
 
 export { markerClusterKey } from "./session-timeline-markers";
 
-export {
-  computeStableSessionRows,
-  EMPTY_STABLE_SESSION_ROWS,
-  sessionRowEqual,
-  type StableSessionRowsState,
-} from "./session-timeline-stable";
+export { sessionRowEqual } from "./session-row-equality";
 export {
   classifyToolSummaryCategory,
   isSummarizableToolPart,
