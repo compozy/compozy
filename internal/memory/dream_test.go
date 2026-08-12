@@ -1010,11 +1010,12 @@ func TestServiceRunValidatesInputs(t *testing.T) {
 		nilContext(),
 		func(context.Context, string, string, string, time.Time) error { return nil },
 		"",
-	); err == nil {
-		t.Fatal("Run(nil context, spawner) error = nil, want non-nil")
+	); err == nil || !strings.Contains(err.Error(), "context is required") {
+		t.Fatalf("Run(nil context, spawner) error = %v, want context-required error", err)
 	}
-	if _, err := service.Run(testutil.Context(t), nil, ""); err == nil {
-		t.Fatal("Run(ctx, nil) error = nil, want non-nil")
+	if _, err := service.Run(testutil.Context(t), nil, ""); err == nil ||
+		!strings.Contains(err.Error(), "session spawner is required") {
+		t.Fatalf("Run(ctx, nil) error = %v, want spawner-required error", err)
 	}
 }
 

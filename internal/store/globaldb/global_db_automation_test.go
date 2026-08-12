@@ -2219,15 +2219,17 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	if _, err := globalDB.normalizeTriggerForUpdate(Trigger{}); err == nil {
 		t.Fatal("normalizeTriggerForUpdate(empty) error = nil, want non-nil")
 	}
-	paddedTrigger := trigger
-	paddedTrigger.ID = ""
-	paddedTrigger.Name = "padded-event"
-	paddedTrigger.Event = " webhook"
-	if _, err := globalDB.normalizeTriggerForCreate(paddedTrigger); err == nil {
-		t.Fatal("normalizeTriggerForCreate(padded event) error = nil, want non-nil")
-	} else if !strings.Contains(err.Error(), "surrounding whitespace") {
-		t.Fatalf("normalizeTriggerForCreate(padded event) error = %v, want surrounding whitespace", err)
-	}
+	t.Run("Should reject a padded event on trigger create normalization", func(t *testing.T) {
+		paddedTrigger := trigger
+		paddedTrigger.ID = ""
+		paddedTrigger.Name = "padded-event"
+		paddedTrigger.Event = " webhook"
+		if _, err := globalDB.normalizeTriggerForCreate(paddedTrigger); err == nil {
+			t.Fatal("normalizeTriggerForCreate(padded event) error = nil, want non-nil")
+		} else if !strings.Contains(err.Error(), "surrounding whitespace") {
+			t.Fatalf("normalizeTriggerForCreate(padded event) error = %v, want surrounding whitespace", err)
+		}
+	})
 
 	run, err := globalDB.normalizeRunForCreate(Run{
 		JobID:  "job-1",
