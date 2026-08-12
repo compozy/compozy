@@ -23,10 +23,6 @@ interface AutocompleteHandles {
   blurTimer: ReturnType<typeof setTimeout> | null;
 }
 
-interface AutocompleteTrigger {
-  dismissElapsed: () => void;
-}
-
 const handlesByTrigger = new WeakMap<object, AutocompleteHandles>();
 
 function handlesFor(trigger: object): AutocompleteHandles {
@@ -70,10 +66,7 @@ export const referenceAutocompleteLogic = createStoreLogic<
       enqueue.effect(({ trigger }) => {
         cancelBlur(trigger);
         const handles = handlesFor(trigger);
-        handles.blurTimer = setTimeout(
-          () => (trigger as AutocompleteTrigger).dismissElapsed(),
-          BLUR_DISMISS_DELAY_MS
-        );
+        handles.blurTimer = setTimeout(() => trigger.dismissElapsed(), BLUR_DISMISS_DELAY_MS);
       });
       return context;
     },

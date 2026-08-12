@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
+import { taskRunDetailOptions } from "@/systems/tasks";
+import { buildTaskRunDetailFixture, buildTaskRunRecordFixture } from "@/systems/tasks/mocks";
 
 import type { TaskRunNetworkProjection } from "../../types";
 import { useTaskRunConversation } from "../use-task-run-conversation";
@@ -74,6 +76,17 @@ const network: TaskRunNetworkProjection = {
   },
 };
 
+function seedTaskRunDetail(
+  queryClient: QueryClient,
+  runId: string,
+  projection: TaskRunNetworkProjection
+): void {
+  queryClient.setQueryData(taskRunDetailOptions(runId).queryKey, {
+    ...buildTaskRunDetailFixture({ run: buildTaskRunRecordFixture({ id: runId }) }),
+    network: projection,
+  });
+}
+
 /**
  * The shared stream transport reads the explicit listener tier before it opens
  * a socket. This lane models the local listener, which needs no ticket.
@@ -114,6 +127,7 @@ describe("useTaskRunConversation", () => {
   it("Should refresh messages and apply truthful usage from run SSE frames", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    seedTaskRunDetail(queryClient, "run-1", network);
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
@@ -137,6 +151,10 @@ describe("useTaskRunConversation", () => {
     });
 
     await waitFor(() => expect(result.current?.usage.total.wake_count).toBe(1));
+    expect(
+      queryClient.getQueryData(taskRunDetailOptions("run-1").queryKey)?.network?.usage.total
+        .wake_count
+    ).toBe(1);
     expect(invalidate).toHaveBeenCalledTimes(1);
     unmount();
     expect(source.closed).toBe(true);
@@ -144,6 +162,7 @@ describe("useTaskRunConversation", () => {
 
   it("Should disclose reconnect state while EventSource retries", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    seedTaskRunDetail(queryClient, "run-1", network);
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
@@ -194,6 +213,8 @@ describe("useTaskRunConversation", () => {
         total: { ...network.usage.total, wake_count: 2, actual_wake_count: 2 },
       },
     };
+    seedTaskRunDetail(queryClient, "run-1", network);
+    seedTaskRunDetail(queryClient, "run-2", nextNetwork);
     const { result, rerender } = renderHook(
       ({ runId, projection }) => useTaskRunConversation(runId, projection),
       { initialProps: { runId: "run-1", projection: network }, wrapper }

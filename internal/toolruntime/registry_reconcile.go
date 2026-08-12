@@ -52,6 +52,17 @@ func (r *Registry) ReconcileBoot(ctx context.Context) (BootReconcileReport, erro
 			continue
 		}
 		if interruptErr := r.interrupter.InterruptProcess(ctx, record); interruptErr != nil {
+			if errors.Is(interruptErr, ErrOwnershipValidationFailed) {
+				report.Stale++
+				if updateErr := r.markStale(
+					ctx,
+					record.ID,
+					"boot reconciliation skipped: process ownership changed before signaling",
+				); updateErr != nil {
+					errs = append(errs, updateErr)
+				}
+				continue
+			}
 			errs = append(
 				errs,
 				fmt.Errorf("toolruntime: interrupt prior process %q during boot: %w", record.ID, interruptErr),

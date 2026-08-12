@@ -1,9 +1,10 @@
 import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 import { useStoreBinding } from "@/hooks/use-store-binding";
+import { taskRunDetailOptions, type TaskRunDetailView } from "@/systems/tasks";
 
 import { networkKeys } from "../lib/query-keys";
 import type { TaskRunNetworkProjection, TaskRunNetworkUsage } from "../types";
@@ -28,6 +29,7 @@ export function useTaskRunConversation(
   const conversationThreadId = conversation?.thread_id ?? "";
   const conversationWorkspaceId = conversation?.workspace_id ?? "";
   const usageScope = network ? `${network.conversation.workspace_id}:${runId.trim()}` : "";
+  const taskRun = useQuery(taskRunDetailOptions(runId, false)).data;
   const { store } = useStoreBinding(usageScope, () =>
     taskRunConversationLogic.createStore({ scope: usageScope })
   );
@@ -39,10 +41,7 @@ export function useTaskRunConversation(
     containerId: conversation?.thread_id,
     enabled: enabled && Boolean(network),
   });
-  const usage =
-    usageState.scope === usageScope && usageState.usageOverlay
-      ? usageState.usageOverlay
-      : (network?.usage ?? null);
+  const usage = taskRun?.network?.usage ?? null;
 
   useEffect(() => {
     if (
@@ -68,9 +67,26 @@ export function useTaskRunConversation(
     const handleUsage = (event: MessageEvent<string>) => {
       try {
         const payload = JSON.parse(event.data) as { usage?: TaskRunNetworkUsage };
-        if (payload.usage) {
-          store.trigger.usageReceived({ scope: usageScope, usage: payload.usage });
-        }
+        const usage = payload.usage;
+        if (!usage || usage.workspace_id !== conversationWorkspaceId) return;
+
+        store.trigger.frameReceived({ scope: usageScope });
+        queryClient.setQueryData<TaskRunDetailView>(
+          taskRunDetailOptions(runId).queryKey,
+          current => {
+            if (
+              !current?.network ||
+              current.network.conversation.workspace_id !== conversationWorkspaceId ||
+              current.network.usage.workspace_id !== usage.workspace_id
+            ) {
+              return current;
+            }
+            return {
+              ...current,
+              network: { ...current.network, usage },
+            };
+          }
+        );
       } catch (error) {
         store.trigger.streamFailed({
           error:
@@ -101,6 +117,7 @@ export function useTaskRunConversation(
     conversationWorkspaceId,
     enabled,
     queryClient,
+    runId,
     store,
     usageScope,
   ]);

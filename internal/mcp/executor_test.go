@@ -197,7 +197,7 @@ func TestMCPCallExecutor(t *testing.T) {
 					Request:    request,
 				}, nil
 			}),
-			header: func(context.Context) string { return "Bearer rejected" },
+			header: "Bearer rejected",
 		}
 		request, err := http.NewRequestWithContext(
 			t.Context(),
@@ -1265,7 +1265,7 @@ func TestMCPClientCleanup(t *testing.T) {
 	})
 }
 
-// Invariant: authoritative MCP projections match the current credential and retain no expired cache state.
+// Invariant: authoritative MCP projections change only with logical descriptor or credential state and retain no expired cache state.
 // Owning layer: internal/mcp unit cache.
 // Canonical suite: internal/mcp/executor_test.go.
 func TestMCPToolListCache(t *testing.T) {
@@ -1377,6 +1377,62 @@ func TestMCPToolListCache(t *testing.T) {
 		executor.toolCache.mu.Unlock()
 		if projectionStateCount != 0 {
 			t.Fatalf("projection state count = %d, want 0 after uncacheable response", projectionStateCount)
+		}
+	})
+
+	t.Run("Should preserve generation for reordered equivalent descriptors", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &CallExecutor{toolCache: mcpToolListCache{
+			projectionStates: make(map[string]mcpToolProjectionState),
+		}}
+		source := toolspkg.SourceRef{
+			Kind:          toolspkg.SourceMCP,
+			Owner:         "fixture",
+			RawServerName: "fixture",
+			Scope:         "global",
+		}
+		alpha := toolspkg.MCPToolDescriptor{ID: "mcp__fixture__alpha"}
+		beta := toolspkg.MCPToolDescriptor{ID: "mcp__fixture__beta"}
+		now := time.Now()
+		if err := executor.recordToolProjection(
+			source,
+			"",
+			[]toolspkg.MCPToolDescriptor{alpha, beta},
+			60_000,
+			now,
+		); err != nil {
+			t.Fatalf("recordToolProjection(initial) error = %v", err)
+		}
+		initial, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || initial == "" {
+			t.Fatalf("ProjectionGeneration(initial) = %q, %t, want authoritative generation", initial, known)
+		}
+
+		reorderedDescriptors := []toolspkg.MCPToolDescriptor{beta, alpha}
+		if err := executor.recordToolProjection(
+			source,
+			"",
+			reorderedDescriptors,
+			60_000,
+			now.Add(time.Millisecond),
+		); err != nil {
+			t.Fatalf("recordToolProjection(reordered) error = %v", err)
+		}
+		if got, want := []toolspkg.ToolID{
+			reorderedDescriptors[0].ID,
+			reorderedDescriptors[1].ID,
+		}, []toolspkg.ToolID{beta.ID, alpha.ID}; !slices.Equal(got, want) {
+			t.Fatalf("reordered descriptors = %#v, want original server order %#v", got, want)
+		}
+		reordered, known := executor.ProjectionGeneration(t.Context(), []toolspkg.SourceRef{source})
+		if !known || reordered != initial {
+			t.Fatalf(
+				"ProjectionGeneration(reordered) = %q, %t, want unchanged %q",
+				reordered,
+				known,
+				initial,
+			)
 		}
 	})
 

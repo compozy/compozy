@@ -45,6 +45,23 @@ describe("debouncedInputLogic", () => {
     });
   });
 
+  it("Should cancel pending work when the owner resets the draft", () => {
+    vi.useFakeTimers();
+    const store = debouncedInputLogic.createStore({ value: "before" });
+    const commit = vi.fn();
+    store.trigger.valueChanged({ commit, delayMs: 180, value: "pending" });
+
+    store.trigger.reset({ value: "from-reset" });
+    vi.runAllTimers();
+
+    expect(commit).not.toHaveBeenCalled();
+    expect(store.getSnapshot().context).toMatchObject({
+      committedValue: "from-reset",
+      draftValue: "from-reset",
+      phase: "idle",
+    });
+  });
+
   it("Should retain a newer draft when a route acknowledgement for the prior commit arrives late", () => {
     vi.useFakeTimers();
     const store = debouncedInputLogic.createStore({ value: "before" });

@@ -26,6 +26,16 @@ interface SeamDragHandles {
   preview: ((seam: unknown, deltaPx: number) => void) | null;
 }
 
+function idleSeamDragState<TSeam>(): SeamDragState<TSeam> {
+  return {
+    coordinate: 0,
+    pendingDeltaPx: 0,
+    phase: "idle",
+    pointerId: null,
+    seam: null,
+  };
+}
+
 const handlesByTrigger = new WeakMap<object, SeamDragHandles>();
 
 function handlesFor(trigger: object): SeamDragHandles {
@@ -52,13 +62,7 @@ function invoke(operation: () => void, label: string): void {
 
 export function createSeamDragLogic<TSeam>() {
   return createStoreLogic<SeamDragState<TSeam>, SeamDragEvents<TSeam>>({
-    context: {
-      coordinate: 0,
-      pendingDeltaPx: 0,
-      phase: "idle",
-      pointerId: null,
-      seam: null,
-    },
+    context: idleSeamDragState<TSeam>(),
     on: {
       dragStarted: (_context, event) => ({
         coordinate: event.coordinate,
@@ -97,13 +101,7 @@ export function createSeamDragLogic<TSeam>() {
       dragEnded: (context, event, enqueue) => {
         if (context.phase !== "dragging" || context.pointerId !== event.pointerId) return;
         enqueue.effect(({ trigger }) => cancelFrame(handlesFor(trigger)));
-        return {
-          coordinate: 0,
-          pendingDeltaPx: 0,
-          phase: "idle",
-          pointerId: null,
-          seam: null,
-        };
+        return idleSeamDragState<TSeam>();
       },
       dragCancelled: (context, event, enqueue) => {
         if (context.phase !== "dragging") return;
@@ -111,7 +109,7 @@ export function createSeamDragLogic<TSeam>() {
           cancelFrame(handlesFor(trigger));
           invoke(event.endPreview, "Failed to end a cancelled window seam preview");
         });
-        return { ...context, phase: "idle", pointerId: null, seam: null };
+        return idleSeamDragState<TSeam>();
       },
       disposed: (context, event, enqueue) => {
         enqueue.effect(({ trigger }) => {
@@ -122,7 +120,7 @@ export function createSeamDragLogic<TSeam>() {
             invoke(event.endPreview, "Failed to end a disposed window seam preview");
           }
         });
-        return { ...context, phase: "idle", pointerId: null, seam: null };
+        return idleSeamDragState<TSeam>();
       },
     },
   });

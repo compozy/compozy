@@ -46,7 +46,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   const pauseDialog = useTaskPauseDialog(page.handlePauseTask);
   const latestEventSeq = page.detail?.task?.latest_event_seq ?? null;
   const operator = useTaskOperatorLayer(taskId, {
-    enabled: inspectOpen,
+    enabled: inspectOpen && liveDataEnabled,
     streamErrorMessage: page.streamErrorMessage,
     streamSeedSequence: page.streamSeedSequence,
     streamState: page.streamState,

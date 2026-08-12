@@ -70,7 +70,6 @@ type BootReconcileReport struct {
 	Checked     int
 	Interrupted int
 	Stale       int
-	Current     int
 }
 
 // InterruptReport summarizes one scoped interrupt request.

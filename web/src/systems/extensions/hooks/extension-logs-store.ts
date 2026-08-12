@@ -17,6 +17,7 @@ type ExtensionLogsEvents = {
   followChanged: { follow: boolean };
   streamFailed: Record<never, never>;
   streamOpened: Record<never, never>;
+  streamSuspended: Record<never, never>;
 };
 
 export const extensionLogsLogic = createStoreLogic<ExtensionLogsState, ExtensionLogsEvents>({
@@ -47,5 +48,9 @@ export const extensionLogsLogic = createStoreLogic<ExtensionLogsState, Extension
       context.streamStatus === "connecting" || context.streamStatus === "reconnecting"
         ? { ...context, streamStatus: "live" }
         : undefined,
+    streamSuspended: context => {
+      const streamStatus = context.follow ? "idle" : "paused";
+      return context.streamStatus === streamStatus ? undefined : { ...context, streamStatus };
+    },
   },
 });

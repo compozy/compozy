@@ -235,7 +235,6 @@ func (d *Daemon) bootProcessRegistry(ctx context.Context, state *bootState) erro
 			"checked", report.Checked,
 			"interrupted", report.Interrupted,
 			"stale", report.Stale,
-			"current", report.Current,
 		)
 	}
 	return nil

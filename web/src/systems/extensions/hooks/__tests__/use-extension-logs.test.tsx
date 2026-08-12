@@ -1,6 +1,6 @@
 // Suite: Extension log stream
 // Invariant: the panel binds one `(name, workspace)` instance, consumes only the named
-// `extension_log` event, keeps sequences monotonic across a reconnect, and closes its source.
+// `extension_log` event, keeps sequences monotonic across a reconnect, and suspends its source.
 // Boundary IN: useExtensionLogs stream lifecycle and buffer merge.
 // Boundary OUT: Panel rendering and daemon-side redaction.
 
@@ -54,7 +54,7 @@ function logEntry(sequence: number, message: string): ExtensionLogEntry {
   return { message, sequence, timestamp: "2026-07-20T10:00:00Z" };
 }
 
-function setup(name: string, workspaceId: string | null) {
+function setup(name: string, workspaceId: string | null, enabled = true) {
   const sources: FakeEventSource[] = [];
   const eventSourceFactory = (url: string) => {
     const source = new FakeEventSource(url);
@@ -65,9 +65,9 @@ function setup(name: string, workspaceId: string | null) {
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client }, children);
   const view = renderHook(
-    (props: { name: string; workspaceId: string | null }) =>
+    (props: { enabled?: boolean; name: string; workspaceId: string | null }) =>
       useExtensionLogs({ ...props, eventSourceFactory }),
-    { initialProps: { name, workspaceId }, wrapper }
+    { initialProps: { enabled, name, workspaceId }, wrapper }
   );
   return { sources, ...view };
 }
@@ -88,9 +88,21 @@ describe("useExtensionLogs", () => {
     store.trigger.streamOpened();
     expect(store.getSnapshot().context.streamStatus).toBe("live");
 
+    store.trigger.streamSuspended();
+    expect(store.getSnapshot().context.streamStatus).toBe("idle");
+
+    store.trigger.connecting();
+    store.trigger.streamOpened();
+    expect(store.getSnapshot().context.streamStatus).toBe("live");
+
     store.trigger.followChanged({ follow: false });
-    store.trigger.streamFailed();
+    store.trigger.streamSuspended();
     expect(store.getSnapshot().context.streamStatus).toBe("paused");
+
+    store.trigger.followChanged({ follow: true });
+    store.trigger.connecting();
+    store.trigger.streamOpened();
+    expect(store.getSnapshot().context.streamStatus).toBe("live");
   });
 
   it("Should bind the workspace instance and append only newer sequences from the named event", async () => {
@@ -131,6 +143,23 @@ describe("useExtensionLogs", () => {
     expect(view.result.current.entries).toHaveLength(2);
   });
 
+  it("Should suspend a live source and reconnect when its owner becomes active again", async () => {
+    const view = setup("ops-extension", null);
+
+    await waitFor(() => expect(view.sources).toHaveLength(1));
+    act(() => view.sources[0]?.onopen?.(new Event("open")));
+    expect(view.result.current.status).toBe("live");
+
+    view.rerender({ enabled: false, name: "ops-extension", workspaceId: null });
+    expect(view.sources[0]?.close).toHaveBeenCalledOnce();
+    expect(view.result.current.status).toBe("idle");
+
+    view.rerender({ enabled: true, name: "ops-extension", workspaceId: null });
+    await waitFor(() => expect(view.sources).toHaveLength(2));
+    act(() => view.sources[1]?.onopen?.(new Event("open")));
+    expect(view.result.current.status).toBe("live");
+  });
+
   it("Should recreate the source and drop streamed rows when the instance changes", async () => {
     const view = setup("ops-extension", "ws_northstar");
 
@@ -141,7 +170,7 @@ describe("useExtensionLogs", () => {
     expect(view.result.current.entries).toHaveLength(2);
 
     mocks.listExtensionLogs.mockResolvedValue([]);
-    view.rerender({ name: "ops-extension", workspaceId: "ws_atlas" });
+    view.rerender({ enabled: true, name: "ops-extension", workspaceId: "ws_atlas" });
 
     await waitFor(() => expect(view.sources).toHaveLength(2));
     expect(view.sources[0]?.close).toHaveBeenCalled();

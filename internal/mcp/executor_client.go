@@ -129,9 +129,7 @@ func (e *CallExecutor) httpClientWithAuthorization(
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
-	client.Transport = authorizationRoundTripper{next: transport, header: func(context.Context) string {
-		return authorizationHeader
-	}}
+	client.Transport = authorizationRoundTripper{next: transport, header: authorizationHeader}
 	return client
 }
 
@@ -144,13 +142,13 @@ func (e *CallExecutor) httpClientForServer(resolved ResolvedServer) *http.Client
 
 type authorizationRoundTripper struct {
 	next   http.RoundTripper
-	header func(context.Context) string
+	header string
 }
 
 func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	cloned := request.Clone(request.Context())
-	if header := t.header(request.Context()); header != "" {
-		cloned.Header.Set("Authorization", header)
+	if t.header != "" {
+		cloned.Header.Set("Authorization", t.header)
 	}
 	response, err := t.next.RoundTrip(cloned)
 	if err != nil {

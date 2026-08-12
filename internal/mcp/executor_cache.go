@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -103,7 +104,7 @@ func (e *CallExecutor) ProjectionGeneration(
 		if !ok {
 			return "", false
 		}
-		fmt.Fprintf(&generation, "%d:%s%d;", len(key), key, state.generation)
+		fmt.Fprintf(&generation, "%d:%s%d:%x;", len(key), key, state.generation, state.fingerprint)
 	}
 	return generation.String(), true
 }
@@ -123,11 +124,10 @@ func (e *CallExecutor) recordToolProjection(
 		e.toolCache.mu.Unlock()
 		return nil
 	}
-	encoded, err := json.Marshal(descriptors)
+	fingerprint, err := fingerprintMCPToolDescriptors(descriptors)
 	if err != nil {
-		return fmt.Errorf("mcp: encode tool projection generation: %w", err)
+		return err
 	}
-	fingerprint := sha256.Sum256(encoded)
 	e.toolCache.mu.Lock()
 	if e.toolCache.projectionStates == nil {
 		e.toolCache.projectionStates = make(map[string]mcpToolProjectionState)
@@ -145,6 +145,25 @@ func (e *CallExecutor) recordToolProjection(
 	e.toolCache.projectionStates[key] = state
 	e.toolCache.mu.Unlock()
 	return nil
+}
+
+func fingerprintMCPToolDescriptors(descriptors []toolspkg.MCPToolDescriptor) ([sha256.Size]byte, error) {
+	canonical := make([]json.RawMessage, 0, len(descriptors))
+	for index := range descriptors {
+		encoded, err := json.Marshal(descriptors[index])
+		if err != nil {
+			return [sha256.Size]byte{}, fmt.Errorf("mcp: encode tool projection descriptor: %w", err)
+		}
+		canonical = append(canonical, encoded)
+	}
+	slices.SortFunc(canonical, func(left, right json.RawMessage) int {
+		return bytes.Compare(left, right)
+	})
+	encoded, err := json.Marshal(canonical)
+	if err != nil {
+		return [sha256.Size]byte{}, fmt.Errorf("mcp: encode tool projection generation: %w", err)
+	}
+	return sha256.Sum256(encoded), nil
 }
 
 func (e *CallExecutor) projectionSourceKey(

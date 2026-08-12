@@ -366,11 +366,66 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 	})
 }
 
-// Invariant: a hosted bind builds one isolated projection for each authoritative generation, including cold concurrent reads.
+// Invariant: a hosted bind builds one isolated projection per logical descriptor generation, including after source-state expiry.
 // Owning layer: internal/mcp hosted projection cache.
 // Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should rebuild a hosted projection when descriptors change after source expiry", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		source := tools.SourceRef{
+			Kind:          tools.SourceMCP,
+			Owner:         "fixture",
+			RawServerName: "fixture",
+			Scope:         "global",
+		}
+		alpha := []tools.MCPToolDescriptor{{ID: "mcp__fixture__alpha"}}
+		beta := []tools.MCPToolDescriptor{{ID: "mcp__fixture__beta"}}
+		executor := &CallExecutor{toolCache: mcpToolListCache{
+			projectionStates: make(map[string]mcpToolProjectionState),
+		}}
+		now := time.Now()
+		if err := executor.recordToolProjection(source, "", alpha, 60_000, now); err != nil {
+			t.Fatalf("recordToolProjection(alpha) error = %v", err)
+		}
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__alpha")}}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(ctx context.Context, _ tools.Scope) (string, bool) {
+				return executor.ProjectionGeneration(ctx, []tools.SourceRef{source})
+			},
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-expired-generation", peer)
+		baselineCalls := registry.listCallCount()
+
+		if _, err := service.Projection(t.Context(), bind.BindID, peer); err != nil {
+			t.Fatalf("Projection(alpha) error = %v", err)
+		}
+		if err := executor.recordToolProjection(source, "", alpha, 1, now.Add(-time.Second)); err != nil {
+			t.Fatalf("recordToolProjection(expire alpha) error = %v", err)
+		}
+		registry.replaceViews([]tools.ToolView{hostedToolView("compozy__beta")})
+		if err := executor.recordToolProjection(source, "", beta, 60_000, time.Now()); err != nil {
+			t.Fatalf("recordToolProjection(beta) error = %v", err)
+		}
+
+		projection, err := service.Projection(t.Context(), bind.BindID, peer)
+		if err != nil {
+			t.Fatalf("Projection(beta) error = %v", err)
+		}
+		if got, want := hostedToolIDs(projection.Tools), []string{"compozy__beta"}; !slices.Equal(got, want) {
+			t.Fatalf("Projection(beta) tools = %#v, want %#v", got, want)
+		}
+		if got, want := registry.listCallCount(), baselineCalls+2; got != want {
+			t.Fatalf("registry List calls = %d, want %d after descriptor generation changed", got, want)
+		}
+	})
 
 	t.Run("Should build once per bind and authoritative generation", func(t *testing.T) {
 		t.Parallel()

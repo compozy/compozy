@@ -80,6 +80,7 @@ export function useExtensionLogs({
 
   useEffect(() => {
     if (!enabled || name === "" || !follow) {
+      store.trigger.streamSuspended();
       return undefined;
     }
     const factory = eventSourceFactory ?? defaultEventSourceFactory;
@@ -108,6 +109,7 @@ export function useExtensionLogs({
       source.onopen = null;
       source.onerror = null;
       source.close();
+      store.trigger.streamSuspended();
     };
   }, [enabled, eventSourceFactory, follow, instance, name, store, workspaceId]);
 
