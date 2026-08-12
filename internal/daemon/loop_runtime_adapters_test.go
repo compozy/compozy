@@ -75,6 +75,12 @@ func TestLoopCancellationSessionControllerShouldTreatMissingSessionsAsStopped(t 
 				if !slices.Equal(sessions.stopIDs, []string{"sess-cancel"}) {
 					t.Fatalf("StopWithCause session ids = %#v, want one exact session", sessions.stopIDs)
 				}
+				if !slices.Equal(sessions.stopCauses, []session.StopCause{session.CauseUserRequested}) {
+					t.Fatalf("StopWithCause causes = %#v, want user requested", sessions.stopCauses)
+				}
+				if !slices.Equal(sessions.stopDetails, []string{"operator request"}) {
+					t.Fatalf("StopWithCause details = %#v, want exact operator detail", sessions.stopDetails)
+				}
 				return
 			}
 			if !slices.Equal(sessions.cancelIDs, []string{"sess-cancel"}) {
@@ -990,6 +996,8 @@ type loopActionBinderSessionManager struct {
 	promptCalls              []session.PromptOpts
 	cancelIDs                []string
 	stopIDs                  []string
+	stopCauses               []session.StopCause
+	stopDetails              []string
 	stopSawCanceledContexts  []bool
 }
 
@@ -1111,12 +1119,14 @@ func (m *loopActionBinderSessionManager) CancelPrompt(_ context.Context, id stri
 func (m *loopActionBinderSessionManager) StopWithCause(
 	ctx context.Context,
 	id string,
-	_ session.StopCause,
-	_ string,
+	cause session.StopCause,
+	detail string,
 ) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.stopIDs = append(m.stopIDs, id)
+	m.stopCauses = append(m.stopCauses, cause)
+	m.stopDetails = append(m.stopDetails, detail)
 	m.stopSawCanceledContexts = append(m.stopSawCanceledContexts, ctx.Err() != nil)
 	return m.stopErr
 }
