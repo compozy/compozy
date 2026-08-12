@@ -7,6 +7,6 @@ export const WINDOW_VISUAL_LAYER = {
 
 export function windowVisualLayer(frame: Pick<OsWindowFrameModel, "kind" | "layer">): number {
   return frame.kind === "floating"
-    ? WINDOW_VISUAL_LAYER.seam + frame.layer
+    ? WINDOW_VISUAL_LAYER.seam + Math.max(frame.layer, 1)
     : WINDOW_VISUAL_LAYER.tiled;
 }

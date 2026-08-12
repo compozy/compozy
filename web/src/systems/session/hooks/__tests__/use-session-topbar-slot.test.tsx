@@ -4,11 +4,13 @@
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
+import { SessionRenameDialog } from "../../components/session-rename-dialog";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
 
@@ -189,13 +191,33 @@ describe("useSessionTopbarSlot", () => {
     expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
   });
 
-  it("Should offer rename from overflow for a user session", () => {
-    const onRename = vi.fn();
-    renderWithTopbar(<SessionPublisher onStop={vi.fn()} onRename={onRename} />);
+  it("Should close overflow before opening rename so one Escape dismisses the dialog", async () => {
+    function RenameDialogPublisher() {
+      const [dialogOpen, setDialogOpen] = useState(false);
+      return (
+        <>
+          <SessionPublisher onStop={vi.fn()} onRename={() => setDialogOpen(true)} />
+          <SessionRenameDialog
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            session={primarySessionFixture}
+            isRenaming={false}
+            onConfirm={vi.fn()}
+          />
+        </>
+      );
+    }
+
+    renderWithTopbar(<RenameDialogPublisher />);
 
     fireEvent.click(screen.getByRole("button", { name: "More actions" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Rename session" }));
 
-    expect(onRename).toHaveBeenCalledTimes(1);
+    await screen.findByRole("heading", { name: "Rename session" });
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Rename session" })).toBeNull();
+    });
   });
 });

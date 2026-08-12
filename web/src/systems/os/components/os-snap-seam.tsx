@@ -7,6 +7,7 @@ import type {
   ProjectedFrameSeam,
   ProjectedSeam,
 } from "../lib/window-manager-types";
+import { WINDOW_VISUAL_LAYER } from "../lib/window-visual-layer";
 
 export type SeamGestureHandlers = {
   onResize: (splitId: string, boundaryIndex: number, delta: number) => void;
@@ -17,7 +18,7 @@ export type SeamGestureHandlers = {
 };
 
 const SEAM_CLASS_BASE = cn(
-  "absolute z-[2] touch-none rounded-pill outline-none",
+  "absolute touch-none rounded-pill outline-none",
   "before:absolute before:rounded-pill before:bg-line-strong",
   "hover:before:bg-accent focus-visible:shadow-focus-ring focus-visible:before:bg-accent"
 );
@@ -38,6 +39,7 @@ function seamStyle(vertical: boolean, rect: ProjectedSeam["rect"]) {
     top: rect.y - (vertical ? 0 : 6),
     width: vertical ? 12 : rect.w,
     height: vertical ? rect.h : 12,
+    zIndex: WINDOW_VISUAL_LAYER.seam,
   };
 }
 

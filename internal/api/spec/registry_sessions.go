@@ -48,6 +48,7 @@ func renameSessionOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
 			{Status: 400, Description: "Invalid session name", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Session rename unavailable", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

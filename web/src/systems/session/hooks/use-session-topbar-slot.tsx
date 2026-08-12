@@ -1,4 +1,5 @@
 import { Eraser, List, PanelRight, Pencil, Play, RotateCcw, Square, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
 
 import {
   Button,
@@ -62,6 +63,9 @@ export function useSessionTopbarSlot({
   onUnarchive,
   onClear,
 }: UseSessionTopbarSlotInput): void {
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const renameRequested = useRef(false);
+
   const isActive = session.state === "active" || session.state === "starting";
   const isArchived = session.archived_at !== null;
   const canResume =
@@ -173,7 +177,15 @@ export function useSessionTopbarSlot({
       </>
     ),
     overflow: (
-      <DropdownMenu>
+      <DropdownMenu
+        open={overflowOpen}
+        onOpenChange={setOverflowOpen}
+        onOpenChangeComplete={open => {
+          if (open || !renameRequested.current) return;
+          renameRequested.current = false;
+          onRename();
+        }}
+      >
         <DropdownMenuTrigger
           aria-label="More actions"
           data-testid="session-topbar-overflow"
@@ -193,7 +205,10 @@ export function useSessionTopbarSlot({
             <DropdownMenuItem
               data-testid="rename-button"
               disabled={controlsBusy}
-              onClick={onRename}
+              onClick={() => {
+                renameRequested.current = true;
+                setOverflowOpen(false);
+              }}
             >
               {isRenaming ? <Spinner className="size-3" /> : <Pencil className="size-3" />}
               Rename session

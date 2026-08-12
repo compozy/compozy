@@ -5679,6 +5679,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		var unarchiveTarget string
 		var renamedTarget string
 		var renamedName string
+		renameCalls := 0
 		promptSubmitCalls := 0
 		var listedInputSessionID string
 		var replacedInput struct {
@@ -5780,6 +5781,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					return &restored, nil
 				},
 				RenameFn: func(_ context.Context, workspaceID string, id string, name string) (*session.Info, error) {
+					renameCalls++
 					renamedTarget = workspaceID + "/" + id
 					renamedName = name
 					renamed := *info
@@ -6484,6 +6486,31 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("Registry.Call(session_rename) error = %v", callErr)
 			}
 			requireNativeStructuredContains(t, result, []byte(`"name":"Release review"`))
+
+			callsBeforeDeniedRename := renameCalls
+			_, callErr = registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionRename,
+					Input: json.RawMessage(
+						`{"workspace":"ws-foreign-stable","session_id":"sess-1","name":"Foreign rename"}`,
+					),
+				},
+			)
+			requireToolReason(
+				t,
+				callErr,
+				toolspkg.ErrToolDenied,
+				toolspkg.ReasonWorkspaceAccessDenied,
+			)
+			if renameCalls != callsBeforeDeniedRename {
+				t.Fatalf(
+					"Rename() calls after denied foreign workspace = %d, want %d",
+					renameCalls,
+					callsBeforeDeniedRename,
+				)
+			}
 		})
 		if archiveTarget != "ws-1/sess-1" || unarchiveTarget != "ws-1/sess-1" {
 			t.Fatalf("archive targets = %q/%q, want ws-1/sess-1", archiveTarget, unarchiveTarget)

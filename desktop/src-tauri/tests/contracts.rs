@@ -312,6 +312,13 @@ fn should_grant_zoom_only_to_the_daemon_served_main_window() {
         capability["permissions"],
         serde_json::json!(["core:webview:allow-set-webview-zoom"])
     );
+
+    let windowing_source = fs::read_to_string(manifest_dir().join("src/windowing.rs"))
+        .expect("window builder source reads");
+    assert!(
+        windowing_source.contains(".zoom_hotkeys_enabled(true)"),
+        "daemon-served main window must enable native zoom hotkeys"
+    );
 }
 
 #[test]

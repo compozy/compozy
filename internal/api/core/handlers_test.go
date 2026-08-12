@@ -1058,9 +1058,7 @@ func TestRenameSessionHandler(t *testing.T) {
 			"/workspaces/ws-rename/sessions/sess-rename",
 			[]byte(`{"name":"Checkout retries","legacy_name":"old"}`),
 		)
-		if response.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
-		}
+		assertAPIErrorResponse(t, response, http.StatusBadRequest, "legacy_name")
 		if renameCalls != 1 {
 			t.Fatalf("Rename() calls = %d, want 1", renameCalls)
 		}
@@ -1074,9 +1072,7 @@ func TestRenameSessionHandler(t *testing.T) {
 			"/workspaces/ws-foreign/sessions/sess-rename",
 			[]byte(`{"name":"Checkout retries"}`),
 		)
-		if response.Code != http.StatusNotFound {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusNotFound, response.Body.String())
-		}
+		assertAPIErrorResponse(t, response, http.StatusNotFound, "workspace-scoped resource not found")
 		if renameCalls != 1 {
 			t.Fatalf("Rename() calls = %d, want 1", renameCalls)
 		}

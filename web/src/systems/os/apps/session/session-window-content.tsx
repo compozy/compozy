@@ -142,6 +142,7 @@ export function SessionWindowContent({
         onOpenChange={renameDialog.setOpen}
         session={session}
         isRenaming={controls.isRenaming}
+        requestError={renameDialog.error}
         onConfirm={renameDialog.confirmRename}
       />
       {sidebar.rowDeleteDialog.session ? (

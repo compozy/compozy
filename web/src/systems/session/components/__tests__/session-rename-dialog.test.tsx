@@ -43,6 +43,22 @@ describe("SessionRenameDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith("Release review");
   });
 
+  it("Should show a failed rename while allowing the user to retry", () => {
+    render(
+      <SessionRenameDialog
+        open
+        onOpenChange={vi.fn()}
+        session={primarySessionFixture}
+        isRenaming={false}
+        requestError="Session rename failed."
+        onConfirm={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("session-rename-error")).toHaveTextContent("Session rename failed.");
+    expect(screen.getByTestId("session-rename-confirm")).toBeEnabled();
+  });
+
   it.each([
     ["blank", "   ", "Enter a session name."],
     ["too long", "a".repeat(65), "Use 64 characters or fewer."],

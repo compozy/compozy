@@ -2603,10 +2603,18 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	if err := client.StopSession(ctx, "sess-1"); err != nil {
 		t.Fatalf("StopSession() error = %v", err)
 	}
-	renamed, err := client.RenameSession(ctx, "sess-1", RenameSessionRequest{Name: "Checkout retries"})
-	if err != nil || renamed.Name != "Checkout retries" {
-		t.Fatalf("RenameSession() = %#v, %v", renamed, err)
-	}
+	t.Run("Should rename a session through the workspace route", func(t *testing.T) {
+		t.Parallel()
+
+		renamed, renameErr := client.RenameSession(
+			ctx,
+			"sess-1",
+			RenameSessionRequest{Name: "Checkout retries"},
+		)
+		if renameErr != nil || renamed.Name != "Checkout retries" {
+			t.Fatalf("RenameSession() = %#v, %v", renamed, renameErr)
+		}
+	})
 	t.Run("Should archive and unarchive a session through the workspace routes", func(t *testing.T) {
 		t.Parallel()
 
