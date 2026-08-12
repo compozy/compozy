@@ -201,7 +201,7 @@ catalog_derived AS (
 			WHEN COALESCE(rp.has_active, 0) = 1 THEN 'in_progress'
 			WHEN t.status IN ('completed', 'failed', 'canceled')
 				AND COALESCE(rp.has_queued_or_claimed, 0) = 0 THEN t.status
-			WHEN lt.status = 'completed'
+			WHEN lt.status IN ('completed', 'canceled')
 				AND lt.run_kind = 'coordinator'
 				AND COALESCE(rp.has_queued_or_claimed, 0) = 0 THEN 'in_progress'
 			WHEN lt.status = 'completed' AND COALESCE(rp.has_queued_or_claimed, 0) = 0 THEN 'completed'

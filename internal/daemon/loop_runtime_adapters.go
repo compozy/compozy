@@ -34,6 +34,33 @@ type loopJudgeSessionManager interface {
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
+type loopCancellationSessionManager interface {
+	CancelPrompt(context.Context, string) error
+	StopWithCause(context.Context, string, session.StopCause, string) error
+}
+
+type loopCancellationSessionController struct {
+	sessions loopCancellationSessionManager
+}
+
+var _ looppkg.CancellationSessionController = loopCancellationSessionController{}
+
+func (c loopCancellationSessionController) CancelLoopSession(ctx context.Context, id, _ string) error {
+	err := c.sessions.CancelPrompt(ctx, id)
+	if errors.Is(err, session.ErrSessionNotFound) {
+		return nil
+	}
+	return err
+}
+
+func (c loopCancellationSessionController) KillLoopSession(ctx context.Context, id, reason string) error {
+	err := c.sessions.StopWithCause(ctx, id, session.CauseUserRequested, reason)
+	if errors.Is(err, session.ErrSessionNotFound) {
+		return nil
+	}
+	return err
+}
+
 type loopGateJudgeRunner struct {
 	sessions            loopJudgeSessionManager
 	globalWorkspacePath string

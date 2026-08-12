@@ -78,6 +78,11 @@ SELECT task_id FROM task_runs
 WHERE loop_run_id = sqlc.arg(loop_run_id) AND run_kind = 'coordinator'
 ORDER BY queued_at DESC, id DESC LIMIT 1;
 
+-- name: GetLastCoordinatorRunIDForLoopRun :one
+SELECT id FROM task_runs
+WHERE loop_run_id = sqlc.arg(loop_run_id) AND run_kind = 'coordinator'
+ORDER BY queued_at DESC, id DESC LIMIT 1;
+
 -- name: GetLastLoopTokenTick :one
 SELECT payload_json, at FROM loop_run_events
 WHERE loop_run_id = sqlc.arg(loop_run_id) AND kind = sqlc.arg(kind)

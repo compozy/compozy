@@ -162,14 +162,7 @@ func loopAPIServiceOptions(
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
 		looppkg.WithCoordinatorRunActivator(loopCoordinatorRunActivator{state: state}),
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
-		looppkg.WithCancellationSessionController(looppkg.CancellationSessionControllerFuncs{
-			Cancel: func(ctx context.Context, sessionID, _ string) error {
-				return state.sessions.CancelPrompt(ctx, sessionID)
-			},
-			Kill: func(ctx context.Context, sessionID, reason string) error {
-				return state.sessions.StopWithCause(ctx, sessionID, session.CauseUserRequested, reason)
-			},
-		}),
+		looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: state.sessions}),
 	}
 	if state.participationResolver != nil {
 		options = append(options, looppkg.WithParticipationResolver(state.participationResolver))

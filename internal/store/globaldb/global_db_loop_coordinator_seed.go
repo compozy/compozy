@@ -109,6 +109,43 @@ func (g *LoopRepo) ensureLoopCoordinatorTaskWithExecutor(
 	return taskID, nil
 }
 
+func (g *LoopRepo) repairLoopCoordinatorTaskWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	run looppkg.Run,
+	taskID string,
+	now time.Time,
+) error {
+	expectedTaskID := loopCoordinatorTaskID(run.ID)
+	if strings.TrimSpace(taskID) != expectedTaskID {
+		return fmt.Errorf(
+			"%w: coordinator task %q does not own loop run %q",
+			taskpkg.ErrValidation,
+			taskID,
+			run.ID,
+		)
+	}
+	taskRecord, err := g.tasks.getTaskWithExecutor(ctx, exec, expectedTaskID)
+	if err != nil {
+		return err
+	}
+	if taskRecord.Status.Normalize() != taskpkg.TaskStatusCanceled || run.Status.Terminal() {
+		return nil
+	}
+	taskRecord.Status = taskpkg.TaskStatusInProgress
+	taskRecord.UpdatedAt = now.UTC()
+	taskRecord.ClosedAt = time.Time{}
+	actor := taskpkg.ActorContext{
+		Actor:     taskRecord.CreatedBy,
+		Origin:    taskRecord.Origin,
+		Authority: taskpkg.FullAccessAuthority(),
+	}
+	if err := g.tasks.updateTaskWithExecutor(ctx, exec, taskRecord, actor); err != nil {
+		return fmt.Errorf("store: reactivate loop coordinator task %q: %w", expectedTaskID, err)
+	}
+	return nil
+}
+
 func loopCoordinatorTaskRecordForRun(run looppkg.Run, taskID string, now time.Time) taskpkg.Task {
 	origin := loopCoordinatorStartOrigin()
 	return taskpkg.Task{
@@ -141,6 +178,19 @@ func loopCoordinatorRunID(loopRunID looppkg.RunID, generation int) string {
 
 func loopCoordinatorIdempotencyKey(loopRunID looppkg.RunID, generation int) string {
 	return fmt.Sprintf("loop.coordinator.%s.%d", strings.TrimSpace(string(loopRunID)), generation)
+}
+
+func loopCoordinatorRecoveryIdempotencyKey(
+	loopRunID looppkg.RunID,
+	generation int,
+	previousRunID string,
+) string {
+	return fmt.Sprintf(
+		"loop.coordinator.recovery.%s.%d.%s",
+		strings.TrimSpace(string(loopRunID)),
+		generation,
+		strings.TrimSpace(previousRunID),
+	)
 }
 
 func loopCoordinatorStartOrigin() taskpkg.Origin {

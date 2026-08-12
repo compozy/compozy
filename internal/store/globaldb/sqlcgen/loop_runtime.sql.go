@@ -90,6 +90,19 @@ func (q *Queries) CompareAndSwapLoopRunStatus(ctx context.Context, arg CompareAn
 	return result.RowsAffected()
 }
 
+const getLastCoordinatorRunIDForLoopRun = `-- name: GetLastCoordinatorRunIDForLoopRun :one
+SELECT id FROM task_runs
+WHERE loop_run_id = ?1 AND run_kind = 'coordinator'
+ORDER BY queued_at DESC, id DESC LIMIT 1
+`
+
+func (q *Queries) GetLastCoordinatorRunIDForLoopRun(ctx context.Context, loopRunID sql.NullString) (string, error) {
+	row := q.db.QueryRowContext(ctx, getLastCoordinatorRunIDForLoopRun, loopRunID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getLastCoordinatorTaskIDForLoopRun = `-- name: GetLastCoordinatorTaskIDForLoopRun :one
 SELECT task_id FROM task_runs
 WHERE loop_run_id = ?1 AND run_kind = 'coordinator'
