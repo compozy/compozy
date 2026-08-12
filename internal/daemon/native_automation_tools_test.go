@@ -371,7 +371,10 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 				},
 			)
 			if err == nil || !strings.Contains(err.Error(), "automation validation failed") {
-				t.Fatalf("Registry.Call(automation_triggers_create padded event) error = %v, want validation failure", err)
+				t.Fatalf(
+					"Registry.Call(automation_triggers_create padded event) error = %v, want validation failure",
+					err,
+				)
 			}
 		})
 

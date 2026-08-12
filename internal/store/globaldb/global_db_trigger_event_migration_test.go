@@ -203,7 +203,13 @@ func assertTriggerEventHardCutState(ctx context.Context, t *testing.T, db *sql.D
 		"trg-memory",
 		"trg-session",
 	}
-	if got := triggerEventHardCutIDs(ctx, t, db, "automation_triggers", "id"); !testutil.EqualStringSlices(got, wantTriggerIDs) {
+	if got := triggerEventHardCutIDs(
+		ctx,
+		t,
+		db,
+		"automation_triggers",
+		"id",
+	); !testutil.EqualStringSlices(got, wantTriggerIDs) {
 		t.Fatalf("automation trigger ids = %#v, want %#v", got, wantTriggerIDs)
 	}
 	wantOverlayIDs := []string{
@@ -213,7 +219,13 @@ func assertTriggerEventHardCutState(ctx context.Context, t *testing.T, db *sql.D
 		"trg-resource-valid",
 		"trg-session",
 	}
-	if got := triggerEventHardCutIDs(ctx, t, db, "automation_trigger_overlays", "trigger_id"); !testutil.EqualStringSlices(got, wantOverlayIDs) {
+	if got := triggerEventHardCutIDs(
+		ctx,
+		t,
+		db,
+		"automation_trigger_overlays",
+		"trigger_id",
+	); !testutil.EqualStringSlices(got, wantOverlayIDs) {
 		t.Fatalf("automation trigger overlay ids = %#v, want %#v", got, wantOverlayIDs)
 	}
 	if got := triggerEventHardCutIDs(ctx, t, db, "automation_runs", "trigger_id"); !testutil.EqualStringSlices(got, []string{"trg-unknown"}) {
