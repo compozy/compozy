@@ -228,7 +228,13 @@ func assertTriggerEventHardCutState(ctx context.Context, t *testing.T, db *sql.D
 	); !testutil.EqualStringSlices(got, wantOverlayIDs) {
 		t.Fatalf("automation trigger overlay ids = %#v, want %#v", got, wantOverlayIDs)
 	}
-	if got := triggerEventHardCutIDs(ctx, t, db, "automation_runs", "trigger_id"); !testutil.EqualStringSlices(got, []string{"trg-unknown"}) {
+	if got := triggerEventHardCutIDs(
+		ctx,
+		t,
+		db,
+		"automation_runs",
+		"trigger_id",
+	); !testutil.EqualStringSlices(got, []string{"trg-unknown"}) {
 		t.Fatalf("automation run trigger ids = %#v, want preserved invalid history", got)
 	}
 	if got := triggerEventHardCutIDs(
