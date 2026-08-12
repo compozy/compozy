@@ -1000,6 +1000,32 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 	})
 
+	t.Run("Should reject a command id skill view when the session has no agent snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: &nativeSessionAgentManagerWithoutSnapshot{
+				StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
+			},
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Skills:     newLoadedNativeSkillRegistry(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-command", SessionID: "sess-command"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{"command_id":"skill:workspace:review:sha256:abc"}`),
+			},
+		)
+		requireToolReason(
+			t,
+			err,
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	})
+
 	t.Run("Should require a source-qualified skill registry for command id skill views", func(t *testing.T) {
 		t.Parallel()
 
@@ -10348,6 +10374,17 @@ func (r nativeSkillsWithoutCommandCandidates) ForAgentDefSession(
 // SessionAgentDefinition reports the manager's fixed stub agent as an always-cached snapshot.
 func (m *nativeSessionAgentManager) SessionAgentDefinition(string) (compozyconfig.AgentDef, bool) {
 	return compozyconfig.CloneAgentDef(m.agent), true
+}
+
+// nativeSessionAgentManagerWithoutSnapshot implements the snapshot reader but
+// reports no cached definition, mirroring session.Manager for a live session
+// whose agent definition snapshot is empty.
+type nativeSessionAgentManagerWithoutSnapshot struct {
+	apitest.StubSessionManager
+}
+
+func (m *nativeSessionAgentManagerWithoutSnapshot) SessionAgentDefinition(string) (compozyconfig.AgentDef, bool) {
+	return compozyconfig.AgentDef{}, false
 }
 
 type nativeExtensionAgentSkillsRegistry struct {
