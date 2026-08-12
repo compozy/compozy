@@ -4,7 +4,9 @@
 flowchart TD
     A[Entry: approved candidate on main] --> B[Dispatch release workflow with exact version and beta channel]
     B --> C[Planner and preflight confirm the candidate]
-    C --> D0[Stage production release: annotated tag, GoReleaser draft GitHub release, both npm packages published, Homebrew formula published]
+    C --> C0[Build archives and prove every direct-update artifact satisfies the runtime artifact policy]
+    C0 --> D0[Stage production release: annotated tag, GoReleaser draft GitHub release, both npm packages published, Homebrew formula published]
+    C0 -.->|archive is incompatible| X0[Abandon: stop before publication with measured archive or binary details]
     D0 --> C1{Desktop signing material complete for every platform?}
     C1 -->|incomplete| X3[Abandon: desktop lane asserts signing material before building and hard-fails - nothing reaches the update feed]
     C1 -->|complete| C2[Build, sign, and notarize the three desktop platforms]
@@ -36,7 +38,7 @@ journey:
       expected_observable: "The release plan and preflight name the exact checked-out candidate before publication starts"
     - step: 2
       verb: "Observe the staged production release"
-      expected_observable: "GoReleaser stages a draft GitHub release while both npm packages and the Homebrew formula publish for the same version — the draft is not public yet"
+      expected_observable: "GoReleaser validates each direct-update archive against the runtime artifact policy before it stages a draft GitHub release or publishes packages"
     - step: 3
       verb: "Wait for the public npm channel policy"
       expected_observable: "Stale or missing dist-tags are re-read within a fixed deadline, while terminal query and policy errors stop immediately"
@@ -53,6 +55,9 @@ journey:
   exit:
     natural: "Hand the published version to the post-release install and provenance checks."
   abandonment:
+    - at_step: 2
+      how: "A built archive or extracted binary exceeds the runtime-owned artifact policy."
+      resume: "Reduce the artifact or deliberately revise the single shared policy before rerunning the release; publication remains stopped."
     - at_step: 3
       how: "The registry query fails, a beta moves latest, malformed policy data is returned, or the readiness deadline expires."
       resume: "Stop for incident review with the last observation; never overwrite tags or republish an immutable npm version."

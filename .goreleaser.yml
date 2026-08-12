@@ -116,6 +116,13 @@ signs:
     artifacts: checksum
     output: true
 
+before_publish:
+  - ids:
+      - compozy-archive
+    artifacts: archive
+    cmd: go run github.com/magefile/mage@v1.17.2 updateArchiveCheck "{{ .ArtifactPath }}"
+    output: true
+
 snapshot:
   version_template: "0.0.0-{{ .Timestamp }}"
 

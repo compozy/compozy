@@ -47,8 +47,7 @@ func NewManager(cfg Config) (*Manager, error) {
 	if runCommand == nil {
 		runCommand = defaultRunCommand
 	}
-
-	resolvedExecutable, err := resolveExecutablePath(executablePath, resolveSymlinks)
+	resolvedExecutable, artifactPolicy, err := resolveManagerInputs(cfg, executablePath, resolveSymlinks)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +73,7 @@ func NewManager(cfg Config) (*Manager, error) {
 		lookPath:       lookPath,
 		runCommand:     runCommand,
 		binaryApplier:  cfg.BinaryApplier,
+		artifactPolicy: artifactPolicy,
 		releaseTrack:   releaseTrack,
 	}
 	if manager.runtimeOS == "" {
@@ -94,6 +94,22 @@ func NewManager(cfg Config) (*Manager, error) {
 		return nil, errors.New("update: CompozyOS home directory is required")
 	}
 	return manager, nil
+}
+
+func resolveManagerInputs(
+	cfg Config,
+	executablePath func() (string, error),
+	resolveSymlinks func(string) (string, error),
+) (string, ArtifactPolicy, error) {
+	artifactPolicy, err := resolveArtifactPolicy(cfg.ArtifactPolicy)
+	if err != nil {
+		return "", ArtifactPolicy{}, err
+	}
+	resolvedExecutable, err := resolveExecutablePath(executablePath, resolveSymlinks)
+	if err != nil {
+		return "", ArtifactPolicy{}, err
+	}
+	return resolvedExecutable, artifactPolicy, nil
 }
 
 func resolveExecutablePath(
@@ -208,6 +224,7 @@ func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (applied A
 		downloaded.archivePath,
 		tmpDir,
 		m.archiveBinaryName(),
+		m.artifactPolicy,
 	)
 	if err != nil {
 		return AppliedBinary{}, err
@@ -291,8 +308,16 @@ func (m *Manager) downloadReleaseArtifacts(
 		ctx,
 		assets.archive.DownloadURL,
 		downloaded.archivePath,
-		maxArchiveDownloadBytes,
+		m.artifactPolicy.MaxArchiveBytes,
 	); err != nil {
+		var downloadErr *downloadSizeError
+		if errors.As(err, &downloadErr) {
+			return downloadedReleaseArtifacts{}, &ArtifactSizeError{
+				Kind:  ArtifactKindArchive,
+				Size:  downloadErr.Size,
+				Limit: downloadErr.Limit,
+			}
+		}
 		return downloadedReleaseArtifacts{}, err
 	}
 	if err := m.downloadFile(
