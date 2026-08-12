@@ -253,7 +253,7 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			watchEventsE2EInputs(parent.ID, child.ID),
 		)
 		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusWatching)
-		_ = assertWatchEventsReadModelParity(t, ctx, harness, run.ID)
+		assertWatchEventsReadModelParity(t, ctx, harness, run.ID)
 
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
@@ -1131,6 +1131,9 @@ func watchEventsMockPromptCount(
 	}
 	records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0
+		}
 		t.Fatalf("ReadDiagnostics(%q) error = %v", registration.DiagnosticsPath, err)
 	}
 	return len(acpmock.PromptDiagnostics(records))
