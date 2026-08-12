@@ -2,10 +2,12 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -168,6 +170,13 @@ func sourceQualifiedSkillViewPayload(skill *skillspkg.Skill) map[string]any {
 	}
 }
 
+// resolveSkillViewTarget resolves the skill a skill_view call targets: a workspace-fenced skill
+// by name, or a source-qualified skill by command_id within one session's command catalog. The
+// command_id path intentionally does not reject sessions that lack a cached concrete agent
+// snapshot — when none is available it hands sessionCommandService an empty AgentDef and lets
+// commandSkillCandidates resolve the concrete definition itself (agent catalog, then name-based
+// lookup), so extension- and bundle-published agents with no persisted snapshot yet resolve the
+// same way a prompt would.
 func (n *daemonNativeTools) resolveSkillViewTarget(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -203,18 +212,23 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 	if err != nil {
 		return nil, err
 	}
-	agent, ok, err := n.sessionAgentDefinition(sessionID)
-	if err != nil {
+	agent, ok, sessionAgentErr := n.sessionAgentDefinition(sessionID)
+	if sessionAgentErr != nil && !errors.Is(sessionAgentErr, errSessionAgentSnapshotUnavailable) {
+		// The session dependency itself is unavailable (not merely lacking a snapshot for this
+		// session) — a genuine dependency-missing condition, distinct from the case below.
 		return nil, nativeCommandDependencyError(
 			toolspkg.ToolIDSkillView,
-			err.Error(),
+			sessionAgentErr.Error(),
 		)
 	}
 	if !ok {
-		return nil, nativeCommandDependencyError(
-			toolspkg.ToolIDSkillView,
-			"command_id skill view requires a concrete session agent",
-		)
+		// No cached session snapshot: don't reject outright. commandSkillCandidates resolves
+		// the concrete agent itself from info.AgentName via the catalog resolver below, with
+		// the name-based lookup as the final fallback for truly unknown agents. Rejecting here
+		// (as an earlier version of this function did) made that resolver unreachable for
+		// exactly the sessions that need it — extension-published agents with no snapshot
+		// persisted yet.
+		agent = compozyconfig.AgentDef{}
 	}
 	registry, ok := n.deps.Skills.(sessionCommandSkills)
 	if !ok {

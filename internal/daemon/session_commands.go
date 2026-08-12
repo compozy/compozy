@@ -36,6 +36,9 @@ type sessionCommandAgentResolver interface {
 	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
 }
 
+// sessionCommandService projects a session's authoritative slash-command catalog (builtins,
+// ACP-advertised agent commands, and source-qualified skill commands) and expands invoked skill
+// markers into their content, implementing session.CommandService.
 type sessionCommandService struct {
 	registry          sessionCommandSkills
 	agentResolver     func() sessionCommandAgentResolver
@@ -155,6 +158,11 @@ func commandAgentSpecs(info *session.Info) []commandpkg.AgentSpec {
 	return agents
 }
 
+// commandSkillCandidates projects the source-qualified skill commands available to one session,
+// preferring the caller-supplied agent snapshot when it is a concrete, on-disk-authored
+// definition; otherwise resolving the agent through the catalog resolver
+// (resolveAgentDef), and finally falling back to the name-based lookup for agents the catalog
+// doesn't know about.
 func (s *sessionCommandService) commandSkillCandidates(
 	ctx context.Context,
 	info *session.Info,

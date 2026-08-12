@@ -24,6 +24,9 @@ type extensionOnlyAgentCommandSkills struct {
 	nameBasedCalls int
 }
 
+// CommandCandidatesForAgentSession always fails, matching the real registry's inability to
+// resolve an extension-only agent through the name-based path, and records the call so tests can
+// assert whether the fallback ran.
 func (s *extensionOnlyAgentCommandSkills) CommandCandidatesForAgentSession(
 	context.Context,
 	*workspacepkg.ResolvedWorkspace,
@@ -34,6 +37,7 @@ func (s *extensionOnlyAgentCommandSkills) CommandCandidatesForAgentSession(
 	return nil, skillspkg.ErrAgentNotFound
 }
 
+// CommandCandidatesForAgentDefSession returns the stubbed candidates once given a concrete def.
 func (s *extensionOnlyAgentCommandSkills) CommandCandidatesForAgentDefSession(
 	context.Context,
 	*workspacepkg.ResolvedWorkspace,
@@ -43,6 +47,7 @@ func (s *extensionOnlyAgentCommandSkills) CommandCandidatesForAgentDefSession(
 	return append([]skillspkg.CommandCandidate(nil), s.candidates...), nil
 }
 
+// LoadContent is unused by these tests; it exists only to satisfy sessionCommandSkills.
 func (s *extensionOnlyAgentCommandSkills) LoadContent(
 	context.Context,
 	*skillspkg.Skill,
@@ -56,6 +61,8 @@ type stubExtensionAgentResolver struct {
 	agents map[string]compozyconfig.AgentDef
 }
 
+// ResolveAgent resolves a stubbed agent by name, or reports it not found — mirroring
+// resourceAgentCatalog.ResolveAgent's contract for callers of sessionCommandAgentResolver.
 func (r *stubExtensionAgentResolver) ResolveAgent(
 	name string,
 	_ *workspacepkg.ResolvedWorkspace,
@@ -66,7 +73,11 @@ func (r *stubExtensionAgentResolver) ResolveAgent(
 	return compozyconfig.AgentDef{}, skillspkg.ErrAgentNotFound
 }
 
+// TestSessionCommandServiceCommandSkillCandidatesExtensionAgent covers commandSkillCandidates'
+// no-snapshot fallback chain for extension-published agents: catalog resolution first, the
+// name-based lookup as a final fallback, and the lazy-provider timing the boot-order bug hit.
 func TestSessionCommandServiceCommandSkillCandidatesExtensionAgent(t *testing.T) {
+	t.Parallel()
 	t.Run(
 		"Should resolve command skill candidates for an extension-published agent without a session snapshot",
 		func(t *testing.T) {

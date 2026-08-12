@@ -76,6 +76,16 @@ type sessionAgentDefinitionReader interface {
 	SessionAgentDefinition(id string) (compozyconfig.AgentDef, bool)
 }
 
+// errSessionAgentSnapshotUnavailable reports that the session dependency was reachable but has
+// not cached a concrete agent snapshot for this session yet — distinct from the session
+// dependency itself being unavailable. Callers that can resolve the agent another way (e.g. by
+// name through a catalog) may treat this specific error as non-fatal; see resolveSkillViewTarget.
+var errSessionAgentSnapshotUnavailable = errors.New("daemon: session agent snapshot is unavailable")
+
+// sessionAgentDefinition returns the concrete AgentDef cached for one live session, if any. The
+// bool return mirrors sessionAgentDefinitionReader.SessionAgentDefinition: false whenever no
+// snapshot is available, in which case err wraps errSessionAgentSnapshotUnavailable (or a plain
+// error when the session dependency itself doesn't implement the reader at all).
 func (n *daemonNativeTools) sessionAgentDefinition(sessionID string) (compozyconfig.AgentDef, bool, error) {
 	trimmedID := strings.TrimSpace(sessionID)
 	if trimmedID == "" {
@@ -90,7 +100,8 @@ func (n *daemonNativeTools) sessionAgentDefinition(sessionID string) (compozycon
 	agent, ok := reader.SessionAgentDefinition(trimmedID)
 	if !ok {
 		return compozyconfig.AgentDef{}, false, fmt.Errorf(
-			"daemon: session %q agent definition is unavailable",
+			"%w: session %q",
+			errSessionAgentSnapshotUnavailable,
 			trimmedID,
 		)
 	}
