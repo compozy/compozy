@@ -77274,11 +77274,18 @@
                     },
                     "path": {
                       "type": "string"
+                    },
+                    "roots": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     }
                   },
                   "required": [
                     "entries",
-                    "path"
+                    "path",
+                    "roots"
                   ],
                   "type": "object"
                 }
@@ -77579,7 +77586,7 @@
             "description": "Internal server error"
           }
         },
-        "summary": "List directory entries for the workspace folder picker",
+        "summary": "List directory entries and filesystem roots for the workspace folder picker",
         "tags": [
           "filesystem"
         ],
@@ -270702,6 +270709,1126 @@
           }
         },
         "summary": "Get one session snapshot",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "patch": {
+        "operationId": "renameSession",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "session": {
+                      "properties": {
+                        "activity": {
+                          "nullable": true,
+                          "properties": {
+                            "current_tool": {
+                              "type": "string"
+                            },
+                            "deadline_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "elapsed_ms": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "elapsed_seconds": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "idle_seconds": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "iteration_current": {
+                              "type": "integer"
+                            },
+                            "iteration_max": {
+                              "type": "integer"
+                            },
+                            "last_activity_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "last_activity_detail": {
+                              "type": "string"
+                            },
+                            "last_activity_kind": {
+                              "type": "string"
+                            },
+                            "last_progress_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "tool_call_id": {
+                              "type": "string"
+                            },
+                            "turn_id": {
+                              "type": "string"
+                            },
+                            "turn_source": {
+                              "type": "string"
+                            },
+                            "turn_started_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "elapsed_ms",
+                            "elapsed_seconds",
+                            "idle_seconds",
+                            "iteration_current",
+                            "iteration_max"
+                          ],
+                          "type": "object"
+                        },
+                        "agent_name": {
+                          "type": "string"
+                        },
+                        "archived_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "attach_expires_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "attachable": {
+                          "type": "boolean"
+                        },
+                        "attached_to": {
+                          "type": "string"
+                        },
+                        "available_commands": {
+                          "items": {
+                            "properties": {
+                              "description": {
+                                "type": "string"
+                              },
+                              "input": {
+                                "nullable": true,
+                                "properties": {
+                                  "hint": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "hint"
+                                ],
+                                "type": "object"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "description",
+                              "name"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "badge": {
+                          "type": "string"
+                        },
+                        "created_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "failure": {
+                          "nullable": true,
+                          "properties": {
+                            "crash_bundle_path": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "summary": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        "health": {
+                          "nullable": true,
+                          "properties": {
+                            "active_prompt": {
+                              "type": "boolean"
+                            },
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "attachable": {
+                              "type": "boolean"
+                            },
+                            "eligible_for_wake": {
+                              "type": "boolean"
+                            },
+                            "health": {
+                              "enum": [
+                                "healthy",
+                                "degraded",
+                                "stale",
+                                "dead",
+                                "unknown"
+                              ],
+                              "type": "string"
+                            },
+                            "ineligibility_reason": {
+                              "enum": [
+                                "session_prompt_active",
+                                "session_not_attachable",
+                                "session_unhealthy",
+                                "session_health_stale",
+                                "session_health_hung",
+                                "session_health_dead",
+                                "session_health_unknown"
+                              ],
+                              "type": "string"
+                            },
+                            "last_activity_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "last_error": {
+                              "type": "string"
+                            },
+                            "last_presence_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "enum": [
+                                "idle",
+                                "prompting",
+                                "stopped",
+                                "detached"
+                              ],
+                              "type": "string"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "active_prompt",
+                            "agent_name",
+                            "attachable",
+                            "eligible_for_wake",
+                            "health",
+                            "session_id",
+                            "state",
+                            "updated_at",
+                            "workspace_id"
+                          ],
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "lineage": {
+                          "nullable": true,
+                          "properties": {
+                            "auto_stop_on_parent": {
+                              "type": "boolean"
+                            },
+                            "parent_session_id": {
+                              "type": "string"
+                            },
+                            "permission_policy": {
+                              "properties": {
+                                "mcp_servers": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "network_channels": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "sandbox_profiles": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "skills": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "tools": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "workspace_paths": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "mcp_servers",
+                                "network_channels",
+                                "sandbox_profiles",
+                                "skills",
+                                "tools",
+                                "workspace_paths"
+                              ],
+                              "type": "object"
+                            },
+                            "root_session_id": {
+                              "type": "string"
+                            },
+                            "spawn_budget": {
+                              "properties": {
+                                "max_active_per_workspace": {
+                                  "type": "integer"
+                                },
+                                "max_children": {
+                                  "type": "integer"
+                                },
+                                "max_depth": {
+                                  "type": "integer"
+                                },
+                                "ttl_seconds": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "max_children",
+                                "max_depth",
+                                "ttl_seconds"
+                              ],
+                              "type": "object"
+                            },
+                            "spawn_depth": {
+                              "type": "integer"
+                            },
+                            "spawn_role": {
+                              "type": "string"
+                            },
+                            "ttl_expires_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "auto_stop_on_parent",
+                            "permission_policy",
+                            "spawn_budget",
+                            "spawn_depth"
+                          ],
+                          "type": "object"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "resolved_network_participation": {
+                          "nullable": true,
+                          "oneOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "mode": {
+                                  "enum": [
+                                    "local"
+                                  ],
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "enum": [
+                                    "explicit_request",
+                                    "task_profile",
+                                    "workspace_coordination",
+                                    "loop_definition",
+                                    "automation_job",
+                                    "built_in_local"
+                                  ],
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "enum": [
+                                    "network-participation/v1"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "mode",
+                                "source",
+                                "version"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "bounds": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "coalesce_window",
+                                    "max_input_tokens",
+                                    "max_output_tokens",
+                                    "max_total_wall_time",
+                                    "max_wake_depth",
+                                    "max_wake_wall_time",
+                                    "max_wakes"
+                                  ],
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "enum": [
+                                    "named",
+                                    "run",
+                                    "loop_run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "live"
+                                  ],
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "enum": [
+                                    "explicit_request",
+                                    "task_profile",
+                                    "workspace_coordination",
+                                    "loop_definition",
+                                    "automation_job",
+                                    "built_in_local"
+                                  ],
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "enum": [
+                                    "network-participation/v1"
+                                  ],
+                                  "type": "string"
+                                },
+                                "workspace_id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "bounds",
+                                "channel_id",
+                                "channel_strategy",
+                                "mode",
+                                "source",
+                                "version",
+                                "workspace_id"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "runtime": {
+                          "properties": {
+                            "acp_caps": {
+                              "nullable": true,
+                              "properties": {
+                                "config_options": {
+                                  "items": {
+                                    "properties": {
+                                      "current": {
+                                        "type": "string"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "values": {
+                                        "items": {
+                                          "properties": {
+                                            "description": {
+                                              "type": "string"
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "supported_modes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "supports_load_session": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "supports_load_session"
+                              ],
+                              "type": "object"
+                            },
+                            "acp_session_id": {
+                              "type": "string"
+                            },
+                            "effective": {
+                              "nullable": true,
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed_resolution": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "reason": {
+                                      "enum": [
+                                        "capability_absent",
+                                        "capability_ambiguous",
+                                        "value_ambiguous",
+                                        "provider_rejected"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "requested": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "enum": [
+                                        "applied",
+                                        "unsupported",
+                                        "rejected"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "requested",
+                                    "status"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "failure": {
+                              "type": "string"
+                            },
+                            "selected": {
+                              "nullable": true,
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max"
+                                  ],
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider"
+                              ],
+                              "type": "object"
+                            },
+                            "selection_revision": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "transition": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "selection_revision",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        "sandbox": {
+                          "nullable": true,
+                          "properties": {
+                            "backend": {
+                              "type": "string"
+                            },
+                            "instance_id": {
+                              "type": "string"
+                            },
+                            "last_sync_error": {
+                              "type": "string"
+                            },
+                            "profile": {
+                              "type": "string"
+                            },
+                            "provider_state_json": {},
+                            "sandbox_id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "state": {
+                          "enum": [
+                            "starting",
+                            "active",
+                            "stopping",
+                            "stopped"
+                          ],
+                          "type": "string"
+                        },
+                        "stop_detail": {
+                          "type": "string"
+                        },
+                        "stop_reason": {
+                          "enum": [
+                            "completed",
+                            "user_canceled",
+                            "max_iterations",
+                            "loop_detected",
+                            "timeout",
+                            "budget_exceeded",
+                            "error",
+                            "agent_crashed",
+                            "hook_stopped",
+                            "shutdown"
+                          ],
+                          "type": "string"
+                        },
+                        "transcript_epoch": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "type": {
+                          "enum": [
+                            "user",
+                            "dream",
+                            "system",
+                            "coordinator",
+                            "spawned"
+                          ],
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        },
+                        "workspace_path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "agent_name",
+                        "archived_at",
+                        "attachable",
+                        "available_commands",
+                        "badge",
+                        "created_at",
+                        "id",
+                        "runtime",
+                        "state",
+                        "updated_at"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "session"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid session name"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session rename unavailable"
+          }
+        },
+        "summary": "Rename one user session",
         "tags": [
           "sessions"
         ],

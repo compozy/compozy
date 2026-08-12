@@ -19,6 +19,7 @@ type sessionClientAPI interface {
 	StopSession(context.Context, string) error
 	ArchiveSession(context.Context, string) (SessionRecord, error)
 	UnarchiveSession(context.Context, string) (SessionRecord, error)
+	RenameSession(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	DeleteSession(context.Context, string) error
 	ResumeSession(context.Context, string) (SessionRecord, error)
 	SetSessionRuntime(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)

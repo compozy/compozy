@@ -2191,6 +2191,18 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","state":"stopped","archived_at":null,"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:02:00Z"}}`,
 					), nil
+				case req.Method == http.MethodPatch && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1":
+					var body RenameSessionRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode session rename request error = %v", err)
+					}
+					if body.Name != "Checkout retries" {
+						t.Fatalf("session rename name = %q", body.Name)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","name":"Checkout retries","agent_name":"coder","workspace_id":"ws-1","state":"stopped","archived_at":null,"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:03:00Z"}}`,
+					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/attach":
 					return newHTTPResponse(
 						http.StatusOK,
@@ -2591,6 +2603,18 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	if err := client.StopSession(ctx, "sess-1"); err != nil {
 		t.Fatalf("StopSession() error = %v", err)
 	}
+	t.Run("Should rename a session through the workspace route", func(t *testing.T) {
+		t.Parallel()
+
+		renamed, renameErr := client.RenameSession(
+			ctx,
+			"sess-1",
+			RenameSessionRequest{Name: "Checkout retries"},
+		)
+		if renameErr != nil || renamed.Name != "Checkout retries" {
+			t.Fatalf("RenameSession() = %#v, %v", renamed, renameErr)
+		}
+	})
 	t.Run("Should archive and unarchive a session through the workspace routes", func(t *testing.T) {
 		t.Parallel()
 

@@ -1,6 +1,7 @@
 // Suite: OS window runtime component
 // Invariant: the live OsWindow frame mounts safely in StrictMode, keeps every member mounted
-// across minimize/compact/tab switches, and hosts the deck only at ≥2 members.
+// across minimize/compact/tab switches, hosts the deck only at ≥2 members, and maps semantic
+// frame order onto visual layers where floating windows remain above tiled resize seams.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef, StrictMode, useState } from "react";
 import type { Rnd } from "react-rnd";
@@ -10,6 +11,9 @@ import { useDesktop } from "../../hooks/use-desktop";
 import { useOsWindow, type OsWindowModel } from "../../hooks/use-os-window";
 import type { OsWindowFrameModel } from "../../lib/group-projection";
 import type { OsDesktopRuntimeStore, OsWindow as OsWindowState } from "../../lib/os-types";
+import type { LayoutProjection, ProjectedSeam } from "../../lib/window-manager-types";
+import { WINDOW_VISUAL_LAYER, windowVisualLayer } from "../../lib/window-visual-layer";
+import { OsSnapSeamLayer } from "../os-snap-seam";
 import { OsWindow } from "../os-window";
 
 vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
@@ -165,6 +169,67 @@ describe("OsWindow", () => {
       "data-window-placement",
       "floating"
     );
+  });
+
+  it("Should render floating frames above tiled windows and their resize seams", () => {
+    const view = render(<OsWindow frame={frameModel({ layer: 2 })} />);
+
+    expect(screen.getByTestId("os-window-frame-window:tasks").parentElement).toHaveStyle({
+      zIndex: 4,
+    });
+
+    const tiledFrame = frameModel({ kind: "tiled", layer: 1 });
+    view.rerender(<OsWindow frame={tiledFrame} />);
+    expect(screen.getByTestId("os-window-frame-window:tasks").parentElement).toHaveStyle({
+      zIndex: 1,
+    });
+
+    expect(windowVisualLayer(frameModel({ kind: "floating", layer: 1 }))).toBe(
+      WINDOW_VISUAL_LAYER.seam + 1
+    );
+  });
+
+  it("Should render resize seams on the semantic seam layer", () => {
+    const seam: ProjectedSeam = {
+      id: "split:main:0",
+      splitId: "split:main",
+      boundaryIndex: 0,
+      orientation: "vertical",
+      rect: { x: 320, y: 0, w: 0, h: 480 },
+      value: 320,
+      minValue: 200,
+      maxValue: 520,
+      axisSpan: 720,
+      leadingWeight: 0.5,
+      trailingWeight: 0.5,
+      leadingWindowIds: ["window:tasks"],
+      trailingWindowIds: ["window:jobs"],
+    };
+    const projection: LayoutProjection = {
+      revision: 1,
+      desktopId: "desktop:main",
+      workArea: { x: 0, y: 0, w: 720, h: 480 },
+      windows: [],
+      stacks: [],
+      seams: [seam],
+      frameSeams: [],
+      diagnostics: [],
+    };
+
+    render(
+      <OsSnapSeamLayer
+        projection={projection}
+        onResize={vi.fn()}
+        onFrameResize={vi.fn()}
+        onSeamPreview={vi.fn()}
+        onFrameSeamPreview={vi.fn()}
+        onSeamPreviewEnd={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("separator", { name: "Resize boundary 1" })).toHaveStyle({
+      zIndex: WINDOW_VISUAL_LAYER.seam,
+    });
   });
 
   it("Should keep minimized frames mounted while hiding floating and compact presentations", () => {

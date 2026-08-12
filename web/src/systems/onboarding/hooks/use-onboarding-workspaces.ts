@@ -15,6 +15,7 @@ export interface OnboardingWorkspacesApi {
   currentPath: string;
   parent: string | null;
   home: string | null;
+  roots: string[];
   entries: FSEntry[];
   isBrowsing: boolean;
   browseError: string | null;
@@ -34,8 +35,8 @@ export interface OnboardingWorkspacesApi {
 }
 
 function basename(path: string): string {
-  const trimmed = path.replace(/\/+$/, "");
-  const segment = trimmed.split("/").pop();
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const segment = trimmed.split(/[\\/]/).pop();
   return segment && segment.length > 0 ? segment : trimmed;
 }
 
@@ -156,6 +157,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     currentPath: data?.path ?? currentPath,
     parent: data?.parent ?? null,
     home: data?.home ?? null,
+    roots: data?.roots ?? [],
     entries: data?.entries ?? [],
     isBrowsing: browse.isLoading || browse.isFetching,
     browseError: browse.error

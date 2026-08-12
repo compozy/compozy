@@ -71,6 +71,7 @@ export const onboardingWorkspacesFixture: OnboardingWorkspacesApi = {
   currentPath: "/Users/operator/Dev",
   parent: "/Users/operator",
   home: "/Users/operator",
+  roots: ["/"],
   entries: [
     { name: "compozy", path: "/Users/operator/Dev/compozy", is_dir: true },
     { name: "infra", path: "/Users/operator/Dev/infra", is_dir: true },

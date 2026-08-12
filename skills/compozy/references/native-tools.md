@@ -47,7 +47,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_status`, `compozy__session_history`, `compozy__session_events`,
 `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`.
+`compozy__session_unarchive`, `compozy__session_rename`.
 
 `compozy__session_create` accepts only workspace, agent, and optional name. It creates an active
 logical session with `runtime.status="unbound"`; it does not accept or send a prompt or runtime.
@@ -88,6 +88,9 @@ search, resumability, health, archive visibility, sort, cursor, and limit inputs
 archived rows. Use `type: "user"` when a workflow needs operator-created sessions without
 daemon-managed dream, system, coordinator, or spawned sessions. Archive only stopped sessions;
 unarchive before prompting or resuming one. Both archive operations preserve the session history.
+`compozy__session_rename` changes the durable display name of a user session without changing its
+runtime or transcript identity. Pass `session_id` and a non-empty `name` of at most 64 characters;
+the CLI fallback is `compozy session rename <id> <name>`.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
 
@@ -96,6 +99,10 @@ Workspace tools: `compozy__workspace_list`, `compozy__workspace_info`, `compozy_
 Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `compozy__workspace_list` should return at least that workspace on a clean install.
 
 A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
+
+The workspace setup browser reads `GET /api/fs/browse`; its response includes `home` and every
+filesystem `root` so the UI can navigate outside the operator home. Agents should register a known
+path through the workspace management surface instead of browsing interactively.
 
 Workspace unregister is atomic with credential cleanup: it removes workspace-scoped MCP OAuth rows and their encrypted access/refresh values, preserves global and sibling-workspace credentials, and leaves all state intact when cleanup fails.
 

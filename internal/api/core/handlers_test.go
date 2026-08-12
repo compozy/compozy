@@ -995,6 +995,90 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 	})
 }
 
+func TestRenameSessionHandler(t *testing.T) {
+	t.Parallel()
+
+	base := testutil.NewSessionInfo("sess-rename")
+	base.WorkspaceID = "ws-rename"
+	base.Type = session.SessionTypeUser
+	renameCalls := 0
+	manager := testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{base}, nil
+		},
+		RenameFn: func(
+			_ context.Context,
+			workspaceID string,
+			sessionID string,
+			name string,
+		) (*session.Info, error) {
+			renameCalls++
+			if workspaceID != base.WorkspaceID || sessionID != base.ID || name != "Checkout retries" {
+				t.Fatalf("Rename() = workspace %q session %q name %q", workspaceID, sessionID, name)
+			}
+			updated := *base
+			updated.Name = name
+			return &updated, nil
+		},
+	}
+	fixture := newHandlerFixture(
+		t,
+		manager,
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+
+	t.Run("Should rename the workspace-scoped session", func(t *testing.T) {
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/workspaces/ws-rename/sessions/sess-rename",
+			[]byte(`{"name":"Checkout retries"}`),
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Session.Name != "Checkout retries" || renameCalls != 1 {
+			t.Fatalf("rename response = %#v calls=%d", payload.Session, renameCalls)
+		}
+	})
+
+	t.Run("Should reject unknown request fields", func(t *testing.T) {
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/workspaces/ws-rename/sessions/sess-rename",
+			[]byte(`{"name":"Checkout retries","legacy_name":"old"}`),
+		)
+		assertAPIErrorResponse(t, response, http.StatusBadRequest, "legacy_name")
+		if renameCalls != 1 {
+			t.Fatalf("Rename() calls = %d, want 1", renameCalls)
+		}
+	})
+
+	t.Run("Should hide a session outside the route workspace", func(t *testing.T) {
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/workspaces/ws-foreign/sessions/sess-rename",
+			[]byte(`{"name":"Checkout retries"}`),
+		)
+		assertAPIErrorResponse(t, response, http.StatusNotFound, "workspace-scoped resource not found")
+		if renameCalls != 1 {
+			t.Fatalf("Rename() calls = %d, want 1", renameCalls)
+		}
+	})
+}
+
 func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 	t.Parallel()
 

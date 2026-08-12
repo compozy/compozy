@@ -31,6 +31,11 @@ type CreateSessionRequest struct {
 	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 }
 
+// RenameSessionRequest changes the durable display name of one user session.
+type RenameSessionRequest struct {
+	Name string `json:"name"`
+}
+
 // ApproveSessionRequest is the interactive permission approval payload.
 type ApproveSessionRequest struct {
 	RequestID string `json:"request_id"`

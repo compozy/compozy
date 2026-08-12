@@ -37,6 +37,7 @@ export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
             parentPath={workspaces.parent}
             pickPending={workspaces.isResolving}
             pickRowLabel={name => `Add ${name} as a workspace`}
+            roots={workspaces.roots}
             testIdPrefix="onboarding-directory-browser"
           />
           {workspaces.resolveError ? (

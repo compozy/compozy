@@ -35,6 +35,7 @@ const base = {
   currentPath: "/Users/you/Dev",
   parentPath: "/Users/you",
   homePath: "/Users/you",
+  roots: ["/"],
   entries,
   isBrowsing: false,
   browseError: null,

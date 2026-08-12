@@ -24,7 +24,7 @@
             }
         ],
         "security": {
-            "capabilities": ["boot"],
+            "capabilities": ["boot", "main-zoom"],
             "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
         }
     },

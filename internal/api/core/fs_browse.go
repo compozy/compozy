@@ -17,7 +17,12 @@ import (
 // picker can navigate the local filesystem. It is read-only and operator-scoped:
 // the daemon already runs with the operator's filesystem access.
 func (h *BaseHandlers) BrowseDirectory(c *gin.Context) {
-	home := operatorHomeDir()
+	home := h.daemonUserHomeDir()
+	roots, err := filesystemRoots()
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 
 	requested := strings.TrimSpace(c.Query("path"))
 	if requested == "" {
@@ -54,6 +59,7 @@ func (h *BaseHandlers) BrowseDirectory(c *gin.Context) {
 	response := contract.FSBrowseResponse{
 		Path:    resolved,
 		Home:    home,
+		Roots:   roots,
 		Entries: entries,
 	}
 	if parent := filepath.Dir(resolved); parent != resolved {
@@ -134,12 +140,4 @@ func containsControlChar(path string) bool {
 		}
 	}
 	return false
-}
-
-func operatorHomeDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(home)
 }

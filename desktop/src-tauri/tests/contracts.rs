@@ -294,6 +294,34 @@ fn should_grant_only_desktop_control_to_the_local_boot_window() {
 }
 
 #[test]
+fn should_grant_zoom_only_to_the_daemon_served_main_window() {
+    let config = read_json(manifest_dir().join("tauri.conf.json"));
+    assert_eq!(
+        config["app"]["security"]["capabilities"],
+        serde_json::json!(["boot", "main-zoom"])
+    );
+
+    let capability = read_json(manifest_dir().join("capabilities/main-zoom.json"));
+    assert_eq!(capability["local"], false);
+    assert_eq!(capability["windows"], serde_json::json!(["main"]));
+    assert_eq!(
+        capability["remote"]["urls"],
+        serde_json::json!(["http://localhost:*", "http://127.0.0.1:*"])
+    );
+    assert_eq!(
+        capability["permissions"],
+        serde_json::json!(["core:webview:allow-set-webview-zoom"])
+    );
+
+    let windowing_source = fs::read_to_string(manifest_dir().join("src/windowing.rs"))
+        .expect("window builder source reads");
+    assert!(
+        windowing_source.contains(".zoom_hotkeys_enabled(true)"),
+        "daemon-served main window must enable native zoom hotkeys"
+    );
+}
+
+#[test]
 fn should_initialize_updater_plugin_from_base_tauri_config() {
     let config = serde_json::from_value(read_json(manifest_dir().join("tauri.conf.json")))
         .expect("base Tauri config parses");

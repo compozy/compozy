@@ -64,6 +64,7 @@ const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
   pendingSessionId: null,
   onArchive: fn(),
   onDelete: fn(),
+  onRename: fn(),
   onStop: fn(),
   onUnarchive: fn(),
 };

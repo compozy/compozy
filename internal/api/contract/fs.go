@@ -12,5 +12,6 @@ type FSBrowseResponse struct {
 	Path    string           `json:"path"`
 	Parent  string           `json:"parent,omitempty"`
 	Home    string           `json:"home,omitempty"`
+	Roots   []string         `json:"roots"`
 	Entries []FSEntryPayload `json:"entries"`
 }

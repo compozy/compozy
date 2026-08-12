@@ -303,6 +303,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/workspaces/:workspace_id/network/channels/:channel",
 		"PATCH /api/workspaces/:workspace_id",
 		"PATCH /api/workspaces/:workspace_id/loops/:name",
+		"PATCH /api/workspaces/:workspace_id/sessions/:session_id",
 		"POST /api/agent/channels/:channel/send",
 		"POST /api/agent/channels/reply",
 		"POST /api/agent/soul/validate",

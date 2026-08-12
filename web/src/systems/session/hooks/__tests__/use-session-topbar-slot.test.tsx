@@ -4,22 +4,26 @@
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
+import { SessionRenameDialog } from "../../components/session-rename-dialog";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
 
 function SessionPublisher({
   onStop,
+  onRename = vi.fn(),
   inspectorOpen = false,
   onInspectorToggle = vi.fn(),
   sidebarOpen = false,
   onSidebarToggle = vi.fn(),
 }: {
   onStop: () => void;
+  onRename?: () => void;
   inspectorOpen?: boolean;
   onInspectorToggle?: () => void;
   sidebarOpen?: boolean;
@@ -28,6 +32,7 @@ function SessionPublisher({
   useSessionTopbarSlot({
     session: primarySessionFixture,
     isDeleting: false,
+    isRenaming: false,
     isStopping: false,
     isResuming: false,
     isUnarchiving: false,
@@ -38,6 +43,7 @@ function SessionPublisher({
     onInspectorToggle,
     onSidebarToggle,
     onDelete: vi.fn(),
+    onRename,
     onStop,
     onResume: vi.fn(),
     onUnarchive: vi.fn(),
@@ -114,6 +120,7 @@ describe("useSessionTopbarSlot", () => {
       useSessionTopbarSlot({
         session: { ...primarySessionFixture, badge: "idle" },
         isDeleting: false,
+        isRenaming: false,
         isStopping: false,
         isResuming: false,
         isUnarchiving: false,
@@ -124,6 +131,7 @@ describe("useSessionTopbarSlot", () => {
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
         onDelete: vi.fn(),
+        onRename: vi.fn(),
         onStop,
         onResume: vi.fn(),
         onUnarchive: vi.fn(),
@@ -155,6 +163,7 @@ describe("useSessionTopbarSlot", () => {
           archived_at: "2026-08-04T12:00:00Z",
         },
         isDeleting: false,
+        isRenaming: false,
         isStopping: false,
         isResuming: false,
         isUnarchiving: false,
@@ -165,6 +174,7 @@ describe("useSessionTopbarSlot", () => {
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
         onDelete: vi.fn(),
+        onRename: vi.fn(),
         onStop: vi.fn(),
         onResume: vi.fn(),
         onUnarchive,
@@ -179,5 +189,35 @@ describe("useSessionTopbarSlot", () => {
     expect(onUnarchive).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Attach session" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Resume session" })).toBeNull();
+  });
+
+  it("Should close overflow before opening rename so one Escape dismisses the dialog", async () => {
+    function RenameDialogPublisher() {
+      const [dialogOpen, setDialogOpen] = useState(false);
+      return (
+        <>
+          <SessionPublisher onStop={vi.fn()} onRename={() => setDialogOpen(true)} />
+          <SessionRenameDialog
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            session={primarySessionFixture}
+            isRenaming={false}
+            onConfirm={vi.fn()}
+          />
+        </>
+      );
+    }
+
+    renderWithTopbar(<RenameDialogPublisher />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename session" }));
+
+    await screen.findByRole("heading", { name: "Rename session" });
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Rename session" })).toBeNull();
+    });
   });
 });

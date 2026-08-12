@@ -47,6 +47,7 @@ vi.mock("../use-directory-browser", () => ({
       path: "/Users/operator",
       parent: null,
       home: "/Users/operator",
+      roots: ["/"],
       entries: [],
     },
     error: null,

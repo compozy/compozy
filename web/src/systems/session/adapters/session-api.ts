@@ -14,6 +14,7 @@ import type {
   SessionRecapPayload,
   SessionRepairPayload,
   SessionRepairQuery,
+  RenameSessionRequest,
   SetSessionRuntimeRequest,
   SessionUsagePayload,
   TurnHistoryPayload,
@@ -103,6 +104,26 @@ export async function deleteSession(
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to delete session "${id}"`, id);
   }
+}
+
+export async function renameSession(
+  workspaceId: string,
+  id: string,
+  request: RenameSessionRequest,
+  signal?: AbortSignal
+): Promise<SessionPayload> {
+  const { data, error, response } = await apiClient.PATCH(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}",
+    {
+      params: { path: { workspace_id: workspaceId, session_id: id } },
+      body: request,
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to rename session "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to rename session "${id}"`).session;
 }
 
 export async function stopSession(

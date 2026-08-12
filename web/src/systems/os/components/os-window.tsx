@@ -17,6 +17,7 @@ import { useWindowMergeTarget } from "../hooks/use-window-merge-target";
 import { getOsApp, getOsAppMinimum } from "../lib/app-registry";
 import type { OsWindowFrameModel } from "../lib/group-projection";
 import { ensureWindowSlotStore } from "../lib/window-slot-registry";
+import { windowVisualLayer } from "../lib/window-visual-layer";
 import { OsWindowDeck } from "./os-window-deck";
 import { OsWindowErrorBoundary } from "./os-window-error-boundary";
 import { OsWindowChrome, OsWindowSurface } from "./os-window-frame";
@@ -91,7 +92,7 @@ export function OsWindow({ frame }: OsWindowProps) {
       onResizeStart={model.handleResizeStart}
       onResizeStop={model.handleResizeStop}
       style={{
-        zIndex: frame.layer,
+        zIndex: windowVisualLayer(frame),
         display: frame.minimized ? "none" : undefined,
       }}
     >

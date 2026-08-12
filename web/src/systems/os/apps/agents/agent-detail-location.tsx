@@ -29,7 +29,7 @@ import {
   type AgentInstructionFile,
   type AgentPayload,
 } from "@/systems/agent";
-import { SessionDeleteDialog, type SessionPayload } from "@/systems/session";
+import { SessionDeleteDialog, SessionRenameDialog, type SessionPayload } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { useAgentDetail } from "./use-agent-detail";
 
@@ -274,6 +274,15 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                   session={page.sessionDeleteDialog.session}
                   isDeleting={page.sessionDeleteDialog.isDeleting}
                   onConfirm={page.sessionDeleteDialog.onConfirm}
+                />
+              ) : null}
+              {page.sessionRenameDialog.session ? (
+                <SessionRenameDialog
+                  open={page.sessionRenameDialog.open}
+                  onOpenChange={page.sessionRenameDialog.onOpenChange}
+                  session={page.sessionRenameDialog.session}
+                  isRenaming={page.sessionRenameDialog.isRenaming}
+                  onConfirm={page.sessionRenameDialog.onConfirm}
                 />
               ) : null}
             </TabsContent>

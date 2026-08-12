@@ -1,4 +1,4 @@
-import { Archive, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Archive, Pencil, RotateCcw, Square, Trash2 } from "lucide-react";
 
 import {
   Button,
@@ -12,6 +12,7 @@ import {
 
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
+import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 
 function isStopEligible(session: SessionPayload): boolean {
@@ -40,6 +41,16 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
         {pending ? <Spinner className="size-3" /> : <TopbarOverflowIcon aria-hidden="true" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {isUserControllableSession(session) ? (
+          <DropdownMenuItem
+            data-testid={`session-row-rename-${session.id}`}
+            disabled={disabled}
+            onClick={() => actions.onRename(session)}
+          >
+            <Pencil aria-hidden="true" className="size-3" />
+            Rename session
+          </DropdownMenuItem>
+        ) : null}
         {!isArchived && isStopEligible(session) ? (
           <DropdownMenuItem
             data-testid={`session-row-stop-${session.id}`}
