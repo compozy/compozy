@@ -182,10 +182,13 @@ func (g *WatchEventsRepo) readWatchEventsCursor(
 		)
 	case looppkg.WatchEventsLoopStream:
 		args = append([]any{query.workspaceID}, args...)
+		// lre.seq restarts per loop run, so the stream cursor uses the
+		// table-global rowid; per-run seq would hide fresh runs behind the
+		// historical per-run maximum.
 		return scanWatchEventCursor(
 			g.db.QueryRowContext(
 				ctx,
-				`SELECT COALESCE(MAX(lre.seq), 0)
+				`SELECT COALESCE(MAX(lre.rowid), 0)
 				   FROM loop_run_events lre
 				  WHERE lre.workspace_id = ?
 				    AND lre.kind IN (`+placeholders+`)`,

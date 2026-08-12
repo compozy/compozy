@@ -26,11 +26,13 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 		string(looppkg.StatusCanceled),
 		query.limit,
 	)
+	// The stream cursor is lre.rowid: lre.seq restarts per loop run, so a
+	// per-run seq cursor would hide fresh runs behind the historical maximum.
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	rows, err := g.db.QueryContext(
 		ctx,
 		`SELECT
-			lre.seq,
+			lre.rowid,
 			lre.kind,
 			lre.loop_run_id,
 			lre.workspace_id,
@@ -40,7 +42,7 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 		   FROM loop_run_events lre
 		   JOIN loop_runs lr ON lr.id = lre.loop_run_id
 		  WHERE lre.workspace_id = ?
-		    AND lre.seq > ?
+		    AND lre.rowid > ?
 		    AND lre.kind IN (`+placeholders+`)
 		    AND (
 			lre.kind <> ?
@@ -49,7 +51,7 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 				json_extract(lre.payload_json, '$.status')
 			) IN (?, ?, ?, ?, ?, ?, ?)
 		    )
-		  ORDER BY lre.seq ASC
+		  ORDER BY lre.rowid ASC
 		  LIMIT ?`,
 		args...,
 	)

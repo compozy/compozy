@@ -194,6 +194,105 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		}
 	})
 
+	t.Run("Should surface loop events from a fresh run after another run advanced the cursor", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
+		base := time.Date(2026, 7, 8, 17, 0, 0, 0, time.UTC)
+		noisy := testLoopRun("watch-loop-noisy", base, looppkg.StatusRunning)
+		noisy.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, noisy, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(noisy) error = %v", err)
+		}
+		for index := range 8 {
+			if err := appendLoopRunEventWithExecutor(
+				ctx,
+				globalDB.db,
+				noisy.ID,
+				noisy.WorkspaceID,
+				loopRunEventStatusChanged,
+				map[string]string{"from": "paused", "to": "running", "status": "running"},
+				base.Add(time.Duration(index+1)*time.Millisecond),
+			); err != nil {
+				t.Fatalf("append noisy status event %d error = %v", index, err)
+			}
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			noisy.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			base.Add(time.Minute),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(noisy) error = %v", err)
+		}
+		cursors, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{"status_changed"},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(after noisy) error = %v", err)
+		}
+		armedCursor := cursors[looppkg.WatchEventsLoopStream]
+		if armedCursor == 0 {
+			t.Fatal("armed loop cursor = 0, want non-zero")
+		}
+
+		fresh := testLoopRun("watch-loop-fresh", base.Add(2*time.Minute), looppkg.StatusRunning)
+		fresh.WorkspaceID = "ws-a"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, fresh, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(fresh) error = %v", err)
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			fresh.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			base.Add(3*time.Minute),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(fresh) error = %v", err)
+		}
+
+		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: armedCursor},
+			Kinds:       []string{"status_changed"},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadMatches(after fresh terminal) error = %v", err)
+		}
+		terminalSeen := false
+		for _, event := range events {
+			if event.LoopRunID == string(fresh.ID) && event.Payload["to"] == string(looppkg.StatusDone) {
+				terminalSeen = true
+			}
+			if event.Seq <= armedCursor {
+				t.Fatalf("loop event seq = %d, want > armed cursor %d: %#v", event.Seq, armedCursor, event)
+			}
+		}
+		if !terminalSeen {
+			t.Fatalf("fresh terminal event missing after armed cursor %d: %#v", armedCursor, events)
+		}
+		refreshed, err := globalDB.ReadCursors(ctx, looppkg.WatchEventsQuery{
+			WorkspaceID: "ws-a",
+			Streams:     map[string]int64{looppkg.WatchEventsLoopStream: 0},
+			Kinds:       []string{"status_changed"},
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ReadCursors(after fresh) error = %v", err)
+		}
+		if got := refreshed[looppkg.WatchEventsLoopStream]; got <= armedCursor {
+			t.Fatalf("loop cursor after fresh terminal = %d, want > %d", got, armedCursor)
+		}
+	})
+
 	t.Run("Should scope loop cursors and matches to the requested workspace", func(t *testing.T) {
 		t.Parallel()
 
