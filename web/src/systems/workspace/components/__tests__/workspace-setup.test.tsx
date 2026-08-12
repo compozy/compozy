@@ -30,6 +30,7 @@ const {
       path: "/Users/pedro/Dev",
       parent: "/Users/pedro",
       home: "/Users/pedro",
+      roots: ["/"],
       entries: [
         { name: "checkout-platform", path: "/Users/pedro/Dev/checkout-platform", is_dir: true },
         { name: "billing", path: "/Users/pedro/Dev/billing", is_dir: true },

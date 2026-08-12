@@ -5,16 +5,18 @@ import type { SessionPayload } from "../types";
 import {
   useArchiveSession,
   useDeleteSession,
+  useRenameSession,
   useStopSession,
   useUnarchiveSession,
 } from "./use-session-actions";
 
-export type SessionLifecycleAction = "stop" | "archive" | "unarchive" | "delete";
+export type SessionLifecycleAction = "rename" | "stop" | "archive" | "unarchive" | "delete";
 
 export interface SessionLifecycleActionHandlers {
   pendingAction: SessionLifecycleAction | null;
   pendingSessionId: string | null;
   onStop: (session: SessionPayload) => void;
+  onRename: (session: SessionPayload) => void;
   onArchive: (session: SessionPayload) => void;
   onUnarchive: (session: SessionPayload) => void;
   onDelete: (session: SessionPayload) => void;
@@ -28,9 +30,18 @@ export interface SessionDeleteConfirmation {
   onConfirm: () => void;
 }
 
+export interface SessionRenameConfirmation {
+  open: boolean;
+  session: SessionPayload | null;
+  isRenaming: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (name: string) => void;
+}
+
 export interface UseSessionLifecycleActionsResult {
   actions: SessionLifecycleActionHandlers;
   deleteDialog: SessionDeleteConfirmation;
+  renameDialog: SessionRenameConfirmation;
 }
 
 export interface UseSessionLifecycleActionsOptions {
@@ -53,11 +64,16 @@ export function useSessionLifecycleActions(
   const archive = useArchiveSession(options);
   const unarchive = useUnarchiveSession(options);
   const remove = useDeleteSession(options);
+  const rename = useRenameSession(options);
   const [deleteSession, setDeleteSession] = useState<SessionPayload | null>(null);
+  const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
 
   let pendingAction: SessionLifecycleAction | null = null;
   let pendingSessionId: string | null = null;
-  if (stop.isPending) {
+  if (rename.isPending) {
+    pendingAction = "rename";
+    pendingSessionId = rename.variables.id;
+  } else if (stop.isPending) {
     pendingAction = "stop";
     pendingSessionId = stop.variables;
   } else if (archive.isPending) {
@@ -82,10 +98,27 @@ export function useSessionLifecycleActions(
     });
   };
 
+  const confirmRename = (name: string) => {
+    if (!renameTarget || rename.isPending) return;
+    const { id } = renameTarget;
+    rename.mutate(
+      { id, name },
+      {
+        onError: error => reportActionError("rename", error),
+        onSuccess: () => {
+          setRenameTarget(current => (current?.id === id ? null : current));
+        },
+      }
+    );
+  };
+
   return {
     actions: {
       pendingAction,
       pendingSessionId,
+      onRename: session => {
+        if (!rename.isPending) setRenameTarget(session);
+      },
       onStop: session =>
         stop.mutate(session.id, { onError: error => reportActionError("stop", error) }),
       onArchive: session =>
@@ -104,6 +137,15 @@ export function useSessionLifecycleActions(
         if (!open && !remove.isPending) setDeleteSession(null);
       },
       onConfirm: confirmDelete,
+    },
+    renameDialog: {
+      open: renameTarget !== null,
+      session: renameTarget,
+      isRenaming: rename.isPending,
+      onOpenChange: open => {
+        if (!open && !rename.isPending) setRenameTarget(null);
+      },
+      onConfirm: confirmRename,
     },
   };
 }

@@ -142,11 +142,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			),
 			managedTestGoalRunPolicyResolver(),
 			looppkg.WithClock(time.Now),
-			looppkg.WithCancellationSessionController(looppkg.CancellationSessionControllerFuncs{
-				Cancel: func(ctx context.Context, id string, _ string) error {
-					return fixture.manager.CancelPrompt(ctx, id)
-				},
-			}),
+			looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: fixture.manager}),
 		)
 		if err != nil {
 			t.Fatalf("loop.NewService() error = %v", err)
@@ -279,11 +275,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			managedTestGoalRunPolicyResolver(),
 			looppkg.WithClock(time.Now),
 			looppkg.WithGoalPromptLeaseRevoker(loopGoalPromptLeaseRevoker{sessions: fixture.manager}),
-			looppkg.WithCancellationSessionController(looppkg.CancellationSessionControllerFuncs{
-				Cancel: func(ctx context.Context, id string, _ string) error {
-					return fixture.manager.CancelPrompt(ctx, id)
-				},
-			}),
+			looppkg.WithCancellationSessionController(loopCancellationSessionController{sessions: fixture.manager}),
 		)
 		if err != nil {
 			t.Fatalf("loop.NewService() error = %v", err)

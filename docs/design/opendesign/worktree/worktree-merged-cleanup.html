@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Worktree merged &amp; cleanup · Lab · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-merged-cleanup · S6 merged / safe-to-clean lab (US-024 flavor).
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S6 states "merged (forge) · safe-to-clean (local
+  evidence)" — two-tier detection per analysis/07 §Transferable 6.
+  Provenance:
+    production            — "Merged on GitHub" / "Closed on GitHub" / "Couldn't load PR data" literals and
+                            the calm success-row shape from synara EnvironmentPullRequestSection.tsx:389-418;
+                            forge-over-stale-git precedence :246-249; badge flips, never disappears
+                            Sidebar.logic.ts:127-138; local safety probes paperclip worktree.ts:2007-2031;
+                            blockers-listed-explicitly :2075-2107.
+    spec worktree-support — suggestion affordance ("Clean up" hands off to the removal confirm — suggest,
+                            never auto-run), branch-exists-on-remote downgrade note, US-024.
+    authorized delta      — Tier-2 statement copy authored here ("No commits unique to this branch…" /
+                            downgrade phrasing) from the paperclip probe semantics — not in the verbatim
+                            inventory, cited to worktree.ts:2007-2031.
+-->
+<style>
+  /* merged/cleanup evidence rows (page-local — one status statement per row) */
+  .mrow{display:flex;align-items:center;gap:9px;min-height:40px;padding:9px 12px}
+  .mrow + .mrow{border-top:1px solid var(--line-soft)}
+  .mrow > svg{width:14px;height:14px;flex:none;color:var(--muted)}
+  .mrow__label{min-width:0;font-size:12px;color:var(--fg)}
+  .mrow__label .sub{display:block;font-size:10.5px;line-height:1.4;color:var(--subtle);margin-top:1px}
+  .mrow__meta{margin-left:auto;flex:none;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .mrow--success > svg{color:var(--success)}
+  .mrow--success .mrow__label{color:var(--fg)}
+  .mrow--muted > svg{color:var(--faint)}
+  .mrow--muted .mrow__label{color:var(--muted)}
+  /* info tone — the remote-exists downgrade: weaker evidence reads weaker than the strong local proof */
+  .mrow--info > svg{color:var(--info)}
+  .mrow--info .mrow__label{color:var(--fg)}
+  .mrow--danger > svg{color:var(--danger)}
+  .mrow--danger .mrow__label{color:var(--danger)}
+  .mrow .btn{flex:none}
+  .demo-note{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-cleanup-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Merged &amp; cleanup</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">lab</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-detail-exit.html">Detail &amp; exit →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · TIER 1 — FORGE MERGED ════ -->
+    <section class="lab-sec" data-od-id="lab-tier1-merged">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Tier 1 — forge says merged</h2>
+        <span class="lab-sec__gist">one calm success row · fresher forge snapshot beats stale git status</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Merged on GitHub</b>fix-flaky-e2e's PR #398 merged. One success row states it — no banner, no celebration. When the forge snapshot and cached git status disagree, the fresher forge record wins (synara <code>:246-249</code>).</div>
+        <div class="spec__demo">
+          <!-- gating: GET /api/workspaces/:id/worktrees/:name/pr → {state:"merged", number:398, url, fetchedAt}
+               (taxonomy open|closed|merged — synara git.ts:318-330) -->
+          <div class="panelbox">
+            <div class="mrow mrow--success" data-od-id="mrow-merged">
+              <svg data-lucide="git-merge"></svg>
+              <span class="mrow__label">Merged on GitHub</span>
+              <span class="mrow__meta">PR #398 · run/fix-flaky-e2e → main</span>
+              <a class="btn btn--sm" href="#" title="Open pull request on GitHub">View PR</a> <!-- external: github PR url -->
+            </div>
+          </div>
+          <div class="demo-note">pr.state="merged" · prefer forge snapshot over cached git status when they disagree (synara EnvironmentPullRequestSection.tsx:246-249)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · TIER 2 — LOCAL EVIDENCE ════ -->
+    <section class="lab-sec" data-od-id="lab-tier2-local">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Tier 2 — local evidence, no forge needed</h2>
+        <span class="lab-sec__gist">works with zero credentials · the statement names its proof</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Safe to clean</b>The branch holds nothing the rest of the repo doesn't already have: <code>git log &lt;branch&gt; --not --remotes --branches</code> came back empty (paperclip <code>worktree.ts:2007-2018</code>).</div>
+        <div class="spec__demo">
+          <!-- gating: local probe — unique-commit log empty ⇒ safeToClean:true (paperclip worktree.ts:2007-2018) -->
+          <div class="panelbox">
+            <div class="mrow mrow--success" data-od-id="mrow-safe-local">
+              <svg data-lucide="check"></svg>
+              <span class="mrow__label">No commits unique to this branch
+                <span class="sub">Everything on <span class="mono">run/fix-flaky-e2e</span> exists on another branch or remote.</span></span>
+              <span class="mrow__meta">local check</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Downgrade note</b>The branch has unique commits — but they live on a remote too, so deleting locally loses nothing. "Has unique commits" downgrades to "safe locally" (paperclip <code>:2020-2031</code>). Info tone, not success — the weaker evidence reads weaker.</div>
+        <div class="spec__demo">
+          <!-- gating: unique commits present + `git branch -r --list */<branch>` non-empty ⇒ downgrade
+               (paperclip worktree.ts:2020-2031) -->
+          <div class="panelbox">
+            <div class="mrow mrow--info" data-od-id="mrow-safe-remote">
+              <svg data-lucide="info"></svg>
+              <span class="mrow__label">Branch exists on origin
+                <span class="sub">Unique commits here are already on <span class="mono">origin/run/fix-flaky-e2e</span> — safe to remove locally.</span></span>
+              <span class="mrow__meta">local check</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · CLEAN-UP SUGGESTION ════ -->
+    <section class="lab-sec" data-od-id="lab-suggestion">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">The "Clean up" suggestion</h2>
+        <span class="lab-sec__gist">suggest, never auto-run · the button only hands off to the removal confirm</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Quiet notice row</b>Evidence row + one neutral button. Clicking Clean up opens the removal dialog (blockers listed, irreversibility stated) — the daemon never removes on its own (paperclip <code>:2075-2107</code>, §Transferable 6).</div>
+        <div class="spec__demo">
+          <!-- gating: pr.state==="merged" OR safeToClean:true → suggestion renders;
+               action = open WorktreeRemoveDialog, never DELETE directly -->
+          <div class="panelbox">
+            <div class="mrow mrow--success" data-od-id="mrow-suggest">
+              <svg data-lucide="git-merge"></svg>
+              <span class="mrow__label">Merged on GitHub — this worktree is safe to clean up.</span>
+              <span class="mrow__meta">PR #398</span>
+              <a class="btn btn--sm" href="worktree-remove-dialogs.html">Clean up</a>
+            </div>
+          </div>
+          <div class="demo-note">hands off to worktree-remove-dialogs.html — confirm carries the blockers + "cannot be undone" copy</div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Not safe to clean</b>Merged on the forge, yet the local probe finds commits that exist nowhere else — work landed after the merge. The blocker is named in the row and <b>Clean up</b> does not render (absent, not disabled; blockers listed explicitly, paperclip <code>worktree.ts:2075-2107</code>).</div>
+        <div class="spec__demo">
+          <!-- gating: pr.state==="merged" BUT unique-commit log non-empty AND no remote copy ⇒ safeToClean:false
+               (paperclip worktree.ts:2007-2031) → cleanup suggestion suppressed, Clean up absent —
+               removal stays reachable only through the guarded remove dialog -->
+          <div class="panelbox">
+            <div class="mrow mrow--success" data-od-id="mrow-merged-notsafe">
+              <svg data-lucide="git-merge"></svg>
+              <span class="mrow__label">Merged on GitHub</span>
+              <span class="mrow__meta">PR #398 · run/fix-flaky-e2e → main</span>
+              <a class="btn btn--sm" href="#" title="Open pull request on GitHub">View PR</a> <!-- external: github PR url -->
+            </div>
+            <div class="mrow mrow--danger" data-od-id="mrow-not-safe">
+              <svg data-lucide="triangle-alert"></svg>
+              <span class="mrow__label">2 commits exist nowhere else
+                <span class="sub">Made after PR #398 merged — push the branch to keep them.</span></span>
+              <span class="mrow__meta">local check</span>
+            </div>
+          </div>
+          <div class="demo-note">safeToClean:false — the blocker row replaces the suggestion; no Clean up renders</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · CLOSED, NOT MERGED ════ -->
+    <section class="lab-sec" data-od-id="lab-closed">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Closed, not merged</h2>
+        <span class="lab-sec__gist">the badge flips, it never disappears · no cleanup suggestion</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Closed on GitHub</b>A closed-unmerged PR is information, not success: the row goes muted, keeps the PR number, and offers no Clean up — the branch may still hold unlanded work (badge flip precedent synara <code>Sidebar.logic.ts:127-138</code>).</div>
+        <div class="spec__demo">
+          <!-- gating: pr → {state:"closed", number:398} — row renders muted; safeToClean NOT implied -->
+          <div class="panelbox">
+            <div class="mrow mrow--muted" data-od-id="mrow-closed">
+              <svg data-lucide="git-pull-request-closed"></svg>
+              <span class="mrow__label">Closed on GitHub</span>
+              <span class="mrow__meta">PR #398 · not merged</span>
+              <a class="btn btn--sm" href="#" title="Open pull request on GitHub">View PR</a> <!-- external: github PR url -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · PR DATA FAILURE ════ -->
+    <section class="lab-sec" data-od-id="lab-pr-failure">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Couldn't load PR data</h2>
+        <span class="lab-sec__gist">a failed fetch is stated, never rendered as "no PR"</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Failure row</b>The forge call failed — the row says so and offers a retry. Tier-2 local evidence still works underneath, so cleanup guidance degrades instead of vanishing (literal synara <code>:418</code>).</div>
+        <div class="spec__demo">
+          <!-- gating: GET …/pr → error — render failure row; do NOT render pr-absent (unknown ≠ none) -->
+          <div class="panelbox">
+            <div class="mrow mrow--danger" data-od-id="mrow-pr-error">
+              <svg data-lucide="circle-alert"></svg>
+              <span class="mrow__label">Couldn't load PR data</span>
+              <span class="mrow__meta">github.com timed out</span>
+              <button class="btn btn--sm">Retry</button>
+            </div>
+            <!-- rationale (annotation, never rendered): the local check still holds when the forge call
+                 fails — cleanup guidance degrades, it doesn't vanish -->
+            <div class="mrow mrow--success">
+              <svg data-lucide="check"></svg>
+              <span class="mrow__label">No commits unique to this branch
+                <span class="sub">Everything on <span class="mono">run/fix-flaky-e2e</span> exists on another branch or remote.</span></span>
+              <span class="mrow__meta">local check</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      Merged / safe-to-clean lab for S6 · two-tier detection per <span class="mono">analysis/07 §Transferable 6</span> ·
+      exit control + strip live in <span class="mono">worktree-detail-exit.html</span> · removal confirms in
+      <span class="mono">worktree-remove-dialogs.html</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

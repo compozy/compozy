@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "worktree/worktree-remove-dialogs.html",
+  "entry": "worktree/worktree-remove-dialogs.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-11T19:44:55.474Z",
+  "updatedAt": "2026-08-11T19:44:55.474Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

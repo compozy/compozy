@@ -10,6 +10,7 @@ const routeHookMocks = vi.hoisted(() => ({
   cancelSessionPrompt: vi.fn(),
   clearMutation: { isPending: false, mutate: vi.fn() },
   deleteMutation: { isPending: false, mutate: vi.fn() },
+  renameMutation: { isPending: false, mutateAsync: vi.fn() },
   resumeMutation: { isPending: false, mutateAsync: vi.fn() },
   unarchiveMutation: { isPending: false, mutate: vi.fn() },
   queuePromptMutation: { isPending: false, mutateAsync: vi.fn() },
@@ -52,6 +53,7 @@ vi.mock("@/systems/session", async () => {
     usePromoteSessionInput: () => routeHookMocks.promoteInputMutation,
     useQueueSessionPrompt: () => routeHookMocks.queuePromptMutation,
     useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
+    useRenameSession: () => routeHookMocks.renameMutation,
     useResumeSession: () => routeHookMocks.resumeMutation,
     useUnarchiveSession: () => routeHookMocks.unarchiveMutation,
     useSessionInputs: () => routeHookMocks.sessionInputsQuery,
@@ -138,6 +140,8 @@ describe("useSessionPageControls", () => {
     }
     routeHookMocks.resumeMutation.isPending = false;
     routeHookMocks.resumeMutation.mutateAsync.mockReset();
+    routeHookMocks.renameMutation.isPending = false;
+    routeHookMocks.renameMutation.mutateAsync.mockReset();
     routeHookMocks.unarchiveMutation.isPending = false;
     routeHookMocks.unarchiveMutation.mutate.mockReset();
     routeHookMocks.queuePromptMutation.isPending = false;

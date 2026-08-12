@@ -178,11 +178,24 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.bootComponents(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.publishDaemonInfo(state, cleanup); err != nil {
+		return err
+	}
 	if err := d.markRestartReadyIfRequested(state.info); err != nil {
 		return err
 	}
 
 	d.publishBootState(state)
+	return nil
+}
+
+func (d *Daemon) publishDaemonInfo(state *bootState, cleanup *bootCleanup) error {
+	cleanup.add(func(context.Context) error {
+		return RemoveInfo(d.homePaths.DaemonInfo)
+	})
+	if err := WriteInfo(d.homePaths.DaemonInfo, state.info); err != nil {
+		return fmt.Errorf("daemon: publish daemon info: %w", err)
+	}
 	return nil
 }
 

@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Worktree detail &amp; assisted exit · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-detail-exit · S6 worktree context (home of the assisted exit) + S16 session-header binding.
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S6 · §S16 — stories US-019–US-024, US-026, US-011.
+  Provenance:
+    production            — split button + "Git actions" menu with per-row disabled reasons transcribed from
+                            compozy-code open-pr-button.tsx:69-158; state machine + auto-advance from
+                            use-open-pr-button-action.ts:220-327 (advance :308-327 · session pause :72-73 ·
+                            blocking status errors :202-210); status strip taxonomy per analysis/07 §Transferable 1;
+                            session-header precedent execution-actions.tsx:167-210 superseded by the OQ7 lock —
+                            binding chip always in the session header, exit split button ONLY in worktree detail;
+                            blocked-reason literals reused verbatim from analysis/07 §Transferable 8.
+    spec worktree-support — five-field strip (branch · dirty · ahead/behind · PR-when-known · explicit read
+                            failure), zero-credential renders NO PR widgets, read failure blocks the whole
+                            control, merged → "Clean up" suggestion (_uiux.md §S6 states).
+    authorized delta      — "Commit & push" promoted to a first-class menu action (synara composite,
+                            analysis/07 §B1 + §Transferable 2); the hero menu flattens the third-slot
+                            identity (open-pr XOR view-pr in production) to show both rows with reasons,
+                            so the full action vocabulary is visible on one artboard.
+  Hero snapshot note: payments-retry's bound session is in the LOCKED awaiting-input state — turn
+  finished, agent waits on the user; hollow accent .d--wait dot (no pulse), label "awaiting input".
+  Exit actions unlock in this state (the pause rule applies only to running), so the computed primary
+  renders enabled. The executing-turn lock (running) is demo 03 below.
+-->
+<style>
+  /* detail context header (page-local — composes ds-core + worktree.css primitives) */
+  .dhead{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+  .dhead__icon{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:var(--radius-md);
+    background:var(--elevated);border:1px solid var(--line);color:var(--muted)}
+  .dhead__icon svg{width:15px;height:15px}
+  .dhead__main{min-width:0;flex:1}
+  .dhead__name{display:flex;align-items:center;gap:8px;min-width:0}
+  .dhead__name b{font-size:15px;font-weight:600;letter-spacing:-.014em;color:var(--fg-strong)}
+  .dhead__sub{display:flex;align-items:center;gap:7px;margin-top:2px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .dhead__actions{display:flex;align-items:center;gap:6px;flex:none}
+  .exit-row{display:flex;align-items:center;gap:8px;margin-top:12px}
+  .exit-row .spacer{flex:1}
+  /* static open-menu presentation for demos */
+  .menu-under{margin-top:8px}
+  .demo-pair{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap}
+  .demo-note{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);margin-top:6px}
+  /* S16 session topbar mock (44px head grammar, panel-framed for the lab) */
+  .sess-top{display:flex;align-items:center;gap:9px;min-height:44px;padding:0 14px;
+    border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas)}
+  .sess-top__title{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong);white-space:nowrap}
+  .sess-top__agent{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .sess-top .spacer{flex:1;min-width:8px}
+  .wt-bind--missing{border-style:dashed;color:var(--info)}
+  .wt-bind--missing svg{color:var(--info)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-detail-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Detail &amp; assisted exit</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">final</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-merged-cleanup.html">Merged &amp; cleanup →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════════════════ HERO · S6 FINAL — worktree context, payments-retry ════════════════ -->
+    <section class="lab-sec" data-od-id="hero-detail">
+      <div class="lab-sec__head"><span class="lab-sec__num">S6</span><h2 class="lab-sec__t">Worktree context — payments-retry</h2>
+        <span class="lab-sec__gist">the home of the assisted exit · one primary per screen</span></div>
+
+      <div class="panelbox" style="padding:16px 18px" data-od-id="wt-detail-hero">
+        <!-- gating: GET /api/workspaces/:id/worktrees/:name → {name, branch, path, state, origin} -->
+        <div class="dhead">
+          <span class="dhead__icon"><svg data-lucide="folder-git-2"></svg></span>
+          <span class="dhead__main">
+            <span class="dhead__name"><b>payments-retry</b><span class="wt-chip" data-state="ready">ready</span>
+              <span class="wt-agent" title="Fix payment retries · claude — awaiting input"><span class="d d--wait"></span>Fix payment retries · awaiting input</span></span>
+            <span class="dhead__sub">~/.compozy/worktrees/compozy/payments-retry</span>
+          </span>
+          <span class="dhead__actions">
+            <!-- gating: DELETE /api/workspaces/:id/worktrees/:name (confirm flow in worktree-remove-dialogs.html) -->
+            <a class="btn" href="worktree-remove-dialogs.html">Remove…</a>
+          </span>
+        </div>
+
+        <!-- five-field strip: branch · dirty · ahead/behind · PR-when-known · read-failure.
+             gating: GET /api/workspaces/:id/worktrees/:name/git-status →
+             {branch, hasChanges, insertions, deletions, changedFiles, hasUpstream, ahead, behind,
+              hasCommitsToPush, status:"ok"|"failed", error?} — wire shape per compozy-code
+             worktree-types.ts:108-131. PR cell: GET …/worktrees/:name/pr → {state,number,url,fetchedAt}|null;
+             unknown (no linked PR yet) renders the em-dash, never "none"/"clean".
+             The fifth field (explicit read failure) renders only when status==="failed" — demo 04.
+             gating: .copy button — client-side clipboard write of the branch name; no API gate. -->
+        <div class="wt-strip" data-od-id="wt-strip-hero">
+          <div class="wt-strip__cell">
+            <span class="wt-strip__k">Branch</span>
+            <span class="wt-strip__v"><span class="mono">pedro/payments-retry</span>
+              <button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+          </div>
+          <div class="wt-strip__cell" data-tone="warning">
+            <span class="wt-strip__k">Dirty</span>
+            <span class="wt-strip__v"><span class="wt-dirty"><span class="ins">+142</span><span class="del">−18</span></span>
+              <span class="mono" style="color:var(--faint)">6 files</span></span>
+          </div>
+          <div class="wt-strip__cell">
+            <span class="wt-strip__k">Ahead / behind</span>
+            <span class="wt-strip__v"><span class="wt-ab"><span class="ahead">3</span></span></span>
+          </div>
+          <div class="wt-strip__cell" data-unknown>
+            <span class="wt-strip__k">PR</span>
+            <span class="wt-strip__v">—</span>
+          </div>
+        </div>
+
+        <div class="exit-row" data-od-id="wt-exit-hero">
+          <!-- gating: primary = first enabled action from use-open-pr-button-action.ts:220-327
+               (hasChanges → commit); the ONLY primary-styled action on this screen (accent budget). -->
+          <span class="splitbtn splitbtn--primary" role="group" aria-label="Git actions">
+            <button class="splitbtn__main"><svg data-lucide="git-commit-horizontal"></svg>Commit</button>
+            <button class="splitbtn__chev" aria-label="More git actions"><svg data-lucide="chevron-down"></svg></button>
+          </span>
+          <span class="spacer"></span>
+        </div>
+
+        <!-- the chevron menu, rendered open for the artboard — every row owns its disabled reason -->
+        <div class="gmenu menu-under" data-od-id="wt-gmenu-hero">
+          <div class="gmenu__h">Git actions</div>
+          <!-- gating: enabled iff hasAnyUncommittedChanges (use-open-pr-button-action.ts:220-232) -->
+          <button class="gmenu__item" aria-selected="true">
+            <svg data-lucide="git-commit-horizontal"></svg>
+            <span class="gmenu__label">Commit</span>
+          </button>
+          <!-- gating: composite, enabled iff hasChanges && hasUpstream-or-first-push (synara git.ts:16-23) -->
+          <button class="gmenu__item">
+            <svg data-lucide="git-branch"></svg>
+            <span class="gmenu__label">Commit &amp; push</span>
+          </button>
+          <!-- gating: disabled while hasChanges (use-open-pr-button-action.ts:233-247) -->
+          <button class="gmenu__item" data-disabled title="Commit changes before pushing branches.">
+            <svg data-lucide="git-branch"></svg>
+            <span class="gmenu__label">Push<span class="gmenu__reason">Commit changes before pushing branches.</span></span>
+          </button>
+          <!-- gating: disabled while hasChanges (use-open-pr-button-action.ts:262-284) -->
+          <button class="gmenu__item" data-disabled title="Commit changes before opening pull requests.">
+            <svg data-lucide="git-pull-request"></svg>
+            <span class="gmenu__label">Open PR<span class="gmenu__reason">Commit changes before opening pull requests.</span></span>
+          </button>
+          <!-- gating: disabled without pr.url (use-open-pr-button-action.ts:285-290);
+               reason authored (spec worktree-support — third-slot identity flattened for this artboard) -->
+          <button class="gmenu__item" data-disabled title="No pull request linked yet.">
+            <svg data-lucide="external-link"></svg>
+            <span class="gmenu__label">View PR<span class="gmenu__reason">No pull request linked yet.</span></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ LAB · EXIT CONTROL STATE MATRIX ════════════════ -->
+
+    <!-- ════ 01 · PRIMARY AUTO-ADVANCE LADDER ════ -->
+    <section class="lab-sec" data-od-id="lab-ladder">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Primary auto-advance ladder</h2>
+        <span class="lab-sec__gist">derived from status, never user memory · neutral rendering in the matrix</span></div>
+
+      <!-- state machine: use-open-pr-button-action.ts:220-327 — when the selected action becomes
+           disabled, select the first enabled one; open-pr collapses into view-pr once a PR links.
+           Matrix demos render the split button NEUTRAL — primary styling belongs to the hero only. -->
+      <div class="spec">
+        <div class="spec__note"><b>1 · Commit</b>Dirty tree. <code>hasChanges=true</code> selects Commit; push and PR rows carry commit-first reasons.</div>
+        <div class="spec__demo">
+          <span class="splitbtn" role="group" aria-label="Git actions">
+            <button class="splitbtn__main"><svg data-lucide="git-commit-horizontal"></svg>Commit</button>
+            <button class="splitbtn__chev"><svg data-lucide="chevron-down"></svg></button>
+          </span>
+          <div class="demo-note">hasChanges · +142 −18 · ↑3</div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>2 · Commit &amp; push</b>Dirty and upstream known — the composite lands both steps in one action (synara composite, authorized delta).</div>
+        <div class="spec__demo">
+          <span class="splitbtn" role="group" aria-label="Git actions">
+            <button class="splitbtn__main"><svg data-lucide="git-branch"></svg>Commit &amp; push</button>
+            <button class="splitbtn__chev"><svg data-lucide="chevron-down"></svg></button>
+          </span>
+          <div class="demo-note">hasChanges · hasUpstream</div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>3 · Push</b>Clean tree, commits pending. <code>hasCommitsToPush=true</code>; commit rows now carry "No uncommitted changes to commit."</div>
+        <div class="spec__demo">
+          <span class="splitbtn" role="group" aria-label="Git actions">
+            <button class="splitbtn__main"><svg data-lucide="git-branch"></svg>Push</button>
+            <button class="splitbtn__chev"><svg data-lucide="chevron-down"></svg></button>
+          </span>
+          <div class="demo-note">!hasChanges · ↑3</div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>4 · Open PR</b>Clean, pushed, no linked PR. Everything upstream of the PR is done — the machine lands here on its own.</div>
+        <div class="spec__demo">
+          <span class="splitbtn" role="group" aria-label="Git actions">
+            <button class="splitbtn__main"><svg data-lucide="git-pull-request"></svg>Open PR</button>
+            <button class="splitbtn__chev"><svg data-lucide="chevron-down"></svg></button>
+          </span>
+          <div class="demo-note">!hasChanges · ↑0 · pr=null</div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>5 · View PR</b>PR linked — open-pr collapsed into view-pr and the selection followed it (<code>:308-327</code>).</div>
+        <div class="spec__demo">
+          <span class="splitbtn" role="group" aria-label="Git actions">
+            <button class="splitbtn__main"><svg data-lucide="external-link"></svg>View PR</button>
+            <button class="splitbtn__chev"><svg data-lucide="chevron-down"></svg></button>
+          </span>
+          <div class="demo-note">pr.state=open · #412</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · BLOCKED WITH REASON ════ -->
+    <section class="lab-sec" data-od-id="lab-blocked">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Blocked with reason</h2>
+        <span class="lab-sec__gist">the reason is a functional label — tooltip on the button, row text in the menu</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Tooltip + menu row</b>A blocked action never just greys out: the button carries <code>title</code>, the menu row prints the same reason. Literals verbatim from analysis/07 §Transferable 8. <b>Reason literals — inventory, not a menu:</b> each row shows a different state (that's why Push appears twice); a real menu renders one state at a time.</div>
+        <div class="spec__demo demo-pair">
+          <!-- gating: hasChanges=true → push disabled (use-open-pr-button-action.ts:233-247) -->
+          <span class="splitbtn" data-disabled role="group" aria-label="Git actions" title="Commit changes before pushing branches.">
+            <button class="splitbtn__main" disabled><svg data-lucide="git-branch"></svg>Push</button>
+            <button class="splitbtn__chev" disabled><svg data-lucide="chevron-down"></svg></button>
+          </span>
+          <div class="gmenu">
+            <div class="gmenu__h">Git actions</div>
+            <button class="gmenu__item" data-disabled title="Commit changes before pushing branches.">
+              <svg data-lucide="git-branch"></svg>
+              <span class="gmenu__label">Push<span class="gmenu__reason">Commit changes before pushing branches.</span></span>
+            </button>
+            <button class="gmenu__item" data-disabled title="No commits pending push.">
+              <svg data-lucide="git-branch"></svg>
+              <span class="gmenu__label">Push<span class="gmenu__reason">No commits pending push.</span></span>
+            </button>
+            <button class="gmenu__item" data-disabled title="No uncommitted changes to commit.">
+              <svg data-lucide="git-commit-horizontal"></svg>
+              <span class="gmenu__label">Commit<span class="gmenu__reason">No uncommitted changes to commit.</span></span>
+            </button>
+            <button class="gmenu__item" data-disabled title="Push commits before opening pull requests.">
+              <svg data-lucide="git-pull-request"></svg>
+              <span class="gmenu__label">Open PR<span class="gmenu__reason">Push commits before opening pull requests.</span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · PAUSED WHILE SESSION RUNNING ════ -->
+    <section class="lab-sec" data-od-id="lab-paused">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Paused while session running</h2>
+        <span class="lab-sec__gist">global override — every row, one reason · refetch on the running→stopped edge</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Executing turn</b>While the bound session executes, all git actions pause with an explicit reason (<code>use-open-pr-button-action.ts:72-73</code>). Status refetches when the run stops (<code>:333-340</code>).</div>
+        <div class="spec__demo demo-pair">
+          <!-- gating: session.status==="running" for the bound session → global disabledReason on every action -->
+          <span class="splitbtn" data-disabled role="group" aria-label="Git actions" title="Git actions are paused while Fix payment retries is running.">
+            <button class="splitbtn__main" disabled><svg data-lucide="git-commit-horizontal"></svg>Commit</button>
+            <button class="splitbtn__chev" disabled><svg data-lucide="chevron-down"></svg></button>
+          </span>
+          <div class="gmenu">
+            <div class="gmenu__h">Git actions</div>
+            <button class="gmenu__item" data-disabled title="Git actions are paused while Fix payment retries is running.">
+              <svg data-lucide="git-commit-horizontal"></svg>
+              <span class="gmenu__label">Commit<span class="gmenu__reason">Git actions are paused while Fix payment retries is running.</span></span>
+            </button>
+            <button class="gmenu__item" data-disabled title="Git actions are paused while Fix payment retries is running.">
+              <svg data-lucide="git-branch"></svg>
+              <span class="gmenu__label">Commit &amp; push<span class="gmenu__reason">Git actions are paused while Fix payment retries is running.</span></span>
+            </button>
+            <button class="gmenu__item" data-disabled title="Git actions are paused while Fix payment retries is running.">
+              <svg data-lucide="git-branch"></svg>
+              <span class="gmenu__label">Push<span class="gmenu__reason">Git actions are paused while Fix payment retries is running.</span></span>
+            </button>
+            <button class="gmenu__item" data-disabled title="Git actions are paused while Fix payment retries is running.">
+              <svg data-lucide="git-pull-request"></svg>
+              <span class="gmenu__label">Open PR<span class="gmenu__reason">Git actions are paused while Fix payment retries is running.</span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · STATUS READ FAILED ════ -->
+    <section class="lab-sec" data-od-id="lab-read-failed">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Status read failed — bench-harness</h2>
+        <span class="lab-sec__gist">a failed read blocks the WHOLE control · never rendered as "clean"</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Explicit failure</b>The strip's fifth field is the read failure itself. Dirty / ahead are unknown → em-dash cells, never zero or "clean"; PR is not fetched. <code>status:"failed"</code> becomes the global disabled reason (<code>worktree-types.ts:108-119</code>, <code>use-open-pr-button-action.ts:202-210</code>).</div>
+        <div class="spec__demo">
+          <!-- gating: git-status → {status:"failed", error:"not a git repository"} — blocks every action -->
+          <div class="wt-strip" style="margin-bottom:10px">
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Branch</span>
+              <span class="wt-strip__v"><span class="mono">pedro/bench-harness</span>
+                <button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+            </div>
+            <div class="wt-strip__cell" data-unknown>
+              <span class="wt-strip__k">Dirty</span>
+              <span class="wt-strip__v">—</span>
+            </div>
+            <div class="wt-strip__cell" data-unknown>
+              <span class="wt-strip__k">Ahead / behind</span>
+              <span class="wt-strip__v">—</span>
+            </div>
+            <div class="wt-strip__cell" data-tone="danger">
+              <span class="wt-strip__k">Status</span>
+              <span class="wt-strip__v"><svg data-lucide="circle-alert" style="width:13px;height:13px"></svg>read failed
+                <span class="mono" style="color:var(--faint)">not a git repository</span></span>
+            </div>
+          </div>
+          <span class="splitbtn" data-disabled role="group" aria-label="Git actions" title="Git status could not be read for this worktree.">
+            <button class="splitbtn__main" disabled><svg data-lucide="git-commit-horizontal"></svg>Commit</button>
+            <button class="splitbtn__chev" disabled><svg data-lucide="chevron-down"></svg></button>
+          </span>
+          <div class="demo-note">status:"failed" → hasStatusErrors → whole control blocked</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · BEHIND / DIVERGED REFUSAL ════ -->
+    <section class="lab-sec" data-od-id="lab-diverged">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Behind / diverged — auth-refresh</h2>
+        <span class="lab-sec__gist">refuse, never auto-resolve — v1 does not rebase or merge for you</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Behind upstream</b>auth-refresh is clean, ↓2, PR #412 open — View PR stays live; Open PR-class actions refuse with the behind literal (synara logic.ts:116-146).</div>
+        <div class="spec__demo">
+          <!-- gating: git-status → {behind:2, ahead:0, hasUpstream:true} · pr → {state:"open", number:412} -->
+          <div class="wt-strip" style="margin-bottom:10px">
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Branch</span>
+              <span class="wt-strip__v"><span class="mono">pedro/auth-refresh</span>
+                <button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+            </div>
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Dirty</span>
+              <span class="wt-strip__v" style="color:var(--muted);font-weight:400">clean</span>
+            </div>
+            <div class="wt-strip__cell" data-tone="warning">
+              <span class="wt-strip__k">Ahead / behind</span>
+              <span class="wt-strip__v"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+            </div>
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">PR</span>
+              <span class="wt-strip__v"><span class="pill" data-tone="info" data-mono="true">PR #412</span>open</span>
+            </div>
+          </div>
+          <div class="gmenu">
+            <div class="gmenu__h">Git actions</div>
+            <button class="gmenu__item" aria-selected="true">
+              <svg data-lucide="external-link"></svg>
+              <span class="gmenu__label">View PR</span>
+            </button>
+            <button class="gmenu__item" data-disabled title="Branch is behind upstream. Pull before creating a PR.">
+              <svg data-lucide="git-pull-request"></svg>
+              <span class="gmenu__label">Open PR<span class="gmenu__reason">Branch is behind upstream. Pull before creating a PR.</span></span>
+            </button>
+            <button class="gmenu__item" data-disabled title="No commits pending push.">
+              <svg data-lucide="git-branch"></svg>
+              <span class="gmenu__label">Push<span class="gmenu__reason">No commits pending push.</span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Diverged</b>Ahead AND behind — pushing would need force. The action refuses with the diverged literal; resolution stays with the human (or a staged agent prompt).</div>
+        <div class="spec__demo">
+          <!-- gating: git-status → {ahead:1, behind:2, hasUpstream:true} → diverged refusal on push/PR -->
+          <div class="wt-strip" style="margin-bottom:10px">
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Branch</span>
+              <span class="wt-strip__v"><span class="mono">pedro/auth-refresh</span>
+                <button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+            </div>
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Dirty</span>
+              <span class="wt-strip__v" style="color:var(--muted);font-weight:400">clean</span>
+            </div>
+            <div class="wt-strip__cell" data-tone="warning">
+              <span class="wt-strip__k">Ahead / behind</span>
+              <span class="wt-strip__v"><span class="wt-ab"><span class="ahead">1</span><span class="behind" data-hot>2</span></span></span>
+            </div>
+          </div>
+          <div class="gmenu">
+            <div class="gmenu__h">Git actions</div>
+            <button class="gmenu__item" data-disabled title="Branch has diverged from upstream. Rebase/merge first.">
+              <svg data-lucide="git-branch"></svg>
+              <span class="gmenu__label">Push<span class="gmenu__reason">Branch has diverged from upstream. Rebase/merge first.</span></span>
+            </button>
+            <button class="gmenu__item" data-disabled title="Branch has diverged from upstream. Rebase/merge first.">
+              <svg data-lucide="git-pull-request"></svg>
+              <span class="gmenu__label">Open PR<span class="gmenu__reason">Branch has diverged from upstream. Rebase/merge first.</span></span>
+            </button>
+          </div>
+          <div class="demo-note">↑1 ↓2 · hasUpstream — behind is parsed (compozy-code never parsed it; the gap this design closes)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 06 · NO REMOTE ════ -->
+    <section class="lab-sec" data-od-id="lab-no-remote">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">No remote — commit only</h2>
+        <span class="lab-sec__gist">push / PR rows are absent, not disabled · the one reason line explains why</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>remotes = []</b>With no remote there is nothing to push to and no forge to PR against: those rows do not render. Strip shows branch + dirty only — ahead/behind needs an upstream (<code>hasUpstream=false</code> → absent).</div>
+        <div class="spec__demo">
+          <!-- gating: git remotes list → [] — push/PR actions not rendered (truthful UI: absent, not disabled);
+               reason literal from synara logic.ts:436-540, kept as the menu's single functional footer line -->
+          <div class="wt-strip" style="margin-bottom:10px">
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Branch</span>
+              <span class="wt-strip__v"><span class="mono">spike/sqlite-vacuum</span>
+                <button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+            </div>
+            <div class="wt-strip__cell" data-tone="warning">
+              <span class="wt-strip__k">Dirty</span>
+              <span class="wt-strip__v"><span class="wt-dirty"><span class="ins">+37</span><span class="del">−4</span></span></span>
+            </div>
+          </div>
+          <div class="gmenu">
+            <div class="gmenu__h">Git actions</div>
+            <button class="gmenu__item" aria-selected="true">
+              <svg data-lucide="git-commit-horizontal"></svg>
+              <span class="gmenu__label">Commit</span>
+            </button>
+            <span class="gmenu__note">Add an &quot;origin&quot; remote before creating a PR.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 07 · ZERO CREDENTIAL ════ -->
+    <section class="lab-sec" data-od-id="lab-zero-cred">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Zero credential — browser compare only</h2>
+        <span class="lab-sec__gist">no token, no PR widgets — absent, never disabled placeholders</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Escape hatch</b>Without a forge credential the daemon cannot know PR state: the strip renders NO PR cell, and the only PR-shaped action is the compare-URL browser row (compozy-code github-compare-url.ts:73-92 — its only path today).</div>
+        <div class="spec__demo">
+          <!-- gating: forge credential absent → GET …/pr not called; PR cell + Open PR/View PR rows NOT rendered
+               (A7 zero-remote precedent: {kind:"hidden"} — use-pr-button-state.ts:376-378) -->
+          <div class="wt-strip" style="margin-bottom:10px">
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Branch</span>
+              <span class="wt-strip__v"><span class="mono">pedro/payments-retry</span>
+                <button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+            </div>
+            <div class="wt-strip__cell" data-tone="warning">
+              <span class="wt-strip__k">Dirty</span>
+              <span class="wt-strip__v"><span class="wt-dirty"><span class="ins">+142</span><span class="del">−18</span></span></span>
+            </div>
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Ahead / behind</span>
+              <span class="wt-strip__v"><span class="wt-ab"><span class="ahead">3</span></span></span>
+            </div>
+          </div>
+          <div class="gmenu">
+            <div class="gmenu__h">Git actions</div>
+            <button class="gmenu__item" aria-selected="true">
+              <svg data-lucide="git-commit-horizontal"></svg>
+              <span class="gmenu__label">Commit</span>
+            </button>
+            <button class="gmenu__item">
+              <svg data-lucide="git-branch"></svg>
+              <span class="gmenu__label">Commit &amp; push</span>
+            </button>
+            <button class="gmenu__item" data-disabled title="Commit changes before pushing branches.">
+              <svg data-lucide="git-branch"></svg>
+              <span class="gmenu__label">Push<span class="gmenu__reason">Commit changes before pushing branches.</span></span>
+            </button>
+            <button class="gmenu__item" data-disabled title="Commit changes before opening pull requests.">
+              <svg data-lucide="external-link"></svg>
+              <span class="gmenu__label">Open PR in browser<span class="gmenu__reason">Commit changes before opening pull requests.</span></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 08 · MERGED + CLEAN UP ════ -->
+    <section class="lab-sec" data-od-id="lab-merged">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Merged — fix-flaky-e2e</h2>
+        <span class="lab-sec__gist">one calm success row + a suggestion, never an auto-run</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Merged on GitHub</b>Forge says PR #398 merged → the strip's PR cell goes success and a quiet suggestion row offers Clean up, handing off to the removal confirm. Full merged/cleanup matrix: <code>worktree-merged-cleanup.html</code>.</div>
+        <div class="spec__demo">
+          <!-- gating: pr → {state:"merged", number:398} — fresher forge snapshot wins over stale git status
+               (synara EnvironmentPullRequestSection.tsx:246-249).
+               gating: Clean up btn — hands off to the removal confirm (DELETE /api/workspaces/:id/worktrees/:name);
+               suggestion only, never auto-runs. -->
+          <div class="wt-strip" style="margin-bottom:10px">
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Branch</span>
+              <span class="wt-strip__v"><span class="mono">run/fix-flaky-e2e</span>
+                <button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+            </div>
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Dirty</span>
+              <span class="wt-strip__v" style="color:var(--muted);font-weight:400">clean</span>
+            </div>
+            <div class="wt-strip__cell" data-tone="success">
+              <span class="wt-strip__k">PR</span>
+              <span class="wt-strip__v"><span class="wt-merged"><svg data-lucide="git-merge"></svg>Merged on GitHub</span>
+                <span class="mono" style="color:var(--faint)">#398</span></span>
+            </div>
+          </div>
+          <div class="panelbox" style="display:flex;align-items:center;gap:9px;padding:9px 12px">
+            <svg data-lucide="git-merge" style="width:14px;height:14px;color:var(--success);flex:none"></svg>
+            <span style="font-size:12px;color:var(--fg)">Merged on GitHub — this worktree is safe to clean up.</span>
+            <span style="flex:1"></span>
+            <a class="btn btn--sm" href="worktree-merged-cleanup.html">Clean up</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 09 · STALE REMOTE MARKER ════ -->
+    <section class="lab-sec" data-od-id="lab-stale">
+      <div class="lab-sec__head"><span class="lab-sec__num">09</span><h2 class="lab-sec__t">Stale remote values</h2>
+        <span class="lab-sec__gist">remote-derived numbers say when they were true instead of pretending freshness</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>as-of marker</b>Local fields are cheap and instant; ahead/behind and PR state ride the last fetch. When that snapshot ages, <code>.wt-stale</code> stamps it (split local/forge status — synara git.ts:355-392).</div>
+        <div class="spec__demo">
+          <!-- gating: git-status.fetchedAt / pr.fetchedAt — staleness marker when now − fetchedAt > threshold -->
+          <div class="wt-strip">
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">Branch</span>
+              <span class="wt-strip__v"><span class="mono">pedro/auth-refresh</span>
+                <button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+            </div>
+            <div class="wt-strip__cell" data-tone="warning">
+              <span class="wt-strip__k">Ahead / behind</span>
+              <span class="wt-strip__v"><span class="wt-ab"><span class="behind" data-hot>2</span></span>
+                <span class="wt-stale">as of 18m ago</span></span>
+            </div>
+            <div class="wt-strip__cell">
+              <span class="wt-strip__k">PR</span>
+              <span class="wt-strip__v"><span class="pill" data-tone="info" data-mono="true">PR #412</span>open
+                <span class="wt-stale">as of 18m ago</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ S16 · SESSION HEADER MOUNT ════════════════ -->
+    <section class="lab-sec" data-od-id="lab-s16-mount">
+      <div class="lab-sec__head"><span class="lab-sec__num">S16</span><h2 class="lab-sec__t">Session header — binding chip only</h2>
+        <span class="lab-sec__gist">unbound adds nothing · bound shows the chip · the exit control never mounts here (OQ7 locked)</span></div>
+
+      <!-- session status-dot semantics (LOCKED vocabulary):
+           accent .d--run = running · success .d--ok = finished · neutral = idle ·
+           hollow accent .d--wait = awaiting input (turn finished, waiting on the user). -->
+      <div class="spec">
+        <div class="spec__note"><b>Unbound</b>A session at workspace root adds nothing to the header — no chip, no placeholder. Absence is the signal.</div>
+        <div class="spec__demo">
+          <!-- gating: session.worktree_id == null → no binding UI rendered.
+               gating: .icon-button ellipsis — session actions menu (out of this artboard's scope); no worktree gate. -->
+          <div class="sess-top">
+            <span class="d d--run"></span>
+            <span class="sess-top__title">Fix payment retries</span>
+            <span class="dotsep"></span>
+            <span class="sess-top__agent">claude</span>
+            <span class="spacer"></span>
+            <button class="icon-button" title="Session actions"><svg data-lucide="ellipsis"></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Bound chip — awaiting input</b>A worktree-bound session names its environment. The chip opens the worktree context (this page's hero — href omitted in this static artboard to avoid a self-link). Env-chip grammar reused from S8; hollow <code>.d--wait</code> dot matches the hero's awaiting-input state.</div>
+        <div class="spec__demo">
+          <!-- gating: session.worktree_id → GET /api/workspaces/:id/worktrees/:name (chip label + link target) -->
+          <div class="sess-top">
+            <span class="d d--wait"></span>
+            <span class="sess-top__title">Fix payment retries</span>
+            <span class="dotsep"></span>
+            <span class="sess-top__agent">claude</span>
+            <span class="spacer"></span>
+            <a class="env-chip" title="Worktree payments-retry — open context">
+              <svg data-lucide="folder-git-2"></svg>payments-retry</a>
+            <button class="icon-button" title="Session actions"><svg data-lucide="ellipsis"></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Bound — running</b>LOCKED (OQ7): the binding chip always mounts in the session header; the exit split button mounts ONLY in the worktree detail context — never in the session header. Mid-turn the chip is all the header carries; git actions live in the hero above and are paused while the session runs.</div>
+        <div class="spec__demo">
+          <!-- gating: session.worktree_id → binding chip (always in the session header).
+               The exit split button NEVER mounts here — OQ7 locked: worktree detail context only
+               (supersedes the execution-actions.tsx:167-210 precedent). While session.status==="running",
+               the detail-context actions pause (use-open-pr-button-action.ts:72-73) — demo 03. -->
+          <div class="sess-top">
+            <span class="d d--run"></span>
+            <span class="sess-top__title">Fix payment retries</span>
+            <span class="dotsep"></span>
+            <span class="sess-top__agent">claude</span>
+            <span class="spacer"></span>
+            <a class="env-chip" title="Worktree payments-retry — open context">
+              <svg data-lucide="folder-git-2"></svg>payments-retry</a>
+            <button class="icon-button" title="Session actions"><svg data-lucide="ellipsis"></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Binding target missing</b>The bound worktree's directory vanished out of band: the chip flips to the missing tone (info, dashed) and offers resolution — it never silently drops the binding. History is preserved.</div>
+        <div class="spec__demo">
+          <!-- gating: worktree.state==="missing" for session.worktree_id → chip goes missing + resolve link;
+               no exit control (git-status unreadable for a missing directory) -->
+          <div class="sess-top">
+            <span class="d d--ok"></span>
+            <span class="sess-top__title">CORS hotfix follow-up</span>
+            <span class="dotsep"></span>
+            <span class="sess-top__agent">claude</span>
+            <span class="spacer"></span>
+            <a class="env-chip wt-bind--missing" href="worktree-remove-dialogs.html" title="Worktree hotfix-cors is missing — resolve">
+              <svg data-lucide="folder-x"></svg>hotfix-cors · missing</a>
+            <a class="btn btn--sm" href="worktree-remove-dialogs.html">Resolve…</a>
+            <button class="icon-button" title="Session actions"><svg data-lucide="ellipsis"></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S6 worktree context + S16 session mount · spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md</span> ·
+      state machine <span class="mono">use-open-pr-button-action.ts:220-327</span> · copy verbatim per
+      <span class="mono">analysis/07 §Transferable 8</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

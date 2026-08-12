@@ -40,6 +40,12 @@ func (d *Daemon) bootLockAndSocket(
 	cleanup *bootCleanup,
 ) error {
 	pid := d.pid()
+	startedAt, err := d.processStartedAt(pid)
+	if err != nil {
+		return fmt.Errorf("daemon: read process %d start time: %w", pid, err)
+	}
+	state.startedAt = startedAt.UTC()
+
 	lock, err := d.acquireLock(d.homePaths.DaemonLock, pid)
 	if err != nil {
 		return err

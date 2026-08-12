@@ -1,5 +1,6 @@
 import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog";
+import { useSessionRenameDialog } from "@/hooks/routes/use-session-rename-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
 
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
@@ -63,6 +64,7 @@ export function useSessionWindowController(input: {
       }
     : null;
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
+  const renameDialog = useSessionRenameDialog(controls.handleRename);
   const clearDialog = useSessionClearDialog(controls.handleClear);
   const sidebar = useSessionWindowSidebar({ windowId, workspaceId, sessionId });
   // Secondary goal reader for the head action — the goal strip inside the
@@ -75,6 +77,7 @@ export function useSessionWindowController(input: {
   useSessionTopbarSlot({
     session,
     isDeleting: controls.isDeleting,
+    isRenaming: controls.isRenaming,
     isStopping: controls.isStopping,
     isResuming: controls.isResuming,
     isUnarchiving: controls.isUnarchiving,
@@ -95,6 +98,7 @@ export function useSessionWindowController(input: {
     ),
     onInspectorToggle: inspector.toggle,
     onDelete: deleteDialog.openDialog,
+    onRename: renameDialog.openDialog,
     onStop: controls.handleStop,
     onResume: controls.handleResume,
     onUnarchive: controls.handleUnarchive,
@@ -109,6 +113,7 @@ export function useSessionWindowController(input: {
     inspectorUsage,
     sessionVault,
     deleteDialog,
+    renameDialog,
     clearDialog,
     commandCatalog: sessionCommands.catalog,
     commandCatalogStatus: sessionCommands.isPending ? ("loading" as const) : ("ready" as const),

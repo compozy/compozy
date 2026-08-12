@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Worktree removal &amp; missing-resolution dialogs · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-remove-dialogs · S15 — removal (US-026 clean · US-027 dirty/unpushed two-step) +
+  missing-resolution (US-028). Final artboard, states presented lab-style.
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S15 · stories US-026/US-027/US-028.
+  Provenance:
+    production            — confirm copy pattern `Remove "<x>" from disk? This cannot be undone.`
+                            from compozy-code worktree-list-item.tsx:215-217 (production quoted the
+                            branch; here the title quotes the RECORD LABEL per the locked
+                            "name is the record label" rule — branch stays in the target card
+                            and the "not deleted" line); blocker/downgrade/idempotent
+                            copy from paperclip cli/src/commands/worktree.ts:2046-2150 (assess → safety
+                            checks → idempotent removal); dialog chrome from _done/modals/modal-system.css
+                            as transcribed into worktree.css
+    spec worktree-support — refusal-first two-step force (US-027 AC-1/AC-2), machine-readable
+                            dirty-requires-force + explicit force flag (AC-3), remote-exists downgrade
+                            (US-027 EC-1), missing record dismiss/re-verify with history preserved
+                            (US-028 AC-1..AC-3, EC-1/EC-2), sessions-stopped-first note (US-026 EC-1)
+    authorized delta      — .head-icon--warning + .dialog__head--warning (mirror of the danger variant,
+                            warning tone = dirty per the locked semantic mapping); .notice--info local
+                            variant (info tone = missing/downgrade); .risk / .opt-row / .outcome local
+                            presentation classes. Paths are illustrative — runtime truth owns final values.
+-->
+<style>
+  /* warning head (refusal is protective, not destructive — danger stays on true deletion) */
+  .head-icon--warning{background:var(--warning-tint);color:var(--warning);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warning) 24%,transparent)}
+  .dialog__head--warning .eyebrow{color:var(--warning)}
+  /* info notice (ds-core .notice ships warning + danger only) */
+  .notice--info{background:var(--info-tint)}
+  .notice--info svg{color:var(--info)}
+  /* target card — the wt-row re-set inside a dialog body */
+  .rm-target{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:3px 5px;margin-bottom:14px}
+  .rm-target .wt-row:hover{background:transparent}
+  .rm-path{display:block;font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* risk inventory — one row per blocker, quantity in mono, reason as functional label */
+  .risk{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .risk__row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--warning-tint)}
+  .risk__row svg{width:14px;height:14px;flex:none;margin-top:1px;color:var(--warning)}
+  .risk__main{min-width:0;flex:1}
+  .risk__what{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+  .risk__why{font-size:11.5px;line-height:1.5;color:var(--muted);margin-top:2px}
+  /* resolution option rows — action + functional description, no accent */
+  .opt-row{display:flex;width:100%;align-items:flex-start;gap:11px;padding:11px 12px;text-align:left;
+    border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .opt-row:hover{background:var(--row-hover);border-color:var(--line-strong)}
+  .opt-row + .opt-row{margin-top:8px}
+  .opt-row svg{width:15px;height:15px;flex:none;margin-top:1px;color:var(--muted)}
+  .opt-row b{display:block;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+  .opt-row span{display:block;font-size:11.5px;line-height:1.5;color:var(--subtle);margin-top:2px}
+  /* idempotent outcome line (paperclip exit-clean) */
+  .outcome{display:flex;align-items:flex-start;gap:9px;max-width:520px;padding:11px 13px;
+    border:1px solid var(--line-strong);border-radius:var(--radius-lg);background:var(--elevated);box-shadow:var(--shadow-overlay)}
+  .outcome svg{width:14px;height:14px;flex:none;margin-top:1px;color:var(--success)}
+  .outcome b{display:block;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+  .outcome span{display:block;font-size:11.5px;line-height:1.5;color:var(--muted);margin-top:2px}
+  .kv-mini{display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:14px}
+  .kv-mini .k{font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);margin-right:5px}
+  .kv-mini .v{font-family:var(--font-mono);font-size:10.5px;color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-remove-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Removal &amp; missing-resolution dialogs</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">S15</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-commit-sheet.html">Commit sheet →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · CLEAN REMOVE — US-026 (fix-flaky-e2e: per-run, merged, safe) ════ -->
+    <section class="lab-sec" data-od-id="sec-clean-remove">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Clean remove — single confirm</h2>
+        <span class="lab-sec__gist">US-026 · direct but explicit · branch survives, and the dialog says so</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Safe target</b>fix-flaky-e2e is clean, PR #398 merged, no unpushed unique commits — one confirmation, no second step. The confirm quotes the record label (locked rule — never the branch) and states what is <em>not</em> deleted. Destructive button uses <code>.btn--destructive</code>, never accent.</div>
+        <div class="spec__demo">
+          <div class="scrim scrim--demo">
+            <!-- gating: DELETE /api/workspaces/:wsId/worktrees/fix-flaky-e2e →
+                 single-step allowed because status.workingTree.changedFiles == 0
+                 AND status.unpushedUniqueCommits == 0 (US-026 AC-1); branch untouched (AC-2) -->
+            <div class="dialog dialog--compact" role="alertdialog" aria-modal="true" aria-labelledby="rm-clean-t" data-od-id="dlg-remove-clean">
+              <header class="dialog__head dialog__head--danger">
+                <span class="head-icon head-icon--danger"><svg data-lucide="trash-2"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">Remove worktree</span>
+                  <!-- title quotes the record label (locked rule) — branch lives in the target card + the "not deleted" line -->
+                  <h3 id="rm-clean-t">Remove &ldquo;fix-flaky-e2e&rdquo; from disk? This cannot be undone.</h3>
+                  <p>The worktree directory is deleted. <b>The branch run/fix-flaky-e2e is not deleted.</b></p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="rm-target">
+                  <!-- gating: GET /api/workspaces/:wsId/worktrees/fix-flaky-e2e → { origin:"per-run", pr:{ number:398, state:"merged" } } -->
+                  <div class="wt-row">
+                    <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                    <span class="wt-row__main">
+                      <span class="wt-row__name"><b>fix-flaky-e2e</b><span class="wt-origin">per-run</span></span>
+                      <span class="wt-row__branch"><code>run/fix-flaky-e2e</code></span>
+                    </span>
+                    <span class="wt-row__trail"><span class="wt-row__meta">
+                      <span class="wt-merged"><svg data-lucide="git-merge"></svg>Merged</span>
+                      <span class="pill" data-tone="info" data-mono="true">PR #398</span>
+                    </span><span class="wt-row__time">2d</span></span>
+                  </div>
+                  <span class="rm-path" style="padding:0 10px 6px">~/.compozy/worktrees/compozy/fix-flaky-e2e</span>
+                </div>
+                <div class="kv-mini">
+                  <!-- gating: status.workingTree.changedFiles == 0 → "clean"; status.unpushedUniqueCommits == 0 -->
+                  <span><span class="k">Working tree</span><span class="v">clean</span></span>
+                  <span><span class="k">Unpushed commits</span><span class="v">0</span></span>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="git-branch"></svg>Branch and run history stay in the workspace.</div>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--destructive">Remove worktree</button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Bound session variant</b>US-026 EC-1: a session bound to the worktree is named before removal proceeds. The note is a functional consequence, not helper prose — sessions stop first, history stays readable (AC-2). Count and idle/running come from the payload, never guessed.</div>
+        <div class="spec__demo">
+          <div class="scrim scrim--demo">
+            <!-- gating: DELETE .../worktrees/fix-flaky-e2e → precondition lists boundSessions[]
+                 ({ id, title, agentState:"idle" }); daemon stops them before rm (US-026 AC-2/EC-1) -->
+            <div class="dialog dialog--compact" role="alertdialog" aria-modal="true" aria-labelledby="rm-clean-sess-t" data-od-id="dlg-remove-clean-session">
+              <header class="dialog__head dialog__head--danger">
+                <span class="head-icon head-icon--danger"><svg data-lucide="trash-2"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">Remove worktree</span>
+                  <h3 id="rm-clean-sess-t">Remove &ldquo;fix-flaky-e2e&rdquo; from disk? This cannot be undone.</h3>
+                  <p>The worktree directory is deleted. <b>The branch run/fix-flaky-e2e is not deleted.</b></p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="rm-target">
+                  <div class="wt-row">
+                    <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                    <span class="wt-row__main">
+                      <span class="wt-row__name"><b>fix-flaky-e2e</b><span class="wt-origin">per-run</span></span>
+                      <span class="wt-row__branch"><code>run/fix-flaky-e2e</code></span>
+                    </span>
+                    <span class="wt-row__trail"><span class="wt-row__meta">
+                      <span class="wt-merged"><svg data-lucide="git-merge"></svg>Merged</span>
+                    </span><span class="wt-row__time">2d</span></span>
+                  </div>
+                </div>
+                <!-- gating: boundSessions.length == 1 → notice rendered; 0 → notice absent, never "0 sessions" -->
+                <div class="notice" data-od-id="notice-sessions-stop">
+                  <svg data-lucide="circle-pause"></svg>
+                  <div><b>1 idle session bound to this worktree will be stopped.</b> Its history remains readable in the workspace.</div>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="git-branch"></svg>Branch and run history stay in the workspace.</div>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--destructive">Remove worktree</button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Bound session running</b>A session mid-turn blocks removal outright — the daemon never kills an executing turn to delete a directory. The refusal names the session; the way out is finishing or stopping the turn, then removing.</div>
+        <div class="spec__demo">
+          <div class="scrim scrim--demo">
+            <!-- gating: DELETE .../worktrees/fix-flaky-e2e → 409 error.code="session-running"
+                 with boundSessions[] ({ id, title, agentState:"running" }); removal allowed only
+                 after the turn ends or the session is stopped (US-026 EC-1) -->
+            <div class="dialog dialog--compact" role="alertdialog" aria-modal="true" aria-labelledby="rm-running-t" data-od-id="dlg-remove-session-running">
+              <header class="dialog__head dialog__head--warning">
+                <span class="head-icon head-icon--warning"><svg data-lucide="shield-alert"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">Removal blocked</span>
+                  <h3 id="rm-running-t">A session is mid-turn in fix-flaky-e2e</h3>
+                  <p>Nothing was removed. Removal waits until the turn ends or the session is stopped.</p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="rm-target" style="margin-bottom:14px">
+                  <div class="wt-row">
+                    <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                    <span class="wt-row__main">
+                      <span class="wt-row__name"><b>fix-flaky-e2e</b><span class="wt-origin">per-run</span></span>
+                      <span class="wt-row__branch"><code>run/fix-flaky-e2e</code></span>
+                    </span>
+                    <span class="wt-row__trail"><span class="wt-row__meta">
+                      <span class="wt-agent"><span class="d d--run d--pulse"></span></span>
+                    </span><span class="wt-row__time">now</span></span>
+                  </div>
+                </div>
+                <div class="notice" data-od-id="notice-session-running">
+                  <svg data-lucide="circle-pause"></svg>
+                  <div><b>&ldquo;Flake sweep&rdquo; is running a turn on this worktree.</b> Stop it, or try again after the turn ends.</div>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="history"></svg>Session history stays readable either way.</div>
+                <button class="btn btn--ghost">Cancel</button>
+                <!-- gating: boundSessions[0].id backs the jump — never rendered without a session id -->
+                <button class="btn" data-od-id="btn-open-running-session">Open session</button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · DIRTY / UNPUSHED — US-027 (payments-retry: refuse → assist → explicit force) ════ -->
+    <section class="lab-sec" data-od-id="sec-dirty-refusal">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Dirty / unpushed — refuse first</h2>
+        <span class="lab-sec__gist">US-027 · names exactly what is at risk · assisted exit is the way out</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Refusal panel</b>payments-retry holds <code>6 changed files</code> (+142 −18) and <code>3 unpushed commits</code> — removal refuses and itemizes both (AC-1). Warning head: the refusal protects, it does not destroy. Primary alternative is the assisted exit; force is a demoted second step, never one click.</div>
+        <div class="spec__demo">
+          <div class="scrim scrim--demo">
+            <!-- gating: DELETE .../worktrees/payments-retry (force absent) → 409 error.code="dirty-requires-force"
+                 with { changedFiles:6, insertions:142, deletions:18, unpushedUniqueCommits:3,
+                        branchExistsOnRemote:false } (US-027 AC-1/AC-3) -->
+            <div class="dialog dialog--compact" role="alertdialog" aria-modal="true" aria-labelledby="rm-refusal-t" data-od-id="dlg-remove-refusal">
+              <header class="dialog__head dialog__head--warning">
+                <span class="head-icon head-icon--warning"><svg data-lucide="shield-alert"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">Removal blocked</span>
+                  <h3 id="rm-refusal-t">payments-retry holds work that exists nowhere else</h3>
+                  <p>Nothing was removed. Commit &amp; push the work out first, or force remove and lose it.</p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="risk" data-od-id="risk-inventory">
+                  <!-- gating: status.workingTree { changedFiles:6, insertions:142, deletions:18 } -->
+                  <div class="risk__row">
+                    <svg data-lucide="file-diff"></svg>
+                    <div class="risk__main">
+                      <div class="risk__what">6 changed files
+                        <span class="wt-dirty"><span class="ins">+142</span><span class="del">−18</span></span></div>
+                      <div class="risk__why">payments-retry has uncommitted changes. Commit or stash first, or force remove.</div>
+                    </div>
+                  </div>
+                  <!-- gating: status.unpushedUniqueCommits:3 AND branchExistsOnRemote:false → blocker
+                       (paperclip worktree.ts:2085-2087 copy, verbatim core) -->
+                  <div class="risk__row">
+                    <svg data-lucide="arrow-up-from-line"></svg>
+                    <div class="risk__main">
+                      <div class="risk__what">3 unpushed commits
+                        <span class="wt-ab"><span class="ahead">3</span></span></div>
+                      <div class="risk__why"><code style="font-family:var(--font-mono);font-size:10.5px;color:var(--fg)">pedro/payments-retry</code> has commits not found on any other branch or remote. Deleting it will lose work. Push it first, or force remove.</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="kv-mini">
+                  <span><span class="k">Branch</span><span class="v">pedro/payments-retry</span></span>
+                  <span><span class="k">Path</span><span class="v" style="color:var(--faint)">~/.compozy/worktrees/compozy/payments-retry</span></span>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><!-- quiet — the refusal reasons live in the body inventory --></div>
+                <button class="btn btn--ghost">Cancel</button>
+                <!-- force is a doorway to a second explicit confirm (US-027 AC-2), never the direct action;
+                     sits after Cancel in DOM + tab order, danger ink via .btn--ghost-danger -->
+                <button class="btn btn--ghost btn--ghost-danger" data-od-id="btn-force-doorway">Force remove…</button>
+                <!-- gating: primary alternative → assisted exit flow (S14 commit sheet), split Commit / Commit & push -->
+                <a class="btn btn--primary" href="worktree-commit-sheet.html" data-od-id="btn-assisted-exit">Commit &amp; push first</a>
+              </footer>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Explicit force confirm</b>The second dialog (AC-2): permanence stated in the title pattern and quantified in the body — the exact work being destroyed, not a generic warning. Only this confirmation proceeds; the API path requires its own explicit <code>force</code> flag (AC-3).</div>
+        <div class="spec__demo">
+          <div class="scrim scrim--demo">
+            <!-- gating: DELETE .../worktrees/payments-retry { force:true } — separate explicit argument;
+                 UI reaches this dialog only through the refusal panel's "Force remove…" (US-027 AC-2/AC-3) -->
+            <div class="dialog dialog--compact" role="alertdialog" aria-modal="true" aria-labelledby="rm-force-t" data-od-id="dlg-remove-force">
+              <header class="dialog__head dialog__head--danger">
+                <span class="head-icon head-icon--danger"><svg data-lucide="triangle-alert"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">Force remove</span>
+                  <h3 id="rm-force-t">Remove &ldquo;payments-retry&rdquo; from disk? This cannot be undone.</h3>
+                  <p><b>6 changed files (+142 −18) and 3 unpushed commits are deleted permanently.</b> They exist nowhere else.</p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="rm-target" style="margin-bottom:0">
+                  <div class="wt-row">
+                    <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                    <span class="wt-row__main">
+                      <span class="wt-row__name"><b>payments-retry</b></span>
+                      <span class="wt-row__branch"><code>pedro/payments-retry</code></span>
+                    </span>
+                    <span class="wt-row__trail"><span class="wt-row__meta">
+                      <span class="wt-dirty"><span class="ins">+142</span><span class="del">−18</span></span>
+                      <span class="wt-ab"><span class="ahead">3</span></span>
+                    </span><span class="wt-row__time">4m</span></span>
+                  </div>
+                  <span class="rm-path" style="padding:0 10px 6px">~/.compozy/worktrees/compozy/payments-retry</span>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note foot-note--danger"><svg data-lucide="triangle-alert"></svg>This deletes work that was never pushed anywhere.</div>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--destructive">Force remove</button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Remote-exists downgrade</b>US-027 EC-1 on data-migration: <code>↑1</code> unique local commit, but <code>pedro/data-migration</code> also exists on the remote — the blocker downgrades to an informational note and the refusal becomes a normal single confirm. No force step.</div>
+        <div class="spec__demo">
+          <div class="scrim scrim--demo">
+            <!-- gating: status { changedFiles:0, unpushedUniqueCommits:1, branchExistsOnRemote:true }
+                 → downgrade path (paperclip worktree.ts:2020-2031): info note, single-step DELETE allowed -->
+            <div class="dialog dialog--compact" role="alertdialog" aria-modal="true" aria-labelledby="rm-downgrade-t" data-od-id="dlg-remove-downgrade">
+              <header class="dialog__head dialog__head--danger">
+                <span class="head-icon head-icon--danger"><svg data-lucide="trash-2"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">Remove worktree</span>
+                  <h3 id="rm-downgrade-t">Remove &ldquo;data-migration&rdquo; from disk? This cannot be undone.</h3>
+                  <p>The worktree directory is deleted. <b>The branch pedro/data-migration is not deleted.</b></p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="rm-target">
+                  <div class="wt-row">
+                    <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                    <span class="wt-row__main">
+                      <span class="wt-row__name"><b>data-migration</b></span>
+                      <span class="wt-row__branch"><code>pedro/data-migration</code></span>
+                    </span>
+                    <span class="wt-row__trail"><span class="wt-row__meta">
+                      <span class="wt-ab"><span class="ahead">1</span></span>
+                    </span><span class="wt-row__time">3h</span></span>
+                  </div>
+                </div>
+                <div class="notice notice--info" data-od-id="notice-remote-downgrade">
+                  <svg data-lucide="info"></svg>
+                  <div>Branch has unique local commits, but the branch also exists on a remote — safe to delete locally.</div>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="git-branch"></svg>Branch and run history stay in the workspace.</div>
+                <button class="btn btn--ghost">Cancel</button>
+                <button class="btn btn--destructive">Remove worktree</button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · MISSING RESOLUTION — US-028 (hotfix-cors: removed out of band) ════ -->
+    <section class="lab-sec" data-od-id="sec-missing-resolution">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Missing — resolve, never cascade</h2>
+        <span class="lab-sec__gist">US-028 · dismiss or re-verify · run history is never deleted</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>The missing row</b>hotfix-cors was removed outside Compozy: the entry flips to <code>missing</code> (dashed icon well, muted name) and keeps a single <b>Resolve…</b> affordance. The record never vanishes with its directory (AC-1).</div>
+        <div class="spec__demo">
+          <div class="panelbox" style="padding:4px 6px;max-width:560px">
+            <!-- gating: reconciliation sets worktree.state="missing" when the directory is gone;
+                 sessions/task runs bound to it stay intact (US-028 AC-1) -->
+            <div class="wt-row" data-state="missing" data-od-id="row-missing">
+              <span class="wt-row__icon"><svg data-lucide="folder-x"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>hotfix-cors</b><span class="wt-chip" data-state="missing">missing</span></span>
+                <span class="wt-row__branch"><code>pedro/hotfix-cors</code><button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <button class="btn btn--sm">Resolve…</button>
+              </span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Resolution dialog</b>Two explicit outcomes, neither destructive to history: dismiss the record (acknowledge the removal — AC-2) or re-verify the path (EC-1 restores only on matching identity; EC-2: a different repository at the same path never counts). Neutral head — nothing here deletes work.</div>
+        <div class="spec__demo">
+          <div class="scrim scrim--demo">
+            <div class="dialog dialog--compact" role="dialog" aria-modal="true" data-od-id="dlg-missing-resolve">
+              <header class="dialog__head">
+                <span class="head-icon head-icon--neutral"><svg data-lucide="folder-x"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow" style="color:var(--info)">Missing worktree</span>
+                  <h3>hotfix-cors is missing from disk</h3>
+                  <p>The directory was removed outside Compozy. <b>Run history is preserved.</b></p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="kv-mini">
+                  <span><span class="k">Branch</span><span class="v">pedro/hotfix-cors</span></span>
+                  <span><span class="k">Expected path</span><span class="v" style="color:var(--faint)">~/.compozy/worktrees/compozy/hotfix-cors</span></span>
+                  <span><span class="k">Last seen</span><span class="v">2d ago</span></span>
+                </div>
+                <!-- gating: DELETE /api/workspaces/:wsId/worktrees/hotfix-cors/record —
+                     removes the entry only; never cascades into session/task history (US-028 AC-2/AC-3) -->
+                <button class="opt-row" data-od-id="opt-dismiss">
+                  <svg data-lucide="archive"></svg>
+                  <span style="min-width:0;flex:1;margin:0">
+                    <b>Dismiss record</b>
+                    <span>Removes this entry from the list. Run history is preserved.</span>
+                  </span>
+                </button>
+                <!-- gating: POST /api/workspaces/:wsId/worktrees/hotfix-cors/reverify —
+                     restores "ready" only when the directory at the expected path matches the recorded
+                     repository identity (US-028 EC-1); a different repo there stays missing (EC-2) -->
+                <button class="opt-row" data-od-id="opt-its-back">
+                  <svg data-lucide="rotate-ccw"></svg>
+                  <span style="min-width:0;flex:1;margin:0">
+                    <b>It&rsquo;s back</b>
+                    <span>Re-checks the expected path and restores the entry only if the same repository is found there.</span>
+                  </span>
+                </button>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="history"></svg>Sessions and task runs bound to hotfix-cors stay readable either way.</div>
+                <button class="btn btn--ghost">Cancel</button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Idempotent outcome</b>Dismiss re-runs the assess phase before touching anything (paperclip assess → cleanup). When no branch, directory, or instance data remains, the outcome states exactly that — a clean no-op, not an error, not a phantom success.</div>
+        <div class="spec__demo">
+          <!-- gating: dismiss response { cleaned:false, reason:"nothing-found" } → verbatim outcome line
+               (paperclip worktree.ts:2070); repeat calls return the same result (US-028 AC-3) -->
+          <div class="outcome" data-od-id="outcome-nothing">
+            <svg data-lucide="check"></svg>
+            <div style="min-width:0">
+              <b>hotfix-cors — record dismissed</b>
+              <span>Nothing to clean up — no branch, worktree directory, or instance data found.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S15 final — removal is refuse-first, force is its own explicit confirmation, and out-of-band loss
+      resolves without touching history. Row and chip vocabulary from <a class="mono" href="worktree-row-states.html" style="color:var(--subtle)">worktree-row-states.html</a>;
+      the assisted alternative continues in <a class="mono" href="worktree-commit-sheet.html" style="color:var(--subtle)">worktree-commit-sheet.html</a>.
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S15</span> · copy per <span class="mono">analysis/07 §D + §Transferable 6/8</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

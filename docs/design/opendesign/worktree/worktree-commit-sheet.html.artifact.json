@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "worktree/worktree-commit-sheet.html",
+  "entry": "worktree/worktree-commit-sheet.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-11T19:47:52.439Z",
+  "updatedAt": "2026-08-11T19:47:52.439Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

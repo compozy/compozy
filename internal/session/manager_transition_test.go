@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -440,6 +441,153 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		h.driver.mu.Unlock()
 		if got := startsAfter; got != startsBefore {
 			t.Fatalf("driver starts after stopped selection = %d, want %d", got, startsBefore)
+		}
+	})
+
+	t.Run("Should rename an active user session across memory metadata catalog and events", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+		}
+		defer cancel()
+
+		updated, err := h.manager.Rename(
+			testutil.Context(t),
+			h.workspaceID,
+			active.ID,
+			"  Checkout\n  webhook   retries  ",
+		)
+		if err != nil {
+			t.Fatalf("Rename() error = %v", err)
+		}
+		const want = "Checkout webhook retries"
+		catalogInfo, ok := catalog.get(active.ID)
+		if updated.Name != want || active.Info().Name != want ||
+			readMeta(t, active.MetaPath()).Name != want || !ok || catalogInfo.Name != want {
+			t.Fatalf("renamed identity = info %q memory %q catalog %#v", updated.Name, active.Info().Name, catalogInfo)
+		}
+		select {
+		case event := <-events:
+			if event.Kind != CatalogEventUpserted ||
+				event.WorkspaceID != h.workspaceID ||
+				event.SessionID != active.ID {
+				t.Fatalf("rename catalog event = %#v, want upserted %s/%s", event, h.workspaceID, active.ID)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("rename catalog event was not published")
+		}
+	})
+
+	t.Run("Should rename a stopped archived session without starting ACP or losing archive state", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if _, err := h.manager.Archive(testutil.Context(t), h.workspaceID, active.ID); err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+		h.driver.mu.Lock()
+		startsBefore := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+
+		updated, err := h.manager.Rename(testutil.Context(t), h.workspaceID, active.ID, "Archived checkout")
+		if err != nil {
+			t.Fatalf("Rename(stopped) error = %v", err)
+		}
+		if updated.Name != "Archived checkout" || updated.ArchivedAt == nil {
+			t.Fatalf("Rename(stopped) = %#v, want renamed archived session", updated)
+		}
+		catalogInfo, ok := catalog.get(active.ID)
+		if !ok || catalogInfo.Name != updated.Name || catalogInfo.ArchivedAt == nil {
+			t.Fatalf("archived catalog after rename = %#v", catalogInfo)
+		}
+		h.driver.mu.Lock()
+		startsAfter := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if startsAfter != startsBefore {
+			t.Fatalf("driver starts after stopped rename = %d, want %d", startsAfter, startsBefore)
+		}
+	})
+
+	t.Run("Should reject invalid manual names managed sessions and foreign workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		for _, test := range []struct {
+			name        string
+			workspaceID string
+			value       string
+			want        error
+		}{
+			{name: "empty", workspaceID: h.workspaceID, value: " \n\t ", want: ErrValidation},
+			{name: "too long", workspaceID: h.workspaceID, value: strings.Repeat("界", SessionNameMaxRunes+1), want: ErrValidation},
+			{name: "foreign workspace", workspaceID: "ws-foreign", value: "Private", want: ErrSessionNotFound},
+		} {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := h.manager.Rename(testutil.Context(t), test.workspaceID, active.ID, test.value)
+				if !errors.Is(err, test.want) {
+					t.Fatalf("Rename() error = %v, want %v", err, test.want)
+				}
+			})
+		}
+
+		managed, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeSystem,
+		})
+		if err != nil {
+			t.Fatalf("Create(system) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, managed.ID) })
+		_, err = h.manager.Rename(
+			testutil.Context(t),
+			h.workspaceID,
+			managed.ID,
+			"Operator name",
+		)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("Rename(system) error = %v, want ErrValidation", err)
+		}
+	})
+
+	t.Run("Should roll back an active rename when catalog persistence fails", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		before := active.Info()
+		persistErr := errors.New("catalog rename unavailable")
+		catalog.registerHook = func(_ context.Context, info store.SessionInfo) error {
+			if info.Name == "New name" {
+				return persistErr
+			}
+			return nil
+		}
+
+		_, err := h.manager.Rename(testutil.Context(t), h.workspaceID, active.ID, "New name")
+		if !errors.Is(err, persistErr) {
+			t.Fatalf("Rename() error = %v, want catalog failure", err)
+		}
+		memoryName := active.Info().Name
+		metaName := readMeta(t, active.MetaPath()).Name
+		if memoryName != before.Name || metaName != before.Name {
+			t.Fatalf("failed rename changed identity: memory=%q meta=%q", memoryName, metaName)
 		}
 	})
 }

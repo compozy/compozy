@@ -12,6 +12,7 @@ import {
   useInterruptSessionPrompt,
   useQueueSessionPrompt,
   useRepairSession,
+  useRenameSession,
   useSteerSessionPrompt,
   useUnarchiveSession,
 } from "../use-session-actions";
@@ -39,6 +40,7 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   createSession: vi.fn(),
   deleteSession: vi.fn(),
   repairSession: vi.fn(),
+  renameSession: vi.fn(),
   promoteSessionInputToSteer: vi.fn(),
   replaceSessionInput: vi.fn(),
   rewindSession: vi.fn(),
@@ -62,6 +64,7 @@ import {
   createSession,
   deleteSession,
   repairSession,
+  renameSession,
   promoteSessionInputToSteer,
   replaceSessionInput,
   rewindSession,
@@ -613,6 +616,67 @@ describe("session actions", () => {
     await act(async () => resolveDelete());
     await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
     expect(result.current.deleteDialog.session).toBeNull();
+  });
+
+  it("keeps the rename dialog open until the durable rename succeeds", async () => {
+    let resolveRename!: (session: SessionPayload) => void;
+    vi.mocked(renameSession).mockImplementation(
+      () =>
+        new Promise<SessionPayload>(resolve => {
+          resolveRename = resolve;
+        })
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => result.current.actions.onRename(createdSession));
+    expect(result.current.renameDialog.open).toBe(true);
+
+    act(() => result.current.renameDialog.onConfirm("Release review"));
+    await waitFor(() => expect(result.current.renameDialog.isRenaming).toBe(true));
+    expect(renameSession).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      createdSession.id,
+      { name: "Release review" },
+      expect.any(AbortSignal)
+    );
+
+    act(() => result.current.renameDialog.onOpenChange(false));
+    expect(result.current.renameDialog.open).toBe(true);
+
+    await act(async () => resolveRename({ ...createdSession, name: "Release review" }));
+    await waitFor(() => expect(result.current.renameDialog.open).toBe(false));
+    expect(result.current.renameDialog.session).toBeNull();
+  });
+
+  it("updates the detail cache and invalidates session views after rename", async () => {
+    const renamed = { ...createdSession, name: "Release review" };
+    vi.mocked(renameSession).mockResolvedValue(renamed);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
+    const { result } = renderHook(() => useRenameSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ id: createdSession.id, name: "Release review" });
+    });
+
+    expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
+      renamed
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
+    });
   });
 
   it("useQueueSessionPrompt builds the canonical durable request from an action identity", async () => {

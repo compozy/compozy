@@ -1275,8 +1275,10 @@ test("E2E-028: the structural seam resizes both siblings and persists its weight
   const workspace = await prepareShell(appPage, runtime);
   const tasks = await openDockApp(appPage, "Tasks", "tasks");
   const settings = await openDockApp(appPage, "Settings", "settings");
+  const agents = await openDockApp(appPage, "Agents", "agents");
   const tasksID = await windowID(tasks);
   const settingsID = await windowID(settings);
+  const agentsID = await windowID(agents);
   await arrangeWindows(
     runtime,
     workspace.id,
@@ -1287,6 +1289,13 @@ test("E2E-028: the structural seam resizes both siblings and persists its weight
   );
   await expect(tasks).toHaveAttribute("data-window-placement", "tiled");
   await expect(settings).toHaveAttribute("data-window-placement", "tiled");
+  await moveWindowToNormalizedRect(runtime, workspace.id, agentsID, {
+    x: 0.4,
+    y: 0.25,
+    width: 0.2,
+    height: 0.5,
+  });
+  await expect(agents).toHaveAttribute("data-window-placement", "floating");
 
   const beforeWeights = splitWeightsForWindow(
     await windowManagerSnapshot(runtime, workspace.id),
@@ -1299,9 +1308,28 @@ test("E2E-028: the structural seam resizes both siblings and persists its weight
   await expect(seam).toHaveCount(1);
   const seamBox = await seam.boundingBox();
   if (!seamBox) throw new Error("structural seam must be visible");
-  await appPage.mouse.move(seamBox.x + seamBox.width / 2, seamBox.y + seamBox.height / 2);
+  const seamCenter = {
+    x: seamBox.x + seamBox.width / 2,
+    y: seamBox.y + seamBox.height / 2,
+  };
+  expect(
+    await appPage.evaluate(
+      ({ x, y, windowID }) =>
+        document
+          .elementFromPoint(x, y)
+          ?.closest(`[data-testid="os-window-${windowID}"]`)
+          ?.getAttribute("data-testid"),
+      { ...seamCenter, windowID: agentsID }
+    )
+  ).toBe(`os-window-${agentsID}`);
+
+  const exposedSeamPoint = {
+    x: seamBox.x + seamBox.width / 2,
+    y: seamBox.y + 20,
+  };
+  await appPage.mouse.move(exposedSeamPoint.x, exposedSeamPoint.y);
   await appPage.mouse.down();
-  await appPage.mouse.move(seamBox.x + seamBox.width / 2 + 150, seamBox.y + seamBox.height / 2, {
+  await appPage.mouse.move(exposedSeamPoint.x + 150, exposedSeamPoint.y, {
     steps: 8,
   });
   await appPage.mouse.up();

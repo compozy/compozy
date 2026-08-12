@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -166,6 +167,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 		descriptors := descriptorMap(NativeDescriptors())
 		assertSessionCreateMutationSchema(t, descriptors[toolspkg.ToolIDSessionCreate])
+		assertSessionRenameMutationSchema(t, descriptors[toolspkg.ToolIDSessionRename])
 		t.Run("Should validate the session archive schema", func(t *testing.T) {
 			t.Parallel()
 			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionArchive])
@@ -1198,6 +1200,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__session_rename", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_prompt", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_rewind", risk: toolspkg.RiskDestructive,
@@ -1378,6 +1382,7 @@ type nativeObjectSchema struct {
 	Pattern              string                     `json:"pattern"`
 	Minimum              *float64                   `json:"minimum"`
 	MinLength            int                        `json:"minLength"`
+	MaxLength            int                        `json:"maxLength"`
 	Items                json.RawMessage            `json:"items"`
 	AdditionalProperties *bool                      `json:"additionalProperties"`
 }
@@ -1491,6 +1496,26 @@ func assertSessionTargetMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	if _, ok := sessionSchema.Properties["archived_at"]; !ok {
 		t.Fatalf("%s session output schema omits archived_at", descriptor.ID)
 	}
+}
+
+func assertSessionRenameMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
+	t.Helper()
+	var input nativeObjectSchema
+	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+	}
+	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"name", "session_id", "workspace"})
+	if !slices.Equal(input.Required, []string{"session_id", "name"}) {
+		t.Fatalf("%s input required = %#v, want [session_id name]", descriptor.ID, input.Required)
+	}
+	var name nativeObjectSchema
+	if err := json.Unmarshal(input.Properties["name"], &name); err != nil {
+		t.Fatalf("%s name schema unmarshal error = %v", descriptor.ID, err)
+	}
+	if name.Type != "string" || name.MinLength != 1 || name.MaxLength != session.SessionNameMaxRunes {
+		t.Fatalf("%s name schema = %#v, want 1..%d characters", descriptor.ID, name, session.SessionNameMaxRunes)
+	}
+	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
 }
 
 func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
@@ -2320,6 +2345,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if !slices.Contains(sessions, toolspkg.ToolIDSessionList) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionArchive) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionUnarchive) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionRename) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionCreate) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionPrompt) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionRewind) ||

@@ -11,8 +11,8 @@ bug_ids: BUG-20260724-arrange-preset-overlap-reject; BUG-20260724-placement-cycl
 fix_status: pending
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-04-dragged-network-window.png; docs/qa/evidence/2026-08-01-window-tabs/keyboard-05-resized-network-window.png
-last_report: docs/qa/reports/2026-08-01-window-tabs.md
+evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-04-dragged-network-window.png; docs/qa/evidence/2026-08-01-window-tabs/keyboard-05-resized-network-window.png;/Users/pedronauck/dev/qa-labs/compozy-open-issues-20260812-002435-338441-lab/qa-artifacts/web-window-z-index-pass.png
+last_report: docs/qa/reports/2026-08-11-open-issues.md
 overlaps: ET-web-window-routing-lifecycle; ET-window-manager-layout-recovery; ET-web-command-palette-shortcuts; ET-web-ui-resilience
 ---
 
@@ -61,3 +61,7 @@ which resizes floating rects and solo islands in place and detaches a split memb
 island at the released frame, siblings keeping their exact zones (middle members split the
 remainder into islands). Growth clamps at the nearest island live via rnd max bounds. Flag only;
 this cycle owns live retesting.
+
+qa-impact: 2026-08-11 separated semantic ordering from visual layers: tiled windows render below structural seams, while every floating layer renders above them. Reset to prove a covered seam cannot intercept the floating window and an uncovered segment still resizes its siblings.
+
+2026-08-11 retest: passed for layer ordering. A live four-window grid kept tiled windows at layer 1 and shared seams at layer 2; floating the active window raised it to layer 7.

@@ -8,6 +8,7 @@ func registrySessionOperations() []OperationSpec {
 		getSessionByIDOperationSpec(),
 		getSessionOwnerOperationSpec(),
 		getSessionOperationSpec(),
+		renameSessionOperationSpec(),
 		getSessionCommandsOperationSpec(),
 		deleteSessionOperationSpec(),
 		stopSessionOperationSpec(),
@@ -28,6 +29,28 @@ func registrySessionOperations() []OperationSpec {
 		listSessionEventsOperationSpec(),
 		getSessionHistoryOperationSpec(),
 		approveSessionOperationSpec(),
+	}
+}
+func renameSessionOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPatch,
+		Path:        specWorkspaceSessionPath,
+		OperationID: "renameSession",
+		Summary:     "Rename one user session",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		},
+		RequestBody: contract.RenameSessionRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
+			{Status: 400, Description: "Invalid session name", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Session rename unavailable", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
 	}
 }
 
@@ -90,7 +113,7 @@ func getSessionByIDOperationSpec() OperationSpec {
 func getSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
-		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}",
+		Path:        specWorkspaceSessionPath,
 		OperationID: "getSession",
 		Summary:     "Get one session snapshot",
 		Tags:        []string{specSessionsKey},
@@ -110,7 +133,7 @@ func getSessionOperationSpec() OperationSpec {
 func deleteSessionOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodDelete,
-		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}",
+		Path:        specWorkspaceSessionPath,
 		OperationID: "deleteSession",
 		Summary:     "Delete one session and remove it from persisted history",
 		Tags:        []string{specSessionsKey},

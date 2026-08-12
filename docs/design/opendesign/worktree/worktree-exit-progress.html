@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Exit progress · Lab · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-exit-progress · S14 lab — the ONE updating toast that owns everything after submit (US-023).
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S14 · copy authority analysis/07 §Transferable 5 + §B4/§B5.
+  Provenance:
+    production            — phase-event contract from synara git.ts:558-615 (action_started carries the WHOLE
+                            phase list up front · phase_started {phase,label} · hook_started / hook_output
+                            {stream,text} / hook_finished {exitCode,durationMs} · action_finished {result} ·
+                            action_failed {phase,message}); phase labels verbatim from
+                            GitActionsControl.logic.ts:75-106; result summaries highest-value-step-first from
+                            logic.ts:313-341; per-step result + skip reasons from git.ts:518-544;
+                            exactly-one next-step CTA from t3code buildCompletionToast GitManager.ts:1321-1412
+    spec worktree-support — .toast/.tstep family in worktree.css is the canonical rendering; toast, never a
+                            modal (synara GitActionsControl.tsx:402,863-890) — no blocking spinner
+    authorized delta      — pending steps render a hollow lucide circle mark (ds-core status-shape canon);
+                            skip reason text rides .tstep__why; step labels are tensed per state
+                            (pending "Commit" · active "Committing…" · done "Committed" · skip "Commit skipped")
+                            over production's -ing-only labels
+-->
+<style>
+  .toastwrap{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+  .toast__sum{margin-top:10px;font-size:11px;line-height:1.45;color:var(--muted)}
+  .toast__sum .mono{font-size:10px;color:var(--subtle)}
+  /* authorized delta: preserve streamed newlines in the shared hook block (supplement, not a fork) */
+  .toast__hook{white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-progress-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Exit progress</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">lab</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-detail-exit.html">Detail →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · PHASES ANNOUNCED ════ -->
+    <section class="lab-sec" data-od-id="progress-announced">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Phases announced</h2>
+        <span class="lab-sec__gist">the whole plan up front · first phase active, rest pending</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>action_started carries the plan</b>The event announces every phase before any runs (synara git.ts:564-568), so the toast never grows surprise rows. Phase labels from logic.ts:75-106, tensed per state — pending <code>Commit</code>, active <code>Committing…</code>, done <code>Committed</code>, skip <code>Commit skipped</code>; the generate step is omitted from the plan when the user typed a message.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- stream: SSE /api/workspaces/:id/worktrees/:wtId/exit/events →
+                 action_started {phases:[generate,commit,push,pr]} (synara git.ts:558-615 contract) -->
+            <div class="toast" data-od-id="toast-announced">
+              <div class="toast__head">
+                <span class="toast__title">Commit, push &amp; PR <span class="mono">· payments-retry</span></span>
+                <!-- gating: Dismiss stays available mid-run — it hides the toast, never cancels; the run
+                     stays observable in the worktree row's pending state and the session feed -->
+                <button class="icon-button" aria-label="Dismiss"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="toast__steps">
+                <div class="tstep" data-s="active"><span class="tstep__mark"><span class="tstep__spin"></span></span>Generating commit message…</div>
+                <div class="tstep"><span class="tstep__mark"><svg data-lucide="circle"></svg></span>Commit</div>
+                <div class="tstep"><span class="tstep__mark"><svg data-lucide="circle"></svg></span>Push to origin/pedro/payments-retry</div>
+                <div class="tstep"><span class="tstep__mark"><svg data-lucide="circle"></svg></span>Create PR</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · ADVANCING ════ -->
+    <section class="lab-sec" data-od-id="progress-advancing">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Advancing</h2>
+        <span class="lab-sec__gist">same toast updating in place — never a second toast, never a modal</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>phase_started moves the cursor</b>Commit done (its sha rides the step), push active. One updating toast is the whole progress surface (synara GitActionsControl.tsx:863-890) — the sheet is already gone, the session stays usable.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="toast" data-od-id="toast-advancing">
+              <div class="toast__head">
+                <span class="toast__title">Commit, push &amp; PR <span class="mono">· payments-retry</span></span>
+                <button class="icon-button" aria-label="Dismiss"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="toast__steps">
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Generated commit message</div>
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Committed<span class="tstep__why">3a1f2c</span></div>
+                <div class="tstep" data-s="active"><span class="tstep__mark"><span class="tstep__spin"></span></span>Pushing to origin/pedro/payments-retry…</div>
+                <div class="tstep"><span class="tstep__mark"><svg data-lucide="circle"></svg></span>Create PR</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · HOOK OUTPUT STREAMING ════ -->
+    <section class="lab-sec" data-od-id="progress-hook">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Hook output streaming</h2>
+        <span class="lab-sec__gist">pre-commit hooks are the #1 "stuck commit" — show them working</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>hook_output, live</b>stderr/stdout lines stream into the mono block while the commit phase holds (<code>hook_started / hook_output {stream,text} / hook_finished</code>, synara git.ts:575-593). A silent 40s hook and a hung commit look identical without this.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="toast" data-od-id="toast-hook">
+              <div class="toast__head">
+                <span class="toast__title">Commit, push &amp; PR <span class="mono">· payments-retry</span></span>
+                <button class="icon-button" aria-label="Dismiss"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="toast__steps">
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Generated commit message</div>
+                <div class="tstep" data-s="active"><span class="tstep__mark"><span class="tstep__spin"></span></span>Committing…<span class="tstep__why">pre-commit</span></div>
+                <div class="tstep"><span class="tstep__mark"><svg data-lucide="circle"></svg></span>Push to origin/pedro/payments-retry</div>
+                <div class="tstep"><span class="tstep__mark"><svg data-lucide="circle"></svg></span>Create PR</div>
+              </div>
+              <div class="toast__hook" data-od-id="toast-hook-stream">$ gofmt -l .
+$ golangci-lint run ./internal/worktree/...
+<span class="err">retry.go:88:2: ineffectual assignment to backoff (ineffassign)</span>
+running make lint --fix …</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · SUCCESS — SKIP REASONS + ONE CTA ════ -->
+    <section class="lab-sec" data-od-id="progress-success">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Success — per-step results, one CTA</h2>
+        <span class="lab-sec__gist">every skip carries its reason · exactly one next step, never a button row</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Partial: committed, push skipped</b>Result is per-step with explicit skip reasons (synara git.ts:518-544): <code>skipped_up_to_date → "already up to date"</code>. Title is the highest-value step (logic.ts:313-341): <b>Committed 3a1f2c</b>. One CTA per the t3code rule (buildCompletionToast, GitManager.ts:1321-1412): after a commit → <b>Push</b>.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="toast" data-od-id="toast-partial">
+              <div class="toast__head">
+                <span class="d d--ok" style="flex:none"></span>
+                <span class="toast__title">Committed 3a1f2c <span class="mono">· payments-retry</span></span>
+                <button class="icon-button" aria-label="Dismiss"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="toast__steps">
+                <!-- result: commit {status:"created", commitSha:"3a1f2c"} · push {status:"skipped_up_to_date"} -->
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Committed<span class="tstep__why">3a1f2c</span></div>
+                <div class="tstep" data-s="skip"><span class="tstep__mark"><svg data-lucide="minus"></svg></span>Push skipped<span class="tstep__why">already up to date</span></div>
+              </div>
+              <div class="toast__sum">committed, push skipped — already up to date</div>
+              <div class="toast__foot">
+                <span class="mono" style="font-size:10px;color:var(--subtle)">fix: retry payment webhooks with exponent…</span>
+                <span class="spacer"></span>
+                <!-- exactly ONE next-step CTA (t3code GitManager.ts:1380-1406): after commit → "Push" -->
+                <button class="btn btn--sm btn--primary">Push</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Push success · commit skipped</b>Clean tree ⇒ <code>skipped_no_changes → "nothing to commit"</code>; summary drops to the next step in the value order: <b>Pushed 3a1f2c to origin/pedro/payments-retry</b>. Non-default branch, no PR yet → CTA <b>Create PR</b> (the narrow lookup that costs no network call — t3code shouldLookupExistingOpenPr:1356-1364).</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="toast" data-od-id="toast-pushed">
+              <div class="toast__head">
+                <span class="d d--ok" style="flex:none"></span>
+                <span class="toast__title">Pushed 3a1f2c to origin/pedro/payments-retry</span>
+                <button class="icon-button" aria-label="Dismiss"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="toast__steps">
+                <!-- result: commit {status:"skipped_no_changes"} · push {status:"pushed", setUpstream:true} -->
+                <div class="tstep" data-s="skip"><span class="tstep__mark"><svg data-lucide="minus"></svg></span>Commit skipped<span class="tstep__why">nothing to commit</span></div>
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Pushed to origin/pedro/payments-retry<span class="tstep__why">upstream set</span></div>
+              </div>
+              <div class="toast__foot">
+                <span class="spacer"></span>
+                <button class="btn btn--sm btn--primary">Create PR</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Full chain: Created PR #413</b>Highest-value step wins the title. PR step result <code>created</code> carries number + URL — no follow-up query (synara git.ts:518-544). CTA <b>View PR</b>. Had the lookup found one open, the step would read <code>opened_existing</code> and the title "Opened PR #412".</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="toast" data-od-id="toast-fullchain">
+              <div class="toast__head">
+                <span class="d d--ok" style="flex:none"></span>
+                <span class="toast__title">Created PR #413 <span class="mono">· payments-retry</span></span>
+                <button class="icon-button" aria-label="Dismiss"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="toast__steps">
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Generated commit message</div>
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Committed<span class="tstep__why">3a1f2c</span></div>
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Pushed to origin/pedro/payments-retry</div>
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Created PR<span class="tstep__why">#413</span></div>
+              </div>
+              <div class="toast__sum">fix: retry payment webhooks with exponential backoff</div>
+              <div class="toast__foot">
+                <span class="spacer"></span>
+                <!-- one CTA: push/PR success with an open PR → "View PR" (t3code GitManager.ts:1380-1406) -->
+                <button class="btn btn--sm btn--primary">View PR</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · MID-CHAIN FAILURE ════ -->
+    <section class="lab-sec" data-od-id="progress-failure">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Mid-chain failure</h2>
+        <span class="lab-sec__gist">failure attributed to its step · what succeeded stays done</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>action_failed {phase, message}</b>The push was rejected; the commit is real and stays <code>done</code> — the toast never rolls back truth. Downstream phases never start (not "failed"). Single retry CTA; "fetch first" is the functional label, the toast does not auto-resolve (refuse-never-auto-resolve, analysis/07 §Transferable 2).</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="toast" data-od-id="toast-failure">
+              <div class="toast__head">
+                <span class="d d--fail" style="flex:none"></span>
+                <span class="toast__title">Push failed <span class="mono">· payments-retry</span></span>
+                <button class="icon-button" aria-label="Dismiss"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="toast__steps">
+                <!-- events: action_failed {phase:"push", message} (synara git.ts:606-615);
+                     commit result stays {status:"created", commitSha:"3a1f2c"} -->
+                <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Committed<span class="tstep__why">3a1f2c</span></div>
+                <div class="tstep" data-s="fail"><span class="tstep__mark"><svg data-lucide="circle-x"></svg></span>Push failed<span class="tstep__why">rejected — fetch first</span></div>
+                <div class="tstep"><span class="tstep__mark"><svg data-lucide="circle"></svg></span>Create PR<span class="tstep__why">not started</span></div>
+              </div>
+              <div class="toast__hook" data-od-id="toast-failure-stderr"><span class="err">! [rejected]  pedro/payments-retry → pedro/payments-retry (fetch first)</span>
+hint: Updates were rejected because the remote contains work that you do not have locally.</div>
+              <div class="toast__foot">
+                <span class="mono" style="font-size:10px;color:var(--subtle)">commit 3a1f2c kept</span>
+                <span class="spacer"></span>
+                <!-- one CTA on failure = retry the failed step, nothing else -->
+                <button class="btn btn--sm btn--primary">Retry push</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      The toast is the only post-submit surface — sheets collect intent (<span class="mono">worktree-commit-sheet.html</span>,
+      <span class="mono">worktree-pr-sheet.html</span>), the toast reports the machine.
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S14</span> · US-023 · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

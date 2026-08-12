@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Task setup · Worktree policy · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-task-setup · S10 — the Task setup sheet gains a Worktree policy.
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S10 · stories US-014, US-015.
+  Provenance:
+    production            — sheet anatomy from task-setup-sheet.tsx:44-203 (36px accent well, eyebrow
+                            "Execution profile", lock banner :81-90, footer button order); sandbox mode
+                            grammar inherit|none|ref from task-setup-form.tsx:220-252; read view rows
+                            from task-setup-profile-view.tsx:163-188
+    spec worktree-support — TaskExecutionProfileSetRequest.worktree{mode: inherit|none|ref|per_run,
+                            worktree_ref} mirroring the sandbox contract; ref picker lists same-workspace
+                            ready worktrees only (US-014 EC-2); missing-ref flag (US-014 EC-1)
+    authorized delta      — mode selects render as pill-group segments (DS hard rule; production uses
+                            NativeSelect — options transcribed, control re-set); "Environment" fieldset
+                            regroups sandbox + worktree (design decision, annotated in §01)
+-->
+<style>
+  /* sheet look — transcribed from task-setup-sheet.tsx (SheetContent side=right, sm:max-w-xl → 576px) */
+  .scrim--right{display:flex;justify-content:flex-end;align-items:stretch;padding:20px 0 20px 24px}
+  .sheetd{display:flex;flex-direction:column;width:min(576px,100%);max-height:660px;overflow:hidden;
+    background:var(--canvas);border:1px solid var(--line-strong);border-right:0;
+    border-radius:var(--radius-lg) 0 0 var(--radius-lg);box-shadow:var(--shadow-overlay)}
+  .sheetd__head{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+  .sheetd__eyebrow{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+  .sheetd__title{margin-top:2px;font-size:15px;font-weight:500;letter-spacing:-.014em;color:var(--fg-strong)}
+  .sheetd__desc{margin-top:3px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .sheetd__body{flex:1;min-height:0;overflow-y:auto;padding:16px 18px}
+  .sheetd__foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--line);background:var(--canvas-tint)}
+  .sheetd__foot .lead{display:flex;align-items:center;gap:8px;margin-right:auto}
+  /* lock banner — task-setup-sheet.tsx:81-90 (border-line-soft, bg-canvas-soft, Lock 14px) */
+  .lockbar{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;padding:12px 14px;
+    border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft);
+    font-size:12px;line-height:1.55;color:var(--muted)}
+  .lockbar svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--subtle)}
+  .lockbar b{font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--fg)}
+  /* fieldsets — task-setup-form.tsx voice: eyebrow legend, hairline between groups */
+  .fset{border-top:1px solid var(--line-soft);padding-top:16px;margin-top:18px}
+  .fset:first-child{border-top:0;padding-top:0;margin-top:0}
+  .fset__t{display:flex;align-items:center;gap:7px;margin-bottom:12px}
+  .fset__t .tag{font-size:8.5px}
+  /* read view rows — task-setup-profile-view.tsx PropertyRow grammar */
+  .rrow{display:grid;grid-template-columns:132px minmax(0,1fr);gap:10px;align-items:center;padding:5px 0;font-size:12.5px}
+  .rrow .rk{color:var(--muted)}
+  .rrow .rv{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:var(--fg)}
+  .rrow .rv .cap{text-transform:capitalize;color:var(--muted)}
+  .rgroup{margin-bottom:18px}
+  .rgroup:last-child{margin-bottom:0}
+  .rgroup__t{margin-bottom:6px}
+  .chipn{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:var(--radius-xs);
+    font-family:var(--font-mono);font-size:10.5px;font-weight:500;background:var(--badge-fill);color:var(--muted)}
+  .demo-col{display:flex;flex-direction:column;gap:14px}
+  .demo-card{max-width:460px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-tasksetup-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Task setup · Worktree policy</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">S10</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-fanout.html">Fan-out →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · THE ENVIRONMENT FIELDSET (proposal) — full sheet, edit mode, ref selected ════ -->
+    <section class="lab-sec" data-od-id="lab-env-fieldset">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Environment fieldset — the proposal</h2>
+        <span class="lab-sec__gist">sandbox + worktree regrouped · one place answers "where does this task run"</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Design decision</b>Production groups sandbox under "Sandbox and participants" (<code>task-setup-form.tsx:220-279</code>). The worktree policy is the same kind of fact — where runs execute — so both move into one <b style="display:inline">Environment</b> fieldset; participants keep their own. Worktree mirrors the sandbox grammar plus <code>per-run</code>. Shown: edit mode with <code>ref</code> selected on the task <b style="display:inline">Nightly triage</b>.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo scrim--right">
+            <!-- production: task-setup-sheet.tsx:62-134 sheet anatomy -->
+            <div class="sheetd" role="dialog" aria-labelledby="ts1t" data-od-id="ts-sheet-edit">
+              <div class="sheetd__head">
+                <span class="head-icon" aria-hidden="true"><svg data-lucide="settings-2"></svg></span>
+                <div style="min-width:0;flex:1">
+                  <div class="sheetd__eyebrow">Execution profile</div>
+                  <h3 class="sheetd__title" id="ts1t">Task setup</h3>
+                  <p class="sheetd__desc">Who works on this task and where it runs.</p>
+                </div>
+                <!-- gating: Close dismisses the sheet — same discard as Cancel, nothing is saved -->
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="sheetd__body">
+                <!-- worker/coordinator/review fieldsets unchanged — elided; see task-setup-form.tsx -->
+                <div class="fset">
+                  <div class="fset__t"><span class="eyebrow">Worker</span></div>
+                  <p style="font-size:11.5px;color:var(--faint)">Unchanged — mode · agent · runtime (task-setup-form.tsx). Elided here.</p>
+                </div>
+
+                <div class="fset" data-od-id="ts-fieldset-environment">
+                  <!-- proposal · spec worktree-support — provenance stays in comments, never rendered -->
+                  <div class="fset__t"><span class="eyebrow">Environment</span></div>
+
+                  <!-- gating: TaskExecutionProfileSetRequest.sandbox.mode inherit|none|ref (production task-setup-form.tsx:224-237) -->
+                  <div class="fgroup">
+                    <div class="flabel">Sandbox</div>
+                    <!-- authorized delta: production NativeSelect options "Inherit workspace|None|Named sandbox" re-labelled to
+                         mirror the locked environment vocabulary (Never None / Inherit workspace on S10) without lying about the axis -->
+                    <div class="pill-group" role="group" aria-label="Sandbox mode">
+                      <button class="pill-group__item" aria-pressed="true">Inherit</button>
+                      <button class="pill-group__item">No sandbox</button>
+                      <button class="pill-group__item">Named sandbox</button>
+                    </div>
+                  </div>
+
+                  <!-- gating: spec worktree-support — TaskExecutionProfileSetRequest.worktree.mode inherit|none|ref|per_run;
+                       worktree.worktree_ref required iff mode=ref (mirrors sandbox_ref, task-setup-form.tsx:239-252) -->
+                  <div class="fgroup" data-od-id="ts-worktree-policy">
+                    <div class="flabel">Worktree</div>
+                    <div class="pill-group" role="group" aria-label="Worktree policy">
+                      <button class="pill-group__item">Inherit</button>
+                      <button class="pill-group__item">Workspace root</button>
+                      <button class="pill-group__item" aria-pressed="true">Named worktree</button>
+                      <button class="pill-group__item">Per-run</button>
+                    </div>
+                    <!-- gating: picker revealed only when mode=ref; lists same-workspace ready worktrees only (US-014 EC-2) -->
+                    <div style="margin-top:8px">
+                      <button class="command-select" aria-haspopup="listbox" data-od-id="ts-worktree-ref">
+                        <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                        <span class="command-select__label">auth-refresh<span class="path">pedro/auth-refresh</span></span>
+                        <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                      </button>
+                    </div>
+                    <!-- Workspace-root mode pins runs to the workspace root regardless of other defaults (US-014 AC-2) — that hint renders on its own mode, §02 -->
+                    <p class="fhint">Runs start their worker sessions inside <span class="mono">auth-refresh</span>.</p>
+                  </div>
+                </div>
+
+                <div class="fset">
+                  <div class="fset__t"><span class="eyebrow">Participants</span></div>
+                  <p style="font-size:11.5px;color:var(--faint)">Unchanged — participant agents · required capabilities. Elided here.</p>
+                </div>
+              </div>
+              <div class="sheetd__foot">
+                <!-- production footer order task-setup-sheet.tsx:107-127 (editor open: Cancel neutral · Save primary)
+                     gating: Save setup submits TaskExecutionProfileSetRequest (sandbox + worktree blocks), disabled while invalid;
+                     Cancel discards the draft — no request -->
+                <button class="btn">Cancel</button>
+                <button class="btn btn--primary">Save setup</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · THE FOUR MODES ════ -->
+    <section class="lab-sec" data-od-id="lab-modes">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">The four modes</h2>
+        <span class="lab-sec__gist">sandbox grammar + per-run · picker exists only under ref</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Inherit — the default</b><code>worktree.mode=inherit</code>. Follows the workspace default; reads back exactly what was saved (US-014 AC-1). No picker, no extra field.</div>
+        <div class="spec__demo"><div class="demo-card">
+          <div class="fgroup" style="margin:0">
+            <div class="flabel">Worktree</div>
+            <div class="pill-group" role="group" aria-label="Worktree policy">
+              <button class="pill-group__item" aria-pressed="true">Inherit</button>
+              <button class="pill-group__item">Workspace root</button>
+              <button class="pill-group__item">Named worktree</button>
+              <button class="pill-group__item">Per-run</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Workspace root</b><code>worktree.mode=none</code>. Runs execute at the workspace root regardless of other defaults (US-014 AC-2).</div>
+        <div class="spec__demo"><div class="demo-card">
+          <div class="fgroup" style="margin:0">
+            <div class="flabel">Worktree</div>
+            <div class="pill-group" role="group" aria-label="Worktree policy">
+              <button class="pill-group__item">Inherit</button>
+              <button class="pill-group__item" aria-pressed="true">Workspace root</button>
+              <button class="pill-group__item">Named worktree</button>
+              <button class="pill-group__item">Per-run</button>
+            </div>
+            <!-- US-014 AC-2 — workspace-root mode wins over other defaults -->
+            <p class="fhint">Runs at the workspace root <span class="mono">~/dev/compozy</span> regardless of other defaults.</p>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Named worktree</b><code>worktree.mode=ref</code> + <code>worktree_ref</code>. The picker appears only in this mode — same conditional reveal as the sandbox ref input (<code>task-setup-form.tsx:242</code>).</div>
+        <div class="spec__demo"><div class="demo-card">
+          <div class="fgroup" style="margin:0">
+            <div class="flabel">Worktree</div>
+            <div class="pill-group" role="group" aria-label="Worktree policy">
+              <button class="pill-group__item">Inherit</button>
+              <button class="pill-group__item">Workspace root</button>
+              <button class="pill-group__item" aria-pressed="true">Named worktree</button>
+              <button class="pill-group__item">Per-run</button>
+            </div>
+            <div style="margin-top:8px">
+              <button class="command-select" aria-haspopup="listbox">
+                <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                <span class="command-select__label">auth-refresh<span class="path">pedro/auth-refresh</span></span>
+                <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+              </button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Per-run</b><code>worktree.mode=per_run</code>. Every run materializes its own worktree on an auto-named <code>run/</code> branch (US-015 AC-1/AC-2); no picker — there is nothing to pick.</div>
+        <div class="spec__demo"><div class="demo-card">
+          <div class="fgroup" style="margin:0">
+            <div class="flabel">Worktree</div>
+            <div class="pill-group" role="group" aria-label="Worktree policy">
+              <button class="pill-group__item">Inherit</button>
+              <button class="pill-group__item">Workspace root</button>
+              <button class="pill-group__item">Named worktree</button>
+              <button class="pill-group__item" aria-pressed="true">Per-run</button>
+            </div>
+            <!-- US-015 AC-3 — preservation + provably-safe cleanup -->
+            <p class="fhint">Each run gets a fresh worktree on a <code>run/</code> branch, marked <span class="wt-origin">per-run</span> in every list. Work is preserved after the run ends; cleanup is suggested only when provably safe.</p>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · REF PICKER OPEN ════ -->
+    <section class="lab-sec" data-od-id="lab-picker">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Ref picker open</h2>
+        <span class="lab-sec__gist">same-workspace ready worktrees only · nothing else is listed</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Eligibility is the list</b>Only <code>ready</code> worktrees of <b style="display:inline">this</b> workspace appear — pending, missing, error, discovered are not options, and other workspaces are refused by validation (US-014 EC-2), so they never render. Companion badges ride along; ready rows stay chip-less (locked decision).</div>
+        <div class="spec__demo">
+          <!-- gating: GET /api/workspaces/:id/worktrees?state=ready → items[] (spec worktree-support) -->
+          <div class="cs-pop" data-od-id="ts-picker-pop">
+            <div class="cs-pop__search"><svg data-lucide="search"></svg><input placeholder="Find a worktree…" aria-label="Find a worktree"></div>
+            <div class="cs-pop__list">
+              <div class="cs-group">
+                <div class="cs-group__h">compozy · ready<span class="mono">4</span></div>
+                <button class="cs-item">
+                  <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                  <span class="cs-item__label">payments-retry<span class="sub">pedro/payments-retry</span></span>
+                  <span class="wt-agent" title="Fix payment retries · claude"><span class="d d--run d--pulse"></span></span>
+                </button>
+                <button class="cs-item" aria-selected="true">
+                  <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                  <span class="cs-item__label">auth-refresh<span class="sub">pedro/auth-refresh</span></span>
+                  <svg class="cs-item__check" data-lucide="check"></svg>
+                </button>
+                <button class="cs-item">
+                  <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                  <span class="cs-item__label">fix-flaky-e2e<span class="sub">run/fix-flaky-e2e</span></span>
+                  <span class="wt-origin">per-run</span>
+                </button>
+                <button class="cs-item">
+                  <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                  <span class="cs-item__label">data-migration<span class="sub">pedro/data-migration</span></span>
+                  <span class="wt-flag" title="bun install exited 1 — worktree is usable"><svg data-lucide="triangle-alert"></svg></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · INVALID / REMOVED REF (US-014 EC-1) ════ -->
+    <section class="lab-sec" data-od-id="lab-invalid-ref">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Invalid ref — worktree removed</h2>
+        <span class="lab-sec__gist">flagged at read · refused at run start · never a silent root fallback</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>US-014 EC-1</b>The saved <code>worktree_ref</code> points at <code>hotfix-cors</code>, removed out of band. The policy is flagged invalid where it is read; run starts fail deterministically instead of falling back to root. The row is marked with the shared <code>missing</code> chip.</div>
+        <div class="spec__demo"><div class="demo-card">
+          <div class="fgroup" style="margin:0">
+            <div class="flabel">Worktree</div>
+            <div class="pill-group" role="group" aria-label="Worktree policy">
+              <button class="pill-group__item">Inherit</button>
+              <button class="pill-group__item">Workspace root</button>
+              <button class="pill-group__item" aria-pressed="true">Named worktree</button>
+              <button class="pill-group__item">Per-run</button>
+            </div>
+            <div style="margin-top:8px">
+              <!-- gating: worktree.state=missing on the referenced record (spec worktree-support US-014 EC-1) -->
+              <button class="command-select input--err" aria-haspopup="listbox" data-od-id="ts-worktree-ref-missing">
+                <span class="command-select__avatar" style="border-style:dashed;background:transparent"><svg data-lucide="folder-x" style="width:11px;height:11px"></svg></span>
+                <span class="command-select__label" style="color:var(--muted)">hotfix-cors<span class="path">pedro/hotfix-cors</span></span>
+                <span class="wt-chip" data-state="missing">missing</span>
+                <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+              </button>
+              <p class="ferr"><svg data-lucide="circle-alert"></svg>Worktree hotfix-cors is missing — runs will fail until you pick another.</p>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · LOCKED DURING ACTIVE RUN ════ -->
+    <section class="lab-sec" data-od-id="lab-locked">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Locked during an active run</h2>
+        <span class="lab-sec__gist">existing lock pattern · the run is named (US-014 AC-4)</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Decide before enqueue</b>Existing banner pattern from <code>task-setup-sheet.tsx:81-90</code>; US-014 AC-4 requires the refusal to name the active run, so the copy carries it. All Environment controls are inert, not hidden — the read view stays legible.</div>
+        <div class="spec__demo"><div class="demo-card" style="max-width:520px">
+          <!-- production pattern task-setup-sheet.tsx:81-90 · copy names the run per US-014 AC-4 (spec worktree-support)
+               gating: task.active_run_id != null → every Environment control disabled; unlocks when the run ends -->
+
+          <div class="lockbar" data-od-id="ts-lockbar">
+            <svg data-lucide="lock"></svg>
+            <span>Editing is locked while run <b>r-7d21f4</b> is active. Cancel the current run before changing the setup.</span>
+          </div>
+          <div class="fgroup" style="margin:0">
+            <div class="flabel">Worktree</div>
+            <div class="pill-group" data-disabled role="group" aria-label="Worktree policy (locked)">
+              <button class="pill-group__item" disabled>Inherit</button>
+              <button class="pill-group__item" disabled>Workspace root</button>
+              <button class="pill-group__item" aria-pressed="true" disabled>Named worktree</button>
+              <button class="pill-group__item" disabled>Per-run</button>
+            </div>
+            <div style="margin-top:8px">
+              <button class="command-select" disabled>
+                <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                <span class="command-select__label">auth-refresh<span class="path">pedro/auth-refresh</span></span>
+                <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+              </button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ════ 06 · READ VIEW ════ -->
+    <section class="lab-sec" data-od-id="lab-read-view">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Read view — worktree row added</h2>
+        <span class="lab-sec__gist">lossless projection · reads back exactly what was saved</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Profile view</b>The read view (<code>task-setup-profile-view.tsx:163-188</code>) gains the Worktree row inside the regrouped Environment section. <code>ref</code> renders the record label as a chip (same as sandbox_ref); <code>per_run</code> and the other modes render as plain lowercase text. API/CLI/agent writes read back identically (US-014 AC-3).</div>
+        <div class="spec__demo"><div class="demo-card" style="max-width:480px">
+          <div class="rgroup" data-od-id="ts-read-environment">
+            <div class="rgroup__t"><span class="eyebrow">Environment</span></div>
+            <!-- production rows task-setup-profile-view.tsx:163-180 · Worktree row is spec worktree-support -->
+            <div class="rrow"><span class="rk">Sandbox</span><span class="rv"><span class="cap">inherit</span></span></div>
+            <div class="rrow"><span class="rk">Worktree</span><span class="rv"><span class="chipn">auth-refresh</span></span></div>
+            <div class="rrow"><span class="rk">Runtime evidence</span><span class="rv"><span class="cap">inherit</span></span></div>
+            <div class="rrow"><span class="rk">Network</span><span class="rv"><span style="color:var(--muted)">Off</span></span></div>
+          </div>
+          <div class="rgroup">
+            <div class="rgroup__t"><span class="eyebrow">Environment · per-run variant</span></div>
+            <div class="rrow"><span class="rk">Worktree</span><span class="rv"><span class="cap">per-run</span></span></div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S10 · Task setup worktree policy. Clearing the whole setup returns the policy to inherit with everything else (US-014 EC-3).
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S10</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

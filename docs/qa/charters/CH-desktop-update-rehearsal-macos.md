@@ -28,7 +28,7 @@ charter:
       - "E2E-012: install N → publish N+1 to the fixture feed → background download → 'ready' → consent restart → N+1 running (macOS apply must honor the shell's own .app backup posture, UT-114); E2E-022: quit with the update pending → next launch applies it."
       - "E2E-013 (forced failure): lock the install dir → apply fails → failed-update report + manual-download path opens the release page; the OS-level app must remain launchable AND the install path permissions must be unchanged — never left `0700`/owner-only by the failed apply; capture `ls -l` before/after."
       - "E2E-014: app-owned runtime + agent work in flight → timing consent; 'later' keeps working; 'now' quiesces, applies, reconnects — both new versions in one surface. E2E-015: homebrew runtime → exact `brew` recommendation, zero binary writes (hash/mtime proof), surface clears after external update."
-      - "E2E-025: induced post-migration boot failure → recovery_required sticky with typed error and diagnose log paths → fixed newer signed build clears it. E2E-016: About shows beta + versions, no stable selector. Platform smoke: sleep/wake across a check cycle (US-014.EC-5) → no duplicate prompts."
+      - "E2E-025: induced post-migration boot failure → recovery_required sticky with typed error and a redacted diagnostic report plus consent-gated local export → fixed newer signed build clears it. E2E-016: About shows beta + versions, no stable selector. Platform smoke: sleep/wake across a check cycle (US-014.EC-5) → no duplicate prompts."
     must_avoid:
       - "Never point the updater at the production feed or sign fixtures with the production key."
       - "Never leave the fixture feed server, lab daemon, or a half-applied update alive past teardown."

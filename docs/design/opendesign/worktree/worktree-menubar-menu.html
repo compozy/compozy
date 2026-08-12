@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Menubar workspace menu &amp; chip · worktrees · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-menubar-menu · S2 — OS menubar workspace menu + chip.
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S2 · stories US-010, US-011 (EC-1).
+  Provenance:
+    production            — 44px menubar + chip anatomy from os-menubar.tsx:135-142
+                            (18px monogram per tokens.css --size-workspace-avatar, name 12.5/600,
+                            chevrons-up-down); menu skeleton from workspace-menu.tsx:32-59
+                            (monogram square items, accent check on active, separator,
+                            "Workspaces overview…", "Add workspace…"); menubar chrome classes
+                            from ds-shell.css (.menubar/.ws-trigger/.ws-avatar/.popover)
+    spec worktree-support — nested worktree projection identical to S1 (one query, two surfaces —
+                            they must not diverge); chip states parent + selected worktree
+                            ("compozy / payments-retry"); missing fallback per US-011 EC-1
+    authorized delta      — .popover is position:fixed in ds-shell; demos pin it static
+                            (.popover--demo) so states render inline
+-->
+<style>
+  /* page-local, bare tokens only */
+  a{color:inherit;text-decoration:none}
+  .popover--demo{position:static;animation:none;width:300px}
+  .mb-demo{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--rail)}
+  .mb-demo .menubar{border-bottom:0}
+  .mb-drop{display:flex;gap:0;align-items:flex-start;padding:0 0 18px 46px;background:var(--rail)}
+  .ws-sep{font-size:12px;color:var(--faint);padding:0 1px}
+  .ws-wt{font-weight:500;font-size:12.5px;color:var(--fg)}
+  .mb-notice{display:flex;align-items:center;gap:7px;min-height:28px;padding:4px 10px;border-radius:var(--radius-sm);
+    background:var(--info-tint);color:var(--info);font-size:11px;line-height:1.4}
+  .mb-notice svg{width:12px;height:12px;flex:none}
+  .pop-item .pi-check--accent{margin-left:auto;color:var(--accent);width:12px;height:12px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-menubar-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Menubar menu &amp; chip</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="worktree-nav-switcher.html">← Switcher</a>
+      <a class="btn" href="worktree-overview.html">Overview →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · CHIP STATES ════ -->
+    <section class="lab-sec" data-od-id="s2-chip">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Workspace chip</h2>
+        <span class="lab-sec__gist">the shell always says where new work will run</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Workspace only</b>Production chip verbatim — monogram square, name, chevrons (<code>os-menubar.tsx:135-142</code>). Scope is the workspace root.</div>
+        <div class="spec__demo">
+          <div class="mb-demo">
+            <header class="menubar" data-od-id="mb-strip-workspace">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <!-- gating: context.scope = {workspace_id} · GET /api/workspaces/:id -->
+                <button class="ws-trigger" aria-haspopup="menu" aria-expanded="false" data-od-id="mb-chip-workspace">
+                  <span class="ws-avatar">CO</span>
+                  <span class="ws-name">compozy</span>
+                  <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
+                </button>
+                <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" aria-label="Approvals"><svg data-lucide="bell"></svg></button>
+                <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Worktree selected · US-011</b>Parent + worktree: <code>compozy / payments-retry</code>. The worktree name is the record label; parent keeps the strong weight, worktree sits one step quieter.</div>
+        <div class="spec__demo">
+          <div class="mb-demo">
+            <header class="menubar" data-od-id="mb-strip-worktree">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <!-- gating: context.scope = {workspace_id, worktree_id}; label = workspace.name + " / " + worktree.name -->
+                <button class="ws-trigger" aria-haspopup="menu" aria-expanded="false" data-od-id="mb-chip-worktree">
+                  <span class="ws-avatar">CO</span>
+                  <span class="ws-name">compozy</span>
+                  <span class="ws-sep">/</span>
+                  <span class="ws-wt">payments-retry</span>
+                  <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
+                </button>
+                <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" aria-label="Approvals"><svg data-lucide="bell"></svg></button>
+                <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · MENU · NESTED PROJECTION ════ -->
+    <section class="lab-sec" data-od-id="s2-menu">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Menu — nested projection</h2>
+        <span class="lab-sec__gist">same query as S1, condensed · the two surfaces must not diverge</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Workspace scope active</b>Same query, same set, same locked sort as the S1 mixed nest (ready → pending → discovered → missing; activity desc within group) — the two surfaces render identically. Discovered is selectable (adopt-on-select, S1 §05); pending/missing rest inert with the reason in the right lane. Accent check marks the active workspace (production <code>workspace-menu.tsx:47</code>).</div>
+        <div class="spec__demo">
+          <div class="mb-demo">
+            <header class="menubar">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="ws-trigger" aria-expanded="true" data-od-id="mb-chip-open">
+                  <span class="ws-avatar">CO</span>
+                  <span class="ws-name">compozy</span>
+                  <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
+                </button>
+                <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" aria-label="Approvals"><svg data-lucide="bell"></svg></button>
+                <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+            <div class="mb-drop">
+              <div class="popover popover--demo" role="menu" data-od-id="mb-menu-nested">
+                <!-- gating: GET /api/workspaces → items[]; same query as S1 switcher (must not diverge) -->
+                <button class="pop-item" data-od-id="mb-item-compozy">
+                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>
+                  compozy
+                  <svg class="pi-check pi-check--accent" data-lucide="check"></svg>
+                </button>
+                <!-- gating: GET /api/workspaces/:id/worktrees → items[]; nest only when workspace.git.backed.
+                     Locked sort: ready → pending → discovered → missing · activity desc within group -->
+                <div class="wt-nest" role="group" aria-label="Worktrees in compozy" data-od-id="mb-nest-compozy">
+                  <div class="wt-row" role="menuitemradio" aria-checked="false">
+                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>payments-retry</b></span></span>
+                    <span class="wt-row__trail"><span class="wt-agent" title="Fix payment retries · claude"><span class="d d--run d--pulse"></span></span></span>
+                  </div>
+                  <div class="wt-row" role="menuitemradio" aria-checked="false">
+                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>auth-refresh</b></span></span>
+                    <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                  </div>
+                  <div class="wt-row" data-inert aria-disabled="true">
+                    <span class="wt-dot" data-state="pending"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>docs-refresh</b><span class="wt-chip" data-state="pending">pending</span></span></span>
+                    <span class="wt-row__trail"><span class="wt-inert-why">materializing</span></span>
+                  </div>
+                  <!-- gating: discovered → selectable; selecting adopts after identity validation
+                       (US-009 AC-1, ADR-002 adopt-on-select) — confirm dialog in S1 §05 -->
+                  <div class="wt-row" data-state="discovered" role="menuitemradio" aria-checked="false" data-od-id="mb-wt-discovered">
+                    <span class="wt-dot" data-state="discovered"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>spike-sqlite-vacuum</b><span class="wt-chip" data-state="discovered">discovered</span></span></span>
+                    <span class="wt-row__trail"><span class="wt-adopt">Adopt</span></span>
+                  </div>
+                  <div class="wt-row" data-state="missing" data-inert aria-disabled="true">
+                    <span class="wt-dot" data-state="missing"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>hotfix-cors</b><span class="wt-chip" data-state="missing">missing</span></span></span>
+                    <span class="wt-row__trail"><span class="wt-inert-why">directory missing</span></span>
+                  </div>
+                  <!-- gating: POST /api/workspaces/:id/worktrees; hidden when !workspace.git.backed -->
+                  <a class="pop-item" href="worktree-create-dialog.html" style="color:var(--muted)" data-od-id="mb-new-worktree">
+                    <svg data-lucide="plus"></svg>New worktree
+                  </a>
+                </div>
+                <button class="pop-item">
+                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">B</span>
+                  branas-site
+                </button>
+                <!-- notes: workspace.git.backed = false → no nest, no worktree affordance -->
+                <button class="pop-item">
+                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">N</span>
+                  notes
+                </button>
+                <div class="pop-sep"></div>
+                <!-- production: workspace-menu.tsx:52-57 -->
+                <button class="pop-item" data-od-id="mb-overview">Workspaces overview…</button>
+                <button class="pop-item" data-od-id="mb-add">Add workspace…</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Worktree scope active</b>The accent check moves to the scoped worktree row and the chip states both halves — chip and menu never disagree.</div>
+        <div class="spec__demo">
+          <div class="mb-demo">
+            <header class="menubar">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="ws-trigger" aria-expanded="true">
+                  <span class="ws-avatar">CO</span>
+                  <span class="ws-name">compozy</span>
+                  <span class="ws-sep">/</span>
+                  <span class="ws-wt">payments-retry</span>
+                  <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
+                </button>
+                <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" aria-label="Approvals"><svg data-lucide="bell"></svg></button>
+                <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+            <div class="mb-drop">
+              <div class="popover popover--demo" role="menu" data-od-id="mb-menu-worktree-scope">
+                <button class="pop-item">
+                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>
+                  compozy
+                </button>
+                <div class="wt-nest" role="group" aria-label="Worktrees in compozy">
+                  <!-- gating: context.scope.worktree_id = wt_payments_retry (US-011) -->
+                  <div class="wt-row" data-selected role="menuitemradio" aria-checked="true">
+                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>payments-retry</b></span></span>
+                    <span class="wt-row__trail"><span class="wt-agent"><span class="d d--run d--pulse"></span></span><svg class="pi-check pi-check--accent" data-lucide="check" style="margin-left:0"></svg></span>
+                  </div>
+                  <div class="wt-row" role="menuitemradio" aria-checked="false">
+                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>auth-refresh</b></span></span>
+                    <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                  </div>
+                  <div class="wt-row" role="menuitemradio" aria-checked="false">
+                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>fix-flaky-e2e</b></span></span>
+                    <span class="wt-row__trail"><span class="wt-merged"><svg data-lucide="git-merge"></svg>Merged</span></span>
+                  </div>
+                </div>
+                <button class="pop-item">
+                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">B</span>
+                  branas-site
+                </button>
+                <button class="pop-item">
+                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">N</span>
+                  notes
+                </button>
+                <div class="pop-sep"></div>
+                <button class="pop-item">Workspaces overview…</button>
+                <button class="pop-item">Add workspace…</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · MISSING FALLBACK ════ -->
+    <section class="lab-sec" data-od-id="s2-missing">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Selected worktree went missing</h2>
+        <span class="lab-sec__gist">US-011 EC-1 · chip reverts to the workspace root, one quiet notice explains why</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Fallback</b><code>hotfix-cors</code> was the scope; its directory vanished out of band. The chip drops the worktree half — it never shows a scope that cannot receive work — and the menu opens with one info-tone notice row. The missing row keeps its chip; resolution lives in S15.</div>
+        <div class="spec__demo">
+          <div class="mb-demo">
+            <header class="menubar" data-od-id="mb-strip-fallback">
+              <div class="mb-side">
+                <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <!-- gating: worktree.state === "missing" → scope falls back to {workspace_id}; chip label reverts (US-011 EC-1) -->
+                <button class="ws-trigger" aria-expanded="true" data-od-id="mb-chip-fallback">
+                  <span class="ws-avatar">CO</span>
+                  <span class="ws-name">compozy</span>
+                  <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
+                </button>
+                <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
+              </div>
+              <div class="mb-side mb-right">
+                <button class="mb-icon" aria-label="Approvals"><svg data-lucide="bell"></svg></button>
+                <button class="mb-icon" aria-label="Command palette"><svg data-lucide="command"></svg></button>
+                <button class="mb-icon" aria-label="Settings"><svg data-lucide="settings"></svg></button>
+              </div>
+            </header>
+            <div class="mb-drop" style="flex-direction:column;align-items:flex-start;gap:6px">
+              <!-- notice = functional label (why the scope changed), info tone, once, dismissed on
+                   next scope change; sits OUTSIDE the menu (role="menu" holds menu items only) -->
+              <div class="mb-notice" role="status" style="width:300px" data-od-id="mb-missing-notice">
+                <svg data-lucide="info"></svg>
+                hotfix-cors is missing — new work runs at the workspace root
+              </div>
+              <div class="popover popover--demo" role="menu" data-od-id="mb-menu-fallback">
+                <button class="pop-item">
+                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>
+                  compozy
+                  <svg class="pi-check pi-check--accent" data-lucide="check"></svg>
+                </button>
+                <div class="wt-nest" role="group" aria-label="Worktrees in compozy">
+                  <div class="wt-row" role="menuitemradio" aria-checked="false">
+                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>payments-retry</b></span></span>
+                    <span class="wt-row__trail"><span class="wt-agent"><span class="d d--run d--pulse"></span></span></span>
+                  </div>
+                  <div class="wt-row" role="menuitemradio" aria-checked="false">
+                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>auth-refresh</b></span></span>
+                    <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                  </div>
+                  <!-- gating: selection blocked while state === "missing"; resolve path = S15 dialogs -->
+                  <div class="wt-row" data-state="missing" data-inert aria-disabled="true">
+                    <span class="wt-dot" data-state="missing"></span>
+                    <span class="wt-row__main"><span class="wt-row__name"><b>hotfix-cors</b><span class="wt-chip" data-state="missing">missing</span></span></span>
+                    <span class="wt-row__trail"><span class="wt-inert-why">directory missing</span></span>
+                  </div>
+                </div>
+                <div class="pop-sep"></div>
+                <button class="pop-item">Workspaces overview…</button>
+                <button class="pop-item">Add workspace…</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S2 of the worktree set — mirrors the switcher (<a href="worktree-nav-switcher.html" style="color:var(--subtle)">S1</a>) nested
+      projection from the same query; overview at <a href="worktree-overview.html" style="color:var(--subtle)">S3</a>.
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S2</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

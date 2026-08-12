@@ -1,4 +1,5 @@
-import { Eraser, List, PanelRight, Play, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Eraser, List, PanelRight, Pencil, Play, RotateCcw, Square, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
 
 import {
   Button,
@@ -20,6 +21,7 @@ import { SessionStatusLine } from "../components/session-status-line";
 interface UseSessionTopbarSlotInput {
   session: SessionPayload;
   isDeleting: boolean;
+  isRenaming: boolean;
   isStopping: boolean;
   isResuming: boolean;
   isUnarchiving: boolean;
@@ -32,6 +34,7 @@ interface UseSessionTopbarSlotInput {
   onInspectorToggle: () => void;
   onSidebarToggle: () => void;
   onDelete: () => void;
+  onRename: () => void;
   onStop: () => void;
   onResume: () => void;
   onUnarchive: () => void;
@@ -42,6 +45,7 @@ interface UseSessionTopbarSlotInput {
 export function useSessionTopbarSlot({
   session,
   isDeleting,
+  isRenaming,
   isStopping,
   isResuming,
   isUnarchiving,
@@ -53,11 +57,15 @@ export function useSessionTopbarSlot({
   onInspectorToggle,
   onSidebarToggle,
   onDelete,
+  onRename,
   onStop,
   onResume,
   onUnarchive,
   onClear,
 }: UseSessionTopbarSlotInput): void {
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const renameRequested = useRef(false);
+
   const isActive = session.state === "active" || session.state === "starting";
   const isArchived = session.archived_at !== null;
   const canResume =
@@ -66,7 +74,7 @@ export function useSessionTopbarSlot({
     isUserControllableSession(session) &&
     !isSessionRunning(session);
   const showStopAction = isActive && !canResume;
-  const controlsBusy = isStopping || isResuming || isUnarchiving || isDeleting;
+  const controlsBusy = isStopping || isResuming || isUnarchiving || isDeleting || isRenaming;
 
   const primaryAction = isArchived ? (
     <Button
@@ -169,7 +177,15 @@ export function useSessionTopbarSlot({
       </>
     ),
     overflow: (
-      <DropdownMenu>
+      <DropdownMenu
+        open={overflowOpen}
+        onOpenChange={setOverflowOpen}
+        onOpenChangeComplete={open => {
+          if (open || !renameRequested.current) return;
+          renameRequested.current = false;
+          onRename();
+        }}
+      >
         <DropdownMenuTrigger
           aria-label="More actions"
           data-testid="session-topbar-overflow"
@@ -185,6 +201,19 @@ export function useSessionTopbarSlot({
           <TopbarOverflowIcon aria-hidden="true" className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" data-testid="session-topbar-overflow-menu">
+          {isUserControllableSession(session) ? (
+            <DropdownMenuItem
+              data-testid="rename-button"
+              disabled={controlsBusy}
+              onClick={() => {
+                renameRequested.current = true;
+                setOverflowOpen(false);
+              }}
+            >
+              {isRenaming ? <Spinner className="size-3" /> : <Pencil className="size-3" />}
+              Rename session
+            </DropdownMenuItem>
+          ) : null}
           {isActive && canResume ? (
             <DropdownMenuItem
               data-testid="stop-menu-item"

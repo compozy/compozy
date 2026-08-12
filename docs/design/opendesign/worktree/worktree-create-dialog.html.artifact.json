@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "worktree/worktree-create-dialog.html",
+  "entry": "worktree/worktree-create-dialog.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-11T19:43:42.099Z",
+  "updatedAt": "2026-08-11T19:43:42.099Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

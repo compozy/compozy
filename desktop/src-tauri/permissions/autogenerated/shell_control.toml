@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-control"
+description = "Enables the shell_control command without any pre-configured scope."
+commands.allow = ["shell_control"]
+
+[[permission]]
+identifier = "deny-shell-control"
+description = "Denies the shell_control command without any pre-configured scope."
+commands.deny = ["shell_control"]

@@ -2,6 +2,19 @@
     "schema_version": 1,
     "pid": 4242,
     "started_at": "2026-08-10T03:00:00Z",
+    "diagnostic_report": {
+        "schema_version": 1,
+        "boot_id": "boot-fixture-error",
+        "boot_phase": "error",
+        "app_version": "0.4.1",
+        "runtime_version": null,
+        "runtime_owned": null,
+        "current_error": {
+            "code": "runtime_unhealthy",
+            "safe_message": "The runtime is not responding."
+        },
+        "previous_crash": null
+    },
     "state": "error",
     "error": {
         "code": "runtime_unhealthy",

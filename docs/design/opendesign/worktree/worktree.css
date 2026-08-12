@@ -1,0 +1,323 @@
+/* ============================================================
+   WORKTREE DOMAIN LAYER — worktree.css
+   Companion to design-system/ds-core.css (link BOTH, ds-core first).
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css + web/src production components
+     2. design-system/ds-core.css (+ GUIDE.md hard rules)
+     3. _done/modals/modal-system.css (dialog chrome geometry, transcribed
+        here with bare token names — never link both files in one page)
+     4. This file (worktree vocabulary per .compozy/tasks/worktree-support/_uiux.md)
+
+   Semantic mapping (locked per _uiux.md §Design constraints + DESIGN-NOTES):
+     success  = merged / bootstrap-ok / safe-to-clean
+     warning  = dirty / pending / setup-flagged / behind[data-hot] (action needed)
+     danger   = destructive (force-remove) / error (status read failed)
+     info     = discovered / stale / missing
+     accent   = agent running (live dot) + the single primary action
+     ready    = calm default — quiet success dot, no loud chip
+   Agent activity vocabulary: running (filled accent pulse .d--run.d--pulse) ·
+     awaiting-input (hollow accent .d--wait — turn finished, waiting on the user;
+     exit actions unlock) · idle (renders nothing in rows)
+   ============================================================ */
+
+/* ============ WINDOW SCAFFOLD (verbatim anatomy from loops/loop-run-form.html) ============ */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2-back svg{width:14px;height:14px}
+.w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2-flex{flex:1;min-width:8px}
+.w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:880px;margin:0 auto;padding:24px 24px 80px}
+.page--narrow{max-width:672px}
+
+/* ============ LAB SCAFFOLD (states sheets) ============ */
+.lab-sec{margin:0 0 40px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto}
+.spec{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11px;line-height:1.55;color:var(--subtle)}
+.spec__note b{display:block;font-size:11.5px;font-weight:600;color:var(--fg);margin-bottom:2px}
+.spec__note code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+@media (max-width:760px){.spec{grid-template-columns:1fr}}
+
+/* ============ DIALOG CHROME (transcribed from _done/modals/modal-system.css, bare tokens) ============ */
+.scrim{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:24px;background:var(--scrim)}
+.scrim--demo{position:relative;inset:auto;z-index:auto;padding:32px 24px;border-radius:var(--radius-lg);background:color-mix(in srgb,var(--rail) 72%,transparent)}
+.dialog{display:flex;flex-direction:column;width:min(720px,100%);max-height:min(720px,92vh);overflow:hidden;
+  background:var(--canvas);border:1px solid var(--line-strong);border-radius:var(--radius-xl);box-shadow:var(--shadow-overlay)}
+.dialog--compact{width:min(560px,100%)}
+.dialog--wide{width:min(880px,100%)}
+.dialog__head{display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--canvas-soft)}
+.head-icon{display:grid;width:36px;height:36px;flex:none;place-items:center;border-radius:10px;
+  background:var(--accent-tint);color:var(--accent-strong);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+.head-icon--neutral{background:var(--canvas-tint);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.head-icon--danger{background:var(--danger-tint);color:var(--danger);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--danger) 24%,transparent)}
+.head-icon svg{width:16px;height:16px}
+.head-copy{min-width:0;flex:1}
+.dialog__head .eyebrow{color:var(--accent-strong)}
+.dialog__head--danger .eyebrow{color:var(--danger)}
+.head-copy h3{margin-top:2px;color:var(--fg-strong);font-size:14px;font-weight:500;letter-spacing:-.012em;line-height:1.35}
+.head-copy p{max-width:66ch;margin-top:4px;color:var(--muted);font-size:12.5px;line-height:1.45}
+.head-copy p b{color:var(--fg);font-weight:500}
+.icon-button{display:grid;width:26px;height:26px;flex:none;place-items:center;border-radius:var(--radius-md);color:var(--muted);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.icon-button:hover{background:var(--row-hover);color:var(--fg-strong)}
+.icon-button svg{width:16px;height:16px}
+.dialog__body{min-height:0;flex:1;overflow-y:auto;padding:18px 20px;scrollbar-width:thin}
+.dialog__foot{display:flex;min-height:56px;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--canvas-tint)}
+.foot-note{display:flex;min-width:0;flex:1;align-items:center;gap:7px;color:var(--muted);font-size:11.5px;line-height:1.4}
+.foot-note svg{width:13px;height:13px;flex:none;color:var(--faint)}
+.foot-note--warning{color:var(--warning)}.foot-note--warning svg{color:var(--warning)}
+.foot-note--danger{color:var(--danger)}.foot-note--danger svg{color:var(--danger)}
+
+/* form fields inside dialogs (modal-system grammar, 36px inputs from ds-core .input) */
+.fgroup{margin-bottom:16px}
+.fgroup:last-child{margin-bottom:0}
+.flabel{display:flex;align-items:baseline;gap:7px;margin-bottom:6px;font-size:12.5px;font-weight:500;color:var(--fg)}
+.flabel .opt{margin-left:auto;font-size:10.5px;font-weight:400;color:var(--faint)}
+.fhint{font-size:11.5px;color:var(--subtle);margin-top:6px;line-height:1.45}
+.fhint code,.fhint .mono{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.ferr{display:flex;align-items:flex-start;gap:6px;font-size:11.5px;line-height:1.45;color:var(--danger);margin-top:6px}
+.ferr svg{width:12px;height:12px;flex:none;margin-top:1.5px}
+.input--err{border-color:color-mix(in srgb,var(--danger) 55%,transparent)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* ============ COMMAND SELECT (packages/ui custom/command-select.tsx + workspace-command-select canon) ============ */
+.command-select{display:flex;min-height:36px;width:100%;align-items:center;gap:8px;padding:0 12px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--elevated);color:var(--fg);text-align:left;
+  transition:border-color var(--dur) var(--ease)}
+.command-select:hover{border-color:var(--line-strong)}
+.command-select:disabled{opacity:.5;cursor:not-allowed}
+.command-select__avatar{display:inline-grid;width:22px;height:22px;flex:none;place-items:center;border-radius:var(--radius-sm);
+  background:var(--canvas-tint);border:1px solid var(--line);color:var(--muted);
+  font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em}
+.command-select__label{min-width:0;flex:1;font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.command-select__label .path{display:block;font-family:var(--font-mono);font-size:10px;font-weight:400;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.command-select__chev{width:13px;height:13px;flex:none;color:var(--faint)}
+
+/* popover list (32px search · eyebrow group heading · check on active) */
+.cs-pop{width:340px;overflow:hidden;background:var(--elevated);border:1px solid var(--line-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay)}
+.cs-pop__search{display:flex;align-items:center;gap:8px;height:32px;padding:0 11px;border-bottom:1px solid var(--line)}
+.cs-pop__search svg{width:13px;height:13px;color:var(--subtle);flex:none}
+.cs-pop__search input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:12px;color:var(--fg)}
+.cs-pop__search input::placeholder{color:var(--subtle)}
+.cs-pop__list{max-height:380px;overflow-y:auto;padding:5px;scrollbar-width:thin}
+.cs-group + .cs-group{margin-top:4px;border-top:1px solid var(--line-soft);padding-top:4px}
+.cs-group__h{display:flex;align-items:center;gap:6px;padding:5px 8px 4px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+.cs-group__h .mono{font-size:9px;color:var(--faint);letter-spacing:0;text-transform:none}
+.cs-item{display:flex;width:100%;align-items:center;gap:9px;min-height:32px;padding:5px 8px;border-radius:var(--radius-sm);
+  color:var(--fg);text-align:left;transition:background var(--dur) var(--ease)}
+.cs-item:hover{background:var(--row-hover)}
+.cs-item[aria-selected="true"]{background:var(--row-selected)}
+.cs-item__label{min-width:0;flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-item__label .sub{display:block;font-family:var(--font-mono);font-size:10px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-item__check{width:14px;height:14px;flex:none;color:var(--fg-strong)}
+.cs-item__badge{flex:none;font-size:9.5px;font-weight:600;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:1px 6px}
+.cs-foot{border-top:1px solid var(--line);padding:5px}
+.cs-foot .cs-item{color:var(--muted)}
+.cs-foot .cs-item svg{width:13px;height:13px;color:var(--subtle)}
+
+/* ============ S5 · WORKTREE STATE CHIP (shared enum: ready·pending·discovered·missing·error) ============ */
+.wt-chip{display:inline-flex;align-items:center;gap:5px;height:19px;padding:0 8px;border-radius:var(--radius-xs);
+  font-size:10.5px;font-weight:600;line-height:1;background:var(--neutral-tint);color:var(--muted)}
+.wt-chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.wt-chip[data-state="ready"]{background:var(--success-tint);color:var(--success)}
+.wt-chip[data-state="pending"]{background:var(--warning-tint);color:var(--warning)}
+.wt-chip[data-state="pending"]::before{border-radius:1px;transform:rotate(45deg);width:5.5px;height:5.5px}
+.wt-chip[data-state="discovered"]{background:var(--info-tint);color:var(--info)}
+.wt-chip[data-state="discovered"]::before{background:transparent;box-shadow:inset 0 0 0 1.4px currentColor}
+.wt-chip[data-state="missing"]{background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--info)}
+.wt-chip[data-state="missing"]::before{background:transparent;box-shadow:inset 0 0 0 1.4px currentColor}
+.wt-chip[data-state="error"]{background:var(--danger-tint);color:var(--danger)}
+.wt-chip[data-state="error"]::before{border-radius:1.5px}
+
+/* companion micro-badges (never more than two per row) */
+.wt-origin{display:inline-flex;align-items:center;height:16px;padding:0 6px;border:1px solid var(--line);border-radius:var(--radius-sm);
+  font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle)}
+.wt-flag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:500;color:var(--warning)}
+.wt-flag svg{width:11px;height:11px}
+.wt-merged{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--success)}
+.wt-merged svg{width:12px;height:12px}
+.wt-stale{font-family:var(--font-mono);font-size:9px;color:var(--faint)}
+
+/* dirty ±ins/−del (diff-header precedent: success/danger text, mono, nullable → absent) */
+.wt-dirty{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:10.5px;font-variant-numeric:tabular-nums}
+.wt-dirty .ins{color:var(--success)}
+.wt-dirty .del{color:var(--danger)}
+/* ahead/behind — rendered only when hasUpstream and counts are known */
+.wt-ab{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);font-variant-numeric:tabular-nums}
+.wt-ab .ahead::before{content:"↑";margin-right:1px;color:var(--faint)}
+.wt-ab .behind::before{content:"↓";margin-right:1px;color:var(--faint)}
+.wt-ab .behind[data-hot]{color:var(--warning)}
+/* agent activity — runtime truth only (accent = live, faint = idle) */
+.wt-agent{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--subtle)}
+.wt-agent .d{width:6px;height:6px}
+/* awaiting-input — turn finished, agent waits on the user; distinct from running (no fill, no pulse) */
+.d--wait{background:transparent;box-shadow:inset 0 0 0 1.4px var(--accent)}
+
+/* ============ S5 · WORKTREE ROW (old-Compozy worktree-list-item anatomy, ds-core row grammar) ============ */
+.wt-row{display:grid;grid-template-columns:26px minmax(0,1fr) auto;align-items:center;gap:10px;
+  min-height:44px;padding:7px 10px;border-radius:var(--radius-md);
+  transition:background var(--dur) var(--ease)}
+.wt-row:hover{background:var(--row-hover)}
+.wt-row[data-selected]{background:var(--row-selected)}
+.wt-row__icon{width:26px;height:26px;border-radius:var(--radius);display:grid;place-items:center;background:var(--elevated);color:var(--muted)}
+.wt-row__icon svg{width:13px;height:13px}
+.wt-row[data-state="missing"] .wt-row__icon,.wt-row[data-state="discovered"] .wt-row__icon{background:transparent;border:1px dashed var(--line-strong)}
+.wt-row__main{min-width:0}
+.wt-row__name{display:flex;align-items:center;gap:7px;min-width:0}
+.wt-row__name b{font-size:12.5px;font-weight:550;letter-spacing:-.008em;color:var(--fg-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wt-row[data-state="missing"] .wt-row__name b{color:var(--muted)}
+.wt-row__branch{display:flex;align-items:center;gap:5px;margin-top:1px;min-width:0}
+.wt-row__branch code{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wt-row__branch .copy{width:14px;height:14px;display:grid;place-items:center;border-radius:var(--radius-xxs);color:var(--faint);opacity:0;transition:opacity var(--dur)}
+.wt-row:hover .wt-row__branch .copy{opacity:1}
+.wt-row__branch .copy:hover{color:var(--fg);background:var(--row-hover)}
+.wt-row__branch .copy svg{width:10px;height:10px}
+/* path lane — micro mono, demoted not removed (detail/removal surfaces + anatomy sheet) */
+.wt-row__path{display:block;font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wt-row__trail{display:flex;align-items:center;gap:10px;flex:none}
+.wt-row__meta{display:flex;align-items:center;gap:8px}
+.wt-row__time{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+
+/* ============ S1/S2/S3 · NESTED PROJECTION (indent + 1px rail — never box-drawing glyphs) ============ */
+.wt-nest{position:relative;margin-left:15px;padding-left:12px}
+.wt-nest::before{content:"";position:absolute;left:0;top:2px;bottom:2px;width:1px;background:var(--line-strong)}
+.wt-nest .cs-item,.wt-nest .wt-row{min-height:30px;padding-block:4px}
+/* non-selectable nest rows (pending/missing) — resting cursor, no hover fill; the right lane
+   carries the functional reason ("materializing", "directory missing") */
+.wt-row[data-inert]{cursor:default}
+.wt-row[data-inert]:hover{background:transparent}
+.wt-inert-why{font-family:var(--font-mono);font-size:9px;color:var(--faint)}
+/* adopt-on-select affordance on discovered rows (US-009/ADR-002) — revealed on hover/focus */
+.wt-adopt{margin-left:auto;flex:none;font-size:10.5px;font-weight:600;color:var(--info);opacity:0;transition:opacity var(--dur)}
+.wt-row:hover .wt-adopt,.wt-row:focus-visible .wt-adopt,.wt-row:focus-within .wt-adopt{opacity:1}
+/* nested-row state dots — single source of shape truth, mirrors .wt-chip::before geometry.
+   ready keeps ds-core .d--ok (filled success); never restyle these inline. */
+.wt-dot{width:7px;height:7px;flex:none;justify-self:center;border-radius:50%}
+.wt-dot[data-state="pending"]{width:5.5px;height:5.5px;border-radius:1px;transform:rotate(45deg);background:var(--warning)}
+.wt-dot[data-state="discovered"],.wt-dot[data-state="missing"]{background:transparent;box-shadow:inset 0 0 0 1.4px var(--info)}
+.wt-dot[data-state="error"]{border-radius:1.5px;background:var(--danger)}
+/* collapsed-parent aggregate activity (one quiet signal, no counts-as-noise) */
+.wt-agg{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.wt-agg .d{width:5px;height:5px}
+
+/* ============ S6 · STATUS STRIP (five fields, no more — analysis/07 §Transferable 1) ============ */
+.wt-strip{display:flex;flex-wrap:wrap;align-items:center;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:var(--canvas-soft);overflow:hidden}
+.wt-strip__cell{display:flex;flex-direction:column;gap:3px;padding:10px 14px;min-width:0}
+.wt-strip__cell + .wt-strip__cell{border-left:1px solid var(--line-soft)}
+.wt-strip__k{font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle)}
+.wt-strip__v{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--fg);min-height:18px}
+.wt-strip__v .mono{font-size:11px}
+.wt-strip__v .copy{width:16px;height:16px;display:grid;place-items:center;border-radius:var(--radius-xxs);color:var(--faint)}
+.wt-strip__v .copy:hover{color:var(--fg);background:var(--row-hover)}
+.wt-strip__v .copy svg{width:11px;height:11px}
+.wt-strip__cell[data-tone="danger"] .wt-strip__v{color:var(--danger)}
+.wt-strip__cell[data-tone="warning"] .wt-strip__v{color:var(--warning)}
+.wt-strip__cell[data-tone="success"] .wt-strip__v{color:var(--success)}
+.wt-strip__cell[data-unknown] .wt-strip__v{color:var(--faint);font-weight:400}
+
+/* ============ S6 · SPLIT BUTTON (open-pr-button.tsx anatomy: primary + chevron menu) ============ */
+.splitbtn{display:inline-flex;align-items:stretch}
+.splitbtn__main{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;
+  border:1px solid var(--line);border-right:0;border-radius:var(--radius-md) 0 0 var(--radius-md);
+  background:var(--btn-fill);font-size:12px;font-weight:500;white-space:nowrap;
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+.splitbtn__main svg{width:13px;height:13px}
+.splitbtn__main:hover{background:var(--btn-hover);color:var(--fg-strong)}
+.splitbtn__chev{display:grid;place-items:center;width:22px;height:26px;
+  border:1px solid var(--line);border-radius:0 var(--radius-md) var(--radius-md) 0;
+  background:var(--btn-fill);color:var(--muted);
+  transition:background var(--dur) var(--ease)}
+.splitbtn__chev svg{width:12px;height:12px}
+.splitbtn__chev:hover{background:var(--btn-hover);color:var(--fg-strong)}
+.splitbtn--primary .splitbtn__main{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+.splitbtn--primary .splitbtn__main:hover{background:var(--accent-hover);color:var(--accent-ink)}
+.splitbtn--primary .splitbtn__chev{background:var(--accent);border-color:transparent;color:var(--accent-ink);border-left:1px solid color-mix(in srgb,var(--accent-ink) 22%,transparent)}
+.splitbtn--primary .splitbtn__chev:hover{background:var(--accent-hover)}
+.splitbtn[data-disabled] .splitbtn__main,.splitbtn[data-disabled] .splitbtn__chev{opacity:.5;cursor:not-allowed}
+.splitbtn[data-disabled] .splitbtn__main:hover{background:var(--btn-fill);color:inherit}
+
+/* action menu (Git actions — every row carries its own disabled reason) */
+.gmenu{width:280px;padding:5px;background:var(--elevated);border:1px solid var(--line-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay)}
+.gmenu__h{padding:5px 8px 4px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle)}
+.gmenu__item{display:flex;width:100%;align-items:flex-start;gap:9px;padding:6px 8px;border-radius:var(--radius-sm);text-align:left;
+  transition:background var(--dur) var(--ease)}
+.gmenu__item:hover:not([data-disabled]){background:var(--row-hover)}
+.gmenu__item[aria-selected="true"]{background:var(--row-selected)}
+.gmenu__item svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--muted)}
+.gmenu__label{min-width:0;flex:1;font-size:12.5px;color:var(--fg)}
+.gmenu__reason{display:block;font-size:10.5px;line-height:1.4;color:var(--subtle);margin-top:1px}
+.gmenu__item[data-disabled]{cursor:not-allowed}
+.gmenu__item[data-disabled] .gmenu__label{color:var(--subtle)}
+.gmenu__item[data-disabled] svg{color:var(--faint)}
+.gmenu__sep{height:1px;background:var(--line-soft);margin:4px 3px}
+.gmenu__item--danger .gmenu__label,.gmenu__item--danger svg{color:var(--danger)}
+/* block-level menu footnote (reason that applies to the whole menu, not one row) */
+.gmenu__note{display:block;padding:6px 8px 3px;margin-top:4px;border-top:1px solid var(--line-soft);font-size:10.5px;line-height:1.4;color:var(--subtle)}
+/* ghost button in danger ink — force-remove doorway; sits after Cancel in DOM and tab order */
+.btn--ghost-danger{color:var(--danger)}
+.btn--ghost-danger:hover{background:var(--danger-tint);color:var(--danger)}
+
+/* ============ S8 · COMPOSER ENVIRONMENT CHIP (session-prompt-runtime-selector canon) ============ */
+.env-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--btn-fill);
+  font-size:11.5px;font-weight:500;color:var(--muted);white-space:nowrap;
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+.env-chip svg{width:12px;height:12px;color:var(--subtle)}
+.env-chip:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg)}
+.env-chip .mono{font-size:10px;color:var(--subtle)}
+.env-chip[data-pending]{border-style:dashed;color:var(--warning)}
+.env-chip[data-pending] svg{color:var(--warning)}
+.env-chip[data-locked]{cursor:default}
+.env-chip[data-locked]:hover{background:var(--btn-fill);border-color:var(--line);color:var(--muted)}
+
+/* ============ S14 · PROGRESS (one updating toast — phases up front, per-step results) ============ */
+.toast{width:360px;padding:12px 14px;background:var(--elevated);border:1px solid var(--line-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay)}
+.toast__head{display:flex;align-items:center;gap:8px}
+.toast__title{flex:1;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
+.toast__title .mono{font-size:10.5px;font-weight:400;color:var(--subtle)}
+.toast__steps{margin-top:9px;display:flex;flex-direction:column;gap:1px}
+.tstep{display:flex;align-items:center;gap:8px;min-height:24px;font-size:11.5px;color:var(--subtle)}
+.tstep__mark{width:14px;height:14px;flex:none;display:grid;place-items:center}
+.tstep__mark svg{width:12px;height:12px}
+.tstep[data-s="done"]{color:var(--muted)}
+.tstep[data-s="done"] .tstep__mark{color:var(--success)}
+.tstep[data-s="active"]{color:var(--fg)}
+.tstep[data-s="active"] .tstep__mark{color:var(--accent)}
+.tstep[data-s="skip"]{color:var(--subtle)}
+.tstep[data-s="skip"] .tstep__mark{color:var(--faint)}
+.tstep[data-s="fail"]{color:var(--danger)}
+.tstep[data-s="fail"] .tstep__mark{color:var(--danger)}
+.tstep__why{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.tstep__spin{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--line-strong);border-top-color:var(--accent);animation:wtspin .8s linear infinite}
+@keyframes wtspin{to{transform:rotate(360deg)}}
+.toast__hook{margin-top:8px;padding:8px 10px;border-radius:var(--radius-md);background:var(--rail);
+  font-family:var(--font-mono);font-size:10px;line-height:1.6;color:var(--subtle);max-height:96px;overflow-y:auto;white-space:pre-wrap}
+.toast__hook .err{color:var(--danger)}
+.toast__foot{display:flex;align-items:center;gap:8px;margin-top:10px}
+.toast__foot .spacer{flex:1}
+
+@media (max-width:760px){
+  .grid-2{grid-template-columns:1fr}
+  .wt-strip{flex-direction:column;align-items:stretch}
+  .wt-strip__cell + .wt-strip__cell{border-left:0;border-top:1px solid var(--line-soft)}
+}

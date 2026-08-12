@@ -195,7 +195,7 @@ func roleBundle(role RoleRecord) outputBundle {
 				),
 				renderToonArray(
 					"diagnostics",
-					[]string{"code", clientMessageKey, agentAgentKey},
+					[]string{cliCodeKey, clientMessageKey, agentAgentKey},
 					roleDiagnosticRows(role),
 				),
 			), nil

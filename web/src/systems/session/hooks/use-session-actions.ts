@@ -10,6 +10,7 @@ import {
   type CreateSessionParams,
   deleteSession,
   repairSession,
+  renameSession,
   resumeSession,
   SessionApiError,
   sendSessionPrompt,
@@ -43,6 +44,32 @@ function requireWorkspace(workspaceId: string | null | undefined): string {
 
 interface UseSessionWorkspaceOptions {
   workspaceId?: string | null;
+}
+
+export interface RenameSessionParams {
+  id: string;
+  name: string;
+}
+
+export function useRenameSession(options: UseSessionWorkspaceOptions = {}) {
+  const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const request = useAbortableMutationRequest();
+
+  return useMutation({
+    mutationFn: ({ id, name }: RenameSessionParams) =>
+      request(signal => renameSession(requireWorkspace(workspaceId), id, { name }, signal)),
+    onSuccess: session => {
+      const successWorkspaceId = requireWorkspace(session.workspace_id);
+      queryClient.setQueryData(sessionKeys.detail(successWorkspaceId, session.id), session);
+    },
+    onSettled: (_data, _error, variables) => {
+      if (workspaceId) {
+        void invalidateSessionMutationQueries(queryClient, workspaceId, variables.id);
+      }
+    },
+  });
 }
 
 function resolveWorkspaceId(

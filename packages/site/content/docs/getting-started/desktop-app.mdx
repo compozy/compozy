@@ -12,11 +12,52 @@ The app resolves the runtime in this order:
 
 1. Attach to a healthy daemon already running on this machine.
 2. Start an installed runtime when no healthy daemon is available.
-3. Download, verify, and install an app-owned runtime when neither path is available.
+3. Download, verify, install, and start an app-owned runtime when neither path is available.
 
-Provisioning reports each stage. If a download or verification fails, the failed stage stays
-visible. Select **Retry** after fixing the cause. The app resumes from safe local state and never
-treats a partial download as an installed runtime.
+On a clean machine, a shipped desktop release completes the last step itself. The boot window stays
+open while it resolves, provisions, starts, or attaches. If a download or verification fails, the
+failed phase stays visible. Select **Retry operation** after fixing the cause. The app resumes from
+safe local state and never treats a partial download as an installed runtime.
+
+## Develop locally
+
+A source checkout does not provision from the production release feed. Start the complete local
+stack from the repository root:
+
+```bash
+make desktop-dev
+```
+
+This builds the web app, starts the development daemon, waits for it to become ready, and opens the
+desktop shell. Running the Tauri binary by itself reports this command instead of imitating a
+packaged first run.
+
+## Startup diagnostics
+
+If startup cannot complete, the boot window remains available. Select **Load diagnostics** to read
+the safe report for that boot. **Technical details** is collapsed by default and contains only the
+redacted boot ID, phase, versions, ownership, current safe error, and any previous crash. It never
+shows raw log contents or filesystem paths.
+
+Use **Copy diagnostics** to copy that report locally. Use **Export diagnostics** to create a local
+diagnostic archive. Export happens only after that explicit click; CompozyOS never uploads the
+report or archive, and it never deletes your runtime, configuration, credentials, sessions, or
+other data as part of diagnostics.
+
+The same report is available from a terminal, including when the daemon is not healthy:
+
+```bash
+compozy app diagnose -o json
+compozy app diagnose --bundle --yes -o json
+compozy app diagnose --bundle --yes --bundle-output ./desktop-diagnostics.tar.gz -o json
+```
+
+`--yes` confirms local archive creation. Without `--bundle-output`, the archive is written under
+`$COMPOZY_HOME/support-bundles/`. It contains `manifest.json` with the redacted report and may
+include bounded, redacted tails from the current boot only: `desktop.log` and
+`desktop-bootstrap.jsonl`. It never includes `compozy.log`, raw logs, databases, configuration,
+credentials, sessions, or transcripts. It is separate from the daemon-owned
+[support bundle](/docs/operations/support-bundles).
 
 ## Runtime ownership
 
@@ -61,6 +102,11 @@ Open diagnostics, follow the reported recovery action, then retry:
 compozy app diagnose -o json
 compozy app retry
 ```
+
+Automatic repair is narrowly limited. A retry can repair only disposable desktop metadata and a
+runtime process that the app can prove it owns. It never stops an operator-managed process and
+never resets or removes data-bearing state. If ownership is not proven, use the operator update
+command reported by diagnostics instead.
 
 For platform log paths and manual recovery, see
 [Desktop app operations](/docs/operations/desktop-app).

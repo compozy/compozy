@@ -8,6 +8,7 @@ use crate::app_state::AppStatePublisher;
 use crate::boot_window;
 use crate::control::{ControlError, ControlHandler};
 use crate::control_events::{app_event_json, runtime_event_json, runtime_update_error_code};
+use crate::diagnostics::actions as diagnostic_actions;
 use crate::errors::{ShellError, ShellErrorCode};
 use crate::home::CompozyHome;
 use crate::links::{LinkQueue, LinkTarget, parse};
@@ -60,6 +61,10 @@ impl DesktopController {
             .runtime_updater
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = updater;
+    }
+
+    pub fn set_runtime_metadata(&self, version: Option<String>, owned: bool) {
+        self.publisher.set_runtime_metadata(version, owned);
     }
 
     pub fn automatic_updates_enabled(&self) -> bool {
@@ -307,13 +312,16 @@ impl DesktopController {
         }
     }
 
-    fn diagnose(&self) -> Value {
-        let status = self.publisher.status();
-        json!({
-            "app_log": self.home.app_log,
-            "runtime_log": self.home.runtime_log,
-            "last_error": status.last_error,
-        })
+    fn diagnose(&self) -> Result<Value, ControlError> {
+        diagnostic_actions::report(&self.publisher)
+    }
+
+    fn copy_diagnostics(&self) -> Result<Value, ControlError> {
+        diagnostic_actions::copy(&self.app, &self.publisher)
+    }
+
+    fn export_diagnostics(&self, params: &Value) -> Result<Value, ControlError> {
+        diagnostic_actions::export(&self.home, &self.publisher, params)
     }
 
     pub fn record_app_event(&self, event: &AppUpdateEvent) {
@@ -416,7 +424,7 @@ impl DesktopController {
     }
 }
 
-fn shell_retry_available(state: &ShellState) -> bool {
+pub(crate) fn shell_retry_available(state: &ShellState) -> bool {
     matches!(state, ShellState::ShellError { .. })
 }
 
@@ -459,7 +467,9 @@ impl ControlHandler for DesktopController {
                 self.apply_update(target)
             }
             "retry" => self.retry(),
-            "diagnose" => Ok(self.diagnose()),
+            "diagnose" => self.diagnose(),
+            "copy_diagnostics" => self.copy_diagnostics(),
+            "export_diagnostics" => self.export_diagnostics(&params),
             _ => Err(ControlError::new(
                 "app_control_unknown_method",
                 "The app control method is not supported.",

@@ -42,6 +42,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-032](L-032-prototype-fidelity-binds-visual-language-not-content.md) | Prototype fidelity binds visual language, not content                   | Frontend / Design system / Process |
 | [L-033](L-033-workspace-resolution-is-a-boundary.md)            | Workspace resolution is a boundary, not command-family plumbing                  | Architecture / CLI / Workspace isolation |
 | [L-034](L-034-prototype-production-transcription-first.md)      | Prototypes of implemented surfaces are transcriptions plus deltas, never reinterpretations | Frontend / Design system / Process |
+| [L-035](L-035-reference-parity-binds-the-read-not-the-build.md) | Reference parity binds the read, not the build — components and host chrome resolve to shipped owners | Frontend / Design system / Process |
 
 ## How to use
 

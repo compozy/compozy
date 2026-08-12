@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Workspaces overview · worktrees · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-overview · S3 — workspaces overview dialog with worktree groups.
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S3 · story US-010.
+  Provenance:
+    production            — overview content model from os-workspaces-overview.tsx:83-215
+                            (monogram, name, agents · sessions meta line, root_dir micro mono,
+                            "New workspace" as the single primary, "Current" marker on the
+                            active workspace); dialog chrome from modal-system via worktree.css
+    spec worktree-support — worktree count on each workspace row (only when >0, adopted only),
+                            expandable nested list reusing the S5 vocabulary read-only,
+                            quiet "New worktree" entry point per git-backed workspace
+    authorized delta      — production renders full-screen cards; this artboard re-sets the
+                            same content as dialog rows (.dialog + .wt-row grammar) so the
+                            nested worktree projection matches S1/S2 — cards cannot nest depth 2
+-->
+<style>
+  /* page-local, bare tokens only */
+  a{color:inherit;text-decoration:none}
+  .ov-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:10px;
+    min-height:48px;padding:8px 10px;border-radius:var(--radius-md)}
+  .ov-row:hover{background:var(--row-hover)}
+  .ov-row[data-current]{background:var(--row-selected)}
+  .ov-mono{width:28px;height:28px;border-radius:var(--radius-sm);display:grid;place-items:center;
+    background:var(--elevated);border:1px solid var(--line-strong);color:var(--muted);
+    font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.04em}
+  .ov-main{min-width:0}
+  .ov-name{display:flex;align-items:center;gap:8px;min-width:0}
+  .ov-name b{font-size:12.5px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ov-name .cur{flex:none;font-size:9.5px;font-weight:600;color:var(--subtle);background:var(--badge-fill);border-radius:var(--radius-xs);padding:1px 6px}
+  .ov-path{display:block;font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .ov-meta{font-size:11px;color:var(--subtle);white-space:nowrap}
+  .ov-trail{display:flex;align-items:center;gap:10px;flex:none}
+  /* 24px floor — keyboard/touch reachable */
+  .ov-exp{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius-xxs);color:var(--faint)}
+  .ov-exp:hover{background:var(--row-hover);color:var(--fg)}
+  .ov-exp svg{width:12px;height:12px}
+  .ov-nest-wrap{padding:0 10px 6px 10px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-overview-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Workspaces overview</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="worktree-menubar-menu.html">← Menubar</a>
+      <a class="btn" href="worktree-create-dialog.html">Create dialog →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · FULL OVERVIEW ════ -->
+    <section class="lab-sec" data-od-id="s3-full">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Overview — compozy expanded</h2>
+        <span class="lab-sec__gist">count only when &gt;0 · nest is the S5 vocabulary, read-only</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>All three workspaces</b>compozy expanded shows all eight records in the locked sort (ready → pending → discovered → missing → error, activity desc within group). Rows are read-only projections with two exceptions: discovered carries <b>Adopt</b> (adopt-on-select — same confirm as S1 §05) and missing carries <b>Resolve…</b> (S15). "New workspace" is the screen's single primary (production); "New worktree" rides each git-backed row quietly. notes shows no worktree affordance at all.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo scrim">
+            <div class="dialog" data-od-id="ov-dialog" role="dialog" aria-labelledby="ov-title">
+              <div class="dialog__head">
+                <div class="head-icon head-icon--neutral"><svg data-lucide="layout-grid"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Workspaces</div>
+                  <h3 id="ov-title">Overview</h3>
+                  <!-- data line, not helper prose: workspaces + adopted worktrees (os-workspaces-overview.tsx:100-103 precedent) -->
+                  <p data-od-id="ov-subtitle">3 workspaces · 7 worktrees</p>
+                </div>
+                <!-- the single primary action (production os-workspaces-overview.tsx:129-140) -->
+                <button class="btn btn--primary" data-od-id="ov-new-workspace"><svg data-lucide="plus"></svg>New workspace</button>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="panelbox">
+
+                  <!-- ── compozy · current · expanded ── -->
+                  <!-- gating: GET /api/workspaces → items[]; meta = agents · sessions (use-workspace-details) -->
+                  <div class="ov-row" data-current data-od-id="ov-ws-compozy">
+                    <span class="ov-mono">CO</span>
+                    <span class="ov-main">
+                      <span class="ov-name"><b>compozy</b><span class="cur">Current</span></span>
+                      <span class="ov-path">~/dev/compozy</span>
+                    </span>
+                    <span class="ov-trail">
+                      <!-- gating: count = adopted worktrees only; 0 → absent -->
+                      <span class="ov-meta" data-od-id="ov-count-compozy">3 agents · 5 sessions · 7 worktrees</span>
+                      <!-- gating: POST /api/workspaces/:id/worktrees; hidden when !workspace.git.backed -->
+                      <a class="btn btn--sm btn--ghost" href="worktree-create-dialog.html" data-od-id="ov-new-wt-compozy"><svg data-lucide="plus"></svg>New worktree</a>
+                      <button class="ov-exp" aria-label="Collapse worktrees" aria-expanded="true"><svg data-lucide="chevron-down"></svg></button>
+                    </span>
+                  </div>
+                  <div class="ov-nest-wrap">
+                    <!-- gating: GET /api/workspaces/:id/worktrees → items[]; S5 projection.
+                         Locked sort: ready → pending → discovered → missing → error · activity desc within group -->
+                    <div class="wt-nest" data-od-id="ov-nest-compozy">
+                      <div class="wt-row">
+                        <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                        <span class="wt-row__main">
+                          <span class="wt-row__name"><b>payments-retry</b></span>
+                          <span class="wt-row__branch"><code>pedro/payments-retry</code></span>
+                        </span>
+                        <span class="wt-row__trail"><span class="wt-row__meta">
+                          <span class="wt-dirty"><span class="ins">+142</span><span class="del">−18</span></span>
+                          <span class="wt-ab"><span class="ahead">3</span></span>
+                          <span class="wt-agent" title="Fix payment retries · claude"><span class="d d--run d--pulse"></span></span>
+                        </span><span class="wt-row__time">4m</span></span>
+                      </div>
+                      <div class="wt-row">
+                        <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                        <span class="wt-row__main">
+                          <span class="wt-row__name"><b>auth-refresh</b></span>
+                          <span class="wt-row__branch"><code>pedro/auth-refresh</code></span>
+                        </span>
+                        <span class="wt-row__trail"><span class="wt-row__meta">
+                          <span class="wt-ab"><span class="behind" data-hot>2</span></span>
+                          <span class="pill" data-tone="info" data-mono="true">PR #412</span>
+                        </span><span class="wt-row__time">1h</span></span>
+                      </div>
+                      <div class="wt-row">
+                        <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                        <span class="wt-row__main">
+                          <span class="wt-row__name"><b>data-migration</b><span class="wt-flag" title="bun install exited 1 — worktree is usable"><svg data-lucide="triangle-alert"></svg>setup failed</span></span>
+                          <span class="wt-row__branch"><code>pedro/data-migration</code></span>
+                        </span>
+                        <span class="wt-row__trail"><span class="wt-row__meta">
+                          <span class="wt-ab"><span class="ahead">1</span></span>
+                        </span><span class="wt-row__time">3h</span></span>
+                      </div>
+                      <div class="wt-row">
+                        <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                        <span class="wt-row__main">
+                          <span class="wt-row__name"><b>fix-flaky-e2e</b><span class="wt-origin">per-run</span></span>
+                          <span class="wt-row__branch"><code>run/fix-flaky-e2e</code></span>
+                        </span>
+                        <span class="wt-row__trail"><span class="wt-row__meta">
+                          <span class="wt-merged"><svg data-lucide="git-merge"></svg>Merged</span>
+                        </span><span class="wt-row__time">2d</span></span>
+                      </div>
+                      <div class="wt-row" data-inert aria-disabled="true">
+                        <span class="wt-row__icon"><svg data-lucide="loader"></svg></span>
+                        <span class="wt-row__main">
+                          <span class="wt-row__name"><b>docs-refresh</b><span class="wt-chip" data-state="pending">pending</span></span>
+                          <span class="wt-row__branch"><code>pedro/docs-refresh</code></span>
+                        </span>
+                        <span class="wt-row__trail"><span class="wt-row__meta">
+                          <span class="mono" style="font-size:9.5px;color:var(--faint)">creating branch…</span>
+                        </span></span>
+                      </div>
+                      <!-- gating: discovered → Adopt opens the S1 §05 adopt confirm
+                           (POST .../worktrees/spike-sqlite-vacuum/adopt · US-009 AC-1, ADR-002) -->
+                      <div class="wt-row" data-state="discovered">
+                        <span class="wt-row__icon"><svg data-lucide="folder-search"></svg></span>
+                        <span class="wt-row__main">
+                          <span class="wt-row__name"><b>spike-sqlite-vacuum</b><span class="wt-chip" data-state="discovered">discovered</span></span>
+                          <span class="wt-row__branch"><code>spike/sqlite-vacuum</code></span>
+                        </span>
+                        <span class="wt-row__trail"><span class="wt-row__meta">
+                          <span class="mono" style="font-size:9.5px;color:var(--faint)">../compozy-spike</span>
+                          <a class="btn btn--sm" href="worktree-nav-switcher.html#s1-adopt" data-od-id="ov-adopt">Adopt</a>
+                        </span></span>
+                      </div>
+                      <div class="wt-row" data-state="missing">
+                        <span class="wt-row__icon"><svg data-lucide="folder-x"></svg></span>
+                        <span class="wt-row__main">
+                          <span class="wt-row__name"><b>hotfix-cors</b><span class="wt-chip" data-state="missing">missing</span></span>
+                          <span class="wt-row__branch"><code>pedro/hotfix-cors</code></span>
+                        </span>
+                      </div>
+                      <div class="wt-row" data-state="error">
+                        <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+                        <span class="wt-row__main">
+                          <span class="wt-row__name"><b>bench-harness</b><span class="wt-chip" data-state="error">error</span></span>
+                          <span class="wt-row__branch"><code>pedro/bench-harness</code></span>
+                        </span>
+                        <span class="wt-row__trail"><span class="wt-row__meta">
+                          <span class="mono" style="font-size:9.5px;color:var(--danger)">status read failed</span>
+                        </span></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ── branas-site · git-backed · zero worktrees ── -->
+                  <!-- gating: worktrees.length === 0 → no count, no chevron, no nest; quiet create stays -->
+                  <div class="ov-row" data-od-id="ov-ws-branas">
+                    <span class="ov-mono">BR</span>
+                    <span class="ov-main">
+                      <span class="ov-name"><b>branas-site</b></span>
+                      <span class="ov-path">~/dev/branas/site</span>
+                    </span>
+                    <span class="ov-trail">
+                      <span class="ov-meta">1 agent · 2 sessions</span>
+                      <a class="btn btn--sm btn--ghost" href="worktree-create-dialog.html" data-od-id="ov-new-wt-branas"><svg data-lucide="plus"></svg>New worktree</a>
+                    </span>
+                  </div>
+
+                  <!-- ── notes · not git-backed → no worktree affordance at all ── -->
+                  <!-- gating: workspace.git.backed === false → count, nest, and create all absent (never disabled) -->
+                  <div class="ov-row" data-od-id="ov-ws-notes">
+                    <span class="ov-mono">NO</span>
+                    <span class="ov-main">
+                      <span class="ov-name"><b>notes</b></span>
+                      <span class="ov-path">~/notes</span>
+                    </span>
+                    <span class="ov-trail">
+                      <span class="ov-meta">1 session</span>
+                    </span>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · COLLAPSED ════ -->
+    <section class="lab-sec" data-od-id="s3-collapsed">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Collapsed — count + aggregate only</h2>
+        <span class="lab-sec__gist">a closed row still informs · zero renders nothing</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Folded state</b>Collapsed compozy keeps the worktree count and the live-agent aggregate — nothing else survives the fold. branas-site and notes are byte-identical to their pre-worktree rows.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo scrim">
+            <div class="dialog" data-od-id="ov-dialog-collapsed" role="dialog" aria-labelledby="ov-title-2">
+              <div class="dialog__head">
+                <div class="head-icon head-icon--neutral"><svg data-lucide="layout-grid"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Workspaces</div>
+                  <h3 id="ov-title-2">Overview</h3>
+                  <p>3 workspaces · 7 worktrees</p>
+                </div>
+                <button class="btn btn--primary"><svg data-lucide="plus"></svg>New workspace</button>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="panelbox">
+                  <!-- gating: aggregate = count(agent.state === "running") across worktrees; 0 → absent -->
+                  <div class="ov-row" data-current data-od-id="ov-ws-compozy-collapsed">
+                    <span class="ov-mono">CO</span>
+                    <span class="ov-main">
+                      <span class="ov-name"><b>compozy</b><span class="cur">Current</span></span>
+                      <span class="ov-path">~/dev/compozy</span>
+                    </span>
+                    <span class="ov-trail">
+                      <span class="ov-meta">3 agents · 5 sessions · 7 worktrees</span>
+                      <span class="wt-agg"><span class="d d--run d--pulse"></span>2 active</span>
+                      <button class="ov-exp" aria-label="Expand worktrees" aria-expanded="false"><svg data-lucide="chevron-right"></svg></button>
+                    </span>
+                  </div>
+                  <div class="ov-row">
+                    <span class="ov-mono">BR</span>
+                    <span class="ov-main">
+                      <span class="ov-name"><b>branas-site</b></span>
+                      <span class="ov-path">~/dev/branas/site</span>
+                    </span>
+                    <span class="ov-trail"><span class="ov-meta">1 agent · 2 sessions</span></span>
+                  </div>
+                  <div class="ov-row">
+                    <span class="ov-mono">NO</span>
+                    <span class="ov-main">
+                      <span class="ov-name"><b>notes</b></span>
+                      <span class="ov-path">~/notes</span>
+                    </span>
+                    <span class="ov-trail"><span class="ov-meta">1 session</span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · DISCOVERED-ONLY REPO ════ -->
+    <section class="lab-sec" data-od-id="s3-discovered">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Discovered-only repo</h2>
+        <span class="lab-sec__gist">first scan, nothing adopted — no count, chips carry the story</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Before adoption</b>compozy at first scan: the repo carries one external worktree and nothing adopted. The count stays absent (it counts adopted only — a count of discovered entries would overstate what Compozy manages). The row is selectable: Adopt (or selecting it) opens the S1 §05 confirm.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo scrim">
+            <div class="dialog dialog--compact" data-od-id="ov-dialog-discovered" role="dialog" aria-labelledby="ov-title-3">
+              <div class="dialog__head">
+                <div class="head-icon head-icon--neutral"><svg data-lucide="layout-grid"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Workspaces</div>
+                  <h3 id="ov-title-3">Overview</h3>
+                  <p>1 workspace</p>
+                </div>
+                <button class="btn btn--primary"><svg data-lucide="plus"></svg>New workspace</button>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="panelbox">
+                  <!-- gating: adopted === 0 → no count; discovered entries still render inside the nest with their chip -->
+                  <div class="ov-row" data-current data-od-id="ov-ws-discovered-only">
+                    <span class="ov-mono">CO</span>
+                    <span class="ov-main">
+                      <span class="ov-name"><b>compozy</b><span class="cur">Current</span></span>
+                      <span class="ov-path">~/dev/compozy</span>
+                    </span>
+                    <span class="ov-trail">
+                      <span class="ov-meta">3 agents · 5 sessions</span>
+                      <a class="btn btn--sm btn--ghost" href="worktree-create-dialog.html"><svg data-lucide="plus"></svg>New worktree</a>
+                      <button class="ov-exp" aria-label="Collapse worktrees" aria-expanded="true"><svg data-lucide="chevron-down"></svg></button>
+                    </span>
+                  </div>
+                  <div class="ov-nest-wrap">
+                    <div class="wt-nest">
+                      <!-- gating: GET /api/workspaces/:id/worktrees?include=discovered → items[];
+                           Adopt → S1 §05 confirm (US-009 AC-1, ADR-002 adopt-on-select) -->
+                      <div class="wt-row" data-state="discovered">
+                        <span class="wt-row__icon"><svg data-lucide="folder-search"></svg></span>
+                        <span class="wt-row__main">
+                          <span class="wt-row__name"><b>spike-sqlite-vacuum</b><span class="wt-chip" data-state="discovered">discovered</span></span>
+                          <span class="wt-row__branch"><code>spike/sqlite-vacuum</code></span>
+                        </span>
+                        <span class="wt-row__trail"><span class="wt-row__meta">
+                          <span class="mono" style="font-size:9.5px;color:var(--faint)">../compozy-spike</span>
+                          <a class="btn btn--sm" href="worktree-nav-switcher.html#s1-adopt">Adopt</a>
+                        </span></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S3 of the worktree set — same query and row vocabulary as
+      <a href="worktree-nav-switcher.html" style="color:var(--subtle)">S1</a> and
+      <a href="worktree-menubar-menu.html" style="color:var(--subtle)">S2</a>; row vocabulary at
+      <a href="worktree-row-states.html" style="color:var(--subtle)">worktree-row-states</a>.
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S3</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

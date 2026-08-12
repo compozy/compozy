@@ -4,6 +4,7 @@ pub mod config;
 pub mod control;
 mod control_events;
 pub mod controller;
+pub mod diagnostics;
 pub mod durability;
 pub mod errors;
 pub mod health_monitor;

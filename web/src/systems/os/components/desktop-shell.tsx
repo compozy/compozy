@@ -25,6 +25,7 @@ import {
   SessionCreateDialogHost,
   SessionCreateProvider,
   SessionDeleteDialog,
+  SessionRenameDialog,
   useSessionCreateActions,
   useSessionLifecycleActions,
 } from "@/systems/session";
@@ -249,7 +250,7 @@ function DesktopShellBody({
       <OsSessionsModal
         open={overlays.activeOverlay === "sessions"}
         onOpenChange={open => overlays.setOverlayOpen("sessions", open)}
-        dismissalBlocked={sessionLifecycle.deleteDialog.open}
+        dismissalBlocked={sessionLifecycle.deleteDialog.open || sessionLifecycle.renameDialog.open}
         sessions={attention.sessions}
         archivedSessions={attention.archivedSessions}
         archivedTotal={attention.archivedSessionsTotal}
@@ -263,6 +264,15 @@ function DesktopShellBody({
           session={sessionLifecycle.deleteDialog.session}
           isDeleting={sessionLifecycle.deleteDialog.isDeleting}
           onConfirm={sessionLifecycle.deleteDialog.onConfirm}
+        />
+      ) : null}
+      {sessionLifecycle.renameDialog.session ? (
+        <SessionRenameDialog
+          open={sessionLifecycle.renameDialog.open}
+          onOpenChange={sessionLifecycle.renameDialog.onOpenChange}
+          session={sessionLifecycle.renameDialog.session}
+          isRenaming={sessionLifecycle.renameDialog.isRenaming}
+          onConfirm={sessionLifecycle.renameDialog.onConfirm}
         />
       ) : null}
       <OsShortcutsDialog

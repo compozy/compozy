@@ -72,6 +72,7 @@ pub fn create_main_window(
         .title("CompozyOS")
         .inner_size(1280.0, 800.0)
         .min_inner_size(MAIN_MIN_WIDTH as f64, MAIN_MIN_HEIGHT as f64)
+        .zoom_hotkeys_enabled(true)
         .visible(false)
         .background_color(tauri::window::Color(19, 18, 17, 255))
         .on_navigation(

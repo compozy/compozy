@@ -52,6 +52,7 @@ export type {
   SessionRepairPayload,
   SessionRepairQuery,
   SessionRepairResponse,
+  RenameSessionRequest,
   SessionRuntimeSelection,
   SessionResponse,
   SessionState,
@@ -113,6 +114,7 @@ export {
   fetchSessions,
   promoteSessionInputToSteer,
   repairSession,
+  renameSession,
   replaceSessionInput,
   rewindSession,
   resumeSession,
@@ -259,6 +261,7 @@ export {
   useInterruptSessionPrompt,
   useQueueSessionPrompt,
   useRepairSession,
+  useRenameSession,
   useResumeSession,
   useSendSessionPrompt,
   useSteerSessionPrompt,
@@ -266,6 +269,7 @@ export {
   useUnarchiveSession,
   type CancelQueuedSessionPromptParams,
   type RepairSessionParams,
+  type RenameSessionParams,
   type SendSessionPromptParams,
   type SessionPromptActionParams,
 } from "./hooks/use-session-actions";
@@ -275,6 +279,7 @@ export {
   type SessionDeleteConfirmation,
   type SessionLifecycleAction,
   type SessionLifecycleActionHandlers,
+  type SessionRenameConfirmation,
   type UseSessionLifecycleActionsOptions,
   type UseSessionLifecycleActionsResult,
 } from "./hooks/use-session-lifecycle-actions";
@@ -313,6 +318,10 @@ export {
   SessionDeleteDialog,
   type SessionDeleteDialogProps,
 } from "./components/session-delete-dialog";
+export {
+  SessionRenameDialog,
+  type SessionRenameDialogProps,
+} from "./components/session-rename-dialog";
 export { SessionRowActions, type SessionRowActionsProps } from "./components/session-row-actions";
 export { SessionList, type SessionListProps } from "./components/session-list/session-list";
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";

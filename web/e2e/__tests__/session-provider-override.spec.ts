@@ -43,6 +43,7 @@ function browserLifecycleSessionPath(sessionId: string): string {
 
 interface SessionPayload {
   id: string;
+  name: string;
   agent_name: string;
   runtime: {
     effective?: {
@@ -152,6 +153,27 @@ test("operator can create a provider/model override session and attach without l
   const sessionWin = sessionWindow(appPage, createdSession.session.id);
   const sessionUi = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
+  await sessionUi.topbarOverflow.click();
+  await appPage.getByTestId("rename-button").click();
+  const renameResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "PATCH" &&
+      response
+        .url()
+        .endsWith(sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id))
+  );
+  await appPage.getByTestId("session-rename-name").fill("Provider override review");
+  await appPage.getByTestId("session-rename-confirm").click();
+  expect((await renameResponsePromise).ok()).toBe(true);
+  await expect(sessionWin.locator('[data-slot="topbar-title"]')).toContainText(
+    "Provider override review"
+  );
+  await assertSessionNameParity(
+    runtime,
+    createdSession.session.workspace_id,
+    createdSession.session.id,
+    "Provider override review"
+  );
   const runtimeTrigger = sessionWin.getByTestId("session-prompt-runtime-select");
   await runtimeTrigger.click();
   await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
@@ -165,6 +187,18 @@ test("operator can create a provider/model override session and attach without l
     );
   expect(railProviders).toEqual(workspaceDetail.providers.map(provider => provider.name).sort());
   await appPage.locator(`[data-rail="${overrideProvider}"]`).click();
+  const selectorScroll = appPage.getByTestId("runtime-selector-scroll");
+  await expect
+    .poll(() => selectorScroll.evaluate(element => element.scrollHeight > element.clientHeight))
+    .toBe(true);
+  const documentScrollBefore = await appPage.evaluate(() => document.scrollingElement?.scrollTop);
+  await selectorScroll.hover();
+  await appPage.mouse.wheel(0, 100_000);
+  await expect.poll(() => selectorScroll.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await appPage.mouse.wheel(0, 1_000);
+  expect(await appPage.evaluate(() => document.scrollingElement?.scrollTop)).toBe(
+    documentScrollBefore
+  );
   await appPage.getByTestId("runtime-selector-search").fill("qa-browser-model");
   await appPage.getByTestId("runtime-selector-custom").click();
   await appPage.keyboard.press("Escape");
@@ -343,6 +377,35 @@ async function assertSessionParity(
   expect(cliRecord?.runtime.effective?.provider).toBe(expectedProvider);
 }
 
+async function assertSessionNameParity(
+  runtime: {
+    requestJSON: <T>(pathname: string, init?: RequestInit) => Promise<T>;
+    requestOperatorJSON?: <T>(pathname: string, init?: RequestInit) => Promise<T>;
+    paths?: { cliShim: string; homeDir: string };
+  },
+  workspaceID: string,
+  sessionID: string,
+  expectedName: string
+): Promise<void> {
+  const apiPath = sessionAPIPath(workspaceID, sessionID);
+  expect((await runtime.requestJSON<SessionEnvelope>(apiPath)).session.name).toBe(expectedName);
+  if (!runtime.requestOperatorJSON || !runtime.paths) {
+    throw new Error("rename parity check requires UDS and CLI access");
+  }
+  expect((await runtime.requestOperatorJSON<SessionEnvelope>(apiPath)).session.name).toBe(
+    expectedName
+  );
+  const { stdout } = await execFileAsync(
+    runtime.paths.cliShim,
+    ["session", "list", "--all", "-o", "json"],
+    { env: cliEnv(runtime.paths) }
+  );
+  const renamed = (JSON.parse(stdout) as SessionListEnvelope).sessions.find(
+    session => session.id === sessionID
+  );
+  expect(renamed?.name).toBe(expectedName);
+}
+
 function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
   return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
     sessionID
@@ -405,6 +468,14 @@ async function writeWorkspaceConfig(input: {
       `default_reasoning_effort = "medium"`,
       ""
     );
+    for (let index = 1; index <= 30; index += 1) {
+      lines.push(
+        `[[providers.${overrideProvider}.models.curated]]`,
+        `id = "qa-browser-model-${index.toString().padStart(2, "0")}"`,
+        `display_name = "QA Browser Model ${index.toString().padStart(2, "0")}"`,
+        ""
+      );
+    }
   }
 
   await writeFile(configPath, `${lines.join("\n")}\n`, "utf8");

@@ -31,6 +31,7 @@ type StubSessionManager struct {
 	StopFn                  func(context.Context, string) error
 	ArchiveFn               func(context.Context, string, string) (*session.Info, error)
 	UnarchiveFn             func(context.Context, string, string) (*session.Info, error)
+	RenameFn                func(context.Context, string, string, string) (*session.Info, error)
 	StopWithCauseFn         func(context.Context, string, session.StopCause, string) error
 	ResumeFn                func(context.Context, string) (*session.Session, error)
 	AttachSessionFn         func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
@@ -318,6 +319,18 @@ func (s StubSessionManager) AttachSession(
 		return s.AttachSessionFn(ctx, req)
 	}
 	return store.SessionAttach{}, store.ErrSessionNotFound
+}
+
+func (s StubSessionManager) Rename(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	name string,
+) (*session.Info, error) {
+	if s.RenameFn != nil {
+		return s.RenameFn(ctx, workspaceID, sessionID, name)
+	}
+	return nil, session.ErrSessionNotFound
 }
 
 func (s StubSessionManager) ClearConversation(

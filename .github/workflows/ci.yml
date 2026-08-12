@@ -340,6 +340,7 @@ jobs:
         run: |
           make desktop-lint
           make desktop-test
+          bash scripts/verify-desktop-release-build-contract.sh
           make desktop-build
 
   verify:

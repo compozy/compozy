@@ -70,6 +70,8 @@ const (
 	ToolIDSessionArchive ToolID = "compozy__session_archive"
 	// ToolIDSessionUnarchive restores one archived runtime session.
 	ToolIDSessionUnarchive ToolID = "compozy__session_unarchive"
+	// ToolIDSessionRename changes one user session's durable display name.
+	ToolIDSessionRename ToolID = "compozy__session_rename"
 	// ToolIDSessionCreate accepts one unbound logical user session.
 	ToolIDSessionCreate ToolID = "compozy__session_create"
 	// ToolIDSessionPrompt submits one prompt with an optional runtime snapshot.

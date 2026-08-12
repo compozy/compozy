@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Fan-out · Per-run isolation · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-fanout · S11 — the fan-out dialog gains per-run worktree isolation.
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S11 · story US-016.
+  Provenance:
+    production            — dialog anatomy from task-fan-out-dialog.tsx:33-99 (title "Fan out task runs",
+                            description, mono Assignments textarea one-line-per-run, network participation
+                            block, footer Cancel/Create runs); danger Alert pattern :56-60
+    spec worktree-support — FanOutTaskRunsRequest.isolate_worktrees checkbox; confirmation states the
+                            worktree count plainly (US-016 EC-1); per-run attribution on partial failure
+                            (US-016 EC-2, US-015 semantics per spawned run)
+    authorized delta      — checkbox rendered in the ds switch-row container voice (selection marker,
+                            inside the accent budget alongside the single primary action)
+    authorized delta      — two accents: selection checkboxes + single primary — authorized delta for
+                            fan-out density
+-->
+<style>
+  /* dialog is chrome from worktree.css (.dialog/.dialog__head/.head-icon/.eyebrow/…) — nothing forked here */
+  .textarea{width:100%;min-height:96px;padding:9px 11px;color:var(--fg);background:var(--input-fill);
+    border:1px solid var(--line);border-radius:var(--radius-md);resize:vertical;outline:none;
+    font-family:var(--font-mono);font-size:12px;line-height:1.6}
+  .textarea::placeholder{color:var(--faint);font-family:var(--font-sans)}
+  /* isolation checkbox row — switch-row container voice; check = selection marker */
+  .ckrow{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--line-soft);
+    border-radius:var(--radius-md);background:var(--canvas-tint);cursor:pointer}
+  .ck{width:16px;height:16px;flex:none;margin-top:1px;display:grid;place-items:center;
+    border:1px solid var(--line-strong);border-radius:var(--radius-xs);background:var(--input-fill);color:transparent}
+  .ck svg{width:11px;height:11px}
+  .ckrow[data-on] .ck{background:var(--accent);border-color:transparent;color:var(--accent-ink)}
+  .ckrow__txt{min-width:0;flex:1}
+  .ckrow__txt b{display:block;font-size:12.5px;font-weight:500;color:var(--fg)}
+  .ckrow__count{margin-top:3px;font-size:11.5px;line-height:1.45;color:var(--muted)}
+  .ckrow__count b{display:inline;font-weight:600;color:var(--fg)}
+  /* quiet stand-in for the untouched network participation block */
+  .elided{padding:10px 12px;border:1px dashed var(--line-strong);border-radius:var(--radius-md);
+    font-size:11px;color:var(--faint)}
+  /* result list — per-run attribution (US-016 EC-2) */
+  .runres{display:flex;align-items:center;gap:10px;min-height:40px;padding:7px 12px;border-top:1px solid var(--line-soft)}
+  .runres:first-child{border-top:0}
+  .runres__mark{width:15px;height:15px;flex:none;display:grid;place-items:center}
+  .runres__mark svg{width:13px;height:13px}
+  .runres[data-s="ok"] .runres__mark{color:var(--success)}
+  .runres[data-s="fail"] .runres__mark{color:var(--danger)}
+  .runres__main{min-width:0;flex:1}
+  .runres__brief{font-size:12px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .runres__attr{display:flex;align-items:center;gap:6px;margin-top:1px;font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+  .runres__attr .arrow{color:var(--faint)}
+  .runres__err{display:block;margin-top:1px;font-size:11px;line-height:1.45;color:var(--danger)}
+  .runres__trail{flex:none;display:flex;align-items:center;gap:8px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-fanout-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Fan-out · Per-run isolation</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">S11</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-loop-config.html">Loop config →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · DEFAULT — ISOLATION OFF ════ -->
+    <section class="lab-sec" data-od-id="lab-fanout-off">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Default — isolation off</h2>
+        <span class="lab-sec__gist">production dialog + one new checkbox row · task policy applies unchanged</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>US-016 AC-2</b>Off is the default: spawned runs follow the task's existing worktree policy unchanged. The checkbox is the only addition to the production dialog (<code>task-fan-out-dialog.tsx:33-99</code>); everything else is transcribed.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- production: POST fan-out route · FanOutTaskRunsRequest{designations, network_participation} -->
+            <div class="dialog dialog--compact" role="dialog" aria-labelledby="fo1t" data-od-id="fanout-dialog-off">
+              <div class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="git-fork"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Task · nightly-triage</div>
+                  <h3 id="fo1t">Fan out task runs</h3>
+                  <p>Create scoped assignments that run under one designation group.</p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <div class="flabel">Assignments</div>
+                  <p class="fhint" style="margin:0 0 6px">One line per run. Each line is injected as that worker's assignment brief.</p>
+                  <textarea class="textarea" rows="5" placeholder="Investigate the failing checkout path&#10;Validate the fix on staging" aria-label="Assignments"></textarea>
+                </div>
+                <!-- gating: spec worktree-support — FanOutTaskRunsRequest.isolate_worktrees (default false; US-016 AC-1/AC-2) -->
+                <div class="fgroup">
+                  <div class="ckrow" role="checkbox" aria-checked="false" tabindex="0" data-od-id="fanout-isolate-off">
+                    <span class="ck" aria-hidden="true"><svg data-lucide="check"></svg></span>
+                    <span class="ckrow__txt"><b>Isolate each run in its own worktree</b></span>
+                  </div>
+                </div>
+                <div class="fgroup">
+                  <div class="elided">Network participation — unchanged (NetworkParticipationFields, task-fan-out-dialog.tsx:78-83). Elided here.</div>
+                </div>
+              </div>
+              <div class="dialog__foot">
+                <div class="foot-note"></div>
+                <button class="btn">Cancel</button>
+                <button class="btn btn--primary">Create runs</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · ISOLATION ON — COUNT STATED PLAINLY ════ -->
+    <section class="lab-sec" data-od-id="lab-fanout-on">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Isolation on — the count is stated</h2>
+        <span class="lab-sec__gist">confirmation says how many worktrees · caps unchanged</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>US-016 EC-1</b>With the box checked the confirmation states the count plainly, derived from the brief lines. Isolation does not change the fan-out caps — a capped count reads the capped number. Each spawned run follows US-015: distinct worktree, namespaced <code>run/</code> branch.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="dialog dialog--compact" role="dialog" aria-labelledby="fo2t" data-od-id="fanout-dialog-on">
+              <div class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="git-fork"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Task · nightly-triage</div>
+                  <h3 id="fo2t">Fan out task runs</h3>
+                  <p>Create scoped assignments that run under one designation group.</p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <div class="flabel">Assignments</div>
+                  <p class="fhint" style="margin:0 0 6px">One line per run. Each line is injected as that worker's assignment brief.</p>
+                  <textarea class="textarea" rows="5" aria-label="Assignments">Triage the flaky payments e2e suite
+Reproduce the CORS regression on staging
+Audit the retry backoff constants
+Verify the SQLite vacuum window</textarea>
+                </div>
+                <!-- gating: spec worktree-support — isolate_worktrees=true; count statement per US-016 EC-1 -->
+                <div class="fgroup">
+                  <div class="ckrow" role="checkbox" aria-checked="true" tabindex="0" data-on data-od-id="fanout-isolate-on">
+                    <span class="ck" aria-hidden="true"><svg data-lucide="check"></svg></span>
+                    <span class="ckrow__txt">
+                      <b>Isolate each run in its own worktree</b>
+                      <span class="ckrow__count">Creates <b>4 worktrees</b>, one per run.</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="fgroup">
+                  <div class="elided">Network participation — unchanged. Elided here.</div>
+                </div>
+              </div>
+              <div class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="folder-git-2"></svg>Branches land in the <span class="mono" style="font-size:10.5px">&nbsp;run/&nbsp;</span> namespace.</div>
+                <button class="btn">Cancel</button>
+                <button class="btn btn--primary">Create runs</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · PARTIAL FAILURE — PER-RUN ATTRIBUTION ════ -->
+    <section class="lab-sec" data-od-id="lab-fanout-partial">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Partial failure — attributable per run</h2>
+        <span class="lab-sec__gist">run 3 fails alone · the other runs proceed untouched</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>US-016 EC-2 · US-015 EC-1</b>The result list attributes every run to its worktree. Run 3's materialization failed, so only run 3 failed — no orphan directory or branch remains — and the failure names its step. The others proceed; nothing is rolled back.</div>
+        <div class="spec__demo">
+          <!-- gating: fan-out response items[] {run_id, brief, worktree{name,branch,state}, error} (spec worktree-support US-016 EC-2) -->
+          <div class="panelbox" style="max-width:560px" data-od-id="fanout-result-list">
+            <div class="runres" data-s="ok">
+              <span class="runres__mark"><svg data-lucide="check"></svg></span>
+              <span class="runres__main">
+                <span class="runres__brief">Triage the flaky payments e2e suite</span>
+                <span class="runres__attr">r-9b02c1 <span class="arrow">→</span> nightly-triage-r1 · run/nightly-triage-r1</span>
+              </span>
+              <span class="runres__trail"><span class="wt-origin">per-run</span></span>
+            </div>
+            <div class="runres" data-s="ok">
+              <span class="runres__mark"><svg data-lucide="check"></svg></span>
+              <span class="runres__main">
+                <span class="runres__brief">Reproduce the CORS regression on staging</span>
+                <span class="runres__attr">r-9b02c2 <span class="arrow">→</span> nightly-triage-r2 · run/nightly-triage-r2</span>
+              </span>
+              <span class="runres__trail"><span class="wt-origin">per-run</span></span>
+            </div>
+            <div class="runres" data-s="fail">
+              <span class="runres__mark"><svg data-lucide="circle-alert"></svg></span>
+              <span class="runres__main">
+                <span class="runres__brief">Audit the retry backoff constants</span>
+                <span class="runres__attr">r-9b02c3 <span class="arrow">→</span> nightly-triage-r3 · run/nightly-triage-r3</span>
+                <span class="runres__err">Worktree creation failed: git worktree add exited 128 · nothing left behind</span>
+              </span>
+              <span class="runres__trail"><button class="btn btn--sm">Retry run</button></span>
+            </div>
+            <div class="runres" data-s="ok">
+              <span class="runres__mark"><svg data-lucide="check"></svg></span>
+              <span class="runres__main">
+                <span class="runres__brief">Verify the SQLite vacuum window</span>
+                <span class="runres__attr">r-9b02c4 <span class="arrow">→</span> nightly-triage-r4 · run/nightly-triage-r4</span>
+              </span>
+              <span class="runres__trail"><span class="wt-origin">per-run</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S11 · Fan-out per-run isolation. Names never collide across concurrent runs of one task (US-015 EC-2).
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S11</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

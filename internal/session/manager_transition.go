@@ -82,10 +82,17 @@ func (m *Manager) persistSessionMetadataOnly(session *Session) error {
 }
 
 func (m *Manager) persistSessionCatalogFromMeta(ctx context.Context, meta store.SessionMeta) error {
+	return m.persistSessionCatalogSnapshot(ctx, meta, sessionInfoFromMeta(meta))
+}
+
+func (m *Manager) persistSessionCatalogSnapshot(
+	ctx context.Context,
+	meta store.SessionMeta,
+	info *Info,
+) error {
 	if m == nil || m.sessionCatalog == nil {
 		return nil
 	}
-	info := sessionInfoFromMeta(meta)
 	if info == nil {
 		return nil
 	}

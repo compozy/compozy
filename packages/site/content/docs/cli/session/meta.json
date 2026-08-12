@@ -14,6 +14,7 @@
         "prompt",
         "recap",
         "remove",
+        "rename",
         "repair",
         "resume",
         "rewind",

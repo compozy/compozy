@@ -22,6 +22,74 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+func TestLoopCancellationSessionControllerShouldTreatMissingSessionsAsStopped(t *testing.T) {
+	t.Parallel()
+
+	operationErr := errors.New("session operation failed")
+	tests := []struct {
+		name    string
+		kill    bool
+		err     error
+		wantErr error
+	}{
+		{
+			name: "Should accept a missing prompt session as already canceled",
+			err:  fmt.Errorf("missing prompt session: %w", session.ErrSessionNotFound),
+		},
+		{
+			name: "Should accept a missing process session as already killed",
+			kill: true,
+			err:  fmt.Errorf("missing process session: %w", session.ErrSessionNotFound),
+		},
+		{
+			name:    "Should propagate prompt cancellation failures",
+			err:     operationErr,
+			wantErr: operationErr,
+		},
+		{
+			name:    "Should propagate process stop failures",
+			kill:    true,
+			err:     operationErr,
+			wantErr: operationErr,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			sessions := &loopActionBinderSessionManager{cancelErr: test.err, stopErr: test.err}
+			controller := loopCancellationSessionController{sessions: sessions}
+			var err error
+			if test.kill {
+				err = controller.KillLoopSession(t.Context(), "sess-cancel", "operator request")
+			} else {
+				err = controller.CancelLoopSession(t.Context(), "sess-cancel", "operator request")
+			}
+			if !errors.Is(err, test.wantErr) {
+				t.Fatalf("session cancellation error = %v, want %v", err, test.wantErr)
+			}
+
+			sessions.mu.Lock()
+			defer sessions.mu.Unlock()
+			if test.kill {
+				if !slices.Equal(sessions.stopIDs, []string{"sess-cancel"}) {
+					t.Fatalf("StopWithCause session ids = %#v, want one exact session", sessions.stopIDs)
+				}
+				if !slices.Equal(sessions.stopCauses, []session.StopCause{session.CauseUserRequested}) {
+					t.Fatalf("StopWithCause causes = %#v, want user requested", sessions.stopCauses)
+				}
+				if !slices.Equal(sessions.stopDetails, []string{"operator request"}) {
+					t.Fatalf("StopWithCause details = %#v, want exact operator detail", sessions.stopDetails)
+				}
+				return
+			}
+			if !slices.Equal(sessions.cancelIDs, []string{"sess-cancel"}) {
+				t.Fatalf("CancelPrompt session ids = %#v, want one exact session", sessions.cancelIDs)
+			}
+		})
+	}
+}
+
 func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 	t.Parallel()
 
@@ -917,6 +985,7 @@ type loopActionBinderSessionManager struct {
 	createReleased           chan struct{}
 	createCanceled           chan struct{}
 	promptErr                error
+	cancelErr                error
 	stopErr                  error
 	events                   []acp.AgentEvent
 	blockPromptUntilCancel   bool
@@ -927,6 +996,8 @@ type loopActionBinderSessionManager struct {
 	promptCalls              []session.PromptOpts
 	cancelIDs                []string
 	stopIDs                  []string
+	stopCauses               []session.StopCause
+	stopDetails              []string
 	stopSawCanceledContexts  []bool
 }
 
@@ -1042,18 +1113,20 @@ func (m *loopActionBinderSessionManager) CancelPrompt(_ context.Context, id stri
 	if released != nil {
 		m.promptReleaseOnce.Do(func() { close(released) })
 	}
-	return nil
+	return m.cancelErr
 }
 
 func (m *loopActionBinderSessionManager) StopWithCause(
 	ctx context.Context,
 	id string,
-	_ session.StopCause,
-	_ string,
+	cause session.StopCause,
+	detail string,
 ) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.stopIDs = append(m.stopIDs, id)
+	m.stopCauses = append(m.stopCauses, cause)
+	m.stopDetails = append(m.stopDetails, detail)
 	m.stopSawCanceledContexts = append(m.stopSawCanceledContexts, ctx.Err() != nil)
 	return m.stopErr
 }

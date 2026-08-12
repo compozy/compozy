@@ -920,6 +920,56 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 	})
 }
 
+func TestSessionRenameCommandReturnsUpdatedSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should rename a session and return the updated record", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			renameSessionFn: func(
+				_ context.Context,
+				id string,
+				request RenameSessionRequest,
+			) (SessionRecord, error) {
+				if id != "sess-1" || request.Name != "Checkout retries" {
+					t.Fatalf("RenameSession() = id %q request %#v", id, request)
+				}
+				return SessionRecord{
+					ID:          id,
+					Name:        request.Name,
+					AgentName:   "coder",
+					WorkspaceID: "ws-1",
+					State:       session.StateStopped,
+					CreatedAt:   fixedTestNow,
+					UpdatedAt:   fixedTestNow.Add(time.Minute),
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"rename",
+			"sess-1",
+			"Checkout retries",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session rename) error = %v", err)
+		}
+		var renamed SessionRecord
+		if err := json.Unmarshal([]byte(stdout), &renamed); err != nil {
+			t.Fatalf("json.Unmarshal(session rename) error = %v", err)
+		}
+		if renamed.ID != "sess-1" || renamed.Name != "Checkout retries" {
+			t.Fatalf("session rename output = %#v", renamed)
+		}
+	})
+}
+
 func TestSessionListRejectsConflictingArchiveFilters(t *testing.T) {
 	t.Run("Should reject conflicting archive filters", func(t *testing.T) {
 		t.Parallel()

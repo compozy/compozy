@@ -3,12 +3,16 @@ use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 use compozyos_desktop::config;
+use compozyos_desktop::diagnostics::{DiagnosticReport, RuntimeDiagnosticMetadata};
 use compozyos_desktop::errors::{ShellError, ShellErrorCode};
 use compozyos_desktop::home::resolve_with;
 use compozyos_desktop::record::AppRecord;
 use compozyos_desktop::state::{ProvisionStage, ShellState, UpdateTarget};
 use serde::Deserialize;
 use serde_json::Value;
+
+#[path = "../release_build_contract.rs"]
+mod release_build_contract;
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -20,6 +24,18 @@ fn read_json(path: impl AsRef<Path>) -> Value {
         .unwrap_or_else(|error| panic!("JSON contract {} reads: {error}", path.display()));
     serde_json::from_slice(&bytes)
         .unwrap_or_else(|error| panic!("JSON contract {} parses: {error}", path.display()))
+}
+
+fn diagnostic_report(state: &ShellState) -> DiagnosticReport {
+    DiagnosticReport::from_snapshot(
+        "boot-contract",
+        "0.4.1",
+        None,
+        None,
+        &RuntimeDiagnosticMetadata::default(),
+        state,
+        &compozyos_desktop::record::AppUpdateStatus::default(),
+    )
 }
 
 #[test]
@@ -88,23 +104,66 @@ fn should_validate_shared_records_and_every_transitional_state_against_schema() 
         },
     ];
     for state in states {
-        let value =
-            serde_json::to_value(AppRecord::new(42, Utc::now(), state)).expect("record serializes");
+        let value = serde_json::to_value(AppRecord::new(
+            42,
+            Utc::now(),
+            diagnostic_report(&state),
+            state,
+        ))
+        .expect("record serializes");
         assert!(validator.is_valid(&value), "record must validate: {value}");
     }
-    let diagnostic = ShellError::from_code(
-        ShellErrorCode::ConfigInvalid,
-        PathBuf::from("/tmp/desktop.log"),
+    for code in ShellErrorCode::ALL {
+        let record = AppRecord::new(
+            42,
+            Utc::now(),
+            diagnostic_report(&ShellState::ShellError {
+                error: ShellError::from_code(code, PathBuf::from("/tmp/compozy.log")),
+            }),
+            ShellState::ShellError {
+                error: ShellError::from_code(code, PathBuf::from("/tmp/compozy.log")),
+            },
+        );
+        let value = serde_json::to_value(record).expect("typed error record serializes");
+        assert!(
+            validator.is_valid(&value),
+            "typed error record must validate: {value}"
+        );
+    }
+    let diagnostic = DiagnosticReport::from_snapshot(
+        "boot-contract",
+        "0.4.1",
+        None,
+        Some(&ShellError::from_code(
+            ShellErrorCode::ConfigInvalid,
+            PathBuf::from("/tmp/desktop.log"),
+        )),
+        &RuntimeDiagnosticMetadata::default(),
+        &ShellState::Resolving,
+        &compozyos_desktop::record::AppUpdateStatus::default(),
     );
-    let value = serde_json::to_value(
-        AppRecord::new(42, Utc::now(), ShellState::Resolving).with_diagnostic(Some(diagnostic)),
-    )
+    let value = serde_json::to_value(AppRecord::new(
+        42,
+        Utc::now(),
+        diagnostic,
+        ShellState::Resolving,
+    ))
     .expect("diagnostic record serializes");
     assert!(validator.is_valid(&value));
-    assert_eq!(value["diagnostic"]["code"], "config_invalid");
+    assert_eq!(
+        value["diagnostic_report"]["current_error"]["code"],
+        "config_invalid"
+    );
+    assert!(validator.is_valid(&value["diagnostic_report"]));
 
     let value = serde_json::to_value(
-        AppRecord::new(42, Utc::now(), ShellState::Resolving).with_metadata(
+        AppRecord::new(
+            42,
+            Utc::now(),
+            diagnostic_report(&ShellState::Resolving),
+            ShellState::Resolving,
+        )
+        .with_metadata(
             "0.4.0",
             "beta",
             compozyos_desktop::record::AppUpdateStatus {
@@ -217,7 +276,7 @@ fn should_apply_the_shared_config_defaults_and_interval_bounds() {
 }
 
 #[test]
-fn should_grant_no_capability_or_global_api_to_the_remote_main_window() {
+fn should_grant_only_desktop_control_to_the_local_boot_window() {
     let config = read_json(manifest_dir().join("tauri.conf.json"));
     assert_eq!(config["identifier"], "com.compozy.os");
     assert_eq!(config["productName"], "CompozyOS");
@@ -227,8 +286,39 @@ fn should_grant_no_capability_or_global_api_to_the_remote_main_window() {
 
     let capability = read_json(manifest_dir().join("capabilities/boot.json"));
     assert_eq!(capability["windows"], serde_json::json!(["boot"]));
-    assert_eq!(capability["permissions"], serde_json::json!([]));
+    assert_eq!(
+        capability["permissions"],
+        serde_json::json!(["allow-shell-control"])
+    );
     assert!(capability.get("remote").is_none());
+}
+
+#[test]
+fn should_grant_zoom_only_to_the_daemon_served_main_window() {
+    let config = read_json(manifest_dir().join("tauri.conf.json"));
+    assert_eq!(
+        config["app"]["security"]["capabilities"],
+        serde_json::json!(["boot", "main-zoom"])
+    );
+
+    let capability = read_json(manifest_dir().join("capabilities/main-zoom.json"));
+    assert_eq!(capability["local"], false);
+    assert_eq!(capability["windows"], serde_json::json!(["main"]));
+    assert_eq!(
+        capability["remote"]["urls"],
+        serde_json::json!(["http://localhost:*", "http://127.0.0.1:*"])
+    );
+    assert_eq!(
+        capability["permissions"],
+        serde_json::json!(["core:webview:allow-set-webview-zoom"])
+    );
+
+    let windowing_source = fs::read_to_string(manifest_dir().join("src/windowing.rs"))
+        .expect("window builder source reads");
+    assert!(
+        windowing_source.contains(".zoom_hotkeys_enabled(true)"),
+        "daemon-served main window must enable native zoom hotkeys"
+    );
 }
 
 #[test]
@@ -242,6 +332,105 @@ fn should_initialize_updater_plugin_from_base_tauri_config() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .build(context)
         .expect("development shell initializes updater plugin");
+}
+
+#[test]
+fn should_require_complete_release_build_configuration() {
+    let complete_config = r#"{
+        "version": "0.4.0-beta.2",
+        "plugins": {
+            "updater": {
+                "endpoints": ["https://releases.compozy.com/desktop/beta/latest.json"],
+                "pubkey": "base64-minisign-public-key"
+            }
+        }
+    }"#;
+    let valid = || {
+        release_build_contract::validate_release_build(
+            Some("beta"),
+            Some(complete_config),
+            Some("private-key"),
+            Some("private-key-password"),
+        )
+    };
+
+    assert_eq!(
+        valid().expect("complete release configuration validates"),
+        "beta"
+    );
+
+    for (channel, config, private_key, password, expected) in [
+        (
+            None,
+            Some(complete_config),
+            Some("private-key"),
+            Some("private-key-password"),
+            "COMPOZY_RELEASE_CHANNEL is required",
+        ),
+        (
+            Some("stable"),
+            Some(complete_config),
+            Some("private-key"),
+            Some("private-key-password"),
+            "COMPOZY_RELEASE_CHANNEL must be beta or legacy",
+        ),
+        (
+            Some("beta"),
+            None,
+            Some("private-key"),
+            Some("private-key-password"),
+            "TAURI_CONFIG is required",
+        ),
+        (
+            Some("beta"),
+            Some(
+                r#"{"version":"0.4.0-beta.2","plugins":{"updater":{"endpoints":[],"pubkey":"key"}}}"#,
+            ),
+            Some("private-key"),
+            Some("private-key-password"),
+            "TAURI_CONFIG updater feed must contain exactly one endpoint",
+        ),
+        (
+            Some("beta"),
+            Some(
+                r#"{"version":"0.4.0-beta.2","plugins":{"updater":{"endpoints":["https://releases.compozy.com/desktop/legacy/latest.json"],"pubkey":"key"}}}"#,
+            ),
+            Some("private-key"),
+            Some("private-key-password"),
+            "TAURI_CONFIG updater feed must be https://releases.compozy.com/desktop/beta/latest.json",
+        ),
+        (
+            Some("beta"),
+            Some(
+                r#"{"version":"0.4.0-beta.2","plugins":{"updater":{"endpoints":["https://releases.compozy.com/desktop/beta/latest.json"],"pubkey":""}}}"#,
+            ),
+            Some("private-key"),
+            Some("private-key-password"),
+            "TAURI_CONFIG updater public key is missing",
+        ),
+        (
+            Some("beta"),
+            Some(complete_config),
+            None,
+            Some("private-key-password"),
+            "TAURI_SIGNING_PRIVATE_KEY is required",
+        ),
+        (
+            Some("beta"),
+            Some(complete_config),
+            Some("private-key"),
+            None,
+            "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is required",
+        ),
+    ] {
+        let error =
+            release_build_contract::validate_release_build(channel, config, private_key, password)
+                .expect_err("incomplete release configuration must fail");
+        assert!(
+            error.contains(expected),
+            "error {error:?} must contain {expected:?}"
+        );
+    }
 }
 // Suite: desktop shared contracts
 // Invariant: every Rust-produced desktop record and shared fixture remains readable by the

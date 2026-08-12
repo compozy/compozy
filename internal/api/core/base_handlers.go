@@ -317,10 +317,6 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 		providerAuthCommandResolver = authproviders.DefaultProviderAuthCommandResolver
 	}
 	if cfg.StreamDone == nil {
-		logger.Warn(
-			"api: stream shutdown bridge not provided; streaming handlers will rely on caller context " +
-				"until a transport installs one",
-		)
 		cfg.StreamDone = make(chan struct{})
 	}
 	return baseHandlerDefaults{

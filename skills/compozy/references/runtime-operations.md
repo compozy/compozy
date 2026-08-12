@@ -298,6 +298,10 @@ archive marker. Use `session list --archived` for only archived sessions or
 is destructive: it stops an active runtime when necessary, then removes the catalog row and persisted
 session directory. Use removal only when the operator intends to discard that history.
 
+`compozy session rename <id> <name>` changes only a user session's durable display name. It works
+for active, stopped, and archived user sessions without starting or replacing ACP and preserves the
+session ID, transcript, archive state, and lineage.
+
 The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
@@ -560,6 +564,14 @@ active when the heuristic is disabled. Correlation IDs, hashes, digests, and fin
 structural rather than heuristic candidates.
 
 `compozy support bundle --yes` creates and downloads a redacted support bundle. It may include status, doctor, provider, event-summary, log-tail, and config-apply snapshots unless `--no-status` is passed. Treat support bundles as operator artifacts, not native tool calls.
+
+For a failed desktop start, use `compozy app diagnose -o json` before daemon diagnostics. It returns
+the redacted desktop report even when the daemon is unavailable. To save a local-only archive, use
+`compozy app diagnose --bundle --yes -o json`; this explicit write never uploads or deletes data and
+is separate from the daemon-owned support bundle. The archive contains `manifest.json` and may
+include bounded, redacted `desktop.log` and `desktop-bootstrap.jsonl` tails from the current boot;
+it never includes `compozy.log`, raw logs, databases, configuration, credentials, sessions, or
+transcripts.
 
 ## Runtime Boundaries
 

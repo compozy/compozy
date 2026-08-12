@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "worktree/worktree-loop-config.html",
+  "entry": "worktree/worktree-loop-config.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-11T19:47:23.839Z",
+  "updatedAt": "2026-08-11T19:47:23.839Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

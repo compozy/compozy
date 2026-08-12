@@ -84,6 +84,7 @@ const directoryEntriesByPath = new Map<
       home: directoryHome,
       parent: "/Users",
       path: directoryHome,
+      roots: ["/"],
     },
   ],
   [
@@ -96,6 +97,7 @@ const directoryEntriesByPath = new Map<
       home: directoryHome,
       parent: directoryHome,
       path: "/Users/pedronauck/Dev",
+      roots: ["/"],
     },
   ],
   [
@@ -105,6 +107,7 @@ const directoryEntriesByPath = new Map<
       home: directoryHome,
       parent: "/Users/pedronauck/Dev",
       path: "/Users/pedronauck/Dev/compozy",
+      roots: ["/"],
     },
   ],
 ]);
@@ -132,6 +135,7 @@ function directoryBrowseFixtureFor(
     home: directoryHome,
     parent: parentPath(requestedPath),
     path: requestedPath,
+    roots: ["/"],
   };
 }
 

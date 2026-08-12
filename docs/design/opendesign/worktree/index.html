@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Worktrees · Native worktree support · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<!--
+  worktree-index · set map — surface map S1–S16 for the worktree-support design set.
+  Spec: .compozy/tasks/worktree-support/_uiux.md · shared story: workspace compozy.
+  Provenance:
+    spec worktree-support — set index: artboard groups, per-surface S-numbers, one-line contracts
+    authorized delta      — map page only; no product surface transcribed, tokens from ds-core
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:66ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="worktree-index">
+  <h1>Native worktree support · design references</h1>
+  <p class="lede">Visual contracts for the <code>worktree-support</code> PRD — surface map S1–S16 from <code>.compozy/tasks/worktree-support/_uiux.md</code>. One shared story runs through every artboard (workspace <b>compozy</b> and its eight worktree records — 7 adopted, 1 discovered). Start at the <b>vocabulary sheet</b>; every other surface reuses it via <code>worktree.css</code>.</p>
+
+  <div class="grp" data-od-id="worktree-index-anchor">
+    <div class="grp__t">Anchor · shared vocabulary</div>
+    <div class="cards">
+      <a class="card" href="worktree-row-states.html" data-od-id="card-row-states">
+        <span class="card__top"><span class="card__name">Row &amp; state vocabulary</span><span class="tag">lab</span><span class="card__file">worktree-row-states.html</span></span>
+        <span class="card__sub">S5 — chip enum ready·pending·discovered·missing·error, companion badges (±, ↑↓, per-run, setup-flagged, merged, stale, detached pin), row anatomy, nested density.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="worktree-index-nav">
+    <div class="grp__t">Navigation &amp; lifecycle</div>
+    <div class="cards">
+      <a class="card" href="worktree-nav-switcher.html" data-od-id="card-nav-switcher">
+        <span class="card__top"><span class="card__name">Workspace switcher</span><span class="tag tag--final">final</span><span class="card__file">worktree-nav-switcher.html</span></span>
+        <span class="card__sub">S1 — nested worktree rows per workspace in the command switcher; no-git, zero, discovered, pending, missing, many, collapsed-aggregate states.</span>
+      </a>
+      <a class="card" href="worktree-menubar-menu.html" data-od-id="card-menubar">
+        <span class="card__top"><span class="card__name">Menubar menu + chip</span><span class="tag tag--final">final</span><span class="card__file">worktree-menubar-menu.html</span></span>
+        <span class="card__sub">S2 — same nested projection in the OS menubar; shell chip states parent / selected worktree / missing fallback.</span>
+      </a>
+      <a class="card" href="worktree-overview.html" data-od-id="card-overview">
+        <span class="card__top"><span class="card__name">Workspaces overview</span><span class="tag tag--final">final</span><span class="card__file">worktree-overview.html</span></span>
+        <span class="card__sub">S3 — overview dialog with worktree counts and expandable read-only nested lists; create entry point.</span>
+      </a>
+      <a class="card" href="worktree-create-dialog.html" data-od-id="card-create">
+        <span class="card__top"><span class="card__name">Create worktree</span><span class="tag tag--final">final</span><span class="card__file">worktree-create-dialog.html</span></span>
+        <span class="card__sub">S4 — name-first create with advanced fold, existing-branch picker, derived branch/path preview, collision and branch-held refusals.</span>
+      </a>
+      <a class="card" href="worktree-remove-dialogs.html" data-od-id="card-remove">
+        <span class="card__top"><span class="card__name">Removal &amp; missing</span><span class="tag tag--final">final</span><span class="card__file">worktree-remove-dialogs.html</span></span>
+        <span class="card__sub">S15 — clean remove, dirty/unpushed refusal naming what's at risk, explicit force confirm, out-of-band missing resolution.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="worktree-index-sessions">
+    <div class="grp__t">Sessions</div>
+    <div class="cards">
+      <a class="card" href="worktree-session-create.html" data-od-id="card-session-create">
+        <span class="card__top"><span class="card__name">Session create</span><span class="tag tag--final">final</span><span class="card__file">worktree-session-create.html</span></span>
+        <span class="card__sub">S7 — Environment select under Workspace: root, ready worktrees, New worktree…; absent when the workspace has no git.</span>
+      </a>
+      <a class="card" href="worktree-composer-environment.html" data-od-id="card-composer">
+        <span class="card__top"><span class="card__name">Composer environment</span><span class="tag tag--final">final</span><span class="card__file">worktree-composer-environment.html</span></span>
+        <span class="card__sub">S8 + S9 — draft environment chip, first-send materialization (pending → ready, failure keeps the draft), /worktree command, fork-to-worktree confirm.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="worktree-index-auto">
+    <div class="grp__t">Tasks &amp; loops</div>
+    <div class="cards">
+      <a class="card" href="worktree-task-setup.html" data-od-id="card-task-setup">
+        <span class="card__top"><span class="card__name">Task setup</span><span class="tag tag--final">final</span><span class="card__file">worktree-task-setup.html</span></span>
+        <span class="card__sub">S10 — Worktree policy fieldset mirroring the sandbox grammar: inherit | none | ref | per-run, ref picker, invalid-ref flag, lock banner, read view.</span>
+      </a>
+      <a class="card" href="worktree-fanout.html" data-od-id="card-fanout">
+        <span class="card__top"><span class="card__name">Fan-out isolation</span><span class="tag tag--final">final</span><span class="card__file">worktree-fanout.html</span></span>
+        <span class="card__sub">S11 — per-run isolation checkbox with plain count statement and per-run failure attribution.</span>
+      </a>
+      <a class="card" href="worktree-loop-config.html" data-od-id="card-loop-config">
+        <span class="card__top"><span class="card__name">Loop config + node environment</span><span class="tag tag--final">final</span><span class="card__file">worktree-loop-config.html</span></span>
+        <span class="card__sub">S12 + S13 — loop-level worktree default (none / specific / per-run) and the single Environment control absorbing "Working dir" on run-agent and goal nodes.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="worktree-index-exit">
+    <div class="grp__t">Assisted exit</div>
+    <div class="cards">
+      <a class="card" href="worktree-detail-exit.html" data-od-id="card-detail-exit">
+        <span class="card__top"><span class="card__name">Worktree context &amp; exit</span><span class="tag tag--final">final</span><span class="card__file">worktree-detail-exit.html</span></span>
+        <span class="card__sub">S6 + S16 — five-field status strip, auto-advancing split button with per-row reasons, session-header mount, zero-credential and read-failure truth.</span>
+      </a>
+      <a class="card" href="worktree-commit-sheet.html" data-od-id="card-commit-sheet">
+        <span class="card__top"><span class="card__name">Commit sheet</span><span class="tag tag--final">final</span><span class="card__file">worktree-commit-sheet.html</span></span>
+        <span class="card__sub">S14 — scope with files and ±, honest generation placeholder, generated-text review, hook failure output, split Commit / Commit &amp; push.</span>
+      </a>
+      <a class="card" href="worktree-pr-sheet.html" data-od-id="card-pr-sheet">
+        <span class="card__top"><span class="card__name">PR sheet</span><span class="tag tag--final">final</span><span class="card__file">worktree-pr-sheet.html</span></span>
+        <span class="card__sub">S14 — branch → base header, generate-on-empty title/body, draft as peer action, existing-PR idempotency, browser row as the zero-credential path.</span>
+      </a>
+      <a class="card" href="worktree-exit-progress.html" data-od-id="card-exit-progress">
+        <span class="card__top"><span class="card__name">Exit progress</span><span class="tag tag--final">final</span><span class="card__file">worktree-exit-progress.html</span></span>
+        <span class="card__sub">S14 — one updating toast: phases up front, streaming hook output, per-step skip reasons, exactly one next-step CTA, mid-chain failure attribution.</span>
+      </a>
+      <a class="card" href="worktree-merged-cleanup.html" data-od-id="card-merged">
+        <span class="card__top"><span class="card__name">Merged &amp; cleanup</span><span class="tag tag--final">final</span><span class="card__file">worktree-merged-cleanup.html</span></span>
+        <span class="card__sub">S6 — forge merged / closed rows, local safe-to-clean evidence, suggest-never-auto-run cleanup handoff.</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">This page loads its tokens from <span class="mono">design-system/ds-core.css</span>; the artboards layer <span class="mono">worktree.css</span> on top, with dialog chrome transcribed from <span class="mono">_done/modals/modal-system.css</span>. Copy register per <span class="mono">COPY.md</span> and the assisted-exit copy inventory (<span class="mono">analysis/07 §Transferable 8</span>). Shared story + locked decisions: <a href="DESIGN-NOTES.md" style="color:var(--muted);text-decoration:underline"><span class="mono">DESIGN-NOTES.md</span></a>. Content is illustrative; runtime truth owns final values.</p>
+</div>
+</body>
+</html>

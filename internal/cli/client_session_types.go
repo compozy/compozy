@@ -12,6 +12,9 @@ type CreateSessionRequest = contract.CreateSessionRequest
 // SessionRecord is the shared daemon session payload.
 type SessionRecord = contract.SessionPayload
 
+// RenameSessionRequest changes one user session's durable display name.
+type RenameSessionRequest = contract.RenameSessionRequest
+
 // SessionCommandsRecord is the unified session command catalog.
 type SessionCommandsRecord = contract.SessionCommandsResponse
 

@@ -14,7 +14,8 @@ flowchart TD
     B -->|running but unhealthy| G[Honest degraded state, retry in place]
     C --> H[Product UI: same workspaces, sessions, and local UI state as the browser tab]
     D --> H
-    H --> I[Work: act in app and browser side by side - both reflect live]
+    H --> Z[Use standard page-zoom shortcuts when the product needs scaling]
+    Z --> I[Work: act in app and browser side by side - both reflect live]
     I --> J{Runtime dies mid-use?}
     J -->|kill -9| K[Disconnected state within the interval + reconnect and restart-runtime affordances]
     K -->|restart affordance| H
@@ -42,12 +43,15 @@ journey:
       verb: "Open the app with the runtime installed but stopped"
       expected_observable: "Visible starting progress, then the product UI; no dead white screen"
     - step: 3
+      verb: "Scale the product with standard page-zoom shortcuts"
+      expected_observable: "Command or Control plus, minus, and zero change or reset the whole product scale without triggering Compozy's single-window Zoom action"
+    - step: 4
       verb: "Work with app and browser tab side by side"
       expected_observable: "Actions in one surface appear live in the other"
-    - step: 4
+    - step: 5
       verb: "Kill the daemon under the app, then restart it"
       expected_observable: "Disconnected state within a perceivable interval; reconnect returns to the product without app restart"
-    - step: 5
+    - step: 6
       verb: "Quit the app"
       expected_observable: "Window closes; `compozy status` still healthy; the active session survives"
   goal:

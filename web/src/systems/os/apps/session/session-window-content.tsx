@@ -20,6 +20,11 @@ const SessionDeleteDialog = lazy(() =>
     default: module.SessionDeleteDialog,
   }))
 );
+const SessionRenameDialog = lazy(() =>
+  import("@/systems/session/components/session-rename-dialog").then(module => ({
+    default: module.SessionRenameDialog,
+  }))
+);
 const SessionInspector = lazy(() =>
   import("@/systems/session/components/session-inspector").then(module => ({
     default: module.SessionInspector,
@@ -65,6 +70,7 @@ export function SessionWindowContent({
     inspectorUsage,
     sessionVault,
     deleteDialog,
+    renameDialog,
     clearDialog,
     commandCatalog,
     commandCatalogStatus,
@@ -160,6 +166,18 @@ export function SessionWindowContent({
           />
         </Suspense>
       ) : null}
+      {renameDialog.open ? (
+        <Suspense fallback={null}>
+          <SessionRenameDialog
+            open
+            onOpenChange={renameDialog.setOpen}
+            session={session}
+            isRenaming={controls.isRenaming}
+            requestError={renameDialog.error}
+            onConfirm={renameDialog.confirmRename}
+          />
+        </Suspense>
+      ) : null}
       {sidebar.rowDeleteDialog.open && sidebar.rowDeleteDialog.session ? (
         <Suspense fallback={null}>
           <SessionDeleteDialog
@@ -168,6 +186,17 @@ export function SessionWindowContent({
             session={sidebar.rowDeleteDialog.session}
             isDeleting={sidebar.rowDeleteDialog.isDeleting}
             onConfirm={sidebar.rowDeleteDialog.onConfirm}
+          />
+        </Suspense>
+      ) : null}
+      {sidebar.rowRenameDialog.open && sidebar.rowRenameDialog.session ? (
+        <Suspense fallback={null}>
+          <SessionRenameDialog
+            open
+            onOpenChange={sidebar.rowRenameDialog.onOpenChange}
+            session={sidebar.rowRenameDialog.session}
+            isRenaming={sidebar.rowRenameDialog.isRenaming}
+            onConfirm={sidebar.rowRenameDialog.onConfirm}
           />
         </Suspense>
       ) : null}

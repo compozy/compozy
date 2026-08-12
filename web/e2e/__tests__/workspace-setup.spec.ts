@@ -22,6 +22,7 @@ const reasoningCatalogModelLabel = "QA Browser Model Alt";
 
 test("operator runs onboarding, then re-opens the ruled workspace setup dialog from the sidebar add button", async ({
   appPage,
+  runtime,
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
@@ -41,6 +42,14 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
 
   const dialogGlobalCard = dialog.getByTestId("workspace-setup-global-card");
   await expect(dialogGlobalCard).toHaveAttribute("data-size", "compact");
+
+  const browse = await runtime.requestJSON<{ path: string; roots: string[] }>("/api/fs/browse");
+  expect(browse.roots.length).toBeGreaterThan(0);
+  for (const root of browse.roots) {
+    await expect(dialog.getByRole("button", { name: `Go to location ${root}` })).toBeVisible();
+  }
+  await dialog.getByRole("button", { name: `Go to location ${browse.roots[0]}` }).click();
+  await expect(dialog.getByTitle(browse.roots[0])).toBeVisible();
 
   // The ruled chrome means the trigger row uses px-5 / py-4. Verify computed rule via DOM box.
   const ruledHeaderBox = await ruledHeader.evaluate(node => {

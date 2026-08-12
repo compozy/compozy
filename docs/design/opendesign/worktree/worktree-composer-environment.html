@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Composer environment &amp; fork · Worktrees · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-composer-environment · S8 (environment chip + pending + /worktree) + S9 (fork-to-worktree confirm).
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S8 §S9 · stories US-004, US-005.
+  Provenance:
+    production            — composer control row from web/src/components/assistant-ui/session-composer.tsx:63,203-206
+                            (runtimeControl slot first in the min-h-7 flex row, ⏎ hint beside it);
+                            "next prompt only" chip pattern from session-prompt-runtime-selector.tsx:11-48;
+                            command-menu row anatomy (icon 16 · title · truncated description · trailing mono)
+                            from session-composer-command-menu.tsx:64-101; confirm-dialog precedent from
+                            web/src/routes/_app/-session-workspace-switch.tsx:19-43; composer chrome transcribed
+                            from _done/session/session.css §11 (hairline field, circular accent send)
+    spec worktree-support — env chip enum root·worktree·new-worktree·locked (.env-chip data attrs), first-send
+                            materialization phases create dir → create branch → bootstrap (US-004: cancellable,
+                            failure keeps the draft), /worktree command, fork statement copy (US-005)
+    authorized delta      — .toast rendered as a full-width inline strip docked above the composer (same
+                            .tstep grammar); .rt-chip mirrors .env-chip 24px geometry for the RuntimeSelector
+                            composer variant (prototype stand-in, production keeps RuntimeSelector)
+-->
+<style>
+  /* composer chrome — transcribed from _done/session/session.css §11, bare tokens */
+  .composer-wrap{max-width:560px}
+  .composer{display:flex;flex-direction:column;gap:7px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--elevated);padding:11px 10px 9px 14px;box-shadow:var(--highlight);
+    transition:border-color var(--dur) var(--ease)}
+  .composer:hover{border-color:var(--line-strong)}
+  .composer:focus-within{border-color:var(--accent-dim)}
+  .composer--docked{border-top-left-radius:0;border-top-right-radius:0;border-top-color:var(--line-soft)}
+  .composer textarea{border:0;background:none;outline:none;resize:none;font-family:var(--font-sans);
+    font-size:13px;line-height:1.55;color:var(--fg);min-height:21px;max-height:180px}
+  .composer textarea::placeholder{color:var(--faint)}
+  .composer__bar{display:flex;align-items:center;gap:8px;min-height:28px;flex-wrap:wrap}
+  .composer__hint{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--faint)}
+  .composer__hint kbd{border:1px solid var(--line);border-radius:var(--radius-xxs);padding:1px 4px;
+    background:var(--canvas-soft);font-size:9px;color:var(--subtle)}
+  .composer__bar .spacer{flex:1}
+  .composer__send{width:28px;height:28px;border-radius:var(--radius-pill);display:grid;place-items:center;
+    background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight);
+    transition:background var(--dur) var(--ease),transform var(--dur) var(--ease)}
+  .composer__send:hover{background:var(--accent-hover)}
+  .composer__send:active{transform:translateY(1px)}
+  .composer__send:disabled{background:var(--btn-fill);color:var(--faint);box-shadow:none;cursor:default}
+  .composer__send svg{width:13px;height:13px}
+
+  /* RuntimeSelector composer-variant stand-in — same 24px chip scale as .env-chip (control-row grammar) */
+  .rt-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;
+    border:1px solid var(--line);border-radius:var(--radius-md);background:var(--btn-fill);
+    font-size:11.5px;font-weight:500;color:var(--muted);white-space:nowrap}
+  .rt-chip svg{width:12px;height:12px;color:var(--subtle)}
+  .rt-chip:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg)}
+  .rt-chip .mono{font-size:10px;color:var(--subtle)}
+
+  /* inline materialization strip — .toast/.tstep grammar, docked above the composer (authorized delta) */
+  .toast--inline{width:100%;border-bottom:0;border-radius:var(--radius-lg) var(--radius-lg) 0 0;box-shadow:none}
+
+  /* command menu — session-composer-command-menu.tsx row anatomy, popover geometry per cs-pop */
+  .cmd-pop{width:100%;max-width:560px;padding:5px;background:var(--elevated);border:1px solid var(--line-strong);
+    border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);margin-bottom:6px}
+  .cmd-item{display:flex;width:100%;align-items:center;gap:8px;min-height:30px;padding:5px 8px;
+    border-radius:var(--radius-md);text-align:left;transition:background var(--dur) var(--ease)}
+  .cmd-item:hover,.cmd-item[data-highlighted]{background:var(--row-hover)}
+  .cmd-item svg{width:14px;height:14px;flex:none;color:var(--muted)}
+  .cmd-item[data-highlighted] svg{color:var(--fg-strong)}
+  .cmd-item__main{display:flex;min-width:0;flex:1;align-items:baseline;gap:6px}
+  .cmd-item__title{flex:none;font-family:var(--font-mono);font-size:11.5px;font-weight:500;color:var(--fg)}
+  .cmd-item__desc{min-width:0;font-size:11px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cmd-item__trail{margin-left:auto;flex:none;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+
+  /* fork dialog fact rows — plain statements, no prose paragraphs */
+  .fact{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .fact + .fact{margin-top:8px}
+  .fact svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--subtle)}
+  .fact b{color:var(--fg);font-weight:500}
+  .chip-grid{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .draft-note{display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-size:10.5px;color:var(--subtle)}
+  .draft-note svg{width:11px;height:11px;color:var(--success)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-composer-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Composer environment &amp; fork</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">S8 · S9</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="worktree-session-create.html">← Session create</a>
+      <a class="btn" href="worktree-task-setup.html">Task setup →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · ENVIRONMENT CHIP — draft sessions only ════ -->
+    <section class="lab-sec" data-od-id="sec-chip-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Environment chip — draft session</h2>
+        <span class="lab-sec__gist">sibling to the runtime chip · configures where the session materializes</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>In context</b>The chip lives in the composer control row, right of the runtime chip (the <code>runtimeControl</code> slot, session-composer.tsx:203-206). Draft default is the workspace root. One accent on the surface: the send disc.</div>
+        <div class="spec__demo composer-wrap">
+          <!-- gating: session.environment {kind:"root"} — default on POST /api/sessions draft; editable while session.status == "draft" -->
+          <div class="composer" data-od-id="composer-draft-root">
+            <textarea rows="1" placeholder="Describe what this session should do…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" title="Runtime for next prompt"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="env-chip" data-od-id="env-chip-root" title="Environment — workspace root"><svg data-lucide="folder"></svg>compozy<span class="mono">root</span></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>The three draft states</b>Root · existing ready worktree · new worktree (dashed = nothing exists on disk yet — US-004). The chip never claims a directory that has not been created.</div>
+        <div class="spec__demo chip-grid">
+          <!-- gating: session.environment.kind = root | worktree(worktree_id) | new(name,branch) -->
+          <button class="env-chip"><svg data-lucide="folder"></svg>compozy<span class="mono">root</span></button>
+          <button class="env-chip"><svg data-lucide="folder-git-2"></svg>payments-retry</button>
+          <button class="env-chip" data-pending><svg data-lucide="folder-plus"></svg>new: docs-refresh</button>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Chip popover</b>Root first, then ready worktrees (only <code>state == "ready"</code> is offerable), then the new-worktree escape. Live-agent dot and setup flag carry over; branch stays micro mono.</div>
+        <div class="spec__demo">
+          <!-- gating: options from GET /api/workspaces/:id/worktrees filtered to state == "ready"; "New worktree…" opens S4 (worktree-create-dialog.html) deferred to first send -->
+          <div class="cs-pop" data-od-id="env-chip-popover">
+            <div class="cs-pop__search"><svg data-lucide="search"></svg><input placeholder="Environment…"></div>
+            <div class="cs-pop__list">
+              <div class="cs-group">
+                <div class="cs-group__h">Workspace root</div>
+                <button class="cs-item" aria-selected="true">
+                  <span class="command-select__avatar">CO</span>
+                  <span class="cs-item__label">compozy<span class="sub">~/dev/compozy</span></span>
+                  <svg class="cs-item__check" data-lucide="check"></svg>
+                </button>
+              </div>
+              <div class="cs-group">
+                <div class="cs-group__h">Worktrees</div>
+                <button class="cs-item">
+                  <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                  <span class="cs-item__label">payments-retry<span class="sub">pedro/payments-retry</span></span>
+                  <span class="wt-agent" title="Fix payment retries · claude"><span class="d d--run d--pulse"></span></span>
+                </button>
+                <button class="cs-item">
+                  <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                  <span class="cs-item__label">auth-refresh<span class="sub">pedro/auth-refresh</span></span>
+                </button>
+                <button class="cs-item">
+                  <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                  <span class="cs-item__label">fix-flaky-e2e<span class="sub">run/fix-flaky-e2e</span></span>
+                  <span class="wt-origin">per-run</span>
+                </button>
+                <button class="cs-item">
+                  <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                  <span class="cs-item__label">data-migration<span class="sub">pedro/data-migration</span></span>
+                  <span class="wt-flag" title="bun install exited 1 — worktree is usable"><svg data-lucide="triangle-alert"></svg></span>
+                </button>
+              </div>
+            </div>
+            <div class="cs-foot">
+              <button class="cs-item"><svg data-lucide="folder-plus"></svg><span class="cs-item__label">New worktree…</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · FIRST-SEND MATERIALIZATION — US-004 ════ -->
+    <section class="lab-sec" data-od-id="sec-materialization">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">First-send materialization</h2>
+        <span class="lab-sec__gist">new worktree exists only after send · cancellable · failure keeps the draft</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>In progress</b>Send with a <code>new</code> environment first materializes the worktree — real phases, announced up front: create directory → create branch → bootstrap. The prompt is held, not lost; Cancel abandons materialization and returns to the draft.</div>
+        <div class="spec__demo composer-wrap">
+          <!-- gating: POST /api/workspaces/:id/worktrees {name,branch} → phases via SSE worktree.pending; prompt queued client-side until state == "ready" -->
+          <div class="toast toast--inline" data-od-id="materialize-progress">
+            <div class="toast__head"><span class="tstep__spin"></span>
+              <span class="toast__title">Creating worktree <span class="mono">docs-refresh</span></span>
+              <button class="btn btn--sm btn--ghost">Cancel</button>
+            </div>
+            <div class="toast__steps">
+              <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Create directory<span class="tstep__why">~/.compozy/worktrees/compozy/docs-refresh</span></div>
+              <div class="tstep" data-s="active"><span class="tstep__mark"><span class="tstep__spin"></span></span>Create branch<span class="tstep__why">pedro/docs-refresh · from main</span></div>
+              <div class="tstep"><span class="tstep__mark"><svg data-lucide="circle-dashed"></svg></span>Bootstrap<span class="tstep__why">bun install</span></div>
+            </div>
+          </div>
+          <div class="composer composer--docked">
+            <textarea rows="2">Refresh the getting-started docs to match the new CLI verbs.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" disabled style="opacity:.55;cursor:default"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="env-chip" data-pending><svg data-lucide="folder-plus"></svg>new: docs-refresh</button>
+              <span class="spacer"></span>
+              <!-- gating: send disabled while worktree.state == "pending" — prompt already staged; the text stays editable -->
+              <button class="composer__send" disabled aria-label="Sending after worktree is ready"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Ready → prompt sent</b>All phases done, chip settles into the plain worktree state, the staged prompt goes out. The strip collapses after the send confirms — no lingering success theatre.</div>
+        <div class="spec__demo composer-wrap">
+          <!-- gating: worktree.state ready + session.worktree_id bound → staged prompt dispatched -->
+          <div class="toast toast--inline" data-od-id="materialize-ready">
+            <div class="toast__head"><svg data-lucide="check" style="width:14px;height:14px;color:var(--success)"></svg>
+              <span class="toast__title">Worktree <span class="mono">docs-refresh</span> ready — prompt sent</span>
+            </div>
+          </div>
+          <div class="composer composer--docked">
+            <textarea rows="1" placeholder="Reply…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <span class="env-chip" data-locked title="Environment is fixed for a live session — fork to move"><svg data-lucide="folder-git-2"></svg>docs-refresh</span>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Failed — draft preserved</b>Failure is attributed to its phase with the real exit line. The session stays a draft, the prompt text stays in the field (US-004), and the three exits are explicit. No auto-retry.</div>
+        <div class="spec__demo composer-wrap">
+          <!-- gating: worktree.pending phase "bootstrap" failed (exit 1) — session.status stays "draft", environment stays new(docs-refresh) until user chooses -->
+          <div class="toast toast--inline" data-od-id="materialize-failed">
+            <div class="toast__head"><svg data-lucide="circle-x" style="width:14px;height:14px;color:var(--danger)"></svg>
+              <span class="toast__title">Worktree <span class="mono">docs-refresh</span> failed</span>
+            </div>
+            <div class="toast__steps">
+              <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Create directory</div>
+              <div class="tstep" data-s="done"><span class="tstep__mark"><svg data-lucide="check"></svg></span>Create branch<span class="tstep__why">pedro/docs-refresh</span></div>
+              <div class="tstep" data-s="fail"><span class="tstep__mark"><svg data-lucide="circle-x"></svg></span>Bootstrap<span class="tstep__why">bun install · exit 1</span></div>
+            </div>
+            <div class="toast__hook">$ bun install
+error: lockfile had changes, but lockfile is frozen
+<span class="err">bun install exited with code 1</span></div>
+            <div class="toast__foot">
+              <button class="btn btn--sm">Retry</button>
+              <button class="btn btn--sm">Pick another…</button>
+              <span class="spacer"></span>
+              <!-- gating: fallback resets session.environment to {kind:"root"} and sends the held draft -->
+              <button class="btn btn--sm">Continue at workspace root</button>
+            </div>
+          </div>
+          <div class="composer composer--docked">
+            <textarea rows="2">Refresh the getting-started docs to match the new CLI verbs.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="env-chip" data-pending><svg data-lucide="folder-plus"></svg>new: docs-refresh</button>
+              <span class="draft-note"><svg data-lucide="check"></svg>draft kept</span>
+              <span class="spacer"></span>
+              <!-- gating: send held while the new-worktree environment is failed — resolve via the strip exits; the text stays editable -->
+              <button class="composer__send" disabled aria-label="Resolve the failed worktree first"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · /worktree SLASH COMMAND ════ -->
+    <section class="lab-sec" data-od-id="sec-slash-command">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">/worktree command</h2>
+        <span class="lab-sec__gist">joins the native builtins · on a live session it opens the fork confirm (04)</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Command menu open</b>Row anatomy from the production menu (session-composer-command-menu.tsx): icon · mono token · truncated description · trailing lane. <code>/worktree</code> is the one addition, tagged as such.</div>
+        <div class="spec__demo composer-wrap">
+          <!-- gating: catalog builtins /goal /run + /worktree (spec worktree-support §S8); /worktree on a live session routes to POST /api/sessions/:id/fork confirm (section 04) -->
+          <div class="cmd-pop" data-od-id="command-menu">
+            <div class="cs-group__h">Commands</div>
+            <button class="cmd-item"><svg data-lucide="target"></svg>
+              <span class="cmd-item__main"><span class="cmd-item__title">/goal</span><span class="cmd-item__desc">Set the session goal</span></span>
+              <span class="cmd-item__trail">builtin</span>
+            </button>
+            <button class="cmd-item"><svg data-lucide="play"></svg>
+              <span class="cmd-item__main"><span class="cmd-item__title">/run</span><span class="cmd-item__desc">Run a capability</span></span>
+              <span class="cmd-item__trail">builtin</span>
+            </button>
+            <button class="cmd-item" data-highlighted><svg data-lucide="folder-git-2"></svg>
+              <span class="cmd-item__main"><span class="cmd-item__title">/worktree</span><span class="cmd-item__desc">Continue this work in a worktree — forks the session</span></span>
+              <span class="cs-item__badge">new</span>
+            </button>
+          </div>
+          <div class="composer">
+            <textarea rows="1">/wor</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <span class="env-chip" data-locked title="Environment is fixed for a live session — fork to move"><svg data-lucide="folder-git-2"></svg>payments-retry</span>
+              <span class="composer__hint"><kbd>⏎</kbd>select</span>
+              <span class="spacer"></span>
+              <button class="composer__send" disabled aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · LIVE SESSION — binding shown, switching disabled ════ -->
+    <section class="lab-sec" data-od-id="sec-live-binding">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Live session — binding is fixed</h2>
+        <span class="lab-sec__gist">the chip states the fact · moving means forking, never rebinding</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Bound chip</b>After first send the environment is immutable (<code>session.worktree_id</code>). The chip is a non-interactive statement of fact — no hover affordance, no popover, no click. Moving means forking, via <code>/worktree</code> (03).</div>
+        <div class="spec__demo composer-wrap">
+          <!-- gating: session.status != "draft" → env-chip renders as a non-interactive span (data-locked, title names the lock reason);
+               fork confirm (05) opens via /worktree — never from the chip, never an environment popover -->
+          <div class="composer" data-od-id="composer-live-locked">
+            <textarea rows="1" placeholder="Reply…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <span class="env-chip" data-locked title="Environment is fixed for a live session — fork to move"><svg data-lucide="folder-git-2"></svg>payments-retry<svg data-lucide="lock"></svg></span>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+          <div class="draft-note" style="margin-top:8px"><svg data-lucide="corner-down-right" style="color:var(--subtle)"></svg>moving means forking — <span class="mono" style="font-size:9.5px">/worktree</span> opens “Fork to a worktree?” (05)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · S9 FORK-TO-WORKTREE CONFIRM ════ -->
+    <section class="lab-sec" data-od-id="sec-fork-dialog">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Fork to worktree — confirm</h2>
+        <span class="lab-sec__gist">US-005 · plain statements · workspace-switch confirm precedent</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Default</b>Three facts, stated flat: new session in the worktree · this session untouched · uncommitted changes stay put. Target defaults to the last-used ready worktree. One primary action.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo scrim">
+            <!-- gating: POST /api/sessions/:id/fork {worktree_id} — enabled while session.turn_active == false -->
+            <div class="dialog dialog--compact" data-od-id="fork-dialog-default">
+              <div class="dialog__head">
+                <span class="head-icon"><svg data-lucide="git-branch-plus"></svg></span>
+                <div class="head-copy">
+                  <div class="eyebrow">Fork session</div>
+                  <h3>Fork “Fix payment retries” to a worktree?</h3>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div style="margin-bottom:16px">
+                  <div class="fact"><svg data-lucide="plus"></svg><span>A <b>new session</b> is created in the worktree, seeded with this conversation.</span></div>
+                  <div class="fact"><svg data-lucide="check"></svg><span>This session <b>stays untouched</b> and keeps running here.</span></div>
+                  <div class="fact"><svg data-lucide="file-diff"></svg><span>Uncommitted changes <b>stay where they are</b> — nothing moves on disk.</span></div>
+                </div>
+                <div class="fgroup">
+                  <div class="flabel">Target</div>
+                  <!-- gating: options = worktrees state == "ready" (minus current binding) + "New worktree…" -->
+                  <button class="command-select">
+                    <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                    <span class="command-select__label">auth-refresh<span class="path">pedro/auth-refresh · ~/.compozy/worktrees/compozy/auth-refresh</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="dialog__foot">
+                <!-- no foot note here: the default fork carries no warning or wait state — bare spacer keeps Cancel · primary right-aligned -->
+                <span style="flex:1" aria-hidden="true"></span>
+                <button class="btn">Cancel</button>
+                <button class="btn btn--primary">Fork session</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>New-worktree target</b>Picking “New worktree…” chains the S4 create form (<a href="worktree-create-dialog.html" style="color:var(--fg);text-decoration:underline">worktree-create-dialog.html</a>) and the fork lands as pending — the new session materializes its worktree exactly like a first send (02).</div>
+        <div class="spec__demo">
+          <div class="scrim--demo scrim">
+            <!-- gating: POST /api/sessions/:id/fork {new_worktree:{name,branch}} → chains S4 pending; fork session starts once state == "ready" -->
+            <div class="dialog dialog--compact" data-od-id="fork-dialog-new-target">
+              <div class="dialog__head">
+                <span class="head-icon"><svg data-lucide="git-branch-plus"></svg></span>
+                <div class="head-copy">
+                  <div class="eyebrow">Fork session</div>
+                  <h3>Fork “Fix payment retries” to a worktree?</h3>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <div class="flabel">Target</div>
+                  <button class="command-select">
+                    <span class="command-select__avatar"><svg data-lucide="folder-plus" style="width:11px;height:11px"></svg></span>
+                    <span class="command-select__label">New worktree<span class="path">payments-retry-2 · pedro/payments-retry-2 · from main</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                  <!-- cross-ref: the create form is S4 · worktree-create-dialog.html -->
+                  <div class="fhint">Name and branch come from the create form.</div>
+                </div>
+                <div class="fgroup">
+                  <div class="flabel">After confirm</div>
+                  <span class="env-chip" data-pending style="cursor:default"><svg data-lucide="folder-plus"></svg>new: payments-retry-2</span>
+                </div>
+              </div>
+              <div class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="clock"></svg>Forked session starts once the worktree is ready.</div>
+                <button class="btn">Cancel</button>
+                <button class="btn btn--primary">Create &amp; fork</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Blocked — agent mid-turn</b>Forking while the agent is mid-turn is refused with the reason as a functional label. The dialog stays open; the action unblocks when the turn ends. No queueing theatre.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo scrim">
+            <!-- gating: session.turn_active == true → fork disabled; reason rendered, re-enabled on turn end (SSE session.turn) -->
+            <div class="dialog dialog--compact" data-od-id="fork-dialog-blocked">
+              <div class="dialog__head">
+                <span class="head-icon head-icon--neutral"><svg data-lucide="git-branch-plus"></svg></span>
+                <div class="head-copy">
+                  <div class="eyebrow" style="color:var(--subtle)">Fork session</div>
+                  <h3>Fork “Fix payment retries” to a worktree?</h3>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <div class="flabel">Target</div>
+                  <button class="command-select" disabled>
+                    <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                    <span class="command-select__label">auth-refresh<span class="path">pedro/auth-refresh</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="dialog__foot">
+                <div class="foot-note foot-note--warning"><svg data-lucide="loader"></svg>Agent is mid-turn — fork is available when the turn finishes.</div>
+                <button class="btn">Cancel</button>
+                <button class="btn" disabled>Fork session</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S8 + S9 for the worktree set — chip vocabulary from <span class="mono">worktree.css</span>, composer chrome
+      transcribed from the session domain, fork confirm on the workspace-switch precedent.
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S8 §S9</span> · US-004 / US-005 ·
+      content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>
