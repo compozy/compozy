@@ -286,6 +286,24 @@ func TestOutputRef(t *testing.T) {
 		if got, want := state.Cursors["task_events"], int64(42); got != want {
 			t.Fatalf("cursor = %d, want %d", got, want)
 		}
+		if got, want := state.CursorVersion, EventsCursorVersion; got != want {
+			t.Fatalf("cursor version = %d, want %d", got, want)
+		}
+		if !strings.Contains(ref, `"cursor_version":1`) {
+			t.Fatalf("pending ref = %s, want cursor namespace version", ref)
+		}
+	})
+
+	t.Run("Should reject an unversioned watch-events cursor namespace", func(t *testing.T) {
+		t.Parallel()
+
+		_, ok, err := EventsPendingFromOutputRef(
+			`{"kind":"watch_events_pending","subscriptions":[{"kind":"loop.terminal"}],` +
+				`"cursors":{"loop_run_events":7}}`,
+		)
+		if err == nil || ok || !strings.Contains(err.Error(), "cursor version 0 is unsupported") {
+			t.Fatalf("EventsPendingFromOutputRef(legacy) = (_, %v, %v), want unsupported version", ok, err)
+		}
 	})
 
 	t.Run("Should encode watch-events confirmed events and cursors", func(t *testing.T) {

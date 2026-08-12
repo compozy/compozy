@@ -427,7 +427,8 @@ CREATE TABLE loop_output_blobs (
 		);
 
 CREATE TABLE loop_run_events (
-			id           TEXT PRIMARY KEY,
+			watch_seq    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+			id           TEXT NOT NULL UNIQUE,
 			loop_run_id  TEXT NOT NULL,
 			workspace_id TEXT NOT NULL,
 			seq          INTEGER NOT NULL,
@@ -553,6 +554,9 @@ CREATE INDEX idx_loop_goal_session_outbox_pending
 
 CREATE INDEX idx_loop_run_events_run_seq
 			ON loop_run_events(loop_run_id, seq);
+
+CREATE INDEX idx_loop_run_events_watch_stream
+	ON loop_run_events(workspace_id, watch_seq);
 
 CREATE UNIQUE INDEX uq_loop_run_events_delivery
 	ON loop_run_events(loop_run_id, delivery_key) WHERE delivery_key IS NOT NULL;

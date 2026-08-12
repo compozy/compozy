@@ -176,6 +176,42 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			watchEventsE2EInputs(parent.ID, child.ID),
 		)
 		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusWatching)
+		foreignWorkspaceID := assertWatchEventsReadModelParity(t, ctx, harness, run.ID)
+		quietBaseline := readLoopRunDetailViaHTTP(t, ctx, harness, run.ID)
+		quietPromptCount := watchEventsMockPromptCount(t, harness, "watch-events-agent")
+
+		unrelatedParent := createTaskViaUDS(t, ctx, harness, "Unrelated parent")
+		unrelatedChild := createChildTaskViaUDS(t, ctx, harness, unrelatedParent.ID, "Unrelated child")
+		blockTaskThroughStoreForWatchEventsE2E(t, ctx, harness.HomePaths, unrelatedChild.ID)
+		assertLoopRunRemainsParked(
+			t,
+			ctx,
+			harness,
+			run.ID,
+			quietBaseline,
+			quietPromptCount,
+			300*time.Millisecond,
+		)
+
+		foreignParent := createTaskViaUDSInWorkspace(t, ctx, harness, foreignWorkspaceID, "Foreign parent")
+		foreignChild := createChildTaskViaUDSInWorkspace(
+			t,
+			ctx,
+			harness,
+			foreignWorkspaceID,
+			foreignParent.ID,
+			"Foreign child",
+		)
+		blockTaskThroughStoreForWatchEventsE2E(t, ctx, harness.HomePaths, foreignChild.ID)
+		assertLoopRunRemainsParked(
+			t,
+			ctx,
+			harness,
+			run.ID,
+			quietBaseline,
+			quietPromptCount,
+			300*time.Millisecond,
+		)
 
 		lease := claimTaskRunViaAgentUDS(t, ctx, harness, child.ID)
 		blockTaskThroughStoreForWatchEventsE2E(t, ctx, harness.HomePaths, blockedChild.ID)
@@ -217,6 +253,7 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 			watchEventsE2EInputs(parent.ID, child.ID),
 		)
 		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusWatching)
+		_ = assertWatchEventsReadModelParity(t, ctx, harness, run.ID)
 
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if err := harness.Stop(stopCtx); err != nil {
@@ -591,10 +628,45 @@ func createTaskViaUDS(
 	title string,
 ) compozycontract.TaskPayload {
 	t.Helper()
+	return createTaskViaUDSInWorkspace(t, ctx, harness, harness.WorkspaceID, title)
+}
+
+func createWorkspaceViaUDS(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	rootDir string,
+	name string,
+) string {
+	t.Helper()
+	var response compozycontract.WorkspaceResponse
+	if err := harness.UDSJSON(
+		ctx,
+		http.MethodPost,
+		"/api/workspaces",
+		compozycontract.CreateWorkspaceRequest{RootDir: rootDir, Name: name},
+		&response,
+	); err != nil {
+		t.Fatalf("UDS create workspace error = %v", err)
+	}
+	if response.Workspace.ID == "" || response.Workspace.ID == harness.WorkspaceID {
+		t.Fatalf("UDS created workspace = %#v, want distinct id", response.Workspace)
+	}
+	return response.Workspace.ID
+}
+
+func createTaskViaUDSInWorkspace(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	workspaceID string,
+	title string,
+) compozycontract.TaskPayload {
+	t.Helper()
 	var response compozycontract.TaskResponse
 	request := compozycontract.CreateTaskRequest{
 		Scope:     taskpkg.ScopeWorkspace,
-		Workspace: harness.WorkspaceID,
+		Workspace: workspaceID,
 		Title:     title,
 	}
 	if err := harness.UDSJSON(ctx, http.MethodPost, "/api/tasks", request, &response); err != nil {
@@ -614,10 +686,22 @@ func createChildTaskViaUDS(
 	title string,
 ) compozycontract.TaskPayload {
 	t.Helper()
+	return createChildTaskViaUDSInWorkspace(t, ctx, harness, harness.WorkspaceID, parentTaskID, title)
+}
+
+func createChildTaskViaUDSInWorkspace(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	workspaceID string,
+	parentTaskID string,
+	title string,
+) compozycontract.TaskPayload {
+	t.Helper()
 	var response compozycontract.TaskResponse
 	request := compozycontract.CreateTaskChildRequest{
 		Scope:     taskpkg.ScopeWorkspace,
-		Workspace: harness.WorkspaceID,
+		Workspace: workspaceID,
 		Title:     title,
 	}
 	path := "/api/tasks/" + url.PathEscape(parentTaskID) + "/children"
@@ -876,6 +960,180 @@ func assertWatchEventsMockPrompt(
 		}
 	}
 	t.Fatalf("watch-events prompts = %#v, want fragments %#v", prompts, fragments)
+}
+
+func assertWatchEventsReadModelParity(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+) string {
+	t.Helper()
+
+	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+		"/loop-runs/" + url.PathEscape(runID)
+	var httpDetail compozycontract.LoopRunResponse
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpDetail); err != nil {
+		t.Fatalf("HTTP get parked loop error = %v", err)
+	}
+	if httpDetail.WatchEvents == nil || len(httpDetail.WatchEvents.Subscriptions) == 0 {
+		t.Fatalf("HTTP parked watch-events read-model = %#v, want subscriptions", httpDetail.WatchEvents)
+	}
+	if len(httpDetail.WatchEvents.Cursors) == 0 {
+		t.Fatalf("HTTP parked watch-events read-model = %#v, want durable cursors", httpDetail.WatchEvents)
+	}
+	if httpDetail.WatchEvents.LastWakeAt == nil {
+		t.Fatalf("HTTP parked watch-events read-model = %#v, want last_wake_at", httpDetail.WatchEvents)
+	}
+
+	var udsDetail compozycontract.LoopRunResponse
+	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &udsDetail); err != nil {
+		t.Fatalf("UDS get parked loop error = %v", err)
+	}
+
+	var cliDetail compozycontract.LoopRunResponse
+	if err := harness.CLI.RunJSONInDir(
+		ctx,
+		harness.WorkspaceRoot,
+		&cliDetail,
+		"loop", "status",
+		"--workspace", harness.WorkspaceID,
+		"--run-id", runID,
+		"-o", "json",
+	); err != nil {
+		t.Fatalf("CLI get parked loop error = %v", err)
+	}
+	httpJSON, err := json.Marshal(httpDetail.WatchEvents)
+	if err != nil {
+		t.Fatalf("marshal HTTP parked watch-events read-model error = %v", err)
+	}
+	cliJSON, err := json.Marshal(cliDetail.WatchEvents)
+	if err != nil {
+		t.Fatalf("marshal CLI parked watch-events read-model error = %v", err)
+	}
+	if !bytes.Equal(cliJSON, httpJSON) {
+		t.Fatalf("CLI parked watch-events read-model = %s, want HTTP %s", cliJSON, httpJSON)
+	}
+	udsJSON, err := json.Marshal(udsDetail.WatchEvents)
+	if err != nil {
+		t.Fatalf("marshal UDS parked watch-events read-model error = %v", err)
+	}
+	if !bytes.Equal(udsJSON, httpJSON) {
+		t.Fatalf("UDS parked watch-events read-model = %s, want HTTP %s", udsJSON, httpJSON)
+	}
+
+	nativeDetail := invokeLoopRuntimeNativeStatus(t, ctx, harness, harness.WorkspaceID, runID)
+	nativeJSON, err := json.Marshal(nativeDetail.WatchEvents)
+	if err != nil {
+		t.Fatalf("marshal native parked watch-events read-model error = %v", err)
+	}
+	if !bytes.Equal(nativeJSON, httpJSON) {
+		t.Fatalf("native parked watch-events read-model = %s, want HTTP %s", nativeJSON, httpJSON)
+	}
+
+	foreignWorkspaceID := createWorkspaceViaUDS(t, ctx, harness, t.TempDir(), "foreign-workspace")
+	foreignPath := "/api/workspaces/" + url.PathEscape(foreignWorkspaceID) +
+		"/loop-runs/" + url.PathEscape(runID)
+	var foreign map[string]any
+	status := loopRuntimeRawJSON(
+		t,
+		ctx,
+		harness.HTTPClient,
+		harness.HTTPURL(foreignPath),
+		http.MethodGet,
+		nil,
+		&foreign,
+	)
+	if status != http.StatusNotFound {
+		t.Fatalf("foreign workspace read = status:%d body:%#v, want 404", status, foreign)
+	}
+	return foreignWorkspaceID
+}
+
+func readLoopRunDetailViaHTTP(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+) compozycontract.LoopRunResponse {
+	t.Helper()
+	var response compozycontract.LoopRunResponse
+	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+		"/loop-runs/" + url.PathEscape(runID)
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTP get loop detail error = %v", err)
+	}
+	return response
+}
+
+func assertLoopRunRemainsParked(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+	baseline compozycontract.LoopRunResponse,
+	promptCount int,
+	duration time.Duration,
+) {
+	t.Helper()
+	baselineWatch, err := json.Marshal(baseline.WatchEvents)
+	if err != nil {
+		t.Fatalf("marshal baseline parked watch-events read-model error = %v", err)
+	}
+	deadline := time.NewTimer(duration)
+	defer deadline.Stop()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatalf("context ended while asserting loop remains parked: %v", ctx.Err())
+		case <-deadline.C:
+			return
+		case <-ticker.C:
+			response := readLoopRunDetailViaHTTP(t, ctx, harness, runID)
+			if response.Run.Status != compozycontract.LoopRunStatusWatching ||
+				response.Run.Generation != baseline.Run.Generation {
+				t.Fatalf(
+					"loop after non-matching event = status:%s generation:%d, want watching generation:%d",
+					response.Run.Status,
+					response.Run.Generation,
+					baseline.Run.Generation,
+				)
+			}
+			currentWatch, marshalErr := json.Marshal(response.WatchEvents)
+			if marshalErr != nil {
+				t.Fatalf("marshal current parked watch-events read-model error = %v", marshalErr)
+			}
+			if !bytes.Equal(currentWatch, baselineWatch) {
+				t.Fatalf(
+					"parked watch-events read-model after non-matching event = %s, want unchanged %s",
+					currentWatch,
+					baselineWatch,
+				)
+			}
+			if current := watchEventsMockPromptCount(t, harness, "watch-events-agent"); current != promptCount {
+				t.Fatalf("watch-events prompt count after non-matching event = %d, want %d", current, promptCount)
+			}
+		}
+	}
+}
+
+func watchEventsMockPromptCount(
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	agentName string,
+) int {
+	t.Helper()
+	registration, ok := harness.MockAgentRegistration(agentName)
+	if !ok {
+		t.Fatalf("MockAgentRegistration(%q) missing", agentName)
+	}
+	records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(%q) error = %v", registration.DiagnosticsPath, err)
+	}
+	return len(acpmock.PromptDiagnostics(records))
 }
 
 func waitForLoopRunStatus(

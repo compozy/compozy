@@ -893,6 +893,7 @@ type LoopRun struct {
 }
 
 type LoopRunEvent struct {
+	WatchSeq    int64          `json:"watch_seq"`
 	ID          string         `json:"id"`
 	LoopRunID   string         `json:"loop_run_id"`
 	WorkspaceID string         `json:"workspace_id"`

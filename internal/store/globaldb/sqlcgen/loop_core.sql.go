@@ -615,7 +615,7 @@ func (q *Queries) InsertLoopUIAnnotation(ctx context.Context, arg InsertLoopUIAn
 }
 
 const listLoopRunEvents = `-- name: ListLoopRunEvents :many
-SELECT id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
+SELECT watch_seq, id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
 FROM loop_run_events
 WHERE workspace_id = ?1
   AND loop_run_id = ?2
@@ -646,6 +646,7 @@ func (q *Queries) ListLoopRunEvents(ctx context.Context, arg ListLoopRunEventsPa
 	for rows.Next() {
 		var i LoopRunEvent
 		if err := rows.Scan(
+			&i.WatchSeq,
 			&i.ID,
 			&i.LoopRunID,
 			&i.WorkspaceID,
