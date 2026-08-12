@@ -1,13 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { validateMarketplaceDetailSearch } from "@/systems/os";
+import { createOsRouteSync, validateMarketplaceDetailSearch } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
 import {
   isMarketplaceKind,
   MARKETPLACE_KIND_LABEL,
   marketplaceRouteKindFor,
 } from "@/systems/marketplace";
-import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/marketplace/$kind/$entryId")({
   validateSearch: validateMarketplaceDetailSearch,

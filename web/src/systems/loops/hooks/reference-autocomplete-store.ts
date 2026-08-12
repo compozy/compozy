@@ -66,6 +66,7 @@ export const referenceAutocompleteLogic = createStoreLogic<
       return { ...context, query: null };
     },
     blurred: (context, _event, enqueue) => {
+      if (context.query === null) return;
       enqueue.effect(({ trigger }) => {
         cancelBlur(trigger);
         const handles = handlesFor(trigger);

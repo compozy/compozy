@@ -1,9 +1,19 @@
 // @vitest-environment jsdom
+// Suite: network elapsed clock
+// Invariant: elapsed labels tick only while their owning Network window is live.
+// Boundary IN: second-clock subscription, liveness, and elapsed formatting.
+// Boundary OUT: Network window visibility derivation, owned by OS hook suites.
 
-import { renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { NetworkLiveDataContext } from "../../contexts/network-live-data-context";
 import { formatElapsedSeconds, useElapsedSeconds } from "../use-elapsed";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("formatElapsedSeconds", () => {
   it("returns empty string for null", () => {
@@ -40,5 +50,18 @@ describe("useElapsedSeconds", () => {
   it("returns a non-negative second count for a recent timestamp", () => {
     const { result } = renderHook(() => useElapsedSeconds(new Date()));
     expect(result.current).toBeGreaterThanOrEqual(0);
+  });
+
+  it("does not subscribe to the shared clock when its retained network window is inactive", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(0));
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(NetworkLiveDataContext, { value: false }, children);
+
+    const { result } = renderHook(() => useElapsedSeconds(new Date(0)), { wrapper });
+
+    const initialElapsed = result.current;
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(result.current).toBe(initialElapsed);
   });
 });

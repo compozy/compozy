@@ -1,3 +1,7 @@
+// Suite: task live stream
+// Invariant: one stream coalesces event refreshes and reconciles dirty catalogs before release.
+// Boundary IN: EventSource ownership, refresh admission, and cache invalidation sequencing.
+// Boundary OUT: task endpoint framing and visible task rendering, owned by adapter and component suites.
 import { QueryClient, QueryClientProvider, useInfiniteQuery } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -113,6 +117,41 @@ describe("useTaskStream", () => {
     stream.unmount();
   });
 
+  it("Should run one follow-up refresh when an event arrives during invalidation", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let settleFirstRefresh: (() => void) | undefined;
+    const firstRefresh = new Promise<void>(resolve => {
+      settleFirstRefresh = resolve;
+    });
+    const invalidateQueries = vi
+      .spyOn(queryClient, "invalidateQueries")
+      .mockImplementationOnce(() => firstRefresh)
+      .mockResolvedValue(undefined);
+    const eventSource = new FakeTaskStreamEventSource();
+
+    const stream = renderHook(
+      () =>
+        useTaskStream("task_001", {
+          eventSourceFactory: () => eventSource,
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    act(() => {
+      eventSource.emitMessage(buildStreamPayload({ sequence: 25 }));
+    });
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(2));
+
+    act(() => {
+      eventSource.emitMessage(buildStreamPayload({ sequence: 26 }));
+      settleFirstRefresh?.();
+    });
+
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledTimes(3));
+
+    stream.unmount();
+  });
+
   it("Should mark catalogs stale once per burst and reconcile them once on stream cleanup", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const filters = { limit: 1, scope: "workspace" as const, workspace: "ws_alpha" };
@@ -175,6 +214,71 @@ describe("useTaskStream", () => {
 
     stream.unmount();
     await waitFor(() => expect(catalogQuery).toHaveBeenCalledTimes(2));
+    catalog.unmount();
+  });
+
+  it("Should reconcile dirty catalogs when an enabled stream becomes inactive", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const filters = { limit: 1, scope: "workspace" as const, workspace: "ws_alpha" };
+    const firstPage: TaskListPage = {
+      facets: { owners: [], statuses: [{ count: 2, status: "ready" }] },
+      page: { has_more: true, limit: 1, next_cursor: "tasks:1", total: 2 },
+      tasks: [],
+    };
+    const secondPage: TaskListPage = {
+      facets: firstPage.facets,
+      page: { has_more: false, limit: 1, total: 2 },
+      tasks: [],
+    };
+    queryClient.setQueryData(tasksKeys.list(filters), {
+      pageParams: [undefined, "tasks:1"],
+      pages: [firstPage, secondPage],
+    });
+    const catalogQuery = vi.fn(({ pageParam }: { pageParam: unknown }) =>
+      Promise.resolve(pageParam === "tasks:1" ? secondPage : firstPage)
+    );
+    const catalog = renderHook(
+      () =>
+        useInfiniteQuery({
+          getNextPageParam: lastPage => lastPage.page.next_cursor,
+          initialPageParam: undefined as string | undefined,
+          queryFn: catalogQuery,
+          queryKey: tasksKeys.list(filters),
+          staleTime: Number.POSITIVE_INFINITY,
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() => expect(catalog.result.current.data?.pages).toHaveLength(2));
+
+    const eventSource = new FakeTaskStreamEventSource();
+    const stream = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useTaskStream("task_001", {
+          enabled,
+          eventSourceFactory: () => eventSource,
+        }),
+      { initialProps: { enabled: true }, wrapper: createWrapper(queryClient) }
+    );
+
+    act(() => {
+      eventSource.emitMessage(buildStreamPayload());
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryState(tasksKeys.list(filters))?.isInvalidated).toBe(true)
+    );
+
+    stream.rerender({ enabled: false });
+    await waitFor(() => expect(catalogQuery).toHaveBeenCalledTimes(2));
+
+    stream.rerender({ enabled: true });
+    act(() => {
+      eventSource.emitMessage(buildStreamPayload({ sequence: 26 }));
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryState(tasksKeys.list(filters))?.isInvalidated).toBe(true)
+    );
+
+    stream.unmount();
     catalog.unmount();
   });
 

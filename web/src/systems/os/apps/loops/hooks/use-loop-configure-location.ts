@@ -1,8 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
 
 import { useTopbarSlot } from "@compozy/ui";
-import { useLoop, useLoopConfig } from "@/systems/loops/hooks/use-loops";
-import { useActiveWorkspace } from "@/systems/workspace/hooks/use-active-workspace";
+import { useLoop, useLoopConfig } from "@/systems/loops";
+import { useActiveWorkspace } from "@/systems/workspace";
 import { useCurrentWindowLiveDataEnabled } from "../../../hooks/use-window-live-data-enabled";
 
 export function useLoopConfigureLocation(name: string) {

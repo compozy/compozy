@@ -52,9 +52,7 @@ func (c *resourceCatalog[T]) Replace(revision int64, records []resources.Record[
 	c.transientSpecs = retainedTransientSpecs
 	onChange := c.onChange
 	c.mu.Unlock()
-	if onChange != nil {
-		onChange()
-	}
+	notifyResourceCatalogChange(onChange)
 }
 
 func (c *resourceCatalog[T]) MergeTransientSpecs(specs map[string]T) {
@@ -70,9 +68,7 @@ func (c *resourceCatalog[T]) MergeTransientSpecs(specs map[string]T) {
 	}
 	onChange := c.onChange
 	c.mu.Unlock()
-	if onChange != nil {
-		onChange()
-	}
+	notifyResourceCatalogChange(onChange)
 }
 
 func (c *resourceCatalog[T]) Update(update func([]resources.Record[T]) []resources.Record[T]) {
@@ -85,6 +81,10 @@ func (c *resourceCatalog[T]) Update(update func([]resources.Record[T]) []resourc
 	c.revision++
 	onChange := c.onChange
 	c.mu.Unlock()
+	notifyResourceCatalogChange(onChange)
+}
+
+func notifyResourceCatalogChange(onChange func()) {
 	if onChange != nil {
 		onChange()
 	}

@@ -1,10 +1,10 @@
-import { useStore } from "@xstate/store-react";
+import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
-import { sessionBusyInputLogic } from "./session-busy-input-store";
+import { sessionBusyInputLogic, type SessionBusyInputHandler } from "./session-busy-input-store";
 import type { QueuedPrompt } from "@/systems/session";
 
-export type SessionBusyInputHandler = (message: string) => void | Promise<unknown>;
+export type { SessionBusyInputHandler } from "./session-busy-input-store";
 
 interface UseSessionBusyInputActionsOptions {
   canSubmitBusyInput: boolean;
@@ -45,37 +45,33 @@ export function useSessionBusyInputActions({
   trimmedComposerText,
 }: UseSessionBusyInputActionsOptions) {
   const store = useStore(sessionBusyInputLogic);
+  const editingQueuedPromptId = useSelector(
+    store,
+    snapshot => snapshot.context.editingQueuedPromptId
+  );
 
   const handleBusyInputAction = (
     handler: SessionBusyInputHandler | undefined,
     failureMessage: string,
     onSuccess?: () => void
   ) => {
-    if (!handler || !canSubmitBusyInput || store.getSnapshot().context.phase === "submitting") {
-      return;
-    }
-    store.trigger.submissionStarted();
-
-    void Promise.resolve()
-      .then(() => handler(trimmedComposerText))
-      .then(() => {
-        clearComposer();
-        onSuccess?.();
-        store.trigger.submissionFinished();
-      })
-      .catch(error => {
+    store.trigger.submissionRequested({
+      canSubmit: canSubmitBusyInput,
+      clearComposer,
+      handler,
+      message: trimmedComposerText,
+      onFailure: error => {
         if (!isAbortError(error)) {
           toast.error(describeComposerActionError(error, failureMessage));
         }
-        store.trigger.submissionFinished();
-      });
+      },
+      onSuccess,
+    });
   };
 
   const handleQueueAction = () => {
     const editingQueuedPrompt =
-      queuedPrompts.find(
-        prompt => prompt.id === store.getSnapshot().context.editingQueuedPromptId
-      ) ?? null;
+      queuedPrompts.find(prompt => prompt.id === editingQueuedPromptId) ?? null;
     if (editingQueuedPrompt) {
       if (!onReplaceQueuedPrompt) {
         toast.error("Couldn't update queued prompt.");

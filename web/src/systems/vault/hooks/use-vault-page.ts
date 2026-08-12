@@ -96,7 +96,7 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   const deleteTargetSecret = flow.deleteTargetRef
     ? (secretInventory.find(secret => secret.ref === flow.deleteTargetRef) ?? null)
     : null;
-  const collisionInventoryReady = allSecretsQuery.isSuccess;
+  const collisionInventoryReady = allSecretsQuery.isSuccess && !allSecretsQuery.isStale;
   const editorRef = flow.editor.mode === "create" ? normalizeVaultRef(flow.editor.draft.ref) : "";
   const editorRefExists =
     editorRef !== "" &&

@@ -26,7 +26,7 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
   const liveDataEnabled = options.liveDataEnabled ?? true;
 
   const runQuery = useTaskRunDetail(runId, {
-    enabled: hasRunId,
+    enabled: hasRunId && liveDataEnabled,
     refetchIntervalMs: liveDataEnabled ? undefined : false,
   });
   const run = runQuery.data ?? null;
@@ -40,18 +40,18 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     runStatus === "queued";
   const refetchIntervalMs = isLive && liveDataEnabled ? undefined : false;
   const inspectQuery = useTaskRunInspect(runId, {
-    enabled: hasRunId && enableInspect,
+    enabled: hasRunId && enableInspect && liveDataEnabled,
     refetchIntervalMs,
   });
   const taskQuery = useTask(authoritativeTaskId, {
-    enabled: Boolean(authoritativeTaskId) && enableTaskDetail,
+    enabled: Boolean(authoritativeTaskId) && enableTaskDetail && liveDataEnabled,
     refetchIntervalMs,
   });
   const reviewsQuery = useTaskRunReviews(
     runId,
     {},
     {
-      enabled: hasRunId && enableRunReviews,
+      enabled: hasRunId && enableRunReviews && liveDataEnabled,
       refetchIntervalMs,
     }
   );

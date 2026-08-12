@@ -50,7 +50,7 @@ export type LoopEditorEvents = {
   annotationsStatusObserved: { failed: boolean; notify: () => void };
   automaticValidationCancelled: Record<never, never>;
   automaticValidationElapsed: { revision: number };
-  automaticValidationRequested: { execute: () => void; revision: number };
+  automaticValidationRequested: { enabled: boolean; execute: () => void; revision: number };
   connectionCreated: { edges: EditorEdge[] };
   contractFieldChanged: { definition: LoopDefinition | null };
   draftInitialized: {

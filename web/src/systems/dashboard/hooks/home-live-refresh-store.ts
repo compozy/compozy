@@ -8,8 +8,8 @@ interface HomeLiveRefreshState {
 type HomeLiveRefreshEvents = {
   activityReceived: {
     at: number;
-    invalidateOverview: () => void;
-    invalidateTaskAggregates: () => void;
+    invalidateOverview: () => Promise<unknown>;
+    invalidateTaskAggregates: () => Promise<unknown>;
     lifecycle: boolean;
     minimumIntervalMs: number;
     scope: string;
@@ -17,9 +17,9 @@ type HomeLiveRefreshEvents = {
   scopeActivated: { scope: string };
 };
 
-function invoke(operation: () => void): void {
+async function invoke(operation: () => Promise<unknown>): Promise<void> {
   try {
-    operation();
+    await operation();
   } catch (error) {
     console.error("Failed to invalidate a home live projection", error);
   }
@@ -35,11 +35,15 @@ export const homeLiveRefreshLogic = createStoreLogic<HomeLiveRefreshState, HomeL
     activityReceived: (context, event, enqueue) => {
       if (event.scope !== context.scope) return;
       if (event.lifecycle) {
-        enqueue.effect(() => invoke(event.invalidateTaskAggregates));
+        enqueue.effect(async () => {
+          await invoke(event.invalidateTaskAggregates);
+        });
         return { ...context, lastOverviewInvalidateAt: event.at };
       }
       if (event.at - context.lastOverviewInvalidateAt < event.minimumIntervalMs) return;
-      enqueue.effect(() => invoke(event.invalidateOverview));
+      enqueue.effect(async () => {
+        await invoke(event.invalidateOverview);
+      });
       return { ...context, lastOverviewInvalidateAt: event.at };
     },
   },

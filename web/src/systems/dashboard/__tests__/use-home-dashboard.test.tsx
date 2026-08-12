@@ -1,3 +1,7 @@
+// Suite: home dashboard model
+// Invariant: dashboard sections expose current scoped data without hidden-window refresh work.
+// Boundary IN: dashboard query composition, liveness, and derived view state.
+// Boundary OUT: card rendering and task transport behavior, owned by their domain suites.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -11,9 +15,14 @@ const getHomeOverview = vi.fn();
 const getHomeActivity = vi.fn();
 const fetchStatus = vi.fn();
 const useHomeLive = vi.fn();
+const useHomeWorkingNow = vi.fn();
 
 vi.mock("../hooks/use-home-live", () => ({
   useHomeLive: (options: unknown) => useHomeLive(options),
+}));
+
+vi.mock("../hooks/use-home-working-now", () => ({
+  useHomeWorkingNow: (...args: unknown[]) => useHomeWorkingNow(...args),
 }));
 
 vi.mock("../adapters/overview-api", async importOriginal => {
@@ -72,6 +81,7 @@ describe("useHomeDashboard", () => {
     getHomeOverview.mockReset();
     getHomeActivity.mockReset();
     useHomeLive.mockReset();
+    useHomeWorkingNow.mockReset();
     getHomeActivity.mockResolvedValue([]);
     fetchStatus.mockReset();
     // Full status payload (useHomeSystem reads health/automation/memory) with the
@@ -117,6 +127,10 @@ describe("useHomeDashboard", () => {
       await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
 
       expect(useHomeLive).toHaveBeenLastCalledWith({ workspaceId: "", enabled: liveEnabled });
+      expect(useHomeWorkingNow).toHaveBeenLastCalledWith(
+        expect.objectContaining({ workspaceParam: "" }),
+        liveEnabled
+      );
     }
   );
 

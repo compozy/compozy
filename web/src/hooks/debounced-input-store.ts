@@ -115,6 +115,7 @@ export const debouncedInputLogic = createStoreLogic<
       return {
         ...context,
         committedValue: context.draftValue,
+        externalValue: context.draftValue,
         phase: "idle",
       };
     },
@@ -127,6 +128,7 @@ export const debouncedInputLogic = createStoreLogic<
         ...context,
         committedValue: "",
         draftValue: "",
+        externalValue: "",
         generation: context.generation + 1,
         phase: "idle",
       };

@@ -6,7 +6,10 @@ interface CoordinationInvitationState {
 
 type CoordinationInvitationEvents = {
   actionSettled: Record<never, never>;
-  actionStarted: Record<never, never>;
+  actionRequested: {
+    execute: (onSettled: () => void) => void;
+    permitted: boolean;
+  };
 };
 
 export const coordinationInvitationLogic = createStoreLogic<
@@ -15,8 +18,11 @@ export const coordinationInvitationLogic = createStoreLogic<
 >({
   context: { phase: "idle" },
   on: {
-    actionStarted: context =>
-      context.phase === "submitting" ? undefined : { phase: "submitting" },
+    actionRequested: (context, event, enqueue) => {
+      if (!event.permitted || context.phase === "submitting") return;
+      enqueue.effect(({ trigger }) => event.execute(() => trigger.actionSettled()));
+      return { phase: "submitting" };
+    },
     actionSettled: context => (context.phase === "idle" ? undefined : { phase: "idle" }),
   },
 });

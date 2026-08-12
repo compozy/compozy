@@ -8,7 +8,7 @@ import (
 
 const bootReconcileReason = "daemon restart reconciliation"
 
-// ReconcileBoot retires prior-daemon processes that cannot be reattached after restart.
+// ReconcileBoot interrupts validated persisted processes and marks invalid records stale after restart.
 func (r *Registry) ReconcileBoot(ctx context.Context) (BootReconcileReport, error) {
 	if r == nil {
 		return BootReconcileReport{}, errors.New("toolruntime: registry is required")
@@ -29,10 +29,6 @@ func (r *Registry) ReconcileBoot(ctx context.Context) (BootReconcileReport, erro
 	var errs []error
 	for _, record := range records {
 		report.Checked++
-		if record.StartedByPID == r.daemonPID {
-			report.Current++
-			continue
-		}
 		if record.StartedByPID <= 0 || !r.validateRecovered(record) {
 			report.Stale++
 			if updateErr := r.markStale(

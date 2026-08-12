@@ -1,3 +1,7 @@
+// Suite: extension query hooks
+// Invariant: extension catalogs preserve query scope and stop periodic reads when disabled.
+// Boundary IN: extension query options, liveness gates, and hook projections.
+// Boundary OUT: extension mutations and log transport, owned by their dedicated suites.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -129,6 +133,13 @@ describe("useExtensionInventory", () => {
       ["dep-kit-ops", false],
     ]);
     expect(result.current.data.every(item => item.listing === null)).toBe(true);
+  });
+
+  it("Should not fetch inventory while its retained window is inactive", () => {
+    const { result } = renderHook(() => useExtensionInventory(false), { wrapper });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(mocks.listExtensions).not.toHaveBeenCalled();
   });
 });
 

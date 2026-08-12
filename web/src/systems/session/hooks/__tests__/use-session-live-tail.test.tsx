@@ -212,6 +212,7 @@ function clarifyDeltaFrame(message: SessionMessage) {
 
 function renderLiveTail(
   options: {
+    enabled?: boolean;
     queryClient?: QueryClient;
     sources?: FakeSessionEventSource[];
   } = {}
@@ -226,6 +227,7 @@ function renderLiveTail(
   const rendered = renderHook(
     () =>
       useSessionLiveTail({
+        enabled: options.enabled,
         workspaceId: WORKSPACE_ID,
         sessionId: SESSION_ID,
         eventSourceFactory,
@@ -287,6 +289,13 @@ describe("useSessionLiveTail", () => {
       await vi.waitFor(() => expect(result.current.messages).toHaveLength(1));
     });
     expect(fetchSessionTranscript).toHaveBeenCalledTimes(2);
+    expect(fetchSessionTranscript).toHaveBeenNthCalledWith(
+      2,
+      WORKSPACE_ID,
+      SESSION_ID,
+      {},
+      expect.any(AbortSignal)
+    );
   });
 
   it("Should append older pages and preserve them across a same-fence snapshot", async () => {
@@ -967,6 +976,21 @@ describe("useSessionLiveTail", () => {
 
     const { result, sources } = renderLiveTail({ queryClient });
     await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(sources).toHaveLength(0);
+  });
+
+  it("Should suspend session-detail polling when live tail is disabled", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+
+    const { result, sources } = renderLiveTail({ enabled: false, queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.status).toBe("success"));
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
+
+    expect(fetchSession).not.toHaveBeenCalled();
     expect(sources).toHaveLength(0);
   });
 

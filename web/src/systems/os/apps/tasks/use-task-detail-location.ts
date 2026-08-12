@@ -167,6 +167,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   };
 
   return {
+    activeElapsed,
     backToTasks,
     command,
     copyTaskId,

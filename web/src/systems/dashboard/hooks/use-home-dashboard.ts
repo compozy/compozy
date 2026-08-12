@@ -86,7 +86,7 @@ export function useHomeDashboard({
 
   useHomeLive({ workspaceId: scope.workspaceParam, enabled: scopeSettled && liveEnabled });
 
-  const workingNow = useHomeWorkingNow(scope, scopeSettled);
+  const workingNow = useHomeWorkingNow(scope, scopeSettled && liveEnabled);
   const overview = overviewQuery.data;
   const network = useHomeNetwork(overview?.network.messages_today);
   const agents = useHomeAgents();

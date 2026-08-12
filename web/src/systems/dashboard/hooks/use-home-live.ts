@@ -53,10 +53,12 @@ function prependHomeActivityEvent(
   });
 }
 
-function invalidateTaskAggregates(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.dashboardRoot() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.inboxRoot() });
+function invalidateTaskAggregates(queryClient: QueryClient): Promise<unknown[]> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() }),
+    queryClient.invalidateQueries({ queryKey: tasksKeys.dashboardRoot() }),
+    queryClient.invalidateQueries({ queryKey: tasksKeys.inboxRoot() }),
+  ]);
 }
 
 /**
@@ -108,9 +110,8 @@ export function useHomeLive({
         prependHomeActivityEvent(queryClient, workspaceId, payload);
         refreshStore.trigger.activityReceived({
           at: Date.now(),
-          invalidateOverview: () => {
-            void queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() });
-          },
+          invalidateOverview: () =>
+            queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() }),
           invalidateTaskAggregates: () => invalidateTaskAggregates(queryClient),
           lifecycle: isTaskLifecycleEvent(payload),
           minimumIntervalMs: PULSE_INVALIDATE_MIN_INTERVAL_MS,

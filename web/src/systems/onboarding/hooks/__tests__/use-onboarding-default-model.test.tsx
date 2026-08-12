@@ -1,3 +1,7 @@
+// Suite: Onboarding default-model state
+// Invariant: provider settings and draft state produce one valid runtime selection.
+// Boundary IN: provider, settings, and catalog hook projections.
+// Boundary OUT: provider settings persistence and catalog transport.
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

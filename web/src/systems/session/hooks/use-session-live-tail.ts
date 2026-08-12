@@ -37,7 +37,7 @@ export function useSessionLiveTail({
   const queryEnabled = workspaceId.trim() !== "" && sessionId.trim() !== "";
   const sessionState = useQuery({
     ...sessionDetailOptions(workspaceId, sessionId),
-    enabled: queryEnabled,
+    enabled: queryEnabled && enabled,
   }).data?.state;
   const transcriptQuery = useInfiniteQuery({
     ...sessionTranscriptOptions(workspaceId, sessionId),

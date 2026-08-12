@@ -26,6 +26,15 @@ function clearLifecycleTimer(handles: LoopEditorLifecycleHandles): void {
   handles.timer = null;
 }
 
+function cancelAutomaticValidation(enqueue: LoopEditorEnqueue): void {
+  enqueue.effect(({ trigger }) => {
+    const handles = handlesByTrigger.get(trigger);
+    if (!handles) return;
+    clearLifecycleTimer(handles);
+    handles.execute = null;
+  });
+}
+
 export const loopEditorLifecycleTransitions = {
   annotationsStatusObserved: (
     current: LoopEditorState,
@@ -41,12 +50,7 @@ export const loopEditorLifecycleTransitions = {
     _event: LoopEditorEvents["automaticValidationCancelled"],
     enqueue: LoopEditorEnqueue
   ) => {
-    enqueue.effect(({ trigger }) => {
-      const handles = handlesByTrigger.get(trigger);
-      if (!handles) return;
-      clearLifecycleTimer(handles);
-      handles.execute = null;
-    });
+    cancelAutomaticValidation(enqueue);
     return { ...current, automaticValidationRevision: null };
   },
   automaticValidationRequested: (
@@ -54,6 +58,10 @@ export const loopEditorLifecycleTransitions = {
     event: LoopEditorEvents["automaticValidationRequested"],
     enqueue: LoopEditorEnqueue
   ) => {
+    if (!event.enabled) {
+      cancelAutomaticValidation(enqueue);
+      return { ...current, automaticValidationRevision: null };
+    }
     if (event.revision !== current.structuralRevision) return;
     enqueue.effect(({ trigger }) => {
       const handles = handlesFor(trigger);

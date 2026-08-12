@@ -63,7 +63,8 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	if err := e.ensureAuthorized(ctx, resolved); err != nil {
 		return nil, "", err
 	}
-	client, err := e.openClient(ctx, resolved)
+	authorizationHeader := e.authorizationHeader(ctx, resolved)
+	client, err := e.openClient(ctx, resolved, authorizationHeader)
 	if err != nil {
 		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
@@ -71,7 +72,7 @@ func (e *CallExecutor) ListToolsWithProtocol(
 		err = joinMCPClientCleanup(err, client)
 	}()
 	protocolVersion = negotiatedProtocolVersion(client.session)
-	cacheKey, err := e.toolCacheKey(ctx, resolved, protocolVersion)
+	cacheKey, err := e.toolCacheKey(ctx, resolved, protocolVersion, authorizationHeader)
 	if err != nil {
 		return nil, "", err
 	}
@@ -97,8 +98,9 @@ func (e *CallExecutor) ListToolsWithProtocol(
 		}
 		descriptors = append(descriptors, descriptor)
 	}
-	e.cacheTools(cacheKey, descriptors, ttlMs, time.Now())
-	if err := e.recordToolProjection(source, descriptors, ttlMs, time.Now()); err != nil {
+	now := time.Now()
+	e.cacheTools(cacheKey, descriptors, ttlMs, now)
+	if err := e.recordToolProjection(source, authorizationHeader, descriptors, ttlMs, now); err != nil {
 		return nil, "", err
 	}
 	return descriptors, protocolVersion, nil
@@ -140,7 +142,8 @@ func (e *CallExecutor) CallTool(
 	if err := e.ensureAuthorized(ctx, resolved); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	client, err := e.openClient(ctx, resolved)
+	authorizationHeader := e.authorizationHeader(ctx, resolved)
+	client, err := e.openClient(ctx, resolved, authorizationHeader)
 	if err != nil {
 		return toolspkg.ToolResult{}, normalizeMCPErrorWithContext(ctx, req.ToolID, err, false)
 	}

@@ -31,13 +31,13 @@ export function useTaskRunLocation(taskId: string, runId: string) {
   const timelineQuery = useTaskTimeline(
     authoritativeTaskId,
     {},
-    { enabled: Boolean(authoritativeTaskId), refetchIntervalMs }
+    { enabled: Boolean(authoritativeTaskId) && liveDataEnabled, refetchIntervalMs }
   );
   const runsQuery = useTaskRuns(
     authoritativeTaskId,
     {},
     {
-      enabled: Boolean(authoritativeTaskId),
+      enabled: Boolean(authoritativeTaskId) && liveDataEnabled,
       refetchIntervalMs,
     }
   );

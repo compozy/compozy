@@ -61,6 +61,15 @@ function reportInvalidationFailure(surface: string, error: unknown): void {
   console.error(`Failed to invalidate ${surface}`, error);
 }
 
+function transcriptFrameCanApply(
+  data: SessionTranscriptData | undefined,
+  frame: SessionLiveTailFrame
+): boolean {
+  return frame.kind === "snapshot" && frame.payload.reset
+    ? true
+    : transcriptFrameMatches(data, frame.payload);
+}
+
 export function createSessionLiveTailRuntime({
   eventSourceFactory,
   queryClient,
@@ -84,7 +93,7 @@ export function createSessionLiveTailRuntime({
   };
 
   const refreshTranscript = async (signal: AbortSignal): Promise<void> => {
-    const response = await fetchSessionTranscript(workspaceId, sessionId);
+    const response = await fetchSessionTranscript(workspaceId, sessionId, {}, signal);
     if (signal.aborted) return;
     const tail = transcriptPageFromResponse(response);
     queryClient.setQueryData<SessionTranscriptData>(transcriptQueryKey, existing =>
@@ -96,31 +105,13 @@ export function createSessionLiveTailRuntime({
     frame: SessionLiveTailFrame,
     signal: AbortSignal
   ): Promise<SessionLiveTailApplyResult> => {
-    if (frame.kind === "delta" && !transcriptFrameMatches(readTranscript(), frame.payload)) {
-      return "mismatch";
-    }
-    if (
-      frame.kind === "snapshot" &&
-      !frame.payload.reset &&
-      !transcriptFrameMatches(readTranscript(), frame.payload)
-    ) {
-      return "mismatch";
-    }
+    if (!transcriptFrameCanApply(readTranscript(), frame)) return "mismatch";
 
     const entries = await normalizeEntries(frame.payload.entries);
     if (signal.aborted) return "cancelled";
     let applied = false;
     queryClient.setQueryData<SessionTranscriptData>(transcriptQueryKey, existing => {
-      if (frame.kind === "delta" && !transcriptFrameMatches(existing, frame.payload)) {
-        return existing;
-      }
-      if (
-        frame.kind === "snapshot" &&
-        !frame.payload.reset &&
-        !transcriptFrameMatches(existing, frame.payload)
-      ) {
-        return existing;
-      }
+      if (!transcriptFrameCanApply(existing, frame)) return existing;
       applied = true;
       return frame.kind === "snapshot"
         ? applyTranscriptSnapshot(existing, { ...frame.payload, entries }, frame.cursor)

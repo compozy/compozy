@@ -14,7 +14,7 @@ export interface BridgesRouteSearch {
   status?: BridgeStatusFilter;
 }
 
-const BRIDGE_STATUSES: readonly BridgeStatusFilter[] = [
+export const BRIDGE_STATUSES: readonly BridgeStatusFilter[] = [
   "disabled",
   "starting",
   "ready",

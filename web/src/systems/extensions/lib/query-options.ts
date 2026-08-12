@@ -11,11 +11,12 @@ import { extensionKeys } from "./query-keys";
 
 const INVENTORY_STALE_TIME = 30_000;
 
-export const extensionsListOptions = (scope: ExtensionInstanceScope = {}) =>
+export const extensionsListOptions = (scope: ExtensionInstanceScope = {}, enabled = true) =>
   queryOptions({
     queryKey: extensionKeys.list(scope.workspaceId),
     queryFn: ({ signal }) => listExtensions(scope, signal),
     staleTime: INVENTORY_STALE_TIME,
+    enabled,
   });
 
 export const extensionLogsOptions = (name: string, scope: ExtensionInstanceScope = {}) =>

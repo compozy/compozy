@@ -3,19 +3,12 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { taskDetailOptions, taskRunsOptions, tasksListOptions } from "../lib/query-options";
 import { readTaskListData } from "../lib/task-list-query";
 import type { TaskListFilter, TaskRunsFilter } from "../types";
+import { type TaskQueryHookOptions, withTaskQueryHookOptions } from "./task-query-hook-options";
 
-interface QueryHookOptions {
-  enabled?: boolean;
-  refetchIntervalMs?: number | false;
-}
-
-export function useTasks(filters: TaskListFilter = {}, options: QueryHookOptions = {}) {
-  const query = useInfiniteQuery({
-    ...tasksListOptions(filters, options.enabled ?? true),
-    ...(options.refetchIntervalMs === undefined
-      ? {}
-      : { refetchInterval: options.refetchIntervalMs }),
-  });
+export function useTasks(filters: TaskListFilter = {}, options: TaskQueryHookOptions = {}) {
+  const query = useInfiniteQuery(
+    withTaskQueryHookOptions(tasksListOptions(filters, options.enabled ?? true), options)
+  );
   const catalog = readTaskListData(query.data);
   return {
     ...query,
@@ -25,24 +18,18 @@ export function useTasks(filters: TaskListFilter = {}, options: QueryHookOptions
   };
 }
 
-export function useTask(id: string, options: QueryHookOptions = {}) {
-  return useQuery({
-    ...taskDetailOptions(id, options.enabled ?? true),
-    ...(options.refetchIntervalMs === undefined
-      ? {}
-      : { refetchInterval: options.refetchIntervalMs }),
-  });
+export function useTask(id: string, options: TaskQueryHookOptions = {}) {
+  return useQuery(
+    withTaskQueryHookOptions(taskDetailOptions(id, options.enabled ?? true), options)
+  );
 }
 
 export function useTaskRuns(
   id: string,
   filters: TaskRunsFilter = {},
-  options: QueryHookOptions = {}
+  options: TaskQueryHookOptions = {}
 ) {
-  return useQuery({
-    ...taskRunsOptions(id, filters, options.enabled ?? true),
-    ...(options.refetchIntervalMs === undefined
-      ? {}
-      : { refetchInterval: options.refetchIntervalMs }),
-  });
+  return useQuery(
+    withTaskQueryHookOptions(taskRunsOptions(id, filters, options.enabled ?? true), options)
+  );
 }

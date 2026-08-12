@@ -1,11 +1,7 @@
 import { useSecondClock } from "@/hooks/use-second-clock";
 import { useNetworkLiveDataEnabled } from "../hooks/use-network-live-data-enabled";
 
-/**
- * Live ticker shared across work chips and other duration displays. A single
- * 1-second `setInterval` is preferable to per-component timers because many
- * `working` chips can render simultaneously in busy timelines.
- */
+/** Controls whether this elapsed value subscribes to the shared 1 Hz clock. */
 export interface UseElapsedOptions {
   /** Disable the live ticker for terminal states. */
   enabled?: boolean;

@@ -23,7 +23,7 @@ export interface TaskOverviewPanelProps extends ComponentPropsWithoutRef<"div"> 
   nowHandlers: TaskNowStripHandlers;
   nowPending?: Parameters<typeof TaskNowStrip>[0]["pending"];
   onViewAllActivity: () => void;
-  liveDataEnabled?: boolean;
+  activeRunElapsed?: string;
 }
 
 function CompletedTaskResult({ runs }: { runs: readonly TaskRun[] }) {
@@ -56,7 +56,7 @@ export function TaskOverviewPanel({
   nowHandlers,
   nowPending,
   onViewAllActivity,
-  liveDataEnabled = true,
+  activeRunElapsed,
   className,
   ...props
 }: TaskOverviewPanelProps) {
@@ -73,9 +73,9 @@ export function TaskOverviewPanel({
       data-testid="tasks-detail-overview"
     >
       <TaskNowStrip
+        activeRunElapsed={activeRunElapsed}
         detail={detail}
         handlers={nowHandlers}
-        liveDataEnabled={liveDataEnabled}
         pending={nowPending}
         runs={runs}
       />

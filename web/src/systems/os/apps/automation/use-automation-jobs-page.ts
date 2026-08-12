@@ -45,17 +45,15 @@ export function useAutomationJobsPage(
   useAutomationCreateSeed("jobs", seed, page.activeWorkspaceId, editor.openLoopCreate);
 
   const triggerJobMutation = useTriggerAutomationJob();
-  const onRunJob = async (id: string) => {
-    if (runDisabled) return;
-    if (runStore.getSnapshot().context.pendingIds.has(id)) return;
-    runStore.trigger.runRequested({ id });
-    try {
-      const run = await triggerJobMutation.mutateAsync({ id });
-      toast.success(`Queued run ${run.id}.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to trigger automation job");
-    }
-    runStore.trigger.runSettled({ id });
+  const onRunJob = (id: string) => {
+    runStore.trigger.runRequested({
+      execute: jobId => triggerJobMutation.mutateAsync({ id: jobId }),
+      id,
+      onFailure: error =>
+        toast.error(error instanceof Error ? error.message : "Failed to trigger automation job"),
+      onSuccess: run => toast.success(`Queued run ${run.id}.`),
+      permitted: !runDisabled,
+    });
   };
 
   return {
@@ -71,7 +69,7 @@ export function useAutomationJobsPage(
     isLoading: jobsQuery.isLoading && jobs.length === 0,
     jobs,
     loadMore: () => void jobsQuery.fetchNextPage(),
-    onRunJob: (id: string) => void onRunJob(id),
+    onRunJob,
     runDisabled,
     runPendingIds,
     runtimeUnavailableMessage,

@@ -86,8 +86,8 @@ describe("loopEditorLogic", () => {
     store.trigger.draftInitialized({ definition, edges: [], nodes: [] });
     const revision = store.getSnapshot().context.structuralRevision;
 
-    store.trigger.automaticValidationRequested({ execute: first, revision });
-    store.trigger.automaticValidationRequested({ execute: latest, revision });
+    store.trigger.automaticValidationRequested({ enabled: true, execute: first, revision });
+    store.trigger.automaticValidationRequested({ enabled: true, execute: latest, revision });
     vi.advanceTimersByTime(399);
     expect(first).not.toHaveBeenCalled();
     expect(latest).not.toHaveBeenCalled();
@@ -95,6 +95,22 @@ describe("loopEditorLogic", () => {
 
     expect(first).not.toHaveBeenCalled();
     expect(latest).toHaveBeenCalledOnce();
+  });
+
+  it("Should cancel a queued automatic validation when its retained editor becomes inactive", () => {
+    vi.useFakeTimers();
+    const store = loopEditorLogic.createStore(undefined);
+    const definition = loopDetailByName.get("implement-tasks")!.definition;
+    const validate = vi.fn();
+    store.trigger.draftInitialized({ definition, edges: [], nodes: [] });
+    const revision = store.getSnapshot().context.structuralRevision;
+
+    store.trigger.automaticValidationRequested({ enabled: true, execute: validate, revision });
+    vi.advanceTimersByTime(200);
+    store.trigger.automaticValidationRequested({ enabled: false, execute: validate, revision });
+    vi.advanceTimersByTime(400);
+
+    expect(validate).not.toHaveBeenCalled();
   });
 
   it("Should notify once for each annotations-error transition", () => {

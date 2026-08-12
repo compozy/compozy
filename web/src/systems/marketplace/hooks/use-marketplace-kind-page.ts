@@ -87,15 +87,18 @@ function useMarketplaceKindPage(
   });
   const draftQuery = searchInput.draftValue;
 
-  const marketQuery = useMarketplaceKind({
-    kind,
-    limit: 100,
-    q: scope === "market" ? routeQuery || null : null,
-    workspaceId: activeWorkspaceId,
-  });
+  const marketQuery = useMarketplaceKind(
+    {
+      kind,
+      limit: 100,
+      q: scope === "market" ? routeQuery || null : null,
+      workspaceId: activeWorkspaceId,
+    },
+    liveDataEnabled
+  );
 
-  const skillsQuery = useSkills(activeWorkspaceId ?? "");
-  const extensionsQuery = useExtensionInventory();
+  const skillsQuery = useSkills(activeWorkspaceId ?? "", liveDataEnabled);
+  const extensionsQuery = useExtensionInventory(liveDataEnabled);
   const mcpPollInterval = SETTINGS_QUERY_INTERVALS.collectionRefetchInterval;
   const mcpGlobalQuery = useSettingsMCPServers(
     { scope: "global" },

@@ -36,6 +36,11 @@ export function useStoreBinding<TKey, TStore>(
 export function useStoreBinding<TKey, TStore>(
   key: TKey,
   createInitialStore: () => TStore,
+  createReplacementStore: (previous: TStore) => TStore
+): StoreBindingResult<TStore>;
+export function useStoreBinding<TKey, TStore>(
+  key: TKey,
+  createInitialStore: () => TStore,
   createReplacementStore: (previous: TStore) => TStore,
   shouldReplace: ShouldReplaceStore<TKey, TStore>
 ): StoreBindingResult<TStore>;

@@ -56,13 +56,15 @@ export function useTaskStream(
 ) {
   const queryClient = useQueryClient();
   const trimmedId = taskId.trim();
-  const refreshBindingKey = { queryClient, taskId: trimmedId };
+  const refreshBindingKey = { enabled, queryClient, taskId: trimmedId };
   const { store: refreshStore } = useStoreBinding(
     refreshBindingKey,
     () => createTaskLiveRefreshStore(queryClient, trimmedId),
     () => createTaskLiveRefreshStore(queryClient, trimmedId),
     (current, next) =>
-      current.key.queryClient !== next.queryClient || current.key.taskId !== next.taskId
+      current.key.enabled !== next.enabled ||
+      current.key.queryClient !== next.queryClient ||
+      current.key.taskId !== next.taskId
   );
   const notifyEvent = useEffectEvent((payload: TaskStreamPayload) => {
     onEvent?.(payload);

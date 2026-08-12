@@ -1,10 +1,14 @@
 import type { SetStateAction } from "react";
-import { useSelector } from "@xstate/store-react";
+import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "./use-task-actions";
 import { taskEditorDraftLogic } from "./task-editor-draft-store";
+import {
+  requestTaskEditorSubmission,
+  taskEditorSubmissionLogic,
+} from "./task-editor-submission-store";
 import {
   applyTaskTemplateToEditorDraft,
   buildCreateChildTaskRequest,
@@ -40,6 +44,7 @@ export function useTaskCreateState(
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();
+  const submissionStore = useStore(taskEditorSubmissionLogic);
 
   const templateId = search.template ?? DEFAULT_TASK_TEMPLATE_ID;
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
@@ -53,7 +58,6 @@ export function useTaskCreateState(
       taskEditorDraftLogic.createStore({
         draft: createTaskEditorDraft(templateId, createDraftWorkspaceId),
         scopeKey: workspaceKey,
-        variantKey: templateId,
       }),
     previous => {
       const previousState = previous.getSnapshot().context;
@@ -63,19 +67,14 @@ export function useTaskCreateState(
             ? applyTaskTemplateToEditorDraft(previousState.draft, templateId)
             : createTaskEditorDraft(templateId, createDraftWorkspaceId),
         scopeKey: workspaceKey,
-        variantKey: templateId,
       });
-    },
-    (current, nextKey) => current.key !== nextKey
+    }
   );
   const draft = useSelector(store, snapshot => snapshot.context.draft);
-  const submissionPhase = useSelector(store, snapshot => snapshot.context.submissionPhase);
+  const submissionPhase = useSelector(submissionStore, snapshot => snapshot.context.phase);
 
   const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
-    const currentDraft = store.getSnapshot().context.draft;
-    store.trigger.draftChanged({
-      draft: typeof update === "function" ? update(currentDraft) : update,
-    });
+    store.trigger.draftChanged({ update });
   };
 
   const handleTemplateChange = (nextTemplateId: TaskTemplateId) => {
@@ -89,69 +88,67 @@ export function useTaskCreateState(
     });
   };
 
-  const handleSubmit = async (nextDraft: TaskEditorDraft, asDraft: boolean) => {
-    if (store.getSnapshot().context.submissionPhase === "submitting") {
-      return null;
-    }
-
-    const trimmedTitle = nextDraft.title.trim();
-    if (!trimmedTitle) {
-      toast.error("Provide a title before creating the task.");
-      return null;
-    }
-
-    if (nextDraft.scope === "workspace" && !nextDraft.workspaceId) {
-      toast.error("Select a workspace before creating a workspace task.");
-      return null;
-    }
-
-    const parentTaskId = nextDraft.parentTaskId.trim();
-    const isChildTask = parentTaskId.length > 0;
-
-    store.trigger.submissionStarted();
-    try {
-      const created = isChildTask
-        ? await createChildMutation.mutateAsync({
-            parentId: parentTaskId,
-            data: buildCreateChildTaskRequest(nextDraft, {
-              asDraft,
-              templateId,
-            }),
-          })
-        : await createMutation.mutateAsync(
-            buildCreateTaskRequest(nextDraft, {
-              asDraft,
-              templateId,
-            })
-          );
-      const wantsImmediateRun =
-        !created.draft && getTaskTemplate(templateId).preview.enqueueOnSubmit;
-      if (wantsImmediateRun && created.id) {
-        try {
-          await enqueueMutation.mutateAsync({ id: created.id });
-        } catch (runError) {
-          const message =
-            runError instanceof Error ? runError.message : "Failed to enqueue first run";
-          toast.error(`Task created, but enqueue failed: ${message}`);
+  const handleSubmit = (nextDraft: TaskEditorDraft, asDraft: boolean) =>
+    requestTaskEditorSubmission(
+      submissionStore,
+      async () => {
+        const trimmedTitle = nextDraft.title.trim();
+        if (!trimmedTitle) {
+          toast.error("Provide a title before creating the task.");
+          return null;
         }
-      }
 
-      toast.success(
-        created.draft ? `Saved draft "${trimmedTitle}".` : `Created task "${trimmedTitle}".`
-      );
+        if (nextDraft.scope === "workspace" && !nextDraft.workspaceId) {
+          toast.error("Select a workspace before creating a workspace task.");
+          return null;
+        }
 
-      if (created.id) {
-        onNavigate({ pathname: `/tasks/${encodeURIComponent(created.id)}`, search: {} });
-      }
+        const parentTaskId = nextDraft.parentTaskId.trim();
+        const isChildTask = parentTaskId.length > 0;
 
-      store.trigger.submissionFinished();
-      return created;
-    } catch (error) {
-      store.trigger.submissionFinished();
-      toast.error(error instanceof Error ? error.message : "Failed to create task");
-      return null;
-    }
-  };
+        try {
+          const created = isChildTask
+            ? await createChildMutation.mutateAsync({
+                parentId: parentTaskId,
+                data: buildCreateChildTaskRequest(nextDraft, {
+                  asDraft,
+                  templateId,
+                }),
+              })
+            : await createMutation.mutateAsync(
+                buildCreateTaskRequest(nextDraft, {
+                  asDraft,
+                  templateId,
+                })
+              );
+          const wantsImmediateRun =
+            !created.draft && getTaskTemplate(templateId).preview.enqueueOnSubmit;
+          if (wantsImmediateRun && created.id) {
+            try {
+              await enqueueMutation.mutateAsync({ id: created.id });
+            } catch (runError) {
+              const message =
+                runError instanceof Error ? runError.message : "Failed to enqueue first run";
+              toast.error(`Task created, but enqueue failed: ${message}`);
+            }
+          }
+
+          toast.success(
+            created.draft ? `Saved draft "${trimmedTitle}".` : `Created task "${trimmedTitle}".`
+          );
+
+          if (created.id) {
+            onNavigate({ pathname: `/tasks/${encodeURIComponent(created.id)}`, search: {} });
+          }
+
+          return created;
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Failed to create task");
+          return null;
+        }
+      },
+      error => toast.error(error instanceof Error ? error.message : "Failed to create task")
+    );
 
   return {
     draft,

@@ -152,9 +152,9 @@ export function TaskDetailLocation({
               <main className="min-w-0" data-testid="tasks-detail-panels">
                 <TabsContent value="overview">
                   <TaskOverviewPanel
+                    activeRunElapsed={controller.activeElapsed}
                     detail={detail}
                     isLive={page.isLive}
-                    liveDataEnabled={controller.liveDataEnabled}
                     nowHandlers={{
                       onOpenRun: controller.openRun,
                       onOpenTask: controller.openTask,

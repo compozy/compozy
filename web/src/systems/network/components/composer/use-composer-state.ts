@@ -1,7 +1,5 @@
 import type { RefObject } from "react";
-import { useSelector } from "@xstate/store-react";
-
-import { useStoreBinding } from "@/hooks/use-store-binding";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import type { SlashCommandEntry } from "./composer-slash-popover";
 import { composerStateLogic } from "./composer-state-store";
@@ -67,7 +65,7 @@ export function useComposerState({
   onSubmit,
   textareaRef,
 }: UseComposerStateArgs): UseComposerStateResult {
-  const { store } = useStoreBinding(disabled, () => composerStateLogic.createStore());
+  const store = useStore(composerStateLogic);
   const state = useSelector(store, snapshot => snapshot.context);
 
   const reset = () => {

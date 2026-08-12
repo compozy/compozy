@@ -34,9 +34,11 @@ export function useSessionWindowController(input: {
     onDeleteSuccess,
     workspaceId: session.workspace_id,
   });
-  const sessionVault = useSessionVaultSecrets(sessionId);
+  const inspector = useSessionInspectorState(sessionId);
+  const inspectorEnabled = inspector.open && liveDataEnabled;
+  const sessionVault = useSessionVaultSecrets(sessionId, { enabled: inspectorEnabled });
   const sessionLedger = useSessionLedger(sessionId, session.workspace_id, {
-    enabled: session.state === "stopped",
+    enabled: inspectorEnabled && session.state === "stopped",
   });
   const inspectorMemory: InspectorMemoryState = {
     ledger: sessionLedger.data ?? null,
@@ -44,7 +46,7 @@ export function useSessionWindowController(input: {
     error: sessionLedger.error,
   };
   const sessionUsage = useSessionUsage(sessionId, session.workspace_id, session.state, {
-    enabled: liveDataEnabled,
+    enabled: inspectorEnabled,
   });
   const sessionCommands = useSessionCommands(workspaceId, sessionId);
   const usage = sessionUsage.data;
@@ -62,7 +64,6 @@ export function useSessionWindowController(input: {
     : null;
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
   const clearDialog = useSessionClearDialog(controls.handleClear);
-  const inspector = useSessionInspectorState(sessionId);
   const sidebar = useSessionWindowSidebar({ windowId, workspaceId, sessionId });
   // Secondary goal reader for the head action — the goal strip inside the
   // thread owns the loop-stream reconciliation, so this instance reads cache only.

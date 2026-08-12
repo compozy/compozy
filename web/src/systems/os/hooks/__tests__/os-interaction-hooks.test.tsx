@@ -7,6 +7,7 @@ import type { Rnd } from "react-rnd";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
+import { WindowLiveDataContext } from "../../contexts/window-live-data-context";
 import type { OsWindowFrameModel } from "../../lib/group-projection";
 import { RoutingCoordinator } from "../../lib/routing-coordinator";
 import type {
@@ -25,7 +26,10 @@ import { useOsWindow } from "../use-os-window";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
 import { useOsWindowCommands } from "../use-os-window-commands";
 import { useWindowMergeTarget } from "../use-window-merge-target";
-import { useWindowLiveDataEnabled } from "../use-window-live-data-enabled";
+import {
+  useCurrentWindowLiveDataEnabled,
+  useWindowLiveDataEnabled,
+} from "../use-window-live-data-enabled";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
 import { windowManagerStore } from "../../stores/window-manager-store";
@@ -335,6 +339,31 @@ describe("useAnimationFrameLatest", () => {
 });
 
 describe("useWindowLiveDataEnabled", () => {
+  it("Should default to live outside the retained-window OS shell", () => {
+    const { result } = renderHook(() => useCurrentWindowLiveDataEnabled());
+
+    expect(result.current).toBe(true);
+  });
+
+  it("Should derive a retained descendant's live lease from its own window", () => {
+    const shell = createShell();
+    const Shell = shell.wrapper;
+    const LiveDataProvider = ({ children }: { children: ReactNode }) => {
+      const liveDataEnabled = useWindowLiveDataEnabled("window:primary");
+      return <WindowLiveDataContext value={liveDataEnabled}>{children}</WindowLiveDataContext>;
+    };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <Shell>
+        <LiveDataProvider>{children}</LiveDataProvider>
+      </Shell>
+    );
+    const { result } = renderHook(() => useCurrentWindowLiveDataEnabled(), { wrapper });
+
+    expect(result.current).toBe(true);
+    act(() => shell.setRuntimeState({ activeDesktopId: "desktop:other" }));
+    expect(result.current).toBe(false);
+  });
+
   it("Should disable retained window work while the browser document is hidden", () => {
     let visibilityState: DocumentVisibilityState = "visible";
     vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibilityState);

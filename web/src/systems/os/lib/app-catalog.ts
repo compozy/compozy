@@ -25,7 +25,7 @@ export interface OsAppDescriptor {
   title: string;
   icon: LucideIcon;
   /** Route prefixes owned by this app's window subtree. */
-  paths: string[];
+  paths: readonly string[];
   /** Optional measured product floor; the shared frame floor is the conservative fallback. */
   minimumSize?: PixelSize;
   /** Dock strip group, sessions modal toggle, or null for menubar-only settings. */

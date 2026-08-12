@@ -204,10 +204,11 @@ export function useLoopEditor(
   const runAutoValidation = useEffectEvent(() => runValidation());
   useEffect(() => {
     store.trigger.automaticValidationRequested({
+      enabled,
       execute: runAutoValidation,
       revision: structuralRevision,
     });
-  }, [store, structuralRevision]);
+  }, [enabled, store, structuralRevision]);
 
   useEffect(() => () => store.trigger.lifecycleDisposed(), [store]);
 

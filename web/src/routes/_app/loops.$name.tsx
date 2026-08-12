@@ -10,6 +10,6 @@ export const Route = createFileRoute("/_app/loops/$name")({
   loader: async ({ context, location, params }) =>
     location.pathname.split("/").filter(Boolean).length === 2
       ? (await import("./-loops-preload")).preloadLoopDetailRoute(context.queryClient, params.name)
-      : Promise.resolve(),
+      : undefined,
   component: createOsRouteSync("loops"),
 });

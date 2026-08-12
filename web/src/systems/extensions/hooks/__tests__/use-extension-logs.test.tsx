@@ -19,6 +19,7 @@ vi.mock("../../adapters/extensions-api", () => ({
   listExtensions: vi.fn(),
 }));
 
+import { extensionLogsLogic } from "../extension-logs-store";
 import { useExtensionLogs } from "../use-extension-logs";
 
 class FakeEventSource {
@@ -77,6 +78,21 @@ beforeEach(() => {
 });
 
 describe("useExtensionLogs", () => {
+  it("Should admit only valid stream lifecycle transitions", () => {
+    const store = extensionLogsLogic.createStore();
+
+    store.trigger.streamOpened();
+    expect(store.getSnapshot().context.streamStatus).toBe("idle");
+
+    store.trigger.connecting();
+    store.trigger.streamOpened();
+    expect(store.getSnapshot().context.streamStatus).toBe("live");
+
+    store.trigger.followChanged({ follow: false });
+    store.trigger.streamFailed();
+    expect(store.getSnapshot().context.streamStatus).toBe("paused");
+  });
+
   it("Should bind the workspace instance and append only newer sequences from the named event", async () => {
     const view = setup("ops-extension", "ws_northstar");
 

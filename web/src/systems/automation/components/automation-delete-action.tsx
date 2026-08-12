@@ -39,18 +39,13 @@ export function AutomationDeleteAction({
     if (!next && controlled) store.trigger.openChanged({ open: false });
   };
 
-  const handleConfirm = async () => {
-    if (store.getSnapshot().context.phase === "submitting") return;
-    store.trigger.submissionStarted();
-    try {
-      await onConfirm();
-      store.trigger.submissionSucceeded();
-      onOpenChange?.(false);
-    } catch (cause) {
-      store.trigger.submissionFailed({
-        error: cause instanceof Error ? cause.message : `Failed to delete automation ${noun}`,
-      });
-    }
+  const handleConfirm = () => {
+    store.trigger.submissionRequested({
+      execute: onConfirm,
+      fallbackError: `Failed to delete automation ${noun}`,
+      permitted: !isPending,
+      onSucceeded: () => onOpenChange?.(false),
+    });
   };
 
   return (

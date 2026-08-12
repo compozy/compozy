@@ -366,6 +366,9 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 	})
 }
 
+// Invariant: a hosted bind builds one isolated projection for each authoritative generation, including cold concurrent reads.
+// Owning layer: internal/mcp hosted projection cache.
+// Canonical suite: internal/mcp/hosted_test.go.
 func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 	t.Parallel()
 
@@ -430,6 +433,87 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		}
 		if got, want := registry.listCallCount(), baselineCalls+2; got != want {
 			t.Fatalf("registry List calls = %d, want %d after generation advance", got, want)
+		}
+	})
+
+	t.Run("Should coalesce concurrent cold misses into one registry list", func(t *testing.T) {
+		t.Parallel()
+
+		executable := hostedTestExecutable(t, "compozy")
+		ctx := testContext(t)
+		generationReached := make(chan struct{}, 2)
+		releaseGeneration := make(chan struct{})
+		listStarted := make(chan struct{}, 1)
+		releaseList := make(chan struct{})
+		var releaseGenerationOnce sync.Once
+		var releaseListOnce sync.Once
+		t.Cleanup(func() {
+			releaseGenerationOnce.Do(func() { close(releaseGeneration) })
+			releaseListOnce.Do(func() { close(releaseList) })
+		})
+		var gateGeneration atomic.Bool
+		registry := &hostedRegistryStub{
+			views: []tools.ToolView{hostedToolView("compozy__alpha")},
+		}
+		service := newHostedTestServiceWithProjectionGeneration(
+			t,
+			executable,
+			registry,
+			func(ctx context.Context, _ tools.Scope) (string, bool) {
+				if gateGeneration.Load() {
+					generationReached <- struct{}{}
+					select {
+					case <-releaseGeneration:
+					case <-ctx.Done():
+					}
+				}
+				return "1", true
+			},
+		)
+		peer := hostedTestPeer(executable)
+		bind := hostedTestBind(t, service, "sess-concurrent-generation", peer)
+		baselineCalls := registry.listCallCount()
+		registry.listStarted = listStarted
+		registry.releaseList = releaseList
+		gateGeneration.Store(true)
+
+		type projectionResult struct {
+			response HostedProjectionResponse
+			err      error
+		}
+		results := make(chan projectionResult, 2)
+		for range 2 {
+			go func() {
+				response, err := service.Projection(ctx, bind.BindID, peer)
+				results <- projectionResult{response: response, err: err}
+			}()
+		}
+		for range 2 {
+			select {
+			case <-generationReached:
+			case <-ctx.Done():
+				t.Fatalf("concurrent projection did not reach generation lookup: %v", ctx.Err())
+			}
+		}
+		releaseGenerationOnce.Do(func() { close(releaseGeneration) })
+		select {
+		case <-listStarted:
+		case <-ctx.Done():
+			t.Fatalf("projection did not begin the registry list: %v", ctx.Err())
+		}
+		releaseListOnce.Do(func() { close(releaseList) })
+
+		for range 2 {
+			result := <-results
+			if result.err != nil {
+				t.Fatalf("Projection() error = %v", result.err)
+			}
+			if got, want := hostedToolIDs(result.response.Tools), []string{"compozy__alpha"}; !slices.Equal(got, want) {
+				t.Fatalf("Projection() tools = %#v, want %#v", got, want)
+			}
+		}
+		if got, want := registry.listCallCount(), baselineCalls+1; got != want {
+			t.Fatalf("registry List calls = %d, want %d for one concurrent cold miss", got, want)
 		}
 	})
 
@@ -1054,20 +1138,38 @@ type hostedRegistryStub struct {
 	directCalls    int
 	bootstrapCalls int
 	listCalls      int
+	listStarted    chan<- struct{}
+	releaseList    <-chan struct{}
 }
 
 var _ tools.Registry = (*hostedRegistryStub)(nil)
 
-func (r *hostedRegistryStub) List(_ context.Context, scope tools.Scope) ([]tools.ToolView, error) {
+func (r *hostedRegistryStub) List(ctx context.Context, scope tools.Scope) ([]tools.ToolView, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.listCalls++
 	r.scopes = append(r.scopes, scope)
+	listStarted := r.listStarted
+	releaseList := r.releaseList
 	if r.err != nil {
+		r.mu.Unlock()
 		return nil, r.err
 	}
 	out := make([]tools.ToolView, len(r.views))
 	copy(out, r.views)
+	r.mu.Unlock()
+	if listStarted != nil {
+		select {
+		case listStarted <- struct{}{}:
+		default:
+		}
+	}
+	if releaseList != nil {
+		select {
+		case <-releaseList:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	return out, nil
 }
 

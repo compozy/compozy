@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSelector, useStore } from "@xstate/store-react";
+import { useSelector } from "@xstate/store-react";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { networkKeys } from "../lib/query-keys";
 import type { TaskRunNetworkProjection, TaskRunNetworkUsage } from "../types";
@@ -27,7 +28,9 @@ export function useTaskRunConversation(
   const conversationThreadId = conversation?.thread_id ?? "";
   const conversationWorkspaceId = conversation?.workspace_id ?? "";
   const usageScope = network ? `${network.conversation.workspace_id}:${runId.trim()}` : "";
-  const store = useStore(taskRunConversationLogic, { scope: usageScope });
+  const { store } = useStoreBinding(usageScope, () =>
+    taskRunConversationLogic.createStore({ scope: usageScope })
+  );
   const usageState = useSelector(store, snapshot => snapshot.context);
   const messages = useNetworkMessages({
     workspaceId: conversation?.workspace_id,
@@ -40,10 +43,6 @@ export function useTaskRunConversation(
     usageState.scope === usageScope && usageState.usageOverlay
       ? usageState.usageOverlay
       : (network?.usage ?? null);
-
-  useEffect(() => {
-    store.trigger.networkObserved({ scope: usageScope });
-  }, [store, usageScope]);
 
   useEffect(() => {
     if (

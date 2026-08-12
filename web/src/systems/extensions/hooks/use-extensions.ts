@@ -17,9 +17,9 @@ export function useExtensionInstanceScope(): { workspaceId: string | null } {
   return { workspaceId: activeWorkspaceId ?? null };
 }
 
-export function useExtensionInventory() {
+export function useExtensionInventory(enabled = true) {
   const scope = useExtensionInstanceScope();
-  const local = useQuery(extensionsListOptions(scope));
+  const local = useQuery(extensionsListOptions(scope, enabled));
   const items: InstalledExtensionView[] = (local.data ?? []).map(extension => {
     const listing = extension.marketplace ?? null;
     return {

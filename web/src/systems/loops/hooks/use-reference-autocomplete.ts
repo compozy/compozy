@@ -144,6 +144,7 @@ export function useReferenceAutocomplete(
       }
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         store.trigger.dismissed();
       }
     },

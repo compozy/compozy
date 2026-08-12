@@ -72,7 +72,6 @@ class TicketedEventSource implements StreamEventSource {
   close(): void {
     this.closed = true;
     this.clearReconnect();
-    this.clearStableReset();
     this.controller?.abort();
     this.controller = null;
     this.teardownNative();

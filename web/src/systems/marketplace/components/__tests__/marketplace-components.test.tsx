@@ -1,3 +1,7 @@
+// Suite: marketplace components
+// Invariant: marketplace actions render and submit truthful catalog and installation state.
+// Boundary IN: component interaction, form admission, and visible status projection.
+// Boundary OUT: catalog pagination and HTTP transport, owned by hook and adapter suites.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -17,35 +21,78 @@ import { MCPInstallDialog } from "../mcp-install-dialog";
 import { buildMCPInstallRequest } from "../mcp-install-model";
 import type { SkillPayload } from "@/systems/skill";
 
-const mocks = vi.hoisted(() => ({
-  navigate: vi.fn(),
-  activeWorkspaceId: "ws-a" as string | null,
-  marketData: null as unknown,
-  marketPages: null as unknown[] | null,
-  marketOptions: vi.fn(),
-  marketError: null as Error | null,
-  mcpError: null as Error | null,
-  marketLoading: false,
-  skills: [] as SkillPayload[],
-  skillsWorkspace: vi.fn(),
-  extensions: [] as unknown[],
-  handleAction: vi.fn(),
-  handleAuthorize: vi.fn(),
-  fetchNextPage: vi.fn(),
-  hasNextPage: false,
-  isFetchNextPageError: false,
-  isFetchingNextPage: false,
-  putMCP: vi.fn(),
-  isEntryPending: vi.fn((_entry: MarketplaceListing) => false),
-  isInstalledItemPending: vi.fn(() => false),
-  isEntryFlashing: vi.fn(() => false),
-  setScope: vi.fn(),
-  toastSuccess: vi.fn(),
-  mcpServers: [] as unknown[],
-  vaultSecrets: [] as unknown[],
-  createSecret: vi.fn(),
-  installExtension: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const state = {
+    navigate: vi.fn(),
+    activeWorkspaceId: "ws-a" as string | null,
+    marketData: null as unknown,
+    marketPages: null as unknown[] | null,
+    marketOptions: vi.fn(),
+    marketError: null as Error | null,
+    mcpError: null as Error | null,
+    marketLoading: false,
+    skills: [] as SkillPayload[],
+    skillsWorkspace: vi.fn(),
+    extensions: [] as unknown[],
+    extensionInventoryEnabled: vi.fn(),
+    handleAction: vi.fn(),
+    handleAuthorize: vi.fn(),
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isFetchNextPageError: false,
+    isFetchingNextPage: false,
+    putMCP: vi.fn(),
+    isEntryPending: vi.fn((_entry: MarketplaceListing) => false),
+    isInstalledItemPending: vi.fn(() => false),
+    isEntryFlashing: vi.fn(() => false),
+    setScope: vi.fn(),
+    toastSuccess: vi.fn(),
+    mcpServers: [] as unknown[],
+    vaultSecrets: [] as unknown[],
+    createSecret: vi.fn(),
+    installExtension: vi.fn(),
+  };
+  return Object.assign(state, {
+    marketplaceKind(options: unknown, enabled = true) {
+      state.marketOptions(options, enabled);
+      return {
+        data:
+          state.marketPages || state.marketData
+            ? {
+                pageParams: (state.marketPages ?? [state.marketData]).map(() => undefined),
+                pages: state.marketPages ?? [state.marketData],
+              }
+            : undefined,
+        error: state.marketError,
+        fetchNextPage: state.fetchNextPage,
+        hasNextPage: state.hasNextPage,
+        isFetching: false,
+        isFetchingNextPage: state.isFetchingNextPage,
+        isFetchNextPageError: state.isFetchNextPageError,
+        isLoading: state.marketLoading,
+        refetch: vi.fn(),
+      };
+    },
+    skillsQuery(workspace: string, enabled = true) {
+      state.skillsWorkspace(workspace, enabled);
+      return {
+        data: state.skills,
+        error: null,
+        isLoading: false,
+        refetch: vi.fn(),
+      };
+    },
+    extensionInventory(enabled = true) {
+      state.extensionInventoryEnabled(enabled);
+      return {
+        data: state.extensions,
+        error: null,
+        isLoading: false,
+        refetch: vi.fn(),
+      };
+    },
+  });
+});
 
 vi.mock("sonner", () => ({
   toast: { success: mocks.toastSuccess },
@@ -134,55 +181,20 @@ vi.mock("@/systems/vault/hooks/use-vault-actions", () => ({
 }));
 
 vi.mock("../../hooks/use-marketplace", () => ({
-  useMarketplaceKind: (options: unknown) => {
-    mocks.marketOptions(options);
-    return {
-      data:
-        mocks.marketPages || mocks.marketData
-          ? {
-              pageParams: (mocks.marketPages ?? [mocks.marketData]).map(() => undefined),
-              pages: mocks.marketPages ?? [mocks.marketData],
-            }
-          : undefined,
-      error: mocks.marketError,
-      fetchNextPage: mocks.fetchNextPage,
-      hasNextPage: mocks.hasNextPage,
-      isFetching: false,
-      isFetchingNextPage: mocks.isFetchingNextPage,
-      isFetchNextPageError: mocks.isFetchNextPageError,
-      isLoading: mocks.marketLoading,
-      refetch: vi.fn(),
-    };
-  },
+  useMarketplaceKind: mocks.marketplaceKind,
 }));
 
 vi.mock("@/systems/skill", async () => {
   const actual = await vi.importActual<typeof import("@/systems/skill")>("@/systems/skill");
   return {
     ...actual,
-    useSkills: (workspace: string) => {
-      mocks.skillsWorkspace(workspace);
-      return {
-        data: mocks.skills,
-        error: null,
-        isLoading: false,
-        refetch: vi.fn(),
-      };
-    },
+    useSkills: mocks.skillsQuery,
     useRemoveSkillMarketplace: () => ({ mutateAsync: vi.fn() }),
   };
 });
 
 vi.mock("@/systems/skill/hooks/use-skills", () => ({
-  useSkills: (workspace: string) => {
-    mocks.skillsWorkspace(workspace);
-    return {
-      data: mocks.skills,
-      error: null,
-      isLoading: false,
-      refetch: vi.fn(),
-    };
-  },
+  useSkills: mocks.skillsQuery,
 }));
 
 vi.mock("@/systems/extensions", async () => {
@@ -190,24 +202,14 @@ vi.mock("@/systems/extensions", async () => {
     await vi.importActual<typeof import("@/systems/extensions")>("@/systems/extensions");
   return {
     ...actual,
-    useExtensionInventory: () => ({
-      data: mocks.extensions,
-      error: null,
-      isLoading: false,
-      refetch: vi.fn(),
-    }),
+    useExtensionInventory: mocks.extensionInventory,
     useRemoveExtension: () => ({ mutateAsync: vi.fn() }),
     useToggleExtension: () => ({ mutateAsync: vi.fn() }),
   };
 });
 
 vi.mock("@/systems/extensions/hooks/use-extensions", () => ({
-  useExtensionInventory: () => ({
-    data: mocks.extensions,
-    error: null,
-    isLoading: false,
-    refetch: vi.fn(),
-  }),
+  useExtensionInventory: mocks.extensionInventory,
 }));
 
 vi.mock("@/systems/settings/hooks/use-settings-collections", async () => {
@@ -280,14 +282,15 @@ function renderKindPage(
     config_scope?: "global" | "workspace";
     tab?: "market";
     q?: string;
-  } = {}
+  } = {},
+  liveDataEnabled = true
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const page = () => (
     <QueryClientProvider client={client}>
-      <MarketplaceKindPage kind={kind} search={search} />
+      <MarketplaceKindPage kind={kind} liveDataEnabled={liveDataEnabled} search={search} />
     </QueryClientProvider>
   );
   const view = renderWithTopbar(page());
@@ -331,6 +334,17 @@ describe("MarketplaceKindPage", () => {
     );
   });
 
+  it("Should suspend every Marketplace page query while its retained window is inactive", () => {
+    renderKindPage("skill", {}, false);
+
+    expect(mocks.marketOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "skill" }),
+      false
+    );
+    expect(mocks.skillsWorkspace).toHaveBeenLastCalledWith("ws-a", false);
+    expect(mocks.extensionInventoryEnabled).toHaveBeenLastCalledWith(false);
+  });
+
   it("Should lead the strip with views and keep the head two-element [UT-130]", () => {
     renderKindPage("skill", { tab: "market" });
     expect(screen.getByRole("heading", { level: 1, name: "Skills" })).toBeInTheDocument();
@@ -372,7 +386,8 @@ describe("MarketplaceKindPage", () => {
     renderKindPage("skill", { q: "registry-ranking-signal", tab: "market" });
 
     expect(mocks.marketOptions).toHaveBeenLastCalledWith(
-      expect.objectContaining({ kind: "skill", q: "registry-ranking-signal" })
+      expect.objectContaining({ kind: "skill", q: "registry-ranking-signal" }),
+      true
     );
     expect(screen.getByTestId("marketplace-card-git-flow")).toBeInTheDocument();
   });
@@ -464,7 +479,8 @@ describe("MarketplaceKindPage", () => {
     renderKindPage("skill", { q: "local-filter" });
 
     expect(mocks.marketOptions).toHaveBeenLastCalledWith(
-      expect.objectContaining({ kind: "skill", q: null })
+      expect.objectContaining({ kind: "skill", q: null }),
+      true
     );
   });
 
@@ -902,7 +918,7 @@ describe("MarketplaceKindPage", () => {
 
     renderKindPage("skill");
 
-    expect(mocks.skillsWorkspace).toHaveBeenLastCalledWith("");
+    expect(mocks.skillsWorkspace).toHaveBeenLastCalledWith("", true);
     const card = screen.getByTestId("marketplace-installed-card-global-review");
     expect(card).toHaveTextContent("Inactive");
     expect(card).toHaveTextContent("Missing tool: compozy__browser_screenshot");

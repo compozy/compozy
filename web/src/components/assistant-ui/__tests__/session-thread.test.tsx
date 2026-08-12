@@ -1539,7 +1539,8 @@ describe("SessionThread streaming render-count", () => {
 
 // Suite: composer draft, running-state semantics + queued-prompt strip (task 35).
 // Invariant: Draft text survives the app's StrictMode lifecycle exactly, Enter has one
-// defined meaning per phase, and queued prompts render as real, actionable rows.
+// defined meaning per phase, only one busy-input submission is active, and queued prompts render
+// as real, actionable rows.
 // Boundary IN: SessionComposer draft persistence, phase toggle, Enter interception,
 // queued-strip wiring.
 // Boundary OUT: queue/steer/cancel API orchestration, covered by use-session-page-controls.test.tsx.
@@ -1938,6 +1939,28 @@ describe("SessionThread composer running semantics", () => {
     });
     // The runtime send never fired, so no user message entered the thread.
     expect(screen.queryByText("queue this follow-up")).not.toBeInTheDocument();
+  });
+
+  it("Should admit only one busy-input submission while a queue request is pending", async () => {
+    let resolveQueue: (() => void) | undefined;
+    const queuePending = new Promise<void>(resolve => {
+      resolveQueue = resolve;
+    });
+    const onQueuePrompt = vi.fn(() => queuePending);
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("queue this only once");
+    const queueButton = screen.getByTestId("composer-queue-button");
+
+    act(() => {
+      fireEvent.click(queueButton);
+      fireEvent.click(queueButton);
+    });
+
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    resolveQueue?.();
+    await waitFor(() => expect(composerText()).toBe(""));
   });
 
   it("Should show an error toast and preserve the draft when queue fails", async () => {

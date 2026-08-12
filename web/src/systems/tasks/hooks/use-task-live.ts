@@ -8,47 +8,36 @@ import {
   taskTreeOptions,
 } from "../lib/query-options";
 import type { TaskTimelineFilter } from "../types";
-
-interface QueryHookOptions {
-  enabled?: boolean;
-  refetchIntervalMs?: number | false;
-}
-
-function withQueryHookOptions<T extends object>(queryOptions: T, hookOptions: QueryHookOptions) {
-  return {
-    ...queryOptions,
-    ...(hookOptions.refetchIntervalMs === undefined
-      ? {}
-      : { refetchInterval: hookOptions.refetchIntervalMs }),
-  };
-}
+import { type TaskQueryHookOptions, withTaskQueryHookOptions } from "./task-query-hook-options";
 
 export function useTaskTimeline(
   id: string,
   filters: TaskTimelineFilter = {},
-  options: QueryHookOptions = {}
+  options: TaskQueryHookOptions = {}
 ) {
   return useQuery(
-    withQueryHookOptions(taskTimelineOptions(id, filters, options.enabled ?? true), options)
+    withTaskQueryHookOptions(taskTimelineOptions(id, filters, options.enabled ?? true), options)
   );
 }
 
-export function useTaskTree(id: string, options: QueryHookOptions = {}) {
-  return useQuery(withQueryHookOptions(taskTreeOptions(id, options.enabled ?? true), options));
+export function useTaskTree(id: string, options: TaskQueryHookOptions = {}) {
+  return useQuery(withTaskQueryHookOptions(taskTreeOptions(id, options.enabled ?? true), options));
 }
 
-export function useTaskInspect(id: string, options: QueryHookOptions = {}) {
-  return useQuery(withQueryHookOptions(taskInspectOptions(id, options.enabled ?? true), options));
-}
-
-export function useTaskRunDetail(runId: string, options: QueryHookOptions = {}) {
+export function useTaskInspect(id: string, options: TaskQueryHookOptions = {}) {
   return useQuery(
-    withQueryHookOptions(taskRunDetailOptions(runId, options.enabled ?? true), options)
+    withTaskQueryHookOptions(taskInspectOptions(id, options.enabled ?? true), options)
   );
 }
 
-export function useTaskRunInspect(runId: string, options: QueryHookOptions = {}) {
+export function useTaskRunDetail(runId: string, options: TaskQueryHookOptions = {}) {
   return useQuery(
-    withQueryHookOptions(taskRunInspectOptions(runId, options.enabled ?? true), options)
+    withTaskQueryHookOptions(taskRunDetailOptions(runId, options.enabled ?? true), options)
+  );
+}
+
+export function useTaskRunInspect(runId: string, options: TaskQueryHookOptions = {}) {
+  return useQuery(
+    withTaskQueryHookOptions(taskRunInspectOptions(runId, options.enabled ?? true), options)
   );
 }

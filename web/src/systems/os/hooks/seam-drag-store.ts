@@ -97,7 +97,13 @@ export function createSeamDragLogic<TSeam>() {
       dragEnded: (context, event, enqueue) => {
         if (context.phase !== "dragging" || context.pointerId !== event.pointerId) return;
         enqueue.effect(({ trigger }) => cancelFrame(handlesFor(trigger)));
-        return { ...context, phase: "idle", pointerId: null };
+        return {
+          coordinate: 0,
+          pendingDeltaPx: 0,
+          phase: "idle",
+          pointerId: null,
+          seam: null,
+        };
       },
       dragCancelled: (context, event, enqueue) => {
         if (context.phase !== "dragging") return;

@@ -32,7 +32,7 @@ export function parseAutomationEnabled(value: unknown): boolean | undefined {
   return undefined;
 }
 
-export function validateJobsSearch(search: Record<string, unknown>): AutomationRouteSearch {
+function validateAutomationSearch(search: Record<string, unknown>): AutomationRouteSearch {
   return {
     create: search.create === "loop" ? "loop" : undefined,
     enabled: parseAutomationEnabled(search.enabled),
@@ -44,15 +44,13 @@ export function validateJobsSearch(search: Record<string, unknown>): AutomationR
   };
 }
 
+export function validateJobsSearch(search: Record<string, unknown>): AutomationRouteSearch {
+  return validateAutomationSearch(search);
+}
+
 export function validateTriggersSearch(search: Record<string, unknown>): AutomationRouteSearch {
   return {
-    create: search.create === "loop" ? "loop" : undefined,
-    enabled: parseAutomationEnabled(search.enabled),
+    ...validateAutomationSearch(search),
     event: normalizeListingSearchValue(search.event),
-    loop: normalizeListingSearchValue(search.loop),
-    q: normalizeListingSearchValue(search.q),
-    scope: parseAutomationScope(search.scope),
-    source: parseAutomationSource(search.source),
-    view: parseListingView(search.view),
   };
 }

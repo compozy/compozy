@@ -2,6 +2,7 @@ import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 
 import { bridgeStatusLabel } from "./bridge-formatters";
 import {
+  BRIDGE_STATUSES,
   bridgePlatformFilterFrom,
   bridgeScopeFilterFrom,
   bridgeStatusFilterFrom,
@@ -49,18 +50,9 @@ const SCOPE_OPTIONS: { value: BridgeScopeFilter; label: string }[] = [
   { value: "workspace", label: "Workspace" },
 ];
 
-const STATUS_OPTIONS: readonly BridgeStatusFilter[] = [
-  "disabled",
-  "starting",
-  "ready",
-  "degraded",
-  "auth_required",
-  "error",
-];
-
 export function buildBridgeFilterFields(
   platforms: readonly string[],
-  statuses: readonly BridgeStatusFilter[] = STATUS_OPTIONS
+  statuses: readonly BridgeStatusFilter[] = BRIDGE_STATUSES
 ): FilterFieldsConfig<string> {
   const distinctPlatforms = [...new Set(platforms)].sort((left, right) =>
     left.localeCompare(right)

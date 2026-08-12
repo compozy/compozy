@@ -1,39 +1,28 @@
 import { createStoreLogic } from "@xstate/store";
+import type { SetStateAction } from "react";
 
 import type { TaskEditorDraft } from "../lib/task-editor";
 
 export interface TaskEditorDraftStoreInput {
   draft: TaskEditorDraft;
   scopeKey: string;
-  variantKey: string;
-}
-
-interface TaskEditorDraftState extends TaskEditorDraftStoreInput {
-  submissionPhase: "idle" | "submitting";
 }
 
 type TaskEditorDraftEvents = {
-  draftChanged: { draft: TaskEditorDraft };
-  submissionFinished: Record<never, never>;
-  submissionStarted: Record<never, never>;
+  draftChanged: { update: SetStateAction<TaskEditorDraft> };
 };
 
 export const taskEditorDraftLogic = createStoreLogic<
-  TaskEditorDraftState,
+  TaskEditorDraftStoreInput,
   TaskEditorDraftEvents,
   never,
   TaskEditorDraftStoreInput
 >({
-  context: input => ({ ...input, submissionPhase: "idle" }),
+  context: input => input,
   on: {
-    draftChanged: (context, event) => ({ ...context, draft: event.draft }),
-    submissionStarted: context => {
-      if (context.submissionPhase === "submitting") return;
-      return { ...context, submissionPhase: "submitting" };
-    },
-    submissionFinished: context => {
-      if (context.submissionPhase === "idle") return;
-      return { ...context, submissionPhase: "idle" };
-    },
+    draftChanged: (context, event) => ({
+      ...context,
+      draft: typeof event.update === "function" ? event.update(context.draft) : event.update,
+    }),
   },
 });

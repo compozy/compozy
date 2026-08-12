@@ -1,3 +1,7 @@
+// Suite: Runtime connection indicator
+// Invariant: daemon health maps to one truthful connection tone, pulse, and label.
+// Boundary IN: daemon-health query projection and explicit component props.
+// Boundary OUT: daemon health transport and application-shell composition.
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 

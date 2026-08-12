@@ -3,13 +3,13 @@ import { queryOptions } from "@tanstack/react-query";
 import { getSkill, getSkillContent, getSkillShadows, listSkills } from "../adapters/skill-api";
 import { skillKeys } from "./query-keys";
 
-export function skillsListOptions(workspace: string) {
+export function skillsListOptions(workspace: string, enabled = true) {
   return queryOptions({
     queryKey: skillKeys.list(workspace),
     queryFn: ({ signal }) => listSkills(workspace, signal),
     staleTime: 30_000,
     refetchInterval: 60_000,
-    enabled: true,
+    enabled,
   });
 }
 

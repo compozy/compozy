@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_app/loop-runs")({
   loader: async ({ context, deps, location }) =>
     location.pathname.split("/").filter(Boolean).length === 1
       ? (await import("./-loops-preload")).preloadLoopRunsRoute(context.queryClient, deps)
-      : Promise.resolve(),
+      : undefined,
   validateSearch: validateLoopRunsSearch,
   component: createOsRouteSync("loops"),
 });

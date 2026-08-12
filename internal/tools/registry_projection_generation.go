@@ -6,6 +6,14 @@ import (
 	"strings"
 )
 
+// ProjectionGenerationProvider reports whether a provider projection can be cached for a scope.
+type ProjectionGenerationProvider interface {
+	ProjectionGeneration(ctx context.Context, scope Scope) (generation string, known bool)
+}
+
+// ProjectionGenerationResolver reports authoritative non-provider projection state.
+type ProjectionGenerationResolver func(context.Context, Scope) (generation string, known bool)
+
 // WithProjectionInvalidator invalidates cached projections after any dispatch attempt.
 func WithProjectionInvalidator(invalidate func()) RegistryOption {
 	return func(registry *RuntimeRegistry) {

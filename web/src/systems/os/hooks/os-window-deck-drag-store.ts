@@ -114,6 +114,14 @@ function cleanupHandles(handles: DeckDragHandles): void {
   handles.unbind();
 }
 
+function releaseHandles(trigger: object): DeckDragHandles | null {
+  const handles = handlesByTrigger.get(trigger);
+  if (!handles) return null;
+  cleanupHandles(handles);
+  handlesByTrigger.delete(trigger);
+  return handles;
+}
+
 function bindPointerLifecycle(trigger: DeckDragTrigger, generation: number): () => void {
   const onPointerMove = (event: PointerEvent) =>
     trigger.pointerSampled({
@@ -150,8 +158,7 @@ export const osWindowDeckDragLogic = createStoreLogic<
     pointerPressed: (context, event, enqueue) => {
       const generation = context.generation + 1;
       enqueue.effect(({ trigger }) => {
-        const previous = handlesByTrigger.get(trigger);
-        if (previous) cleanupHandles(previous);
+        releaseHandles(trigger);
         handlesByTrigger.set(trigger, {
           animationFrameId: null,
           runtime: event.runtime,
@@ -221,9 +228,8 @@ export const osWindowDeckDragLogic = createStoreLogic<
       const dragged =
         context.phase === "dragging" || movedBeyondSlop(context.press.start, event.point);
       enqueue.effect(({ trigger }) => {
-        const handles = handlesByTrigger.get(trigger);
+        const handles = releaseHandles(trigger);
         if (!handles) return;
-        cleanupHandles(handles);
         if (!dragged) return;
         try {
           handles.runtime.commit(context.press.windowId, event.point);
@@ -240,16 +246,13 @@ export const osWindowDeckDragLogic = createStoreLogic<
         (context.pendingPoint !== null &&
           movedBeyondSlop(context.press.start, context.pendingPoint));
       enqueue.effect(({ trigger }) => {
-        const handles = handlesByTrigger.get(trigger);
-        if (handles) cleanupHandles(handles);
+        releaseHandles(trigger);
       });
       return idleContext(context.generation, dragged);
     },
     disposed: (context, _event, enqueue) => {
       enqueue.effect(({ trigger }) => {
-        const handles = handlesByTrigger.get(trigger);
-        if (handles) cleanupHandles(handles);
-        handlesByTrigger.delete(trigger);
+        releaseHandles(trigger);
       });
       return idleContext(context.generation + 1, false);
     },

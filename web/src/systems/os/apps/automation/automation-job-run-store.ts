@@ -5,7 +5,13 @@ interface AutomationJobRunState {
 }
 
 type AutomationJobRunEvents = {
-  runRequested: { id: string };
+  runRequested: {
+    execute: (id: string) => Promise<{ id: string }>;
+    onFailure: (error: unknown) => void;
+    onSuccess: (run: { id: string }) => void;
+    id: string;
+    permitted: boolean;
+  };
   runSettled: { id: string };
 };
 
@@ -15,10 +21,19 @@ export const automationJobRunLogic = createStoreLogic<
 >({
   context: { pendingIds: new Set<string>() },
   on: {
-    runRequested: (context, event) =>
-      context.pendingIds.has(event.id)
-        ? undefined
-        : { pendingIds: new Set([...context.pendingIds, event.id]) },
+    runRequested: (context, event, enqueue) => {
+      if (!event.permitted || context.pendingIds.has(event.id)) return;
+      enqueue.effect(async ({ trigger }) => {
+        try {
+          event.onSuccess(await event.execute(event.id));
+        } catch (error) {
+          event.onFailure(error);
+        } finally {
+          trigger.runSettled({ id: event.id });
+        }
+      });
+      return { pendingIds: new Set([...context.pendingIds, event.id]) };
+    },
     runSettled: (context, event) => {
       if (!context.pendingIds.has(event.id)) return;
       const pendingIds = new Set(context.pendingIds);

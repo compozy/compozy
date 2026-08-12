@@ -1,6 +1,6 @@
 // Suite: task editor local draft identity
 // Invariant: one source identity preserves edits, a new task/workspace source is visible in every
-// render, and the create boundary admits only one concurrent submission.
+// render, and each editor admits only one concurrent submission across source changes.
 // Boundary IN: task/profile Query projections, active workspace, and template route search.
 // Boundary OUT: mutations and the presentational editor surface.
 import { act, renderHook } from "@testing-library/react";
@@ -155,6 +155,65 @@ describe("task editor state identity", () => {
     await expect(second).resolves.toBeNull();
 
     resolveCreate?.({ draft: true, id: "task-created" });
+    await act(async () => {
+      await first;
+    });
+  });
+
+  it("Should keep the create guard while the template changes during submission", async () => {
+    let resolveCreate: ((value: { draft: boolean; id: string }) => void) | undefined;
+    editorMocks.create.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveCreate = resolve;
+      })
+    );
+    const { result, rerender } = renderHook(
+      ({ template }: { template: "one_shot" | "human_in_loop" }) =>
+        useTaskCreateState({ template }, vi.fn()),
+      { initialProps: { template: "one_shot" } }
+    );
+    const draft = { ...result.current.draft, title: "Single submission" };
+
+    let first: ReturnType<typeof result.current.handleSubmit> | undefined;
+    await act(async () => {
+      first = result.current.handleSubmit(draft, true);
+      await Promise.resolve();
+    });
+
+    rerender({ template: "human_in_loop" });
+    const second = result.current.handleSubmit(result.current.draft, true);
+
+    expect(editorMocks.create).toHaveBeenCalledTimes(1);
+    await expect(second).resolves.toBeNull();
+
+    resolveCreate?.({ draft: true, id: "task-created" });
+    await act(async () => {
+      await first;
+    });
+  });
+
+  it("Should admit only one edit submission while the first request is pending", async () => {
+    let resolveUpdate: (() => void) | undefined;
+    editorMocks.update.mockReturnValueOnce(
+      new Promise<void>(resolve => {
+        resolveUpdate = resolve;
+      })
+    );
+    const { result } = renderHook(() => useTaskEditState("task_alpha", vi.fn()));
+    const draft = { ...result.current.draft, title: "Saved once" };
+
+    let first: ReturnType<typeof result.current.handleSubmit> | undefined;
+    let second: ReturnType<typeof result.current.handleSubmit> | undefined;
+    await act(async () => {
+      first = result.current.handleSubmit(draft);
+      second = result.current.handleSubmit(draft);
+      await Promise.resolve();
+    });
+
+    expect(editorMocks.update).toHaveBeenCalledTimes(1);
+    await expect(second).resolves.toBeNull();
+
+    resolveUpdate?.();
     await act(async () => {
       await first;
     });

@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
     error: null as Error | null,
     isFetching: false,
     isLoading: false,
+    isStale: false,
     isSuccess: true,
   },
   vaultFilter: vi.fn(),
@@ -59,6 +60,7 @@ vi.mock("@/systems/vault/hooks/use-vault", () => ({
       error: isUnfiltered ? mocks.allSecretsState.error : null,
       isFetching: isUnfiltered ? mocks.allSecretsState.isFetching : false,
       isLoading: isUnfiltered ? mocks.allSecretsState.isLoading : false,
+      isStale: isUnfiltered ? mocks.allSecretsState.isStale : false,
       isSuccess: isUnfiltered ? mocks.allSecretsState.isSuccess : true,
       refetch: vi.fn(),
     };
@@ -99,6 +101,7 @@ describe("useVaultPage route state", () => {
     mocks.allSecretsState.error = null;
     mocks.allSecretsState.isFetching = false;
     mocks.allSecretsState.isLoading = false;
+    mocks.allSecretsState.isStale = false;
     mocks.allSecretsState.isSuccess = true;
   });
 
@@ -295,6 +298,32 @@ describe("useVaultPage route state", () => {
 
     mocks.allSecretsState.isLoading = false;
     mocks.allSecretsState.isSuccess = true;
+    rerender();
+
+    expect(result.current.editorIsValid).toBe(true);
+  });
+
+  it("Should keep collision protection while a stale inventory refreshes", () => {
+    mocks.allSecretsState.isFetching = true;
+    mocks.allSecretsState.isStale = true;
+    mocks.secrets = [providerSecret];
+    const { result, rerender } = renderHook(() => useVaultPage());
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({
+        ...draft,
+        ref: "vault:providers/anthropic",
+        secretValue: "sk-live",
+      }))
+    );
+
+    expect(result.current.editorIsValid).toBe(false);
+    act(() => result.current.saveEditor());
+    expect(mocks.putMutateAsync).not.toHaveBeenCalled();
+
+    mocks.allSecretsState.isFetching = false;
+    mocks.allSecretsState.isStale = false;
     rerender();
 
     expect(result.current.editorIsValid).toBe(true);
