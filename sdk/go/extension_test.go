@@ -711,6 +711,75 @@ func TestConnectivityProviderRegistrationIsAtomic(t *testing.T) {
 	})
 }
 
+func TestForgeProviderRegistrationIsAtomic(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should leave every unreserved method available after a collision", func(t *testing.T) {
+		t.Parallel()
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "forge-collision", Version: "0.1.0"})
+		if err := extension.Handle(compozysdk.ExtensionServiceMethodForgeStatus, noOpExtensionHandler); err != nil {
+			t.Fatalf("Handle(status) error = %v", err)
+		}
+		if err := compozysdk.ForgeProvider(extension, validForgeHandlers()); err == nil {
+			t.Fatal("ForgeProvider() error = nil, want reserved-method collision")
+		}
+		for _, method := range []string{
+			compozysdk.ExtensionServiceMethodForgeCapabilities,
+			compozysdk.ExtensionServiceMethodForgePRCreate,
+		} {
+			if err := extension.Handle(method, noOpExtensionHandler); err != nil {
+				t.Fatalf("Handle(%s) after failed registration error = %v", method, err)
+			}
+		}
+	})
+
+	t.Run("Should reserve all forge methods after one registration", func(t *testing.T) {
+		t.Parallel()
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "forge", Version: "0.1.0"})
+		if err := compozysdk.ForgeProvider(extension, validForgeHandlers()); err != nil {
+			t.Fatalf("ForgeProvider(first) error = %v", err)
+		}
+		if err := compozysdk.ForgeProvider(extension, validForgeHandlers()); err == nil {
+			t.Fatal("ForgeProvider(second) error = nil")
+		}
+		for _, method := range []string{
+			compozysdk.ExtensionServiceMethodForgeCapabilities,
+			compozysdk.ExtensionServiceMethodForgeStatus,
+			compozysdk.ExtensionServiceMethodForgePRCreate,
+		} {
+			if err := extension.Handle(method, noOpExtensionHandler); err == nil {
+				t.Fatalf("Handle(%s) error = nil, want reserved method", method)
+			}
+		}
+	})
+}
+
+func validForgeHandlers() compozysdk.ForgeProviderHandlers {
+	return compozysdk.ForgeProviderHandlers{
+		Capabilities: func(
+			context.Context,
+			compozysdk.ExtensionContext,
+			compozysdk.ForgeCapabilitiesRequest,
+		) (compozysdk.ForgeCapabilitiesResponse, error) {
+			return compozysdk.ForgeCapabilitiesResponse{Served: true}, nil
+		},
+		Status: func(
+			context.Context,
+			compozysdk.ExtensionContext,
+			compozysdk.ForgeStatusRequest,
+		) (compozysdk.ForgeStatusResponse, error) {
+			return compozysdk.ForgeStatusResponse{Provider: "test", FetchedAt: time.Now()}, nil
+		},
+		CreatePR: func(
+			context.Context,
+			compozysdk.ExtensionContext,
+			compozysdk.ForgePRCreateRequest,
+		) (compozysdk.ForgePRCreateResponse, error) {
+			return compozysdk.ForgePRCreateResponse{Status: "created", Number: 1, URL: "https://example.test/pr/1"}, nil
+		},
+	}
+}
+
 func validConnectivityHandlers() compozysdk.ConnectivityProviderHandlers {
 	return compozysdk.ConnectivityProviderHandlers{
 		Establish: func(

@@ -1,0 +1,22 @@
+{
+    "extension": {
+        "name": "forge-github",
+        "version": "0.1.0",
+        "description": "First-party GitHub pull request provider for worktree exit actions.",
+        "min_compozy_version": "0.3.0-beta.1"
+    },
+    "capabilities": {
+        "provides": ["forge.provider"]
+    },
+    "requires_env": ["GITHUB_TOKEN"],
+    "permissions": {
+        "requires": []
+    },
+    "resources": {},
+    "subprocess": {
+        "command": "{{compozy_executable}}",
+        "args": ["__internal", "extension-provider", "forge-github"],
+        "health_check_interval": "30s",
+        "shutdown_timeout": "5s"
+    }
+}

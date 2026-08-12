@@ -40,8 +40,20 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 			}
 		}
 	}
+	running, err := s.store.ListRunningExitOperations(ctx)
+	if err != nil {
+		recoverErr = errors.Join(recoverErr, fmt.Errorf("worktree: list interrupted exit operations: %w", err))
+		return recoverErr
+	}
 	if err := s.store.FailRunningExitOperations(ctx, s.now().UTC()); err != nil {
 		recoverErr = errors.Join(recoverErr, fmt.Errorf("worktree: fail interrupted exit operations: %w", err))
+	} else {
+		for _, operation := range running {
+			s.emitExit(ctx, EventExitActionFailed, operation, ExitEventPayload{
+				OperationID: operation.ID, Action: ExitAction(operation.Action), State: "failed",
+				Message: "Exit action interrupted by daemon restart.",
+			})
+		}
 	}
 	return recoverErr
 }

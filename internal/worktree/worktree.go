@@ -152,6 +152,7 @@ type Store interface {
 	GetForgeStatus(context.Context, string, string) (*ForgeStatus, error)
 	InsertExitOperation(context.Context, ExitOperation) error
 	FinishExitOperation(context.Context, string, string, string, string, time.Time) (bool, error)
+	ListRunningExitOperations(context.Context) ([]ExitOperation, error)
 	FailRunningExitOperations(context.Context, time.Time) error
 }
 
@@ -186,6 +187,7 @@ var (
 	ErrNotPending             = errors.New("worktree_not_pending")
 	ErrForgeUnavailable       = errors.New("forge_unavailable")
 	ErrForge                  = errors.New("forge_error")
+	ErrExitActionInvalid      = errors.New("worktree_exit_action_invalid")
 )
 
 type RefusalError struct {

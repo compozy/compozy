@@ -3,11 +3,13 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 )
@@ -90,6 +92,37 @@ func TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot(t *testing.T) {
 	if item == nil || item.ID != "wt-late" || len(backing.materializeCalls) != 1 {
 		t.Fatalf("MaterializeForRun(after boot) = %#v calls=%#v, want late-bound service", item, backing.materializeCalls)
 	}
+}
+
+func TestDaemonForgeRuntimeErrorTranslation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve unavailable extension errors as forge unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		err := mapForgeRuntimeError(fmt.Errorf("provider absent: %w", toolspkg.ErrToolUnavailable))
+		if !errors.Is(err, worktree.ErrForgeUnavailable) || errors.Is(err, worktree.ErrForge) {
+			t.Fatalf("mapForgeRuntimeError(unavailable) = %v, want only ErrForgeUnavailable", err)
+		}
+	})
+
+	t.Run("Should classify other extension failures as forge errors", func(t *testing.T) {
+		t.Parallel()
+
+		err := mapForgeRuntimeError(errors.New("provider protocol failed"))
+		if !errors.Is(err, worktree.ErrForge) || errors.Is(err, worktree.ErrForgeUnavailable) {
+			t.Fatalf("mapForgeRuntimeError(protocol) = %v, want only ErrForge", err)
+		}
+	})
+
+	t.Run("Should classify transient provider causes as forge errors", func(t *testing.T) {
+		t.Parallel()
+		for _, cause := range []string{"rate_limited", "credential_expired"} {
+			if got := forgeFailureKind(cause); !errors.Is(got, worktree.ErrForge) {
+				t.Fatalf("forgeFailureKind(%q) = %v, want ErrForge", cause, got)
+			}
+		}
+	})
 }
 
 func TestDaemonSessionWorktreeResolver(t *testing.T) {

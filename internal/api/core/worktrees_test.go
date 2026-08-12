@@ -23,6 +23,9 @@ type worktreeServiceStub struct {
 	create        func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	remove        func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
 	inspect       func(context.Context, string, string) (*worktree.Inspection, error)
+	exitPlan      func(context.Context, string, string) (*worktree.ExitPlan, error)
+	runExit       func(context.Context, string, string, worktree.ExitActionRequest) (string, error)
+	cancelExit    func(context.Context, string, string, string) error
 	catalogEvents <-chan worktree.CatalogEvent
 }
 
@@ -138,6 +141,41 @@ func (s worktreeServiceStub) StatusDetails(
 	bool,
 ) (*worktree.StatusDetails, error) {
 	return nil, fmt.Errorf("unexpected StatusDetails call")
+}
+
+func (s worktreeServiceStub) ExitPlan(
+	ctx context.Context,
+	workspaceID string,
+	worktreeID string,
+) (*worktree.ExitPlan, error) {
+	if s.exitPlan != nil {
+		return s.exitPlan(ctx, workspaceID, worktreeID)
+	}
+	return nil, fmt.Errorf("unexpected ExitPlan call")
+}
+
+func (s worktreeServiceStub) RunExitAction(
+	ctx context.Context,
+	workspaceID string,
+	worktreeID string,
+	request worktree.ExitActionRequest,
+) (string, error) {
+	if s.runExit != nil {
+		return s.runExit(ctx, workspaceID, worktreeID, request)
+	}
+	return "", fmt.Errorf("unexpected RunExitAction call")
+}
+
+func (s worktreeServiceStub) CancelExitAction(
+	ctx context.Context,
+	workspaceID string,
+	worktreeID string,
+	opID string,
+) error {
+	if s.cancelExit != nil {
+		return s.cancelExit(ctx, workspaceID, worktreeID, opID)
+	}
+	return fmt.Errorf("unexpected CancelExitAction call")
 }
 
 func (s worktreeServiceStub) Remove(
@@ -540,6 +578,7 @@ func TestWorktreeErrorCodes(t *testing.T) {
 			{worktree.ErrNotPending, "worktree_not_pending"},
 			{worktree.ErrForgeUnavailable, "forge_unavailable"},
 			{worktree.ErrForge, "forge_error"},
+			{worktree.ErrExitActionInvalid, "worktree_exit_action_invalid"},
 		}
 
 		if len(worktreeErrorCodes) != len(expected) {
@@ -555,6 +594,153 @@ func TestWorktreeErrorCodes(t *testing.T) {
 				t.Fatalf("wire code %q maps both %v and %v", got, previous, item.err)
 			}
 			seen[got] = item.err
+		}
+	})
+
+	t.Run("Should expose a safe machine-readable forge failure cause", func(t *testing.T) {
+		t.Parallel()
+		failure := worktree.NewForgeFailure(
+			worktree.ErrForge, "rate_limited", errors.New("provider internal detail"),
+		)
+		payload := ErrorPayloadForStatus(http.StatusBadGateway, failure, true)
+		if payload.Error != "forge_error" || payload.Code != "forge_error" ||
+			payload.Details["cause"] != "rate_limited" || strings.Contains(payload.Error, "internal") {
+			t.Fatalf("forge failure payload = %#v, want masked error with typed cause", payload)
+		}
+	})
+}
+
+func TestWorktreeExitHandlers(t *testing.T) {
+	t.Parallel()
+
+	var runRequest worktree.ExitActionRequest
+	var canceledOperation string
+	handlers := &BaseHandlers{
+		Workspaces: workspaceServiceStub{resolve: func(
+			_ context.Context,
+			ref string,
+		) (workspacepkg.ResolvedWorkspace, error) {
+			if ref != "workspace-a" {
+				t.Fatalf("Resolve() ref = %q, want workspace-a", ref)
+			}
+			return workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{ID: "registry-a"}, WorkspaceID: "workspace-a",
+			}, nil
+		}},
+		Worktrees: worktreeServiceStub{
+			exitPlan: func(_ context.Context, workspaceID, worktreeID string) (*worktree.ExitPlan, error) {
+				if workspaceID != "registry-a" || worktreeID != "wt-a" {
+					t.Fatalf("ExitPlan() args = %q, %q", workspaceID, worktreeID)
+				}
+				return &worktree.ExitPlan{
+					WorktreeID: worktreeID, Primary: worktree.ExitActionCommitPush, Base: "main",
+					Actions: []worktree.ExitActionPlan{{
+						Action: worktree.ExitActionCommitPush, Label: "Commit and push", Enabled: true, Publish: true,
+					}},
+					CommitScope: worktree.ExitCommitScope{
+						ChangedFiles: 2, Insertions: 3, Deletions: 1, UntrackedFiles: []string{"new.txt"},
+						UntrackedTotal: 1,
+					},
+					Forge: &worktree.ForgeCapabilities{
+						Provider: "github", RequestNoun: "PR", OpenActionLabel: "Open PR",
+						ViewActionLabel: "View PR", SupportsDraft: true, CredentialSource: "binding",
+					},
+					Cleanup:    worktree.ExitCleanupEvidence{ForgeState: "open", Safe: true, Source: "forge"},
+					RemoteURLs: []string{"https://token@github.com/acme/repo.git"},
+				}, nil
+			},
+			runExit: func(
+				_ context.Context,
+				workspaceID, worktreeID string,
+				request worktree.ExitActionRequest,
+			) (string, error) {
+				if workspaceID != "registry-a" || worktreeID != "wt-a" {
+					t.Fatalf("RunExitAction() args = %q, %q", workspaceID, worktreeID)
+				}
+				runRequest = request
+				return "op-exit", nil
+			},
+			cancelExit: func(_ context.Context, workspaceID, worktreeID, opID string) error {
+				if workspaceID != "registry-a" || worktreeID != "wt-a" {
+					t.Fatalf("CancelExitAction() args = %q, %q", workspaceID, worktreeID)
+				}
+				canceledOperation = opID
+				return nil
+			},
+		},
+	}
+	router := gin.New()
+	path := "/workspaces/:workspace_id/worktrees/:worktree_id/exit"
+	router.GET(path, handlers.GetWorktreeExitPlan)
+	router.POST(path+"/actions", handlers.RunWorktreeExitAction)
+	router.POST(path+"/cancel", handlers.CancelWorktreeExitAction)
+
+	t.Run("Should return the complete plan without internal remote URLs", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/workspaces/workspace-a/worktrees/wt-a/exit", http.NoBody)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		var payload contract.WorktreeExitPlanResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode exit plan: %v", err)
+		}
+		if response.Code != http.StatusOK || payload.WorktreeID != "wt-a" || payload.Primary != "commit_push" ||
+			len(payload.Actions) != 1 || payload.CommitScope.UntrackedTotal != 1 || payload.Forge == nil ||
+			payload.Forge.Provider != "github" || !payload.Cleanup.Safe || strings.Contains(response.Body.String(), "token@") {
+			t.Fatalf("exit plan status/body = %d/%s", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("Should serialize an empty untracked scope as an array", func(t *testing.T) {
+		t.Parallel()
+		payload := WorktreeExitPlanPayload(&worktree.ExitPlan{})
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("marshal exit plan: %v", err)
+		}
+		if !strings.Contains(string(encoded), `"untracked_files":[]`) {
+			t.Fatalf("empty exit plan = %s, want untracked_files array", encoded)
+		}
+	})
+
+	t.Run("Should accept an action with snake-case options", func(t *testing.T) {
+		body := `{"action":"open_pr","message":"Commit","title":"Exit","body":"Ready","draft":true,"base":"trunk"}`
+		request := httptest.NewRequest(
+			http.MethodPost, "/workspaces/workspace-a/worktrees/wt-a/exit/actions", strings.NewReader(body),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusAccepted || response.Body.String() != `{"op_id":"op-exit"}` ||
+			runRequest.Action != worktree.ExitActionOpenPR || runRequest.Message != "Commit" ||
+			runRequest.Title != "Exit" || runRequest.Body != "Ready" || !runRequest.Draft || runRequest.Base != "trunk" {
+			t.Fatalf("action status/body/request = %d/%s/%#v", response.Code, response.Body.String(), runRequest)
+		}
+	})
+
+	t.Run("Should reject an unknown action before mutation", func(t *testing.T) {
+		before := runRequest
+		request := httptest.NewRequest(
+			http.MethodPost, "/workspaces/workspace-a/worktrees/wt-a/exit/actions",
+			strings.NewReader(`{"action":"publish_everything"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest || runRequest != before {
+			t.Fatalf("invalid action status/request = %d/%#v", response.Code, runRequest)
+		}
+	})
+
+	t.Run("Should cancel the named operation", func(t *testing.T) {
+		request := httptest.NewRequest(
+			http.MethodPost, "/workspaces/workspace-a/worktrees/wt-a/exit/cancel",
+			strings.NewReader(`{"op_id":" op-exit "}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent || canceledOperation != "op-exit" {
+			t.Fatalf("cancel status/op = %d/%q", response.Code, canceledOperation)
 		}
 	})
 }

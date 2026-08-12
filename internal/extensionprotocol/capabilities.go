@@ -18,6 +18,8 @@ const (
 	CapabilityProvideWatchSource = "loop.watch_source"
 	// CapabilityProvideConnectivityProvider is the public provide surface for daemon reachability providers.
 	CapabilityProvideConnectivityProvider = "connectivity.provider"
+	// CapabilityProvideForgeProvider is the provide surface for remote code-forge operations.
+	CapabilityProvideForgeProvider = "forge.provider"
 )
 
 // ExtensionServiceMethod identifies one Compozy -> extension capability service request.
@@ -36,6 +38,9 @@ const (
 	ExtensionServiceMethodConnectivityEstablish ExtensionServiceMethod = "connectivity/establish"
 	ExtensionServiceMethodConnectivityStatus    ExtensionServiceMethod = "connectivity/status"
 	ExtensionServiceMethodConnectivityTeardown  ExtensionServiceMethod = "connectivity/teardown"
+	ExtensionServiceMethodForgeCapabilities     ExtensionServiceMethod = "forge/capabilities"
+	ExtensionServiceMethodForgeStatus           ExtensionServiceMethod = "forge/status"
+	ExtensionServiceMethodForgePRCreate         ExtensionServiceMethod = "forge/pr_create"
 )
 
 var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
@@ -62,6 +67,11 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 		ExtensionServiceMethodConnectivityEstablish,
 		ExtensionServiceMethodConnectivityStatus,
 		ExtensionServiceMethodConnectivityTeardown,
+	},
+	CapabilityProvideForgeProvider: {
+		ExtensionServiceMethodForgeCapabilities,
+		ExtensionServiceMethodForgeStatus,
+		ExtensionServiceMethodForgePRCreate,
 	},
 }
 

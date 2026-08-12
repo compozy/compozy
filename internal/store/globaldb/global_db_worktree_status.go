@@ -136,10 +136,26 @@ func (g *WorktreeRepo) InsertExitOperation(ctx context.Context, operation worktr
 	if err := g.checkReady(ctx, "insert worktree exit operation"); err != nil {
 		return err
 	}
-	err := g.queries.InsertWorktreeExitOperation(ctx, sqlcgen.InsertWorktreeExitOperationParams{
-		OpID: operation.ID, WorkspaceID: operation.WorkspaceID, WorktreeID: operation.WorktreeID,
-		Action: operation.Action, State: operation.State,
-		StartedAt: store.FormatTimestamp(operation.StartedAt), FinishedAt: nullableTime(operation.FinishedAt),
+	err := g.withImmediateTransaction(ctx, "insert worktree exit operation", func(exec globalSQLExecutor) error {
+		queries := sqlcgen.New(exec)
+		item, getErr := queries.GetWorktreeByID(ctx, sqlcgen.GetWorktreeByIDParams{
+			WorkspaceID: strings.TrimSpace(operation.WorkspaceID),
+			WorktreeID:  strings.TrimSpace(operation.WorktreeID),
+		})
+		if errors.Is(getErr, sql.ErrNoRows) {
+			return worktree.ErrNotFound
+		}
+		if getErr != nil {
+			return fmt.Errorf("read exit target: %w", getErr)
+		}
+		if item.State != string(worktree.StateReady) {
+			return worktree.ErrNotReady
+		}
+		return queries.InsertWorktreeExitOperation(ctx, sqlcgen.InsertWorktreeExitOperationParams{
+			OpID: operation.ID, WorkspaceID: operation.WorkspaceID, WorktreeID: operation.WorktreeID,
+			Action: operation.Action, State: operation.State,
+			StartedAt: store.FormatTimestamp(operation.StartedAt), FinishedAt: nullableTime(operation.FinishedAt),
+		})
 	})
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
@@ -148,6 +164,32 @@ func (g *WorktreeRepo) InsertExitOperation(ctx context.Context, operation worktr
 		return fmt.Errorf("store: insert worktree exit operation: %w", err)
 	}
 	return nil
+}
+
+func (g *WorktreeRepo) ListRunningExitOperations(ctx context.Context) ([]worktree.ExitOperation, error) {
+	if err := g.checkReady(ctx, "list running worktree exit operations"); err != nil {
+		return nil, err
+	}
+	rows, err := g.queries.ListRunningWorktreeExitOperations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("store: list running worktree exit operations: %w", err)
+	}
+	operations := make([]worktree.ExitOperation, 0, len(rows))
+	for _, row := range rows {
+		startedAt, parseErr := store.ParseTimestamp(row.StartedAt)
+		if parseErr != nil {
+			return nil, fmt.Errorf("store: parse worktree exit start: %w", parseErr)
+		}
+		finishedAt, parseErr := pointerTime(row.FinishedAt)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		operations = append(operations, worktree.ExitOperation{
+			ID: row.OpID, WorkspaceID: row.WorkspaceID, WorktreeID: row.WorktreeID,
+			Action: row.Action, State: row.State, StartedAt: startedAt, FinishedAt: finishedAt,
+		})
+	}
+	return operations, nil
 }
 
 func (g *WorktreeRepo) FinishExitOperation(

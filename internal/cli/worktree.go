@@ -15,6 +15,11 @@ func newWorktreeCommand(deps commandDeps) *cobra.Command {
 		newWorktreeAdoptCommand(deps),
 		newWorktreeInspectCommand(deps),
 		newWorktreeStatusCommand(deps),
+		newWorktreeExitCommand(deps),
+		newWorktreeCommitCommand(deps),
+		newWorktreePushCommand(deps),
+		newWorktreePRCommand(deps),
+		newWorktreeExitCancelCommand(deps),
 		newWorktreeRemoveCommand(deps),
 		newWorktreeDismissCommand(deps),
 	)

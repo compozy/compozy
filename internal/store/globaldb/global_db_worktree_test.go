@@ -155,6 +155,65 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should commit an exit terminal state and replay event atomically", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "terminal-event", t.TempDir())
+		now := time.Date(2026, 8, 12, 17, 30, 0, 0, time.UTC)
+		item := worktreepkg.Worktree{
+			ID: "wt_terminal_event", WorkspaceID: workspaceID, Name: "terminal-event",
+			Branch: "feature/terminal", Path: filepath.Join(t.TempDir(), "terminal"),
+			State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual,
+			SetupState: worktreepkg.SetupNone, CreatedAt: now, UpdatedAt: now,
+		}
+		if err := globalDB.Worktrees.Insert(ctx, item); err != nil {
+			t.Fatalf("Insert() error = %v", err)
+		}
+		operation := worktreepkg.ExitOperation{
+			ID: "op-terminal", WorkspaceID: workspaceID, WorktreeID: item.ID,
+			Action: "push", State: "running", StartedAt: now,
+		}
+		if err := globalDB.Worktrees.InsertExitOperation(ctx, operation); err != nil {
+			t.Fatalf("InsertExitOperation() error = %v", err)
+		}
+		event := worktreepkg.LifecycleEvent{
+			Name: worktreepkg.EventExitActionCompleted, WorkspaceID: workspaceID, WorktreeID: item.ID,
+			Payload: json.RawMessage(`{"op_id":"op-terminal","state":"completed"}`),
+		}
+		if _, err := globalDB.FinishExitOperationWithEvent(
+			ctx, workspaceID, item.ID, operation.ID, "invalid", now, event,
+		); err == nil {
+			t.Fatal("FinishExitOperationWithEvent(invalid state) error = nil")
+		}
+		running, err := globalDB.Worktrees.ListRunningExitOperations(ctx)
+		if err != nil || len(running) != 1 {
+			t.Fatalf("running after rollback = %#v, %v, want original operation", running, err)
+		}
+		summaries, err := globalDB.ListEventSummaries(ctx, store.EventSummaryQuery{
+			WorkspaceID: workspaceID, WorktreeID: item.ID, Type: event.Name,
+		})
+		if err != nil || len(summaries) != 0 {
+			t.Fatalf("events after rollback = %#v, %v, want none", summaries, err)
+		}
+		finished, err := globalDB.FinishExitOperationWithEvent(
+			ctx, workspaceID, item.ID, operation.ID, "completed", now, event,
+		)
+		if err != nil || !finished {
+			t.Fatalf("FinishExitOperationWithEvent() = %t, %v", finished, err)
+		}
+		running, err = globalDB.Worktrees.ListRunningExitOperations(ctx)
+		if err != nil || len(running) != 0 {
+			t.Fatalf("running after commit = %#v, %v, want none", running, err)
+		}
+		summaries, err = globalDB.ListEventSummaries(ctx, store.EventSummaryQuery{
+			WorkspaceID: workspaceID, WorktreeID: item.ID, Type: event.Name,
+		})
+		if err != nil || len(summaries) != 1 {
+			t.Fatalf("events after commit = %#v, %v, want one", summaries, err)
+		}
+	})
+
 	t.Run("Should enforce profile run binding and one-active-exit constraints in SQLite", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
@@ -240,6 +299,59 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			ctx, `UPDATE sessions SET worktree_id = ? WHERE id = ?`, item.ID, "session-worktree-constraints",
 		); err == nil {
 			t.Fatal("cross-workspace session binding succeeded, want composite FK rejection")
+		}
+	})
+
+	t.Run("Should make exit start and removal mutually exclusive at the SQLite fence", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t, globalDB, "exit-removal-fence", filepath.Join(t.TempDir(), "workspace"),
+		)
+		now := time.Date(2026, 8, 12, 19, 10, 0, 0, time.UTC)
+		insertReady := func(id string) {
+			t.Helper()
+			if err := globalDB.Worktrees.Insert(ctx, worktreepkg.Worktree{
+				ID: id, WorkspaceID: workspaceID, Name: id, Branch: "feature/" + id,
+				Path: filepath.Join(t.TempDir(), id), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatalf("Insert(%s) error = %v", id, err)
+			}
+		}
+
+		insertReady("wt_exit_first")
+		exitOperation := worktreepkg.ExitOperation{
+			ID: "op-exit-first", WorkspaceID: workspaceID, WorktreeID: "wt_exit_first",
+			Action: "push", State: "running", StartedAt: now,
+		}
+		if err := globalDB.Worktrees.InsertExitOperation(ctx, exitOperation); err != nil {
+			t.Fatalf("InsertExitOperation(exit first) error = %v", err)
+		}
+		if swapped, err := globalDB.Worktrees.CompareAndSwapState(
+			ctx, workspaceID, "wt_exit_first", worktreepkg.StateReady, worktreepkg.StateRemoving, now,
+		); err != nil || swapped {
+			t.Fatalf("CompareAndSwapState(after exit) = %t, %v, want false nil", swapped, err)
+		}
+		running, err := globalDB.Worktrees.ListRunningExitOperations(ctx)
+		if err != nil || len(running) != 1 || running[0].ID != exitOperation.ID ||
+			running[0].WorkspaceID != workspaceID || running[0].WorktreeID != "wt_exit_first" {
+			t.Fatalf("ListRunningExitOperations() = %#v, %v", running, err)
+		}
+
+		insertReady("wt_remove_first")
+		if swapped, err := globalDB.Worktrees.CompareAndSwapState(
+			ctx, workspaceID, "wt_remove_first", worktreepkg.StateReady, worktreepkg.StateRemoving, now,
+		); err != nil || !swapped {
+			t.Fatalf("CompareAndSwapState(removal first) = %t, %v, want true nil", swapped, err)
+		}
+		if err := globalDB.Worktrees.InsertExitOperation(ctx, worktreepkg.ExitOperation{
+			ID: "op-remove-first", WorkspaceID: workspaceID, WorktreeID: "wt_remove_first",
+			Action: "commit", State: "running", StartedAt: now,
+		}); !errors.Is(err, worktreepkg.ErrNotReady) {
+			t.Fatalf("InsertExitOperation(after removal) error = %v, want ErrNotReady", err)
 		}
 	})
 

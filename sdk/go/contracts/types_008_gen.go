@@ -175,22 +175,32 @@ type FireLimitConfig struct {
 	Window string `json:"window"`
 }
 
-type GatewayIngressPayload struct {
-	SubjectKind                 string     `json:"subject_kind"`
-	SubjectID                   string     `json:"subject_id"`
-	ScopeKind                   string     `json:"scope_kind"`
-	WorkspaceID                 string     `json:"workspace_id,omitempty"`
-	URL                         string     `json:"url,omitempty"`
-	Reachability                string     `json:"reachability"`
-	EndpointGeneration          uint64     `json:"endpoint_generation"`
-	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
-	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
-	EnablePath                  string     `json:"enable_path,omitempty"`
+type ForgeCapabilitiesRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
 }
 
-type HeartbeatActorKind string
+type ForgeCapabilitiesResponse struct {
+	Served             bool     `json:"served"`
+	Available          bool     `json:"available"`
+	Winner             string   `json:"winner,omitempty"`
+	Provider           string   `json:"provider,omitempty"`
+	ServedRemote       string   `json:"served_remote,omitempty"`
+	RequestNoun        string   `json:"request_noun,omitempty"`
+	OpenActionLabel    string   `json:"open_action_label,omitempty"`
+	ViewActionLabel    string   `json:"view_action_label,omitempty"`
+	SupportsDraft      bool     `json:"supports_draft,omitempty"`
+	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
+	TemplatePaths      []string `json:"template_paths,omitempty"`
+	CredentialSource   string   `json:"credential_source,omitempty"`
+	DefaultBranch      string   `json:"default_branch,omitempty"`
+	Cause              string   `json:"cause,omitempty"`
+}
 
-type HeartbeatActorPayload struct {
-	Kind HeartbeatActorKind `json:"kind"`
-	Ref  string             `json:"ref,omitempty"`
+type ForgePRCreateRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Head       string   `json:"head"`
+	Base       string   `json:"base"`
+	Title      string   `json:"title"`
+	Body       string   `json:"body,omitempty"`
+	Draft      bool     `json:"draft,omitempty"`
 }

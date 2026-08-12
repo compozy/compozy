@@ -284,6 +284,13 @@ func (s *memoryWorktreeStore) CompareAndSwapState(
 	if !ok || item.State != expected {
 		return false, nil
 	}
+	if next == StateRemoving {
+		for _, operation := range s.exitOps {
+			if operation.WorktreeID == id && operation.State == "running" {
+				return false, nil
+			}
+		}
+	}
 	item.State, item.UpdatedAt = next, updatedAt
 	s.items[key] = item
 	return true, nil
@@ -353,6 +360,13 @@ func (s *memoryWorktreeStore) GetForgeStatus(_ context.Context, workspaceID, id 
 func (s *memoryWorktreeStore) InsertExitOperation(_ context.Context, operation ExitOperation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	item, ok := s.items[worktreeStoreKey(operation.WorkspaceID, operation.WorktreeID)]
+	if !ok {
+		return ErrNotFound
+	}
+	if item.State != StateReady {
+		return ErrNotReady
+	}
 	for _, existing := range s.exitOps {
 		if existing.WorktreeID == operation.WorktreeID && existing.State == "running" {
 			return ErrOperationInProgress
@@ -360,6 +374,24 @@ func (s *memoryWorktreeStore) InsertExitOperation(_ context.Context, operation E
 	}
 	s.exitOps[operation.ID] = operation
 	return nil
+}
+
+func (s *memoryWorktreeStore) ListRunningExitOperations(context.Context) ([]ExitOperation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	operations := make([]ExitOperation, 0)
+	for _, operation := range s.exitOps {
+		if operation.State == "running" {
+			operations = append(operations, operation)
+		}
+	}
+	slices.SortFunc(operations, func(first, second ExitOperation) int {
+		if order := first.StartedAt.Compare(second.StartedAt); order != 0 {
+			return order
+		}
+		return strings.Compare(first.ID, second.ID)
+	})
+	return operations, nil
 }
 
 func (s *memoryWorktreeStore) FinishExitOperation(

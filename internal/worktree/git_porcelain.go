@@ -3,6 +3,7 @@ package worktree
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -10,6 +11,30 @@ import (
 type ParseError struct {
 	Format string
 	Record string
+}
+
+// ParseUntrackedStatusV2 returns the exact untracked additions from a porcelain-v2
+// snapshot. Ignored records are deliberately absent from the result.
+func ParseUntrackedStatusV2(output []byte) ([]string, error) {
+	files := make([]string, 0)
+	for _, record := range bytes.Split(output, []byte{0}) {
+		if len(record) == 0 || record[0] == '#' || record[0] == '!' {
+			continue
+		}
+		if record[0] != '?' {
+			continue
+		}
+		if len(record) < 3 || record[1] != ' ' {
+			return nil, &ParseError{Format: "status-v2-untracked", Record: string(record)}
+		}
+		name := string(record[2:])
+		if name == "" {
+			return nil, &ParseError{Format: "status-v2-untracked", Record: string(record)}
+		}
+		files = append(files, name)
+	}
+	slices.Sort(files)
+	return files, nil
 }
 
 func (e *ParseError) Error() string {

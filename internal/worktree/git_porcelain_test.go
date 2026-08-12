@@ -70,6 +70,24 @@ func TestGitPorcelain(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve exact untracked names while excluding ignored paths", func(t *testing.T) {
+		t.Parallel()
+		got, err := ParseUntrackedStatusV2([]byte(
+			"? z dir/new file.txt\x00! ignored.env\x00? a\nnewline.txt\x001 M. N... tracked.txt\x00",
+		))
+		if err != nil || len(got) != 2 || got[0] != "a\nnewline.txt" || got[1] != "z dir/new file.txt" {
+			t.Fatalf("ParseUntrackedStatusV2() = (%#v, %v), want sorted exact untracked names", got, err)
+		}
+	})
+
+	t.Run("Should preserve whitespace-only untracked names", func(t *testing.T) {
+		t.Parallel()
+		got, err := ParseUntrackedStatusV2([]byte("?  \x00? \t\x00"))
+		if err != nil || len(got) != 2 || got[0] != "\t" || got[1] != " " {
+			t.Fatalf("ParseUntrackedStatusV2(whitespace) = (%#v, %v)", got, err)
+		}
+	})
+
 	t.Run("Should consume rename pairs and preserve newline filenames", func(t *testing.T) {
 		t.Parallel()
 		fixture := []byte("# branch.oid abc\n# branch.head main\n" +

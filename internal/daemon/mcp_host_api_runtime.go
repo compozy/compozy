@@ -61,6 +61,7 @@ var (
 	_ extensionRuntime                  = (*extensionRuntimeWithMCPHostAPI)(nil)
 	_ extensionpkg.ExtensionToolRuntime = (*extensionRuntimeWithMCPHostAPI)(nil)
 	_ extensionpkg.ModelSourceRuntime   = (*extensionRuntimeWithMCPHostAPI)(nil)
+	_ extensionpkg.ForgeRuntime         = (*extensionRuntimeWithMCPHostAPI)(nil)
 	_ watchpkg.Poller                   = (*extensionRuntimeWithMCPHostAPI)(nil)
 	_ bridgepkg.DeliveryTransport       = (*extensionRuntimeWithMCPHostAPI)(nil)
 	_ bridgepkg.TargetSnapshotTransport = (*extensionRuntimeWithMCPHostAPI)(nil)

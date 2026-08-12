@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+type Spec struct {
+	Version         string          `json:"version"`
+	Mode            Mode            `json:"mode"`
+	WorkspaceID     string          `json:"workspace_id,omitempty"`
+	ChannelStrategy ChannelStrategy `json:"channel_strategy,omitempty"`
+	ChannelID       string          `json:"channel_id,omitempty"`
+	Source          Source          `json:"source"`
+	Bounds          Bounds          `json:"bounds,omitzero"`
+}
+
+type Speed string
+
+type State string
+
+type Status string
+
+type StopReason string
+
+type StuckTaskRun struct {
+	TaskID     string        `json:"task_id"`
+	RunID      string        `json:"run_id"`
+	Status     TaskRunStatus `json:"status"`
+	OriginKind OriginKind    `json:"origin_kind"`
+	ChannelID  string        `json:"channel_id,omitempty"`
+	SessionID  string        `json:"session_id,omitempty"`
+	AgeMillis  int64         `json:"age_ms"`
+}
+
 type TargetKind string
 
 type Task struct {
@@ -255,52 +283,4 @@ type TaskDashboardFreshnessPayload struct {
 	HasLiveWork      bool      `json:"has_live_work"`
 	Status           string    `json:"status"`
 	Stale            bool      `json:"stale"`
-}
-
-type TaskDashboardHealthPayload struct {
-	Status           string `json:"status"`
-	StuckRuns        int    `json:"stuck_runs"`
-	ActiveOrphanRuns int    `json:"active_orphan_runs"`
-	QueueBacklog     bool   `json:"queue_backlog"`
-}
-
-type TaskDashboardInProgressCardPayload struct {
-	Tasks        int    `json:"tasks"`
-	ActiveRuns   int    `json:"active_runs"`
-	RunningRuns  int    `json:"running_runs"`
-	StartingRuns int    `json:"starting_runs"`
-	ClaimedRuns  int    `json:"claimed_runs"`
-	QueuedRuns   int    `json:"queued_runs"`
-	HealthStatus string `json:"health_status"`
-}
-
-type TaskDashboardLatencyCardPayload struct {
-	ClaimLatencyMillis TaskLatencyMetricPayload `json:"claim_latency_ms"`
-	StartLatencyMillis TaskLatencyMetricPayload `json:"start_latency_ms"`
-}
-
-type TaskDashboardParams struct {
-	Scope                TaskScope  `json:"scope,omitempty"`
-	Workspace            string     `json:"workspace,omitempty"`
-	OwnerKind            OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef             string     `json:"owner_ref,omitempty"`
-	ParticipationChannel string     `json:"participation_channel,omitempty"`
-	OriginKind           OriginKind `json:"origin_kind,omitempty"`
-}
-
-type TaskDashboardQueueDepthPayload struct {
-	ChannelID           string    `json:"channel_id,omitempty"`
-	Count               int       `json:"count"`
-	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
-	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
-}
-
-type TaskDashboardQueuePayload struct {
-	Total                 int                              `json:"total"`
-	Depth                 []TaskDashboardQueueDepthPayload `json:"depth,omitempty"`
-	OldestQueuedAt        time.Time                        `json:"oldest_queued_at"`
-	OldestQueueAgeMilli   int64                            `json:"oldest_queue_age_ms"`
-	BacklogWarning        bool                             `json:"backlog_warning"`
-	BacklogStatus         string                           `json:"backlog_status"`
-	BacklogThresholdMilli int64                            `json:"backlog_threshold_ms"`
 }

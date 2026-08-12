@@ -2,8 +2,8 @@ package worktree
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 )
@@ -41,15 +41,7 @@ func (s *Service) StatusDetails(
 	if s.forge == nil {
 		return nil, ErrForgeUnavailable
 	}
-	stdout, stderr, err := s.runner.Run(ctx, item.Path, "remote", "get-url", "--all", "origin")
-	if err != nil {
-		detail := strings.TrimSpace(string(stderr))
-		if detail == "" {
-			detail = err.Error()
-		}
-		return nil, fmt.Errorf("%w: %s", ErrForge, diagnostics.RedactAndBound(detail, 2048))
-	}
-	remoteURLs := strings.Fields(string(stdout))
+	remoteURLs := s.readOriginRemoteURLs(ctx, item.Path)
 	if len(remoteURLs) == 0 {
 		return nil, fmt.Errorf("%w: origin remote is unavailable", ErrForge)
 	}
@@ -60,7 +52,12 @@ func (s *Service) StatusDetails(
 		Branch:      item.Branch,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrForge, diagnostics.RedactAndBound(err.Error(), 2048))
+		kind := ErrForge
+		if errors.Is(err, ErrForgeUnavailable) {
+			kind = ErrForgeUnavailable
+		}
+		safeErr := errors.New(diagnostics.RedactAndBound(err.Error(), 2048))
+		return nil, NewForgeFailure(kind, ForgeFailureCause(err), safeErr)
 	}
 	if forgeStatus == nil {
 		return nil, fmt.Errorf("%w: provider returned no status", ErrForge)

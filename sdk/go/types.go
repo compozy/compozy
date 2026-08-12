@@ -36,6 +36,9 @@ const CapabilityProvideWatchSource = "loop.watch_source"
 // CapabilityProvideConnectivityProvider is the public daemon reachability surface.
 const CapabilityProvideConnectivityProvider = "connectivity.provider"
 
+// CapabilityProvideForgeProvider is the public forge integration surface.
+const CapabilityProvideForgeProvider = "forge.provider"
+
 // ExtensionServiceMethodProvideTools is the runtime descriptor service method.
 const ExtensionServiceMethodProvideTools = "provide_tools"
 
@@ -52,6 +55,15 @@ const (
 	ExtensionServiceMethodConnectivityStatus = "connectivity/status"
 	// ExtensionServiceMethodConnectivityTeardown stops one connectivity tier.
 	ExtensionServiceMethodConnectivityTeardown = "connectivity/teardown"
+)
+
+const (
+	// ExtensionServiceMethodForgeCapabilities reports provider vocabulary and availability.
+	ExtensionServiceMethodForgeCapabilities = "forge/capabilities"
+	// ExtensionServiceMethodForgeStatus reads pull request state for one branch.
+	ExtensionServiceMethodForgeStatus = "forge/status"
+	// ExtensionServiceMethodForgePRCreate creates or returns one pull request.
+	ExtensionServiceMethodForgePRCreate = "forge/pr_create"
 )
 
 const (

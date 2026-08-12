@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/extensions/connectivity/tailscale"
 	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	forgegithub "github.com/compozy/compozy/extensions/forge/github"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -30,6 +31,9 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 	if err := tailscale.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
 		return fmt.Errorf("daemon: enroll Tailscale connectivity extension: %w", err)
+	}
+	if err := forgegithub.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
+		return fmt.Errorf("daemon: enroll GitHub forge extension: %w", err)
 	}
 	if err := d.configureExtensionResourcePublishers(state, extRegistry); err != nil {
 		return err

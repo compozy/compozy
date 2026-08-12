@@ -10,6 +10,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
@@ -20,6 +21,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	}
 	if code := WorktreeErrorCode(err); code != "" {
 		payload.Code = code
+	}
+	if cause := worktree.ForgeFailureCause(err); cause != "" {
+		payload.Details = map[string]string{"cause": cause}
 	}
 	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
 		payload.Code = string(reason.Code)

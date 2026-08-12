@@ -172,6 +172,7 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 		worktree.WithHooks(daemonWorktreeHookDispatcher{hooks: state.hookDispatcher, now: d.now}),
 		worktree.WithEvents(registry),
 		worktree.WithSessionGuard(daemonWorktreeSessionGuard{registry: registry}),
+		worktree.WithForge(daemonExtensionForgeProvider{runtime: state.currentExtensionRuntime}),
 		worktree.WithLogger(state.logger),
 		worktree.WithClock(d.now),
 	)

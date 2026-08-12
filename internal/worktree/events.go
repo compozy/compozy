@@ -3,7 +3,9 @@ package worktree
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/redact"
 )
@@ -52,6 +54,31 @@ type LifecycleEvent struct {
 
 type EventSink interface {
 	PublishWorktreeEvent(context.Context, LifecycleEvent) error
+}
+
+// ExitTerminalEventSink commits an exit operation's terminal state and replay
+// event together. The production store implements this boundary transactionally.
+type ExitTerminalEventSink interface {
+	FinishExitOperationWithEvent(
+		context.Context,
+		string,
+		string,
+		string,
+		string,
+		time.Time,
+		LifecycleEvent,
+	) (bool, error)
+}
+
+type ExitEventPayload struct {
+	OperationID string            `json:"op_id"`
+	Action      ExitAction        `json:"action"`
+	Phases      []ExitPhase       `json:"phases,omitempty"`
+	Phase       ExitPhase         `json:"phase,omitempty"`
+	State       string            `json:"state,omitempty"`
+	Result      *ExitActionResult `json:"result,omitempty"`
+	Message     string            `json:"message,omitempty"`
+	Cause       string            `json:"cause,omitempty"`
 }
 
 type HookWorktree struct {
@@ -118,4 +145,33 @@ func (s *Service) emit(ctx context.Context, name string, item Worktree) {
 		kind = CatalogEventDeleted
 	}
 	s.publishCatalogEvent(kind, item)
+}
+
+func (s *Service) emitExit(ctx context.Context, name string, operation ExitOperation, value ExitEventPayload) {
+	if s.events == nil {
+		return
+	}
+	event, err := exitLifecycleEvent(name, operation, value)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "worktree exit event payload failed", "event", name, "error", err)
+		return
+	}
+	if err := s.events.PublishWorktreeEvent(ctx, event); err != nil {
+		s.logger.WarnContext(
+			ctx, "worktree exit event dispatch failed open", "event", name,
+			"error", redact.String(err.Error()),
+		)
+	}
+}
+
+func exitLifecycleEvent(name string, operation ExitOperation, value ExitEventPayload) (LifecycleEvent, error) {
+	value.Message = redact.String(value.Message)
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return LifecycleEvent{}, fmt.Errorf("worktree: marshal exit event payload: %w", err)
+	}
+	return LifecycleEvent{
+		Name: name, WorkspaceID: operation.WorkspaceID, WorktreeID: operation.WorktreeID,
+		Payload: payload,
+	}, nil
 }

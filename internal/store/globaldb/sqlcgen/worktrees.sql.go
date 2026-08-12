@@ -12,9 +12,18 @@ import (
 
 const compareAndSwapWorktreeState = `-- name: CompareAndSwapWorktreeState :execrows
 UPDATE worktrees SET state = ?1, updated_at = ?2
-WHERE workspace_id = ?3
-  AND id = ?4
-  AND state = ?5
+WHERE worktrees.workspace_id = ?3
+  AND worktrees.id = ?4
+  AND worktrees.state = ?5
+  AND (
+    ?1 <> 'removing'
+    OR NOT EXISTS (
+      SELECT 1 FROM worktree_exit_ops
+	  WHERE worktree_exit_ops.workspace_id = ?3
+	    AND worktree_exit_ops.worktree_id = ?4
+		AND worktree_exit_ops.state = 'running'
+    )
+  )
 `
 
 type CompareAndSwapWorktreeStateParams struct {
@@ -233,6 +242,44 @@ func (q *Queries) GetWorktree(ctx context.Context, arg GetWorktreeParams) (Workt
 	return i, err
 }
 
+const getWorktreeByID = `-- name: GetWorktreeByID :one
+SELECT id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
+WHERE workspace_id = ?1
+  AND id = ?2
+LIMIT 1
+`
+
+type GetWorktreeByIDParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id"`
+}
+
+func (q *Queries) GetWorktreeByID(ctx context.Context, arg GetWorktreeByIDParams) (Worktree, error) {
+	row := q.db.QueryRowContext(ctx, getWorktreeByID, arg.WorkspaceID, arg.WorktreeID)
+	var i Worktree
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Branch,
+		&i.Path,
+		&i.GitDir,
+		&i.State,
+		&i.PendingPhase,
+		&i.Origin,
+		&i.SetupState,
+		&i.SetupError,
+		&i.BaseRef,
+		&i.CreatedBranch,
+		&i.RunNamespace,
+		&i.CreatedHead,
+		&i.RunID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getWorktreeForgeStatus = `-- name: GetWorktreeForgeStatus :one
 SELECT fs.worktree_id, fs.provider, fs.pr_number, fs.pr_state, fs.pr_url, fs.merged, fs.fetched_at FROM worktree_forge_status fs
 JOIN worktrees w ON w.id = fs.worktree_id
@@ -415,6 +462,43 @@ func (q *Queries) ListRecoverableWorktrees(ctx context.Context) ([]Worktree, err
 			&i.RunID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRunningWorktreeExitOperations = `-- name: ListRunningWorktreeExitOperations :many
+SELECT op_id, workspace_id, worktree_id, "action", state, started_at, finished_at FROM worktree_exit_ops
+WHERE state = 'running'
+ORDER BY started_at, op_id
+`
+
+func (q *Queries) ListRunningWorktreeExitOperations(ctx context.Context) ([]WorktreeExitOp, error) {
+	rows, err := q.db.QueryContext(ctx, listRunningWorktreeExitOperations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorktreeExitOp{}
+	for rows.Next() {
+		var i WorktreeExitOp
+		if err := rows.Scan(
+			&i.OpID,
+			&i.WorkspaceID,
+			&i.WorktreeID,
+			&i.Action,
+			&i.State,
+			&i.StartedAt,
+			&i.FinishedAt,
 		); err != nil {
 			return nil, err
 		}

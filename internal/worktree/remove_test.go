@@ -318,17 +318,17 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Run("Should resume a stale removal and fail interrupted exit operations", func(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)
-		if err := fixture.store.SetState(
-			context.Background(), fixture.workspace.ID, fixture.item.ID, StateRemoving, fixture.item.UpdatedAt,
-		); err != nil {
-			t.Fatalf("seed removing state: %v", err)
-		}
 		op := ExitOperation{
 			ID: "op-interrupted", WorkspaceID: fixture.workspace.ID, WorktreeID: fixture.item.ID,
 			Action: "push", State: "running", StartedAt: fixture.item.CreatedAt,
 		}
 		if err := fixture.store.InsertExitOperation(context.Background(), op); err != nil {
 			t.Fatalf("seed running exit operation: %v", err)
+		}
+		if err := fixture.store.SetState(
+			context.Background(), fixture.workspace.ID, fixture.item.ID, StateRemoving, fixture.item.UpdatedAt,
+		); err != nil {
+			t.Fatalf("seed removing state: %v", err)
 		}
 		if err := fixture.service.RecoverCreations(context.Background()); err != nil {
 			t.Fatalf("RecoverCreations() error = %v", err)

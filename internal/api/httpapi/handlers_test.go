@@ -280,6 +280,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/worktrees/catalog-stream",
 		"GET /api/workspaces/:workspace_id/worktrees",
 		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id",
+		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/exit",
 		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/status",
 		"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/stream",
 		"GET /api/workspaces/:workspace_id/loop-runs",
@@ -334,6 +335,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/worktrees/adopt",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/cancel",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/dismiss",
+		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/actions",
+		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/cancel",
 		"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/accept",
 		"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/dismiss",
 		"POST /api/memory",
@@ -1038,6 +1041,16 @@ func TestMemoryRoutesMatchV2Contract(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	apitestutil.AssertMemoryV2RouteParity(t, apitestutil.MemoryV2RouteKeysFromGin(engine.Routes()))
+}
+
+func TestWorktreeRoutesMatchTransportParityContractIT033(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	apitestutil.AssertWorktreeRouteParity(t, apitestutil.WorktreeRouteKeysFromGin(engine.Routes()))
 }
 
 func TestRegisterRoutesSkipsNilHandlers(t *testing.T) {

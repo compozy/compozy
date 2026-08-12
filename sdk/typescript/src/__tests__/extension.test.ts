@@ -12,6 +12,13 @@ import {
   type ConnectivityProviderHandlers,
 } from "../connectivity-provider.js";
 import {
+  FORGE_CAPABILITIES_METHOD,
+  FORGE_PR_CREATE_METHOD,
+  FORGE_STATUS_METHOD,
+  registerForgeProvider,
+  type ForgeProviderHandlers,
+} from "../forge-provider.js";
+import {
   CapabilityDeniedError,
   InternalError,
   InvalidParamsError,
@@ -606,6 +613,53 @@ describe("Extension", () => {
     ).resolves.toEqual({ stopped: true });
   });
 
+  it("registers and serves a forge provider", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension({ name: "forge", version: "0.1.0" });
+    registerForgeProvider(extension, forgeHandlers());
+    await harness.loadExtension(extension);
+
+    expect(extension.definition.capabilities?.provides).toContain("forge.provider");
+    expect(harness.getLastInitializeResponse()?.implemented_methods).toEqual(
+      expect.arrayContaining([
+        FORGE_CAPABILITIES_METHOD,
+        FORGE_STATUS_METHOD,
+        FORGE_PR_CREATE_METHOD,
+      ])
+    );
+    await expect(
+      harness.call(FORGE_CAPABILITIES_METHOD, {
+        remote_urls: ["https://github.com/acme/repo.git"],
+      })
+    ).resolves.toMatchObject({ served: true, provider: "test" });
+    await expect(
+      harness.call(FORGE_STATUS_METHOD, {
+        remote_urls: ["https://github.com/acme/repo.git"],
+        branch: "feature/exit",
+      })
+    ).resolves.toMatchObject({ provider: "test", pr_number: 7 });
+    await expect(
+      harness.call(FORGE_PR_CREATE_METHOD, {
+        remote_urls: ["https://github.com/acme/repo.git"],
+        head: "feature/exit",
+        base: "main",
+        title: "Exit",
+      })
+    ).resolves.toMatchObject({ status: "created", number: 8 });
+  });
+
+  it("keeps forge provider registration atomic across collisions", () => {
+    const extension = new Extension({ name: "forge-collision", version: "0.1.0" });
+    extension.handle(FORGE_STATUS_METHOD, () => ({ provider: "existing" }));
+
+    expect(() => registerForgeProvider(extension, forgeHandlers())).toThrow(
+      "forge/status is already registered"
+    );
+    expect(extension.definition.capabilities?.provides ?? []).not.toContain("forge.provider");
+    expect(() => extension.handle(FORGE_CAPABILITIES_METHOD, () => ({}))).not.toThrow();
+    expect(() => extension.handle(FORGE_PR_CREATE_METHOD, () => ({}))).not.toThrow();
+  });
+
   it("rejects malformed connectivity requests before calling provider handlers", async () => {
     const harness = new TestHarness();
     const establish = vi.fn<ConnectivityProviderHandlers["establish"]>(() => ({
@@ -786,5 +840,27 @@ function connectivityHandlers(): ConnectivityProviderHandlers {
       health: "healthy",
     }),
     teardown: () => ({ stopped: true }),
+  };
+}
+
+function forgeHandlers(): ForgeProviderHandlers {
+  return {
+    capabilities: () => ({
+      served: true,
+      available: true,
+      provider: "test",
+      served_remote: "https://github.com/acme/repo",
+    }),
+    status: () => ({
+      provider: "test",
+      pr_number: 7,
+      pr_state: "open",
+      fetched_at: "2026-08-12T12:00:00Z",
+    }),
+    createPR: () => ({
+      status: "created",
+      number: 8,
+      url: "https://github.com/acme/repo/pull/8",
+    }),
   };
 }

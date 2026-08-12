@@ -6,6 +6,7 @@ const (
 	specAPIWorktreesPath       = "/api/workspaces/{workspace_id}/worktrees"
 	specAPIWorktreePath        = specAPIWorktreesPath + "/{worktree_id}"
 	specAPIWorktreeStatusPath  = specAPIWorktreePath + "/status"
+	specAPIWorktreeExitPath    = specAPIWorktreePath + "/exit"
 	specAPIWorktreeStreamPath  = specAPIWorktreePath + "/stream"
 	specAPIWorktreeCatalogPath = "/api/worktrees/catalog-stream"
 )
@@ -17,6 +18,9 @@ func registryWorktreeOperations() []OperationSpec {
 		adoptWorktreeOperationSpec(),
 		inspectWorktreeOperationSpec(),
 		worktreeStatusOperationSpec(),
+		worktreeExitPlanOperationSpec(),
+		runWorktreeExitActionOperationSpec(),
+		cancelWorktreeExitActionOperationSpec(),
 		cancelWorktreeOperationSpec(),
 		removeWorktreeOperationSpec(),
 		dismissWorktreeOperationSpec(),
@@ -97,6 +101,55 @@ func worktreeStatusOperationSpec() OperationSpec {
 			{Status: 502, Description: "Forge provider error", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Worktree or forge service is unavailable", Body: contract.ErrorPayload{}},
 		},
+	}
+}
+
+func worktreeExitPlanOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodGet, Path: specAPIWorktreeExitPath, OperationID: "getWorktreeExitPlan",
+		Summary: "Read the worktree exit plan", Tags: []string{specWorktreesKey},
+		Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: worktreeRouteParams(),
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.WorktreeExitPlanResponse{}},
+			{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Worktree service is unavailable", Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func runWorktreeExitActionOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodPost, Path: specAPIWorktreeExitPath + "/actions",
+		OperationID: "runWorktreeExitAction", Summary: "Run a worktree exit action",
+		Tags: []string{specWorktreesKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Parameters: worktreeRouteParams(), RequestBody: contract.RunWorktreeExitActionRequest{},
+		Responses: append(worktreeExitMutationResponses(),
+			ResponseSpec{Status: 202, Description: specAcceptedDescription, Body: contract.WorktreeExitOperationResponse{}},
+		),
+	}
+}
+
+func cancelWorktreeExitActionOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method: httpMethodPost, Path: specAPIWorktreeExitPath + "/cancel",
+		OperationID: "cancelWorktreeExitAction", Summary: "Cancel a worktree exit action",
+		Tags: []string{specWorktreesKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Parameters: worktreeRouteParams(), RequestBody: contract.CancelWorktreeExitActionRequest{},
+		Responses: append(worktreeExitMutationResponses(),
+			ResponseSpec{Status: 204, Description: specNoContentDescription},
+		),
+	}
+}
+
+func worktreeExitMutationResponses() []ResponseSpec {
+	return []ResponseSpec{
+		{Status: 400, Description: "Invalid worktree exit request", Body: contract.ErrorPayload{}},
+		{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
+		{Status: 409, Description: "Worktree exit action conflict", Body: contract.ErrorPayload{}},
+		{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		{Status: 502, Description: "Forge provider error", Body: contract.ErrorPayload{}},
+		{Status: 503, Description: "Worktree or forge service is unavailable", Body: contract.ErrorPayload{}},
 	}
 }
 

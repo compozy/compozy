@@ -32,6 +32,14 @@ export {
   registerConnectivityProvider,
 } from "./connectivity-provider.js";
 export type { ConnectivityProviderHandlers } from "./connectivity-provider.js";
+export {
+  FORGE_CAPABILITIES_METHOD,
+  FORGE_PR_CREATE_METHOD,
+  FORGE_PROVIDER_CAPABILITY,
+  FORGE_STATUS_METHOD,
+  registerForgeProvider,
+} from "./forge-provider.js";
+export type { ForgeProviderHandlers } from "./forge-provider.js";
 export { canonicalJSON, schemaDigest } from "./schema-digest.js";
 export type {
   ExtensionContext,
@@ -112,6 +120,12 @@ export type {
   ConnectivityStatusRequest,
   ConnectivityTeardownRequest,
   ConnectivityTeardownResponse,
+  ForgeCapabilitiesRequest,
+  ForgeCapabilitiesResponse,
+  ForgePRCreateRequest,
+  ForgePRCreateResponse,
+  ForgeStatusRequest,
+  ForgeStatusResponse,
   ContextBlock,
   ContextCompactionPatch,
   ContextCompactPayload,

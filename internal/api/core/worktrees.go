@@ -118,6 +118,75 @@ func (h *BaseHandlers) GetWorktreeStatus(c *gin.Context) {
 	})
 }
 
+func (h *BaseHandlers) GetWorktreeExitPlan(c *gin.Context) {
+	scope, id, ok := h.worktreeRoute(c)
+	if !ok {
+		return
+	}
+	plan, err := h.Worktrees.ExitPlan(c.Request.Context(), scope.RegistryID, id)
+	if err != nil {
+		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, WorktreeExitPlanPayload(plan))
+}
+
+func (h *BaseHandlers) RunWorktreeExitAction(c *gin.Context) {
+	scope, id, ok := h.worktreeRoute(c)
+	if !ok {
+		return
+	}
+	var request contract.RunWorktreeExitActionRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("api: decode worktree exit action: %w", err))
+		return
+	}
+	if !validWorktreeExitAction(request.Action) {
+		h.respondError(c, http.StatusBadRequest, errors.New("api: invalid worktree exit action"))
+		return
+	}
+	opID, err := h.Worktrees.RunExitAction(c.Request.Context(), scope.RegistryID, id, worktree.ExitActionRequest{
+		Action: worktree.ExitAction(request.Action), Message: request.Message, Title: request.Title,
+		Body: request.Body, Draft: request.Draft, Base: request.Base,
+	})
+	if err != nil {
+		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+	c.JSON(http.StatusAccepted, contract.WorktreeExitOperationResponse{OperationID: opID})
+}
+
+func (h *BaseHandlers) CancelWorktreeExitAction(c *gin.Context) {
+	scope, id, ok := h.worktreeRoute(c)
+	if !ok {
+		return
+	}
+	var request contract.CancelWorktreeExitActionRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("api: decode worktree exit cancel: %w", err))
+		return
+	}
+	opID := strings.TrimSpace(request.OperationID)
+	if opID == "" {
+		h.respondError(c, http.StatusBadRequest, errors.New("api: op_id is required"))
+		return
+	}
+	if err := h.Worktrees.CancelExitAction(c.Request.Context(), scope.RegistryID, id, opID); err != nil {
+		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func validWorktreeExitAction(action contract.WorktreeExitAction) bool {
+	switch worktree.ExitAction(action) {
+	case worktree.ExitActionCommit, worktree.ExitActionCommitPush, worktree.ExitActionPush, worktree.ExitActionOpenPR:
+		return true
+	default:
+		return false
+	}
+}
+
 func (h *BaseHandlers) CancelWorktreeCreate(c *gin.Context) {
 	scope, id, ok := h.worktreeRoute(c)
 	if !ok {

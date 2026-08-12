@@ -155,3 +155,141 @@ func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 		}
 	})
 }
+
+func TestWorktreeExitCommands(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the exit plan in JSON output", func(t *testing.T) {
+		t.Parallel()
+		client := withWorkspaceResolution(&stubClient{worktreeExitPlanFn: func(
+			_ context.Context,
+			workspaceID, ref string,
+		) (WorktreeExitPlanRecord, error) {
+			if workspaceID != "workspace-a" || ref != "wt-a" {
+				t.Fatalf("GetWorktreeExitPlan() args = %q, %q", workspaceID, ref)
+			}
+			return WorktreeExitPlanRecord{
+				WorktreeID: "wt-a", Primary: "commit_push", Base: "main",
+				Actions: []contract.WorktreeExitActionPlan{{
+					Action: "commit_push", Label: "Commit and push", Enabled: true, Publish: true,
+				}},
+				CommitScope: contract.WorktreeExitCommitScope{
+					ChangedFiles: 2, UntrackedFiles: []string{"new.txt"}, UntrackedTotal: 1,
+				},
+			}, nil
+		}})
+		stdout, _, err := executeRootCommand(
+			t, newWorkspaceTestDeps(t, client),
+			"worktree", "exit", "wt-a", "--workspace", "workspace-a", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("worktree exit error = %v", err)
+		}
+		var got WorktreeExitPlanRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("decode exit output: %v; output=%s", err, stdout)
+		}
+		if got.WorktreeID != "wt-a" || got.Primary != "commit_push" || len(got.Actions) != 1 ||
+			got.CommitScope.UntrackedTotal != 1 {
+			t.Fatalf("worktree exit output = %#v", got)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name string
+		args []string
+		want WorktreeExitActionRequest
+	}{
+		{
+			name: "commit and push flags",
+			args: []string{"commit", "wt-a", "--message", "Ready", "--push"},
+			want: WorktreeExitActionRequest{Action: "commit_push", Message: "Ready"},
+		},
+		{
+			name: "push action",
+			args: []string{"push", "wt-a"},
+			want: WorktreeExitActionRequest{Action: "push"},
+		},
+		{
+			name: "pull request flags",
+			args: []string{"pr", "wt-a", "--title", "Exit", "--body", "Ready", "--draft", "--base", "trunk"},
+			want: WorktreeExitActionRequest{
+				Action: "open_pr", Title: "Exit", Body: "Ready", Draft: true, Base: "trunk",
+			},
+		},
+	} {
+		testCase := testCase
+		t.Run("Should send "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			var got WorktreeExitActionRequest
+			client := withWorkspaceResolution(&stubClient{runWorktreeExitFn: func(
+				_ context.Context,
+				workspaceID, ref string,
+				request WorktreeExitActionRequest,
+			) (WorktreeExitOperationRecord, error) {
+				if workspaceID != "workspace-a" || ref != "wt-a" {
+					t.Fatalf("RunWorktreeExitAction() args = %q, %q", workspaceID, ref)
+				}
+				got = request
+				return WorktreeExitOperationRecord{OperationID: "op-exit"}, nil
+			}})
+			args := append([]string{"worktree"}, testCase.args...)
+			args = append(args, "--workspace", "workspace-a", "-o", "json")
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+			var operation WorktreeExitOperationRecord
+			if decodeErr := json.Unmarshal([]byte(stdout), &operation); decodeErr != nil {
+				t.Fatalf("decode operation output: %v; output=%s", decodeErr, stdout)
+			}
+			if err != nil || got != testCase.want || operation.OperationID != "op-exit" {
+				t.Fatalf("command error/request/output = %v/%#v/%s", err, got, stdout)
+			}
+		})
+	}
+
+	t.Run("Should cancel only the named exit operation", func(t *testing.T) {
+		t.Parallel()
+		var gotWorkspace, gotRef, gotOperation string
+		client := withWorkspaceResolution(&stubClient{cancelWorktreeExitFn: func(
+			_ context.Context,
+			workspaceID, ref, opID string,
+		) error {
+			gotWorkspace, gotRef, gotOperation = workspaceID, ref, opID
+			return nil
+		}})
+		stdout, _, err := executeRootCommand(
+			t, newWorkspaceTestDeps(t, client),
+			"worktree", "exit-cancel", "wt-a", "--op", " op-exit ",
+			"--workspace", "workspace-a", "-o", "json",
+		)
+		var output struct {
+			OperationID string `json:"op_id"`
+			State       string `json:"state"`
+		}
+		if decodeErr := json.Unmarshal([]byte(stdout), &output); decodeErr != nil {
+			t.Fatalf("decode cancel output: %v; output=%s", decodeErr, stdout)
+		}
+		if err != nil || gotWorkspace != "workspace-a" || gotRef != "wt-a" || gotOperation != "op-exit" ||
+			output.OperationID != "op-exit" || output.State != "cancel_requested" {
+			t.Fatalf("cancel error/args/output = %v/%q/%q/%q/%s", err, gotWorkspace, gotRef, gotOperation, stdout)
+		}
+	})
+
+	t.Run("Should require an operation ID before canceling", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		client := withWorkspaceResolution(&stubClient{cancelWorktreeExitFn: func(
+			context.Context,
+			string, string, string,
+		) error {
+			called = true
+			return nil
+		}})
+		_, _, err := executeRootCommand(
+			t, newWorkspaceTestDeps(t, client),
+			"worktree", "exit-cancel", "wt-a", "--workspace", "workspace-a",
+		)
+		if err == nil || called {
+			t.Fatalf("exit-cancel error/called = %v/%t", err, called)
+		}
+	})
+}

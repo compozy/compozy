@@ -17,6 +17,12 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND (id = sqlc.arg(ref) OR name = sqlc.arg(ref))
 LIMIT 1;
 
+-- name: GetWorktreeByID :one
+SELECT * FROM worktrees
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND id = sqlc.arg(worktree_id)
+LIMIT 1;
+
 -- name: GetLiveWorktreeByPath :one
 SELECT * FROM worktrees
 WHERE workspace_id = sqlc.arg(workspace_id)
@@ -76,9 +82,18 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 
 -- name: CompareAndSwapWorktreeState :execrows
 UPDATE worktrees SET state = sqlc.arg(next_state), updated_at = sqlc.arg(updated_at)
-WHERE workspace_id = sqlc.arg(workspace_id)
-  AND id = sqlc.arg(worktree_id)
-  AND state = sqlc.arg(expected_state);
+WHERE worktrees.workspace_id = sqlc.arg(workspace_id)
+  AND worktrees.id = sqlc.arg(worktree_id)
+  AND worktrees.state = sqlc.arg(expected_state)
+  AND (
+    sqlc.arg(next_state) <> 'removing'
+    OR NOT EXISTS (
+      SELECT 1 FROM worktree_exit_ops
+	  WHERE worktree_exit_ops.workspace_id = sqlc.arg(workspace_id)
+	    AND worktree_exit_ops.worktree_id = sqlc.arg(worktree_id)
+		AND worktree_exit_ops.state = 'running'
+    )
+  );
 
 -- name: SetWorktreeState :execrows
 UPDATE worktrees SET state = sqlc.arg(state), updated_at = sqlc.arg(updated_at)
@@ -149,6 +164,11 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND worktree_id = sqlc.arg(worktree_id)
   AND op_id = sqlc.arg(op_id)
   AND state = 'running';
+
+-- name: ListRunningWorktreeExitOperations :many
+SELECT * FROM worktree_exit_ops
+WHERE state = 'running'
+ORDER BY started_at, op_id;
 
 -- name: FailRunningWorktreeExitOperations :exec
 UPDATE worktree_exit_ops SET state = 'failed', finished_at = sqlc.arg(finished_at)

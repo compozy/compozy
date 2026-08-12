@@ -208,6 +208,32 @@ func TestServiceStatus(t *testing.T) {
 			t.Fatalf("Status(secret failure) = %#v, %v, want redacted read_error", status, err)
 		}
 	})
+
+	t.Run("Should preserve an unavailable forge cause during explicit refresh", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryWorktreeStore()
+		item := statusTestWorktree()
+		if err := store.Insert(context.Background(), item); err != nil {
+			t.Fatalf("seed worktree: %v", err)
+		}
+		if err := store.SaveStatus(context.Background(), item.WorkspaceID, item.ID, Status{
+			WorktreeID: item.ID,
+		}); err != nil {
+			t.Fatalf("seed cached status: %v", err)
+		}
+		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
+			if strings.Join(call.args, " ") == "remote get-url --all origin" {
+				return gitResponse{stdout: []byte("https://github.com/acme/repo.git\n")}
+			}
+			return gitResponse{err: errors.New("unexpected Git call")}
+		}}
+		forge := &recordingExitForge{statusErr: ErrForgeUnavailable}
+		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()), WithForge(forge))
+		_, err := service.StatusDetails(context.Background(), item.WorkspaceID, item.ID, false, true)
+		if !errors.Is(err, ErrForgeUnavailable) || errors.Is(err, ErrForge) {
+			t.Fatalf("StatusDetails(forge unavailable) error = %v, want only ErrForgeUnavailable", err)
+		}
+	})
 }
 
 func statusTestWorktree() Worktree {

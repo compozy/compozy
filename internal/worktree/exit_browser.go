@@ -1,0 +1,74 @@
+package worktree
+
+import (
+	"net/url"
+	"strings"
+)
+
+func browserCompareURL(remotes []string, base, head string, forge *ForgeCapabilities) string {
+	if len(remotes) == 0 || strings.TrimSpace(head) == "" {
+		return ""
+	}
+	if forge != nil && strings.TrimSpace(forge.CompareURLTemplate) != "" {
+		return strings.NewReplacer(
+			"{base}", url.PathEscape(base),
+			"{head}", url.PathEscape(head),
+		).Replace(forge.CompareURLTemplate)
+	}
+	remote, ok := parseRemoteWebURL(remotes[0])
+	if !ok {
+		return ""
+	}
+	root := strings.TrimRight(remote.String(), "/")
+	basePath, headPath := url.PathEscape(base), url.PathEscape(head)
+	switch strings.ToLower(remote.Hostname()) {
+	case "github.com":
+		return root + "/compare/" + basePath + "..." + headPath + "?expand=1"
+	case "gitlab.com":
+		return root + "/-/compare/" + basePath + "..." + headPath
+	case "bitbucket.org":
+		return root + "/branches/compare/" + headPath + ".." + basePath
+	}
+	return root
+}
+
+func sanitizeGitRemote(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" || strings.HasPrefix(value, "git@") {
+		return value
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" {
+		return value
+	}
+	parsed.User = nil
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
+}
+
+func parseRemoteWebURL(raw string) (*url.URL, bool) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil, false
+	}
+	if strings.HasPrefix(value, "git@") {
+		hostPath := strings.TrimPrefix(value, "git@")
+		host, repoPath, ok := strings.Cut(hostPath, ":")
+		if !ok {
+			return nil, false
+		}
+		return &url.URL{Scheme: "https", Host: host, Path: "/" + strings.TrimSuffix(repoPath, ".git")}, true
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" {
+		return nil, false
+	}
+	if parsed.Scheme == "ssh" || parsed.Scheme == "git" {
+		parsed.Scheme = "https"
+	}
+	parsed.User = nil
+	parsed.Path = strings.TrimSuffix(parsed.Path, ".git")
+	parsed.RawQuery, parsed.Fragment = "", ""
+	return parsed, true
+}

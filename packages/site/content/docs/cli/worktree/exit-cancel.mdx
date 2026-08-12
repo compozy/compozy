@@ -1,0 +1,44 @@
+---
+title: "compozy worktree exit-cancel"
+description: "Cancel a running worktree exit action"
+---
+
+## compozy worktree exit-cancel
+
+Cancel a running worktree exit action
+
+```
+compozy worktree exit-cancel <ref> [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for exit-cancel
+      --op string          Exit operation ID
+      --workspace string   Override workspace context (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy worktree exit-cancel <ref> -o json
+```

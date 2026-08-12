@@ -97,6 +97,27 @@ func (s *nativeWorktreeServiceStub) StatusDetails(
 	return nil, fmt.Errorf("unexpected StatusDetails call")
 }
 
+func (s *nativeWorktreeServiceStub) ExitPlan(
+	context.Context,
+	string,
+	string,
+) (*worktree.ExitPlan, error) {
+	return nil, fmt.Errorf("unexpected ExitPlan call")
+}
+
+func (s *nativeWorktreeServiceStub) RunExitAction(
+	context.Context,
+	string,
+	string,
+	worktree.ExitActionRequest,
+) (string, error) {
+	return "", fmt.Errorf("unexpected RunExitAction call")
+}
+
+func (s *nativeWorktreeServiceStub) CancelExitAction(context.Context, string, string, string) error {
+	return fmt.Errorf("unexpected CancelExitAction call")
+}
+
 func (s *nativeWorktreeServiceStub) Remove(
 	ctx context.Context,
 	workspaceID string,

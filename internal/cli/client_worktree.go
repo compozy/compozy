@@ -14,7 +14,10 @@ type WorktreeRecord = contract.WorktreePayload
 type WorktreeListRecord = contract.WorktreesResponse
 type WorktreeInspectRecord = contract.WorktreeInspectionResponse
 type WorktreeStatusRecord = contract.WorktreeStatusResponse
+type WorktreeExitPlanRecord = contract.WorktreeExitPlanResponse
+type WorktreeExitOperationRecord = contract.WorktreeExitOperationResponse
 type WorktreeCreateRequest = contract.CreateWorktreeRequest
+type WorktreeExitActionRequest = contract.RunWorktreeExitActionRequest
 
 type worktreeClientAPI interface {
 	ListWorktrees(context.Context, string, bool) (WorktreeListRecord, error)
@@ -23,6 +26,11 @@ type worktreeClientAPI interface {
 	AdoptWorktree(context.Context, string, string) (WorktreeRecord, error)
 	InspectWorktree(context.Context, string, string) (WorktreeInspectRecord, error)
 	GetWorktreeStatus(context.Context, string, string, bool, bool) (WorktreeStatusRecord, error)
+	GetWorktreeExitPlan(context.Context, string, string) (WorktreeExitPlanRecord, error)
+	RunWorktreeExitAction(
+		context.Context, string, string, WorktreeExitActionRequest,
+	) (WorktreeExitOperationRecord, error)
+	CancelWorktreeExitAction(context.Context, string, string, string) error
 	RemoveWorktree(context.Context, string, string, bool) error
 	DismissWorktree(context.Context, string, string) error
 }
@@ -95,6 +103,41 @@ func (c *daemonClient) GetWorktreeStatus(
 	var response WorktreeStatusRecord
 	err := c.doJSON(ctx, http.MethodGet, worktreeItemPath(workspaceRef, ref)+"/status", query, nil, &response)
 	return response, err
+}
+
+func (c *daemonClient) GetWorktreeExitPlan(
+	ctx context.Context,
+	workspaceRef string,
+	ref string,
+) (WorktreeExitPlanRecord, error) {
+	var response WorktreeExitPlanRecord
+	err := c.doJSON(ctx, http.MethodGet, worktreeItemPath(workspaceRef, ref)+"/exit", nil, nil, &response)
+	return response, err
+}
+
+func (c *daemonClient) RunWorktreeExitAction(
+	ctx context.Context,
+	workspaceRef string,
+	ref string,
+	request WorktreeExitActionRequest,
+) (WorktreeExitOperationRecord, error) {
+	var response WorktreeExitOperationRecord
+	err := c.doJSON(
+		ctx, http.MethodPost, worktreeItemPath(workspaceRef, ref)+"/exit/actions", nil, request, &response,
+	)
+	return response, err
+}
+
+func (c *daemonClient) CancelWorktreeExitAction(
+	ctx context.Context,
+	workspaceRef string,
+	ref string,
+	opID string,
+) error {
+	return c.doJSON(
+		ctx, http.MethodPost, worktreeItemPath(workspaceRef, ref)+"/exit/cancel", nil,
+		contract.CancelWorktreeExitActionRequest{OperationID: strings.TrimSpace(opID)}, nil,
+	)
 }
 
 func (c *daemonClient) RemoveWorktree(ctx context.Context, workspaceRef, ref string, force bool) error {

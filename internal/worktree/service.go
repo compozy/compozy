@@ -52,6 +52,8 @@ type Service struct {
 	catalog    *catalogBroadcaster
 	createMu   sync.Mutex
 	creates    map[string]*createOperation
+	exitMu     sync.Mutex
+	exits      map[string]*exitOperationControl
 }
 
 type Option func(*Service)
@@ -62,6 +64,7 @@ func NewService(store Store, runner GitRunner, opts ...Option) *Service {
 		locks: NewRepositoryLocks(8), now: time.Now, newID: generateID, getenv: os.Getenv, environ: os.Environ,
 		logger: slog.Default(), discovery: make(map[string]discoveryCacheEntry),
 		catalog: newCatalogBroadcaster(), creates: make(map[string]*createOperation),
+		exits: make(map[string]*exitOperationControl),
 	}
 	for _, opt := range opts {
 		opt(s)

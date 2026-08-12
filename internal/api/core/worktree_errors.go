@@ -28,6 +28,8 @@ func StatusForWorktreeError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, worktree.ErrRefInvalid):
 		return http.StatusBadRequest
+	case errors.Is(err, worktree.ErrExitActionInvalid):
+		return http.StatusBadRequest
 	case errors.Is(err, worktree.ErrConfigInvalid):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, worktree.ErrDeniedByHook):
@@ -79,4 +81,5 @@ var worktreeErrorCodes = []struct {
 	{worktree.ErrNotPending, "worktree_not_pending"},
 	{worktree.ErrForgeUnavailable, "forge_unavailable"},
 	{worktree.ErrForge, "forge_error"},
+	{worktree.ErrExitActionInvalid, "worktree_exit_action_invalid"},
 }

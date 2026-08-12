@@ -1887,6 +1887,58 @@ export interface ExtensionValidatePayload {
   consent_areas: ConsentArea[];
 }
 
+export interface ForgeCapabilitiesRequest {
+  remote_urls: string[];
+}
+
+export interface ForgeCapabilitiesResponse {
+  served: boolean;
+  available: boolean;
+  winner?: string;
+  provider?: string;
+  served_remote?: string;
+  request_noun?: string;
+  open_action_label?: string;
+  view_action_label?: string;
+  supports_draft?: boolean;
+  compare_url_template?: string;
+  template_paths?: string[];
+  credential_source?: string;
+  default_branch?: string;
+  cause?: string;
+}
+
+export interface ForgePRCreateRequest {
+  remote_urls: string[];
+  head: string;
+  base: string;
+  title: string;
+  body?: string;
+  draft?: boolean;
+}
+
+export interface ForgePRCreateResponse {
+  status: string;
+  number?: number;
+  url?: string;
+  cause?: string;
+}
+
+export interface ForgeStatusRequest {
+  remote_urls: string[];
+  branch: string;
+}
+
+export interface ForgeStatusResponse {
+  provider: string;
+  pr_number?: number;
+  pr_state?: string;
+  pr_url?: string;
+  merged?: boolean;
+  fetched_at: ISODateTime;
+  cause?: string;
+}
+
 export interface HeartbeatDeleteRequest {
   workspace_id?: string;
   agent_name: string;
@@ -7365,6 +7417,7 @@ export const REQUIRED_METHODS_BY_PROVIDE = {
     "connectivity/status",
     "connectivity/teardown",
   ],
+  "forge.provider": ["forge/capabilities", "forge/pr_create", "forge/status"],
   "loop.watch_source": ["watch/poll"],
   "memory.backend": ["memory/forget", "memory/recall", "memory/store"],
   "model.source": ["models/list"],
@@ -7381,6 +7434,7 @@ export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFix
     provide: "connectivity.provider",
     required_methods: REQUIRED_METHODS_BY_PROVIDE["connectivity.provider"],
   },
+  { provide: "forge.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["forge.provider"] },
   {
     provide: "loop.watch_source",
     required_methods: REQUIRED_METHODS_BY_PROVIDE["loop.watch_source"],

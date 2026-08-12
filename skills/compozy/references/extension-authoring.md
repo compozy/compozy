@@ -151,6 +151,7 @@ Closed set, validated at build, install, and load.
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
+| `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
 | `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
 
 Missing a required service method fails the build. `bridge.adapter` is excluded from the public
@@ -171,6 +172,11 @@ route forwards the challenge unchanged. `connectivity/status` reports the same t
 health. `connectivity/teardown` must end forwarding within its deadline before returning
 `stopped: true`. CompozyOS verifies the challenge itself and advertises nothing on failure. A changed
 live registry digest requires fresh consent, and only one provider may be selected per tier.
+
+A `forge.provider` reports which Git remotes it serves, its pull-request vocabulary, availability,
+default branch, compare URL template, and PR template paths. Register all three methods with
+`ForgeProvider` in Go or `registerForgeProvider` in TypeScript. Return structured causes for missing
+or expired credentials, rate limits, and unsupported remotes; never return credential values.
 
 The bundled `tailscale` provider requires the declared `TS_AUTHKEY` binding. Set it
 through hidden input with `compozy extension secrets set tailscale --env TS_AUTHKEY`;

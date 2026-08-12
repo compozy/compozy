@@ -69,10 +69,7 @@ func (r *RealGitRunner) Run(ctx context.Context, dir string, args ...string) ([]
 	if r == nil || strings.TrimSpace(r.executable) == "" {
 		return nil, nil, ErrGitUnavailable
 	}
-	commandCtx, cancel := context.WithTimeout(ctx, r.timeout)
-	defer cancel()
-
-	cmd := execabs.CommandContext(commandCtx, r.executable, args...)
+	cmd := execabs.CommandContext(ctx, r.executable, args...)
 	cmd.Dir = dir
 	cmd.Stdin = nil
 	cmd.Env = gitEnvironment(r.environ())
@@ -97,6 +94,12 @@ func (r *RealGitRunner) Run(ctx context.Context, dir string, args ...string) ([]
 
 	waitCh := make(chan error, 1)
 	go func() { waitCh <- cmd.Wait() }()
+	timeout := r.timeout
+	if timeout <= 0 {
+		timeout = defaultGitTimeout
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
 	select {
 	case err := <-waitCh:
@@ -104,11 +107,17 @@ func (r *RealGitRunner) Run(ctx context.Context, dir string, args ...string) ([]
 			return stdout.Bytes(), stderr.Bytes(), gitCommandError(args, stderr.String(), err)
 		}
 		return stdout.Bytes(), stderr.Bytes(), nil
-	case <-commandCtx.Done():
+	case <-ctx.Done():
 		killErr := procutil.KillCommandProcessGroupAndWait(cmd, time.Second)
 		waitErr := <-waitCh
 		return stdout.Bytes(), stderr.Bytes(), errors.Join(
-			gitCommandError(args, stderr.String(), commandCtx.Err()), killErr, waitErr,
+			gitCommandError(args, stderr.String(), ctx.Err()), killErr, waitErr,
+		)
+	case <-timer.C:
+		killErr := procutil.KillCommandProcessGroupAndWait(cmd, time.Second)
+		waitErr := <-waitCh
+		return stdout.Bytes(), stderr.Bytes(), errors.Join(
+			gitCommandError(args, stderr.String(), context.DeadlineExceeded), killErr, waitErr,
 		)
 	}
 }
