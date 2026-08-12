@@ -398,7 +398,11 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		base := time.Date(2026, 7, 8, 17, 35, 0, 0, time.UTC)
 		for index := range 5 {
-			run := testLoopRun(fmt.Sprintf("watch-loop-page-%d", index), base.Add(time.Duration(index)*time.Minute), looppkg.StatusRunning)
+			run := testLoopRun(
+				fmt.Sprintf("watch-loop-page-%d", index),
+				base.Add(time.Duration(index)*time.Minute),
+				looppkg.StatusRunning,
+			)
 			run.WorkspaceID = "ws-a"
 			if _, err := globalDB.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
 				t.Fatalf("CreateLoopRunForStart(%d) error = %v", index, err)
