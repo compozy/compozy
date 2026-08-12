@@ -12,10 +12,12 @@ import (
 	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/compozy/compozy/internal/store"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 var _ compozyworkspace.Store = (*WorkspaceRepo)(nil)
 var _ compozyworkspace.CoordinationSettings = (*WorkspaceRepo)(nil)
+var _ worktree.Store = (*WorktreeRepo)(nil)
 
 // OpenGlobalDB opens or creates the global Compozy index database.
 func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*GlobalDB, error) {

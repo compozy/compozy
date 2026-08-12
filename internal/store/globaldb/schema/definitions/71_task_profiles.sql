@@ -20,6 +20,10 @@ CREATE TABLE task_execution_profiles (
 				sandbox_mode IN ('inherit', 'none', 'ref')
 			),
 			sandbox_ref              TEXT NOT NULL DEFAULT '',
+			worktree_mode            TEXT NOT NULL DEFAULT 'inherit' CHECK (
+				worktree_mode IN ('inherit', 'none', 'ref', 'per_run')
+			),
+			worktree_ref             TEXT NOT NULL DEFAULT '',
 			created_at               TEXT NOT NULL,
 			updated_at               TEXT NOT NULL,
 			runtime_mode             TEXT NOT NULL DEFAULT 'default' CHECK (
@@ -36,6 +40,9 @@ CREATE TABLE task_execution_profiles (
 			CHECK (
 				(sandbox_mode = 'ref' AND sandbox_ref <> '') OR
 				(sandbox_mode <> 'ref' AND sandbox_ref = '')
+			),
+			CHECK (
+				(worktree_mode = 'ref') = (worktree_ref <> '')
 			)
 		);
 

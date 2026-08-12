@@ -25,6 +25,7 @@ const (
 	HookEventFamilySpawn         HookEventFamily = "spawn"
 	HookEventFamilyNetwork       HookEventFamily = "network"
 	HookEventFamilyWindowManager HookEventFamily = "window_manager"
+	HookEventFamilyWorktree      HookEventFamily = "worktree"
 )
 
 // Validate ensures the event family is part of the supported taxonomy.
@@ -48,7 +49,8 @@ func (f HookEventFamily) Validate() error {
 		HookEventFamilyLoop,
 		HookEventFamilySpawn,
 		HookEventFamilyNetwork,
-		HookEventFamilyWindowManager:
+		HookEventFamilyWindowManager,
+		HookEventFamilyWorktree:
 		return nil
 	default:
 		return fmt.Errorf("hooks: invalid hook event family %q", f)

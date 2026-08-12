@@ -37,6 +37,7 @@ type SessionLedgerRecord struct {
 // EventCorrelation carries the canonical cross-surface correlation keys for
 // session and observability events.
 type EventCorrelation struct {
+	WorktreeID           string     `json:"worktree_id,omitempty"`
 	TaskID               string     `json:"task_id,omitempty"`
 	RunID                string     `json:"run_id,omitempty"`
 	WorkflowID           string     `json:"workflow_id,omitempty"`
@@ -54,6 +55,7 @@ type EventCorrelation struct {
 // Normalize trims string fields and canonicalizes timestamps.
 func (c EventCorrelation) Normalize() EventCorrelation {
 	normalized := EventCorrelation{
+		WorktreeID:           strings.TrimSpace(c.WorktreeID),
 		TaskID:               strings.TrimSpace(c.TaskID),
 		RunID:                strings.TrimSpace(c.RunID),
 		WorkflowID:           strings.TrimSpace(c.WorkflowID),
@@ -73,7 +75,8 @@ func (c EventCorrelation) Normalize() EventCorrelation {
 // IsZero reports whether the correlation payload carries any fields.
 func (c EventCorrelation) IsZero() bool {
 	normalized := c.Normalize()
-	return normalized.TaskID == "" &&
+	return normalized.WorktreeID == "" &&
+		normalized.TaskID == "" &&
 		normalized.RunID == "" &&
 		normalized.WorkflowID == "" &&
 		normalized.ClaimTokenHash == "" &&

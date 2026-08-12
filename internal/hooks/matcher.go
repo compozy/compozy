@@ -20,6 +20,7 @@ const (
 	matcherWorkflowIDKey           = "workflow_id"
 	matcherWorkspaceIDKey          = "workspace_id"
 	matcherWorkspaceRootKey        = "workspace_root"
+	matcherWorktreeIDKey           = "worktree_id"
 )
 
 type matcherFunc[P any] func(HookMatcher, P) bool
@@ -156,6 +157,11 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 	},
 	HookEventFamilyWindowManager: {
 		matcherWorkspaceIDKey: {},
+	},
+	HookEventFamilyWorktree: {
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
+		matcherWorktreeIDKey:    {},
 	},
 }
 

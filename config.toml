@@ -51,6 +51,17 @@ block_recurrence_limit = 2
 [permissions]
 mode = "approve-all"
 
+[worktrees]
+root = ""
+run_branch_namespace = "run/"
+copy_list = []
+setup_command = ""
+setup_timeout = "10m"
+discovery_cache_ttl = "30s"
+
+[task.orchestration.profile]
+default_worktree_mode = "inherit"
+
 [tools]
 enabled = true
 hosted_mcp_enabled = true

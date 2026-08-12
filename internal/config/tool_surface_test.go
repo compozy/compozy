@@ -210,6 +210,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueString,
 		},
 		{
+			name: "Should allow task orchestration worktree mode mutation",
+			path: "task.orchestration.profile.default_worktree_mode",
+			kind: ConfigValueString,
+		},
+		{
 			name: "Should allow task orchestration provider override gate mutation",
 			path: "task.orchestration.profile.allow_task_provider_override",
 			kind: ConfigValueBool,

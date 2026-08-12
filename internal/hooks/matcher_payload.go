@@ -1,5 +1,12 @@
 package hooks
 
+// MatchesWorktree matches worktree lifecycle hooks.
+func (m HookMatcher) MatchesWorktree(payload WorktreeContext) bool {
+	return matchStringField(m.WorktreeID, payload.WorktreeID) &&
+		matchStringField(m.WorkspaceID, payload.WorkspaceID) &&
+		matchStringField(m.WorkspaceRoot, payload.WorkspaceRoot)
+}
+
 // MatchesSession matches session-family hooks.
 func (m HookMatcher) MatchesSession(payload SessionContext) bool {
 	return m.matchSessionContext(payload, true)

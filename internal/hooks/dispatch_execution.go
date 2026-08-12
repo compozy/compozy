@@ -131,9 +131,28 @@ func reportDispatchResult(
 }
 
 func hookDeniedError(event HookEvent, reason string) error {
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		return fmt.Errorf("hooks: event %q denied", event)
+	return hookDeniedByError(event, "", reason)
+}
+
+// DeniedError reports an explicit sync-hook denial separately from execution failures.
+type DeniedError struct {
+	Event    HookEvent
+	HookName string
+	Reason   string
+}
+
+func (e *DeniedError) Error() string {
+	if e == nil {
+		return "hooks: event denied"
 	}
-	return fmt.Errorf("hooks: event %q denied: %s", event, reason)
+	reason := strings.TrimSpace(e.Reason)
+	if reason == "" {
+		return fmt.Sprintf("hooks: event %q denied", e.Event)
+	}
+	return fmt.Sprintf("hooks: event %q denied: %s", e.Event, reason)
+}
+
+func hookDeniedByError(event HookEvent, hookName string, reason string) error {
+	reason = strings.TrimSpace(reason)
+	return &DeniedError{Event: event, HookName: strings.TrimSpace(hookName), Reason: reason}
 }

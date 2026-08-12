@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"ariga.io/atlas/sql/migrate"
+	"ariga.io/atlas/sql/sqltool"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -111,6 +112,126 @@ func TestSequentialGooseFormatter(t *testing.T) {
 		}
 		if !strings.HasSuffix(contents, "\n") || strings.HasSuffix(contents, "\n\n") {
 			t.Fatalf("formatted append-only migration must end with exactly one newline:\n%q", contents)
+		}
+	})
+
+	t.Run("Should wrap trigger bodies in Goose statement delimiters", func(t *testing.T) {
+		t.Parallel()
+
+		files, err := (sequentialGooseFormatter{}).Format(&migrate.Plan{
+			Name:    "schema",
+			Version: "00002",
+			Changes: []*migrate.Change{{
+				Cmd: `CREATE TRIGGER trg_records_guard
+BEFORE UPDATE ON records
+BEGIN
+    SELECT RAISE(ABORT, 'guarded');
+END`,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("sequentialGooseFormatter.Format() error = %v", err)
+		}
+		contents := string(files[0].Bytes())
+		if !strings.Contains(contents, "-- +goose StatementBegin\nCREATE TRIGGER") ||
+			!strings.Contains(contents, "END;\n-- +goose StatementEnd") {
+			t.Fatalf("formatted trigger is missing Goose statement delimiters:\n%s", contents)
+		}
+	})
+}
+
+func TestPlanAtlasStreamExpressionIndex(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve expression indexes when rebuilding a table", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		migrationsDir := filepath.Join(root, "migrations")
+		if err := os.MkdirAll(migrationsDir, 0o700); err != nil {
+			t.Fatalf("create migrations directory: %v", err)
+		}
+		writeSchemaTestFile(t, migrationsDir, "00001_schema.sql", `-- +goose Up
+CREATE TABLE owners (id TEXT PRIMARY KEY);
+CREATE TABLE records (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT,
+    updated_at TEXT,
+    fallback_at TEXT
+);
+CREATE INDEX idx_records_activity
+    ON records(
+        id, owner_id, COALESCE(updated_at, fallback_at) DESC,
+        updated_at DESC
+    );
+-- +goose StatementBegin
+CREATE TRIGGER trg_records_owner_guard
+    BEFORE UPDATE ON records
+    WHEN NEW.owner_id IS NULL
+    BEGIN
+        SELECT RAISE(ABORT, 'owner is required');
+    END;
+-- +goose StatementEnd
+`)
+		dir, err := sqltool.NewGooseDir(migrationsDir)
+		if err != nil {
+			t.Fatalf("open migration directory: %v", err)
+		}
+		if err := writeAtlasSum(dir, "test"); err != nil {
+			t.Fatalf("write migration checksum: %v", err)
+		}
+
+		desiredPath := filepath.Join(root, "schema.sql")
+		writeSchemaTestFile(t, root, "schema.sql", `CREATE TABLE owners (id TEXT PRIMARY KEY);
+CREATE TABLE records (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT REFERENCES owners(id),
+    updated_at TEXT,
+    fallback_at TEXT
+);
+CREATE INDEX idx_records_activity
+    ON records(
+        id, owner_id, COALESCE(updated_at, fallback_at) DESC,
+        updated_at DESC
+    );
+CREATE TRIGGER trg_records_owner_guard
+    BEFORE UPDATE ON records
+    WHEN NEW.owner_id IS NULL
+    BEGIN
+        SELECT RAISE(ABORT, 'owner is required');
+    END;
+`)
+		plan, _, closeDev, err := planAtlasStream(testutil.Context(t), stream{
+			name:          "test",
+			schemaSource:  schemaSource{path: desiredPath},
+			migrationsDir: migrationsDir,
+		}, dir)
+		if err != nil {
+			t.Fatalf("planAtlasStream() error = %v", err)
+		}
+		defer func() {
+			if err := closeDev(); err != nil {
+				t.Errorf("close Atlas database: %v", err)
+			}
+		}()
+
+		var statements strings.Builder
+		for _, change := range plan.migration.Changes {
+			statements.WriteString(change.Cmd)
+			statements.WriteByte('\n')
+		}
+		migrationSQL := statements.String()
+		if strings.Contains(migrationSQL, "<unsupported>") {
+			t.Fatalf("planned migration contains an unsupported index expression:\n%s", migrationSQL)
+		}
+		if !strings.Contains(migrationSQL, "COALESCE(updated_at, fallback_at)") {
+			t.Fatalf("planned migration lost expression index:\n%s", migrationSQL)
+		}
+		if strings.Contains(migrationSQL, "(COALESCE(updated_at, fallback_at))") {
+			t.Fatalf("planned migration rewrote the declarative expression index:\n%s", migrationSQL)
+		}
+		if !strings.Contains(migrationSQL, "CREATE TRIGGER trg_records_owner_guard") {
+			t.Fatalf("planned migration lost a trigger owned by the rebuilt table:\n%s", migrationSQL)
 		}
 	})
 }

@@ -45,6 +45,7 @@ import (
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 const (
@@ -83,6 +84,7 @@ type bootState struct {
 	processRegistry        *toolruntime.Registry
 	sandboxRegistry        *sandbox.Registry
 	workspaceResolver      *workspacepkg.Resolver
+	worktrees              *worktree.Service
 	windowManagerBootState
 	sessions              SessionManager
 	hostedMCP             *mcppkg.HostedService

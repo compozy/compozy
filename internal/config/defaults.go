@@ -89,5 +89,6 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			BlockRecurrenceLimit: DefaultBlockRecurrenceLimit,
 			Scheduler:            DefaultSchedulerConfig(),
 		},
+		Worktrees: DefaultWorktreesConfig(),
 	}
 }

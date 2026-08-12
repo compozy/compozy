@@ -75,6 +75,7 @@ CREATE TABLE "task_runs" (
 		id              TEXT PRIMARY KEY,
 		task_id         TEXT REFERENCES tasks(id) ON DELETE CASCADE,
 		workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		worktree_id     TEXT,
 		status          TEXT NOT NULL,
 		attempt         INTEGER NOT NULL CHECK (attempt > 0),
 		recovery_count  INTEGER NOT NULL DEFAULT 0 CHECK (recovery_count >= 0),
@@ -107,6 +108,10 @@ CREATE TABLE "task_runs" (
 			)
 		),
 		designation_group_id TEXT NOT NULL DEFAULT '',
+		resolved_worktree_mode TEXT NOT NULL DEFAULT '' CHECK (
+			resolved_worktree_mode IN ('', 'none', 'ref', 'per_run')
+		),
+		resolved_worktree_ref TEXT NOT NULL DEFAULT '',
 		queued_at       TEXT NOT NULL,
 		claimed_at      TEXT,
 		started_at      TEXT,
@@ -154,6 +159,9 @@ CREATE TABLE "task_runs" (
 		CHECK (run_kind <> 'network_wake' OR task_id IS NULL),
 		CHECK (run_kind <> 'network_wake' OR workspace_id IS NOT NULL),
 		CHECK (
+			(resolved_worktree_mode = 'ref') = (resolved_worktree_ref <> '')
+		),
+		CHECK (
 			(run_kind = 'network_wake' AND network_wake_id IS NOT NULL
 				AND network_target_session_id IS NOT NULL AND network_owner_key IS NOT NULL) OR
 			(run_kind <> 'network_wake' AND network_wake_id IS NULL
@@ -161,6 +169,8 @@ CREATE TABLE "task_runs" (
 		),
 		FOREIGN KEY (workspace_id, network_target_session_id)
 			REFERENCES sessions(workspace_id, id) ON DELETE CASCADE,
+		FOREIGN KEY (workspace_id, worktree_id)
+			REFERENCES worktrees(workspace_id, id),
 		UNIQUE (workspace_id, id)
 	);
 
@@ -276,6 +286,8 @@ CREATE INDEX idx_task_runs_session ON task_runs(session_id);
 
 CREATE INDEX idx_task_runs_session_status
 			ON task_runs(session_id, status, lease_until);
+
+CREATE INDEX idx_task_runs_worktree ON task_runs(worktree_id) WHERE worktree_id IS NOT NULL;
 
 CREATE INDEX idx_task_runs_target_session
 			ON task_runs(network_target_session_id, status, queued_at, id)

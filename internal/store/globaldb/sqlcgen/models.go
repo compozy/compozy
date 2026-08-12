@@ -411,6 +411,7 @@ type EventSummary struct {
 	ID                   string         `json:"id"`
 	SessionID            string         `json:"session_id"`
 	WorkspaceID          string         `json:"workspace_id"`
+	WorktreeID           string         `json:"worktree_id"`
 	Type                 string         `json:"type"`
 	AgentName            string         `json:"agent_name"`
 	ContentJson          string         `json:"content_json"`
@@ -1412,6 +1413,7 @@ type Session struct {
 	SelectedSpeed            string         `json:"selected_speed"`
 	RuntimeSelectionRevision int64          `json:"runtime_selection_revision"`
 	WorkspaceID              string         `json:"workspace_id"`
+	WorktreeID               sql.NullString `json:"worktree_id"`
 	SessionType              string         `json:"session_type"`
 	State                    string         `json:"state"`
 	ArchivedAt               sql.NullString `json:"archived_at"`
@@ -1679,6 +1681,8 @@ type TaskExecutionProfile struct {
 	ReviewModel            string         `json:"review_model"`
 	SandboxMode            string         `json:"sandbox_mode"`
 	SandboxRef             string         `json:"sandbox_ref"`
+	WorktreeMode           string         `json:"worktree_mode"`
+	WorktreeRef            string         `json:"worktree_ref"`
 	CreatedAt              string         `json:"created_at"`
 	UpdatedAt              string         `json:"updated_at"`
 	RuntimeMode            string         `json:"runtime_mode"`
@@ -1729,6 +1733,7 @@ type TaskRun struct {
 	ID                      string         `json:"id"`
 	TaskID                  sql.NullString `json:"task_id"`
 	WorkspaceID             sql.NullString `json:"workspace_id"`
+	WorktreeID              sql.NullString `json:"worktree_id"`
 	Status                  string         `json:"status"`
 	Attempt                 int64          `json:"attempt"`
 	RecoveryCount           int64          `json:"recovery_count"`
@@ -1745,6 +1750,8 @@ type TaskRun struct {
 	NetworkChannel          sql.NullString `json:"network_channel"`
 	NetworkSource           string         `json:"network_source"`
 	DesignationGroupID      string         `json:"designation_group_id"`
+	ResolvedWorktreeMode    string         `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef     string         `json:"resolved_worktree_ref"`
 	QueuedAt                string         `json:"queued_at"`
 	ClaimedAt               sql.NullString `json:"claimed_at"`
 	StartedAt               sql.NullString `json:"started_at"`
@@ -1962,4 +1969,60 @@ type WorkspaceNetworkCoordination struct {
 	Revision    int64  `json:"revision"`
 	UpdatedAt   string `json:"updated_at"`
 	UpdatedBy   string `json:"updated_by"`
+}
+
+type Worktree struct {
+	ID            string `json:"id"`
+	WorkspaceID   string `json:"workspace_id"`
+	Name          string `json:"name"`
+	Branch        string `json:"branch"`
+	Path          string `json:"path"`
+	GitDir        string `json:"git_dir"`
+	State         string `json:"state"`
+	PendingPhase  string `json:"pending_phase"`
+	Origin        string `json:"origin"`
+	SetupState    string `json:"setup_state"`
+	SetupError    string `json:"setup_error"`
+	BaseRef       string `json:"base_ref"`
+	CreatedBranch int64  `json:"created_branch"`
+	RunNamespace  string `json:"run_namespace"`
+	CreatedHead   string `json:"created_head"`
+	RunID         string `json:"run_id"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
+}
+
+type WorktreeExitOp struct {
+	OpID        string         `json:"op_id"`
+	WorkspaceID string         `json:"workspace_id"`
+	WorktreeID  string         `json:"worktree_id"`
+	Action      string         `json:"action"`
+	State       string         `json:"state"`
+	StartedAt   string         `json:"started_at"`
+	FinishedAt  sql.NullString `json:"finished_at"`
+}
+
+type WorktreeForgeStatus struct {
+	WorktreeID string         `json:"worktree_id"`
+	Provider   string         `json:"provider"`
+	PrNumber   sql.NullInt64  `json:"pr_number"`
+	PrState    sql.NullString `json:"pr_state"`
+	PrUrl      string         `json:"pr_url"`
+	Merged     sql.NullInt64  `json:"merged"`
+	FetchedAt  sql.NullString `json:"fetched_at"`
+}
+
+type WorktreeStatus struct {
+	WorktreeID  string         `json:"worktree_id"`
+	Branch      sql.NullString `json:"branch"`
+	Detached    sql.NullInt64  `json:"detached"`
+	HeadSha     sql.NullString `json:"head_sha"`
+	DirtyFiles  sql.NullInt64  `json:"dirty_files"`
+	Insertions  sql.NullInt64  `json:"insertions"`
+	Deletions   sql.NullInt64  `json:"deletions"`
+	HasUpstream sql.NullInt64  `json:"has_upstream"`
+	Ahead       sql.NullInt64  `json:"ahead"`
+	Behind      sql.NullInt64  `json:"behind"`
+	ReadError   string         `json:"read_error"`
+	RefreshedAt sql.NullString `json:"refreshed_at"`
 }

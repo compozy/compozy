@@ -52,6 +52,7 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 		AgentName:        strings.TrimSpace(matcher.AgentName),
 		AgentType:        strings.TrimSpace(matcher.AgentType),
 		WorkspaceID:      strings.TrimSpace(matcher.WorkspaceID),
+		WorktreeID:       strings.TrimSpace(matcher.WorktreeID),
 		WorkspaceRoot:    strings.TrimSpace(matcher.WorkspaceRoot),
 		SessionType:      strings.TrimSpace(matcher.SessionType),
 		SandboxID:        strings.TrimSpace(matcher.SandboxID),

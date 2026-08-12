@@ -52,6 +52,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		udsServer:              state.udsServer,
 		dreamRuntime:           state.dreamRuntime,
 		workspaceResolver:      state.workspaceResolver,
+		worktrees:              state.worktrees,
 		sandboxRegistry:        state.sandboxRegistry,
 		windowManagerRuntime: windowManagerRuntime{
 			windowManagerStore: state.windowManagerStore,

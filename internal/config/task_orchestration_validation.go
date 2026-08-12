@@ -134,6 +134,19 @@ func (c TaskOrchestrationProfileConfig) Validate(path string) error {
 	if c.DefaultSandboxMode == TaskSandboxModeNone && !c.AllowTaskSandboxNone {
 		return fmt.Errorf("%s.default_sandbox_mode %q requires allow_task_sandbox_none", path, TaskSandboxModeNone)
 	}
+	switch c.DefaultWorktreeMode {
+	case TaskWorktreeModeInherit, TaskWorktreeModeNone, TaskWorktreeModeRef, TaskWorktreeModePerRun:
+	default:
+		return fmt.Errorf(
+			"%s.default_worktree_mode must be %q, %q, %q, or %q: %q",
+			path,
+			TaskWorktreeModeInherit,
+			TaskWorktreeModeNone,
+			TaskWorktreeModeRef,
+			TaskWorktreeModePerRun,
+			c.DefaultWorktreeMode,
+		)
+	}
 	return nil
 }
 

@@ -83,7 +83,8 @@ func (g *ObserveRepo) prepareEventSummary(ctx context.Context, summary *store.Ev
 func insertEventSummary(ctx context.Context, queries *sqlcgen.Queries, summary store.EventSummary) error {
 	if err := queries.InsertEventSummary(ctx, sqlcgen.InsertEventSummaryParams{
 		ID: summary.ID, SessionID: summary.SessionID, WorkspaceID: summary.WorkspaceID,
-		Type: summary.Type, AgentName: summary.AgentName, ContentJson: string(summary.Content),
+		WorktreeID: summary.WorktreeID,
+		Type:       summary.Type, AgentName: summary.AgentName, ContentJson: string(summary.Content),
 		TaskID: summary.TaskID, RunID: summary.RunID, WorkflowID: summary.WorkflowID,
 		ClaimTokenHash: summary.ClaimTokenHash, LeaseUntil: formatEventSummaryLeaseUntil(summary.LeaseUntil),
 		CoordinatorSessionID: summary.CoordinatorSessionID, SchedulerReason: summary.SchedulerReason,
@@ -124,13 +125,14 @@ func (g *ObserveRepo) ListEventSummaries(
 	}
 
 	// dynamic-sql: optional event/memory filters, registry-derived IN lists, UNION inclusion, and limit shape the query.
-	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, workspace_id,` +
+	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, workspace_id, worktree_id,` +
 		` type, agent_name, provider, outcome, content_json, task_id, run_id, workflow_id, claim_token_hash,` +
 		` lease_until, coordinator_session_id,
 		scheduler_reason, hook_event, hook_name, actor_kind, actor_id, release_reason,
 		parent_session_id, root_session_id, spawn_depth, summary, timestamp FROM event_summaries`
 	eventWhere, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),
+		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("type", query.Type),
@@ -248,8 +250,7 @@ func (g *ObserveRepo) populateEventSummaryProjections(ctx context.Context, summa
 	if strings.TrimSpace(summary.Outcome) == "" {
 		summary.Outcome = string(eventspkg.OutcomeFor(summary.Type))
 	}
-	if strings.TrimSpace(summary.SessionID) == "" ||
-		(summary.WorkspaceID != "" && summary.Provider != "") {
+	if strings.TrimSpace(summary.SessionID) == "" {
 		return nil
 	}
 
@@ -260,17 +261,36 @@ func (g *ObserveRepo) populateEventSummaryProjections(ctx context.Context, summa
 	if err != nil {
 		return fmt.Errorf("store: resolve event summary projections: %w", err)
 	}
-	if summary.WorkspaceID == "" {
-		summary.WorkspaceID = strings.TrimSpace(row.WorkspaceID)
+	workspaceID := strings.TrimSpace(row.WorkspaceID)
+	provider := strings.TrimSpace(row.Provider)
+	worktreeID := ""
+	if row.WorktreeID.Valid {
+		worktreeID = strings.TrimSpace(row.WorktreeID.String)
 	}
-	if summary.Provider == "" {
-		summary.Provider = strings.TrimSpace(row.Provider)
+	if err := confirmEventSummaryProjection("workspace_id", summary.WorkspaceID, workspaceID); err != nil {
+		return err
 	}
+	if err := confirmEventSummaryProjection("provider", summary.Provider, provider); err != nil {
+		return err
+	}
+	if err := confirmEventSummaryProjection("worktree_id", summary.WorktreeID, worktreeID); err != nil {
+		return err
+	}
+	summary.WorkspaceID = workspaceID
+	summary.Provider = provider
+	summary.WorktreeID = worktreeID
 	return nil
 }
 
+func confirmEventSummaryProjection(field, supplied, projected string) error {
+	if supplied == "" || supplied == projected {
+		return nil
+	}
+	return fmt.Errorf("store: event summary %s conflicts with session projection", field)
+}
+
 func eventSummaryListQuery(combinedQuery string, limit int) string {
-	baseSelect := `SELECT source_rowid, id, session_id, workspace_id, type, agent_name, provider, outcome, content_json,` +
+	baseSelect := `SELECT source_rowid, id, session_id, workspace_id, worktree_id, type, agent_name, provider, outcome, content_json,` +
 		` task_id, run_id, workflow_id, claim_token_hash, lease_until, coordinator_session_id,` +
 		` scheduler_reason, hook_event,
 		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,

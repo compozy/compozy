@@ -26,6 +26,18 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify worktree setup changes as live",
+			path:          "worktrees.setup_command",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
+			name:          "Should classify task worktree default changes as live",
+			path:          "task.orchestration.profile.default_worktree_mode",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
 			name:          "Should classify provider model descendants as live",
 			path:          "providers.codex.models.curated",
 			wantLifecycle: Live,

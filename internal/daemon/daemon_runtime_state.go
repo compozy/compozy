@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/soul"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 // daemonRuntimeState is one published daemon generation. Assigning or clearing
@@ -59,6 +60,7 @@ type daemonRuntimeState struct {
 	udsServer              Server
 	dreamRuntime           *consolidation.Runtime
 	workspaceResolver      workspacepkg.RuntimeResolver
+	worktrees              *worktree.Service
 	sandboxRegistry        *sandbox.Registry
 	windowManagerRuntime
 	skillsRegistry    *skills.Registry

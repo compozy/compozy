@@ -105,4 +105,5 @@ type Config struct {
 	Network       NetworkConfig             `toml:"network"`
 	Gateway       GatewayConfig             `toml:"gateway"`
 	Autonomy      AutonomyConfig            `toml:"autonomy"`
+	Worktrees     WorktreesConfig           `toml:"worktrees"`
 }

@@ -34,6 +34,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 	"github.com/pressly/goose/v3"
 )
 
@@ -157,7 +158,13 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"network_task_status_projections",
 			"scheduler_pause",
 			"task_run_terminal_commands",
+			"worktrees",
+			"worktree_status",
+			"worktree_forge_status",
+			"worktree_exit_ops",
 		)
+		assertTableHasColumns(t, globalDB.db, "sessions", []string{"worktree_id"})
+		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{"worktree_id"})
 		for _, table := range []string{"sessions", "task_runs", "loop_runs"} {
 			assertTableHasColumns(t, globalDB.db, table, []string{
 				"network_spec_json",
@@ -364,6 +371,15 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		if err := first.InsertWorkspace(ctx, workspace); err != nil {
 			t.Fatalf("InsertWorkspace() error = %v", err)
 		}
+		worktree := worktreepkg.Worktree{
+			ID: "wt-reopen", WorkspaceID: workspace.ID, Name: "reopen-worktree",
+			Branch: "feature/reopen", Path: filepath.Join(t.TempDir(), "reopen-worktree"),
+			State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+			CreatedAt: workspace.CreatedAt, UpdatedAt: workspace.UpdatedAt,
+		}
+		if err := first.Worktrees.Insert(ctx, worktree); err != nil {
+			t.Fatalf("Worktrees.Insert() error = %v", err)
+		}
 		if err := first.Close(ctx); err != nil {
 			t.Fatalf("Close(first) error = %v", err)
 		}
@@ -390,6 +406,14 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		}
 		if loaded.ID != workspace.ID || loaded.RootDir != workspace.RootDir || loaded.Name != workspace.Name {
 			t.Fatalf("GetWorkspace(after reopen) = %#v, want %#v", loaded, workspace)
+		}
+		loadedWorktree, err := second.Worktrees.Get(ctx, workspace.ID, worktree.ID)
+		if err != nil {
+			t.Fatalf("Worktrees.Get(after reopen) error = %v", err)
+		}
+		if loadedWorktree.ID != worktree.ID || loadedWorktree.Path != worktree.Path ||
+			loadedWorktree.State != worktreepkg.StateReady {
+			t.Fatalf("Worktrees.Get(after reopen) = %#v, want %#v", loadedWorktree, worktree)
 		}
 	})
 
@@ -2869,6 +2893,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"selected_speed",
 				"runtime_selection_revision",
 				"workspace_id",
+				"worktree_id",
 				"session_type",
 				"state",
 				"archived_at",
@@ -3070,6 +3095,40 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}
 	if got, want := errorOnly[0].Outcome, "failure"; got != want {
 		t.Fatalf("errorOnly[0].Outcome = %q, want %q", got, want)
+	}
+
+	for _, testCase := range []struct {
+		name    string
+		summary EventSummary
+	}{
+		{
+			name: "workspace",
+			summary: EventSummary{
+				SessionID: "sess-summary", WorkspaceID: "different-workspace",
+				Type: "agent_message", AgentName: "coder", Summary: "invalid workspace",
+			},
+		},
+		{
+			name: "provider",
+			summary: EventSummary{
+				SessionID: "sess-summary", Provider: "different-provider",
+				Type: "agent_message", AgentName: "coder", Summary: "invalid provider",
+			},
+		},
+		{
+			name: "worktree",
+			summary: EventSummary{
+				SessionID: "sess-summary", EventCorrelation: store.EventCorrelation{WorktreeID: "different-worktree"},
+				Type: "agent_message", AgentName: "coder", Summary: "invalid worktree",
+			},
+		},
+	} {
+		t.Run("Should reject conflicting session "+testCase.name+" projections", func(t *testing.T) {
+			err := globalDB.WriteEventSummary(testutil.Context(t), testCase.summary)
+			if err == nil || !strings.Contains(err.Error(), testCase.name) {
+				t.Fatalf("WriteEventSummary(conflicting %s) error = %v", testCase.name, err)
+			}
+		})
 	}
 }
 
