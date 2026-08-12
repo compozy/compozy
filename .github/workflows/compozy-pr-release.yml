@@ -1,0 +1,98 @@
+name: CompozyOS PR release note
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions: {}
+
+concurrency:
+  group: compozy-pr-release-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    name: Dispatch signed PR event
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Send signed event to CompozyOS
+        env:
+          WEBHOOK_URL: ${{ secrets.COMPOZY_WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.COMPOZY_WEBHOOK_SECRET }}
+          DELIVERY_ID: pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          PR_ACTION: ${{ github.event.action }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          : "${WEBHOOK_URL:?COMPOZY_WEBHOOK_URL is required}"
+          : "${WEBHOOK_SECRET:?COMPOZY_WEBHOOK_SECRET is required}"
+
+          payload="$(
+            jq -cn \
+              --arg kind "pull_request_changed" \
+              --arg repository "$REPOSITORY" \
+              --argjson pr_number "$PR_NUMBER" \
+              --arg action "$PR_ACTION" \
+              --arg base_sha "$BASE_SHA" \
+              --arg head_sha "$HEAD_SHA" \
+              --arg base_ref "$BASE_REF" \
+              --arg head_ref "$HEAD_REF" \
+              --arg head_repository "$HEAD_REPOSITORY" \
+              --argjson fork "$IS_FORK" \
+              --argjson draft "$IS_DRAFT" \
+              --arg delivery_id "$DELIVERY_ID" \
+              '{
+                kind: $kind,
+                repository: $repository,
+                pr_number: $pr_number,
+                action: $action,
+                base_sha: $base_sha,
+                head_sha: $head_sha,
+                base_ref: $base_ref,
+                head_ref: $head_ref,
+                head_repository: $head_repository,
+                fork: $fork,
+                draft: $draft,
+                delivery_id: $delivery_id
+              }'
+          )"
+
+          timestamp="$(date +%s)"
+          signature="$(
+            PAYLOAD="$payload" TIMESTAMP="$timestamp" python3 - <<'PY'
+          import hashlib
+          import hmac
+          import os
+
+          message = f"{os.environ['TIMESTAMP']}.{os.environ['PAYLOAD']}".encode()
+          secret = os.environ["WEBHOOK_SECRET"].encode()
+          print("sha256=" + hmac.new(secret, message, hashlib.sha256).hexdigest())
+          PY
+          )"
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --proto '=https' \
+            --tlsv1.2 \
+            --connect-timeout 10 \
+            --max-time 840 \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "X-Compozy-Webhook-Timestamp: $timestamp" \
+            --header "X-Compozy-Webhook-Signature: $signature" \
+            --header "X-Compozy-Webhook-Delivery-ID: $DELIVERY_ID" \
+            --data-binary "$payload" \
+            "$WEBHOOK_URL"
