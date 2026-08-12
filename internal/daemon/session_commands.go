@@ -29,19 +29,12 @@ type sessionCommandSkills interface {
 	LoadContent(ctx context.Context, skill *skillspkg.Skill) (string, error)
 }
 
-// sessionCommandAgentResolver resolves the concrete AgentDef for a named agent, including
-// extension-published and bundle agents that are not authored on disk (see
-// resourceAgentCatalog.ResolveAgent).
-type sessionCommandAgentResolver interface {
-	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
-}
-
 // sessionCommandService projects a session's authoritative slash-command catalog (builtins,
 // ACP-advertised agent commands, and source-qualified skill commands) and expands invoked skill
 // markers into their content, implementing session.CommandService.
 type sessionCommandService struct {
 	registry          sessionCommandSkills
-	agentResolver     func() sessionCommandAgentResolver
+	agentResolver     func() session.AgentResolver
 	workspaceResolver func() promptSkillsWorkspaceResolver
 }
 
@@ -54,7 +47,7 @@ var _ session.CommandService = (*sessionCommandService)(nil)
 // not-yet-populated dependency.
 func newSessionCommandService(
 	registry sessionCommandSkills,
-	agentResolver func() sessionCommandAgentResolver,
+	agentResolver func() session.AgentResolver,
 	workspaceResolver func() promptSkillsWorkspaceResolver,
 ) *sessionCommandService {
 	return &sessionCommandService{
@@ -158,11 +151,10 @@ func commandAgentSpecs(info *session.Info) []commandpkg.AgentSpec {
 	return agents
 }
 
-// commandSkillCandidates projects the source-qualified skill commands available to one session,
-// preferring the caller-supplied agent snapshot when it is a concrete, on-disk-authored
-// definition; otherwise resolving the agent through the catalog resolver
-// (resolveAgentDef), and finally falling back to the name-based lookup for agents the catalog
-// doesn't know about.
+// commandSkillCandidates projects the source-qualified skill commands available to one session.
+// Concrete package-owned snapshots can be projected directly. Source-backed agents are refreshed
+// by name so current authored diagnostics remain authoritative; extension-published agents fall
+// back to the daemon catalog only when the name-based registry reports that the agent is absent.
 func (s *sessionCommandService) commandSkillCandidates(
 	ctx context.Context,
 	info *session.Info,
@@ -179,41 +171,61 @@ func (s *sessionCommandService) commandSkillCandidates(
 	}
 	hasAgentSnapshot := strings.TrimSpace(agent.Name) != ""
 	agent.Name = firstTrimmed(agent.Name, info.AgentName)
-	var candidates []skillspkg.CommandCandidate
 	if hasAgentSnapshot && strings.TrimSpace(agent.SourcePath) == "" {
-		candidates, err = s.registry.CommandCandidatesForAgentDefSession(ctx, workspace, agent, info.ID)
-	} else if resolved, ok := s.resolveAgentDef(agent.Name, workspace); ok {
-		candidates, err = s.registry.CommandCandidatesForAgentDefSession(ctx, workspace, resolved, info.ID)
-	} else {
-		candidates, err = s.registry.CommandCandidatesForAgentSession(ctx, workspace, agent.Name, info.ID)
+		candidates, candidateErr := s.registry.CommandCandidatesForAgentDefSession(ctx, workspace, agent, info.ID)
+		if candidateErr != nil {
+			return nil, fmt.Errorf("daemon: project command skills: %w", candidateErr)
+		}
+		return candidates, nil
 	}
-	if err != nil {
-		return nil, fmt.Errorf("daemon: project command skills: %w", err)
+
+	candidates, candidateErr := s.registry.CommandCandidatesForAgentSession(ctx, workspace, agent.Name, info.ID)
+	if candidateErr == nil {
+		return candidates, nil
+	}
+	if !errors.Is(candidateErr, skillspkg.ErrAgentNotFound) {
+		return nil, fmt.Errorf("daemon: project command skills: %w", candidateErr)
+	}
+
+	resolvedAgent, found, resolveErr := s.resolveAgentDef(agent.Name, workspace)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
+	if !found {
+		return nil, fmt.Errorf("daemon: project command skills: %w", candidateErr)
+	}
+	candidates, candidateErr = s.registry.CommandCandidatesForAgentDefSession(ctx, workspace, resolvedAgent, info.ID)
+	if candidateErr != nil {
+		return nil, fmt.Errorf("daemon: project command skills: %w", candidateErr)
 	}
 	return candidates, nil
 }
 
-// resolveAgentDef looks up the concrete AgentDef for agentName through the daemon's agent
-// catalog. This covers extension-published and bundle agents that are not authored on disk and
-// therefore cannot be resolved by the name-based, workspace/builtin-only skills registry lookup
-// (Registry.resolveAgentScope). The bool return reports whether a definition was found; callers
-// fall back to the name-based lookup on false.
+// resolveAgentDef resolves extension-published and bundled agents after the name-based registry
+// reports them absent. A false result preserves the registry's original not-found error.
 func (s *sessionCommandService) resolveAgentDef(
 	agentName string,
 	workspace *workspacepkg.ResolvedWorkspace,
-) (compozyconfig.AgentDef, bool) {
+) (compozyconfig.AgentDef, bool, error) {
 	if s.agentResolver == nil || strings.TrimSpace(agentName) == "" {
-		return compozyconfig.AgentDef{}, false
+		return compozyconfig.AgentDef{}, false, nil
 	}
 	resolver := s.agentResolver()
 	if resolver == nil {
-		return compozyconfig.AgentDef{}, false
+		return compozyconfig.AgentDef{}, false, nil
 	}
 	resolved, err := resolver.ResolveAgent(agentName, workspace)
-	if err != nil {
-		return compozyconfig.AgentDef{}, false
+	if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+		return compozyconfig.AgentDef{}, false, nil
 	}
-	return resolved, true
+	if err != nil {
+		return compozyconfig.AgentDef{}, false, fmt.Errorf(
+			"daemon: resolve command agent %q: %w",
+			agentName,
+			err,
+		)
+	}
+	return resolved, true, nil
 }
 
 func projectCommandSkillCandidates(

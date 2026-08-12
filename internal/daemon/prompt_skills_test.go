@@ -287,6 +287,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 
 func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing.T) {
 	t.Parallel()
+
 	t.Run("Should project and revalidate exact skill sources", func(t *testing.T) {
 		t.Parallel()
 
@@ -354,11 +355,173 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 			t.Fatalf("Expand(stale source) error = %v, want ErrUnavailable", err)
 		}
 	})
+
+	t.Run("Should resolve an extension agent only after the authored lookup reports it absent", func(t *testing.T) {
+		t.Parallel()
+
+		reviewSkill := &skillspkg.Skill{
+			Meta: skillspkg.SkillMeta{Name: "review", Description: "Review changes."},
+		}
+		registry := &stubSessionCommandSkills{
+			candidates: []skillspkg.CommandCandidate{{
+				Skill: reviewSkill, SourceKind: "extension", SourceID: "dev-cycle", Available: true,
+			}},
+			nameErr: fmt.Errorf("%w: %q", skillspkg.ErrAgentNotFound, "reviewer"),
+		}
+		workspaceResolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-extension", RootDir: "/workspace"},
+		}}
+		service := newSessionCommandService(
+			registry,
+			func() session.AgentResolver {
+				return stubSessionCommandAgentResolver(func(
+					name string,
+					_ *workspacepkg.ResolvedWorkspace,
+				) (compozyconfig.AgentDef, error) {
+					if name != "reviewer" {
+						return compozyconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
+					}
+					return compozyconfig.AgentDef{Name: name}, nil
+				})
+			},
+			func() promptSkillsWorkspaceResolver { return workspaceResolver },
+		)
+		info := &session.Info{
+			ID: "sess-extension", AgentName: "reviewer", WorkspaceID: "ws-extension", Workspace: "/workspace",
+		}
+		catalog, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{
+			Name: "reviewer", SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+		})
+		if err != nil {
+			t.Fatalf("Catalog() error = %v", err)
+		}
+		var found *commandpkg.Descriptor
+		for index := range catalog.Commands {
+			if catalog.Commands[index].Skill != nil && catalog.Commands[index].Skill.Name == "review" {
+				found = &catalog.Commands[index]
+				break
+			}
+		}
+		if found == nil || found.Source.Kind != "extension" || found.Source.ID != "dev-cycle" {
+			t.Fatalf("Catalog() commands = %+v, want extension dev-cycle review skill", catalog.Commands)
+		}
+	})
+
+	t.Run("Should preserve authored agent validation errors without consulting the catalog", func(t *testing.T) {
+		t.Parallel()
+
+		registry := &stubSessionCommandSkills{
+			nameErr: fmt.Errorf("%w: agent %q", skillspkg.ErrAgentLocalInvalid, "reviewer"),
+		}
+		resolverCalled := false
+		workspaceResolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-authored", RootDir: "/workspace"},
+		}}
+		service := newSessionCommandService(
+			registry,
+			func() session.AgentResolver {
+				return stubSessionCommandAgentResolver(func(
+					string,
+					*workspacepkg.ResolvedWorkspace,
+				) (compozyconfig.AgentDef, error) {
+					resolverCalled = true
+					return compozyconfig.AgentDef{Name: "reviewer"}, nil
+				})
+			},
+			func() promptSkillsWorkspaceResolver { return workspaceResolver },
+		)
+		info := &session.Info{ID: "sess-authored", AgentName: "reviewer", WorkspaceID: "ws-authored"}
+		_, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{
+			Name: "reviewer", SourcePath: "/workspace/.compozy/agents/reviewer/AGENT.md",
+		})
+		if !errors.Is(err, skillspkg.ErrAgentLocalInvalid) {
+			t.Fatalf("Catalog() error = %v, want ErrAgentLocalInvalid", err)
+		}
+		if resolverCalled {
+			t.Fatal("Catalog() consulted the catalog after authored validation failed")
+		}
+	})
+
+	t.Run("Should surface catalog failures after an extension fallback", func(t *testing.T) {
+		t.Parallel()
+
+		registry := &stubSessionCommandSkills{nameErr: skillspkg.ErrAgentNotFound}
+		resolverErr := errors.New("catalog unavailable")
+		workspaceResolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-extension", RootDir: "/workspace"},
+		}}
+		service := newSessionCommandService(
+			registry,
+			func() session.AgentResolver {
+				return stubSessionCommandAgentResolver(func(
+					string,
+					*workspacepkg.ResolvedWorkspace,
+				) (compozyconfig.AgentDef, error) {
+					return compozyconfig.AgentDef{}, resolverErr
+				})
+			},
+			func() promptSkillsWorkspaceResolver { return workspaceResolver },
+		)
+		info := &session.Info{ID: "sess-extension", AgentName: "reviewer", WorkspaceID: "ws-extension"}
+		_, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{})
+		if !errors.Is(err, resolverErr) {
+			t.Fatalf("Catalog() error = %v, want catalog resolver error", err)
+		}
+	})
+
+	t.Run("Should use the lazy catalog resolver once it becomes available", func(t *testing.T) {
+		t.Parallel()
+
+		reviewSkill := &skillspkg.Skill{Meta: skillspkg.SkillMeta{Name: "review"}}
+		registry := &stubSessionCommandSkills{
+			candidates: []skillspkg.CommandCandidate{{
+				Skill: reviewSkill, SourceKind: "extension", SourceID: "dev-cycle", Available: true,
+			}},
+			nameErr: skillspkg.ErrAgentNotFound,
+		}
+		workspaceResolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-extension", RootDir: "/workspace"},
+		}}
+		var resolver session.AgentResolver
+		service := newSessionCommandService(
+			registry,
+			func() session.AgentResolver { return resolver },
+			func() promptSkillsWorkspaceResolver { return workspaceResolver },
+		)
+		info := &session.Info{ID: "sess-extension", AgentName: "reviewer", WorkspaceID: "ws-extension"}
+		if _, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{}); !errors.Is(
+			err,
+			skillspkg.ErrAgentNotFound,
+		) {
+			t.Fatalf("Catalog(before resolver) error = %v, want ErrAgentNotFound", err)
+		}
+		resolver = stubSessionCommandAgentResolver(func(
+			name string,
+			_ *workspacepkg.ResolvedWorkspace,
+		) (compozyconfig.AgentDef, error) {
+			return compozyconfig.AgentDef{Name: name}, nil
+		})
+		catalog, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{})
+		if err != nil {
+			t.Fatalf("Catalog(after resolver) error = %v", err)
+		}
+		foundExtensionSkill := false
+		for _, descriptor := range catalog.Commands {
+			if descriptor.Skill != nil && descriptor.Source.Kind == "extension" && descriptor.Source.ID == "dev-cycle" {
+				foundExtensionSkill = true
+				break
+			}
+		}
+		if !foundExtensionSkill {
+			t.Fatalf("Catalog(after resolver) commands = %+v, want extension dev-cycle skill", catalog.Commands)
+		}
+	})
 }
 
 type stubSessionCommandSkills struct {
 	candidates []skillspkg.CommandCandidate
 	content    map[string]string
+	nameErr    error
 }
 
 func (s *stubSessionCommandSkills) CommandCandidatesForAgentSession(
@@ -367,6 +530,9 @@ func (s *stubSessionCommandSkills) CommandCandidatesForAgentSession(
 	string,
 	string,
 ) ([]skillspkg.CommandCandidate, error) {
+	if s.nameErr != nil {
+		return nil, s.nameErr
+	}
 	return append([]skillspkg.CommandCandidate(nil), s.candidates...), nil
 }
 
@@ -385,6 +551,18 @@ func (s *stubSessionCommandSkills) LoadContent(_ context.Context, skill *skillsp
 		return "", fmt.Errorf("missing content for %s", skill.FilePath)
 	}
 	return content, nil
+}
+
+type stubSessionCommandAgentResolver func(
+	name string,
+	resolved *workspacepkg.ResolvedWorkspace,
+) (compozyconfig.AgentDef, error)
+
+func (f stubSessionCommandAgentResolver) ResolveAgent(
+	name string,
+	resolved *workspacepkg.ResolvedWorkspace,
+) (compozyconfig.AgentDef, error) {
+	return f(name, resolved)
 }
 
 func BenchmarkSkillsCatalogAugmenterCatalogReplayModes(b *testing.B) {

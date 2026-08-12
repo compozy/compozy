@@ -2,12 +2,11 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
-	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -172,11 +171,8 @@ func sourceQualifiedSkillViewPayload(skill *skillspkg.Skill) map[string]any {
 
 // resolveSkillViewTarget resolves the skill a skill_view call targets: a workspace-fenced skill
 // by name, or a source-qualified skill by command_id within one session's command catalog. The
-// command_id path intentionally does not reject sessions that lack a cached concrete agent
-// snapshot — when none is available it hands sessionCommandService an empty AgentDef and lets
-// commandSkillCandidates resolve the concrete definition itself (agent catalog, then name-based
-// lookup), so extension- and bundle-published agents with no persisted snapshot yet resolve the
-// same way a prompt would.
+// command_id path uses the same concrete session-agent snapshot and lazy catalog fallback as the
+// session command service, preserving workspace fencing and authored-agent validation.
 func (n *daemonNativeTools) resolveSkillViewTarget(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -212,23 +208,18 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 	if err != nil {
 		return nil, err
 	}
-	agent, ok, sessionAgentErr := n.sessionAgentDefinition(sessionID)
-	if sessionAgentErr != nil && !errors.Is(sessionAgentErr, errSessionAgentSnapshotUnavailable) {
-		// The session dependency itself is unavailable (not merely lacking a snapshot for this
-		// session) — a genuine dependency-missing condition, distinct from the case below.
+	agent, ok, err := n.sessionAgentDefinition(sessionID)
+	if err != nil {
 		return nil, nativeCommandDependencyError(
 			toolspkg.ToolIDSkillView,
-			sessionAgentErr.Error(),
+			err.Error(),
 		)
 	}
 	if !ok {
-		// No cached session snapshot: don't reject outright. commandSkillCandidates resolves
-		// the concrete agent itself from info.AgentName via the catalog resolver below, with
-		// the name-based lookup as the final fallback for truly unknown agents. Rejecting here
-		// (as an earlier version of this function did) made that resolver unreachable for
-		// exactly the sessions that need it — extension-published agents with no snapshot
-		// persisted yet.
-		agent = compozyconfig.AgentDef{}
+		return nil, nativeCommandDependencyError(
+			toolspkg.ToolIDSkillView,
+			"command_id skill view requires a concrete session agent",
+		)
 	}
 	registry, ok := n.deps.Skills.(sessionCommandSkills)
 	if !ok {
@@ -239,15 +230,7 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 	}
 	service := newSessionCommandService(
 		registry,
-		func() sessionCommandAgentResolver {
-			// A miss here intentionally degrades to the name-based lookup inside
-			// resolveAgentDef: catalog resolution is an enhancement for
-			// extension-published agents, never a requirement. The production
-			// *resourceAgentCatalog is guaranteed to satisfy the interface by the
-			// compile-time assertion in agent_skill_catalog.go.
-			agentResolver, _ := n.deps.AgentCatalog.(sessionCommandAgentResolver)
-			return agentResolver
-		},
+		func() session.AgentResolver { return n.deps.AgentResolver },
 		func() promptSkillsWorkspaceResolver { return n.deps.WorkspaceResolver },
 	)
 	_, byCommandID, err := service.project(ctx, info, agent)

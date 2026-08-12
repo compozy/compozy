@@ -10,6 +10,10 @@ func (d *Daemon) nativeToolsDeps(
 	state *bootState,
 	registryRef func() toolspkg.Registry,
 ) daemonNativeToolsDeps {
+	agentCatalog := agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+		soul:      state.soulCatalog,
+		heartbeat: state.heartbeatCatalog,
+	})
 	marketplaceSkills := skillmarketplace.NewService(
 		d.homePaths,
 		state.cfg.Skills,
@@ -50,15 +54,13 @@ func (d *Daemon) nativeToolsDeps(
 		HomePaths:             d.homePaths,
 		Observer:              state.observer,
 		HookBindings:          state.hookBindings,
-		AgentCatalog: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
-			soul:      state.soulCatalog,
-			heartbeat: state.heartbeatCatalog,
-		}),
-		HeartbeatStatus: state.deps.HeartbeatStatus,
-		HeartbeatWake:   state.deps.HeartbeatWake,
-		SessionHealth:   state.deps.SessionHealth,
-		WakeEvents:      state.deps.WakeEvents,
-		Automation:      state.deps.Automation,
+		AgentCatalog:          agentCatalog,
+		AgentResolver:         agentCatalog,
+		HeartbeatStatus:       state.deps.HeartbeatStatus,
+		HeartbeatWake:         state.deps.HeartbeatWake,
+		SessionHealth:         state.deps.SessionHealth,
+		WakeEvents:            state.deps.WakeEvents,
+		Automation:            state.deps.Automation,
 		AutomationRuntime: func() core.AutomationManager {
 			return state.deps.Automation
 		},

@@ -25,7 +25,7 @@ type resourceAgentCatalog struct {
 
 var _ session.AgentArtifactResolver = (*resourceAgentCatalog)(nil)
 var _ heartbeat.PolicyResolver = (*resourceAgentCatalog)(nil)
-var _ sessionCommandAgentResolver = (*resourceAgentCatalog)(nil)
+var _ session.AgentResolver = (*resourceAgentCatalog)(nil)
 
 type agentSidecarCatalogs struct {
 	soul      *resourceCatalog[soul.ResourceSpec]
