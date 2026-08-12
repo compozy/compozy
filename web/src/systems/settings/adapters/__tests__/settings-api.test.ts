@@ -111,6 +111,20 @@ describe("section reads and updates", () => {
     await expectFetchRequest({ path: "/api/settings/general" });
   });
 
+  it("normalizes a null remote IP list from older daemon responses", async () => {
+    mockJsonResponse({
+      ...generalSectionFixture,
+      config: {
+        ...generalSectionFixture.config,
+        http: { ...generalSectionFixture.config.http, allowed_ips: null },
+      },
+    });
+
+    const result = await getSettingsGeneral();
+
+    expect(result.config.http.allowed_ips).toEqual([]);
+  });
+
   it("loads the observability section and exposes log tail URL", async () => {
     const observability = {
       section: "observability" as const,

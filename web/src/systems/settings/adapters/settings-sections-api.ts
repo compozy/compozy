@@ -51,6 +51,19 @@ function normalizeSettingsSkillsFilter(
   };
 }
 
+function normalizeSettingsGeneral(data: SettingsGeneralSection): SettingsGeneralSection {
+  return {
+    ...data,
+    config: {
+      ...data.config,
+      http: {
+        ...data.config.http,
+        allowed_ips: data.config.http.allowed_ips ?? [],
+      },
+    },
+  };
+}
+
 export async function getSettingsGeneral(signal?: AbortSignal): Promise<SettingsGeneralSection> {
   const { data, error, response } = await apiClient.GET("/api/settings/general", { signal });
   if (apiRequestFailed(response, error)) {
@@ -59,7 +72,9 @@ export async function getSettingsGeneral(signal?: AbortSignal): Promise<Settings
       response.status
     );
   }
-  return requireResponseData(data, response, "Failed to load general settings");
+  return normalizeSettingsGeneral(
+    requireResponseData(data, response, "Failed to load general settings")
+  );
 }
 
 export async function updateSettingsGeneral(
