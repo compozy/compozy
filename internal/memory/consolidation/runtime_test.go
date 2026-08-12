@@ -135,49 +135,51 @@ func TestRuntimeTriggerStates(t *testing.T) {
 func TestRuntimePublishesSuccessfulConsolidations(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should publish one manual completion without request cancellation or delivery failure changing success", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should publish one manual completion without request cancellation or delivery failure changing success",
+		func(t *testing.T) {
+			t.Parallel()
 
-		completedAt := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
-		service := &fakeDreamService{
-			shouldRun: true,
-			runResult: memory.ConsolidationResult{WorkspaceID: "ws-stable", CompletedAt: completedAt},
-		}
-		var logs strings.Builder
-		runtime := NewRuntime(
-			staticEnabled(true),
-			service,
-			noopSpawner,
-			time.Hour,
-			slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})),
-			nil,
-		)
-		var observed []memory.ConsolidationResult
-		observerErr := errors.New("automation unavailable")
-		runtime.SetCompletionObserver(func(ctx context.Context, result memory.ConsolidationResult) error {
-			if err := ctx.Err(); err != nil {
-				t.Fatalf("completion context error = %v, want detached context", err)
+			completedAt := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+			service := &fakeDreamService{
+				shouldRun: true,
+				runResult: memory.ConsolidationResult{WorkspaceID: "ws-stable", CompletedAt: completedAt},
 			}
-			observed = append(observed, result)
-			return observerErr
-		})
+			var logs strings.Builder
+			runtime := NewRuntime(
+				staticEnabled(true),
+				service,
+				noopSpawner,
+				time.Hour,
+				slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})),
+				nil,
+			)
+			var observed []memory.ConsolidationResult
+			observerErr := errors.New("automation unavailable")
+			runtime.SetCompletionObserver(func(ctx context.Context, result memory.ConsolidationResult) error {
+				if err := ctx.Err(); err != nil {
+					t.Fatalf("completion context error = %v, want detached context", err)
+				}
+				observed = append(observed, result)
+				return observerErr
+			})
 
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		triggered, reason, err := runtime.Trigger(ctx, "workspace-alias")
-		if err != nil {
-			t.Fatalf("Trigger() error = %v", err)
-		}
-		if !triggered || reason != "" {
-			t.Fatalf("Trigger() = (%t, %q), want (true, empty)", triggered, reason)
-		}
-		if len(observed) != 1 || observed[0] != service.runResult {
-			t.Fatalf("completion results = %#v, want [%#v]", observed, service.runResult)
-		}
-		if !strings.Contains(logs.String(), observerErr.Error()) {
-			t.Fatalf("warning logs = %q, want observer error", logs.String())
-		}
-	})
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			triggered, reason, err := runtime.Trigger(ctx, "workspace-alias")
+			if err != nil {
+				t.Fatalf("Trigger() error = %v", err)
+			}
+			if !triggered || reason != "" {
+				t.Fatalf("Trigger() = (%t, %q), want (true, empty)", triggered, reason)
+			}
+			if len(observed) != 1 || observed[0] != service.runResult {
+				t.Fatalf("completion results = %#v, want [%#v]", observed, service.runResult)
+			}
+			if !strings.Contains(logs.String(), observerErr.Error()) {
+				t.Fatalf("warning logs = %q, want observer error", logs.String())
+			}
+		})
 
 	t.Run("Should not publish a failed consolidation", func(t *testing.T) {
 		t.Parallel()
@@ -227,7 +229,8 @@ func TestRuntimePublishesSuccessfulConsolidations(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for queued completion")
 		}
-	})
+	},
+	)
 }
 
 func TestRuntimeLastConsolidatedAt(t *testing.T) {

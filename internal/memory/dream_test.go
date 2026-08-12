@@ -458,10 +458,14 @@ func TestServiceRunDreamSignalGatePromotesEligibleSignals(t *testing.T) {
 		)
 
 		gotWorkspace := ""
-		result, err := service.Run(testutil.Context(t), func(_ context.Context, _, _, workspace string, _ time.Time) error {
-			gotWorkspace = workspace
-			return nil
-		}, env.workspaceID)
+		result, err := service.Run(
+			testutil.Context(t),
+			func(_ context.Context, _, _, workspace string, _ time.Time) error {
+				gotWorkspace = workspace
+				return nil
+			},
+			env.workspaceID,
+		)
 
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)

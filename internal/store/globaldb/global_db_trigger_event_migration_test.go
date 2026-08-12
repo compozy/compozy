@@ -15,49 +15,52 @@ import (
 // Boundary IN: a v59 global database containing producer-backed and impossible trigger events.
 // Boundary OUT: runtime registration, which consumes the migrated definitions.
 func TestGlobalDBTriggerEventHardCutMigration(t *testing.T) {
-	t.Run("Should delete impossible triggers and their overlays while preserving supported definitions and run history", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should delete impossible triggers and their overlays while preserving supported definitions and run history",
+		func(t *testing.T) {
+			t.Parallel()
 
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := openGlobalMigrationPrefixDatabase(
-			t,
-			path,
-			globalMigrationPrefixBefore(t, "00060_trigger_event_hard_cut.sql"),
-		)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v59 prefix) error = %v", err)
-		}
-		ctx := testutil.Context(t)
-		seedTriggerEventHardCutFixture(ctx, t, prefixDB)
-		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("prefixDB.Close() error = %v", err)
-		}
-
-		upgraded, err := openGlobalMigrationUpgrade(t, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(v60 upgrade) error = %v", err)
-		}
-		assertTriggerEventHardCutState(ctx, t, upgraded.db)
-		status, err := store.Status(ctx, upgraded.db, MigrationStream())
-		if err != nil {
-			t.Fatalf("Status(upgraded) error = %v", err)
-		}
-		assertCompleteMigrationStream(t, status, MigrationStream())
-		if err := upgraded.Close(ctx); err != nil {
-			t.Fatalf("Close(upgraded) error = %v", err)
-		}
-
-		reopened, err := OpenGlobalDB(testutil.Context(t), path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(reopened) error = %v", closeErr)
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prefixDB, err := openGlobalMigrationPrefixDatabase(
+				t,
+				path,
+				globalMigrationPrefixBefore(t, "00060_trigger_event_hard_cut.sql"),
+			)
+			if err != nil {
+				t.Fatalf("OpenSQLiteDatabase(v59 prefix) error = %v", err)
 			}
-		})
-		assertTriggerEventHardCutState(testutil.Context(t), t, reopened.db)
-	})
+			ctx := testutil.Context(t)
+			seedTriggerEventHardCutFixture(ctx, t, prefixDB)
+			if err := prefixDB.Close(); err != nil {
+				t.Fatalf("prefixDB.Close() error = %v", err)
+			}
+
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(v60 upgrade) error = %v", err)
+			}
+			assertTriggerEventHardCutState(ctx, t, upgraded.db)
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatalf("Status(upgraded) error = %v", err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatalf("Close(upgraded) error = %v", err)
+			}
+
+			reopened, err := OpenGlobalDB(testutil.Context(t), path)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+			}
+			t.Cleanup(func() {
+				if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+					t.Errorf("Close(reopened) error = %v", closeErr)
+				}
+			})
+			assertTriggerEventHardCutState(testutil.Context(t), t, reopened.db)
+		},
+	)
 }
 
 func seedTriggerEventHardCutFixture(ctx context.Context, t *testing.T, db *sql.DB) {
