@@ -475,6 +475,43 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	if !extensionSemanticallyEqual(httpStatus.Extension, udsStatus.Extension) {
 		t.Fatalf("HTTP extension = %#v, want UDS parity %#v", httpStatus.Extension, udsStatus.Extension)
 	}
+
+	logsPath := "/api/extensions/" + url.PathEscape(extensionName) + "/logs"
+	httpLogsResp := mustHTTPRequest(
+		t,
+		clients.HTTPClient,
+		http.MethodGet,
+		runtimeHarness.HTTPURL(logsPath),
+		nil,
+		nil,
+	)
+	if httpLogsResp.StatusCode != http.StatusOK {
+		body := readAndCloseHTTPBody(t, httpLogsResp)
+		t.Fatalf(
+			"HTTP extension logs status = %d, want %d; body=%s",
+			httpLogsResp.StatusCode,
+			http.StatusOK,
+			string(body),
+		)
+	}
+	var httpLogs compozycontract.ExtensionLogsResponse
+	decodeHTTPJSON(t, httpLogsResp, &httpLogs)
+	var udsLogs compozycontract.ExtensionLogsResponse
+	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, logsPath, nil, &udsLogs); err != nil {
+		t.Fatalf("UDS extension logs error = %v", err)
+	}
+	if strings.TrimSpace(httpLogs.StreamEpoch) == "" || !reflect.DeepEqual(httpLogs, udsLogs) {
+		t.Fatalf("HTTP extension logs = %#v, want identified UDS parity %#v", httpLogs, udsLogs)
+	}
+	for _, entry := range httpLogs.Logs {
+		if entry.StreamEpoch != httpLogs.StreamEpoch {
+			t.Fatalf(
+				"HTTP extension log epoch = %q, want snapshot epoch %q",
+				entry.StreamEpoch,
+				httpLogs.StreamEpoch,
+			)
+		}
+	}
 }
 
 func TestHTTPTransportTaskSurfaceMatchesDocumentedSpecOperations(t *testing.T) {

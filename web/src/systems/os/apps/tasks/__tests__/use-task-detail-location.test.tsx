@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const hooks = vi.hoisted(() => ({
   liveDataEnabled: true,
   navigate: vi.fn(),
+  useTaskSetupRuntime: vi.fn(),
   useTaskOperatorLayer: vi.fn(),
   useTaskDetailPage: vi.fn(),
 }));
@@ -38,7 +39,7 @@ vi.mock("@/systems/tasks", () => ({
   useTaskDetailPage: hooks.useTaskDetailPage,
   useTaskOperatorLayer: hooks.useTaskOperatorLayer,
   useTaskPauseDialog: () => ({}),
-  useTaskSetupRuntime: () => ({}),
+  useTaskSetupRuntime: hooks.useTaskSetupRuntime,
   useUpdateTask: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
 
@@ -59,6 +60,7 @@ beforeEach(() => {
     streamState: "idle",
   });
   hooks.useTaskOperatorLayer.mockReturnValue({});
+  hooks.useTaskSetupRuntime.mockReturnValue({});
 });
 
 describe("useTaskDetailLocation", () => {
@@ -89,5 +91,32 @@ describe("useTaskDetailLocation", () => {
       "task_001",
       expect.objectContaining({ enabled: false })
     );
+  });
+
+  it("Should gate setup runtime reads on task availability and window liveness", () => {
+    hooks.useTaskDetailPage.mockReturnValue({
+      activeRun: null,
+      detail: { task: { workspace_id: "ws_northstar" } },
+      handlePauseTask: vi.fn(),
+      isLive: false,
+      profile: null,
+      runs: [],
+      streamErrorMessage: null,
+      streamSeedSequence: 0,
+      streamState: "idle",
+    });
+
+    const view = renderHook(() => useTaskDetailLocation("task_001", { tab: "overview" }));
+
+    expect(hooks.useTaskSetupRuntime).toHaveBeenLastCalledWith("ws_northstar", {
+      enabled: true,
+    });
+
+    hooks.liveDataEnabled = false;
+    view.rerender();
+
+    expect(hooks.useTaskSetupRuntime).toHaveBeenLastCalledWith("ws_northstar", {
+      enabled: false,
+    });
   });
 });

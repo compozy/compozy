@@ -107,6 +107,21 @@ func SignalProcessGroupID(pgid int, sig syscall.Signal) error {
 	return Signal(pgid, sig)
 }
 
+// SignalProcessGroupIDStrict reports a missing recovered process instead of accepting it.
+// Windows job handles are process-local, so a post-restart lookup falls through to Signal.
+func SignalProcessGroupIDStrict(pgid int, sig syscall.Signal) error {
+	if pgid <= 0 {
+		return fmt.Errorf("procutil: invalid process group id %d", pgid)
+	}
+	if sig == 0 {
+		return Signal(pgid, sig)
+	}
+	if job, ok := windowsJobForPID(pgid); ok {
+		return job.signalStrict(sig)
+	}
+	return Signal(pgid, sig)
+}
+
 // WaitForCommandProcessGroupExit blocks until the command's Windows job exits.
 func WaitForCommandProcessGroupExit(cmd *exec.Cmd, timeout time.Duration) error {
 	if cmd == nil || cmd.Process == nil || cmd.Process.Pid <= 0 {
@@ -238,6 +253,21 @@ func (j *windowsProcessJob) signal(sig syscall.Signal) error {
 	defer j.mu.Unlock()
 	if j.closed || j.handle == 0 {
 		return nil
+	}
+	if sig == 0 {
+		return nil
+	}
+	if err := windows.TerminateJobObject(j.handle, 1); err != nil {
+		return fmt.Errorf("terminate windows job (pid %d, sig %v): %w", j.pid, sig, err)
+	}
+	return nil
+}
+
+func (j *windowsProcessJob) signalStrict(sig syscall.Signal) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.closed || j.handle == 0 {
+		return fmt.Errorf("terminate windows job (pid %d, sig %v): %w", j.pid, sig, os.ErrProcessDone)
 	}
 	if sig == 0 {
 		return nil

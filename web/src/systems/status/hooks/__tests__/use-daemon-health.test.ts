@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { statusFixture } from "../../mocks/fixtures";
+import { statusKeys } from "../../lib/query-keys";
 import { deriveDaemonConnectionStatus, useDaemonHealth } from "../use-daemon-health";
 import { useDaemonStatus } from "../use-daemon-status";
 import { useStatus } from "../use-status";
@@ -14,14 +15,16 @@ vi.mock("../../adapters/daemon-api", () => ({
 
 import { fetchStatus } from "../../adapters/daemon-api";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
+function createWrapper(queryClient?: QueryClient) {
+  const client =
+    queryClient ??
+    new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    });
   return ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client: queryClient }, children);
+    createElement(QueryClientProvider, { client }, children);
 }
 
 describe("deriveDaemonConnectionStatus", () => {
@@ -91,6 +94,18 @@ describe("daemon status query projections", () => {
     expect(result.current.daemon.data).toEqual(statusFixture.daemon);
     expect(result.current.health.health).toEqual(statusFixture.health);
     expect(fetchStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should keep cached daemon data visible without fetching while disabled", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(statusKeys.current(), statusFixture);
+
+    const { result } = renderHook(() => useDaemonStatus({ enabled: false }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    expect(result.current.data).toEqual(statusFixture.daemon);
+    expect(fetchStatus).not.toHaveBeenCalled();
   });
 
   it("Should report connecting while the first shared status request is pending", () => {

@@ -32024,10 +32024,12 @@ export interface operations {
       query?: {
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
-        /** @description Stream new entries as extension_log SSE events */
+        /** @description Stream extension_log deltas and atomic extension_log_reset snapshots */
         follow?: string;
-        /** @description Return entries after this monotonic sequence */
+        /** @description Return entries after this sequence within stream_epoch */
         after?: string;
+        /** @description Opaque ring identity; required when after is greater than zero */
+        stream_epoch?: string;
       };
       header?: never;
       path: {
@@ -32050,9 +32052,40 @@ export interface operations {
               message: string;
               /** Format: int64 */
               sequence: number;
+              stream_epoch: string;
               /** Format: date-time */
               timestamp: string;
             }[];
+            stream_epoch: string;
+          };
+        };
+      };
+      /** @description Invalid extension log cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };

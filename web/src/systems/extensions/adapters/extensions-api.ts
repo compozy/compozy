@@ -5,7 +5,7 @@ import type {
   ExtensionEntry,
   ExtensionInstanceScope,
   ExtensionKitInventory,
-  ExtensionLogEntry,
+  ExtensionLogsSnapshot,
   ExtensionProvenance,
   ExtensionUpdateRequest,
 } from "../types";
@@ -157,19 +157,26 @@ export async function listExtensions(
 
 export async function listExtensionLogs(
   name: string,
-  options: ExtensionInstanceScope & { after?: number } = {},
+  options: ExtensionInstanceScope & { after?: number; streamEpoch?: string } = {},
   signal?: AbortSignal
-): Promise<ExtensionLogEntry[]> {
+): Promise<ExtensionLogsSnapshot> {
   const after =
     options.after !== undefined && options.after > 0 ? String(options.after) : undefined;
+  const streamEpoch = options.streamEpoch?.trim() || undefined;
   const { data, error, response } = await apiClient.GET("/api/extensions/{name}/logs", {
-    params: { path: { name }, query: { ...instanceQuery(options), after } },
+    params: {
+      path: { name },
+      query: { ...instanceQuery(options), after, stream_epoch: streamEpoch },
+    },
     signal,
   });
   const fallback = `Failed to load logs for ${name}`;
   if (apiRequestFailed(response, error)) throw responseError(fallback, response, error);
   const envelope = responseData(data, response, fallback);
-  return requiredArray(envelope.logs, response, fallback, "logs");
+  return {
+    logs: requiredArray(envelope.logs, response, fallback, "logs"),
+    stream_epoch: requiredString(envelope.stream_epoch, response, fallback, "stream_epoch"),
+  };
 }
 
 export async function getExtensionProvenance(

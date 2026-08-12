@@ -819,8 +819,11 @@ func (*rollbackDevRuntime) UnlinkDevelopment(context.Context, extensionpkg.Insta
 	return nil
 }
 
-func (*rollbackDevRuntime) Logs(extensionpkg.InstanceKey, int64) ([]extensionpkg.ExtensionLogEntry, error) {
-	return nil, nil
+func (*rollbackDevRuntime) Logs(
+	extensionpkg.InstanceKey,
+	extensionpkg.ExtensionLogCursor,
+) (extensionpkg.ExtensionLogSnapshot, error) {
+	return extensionpkg.ExtensionLogSnapshot{}, nil
 }
 
 type lifecycleStateRuntime struct {

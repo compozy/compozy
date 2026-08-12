@@ -5,10 +5,11 @@ import { workspaceKeys } from "./query-keys";
 
 export const WORKSPACE_REFETCH_INTERVAL = 10_000;
 
-export function workspacesListOptions() {
+export function workspacesListOptions(enabled = true) {
   return queryOptions({
     queryKey: workspaceKeys.list(),
     queryFn: ({ signal }) => fetchWorkspaces(signal),
+    enabled,
     staleTime: 60_000,
     refetchInterval: WORKSPACE_REFETCH_INTERVAL,
   });

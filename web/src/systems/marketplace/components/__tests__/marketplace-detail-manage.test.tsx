@@ -32,7 +32,12 @@ const mocks = vi.hoisted(() => ({
   extensionNetworkConfirm: null as { action: "enable" | "update"; digest: string } | null,
   extensionNetworkConfirmationRequired: false,
   extensionNetworkDigest: undefined as string | undefined,
-  extensionLogs: [] as Array<{ message: string; sequence: number; timestamp: string }>,
+  extensionLogs: [] as Array<{
+    message: string;
+    sequence: number;
+    stream_epoch: string;
+    timestamp: string;
+  }>,
   extensionNavigate: vi.fn(),
   extensionOriginPath: undefined as string | undefined,
   extensionInstalledFrom: "marketplace_registry",
@@ -500,7 +505,12 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionConsecutiveFailures = 3;
     mocks.extensionRestartBackoffMs = 4000;
     mocks.extensionLogs = [
-      { message: "listening on :7788", sequence: 12, timestamp: "2026-07-20T10:00:00Z" },
+      {
+        message: "listening on :7788",
+        sequence: 12,
+        stream_epoch: "epoch-marketplace-test",
+        timestamp: "2026-07-20T10:00:00Z",
+      },
     ];
     render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 

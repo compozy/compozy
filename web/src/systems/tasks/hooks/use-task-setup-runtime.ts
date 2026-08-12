@@ -27,9 +27,15 @@ function workspaceProviderOption(provider: SessionProviderOption): RuntimeProvid
 }
 
 /** Runtime-selector data scoped to the task's workspace. */
-export function useTaskSetupRuntime(workspaceId?: string | null) {
-  const workspace = useWorkspace(workspaceId ?? "", { enabled: Boolean(workspaceId) });
-  const settings = useSettingsProviders();
+export function useTaskSetupRuntime(
+  workspaceId?: string | null,
+  options: { enabled?: boolean } = {}
+) {
+  const enabled = options.enabled ?? true;
+  const workspace = useWorkspace(workspaceId ?? "", {
+    enabled: enabled && Boolean(workspaceId),
+  });
+  const settings = useSettingsProviders({ enabled: enabled && !workspaceId });
   const providers = workspaceId
     ? (workspace.data?.providers ?? []).map(workspaceProviderOption)
     : (settings.data?.providers ?? []).map(settingsProviderOption);
@@ -37,7 +43,9 @@ export function useTaskSetupRuntime(workspaceId?: string | null) {
     id: provider.id,
     needsAuth: provider.needs_auth,
   }));
-  const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: providers.length > 0 });
+  const catalog = useRuntimeModelCatalog(catalogProviders, {
+    enabled: enabled && providers.length > 0,
+  });
 
   return {
     catalogError: catalog.error,

@@ -17,7 +17,7 @@ export const extensionKeys = {
     [...extensionKeys.lists(), extensionWorkspaceKey(workspaceId)] as const,
   provenance: (name: string) => [...extensionKeys.all, "provenance", name] as const,
   logs: (name: string, workspaceId?: string | null) =>
-    [...extensionKeys.all, "logs", extensionWorkspaceKey(workspaceId), name] as const,
+    [...extensionKeys.all, "logs", extensionWorkspaceKey(workspaceId), name.trim()] as const,
   /**
    * The inventory route carries no workspace selector and resolves the global published instance,
    * so the key stays name-only rather than implying a scope the route does not expose.

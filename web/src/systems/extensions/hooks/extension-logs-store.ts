@@ -1,56 +1,75 @@
 import { createStoreLogic } from "@xstate/store";
 
-import { appendExtensionLogEntries } from "../lib/extension-log-stream";
-import type { ExtensionLogEntry } from "../types";
-
 export type ExtensionLogStreamStatus = "idle" | "connecting" | "live" | "reconnecting" | "paused";
+type ExtensionLogConnectionStatus = Exclude<ExtensionLogStreamStatus, "paused">;
 
 interface ExtensionLogsState {
-  entries: readonly ExtensionLogEntry[];
+  error: Error | null;
   follow: boolean;
-  streamStatus: ExtensionLogStreamStatus;
+  generation: number;
+  retryToken: number;
+  streamStatus: ExtensionLogConnectionStatus;
 }
 
 type ExtensionLogsEvents = {
   connecting: Record<never, never>;
-  entryReceived: { entry: ExtensionLogEntry };
   followChanged: { follow: boolean };
-  streamFailed: Record<never, never>;
-  streamOpened: Record<never, never>;
-  streamSuspended: Record<never, never>;
+  retryRequested: Record<never, never>;
+  streamFailed: { error?: Error; generation: number };
+  streamOpened: { generation: number };
+  streamSuspended: { generation: number };
 };
 
 export const extensionLogsLogic = createStoreLogic<ExtensionLogsState, ExtensionLogsEvents>({
-  context: { entries: [], follow: true, streamStatus: "idle" },
+  context: { error: null, follow: true, generation: 0, retryToken: 0, streamStatus: "idle" },
   on: {
     connecting: context =>
-      context.streamStatus === "idle" || context.streamStatus === "reconnecting"
-        ? { ...context, streamStatus: "connecting" }
+      context.follow && (context.streamStatus === "idle" || context.streamStatus === "reconnecting")
+        ? {
+            ...context,
+            error: null,
+            generation: context.generation + 1,
+            streamStatus: "connecting",
+          }
         : undefined,
-    entryReceived: (context, event) => {
-      if (context.streamStatus !== "connecting" && context.streamStatus !== "live") return;
+    followChanged: (context, event) =>
+      context.follow === event.follow
+        ? undefined
+        : {
+            ...context,
+            error: null,
+            follow: event.follow,
+            generation: context.generation + 1,
+            streamStatus: "idle",
+          },
+    retryRequested: context =>
+      context.follow
+        ? {
+            ...context,
+            error: null,
+            generation: context.generation + 1,
+            retryToken: context.retryToken + 1,
+            streamStatus: "idle",
+          }
+        : undefined,
+    streamFailed: (context, event) =>
+      event.generation === context.generation &&
+      (context.streamStatus === "connecting" || context.streamStatus === "live")
+        ? { ...context, error: event.error ?? context.error, streamStatus: "reconnecting" }
+        : undefined,
+    streamOpened: (context, event) =>
+      event.generation === context.generation &&
+      (context.streamStatus === "connecting" || context.streamStatus === "reconnecting")
+        ? { ...context, error: null, streamStatus: "live" }
+        : undefined,
+    streamSuspended: (context, event) => {
+      if (event.generation !== context.generation) return;
       return {
         ...context,
-        entries: appendExtensionLogEntries(context.entries, [event.entry]),
-        streamStatus: "live",
+        error: null,
+        generation: context.generation + 1,
+        streamStatus: "idle",
       };
-    },
-    followChanged: (context, event) => ({
-      ...context,
-      follow: event.follow,
-      streamStatus: event.follow ? "idle" : "paused",
-    }),
-    streamFailed: context =>
-      context.streamStatus === "connecting" || context.streamStatus === "live"
-        ? { ...context, streamStatus: "reconnecting" }
-        : undefined,
-    streamOpened: context =>
-      context.streamStatus === "connecting" || context.streamStatus === "reconnecting"
-        ? { ...context, streamStatus: "live" }
-        : undefined,
-    streamSuspended: context => {
-      const streamStatus = context.follow ? "idle" : "paused";
-      return context.streamStatus === streamStatus ? undefined : { ...context, streamStatus };
     },
   },
 });

@@ -7,9 +7,9 @@ function selectDaemon(status: StatusPayload) {
   return status.daemon;
 }
 
-export function useDaemonStatus() {
+export function useDaemonStatus(options: { enabled?: boolean } = {}) {
   return useQuery({
-    ...statusOptions(),
+    ...statusOptions(options.enabled ?? true),
     select: selectDaemon,
   });
 }

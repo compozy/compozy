@@ -65,9 +65,9 @@ function resolveTaskScopeError(
 }
 
 function useTasksPage(options: UseTasksPageOptions = {}) {
-  const workspace = useActiveWorkspace();
   const liveDataEnabled = options.liveDataEnabled ?? true;
-  const daemonStatus = useDaemonStatus();
+  const workspace = useActiveWorkspace({ enabled: liveDataEnabled });
+  const daemonStatus = useDaemonStatus({ enabled: liveDataEnabled });
   const { activeWorkspace } = workspace;
   const userHomeDir = daemonStatus.data?.user_home_dir;
   const routeSearch = options.search ?? {};

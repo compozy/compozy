@@ -9,11 +9,17 @@ import (
 
 const extensionLogMessageKey = "message"
 
-func extensionLogsBundle(entries []ExtensionLogRecord) outputBundle {
+type extensionLogResetRecord struct {
+	Event       string               `json:"event"`
+	Logs        []ExtensionLogRecord `json:"logs"`
+	StreamEpoch string               `json:"stream_epoch"`
+}
+
+func extensionLogsBundle(snapshot ExtensionLogsRecord) outputBundle {
 	return outputBundle{
-		jsonValue: entries,
+		jsonValue: snapshot,
 		jsonl: func(cmd *cobra.Command) error {
-			for _, entry := range entries {
+			for _, entry := range snapshot.Logs {
 				if err := writeJSONLine(cmd, entry); err != nil {
 					return err
 				}
@@ -21,8 +27,8 @@ func extensionLogsBundle(entries []ExtensionLogRecord) outputBundle {
 			return nil
 		},
 		human: func() (string, error) {
-			rows := make([]keyValue, 0, len(entries))
-			for _, entry := range entries {
+			rows := make([]keyValue, 0, len(snapshot.Logs))
+			for _, entry := range snapshot.Logs {
 				rows = append(rows, keyValue{
 					Label: entry.Timestamp.Format("15:04:05") + " #" + strconv.FormatInt(entry.Sequence, 10),
 					Value: entry.Message,
@@ -31,9 +37,10 @@ func extensionLogsBundle(entries []ExtensionLogRecord) outputBundle {
 			return renderHumanSectionResult("Extension logs", rows)
 		},
 		toon: func() (string, error) {
-			rows := make([][]string, 0, len(entries))
-			for _, entry := range entries {
+			rows := make([][]string, 0, len(snapshot.Logs))
+			for _, entry := range snapshot.Logs {
 				rows = append(rows, []string{
+					entry.StreamEpoch,
 					strconv.FormatInt(entry.Sequence, 10),
 					entry.Timestamp.Format(time.RFC3339Nano),
 					entry.Message,
@@ -41,8 +48,43 @@ func extensionLogsBundle(entries []ExtensionLogRecord) outputBundle {
 			}
 			return renderToonArray(
 				"extension_logs",
-				[]string{"sequence", "timestamp", extensionLogMessageKey},
+				[]string{"stream_epoch", "sequence", "timestamp", extensionLogMessageKey},
 				rows,
+			), nil
+		},
+	}
+}
+
+func extensionLogResetBundle(snapshot ExtensionLogsRecord) outputBundle {
+	record := extensionLogResetRecord{
+		Event:       "extension_log_reset",
+		Logs:        snapshot.Logs,
+		StreamEpoch: snapshot.StreamEpoch,
+	}
+	return outputBundle{
+		jsonValue: record,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, record)
+		},
+		human: func() (string, error) {
+			logs, err := extensionLogsBundle(snapshot).human()
+			if err != nil {
+				return "", err
+			}
+			return renderHumanBlocks("Extension log stream reset · "+snapshot.StreamEpoch, logs), nil
+		},
+		toon: func() (string, error) {
+			logs, err := extensionLogsBundle(snapshot).toon()
+			if err != nil {
+				return "", err
+			}
+			return renderHumanBlocks(
+				renderToonObject(
+					"extension_log_reset",
+					[]string{"stream_epoch", "log_count"},
+					[]string{snapshot.StreamEpoch, strconv.Itoa(len(snapshot.Logs))},
+				),
+				logs,
 			), nil
 		},
 	}

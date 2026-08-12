@@ -9,6 +9,7 @@ import {
   useTaskCreateState,
   useTaskEditState,
 } from "@/systems/tasks";
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 
 /**
  * Task creation is a focused single-entity form on the `md` host, so it stays a
@@ -23,9 +24,10 @@ export function TaskCreateDialog({
   search: TaskCreateSearch;
 }) {
   const navigate = useTasksNavigation();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const backToCatalog = () =>
     navigate({ pathname: "/tasks", search: taskCatalogSearchFor(catalogMode, search) });
-  const page = useTaskCreateState(search, navigate);
+  const page = useTaskCreateState(search, navigate, { liveDataEnabled });
 
   return (
     <TaskEditorModal
@@ -59,9 +61,10 @@ export function TaskEditDialog({
   taskId: string;
 }) {
   const navigate = useTasksNavigation();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const backToTask = () =>
     navigate({ pathname: `/tasks/${encodeURIComponent(taskId)}`, search: { ...search } });
-  const page = useTaskEditState(taskId, backToTask);
+  const page = useTaskEditState(taskId, backToTask, { liveDataEnabled });
   const status: TaskEditorModalStatus = page.isLoading
     ? "loading"
     : page.isInitialized

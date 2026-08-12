@@ -47,16 +47,15 @@ func (c *daemonClient) ExtensionLogs(
 	workspaceRef string,
 	name string,
 	after int64,
-) ([]ExtensionLogRecord, error) {
-	var response struct {
-		Logs []ExtensionLogRecord `json:"logs"`
-	}
-	query := extensionLogsQuery(workspaceRef, after, false)
+	streamEpoch string,
+) (ExtensionLogsRecord, error) {
+	var response ExtensionLogsRecord
+	query := extensionLogsQuery(workspaceRef, after, streamEpoch, false)
 	path := "/api/extensions/" + url.PathEscape(strings.TrimSpace(name)) + "/logs"
 	if err := c.doJSON(ctx, http.MethodGet, path, query, nil, &response); err != nil {
-		return nil, err
+		return ExtensionLogsRecord{}, err
 	}
-	return response.Logs, nil
+	return response, nil
 }
 
 func (c *daemonClient) StreamExtensionLogs(
@@ -64,9 +63,10 @@ func (c *daemonClient) StreamExtensionLogs(
 	workspaceRef string,
 	name string,
 	after int64,
+	streamEpoch string,
 	handler SSEHandler,
 ) error {
-	query := extensionLogsQuery(workspaceRef, after, true)
+	query := extensionLogsQuery(workspaceRef, after, streamEpoch, true)
 	path := "/api/extensions/" + url.PathEscape(strings.TrimSpace(name)) + "/logs"
 	return c.doSSE(ctx, path, query, "", handler)
 }
@@ -87,13 +87,16 @@ func (c *daemonClient) RemoveDevExtension(
 	return response.Extension, nil
 }
 
-func extensionLogsQuery(workspaceRef string, after int64, follow bool) url.Values {
+func extensionLogsQuery(workspaceRef string, after int64, streamEpoch string, follow bool) url.Values {
 	query := url.Values{}
 	if workspace := strings.TrimSpace(workspaceRef); workspace != "" {
 		query.Set(extensionWorkspaceQueryKey, workspace)
 	}
 	if after > 0 {
 		query.Set("after", strconv.FormatInt(after, 10))
+	}
+	if epoch := strings.TrimSpace(streamEpoch); epoch != "" {
+		query.Set("stream_epoch", epoch)
 	}
 	if follow {
 		query.Set("follow", "1")

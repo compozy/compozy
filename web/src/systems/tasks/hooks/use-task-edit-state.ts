@@ -18,13 +18,26 @@ import {
   taskEditorSubmissionLogic,
 } from "./task-editor-submission-store";
 
+interface UseTaskEditStateOptions {
+  liveDataEnabled?: boolean;
+}
+
 /**
  * Edit-form state for one task. `onSaved` runs after the update lands so the
  * host owns dismissal — the hook never encodes a location.
  */
-export function useTaskEditState(id: string | undefined, onSaved: () => void) {
-  const detailQuery = useTask(id ?? "", { enabled: Boolean(id) });
-  const profileQuery = useTaskExecutionProfile(id ?? "", { enabled: Boolean(id) });
+export function useTaskEditState(
+  id: string | undefined,
+  onSaved: () => void,
+  { liveDataEnabled = true }: UseTaskEditStateOptions = {}
+) {
+  const queryEnabled = Boolean(id) && liveDataEnabled;
+  const refetchIntervalMs = liveDataEnabled ? undefined : false;
+  const detailQuery = useTask(id ?? "", { enabled: queryEnabled, refetchIntervalMs });
+  const profileQuery = useTaskExecutionProfile(id ?? "", {
+    enabled: queryEnabled,
+    refetchIntervalMs,
+  });
   const updateMutation = useUpdateTask();
   const submissionStore = useStore(taskEditorSubmissionLogic);
   const detail = detailQuery.data ?? null;

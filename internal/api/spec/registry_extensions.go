@@ -214,11 +214,13 @@ func getExtensionLogsOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
 			queryParam("workspace", "Operator workspace reference; omit for the global instance", false),
-			queryParam("follow", "Stream new entries as extension_log SSE events", false),
-			queryParam("after", "Return entries after this monotonic sequence", false),
+			queryParam("follow", "Stream extension_log deltas and atomic extension_log_reset snapshots", false),
+			queryParam("after", "Return entries after this sequence within stream_epoch", false),
+			queryParam("stream_epoch", "Opaque ring identity; required when after is greater than zero", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionLogsResponse{}},
+			{Status: 400, Description: "Invalid extension log cursor", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},

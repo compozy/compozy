@@ -51,7 +51,9 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
     streamSeedSequence: page.streamSeedSequence,
     streamState: page.streamState,
   });
-  const setupRuntime = useTaskSetupRuntime(page.detail?.task.workspace_id);
+  const setupRuntime = useTaskSetupRuntime(page.detail?.task.workspace_id, {
+    enabled: liveDataEnabled && Boolean(page.detail),
+  });
   const setupEditor = useProfileEditor({
     onSetProfile: operator.handleSetProfile,
     profile: page.profile,

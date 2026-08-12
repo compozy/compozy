@@ -418,6 +418,17 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		}
 		key := InstanceKey{Name: "dev-clock", WorkspaceID: workspace.WorkspaceID}
 		manager.logRingFor(key).append("log from the first link", firstHash)
+		firstSnapshot, err := manager.Logs(key, ExtensionLogCursor{})
+		if err != nil {
+			t.Fatalf("Logs(first link) error = %v", err)
+		}
+		if firstSnapshot.StreamEpoch == "" || len(firstSnapshot.Entries) == 0 {
+			t.Fatalf("Logs(first link) = %#v, want identified non-empty ring", firstSnapshot)
+		}
+		firstCursor := ExtensionLogCursor{
+			Sequence:    firstSnapshot.Entries[len(firstSnapshot.Entries)-1].Sequence,
+			StreamEpoch: firstSnapshot.StreamEpoch,
+		}
 
 		reloaded, err := manager.ReloadExtension(
 			testutil.Context(t),
@@ -429,6 +440,17 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		}
 		if reloaded.Status.GenerationHash != secondHash || reloaded.Status.LastGoodGeneration != secondHash {
 			t.Fatalf("reloaded status = %#v, want generation %q", reloaded.Status, secondHash)
+		}
+		reloadedLogs, err := manager.Logs(key, ExtensionLogCursor{})
+		if err != nil {
+			t.Fatalf("Logs(reloaded) error = %v", err)
+		}
+		if reloadedLogs.StreamEpoch != firstSnapshot.StreamEpoch {
+			t.Fatalf(
+				"Logs(reloaded) stream epoch = %q, want retained %q",
+				reloadedLogs.StreamEpoch,
+				firstSnapshot.StreamEpoch,
+			)
 		}
 
 		if err := manager.UnlinkDevelopment(testutil.Context(t), key); err != nil {
@@ -447,11 +469,14 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		); err != nil {
 			t.Fatalf("LinkDevelopmentFromOrigin(relink) error = %v", err)
 		}
-		logs, err := manager.Logs(key, 0)
+		logs, err := manager.Logs(key, firstCursor)
 		if err != nil {
 			t.Fatalf("Logs(relink) error = %v", err)
 		}
-		for _, entry := range logs {
+		if logs.StreamEpoch == firstSnapshot.StreamEpoch {
+			t.Fatalf("Logs(relink) stream epoch = %q, want new ring identity", logs.StreamEpoch)
+		}
+		for _, entry := range logs.Entries {
 			if entry.Message == "log from the first link" {
 				t.Fatalf("Logs(relink) retained unlinked entry: %#v", logs)
 			}

@@ -103,7 +103,7 @@ function ExtensionLogBody({ logs }: { logs: ExtensionLogsModel }) {
       data-testid="extension-logs-lines"
     >
       {logs.entries.map(entry => (
-        <li className="grid gap-1 px-4 py-2" key={entry.sequence}>
+        <li className="grid gap-1 px-4 py-2" key={`${entry.stream_epoch}:${entry.sequence}`}>
           <span className="flex items-center gap-2 font-mono text-mono-id text-muted tabular-nums">
             <span>{formatLogClock(entry.timestamp)}</span>
             <span aria-hidden="true">·</span>

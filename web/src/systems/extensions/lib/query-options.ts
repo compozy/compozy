@@ -7,6 +7,7 @@ import {
   listExtensions,
 } from "../adapters/extensions-api";
 import type { ExtensionInstanceScope } from "../types";
+import { normalizeExtensionLogSnapshot } from "./extension-log-stream";
 import { extensionKeys } from "./query-keys";
 
 const INVENTORY_STALE_TIME = 30_000;
@@ -19,13 +20,19 @@ export const extensionsListOptions = (scope: ExtensionInstanceScope = {}, enable
     enabled,
   });
 
-export const extensionLogsOptions = (name: string, scope: ExtensionInstanceScope = {}) =>
-  queryOptions({
-    queryKey: extensionKeys.logs(name, scope.workspaceId),
-    queryFn: ({ signal }) => listExtensionLogs(name, scope, signal),
-    enabled: name.length > 0,
+export const extensionLogsOptions = (name: string, scope: ExtensionInstanceScope = {}) => {
+  const normalizedName = name.trim();
+  const normalizedWorkspaceId = scope.workspaceId?.trim() || undefined;
+  return queryOptions({
+    queryKey: extensionKeys.logs(normalizedName, normalizedWorkspaceId),
+    queryFn: async ({ signal }) =>
+      normalizeExtensionLogSnapshot(
+        await listExtensionLogs(normalizedName, { workspaceId: normalizedWorkspaceId }, signal)
+      ),
+    enabled: normalizedName.length > 0,
     staleTime: 0,
   });
+};
 
 export const extensionProvenanceOptions = (name: string, enabled = true) =>
   queryOptions({

@@ -250,9 +250,12 @@ Iterate:
 
 ```
 compozy extension reload <name> <dir> -o json   -> new generation_hash
-compozy extension logs <name> -o json           -> sequence, timestamp, message, generation_hash
+compozy extension logs <name> -o json           -> stream_epoch, logs[]
 compozy extension status <name> -o json         -> published instance: state, health, consecutive_failures, restart_backoff_ms
 ```
+
+Resume logs with the paired cursor rules in `references/extensions.md#logs-and-watch`; a sequence
+without its `stream_epoch` is not a valid cursor.
 
 Publish and consume:
 

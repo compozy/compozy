@@ -103,6 +103,95 @@ func TestExtensionSingleRecordBundlesEmitJSONL(t *testing.T) {
 	}
 }
 
+func TestExtensionLogsOutputCarriesTheStreamEpoch(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve the paired cursor in every structured format", func(t *testing.T) {
+		t.Parallel()
+
+		epoch := "epoch-alpha"
+		snapshot := ExtensionLogsRecord{
+			StreamEpoch: epoch,
+			Logs: []ExtensionLogRecord{{
+				Sequence:    7,
+				StreamEpoch: epoch,
+				Timestamp:   time.Date(2026, time.July, 20, 10, 0, 0, 0, time.UTC),
+				Message:     "ready",
+			}},
+		}
+		bundle := extensionLogsBundle(snapshot)
+
+		jsonOutput, err := renderExtensionOutput(t, bundle, OutputJSON)
+		if err != nil {
+			t.Fatalf("writeCommandOutput(json) error = %v", err)
+		}
+		var decodedSnapshot ExtensionLogsRecord
+		if err := json.Unmarshal([]byte(jsonOutput), &decodedSnapshot); err != nil {
+			t.Fatalf("json.Unmarshal(extension logs snapshot) error = %v", err)
+		}
+		if !reflect.DeepEqual(decodedSnapshot, snapshot) {
+			t.Fatalf("extension logs JSON = %#v, want %#v", decodedSnapshot, snapshot)
+		}
+
+		jsonlOutput, err := renderExtensionOutput(t, bundle, OutputJSONL)
+		if err != nil {
+			t.Fatalf("writeCommandOutput(jsonl) error = %v", err)
+		}
+		var decodedEntry ExtensionLogRecord
+		if err := json.Unmarshal([]byte(strings.TrimSpace(jsonlOutput)), &decodedEntry); err != nil {
+			t.Fatalf("json.Unmarshal(extension logs JSONL) error = %v", err)
+		}
+		if decodedEntry.StreamEpoch != epoch || decodedEntry.Sequence != 7 {
+			t.Fatalf("extension logs JSONL = %#v, want epoch %q and sequence 7", decodedEntry, epoch)
+		}
+
+		toonOutput, err := renderExtensionOutput(t, bundle, OutputToon)
+		if err != nil {
+			t.Fatalf("writeCommandOutput(toon) error = %v", err)
+		}
+		for _, want := range []string{"stream_epoch", epoch, "7", "ready"} {
+			if !strings.Contains(toonOutput, want) {
+				t.Fatalf("extension logs TOON = %q, want %q", toonOutput, want)
+			}
+		}
+	})
+}
+
+func TestExtensionLogResetOutputPreservesAnEmptyReplacement(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve an identified empty replacement in every structured format", func(t *testing.T) {
+		t.Parallel()
+
+		bundle := extensionLogResetBundle(ExtensionLogsRecord{
+			Logs: []ExtensionLogRecord{}, StreamEpoch: "epoch-empty",
+		})
+		for _, format := range []OutputFormat{OutputJSON, OutputJSONL} {
+			output, err := renderExtensionOutput(t, bundle, format)
+			if err != nil {
+				t.Fatalf("writeCommandOutput(%s) error = %v", format, err)
+			}
+			var decoded extensionLogResetRecord
+			if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &decoded); err != nil {
+				t.Fatalf("json.Unmarshal(%s reset) error = %v", format, err)
+			}
+			if decoded.Event != "extension_log_reset" ||
+				decoded.StreamEpoch != "epoch-empty" ||
+				len(decoded.Logs) != 0 {
+				t.Fatalf("extension log reset %s = %#v, want identified empty reset", format, decoded)
+			}
+		}
+
+		toonOutput, err := renderExtensionOutput(t, bundle, OutputToon)
+		if err != nil {
+			t.Fatalf("writeCommandOutput(toon reset) error = %v", err)
+		}
+		for _, want := range []string{"extension_log_reset", "epoch-empty", "log_count", "(empty)"} {
+			if !strings.Contains(toonOutput, want) {
+				t.Fatalf("extension log reset TOON = %q, want %q", toonOutput, want)
+			}
+		}
+	})
+}
+
 func TestExtensionListShowsPassiveUpdate(t *testing.T) {
 	t.Parallel()
 

@@ -157,12 +157,17 @@ dev linked`).
 ## Logs And Watch
 
 Each instance feeds a bounded 256 KiB drop-oldest ring from subprocess stderr, redacted at ingestion so
-no transport sees raw secrets. Entries carry a monotonic `sequence`, `timestamp`, `message`, and the
-`generation_hash` that produced them, and the ring survives reloads because it belongs to the instance
-rather than the generation. Page forward with `after: <sequence>`;
-`GET /api/extensions/{name}/logs?follow=1` streams the same entries as SSE named event `extension_log`,
-which `compozy extension logs <name> --follow` consumes. The ring is live retention, not durable
-history: a dropped oldest entry is gone.
+no transport sees raw secrets. A snapshot carries an opaque `stream_epoch`; every entry carries that
+epoch plus its monotonic `sequence`, `timestamp`, `message`, and `generation_hash`. Resume only with the
+pair `after: <sequence>` and `stream_epoch: <epoch>` (CLI: `--after` plus `--stream-epoch`). The SSE
+stream publishes `extension_log` deltas and an atomic `extension_log_reset` snapshot when the daemon
+recreates the ring. Replace retained rows on reset, including an empty reset. The ring survives reloads
+because it belongs to the instance, but it is live retention rather than durable history: a dropped
+oldest entry is gone, and unlink/relink starts a new epoch.
+
+For `compozy extension logs --follow -o jsonl`, delta lines are log entries. A reset line has
+`event: "extension_log_reset"`, `stream_epoch`, and the complete replacement `logs` array; process an
+empty array too.
 
 `compozy extension dev --watch` closes the loop client-side. It polls the source tree every
 `extensions.dev.watch_interval` (default `2s`), skips `.git`, `dist`, and `node_modules`, and rebuilds

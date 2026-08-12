@@ -559,12 +559,18 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		releaseListOnce.Do(func() { close(releaseList) })
 
 		for range 2 {
-			result := <-results
-			if result.err != nil {
-				t.Fatalf("Projection() error = %v", result.err)
-			}
-			if got, want := hostedToolIDs(result.response.Tools), []string{"compozy__alpha"}; !slices.Equal(got, want) {
-				t.Fatalf("Projection() tools = %#v, want %#v", got, want)
+			select {
+			case result := <-results:
+				if result.err != nil {
+					t.Fatalf("Projection() error = %v", result.err)
+				}
+				got := hostedToolIDs(result.response.Tools)
+				want := []string{"compozy__alpha"}
+				if !slices.Equal(got, want) {
+					t.Fatalf("Projection() tools = %#v, want %#v", got, want)
+				}
+			case <-ctx.Done():
+				t.Fatalf("concurrent projection did not return: %v", ctx.Err())
 			}
 		}
 		if got, want := registry.listCallCount(), baselineCalls+1; got != want {

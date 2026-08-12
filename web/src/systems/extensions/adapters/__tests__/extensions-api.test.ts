@@ -114,19 +114,26 @@ describe("extensions management mutations", () => {
       path: "/api/extensions/otel-bridge?workspace=ws_northstar",
     });
 
-    mockJsonResponse({ logs: [] });
+    mockJsonResponse({ logs: [], stream_epoch: "epoch-northstar" });
     await expect(
-      listExtensionLogs("otel-bridge", { after: 12, workspaceId: "ws_northstar" })
-    ).resolves.toEqual([]);
+      listExtensionLogs("otel-bridge", {
+        after: 12,
+        streamEpoch: "epoch-northstar",
+        workspaceId: "ws_northstar",
+      })
+    ).resolves.toEqual({ logs: [], stream_epoch: "epoch-northstar" });
     await expectFetchRequest({
       callIndex: 2,
-      path: "/api/extensions/otel-bridge/logs?workspace=ws_northstar&after=12",
+      path: "/api/extensions/otel-bridge/logs?workspace=ws_northstar&after=12&stream_epoch=epoch-northstar",
     });
   });
 
   it("Should address the global instance when no workspace is active", async () => {
-    mockJsonResponse({ logs: [] });
-    await listExtensionLogs("otel-bridge", { workspaceId: "   " });
+    mockJsonResponse({ logs: [], stream_epoch: "epoch-global" });
+    await expect(listExtensionLogs("otel-bridge", { workspaceId: "   " })).resolves.toEqual({
+      logs: [],
+      stream_epoch: "epoch-global",
+    });
     await expectFetchRequest({ path: "/api/extensions/otel-bridge/logs" });
   });
 
@@ -212,6 +219,18 @@ describe("extensions management failures", () => {
     expect(error).toMatchObject({
       kind: "malformed_response",
       message: "Failed to list extensions: empty response (200)",
+      status: 200,
+    });
+  });
+
+  it("Should reject a log snapshot without its stream identity", async () => {
+    mockJsonResponse({ logs: [] });
+
+    const error = await listExtensionLogs("otel-bridge").catch(reason => reason);
+    expect(error).toBeInstanceOf(ExtensionsApiError);
+    expect(error).toMatchObject({
+      kind: "malformed_response",
+      message: expect.stringContaining("missing stream_epoch"),
       status: 200,
     });
   });

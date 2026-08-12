@@ -9,10 +9,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const editorMocks = vi.hoisted(() => ({
   activeWorkspaceId: "ws_alpha",
   detail: undefined as unknown,
+  detailOptions: undefined as unknown,
   profile: undefined as unknown,
+  profileOptions: undefined as unknown,
   create: vi.fn(),
   createChild: vi.fn(),
   enqueue: vi.fn(),
+  activeWorkspaceOptions: undefined as unknown,
+  userHomeDirOptions: undefined as unknown,
   update: vi.fn(),
 }));
 
@@ -29,28 +33,40 @@ vi.mock("../use-task-actions", () => ({
 }));
 
 vi.mock("../use-task-profile", () => ({
-  useTaskExecutionProfile: () => ({
-    data: editorMocks.profile,
-    isLoading: false,
-  }),
+  useTaskExecutionProfile: (_id: string, options: unknown) => {
+    editorMocks.profileOptions = options;
+    return {
+      data: editorMocks.profile,
+      isLoading: false,
+    };
+  },
 }));
 
 vi.mock("../use-tasks", () => ({
-  useTask: () => ({
-    data: editorMocks.detail,
-    isLoading: false,
-  }),
+  useTask: (_id: string, options: unknown) => {
+    editorMocks.detailOptions = options;
+    return {
+      data: editorMocks.detail,
+      isLoading: false,
+    };
+  },
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({
-    activeWorkspace: editorWorkspaces.find(item => item.id === editorMocks.activeWorkspaceId),
-    workspaces: editorWorkspaces,
-  }),
+  useActiveWorkspace: (options: unknown) => {
+    editorMocks.activeWorkspaceOptions = options;
+    return {
+      activeWorkspace: editorWorkspaces.find(item => item.id === editorMocks.activeWorkspaceId),
+      workspaces: editorWorkspaces,
+    };
+  },
 }));
 
 vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({
-  useUserHomeDir: () => "/Users/operator",
+  useUserHomeDir: (options: unknown) => {
+    editorMocks.userHomeDirOptions = options;
+    return "/Users/operator";
+  },
 }));
 
 import { buildDetailFixture, buildTaskExecutionProfileFixture } from "../../mocks/fixtures";
@@ -77,9 +93,23 @@ beforeEach(() => {
     task_id: "task_alpha",
     updated_at: "2026-07-25T10:00:00Z",
   });
+  editorMocks.detailOptions = undefined;
+  editorMocks.profileOptions = undefined;
+  editorMocks.activeWorkspaceOptions = undefined;
+  editorMocks.userHomeDirOptions = undefined;
 });
 
 describe("task editor state identity", () => {
+  it("Should disable create scope observers while preserving the cached draft", () => {
+    const { result } = renderHook(() =>
+      useTaskCreateState({}, vi.fn(), { liveDataEnabled: false })
+    );
+
+    expect(editorMocks.activeWorkspaceOptions).toEqual({ enabled: false });
+    expect(editorMocks.userHomeDirOptions).toEqual({ enabled: false });
+    expect(result.current.draft.workspaceId).toBe("ws_alpha");
+  });
+
   it("Should preserve create edits across template changes and reset before rendering a new workspace", () => {
     const renderedTitles: string[] = [];
     const navigate = vi.fn();
@@ -217,6 +247,17 @@ describe("task editor state identity", () => {
     await act(async () => {
       await first;
     });
+  });
+
+  it("Should disable task reads and polling while the edit window is inactive", () => {
+    renderHook(() =>
+      useTaskEditState("task_alpha", vi.fn(), {
+        liveDataEnabled: false,
+      })
+    );
+
+    expect(editorMocks.detailOptions).toEqual({ enabled: false, refetchIntervalMs: false });
+    expect(editorMocks.profileOptions).toEqual({ enabled: false, refetchIntervalMs: false });
   });
 
   it("Should preserve edits for one task identity and expose a replacement task in every render", () => {

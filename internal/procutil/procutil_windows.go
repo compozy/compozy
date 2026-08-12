@@ -6,7 +6,10 @@ package procutil
 import (
 	"errors"
 	"fmt"
+	"os"
 	"syscall"
+
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -58,6 +61,11 @@ func Signal(pid int, sig syscall.Signal) error {
 	default:
 		return fmt.Errorf("procutil: signal process %d with %s: unsupported signal on windows", pid, sig.String())
 	}
+}
+
+// IsProcessMissingError reports whether a signal failed because its target no longer exists.
+func IsProcessMissingError(err error) bool {
+	return errors.Is(err, windows.ERROR_INVALID_PARAMETER) || errors.Is(err, os.ErrProcessDone)
 }
 
 func signalZero(pid int, sig syscall.Signal) error {

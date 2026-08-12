@@ -83,12 +83,13 @@ var extensionTools = []toolspkg.Descriptor{
 		[]string{extensionsExtensionsKey, extensionsDevelopmentKey, "reload"},
 		[]string{"reload extension", "restart dev extension"},
 	),
-	nativeExtensionDescriptor(
+	nativeExtensionDescriptorWithOutput(
 		toolspkg.ToolIDExtensionsLogs,
 		"extensions_logs",
 		"Extensions Logs",
 		"Read retained redacted stderr for the trusted extension instance.",
 		extensionLogsInputSchema,
+		extensionLogsOutputSchema,
 		toolspkg.RiskRead,
 		true,
 		false,
@@ -392,7 +393,32 @@ const extensionLogsInputSchema = `{
 	"required":["name"],
 	"properties":{
 		"name":{"type":"string","minLength":1},
-		"after":{"type":"integer","minimum":0}
+		"after":{"type":"integer","minimum":0,"description":"Return entries after this sequence within stream_epoch"},
+		"stream_epoch":{"type":"string","minLength":1,"description":"Opaque ring identity returned by an earlier log read; required when after is greater than zero"}
+	},
+	"additionalProperties":false
+}`
+
+const extensionLogsOutputSchema = `{
+	"type":"object",
+	"required":["logs","stream_epoch"],
+	"properties":{
+		"stream_epoch":{"type":"string","minLength":1},
+		"logs":{
+			"type":"array",
+			"items":{
+				"type":"object",
+				"required":["sequence","timestamp","message","stream_epoch"],
+				"properties":{
+					"sequence":{"type":"integer","minimum":1},
+					"timestamp":{"type":"string","format":"date-time"},
+					"message":{"type":"string"},
+					"generation_hash":{"type":"string"},
+					"stream_epoch":{"type":"string","minLength":1}
+				},
+				"additionalProperties":false
+			}
+		}
 	},
 	"additionalProperties":false
 }`

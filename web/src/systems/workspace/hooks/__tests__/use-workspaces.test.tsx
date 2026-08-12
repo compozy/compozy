@@ -101,6 +101,18 @@ describe("workspace hooks", () => {
     expect(workspaceDetailOptions("ws_removed").refetchInterval).toBe(WORKSPACE_REFETCH_INTERVAL);
   });
 
+  it("keeps cached workspaces visible without fetching while disabled", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(workspaceKeys.list(), [makeWorkspace()]);
+
+    const { result } = renderHook(() => useActiveWorkspace({ enabled: false }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    expect(result.current.activeWorkspaceId).toBe("ws_alpha");
+    expect(fetchWorkspaces).not.toHaveBeenCalled();
+  });
+
   it("loads one resolved workspace detail", async () => {
     vi.mocked(fetchWorkspace).mockResolvedValue({
       agents: [

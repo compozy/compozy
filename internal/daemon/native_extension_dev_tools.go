@@ -42,8 +42,9 @@ type extensionReloadInput struct {
 }
 
 type extensionLogsInput struct {
-	Name  string `json:"name"`
-	After int64  `json:"after"`
+	Name        string `json:"name"`
+	After       int64  `json:"after"`
+	StreamEpoch string `json:"stream_epoch"`
 }
 
 func (n *daemonNativeTools) extensionInit(
@@ -164,15 +165,23 @@ func (n *daemonNativeTools) extensionLogs(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if input.After > 0 && strings.TrimSpace(input.StreamEpoch) == "" {
+		return toolspkg.ToolResult{}, nativeExtensionValidationError(
+			req.ToolID,
+			errors.New("stream_epoch is required when after is greater than zero"),
+		)
+	}
 	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	logs, err := n.extensionService().ExtensionLogs(ctx, input.Name, input.After, actor)
+	logs, err := n.extensionService().ExtensionLogs(
+		ctx, input.Name, input.After, input.StreamEpoch, actor,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"logs": logs}, "extension logs")
+	return structuredResult(logs, "extension logs")
 }
 
 func nativeExtensionScopedActorContext(
@@ -183,12 +192,18 @@ func nativeExtensionScopedActorContext(
 	if reqWorkspace := strings.TrimSpace(req.WorkspaceID); reqWorkspace != "" && reqWorkspace != workspaceID {
 		return taskpkg.ActorContext{}, extensionpkg.ErrExtensionWorkspaceDenied
 	}
-	if strings.TrimSpace(req.SessionID) != "" {
+	sessionID := strings.TrimSpace(req.SessionID)
+	if scopeSessionID := strings.TrimSpace(scope.SessionID); sessionID == "" {
+		sessionID = scopeSessionID
+	} else if scopeSessionID != "" && scopeSessionID != sessionID {
+		return taskpkg.ActorContext{}, extensionpkg.ErrExtensionWorkspaceDenied
+	}
+	if sessionID != "" {
 		if workspaceID == "" {
 			return taskpkg.ActorContext{}, extensionpkg.ErrExtensionWorkspaceDenied
 		}
 		return taskpkg.DeriveAgentSessionActorContextForOrigin(
-			req.SessionID,
+			sessionID,
 			workspaceID,
 			taskpkg.OriginKindAgentSession,
 			strings.TrimSpace(string(req.ToolID)),

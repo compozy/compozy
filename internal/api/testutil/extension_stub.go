@@ -74,8 +74,9 @@ type StubExtensionService struct {
 		context.Context,
 		string,
 		int64,
+		string,
 		taskpkg.ActorContext,
-	) ([]contract.ExtensionLogPayload, error)
+	) (contract.ExtensionLogsResponse, error)
 }
 
 func (s StubExtensionService) Search(
@@ -272,10 +273,11 @@ func (s StubExtensionService) ExtensionLogs(
 	ctx context.Context,
 	name string,
 	after int64,
+	streamEpoch string,
 	actor taskpkg.ActorContext,
-) ([]contract.ExtensionLogPayload, error) {
+) (contract.ExtensionLogsResponse, error) {
 	if s.ExtensionLogsFn == nil {
-		return []contract.ExtensionLogPayload{}, nil
+		return contract.ExtensionLogsResponse{}, nil
 	}
-	return s.ExtensionLogsFn(ctx, name, after, actor)
+	return s.ExtensionLogsFn(ctx, name, after, streamEpoch, actor)
 }

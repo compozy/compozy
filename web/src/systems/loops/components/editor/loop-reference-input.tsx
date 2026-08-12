@@ -65,6 +65,7 @@ export function LoopReferenceInput({
     onKeyDown: auto.onKeyDown,
     onKeyUp: auto.onCaretMove,
     onClick: auto.onCaretMove,
+    onFocus: auto.onCaretMove,
     onBlur: auto.onBlur,
     className: inputClass,
     "aria-label": ariaLabel,

@@ -1,7 +1,7 @@
 import type {
   ExtensionEntry,
   ExtensionKitItem,
-  ExtensionLogEntry,
+  ExtensionLogsSnapshot,
   ExtensionProvenance,
 } from "@/systems/extensions";
 
@@ -193,36 +193,46 @@ export const devExtensionFixture: ExtensionEntry = {
   workspace_id: DEV_EXTENSION_WORKSPACE_ID,
 };
 
-export const extensionLogFixtures: Record<string, Record<string, ExtensionLogEntry[]>> = {
+export const extensionLogFixtures: Record<string, Record<string, ExtensionLogsSnapshot>> = {
   [DEV_EXTENSION_WORKSPACE_ID]: {
-    "ops-dev-extension": [
-      {
-        generation_hash: "gen-9f2c41ab77e0",
-        message: "dev generation gen-9f2c41ab77e0 activated",
-        sequence: 1,
-        timestamp: "2026-07-20T10:00:00Z",
-      },
-      {
-        generation_hash: "gen-9f2c41ab77e0",
-        message: "tool.provider registered: archive",
-        sequence: 2,
-        timestamp: "2026-07-20T10:00:01Z",
-      },
-      {
-        generation_hash: "gen-9f2c41ab77e0",
-        message: "handler exited with status 1",
-        sequence: 3,
-        timestamp: "2026-07-20T10:00:12Z",
-      },
-    ],
+    "ops-dev-extension": {
+      logs: [
+        {
+          generation_hash: "gen-9f2c41ab77e0",
+          message: "dev generation gen-9f2c41ab77e0 activated",
+          sequence: 1,
+          stream_epoch: "epoch-ops-dev",
+          timestamp: "2026-07-20T10:00:00Z",
+        },
+        {
+          generation_hash: "gen-9f2c41ab77e0",
+          message: "tool.provider registered: archive",
+          sequence: 2,
+          stream_epoch: "epoch-ops-dev",
+          timestamp: "2026-07-20T10:00:01Z",
+        },
+        {
+          generation_hash: "gen-9f2c41ab77e0",
+          message: "handler exited with status 1",
+          sequence: 3,
+          stream_epoch: "epoch-ops-dev",
+          timestamp: "2026-07-20T10:00:12Z",
+        },
+      ],
+      stream_epoch: "epoch-ops-dev",
+    },
   },
   "": {
-    "otel-bridge": [
-      {
-        message: "collector connection established",
-        sequence: 1,
-        timestamp: "2026-07-20T09:58:00Z",
-      },
-    ],
+    "otel-bridge": {
+      logs: [
+        {
+          message: "collector connection established",
+          sequence: 1,
+          stream_epoch: "epoch-otel-global",
+          timestamp: "2026-07-20T09:58:00Z",
+        },
+      ],
+      stream_epoch: "epoch-otel-global",
+    },
   },
 };

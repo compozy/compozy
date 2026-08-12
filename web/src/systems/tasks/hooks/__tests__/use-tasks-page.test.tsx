@@ -51,6 +51,7 @@ vi.mock("sonner", () => ({
 }));
 
 const workspaceMockState = vi.hoisted(() => ({
+  options: undefined as unknown,
   error: null as Error | null,
   hasHydrated: true,
   isLoading: false,
@@ -90,20 +91,26 @@ const daemonStatusMockState = vi.hoisted(
     error: Error | null;
     isLoading: boolean;
     isPending: boolean;
+    options: unknown;
   } => ({
     data: { user_home_dir: "/Users/operator" },
     error: null,
     isLoading: false,
     isPending: false,
+    options: undefined,
   })
 );
 
 vi.mock("@/systems/status/hooks/use-daemon-status", () => ({
-  useDaemonStatus: () => daemonStatusMockState,
+  useDaemonStatus: (options: unknown) => {
+    daemonStatusMockState.options = options;
+    return daemonStatusMockState;
+  },
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => {
+  useActiveWorkspace: (options: unknown) => {
+    workspaceMockState.options = options;
     const activeWorkspace = workspaceMockState.hasHydrated
       ? (workspaceFixtures.find(
           workspace => workspace.id === workspaceMockState.selectedWorkspaceId
@@ -220,9 +227,11 @@ beforeEach(() => {
   daemonStatusMockState.error = null;
   daemonStatusMockState.isLoading = false;
   daemonStatusMockState.isPending = false;
+  daemonStatusMockState.options = undefined;
   workspaceMockState.error = null;
   workspaceMockState.hasHydrated = true;
   workspaceMockState.isLoading = false;
+  workspaceMockState.options = undefined;
   workspaceMockState.selectedWorkspaceId = "ws_alpha";
   vi.mocked(listTasks).mockImplementation((filters: TaskListFilter = {}) => {
     if (filters.query === "Fix") {
@@ -253,6 +262,19 @@ afterEach(() => {
 });
 
 describe("useTasksPage", () => {
+  it("disables scope-source observers while its window is inactive", () => {
+    const { result } = renderHook(() => useTasksPage({ liveDataEnabled: false }), {
+      wrapper: createWrapper(),
+    });
+
+    expect(workspaceMockState.options).toEqual({ enabled: false });
+    expect(daemonStatusMockState.options).toEqual({ enabled: false });
+    expect(result.current.activeWorkspaceName).toBe("Alpha");
+    expect(listTasks).not.toHaveBeenCalled();
+    expect(getTaskInbox).not.toHaveBeenCalled();
+    expect(getTaskDashboard).not.toHaveBeenCalled();
+  });
+
   it("ignores a stale row completion token", () => {
     const store = tasksPageActionsLogic.createStore();
     const request = {

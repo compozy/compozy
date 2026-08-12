@@ -270,13 +270,13 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 	); err != nil {
 		t.Fatalf("SetExtensionSecrets(dev) error = %v", err)
 	}
-	logsBeforeReload, err := harness.service.ExtensionLogs(t.Context(), extensionName, 0, devActor)
+	logsBeforeReload, err := harness.service.ExtensionLogs(t.Context(), extensionName, 0, "", devActor)
 	if err != nil {
 		t.Fatalf("ExtensionLogs(before manifest drop) error = %v", err)
 	}
 	var sequenceBeforeReload int64
-	if len(logsBeforeReload) > 0 {
-		sequenceBeforeReload = logsBeforeReload[len(logsBeforeReload)-1].Sequence
+	if len(logsBeforeReload.Logs) > 0 {
+		sequenceBeforeReload = logsBeforeReload.Logs[len(logsBeforeReload.Logs)-1].Sequence
 	}
 	secondGeneration := writeBoundSecretExtensionGenerationWithEnv(
 		t,
@@ -304,6 +304,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		extensionName,
 		devActor,
 		sequenceBeforeReload,
+		logsBeforeReload.StreamEpoch,
 		"runtime_secret=",
 	)
 	if strings.Contains(logMatch.matched.Message, "runtime_secret=[REDACTED]") {
@@ -497,6 +498,7 @@ func testExtensionSecretDevBindingIsolation(t *testing.T) {
 		extensionName,
 		harness.actor,
 		latestSequence,
+		logs[len(logs)-1].StreamEpoch,
 		"runtime_secret=",
 	)
 	encoded := string(mustExtensionTransportJSON(t, logMatch.logs))

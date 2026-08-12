@@ -240,48 +240,50 @@ func (s *daemonExtensionService) ExtensionLogs(
 	ctx context.Context,
 	name string,
 	after int64,
+	streamEpoch string,
 	actor taskpkg.ActorContext,
-) ([]contract.ExtensionLogPayload, error) {
+) (contract.ExtensionLogsResponse, error) {
 	if err := s.checkReady(); err != nil {
-		return nil, err
+		return contract.ExtensionLogsResponse{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return contract.ExtensionLogsResponse{}, err
 	}
 	if err := actor.Validate(); err != nil {
-		return nil, err
+		return contract.ExtensionLogsResponse{}, err
 	}
 	if !actor.Authority.Read {
-		return nil, taskpkg.ErrPermissionDenied
+		return contract.ExtensionLogsResponse{}, taskpkg.ErrPermissionDenied
 	}
 	workspaceID, err := s.scopedDevelopmentWorkspaceID(ctx, actor)
 	if err != nil {
-		return nil, err
+		return contract.ExtensionLogsResponse{}, err
 	}
 	if !actor.Scope.Operator && workspaceID == "" {
-		return nil, extensionpkg.ErrExtensionWorkspaceDenied
+		return contract.ExtensionLogsResponse{}, extensionpkg.ErrExtensionWorkspaceDenied
 	}
 	runtime, err := s.devRuntime()
 	if err != nil {
-		return nil, err
+		return contract.ExtensionLogsResponse{}, err
 	}
-	entries, err := runtime.Logs(
+	snapshot, err := runtime.Logs(
 		extensionpkg.InstanceKey{Name: name, WorkspaceID: workspaceID},
-		after,
+		extensionpkg.ExtensionLogCursor{Sequence: after, StreamEpoch: strings.TrimSpace(streamEpoch)},
 	)
 	if err != nil {
-		return nil, err
+		return contract.ExtensionLogsResponse{}, err
 	}
-	payloads := make([]contract.ExtensionLogPayload, 0, len(entries))
-	for _, entry := range entries {
+	payloads := make([]contract.ExtensionLogPayload, 0, len(snapshot.Entries))
+	for _, entry := range snapshot.Entries {
 		payloads = append(payloads, contract.ExtensionLogPayload{
 			Sequence:       entry.Sequence,
 			Timestamp:      entry.Timestamp,
 			Message:        entry.Message,
 			GenerationHash: entry.GenerationHash,
+			StreamEpoch:    entry.StreamEpoch,
 		})
 	}
-	return payloads, nil
+	return contract.ExtensionLogsResponse{Logs: payloads, StreamEpoch: snapshot.StreamEpoch}, nil
 }
 
 func (s *daemonExtensionService) ListScoped(

@@ -37,10 +37,12 @@ interface TaskCreateLocation {
 
 export function useTaskCreateState(
   search: TaskCreateSearch,
-  onNavigate: (location: TaskCreateLocation) => void
+  onNavigate: (location: TaskCreateLocation) => void,
+  options: { liveDataEnabled?: boolean } = {}
 ) {
-  const { activeWorkspace, workspaces } = useActiveWorkspace();
-  const userHomeDir = useUserHomeDir();
+  const liveDataEnabled = options.liveDataEnabled ?? true;
+  const { activeWorkspace, workspaces } = useActiveWorkspace({ enabled: liveDataEnabled });
+  const userHomeDir = useUserHomeDir({ enabled: liveDataEnabled });
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();

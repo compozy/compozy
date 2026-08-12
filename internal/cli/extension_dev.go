@@ -21,8 +21,8 @@ type extensionDevClient interface {
 	workspaceLookupClient
 	DevExtension(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
 	ReloadDevExtension(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
-	ExtensionLogs(context.Context, string, string, int64) ([]ExtensionLogRecord, error)
-	StreamExtensionLogs(context.Context, string, string, int64, SSEHandler) error
+	ExtensionLogs(context.Context, string, string, int64, string) (ExtensionLogsRecord, error)
+	StreamExtensionLogs(context.Context, string, string, int64, string, SSEHandler) error
 	RemoveDevExtension(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
 }
 
@@ -128,11 +128,15 @@ func newExtensionLogsCommand(deps commandDeps) *cobra.Command {
 	var follow bool
 	var global bool
 	var after int64
+	var streamEpoch string
 	command := &cobra.Command{
 		Use:   "logs <name>",
 		Short: "Read redacted logs for one extension instance",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if after > 0 && strings.TrimSpace(streamEpoch) == "" {
+				return errors.New("cli: --stream-epoch is required with --after")
+			}
 			client, err := requireExtensionDevClient(cmd.Context(), deps)
 			if err != nil {
 				return err
@@ -147,19 +151,22 @@ func newExtensionLogsCommand(deps commandDeps) *cobra.Command {
 				return errors.New("cli: --global and --workspace are mutually exclusive")
 			}
 			if follow {
-				return streamExtensionLogs(cmd, client, workspace, args[0], after)
+				return streamExtensionLogs(cmd, client, workspace, args[0], after, streamEpoch)
 			}
-			entries, err := client.ExtensionLogs(cmd.Context(), workspace, args[0], after)
+			snapshot, err := client.ExtensionLogs(
+				cmd.Context(), workspace, args[0], after, streamEpoch,
+			)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, extensionLogsBundle(entries))
+			return writeCommandOutput(cmd, extensionLogsBundle(snapshot))
 		},
 	}
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
 	command.Flags().BoolVar(&follow, "follow", false, "Stream new log entries")
 	command.Flags().BoolVar(&global, "global", false, "Read the published global instance")
 	command.Flags().Int64Var(&after, "after", 0, "Read entries after this sequence")
+	command.Flags().StringVar(&streamEpoch, "stream-epoch", "", "Ring identity returned by an earlier log read")
 	return command
 }
 
@@ -302,15 +309,25 @@ func streamExtensionLogs(
 	workspace string,
 	name string,
 	after int64,
+	streamEpoch string,
 ) error {
-	return client.StreamExtensionLogs(cmd.Context(), workspace, name, after, func(event sse.Event) error {
-		if event.Event != "extension_log" {
+	return client.StreamExtensionLogs(cmd.Context(), workspace, name, after, streamEpoch, func(event sse.Event) error {
+		if event.Event != "extension_log" && event.Event != "extension_log_reset" {
 			return nil
+		}
+		if event.Event == "extension_log_reset" {
+			var snapshot ExtensionLogsRecord
+			if err := json.Unmarshal(event.Data, &snapshot); err != nil {
+				return fmt.Errorf("cli: decode extension log reset event: %w", err)
+			}
+			return writeCommandOutput(cmd, extensionLogResetBundle(snapshot))
 		}
 		var entry ExtensionLogRecord
 		if err := json.Unmarshal(event.Data, &entry); err != nil {
 			return fmt.Errorf("cli: decode extension log event: %w", err)
 		}
-		return writeCommandOutput(cmd, extensionLogsBundle([]ExtensionLogRecord{entry}))
+		return writeCommandOutput(cmd, extensionLogsBundle(ExtensionLogsRecord{
+			Logs: []ExtensionLogRecord{entry}, StreamEpoch: entry.StreamEpoch,
+		}))
 	})
 }

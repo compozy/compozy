@@ -29,3 +29,8 @@ func Signal(pid int, sig syscall.Signal) error {
 	}
 	return nil
 }
+
+// IsProcessMissingError reports whether a signal failed because its target no longer exists.
+func IsProcessMissingError(err error) bool {
+	return errors.Is(err, syscall.ESRCH)
+}
