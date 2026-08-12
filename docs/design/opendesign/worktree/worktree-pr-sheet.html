@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>PR sheet · Worktrees · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-pr-sheet · S14 final — the PR half of the assisted exit (US-022).
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S14 · copy authority analysis/07 §Transferable 4 + §8.
+  Provenance:
+    production            — anatomy from synara GitCreatePrDialog.tsx:126-216 ("branch → base" header,
+                            "Title (leave empty to generate)" / "Description (leave empty to generate)"
+                            placeholders, three action ROWS: Create draft PR / Create PR (⌘↵) / Open PR
+                            in browser); browser escape hatch from compozy-code github-compare-url.ts:73-92;
+                            idempotent opened_existing from t3code GitManager.ts:1656-1667; base chain from
+                            t3code GitManager.ts:1414-1440; dialog chrome from modal-system.css (worktree.css)
+    spec worktree-support — zero-credential variant renders ONLY the browser row (absent, not disabled —
+                            compozy-code use-pr-button-state.ts:376-378 hides, never disables);
+                            template-ambiguous degrades to generation-without-template with NO error
+                            (t3code PrTemplateDetection.ts:111-177 abstains on ambiguity, silent degrade)
+    authorized delta      — generation micro label + regenerate action mirror the commit sheet; this design
+                            assumes agent-backed generation (analysis/07 OQ2, Risk 12)
+-->
+<style>
+  /* branch → base header line (synara GitCreatePrDialog.tsx:138-154) */
+  .prhead{display:flex;align-items:center;gap:8px;padding:2px 0 4px}
+  .prhead code{font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--fg-strong)}
+  .prhead .arrow{color:var(--faint);font-size:12px}
+  .prhead code.base{color:var(--subtle);font-weight:500}
+  .prhead .wt-dirty{margin-left:auto}
+  /* action rows, not footer buttons (synara :189-212) */
+  /* .pract — actions-as-rows sheet pattern (authorized delta): rows are the actions, sheet has no footer;
+     Esc/scrim dismisses */
+  .practs{display:flex;flex-direction:column;gap:6px}
+  .pract{display:flex;width:100%;align-items:center;gap:9px;min-height:34px;padding:0 12px;
+    border:1px solid var(--line);border-radius:var(--radius-md);background:var(--btn-fill);
+    font-size:12.5px;font-weight:500;color:var(--fg);text-align:left;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+  .pract svg{width:14px;height:14px;flex:none;color:var(--muted)}
+  .pract:hover{background:var(--btn-hover);border-color:var(--line-strong)}
+  .pract--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .pract--primary svg{color:var(--accent-ink)}
+  .pract--primary:hover{background:var(--accent-hover);border-color:transparent}
+  .pract .kbd{margin-left:auto;font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--subtle);
+    border:1px solid var(--line);border-radius:var(--radius-xs);padding:1px 5px;background:var(--canvas-soft)}
+  .pract--primary .kbd{color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent-ink) 32%,transparent);background:transparent}
+  .pract[data-disabled]{opacity:.5;cursor:not-allowed}
+  .pract[data-disabled]:hover{background:var(--btn-fill);border-color:var(--line)}
+  .pract .sub{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  /* generation micro row (shared grammar with the commit sheet) */
+  .genrow{display:flex;align-items:center;gap:6px;margin-top:6px;min-height:22px;font-size:10.5px;color:var(--subtle)}
+  .genrow svg{width:11px;height:11px;color:var(--faint)}
+  .genrow .spacer{flex:1}
+  .blockedbox{display:flex;align-items:center;gap:9px;padding:12px 14px;border:1px dashed var(--line-strong);
+    border-radius:var(--radius-lg);font-size:12px;color:var(--muted)}
+  .blockedbox svg{width:14px;height:14px;flex:none;color:var(--faint)}
+  .openpill{display:inline-flex;align-items:center;gap:5px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-pr-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">PR sheet</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-exit-progress.html">Progress →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · DEFAULT — BASE RESOLVED ════ -->
+    <section class="lab-sec" data-od-id="pr-default">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Default — base resolved</h2>
+        <span class="lab-sec__gist">actions are rows, not footer buttons · draft is a peer, not a checkbox</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Header states the target</b><code>branch → base</code>, never assumed. Base comes from the real chain, not a literal. Empty title/description ⇒ generated (placeholders verbatim, synara :161,169). <code>⌘↵</code> submits the highlighted row.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="dialog dialog--compact" data-od-id="pr-sheet-default">
+              <div class="dialog__head">
+                <span class="head-icon"><svg data-lucide="git-pull-request"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">payments-retry</span>
+                  <h3>Open a pull request</h3>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <!-- base resolution chain (t3code GitManager.ts:1414-1440):
+                     1. git config branch.pedro/payments-retry.gh-merge-base  → unset here
+                     2. upstream branch (≠ current, same repo)                → none yet (never pushed)
+                     3. provider default branch                              → "main"  ← resolved
+                     4. literal "main" fallback
+                     compozy-code's defaultBranch→"main" chain (use-pr-button-state.ts:265-283) is too thin. -->
+                <div class="fgroup">
+                  <!-- branch-vs-base commit diff — never the working-tree ± figure; this header is only
+                       reachable once the tree is clean, so the numbers span the pushed commits -->
+                  <div class="prhead"><code>pedro/payments-retry</code><span class="arrow">→</span><code class="base">main</code>
+                    <span class="wt-dirty" title="branch commits vs base"><span class="ins">+214</span><span class="del">−67</span></span></div>
+                </div>
+                <div class="fgroup">
+                  <!-- empty ⇒ generated; agent-backed generation assumed (analysis/07 OQ2). maxLength 300 (synara :156-164) -->
+                  <input class="input" type="text" maxlength="300" placeholder="Title (leave empty to generate)" aria-label="PR title">
+                </div>
+                <div class="fgroup">
+                  <!-- empty ⇒ generated, with the repo PR template feeding the body when unambiguous (t3code C3) -->
+                  <textarea class="textarea" placeholder="Description (leave empty to generate)" aria-label="PR description"></textarea>
+                </div>
+                <div class="fgroup">
+                  <div class="practs">
+                    <!-- gating: credential present (gh or token) → POST /api/workspaces/:id/worktrees/:wtId/exit
+                         {action:"pr", prTitle?, prBody?, prDraft:true}. Draft is a peer action, never a checkbox
+                         (synara GitCreatePrDialog.tsx:192-195). -->
+                    <button class="pract"><svg data-lucide="git-pull-request-draft"></svg>Create draft PR</button>
+                    <!-- gating: same route, prDraft:false — the single primary of this sheet -->
+                    <button class="pract pract--primary"><svg data-lucide="git-pull-request"></svg>Create PR<span class="kbd">⌘↵</span></button>
+                    <!-- always present: zero-credential escape hatch — GitHub compare URL with quick_pull
+                         (compozy-code github-compare-url.ts:73-92); needs no token, survives every variant -->
+                    <button class="pract"><svg data-lucide="external-link"></svg>Open PR in browser</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Draft as peer action</b>A checkbox would make draft a mode to remember; a row makes it one decision at the moment of action. The primary keeps the accent — one accent per sheet; the draft row is a quiet sibling above it.</div>
+        <div class="spec__demo">
+          <div class="panelbox" style="max-width:420px;padding:10px 12px">
+            <div class="practs">
+              <button class="pract"><svg data-lucide="git-pull-request-draft"></svg>Create draft PR</button>
+              <button class="pract pract--primary"><svg data-lucide="git-pull-request"></svg>Create PR<span class="kbd">⌘↵</span></button>
+              <button class="pract"><svg data-lucide="external-link"></svg>Open PR in browser</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Creating — submit pending</b>Same submitting grammar as the commit sheet: every control holds disabled while the request runs, and only the invoked row morphs — spinner plus <code>Creating PR…</code>. The sheet stays until the result flips it (created · opened_existing · failed).</div>
+        <div class="spec__demo">
+          <!-- gating: submit pending → fields and sibling rows disabled; the invoked row carries the spinner
+               and the morphed label; nothing else changes until the exit result arrives -->
+          <div class="panelbox" style="max-width:420px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+            <input class="input" type="text" disabled value="fix: retry payment webhooks with exponential backoff" aria-label="PR title">
+            <div class="practs" data-od-id="pr-sheet-creating">
+              <button class="pract" data-disabled><svg data-lucide="git-pull-request-draft"></svg>Create draft PR</button>
+              <button class="pract pract--primary" data-disabled><span class="tstep__spin" style="border-top-color:var(--accent-ink)"></span>Creating PR…</button>
+              <button class="pract" data-disabled><svg data-lucide="external-link"></svg>Open PR in browser</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · GENERATED TITLE/BODY — REVIEW ════ -->
+    <section class="lab-sec" data-od-id="pr-generated">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Generated — shown for review</h2>
+        <span class="lab-sec__gist">generated text lands editable · quiet provenance, no fanfare</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Review before create</b>Same stage-don't-fire grammar as the commit sheet (analysis/07 §Transferable 7). The template fed the body — repository template detected unambiguously from the committed base tree (t3code C3).</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="dialog dialog--compact" data-od-id="pr-sheet-generated">
+              <div class="dialog__head">
+                <span class="head-icon"><svg data-lucide="git-pull-request"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">payments-retry</span>
+                  <h3>Open a pull request</h3>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <div class="prhead"><code>pedro/payments-retry</code><span class="arrow">→</span><code class="base">main</code></div>
+                </div>
+                <div class="fgroup">
+                  <input class="input" type="text" maxlength="300" value="fix: retry payment webhooks with exponential backoff" aria-label="PR title">
+                </div>
+                <div class="fgroup">
+                  <textarea class="textarea" style="min-height:108px" aria-label="PR description">## Summary
+- add jittered exponential backoff to the worktree-scoped retry queue
+- cover the giveup path with a table-driven test
+
+## Testing
+- `go test ./internal/payments/... -race`</textarea>
+                  <div class="genrow"><svg data-lucide="sparkles"></svg>generated from 3 commits — review before creating<span class="spacer"></span>
+                    <button class="btn btn--ghost btn--sm"><svg data-lucide="rotate-cw"></svg>Regenerate</button></div>
+                </div>
+                <div class="fgroup">
+                  <div class="practs">
+                    <button class="pract"><svg data-lucide="git-pull-request-draft"></svg>Create draft PR</button>
+                    <button class="pract pract--primary"><svg data-lucide="git-pull-request"></svg>Create PR<span class="kbd">⌘↵</span></button>
+                    <button class="pract"><svg data-lucide="external-link"></svg>Open PR in browser</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Template ambiguous — no error</b>Two templates in <code>.github/PULL_REQUEST_TEMPLATE/</code> ⇒ detection abstains (t3code PrTemplateDetection.ts:111-177) and generation proceeds without a template. A quiet micro note is the entire surface of this state — never an error, never a picker.</div>
+        <div class="spec__demo">
+          <div class="panelbox" style="max-width:420px;padding:12px 14px">
+            <textarea class="textarea" placeholder="Description (leave empty to generate)" aria-label="PR description"></textarea>
+            <!-- t3code C3: Ambiguous → Option.none() — silent degrade to generation-without-template. NO error state. -->
+            <div class="genrow"><svg data-lucide="info"></svg>multiple PR templates found — generating without one</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · EXISTING OPEN PR — IDEMPOTENT ════ -->
+    <section class="lab-sec" data-od-id="pr-existing">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Existing open PR</h2>
+        <span class="lab-sec__gist">creation is idempotent — the sheet flips to View, it never duplicates</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>opened_existing</b>An open-PR lookup runs first (t3code GitManager.ts:1656-1667); an existing PR short-circuits to <code>opened_existing</code> with the live number/URL. auth-refresh already has PR #412 — the header says so, inputs disappear (nothing to write), the primary becomes View.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="dialog dialog--compact" data-od-id="pr-sheet-existing">
+              <div class="dialog__head">
+                <span class="head-icon"><svg data-lucide="git-pull-request"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">auth-refresh</span>
+                  <h3>PR #412 is already open</h3>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <!-- pr payload: {number:412, state:"open", url, title, baseBranch:"main", headBranch:"pedro/auth-refresh"}
+                     (synara git.ts:318-330 shape) — fresh forge snapshot wins over cached git status -->
+                <div class="fgroup">
+                  <div class="prhead"><code>pedro/auth-refresh</code><span class="arrow">→</span><code class="base">main</code>
+                    <span class="pill" data-tone="info" data-mono="true" style="margin-left:auto">PR #412</span></div>
+                </div>
+                <div class="fgroup">
+                  <div class="practs">
+                    <!-- result status: opened_existing → the only useful action is View; create/draft rows are
+                         absent (not disabled) — there is nothing to create -->
+                    <button class="pract pract--primary"><svg data-lucide="external-link"></svg>View PR #412<span class="kbd">⌘↵</span></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · ZERO CREDENTIAL — BROWSER ONLY ════ -->
+    <section class="lab-sec" data-od-id="pr-zerocred">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Zero credential</h2>
+        <span class="lab-sec__gist">create/draft rows absent, not disabled · the browser row is the sheet</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Browser-compare only</b>No <code>gh</code>, no token ⇒ API creation does not exist, so its rows don't render (compozy-code hides the control entirely at <code>use-pr-button-state.ts:376-378</code> — absent beats disabled). The compare URL carries <code>quick_pull=1</code>; GitHub collects title/body there, so the inputs don't render either.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="dialog dialog--compact" data-od-id="pr-sheet-zerocred">
+              <div class="dialog__head">
+                <span class="head-icon head-icon--neutral"><svg data-lucide="git-pull-request"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow" style="color:var(--subtle)">payments-retry</span>
+                  <h3>Open a pull request</h3>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <div class="prhead"><code>pedro/payments-retry</code><span class="arrow">→</span><code class="base">main</code></div>
+                </div>
+                <div class="fgroup">
+                  <div class="practs">
+                    <!-- gating: credential absent → no PR-state widgets, no create/draft rows (truthful UI).
+                         Route: none — opens https://github.com/compozy/compozy/compare/main...pedro/payments-retry?quick_pull=1
+                         (compozy-code github-compare-url.ts:73-92). Requires the branch to be pushed first;
+                         the S6 control sequences Push before this sheet. -->
+                    <button class="pract pract--primary"><svg data-lucide="external-link"></svg>Open PR in browser<span class="kbd">⌘↵</span></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · NO CHANGES — BLOCKED ════ -->
+    <section class="lab-sec" data-od-id="pr-nochanges">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">No branch changes</h2>
+        <span class="lab-sec__gist">blocked with the reason as a functional label</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Blocked state</b>Reason verbatim from synara <code>logic.ts:30</code>. The branch holds nothing beyond base — creating would 422 with GitHub's "No commits between…" (compozy-code humanizes it at <code>pull-request-errors.ts:40-59</code>); the sheet refuses earlier and says why. Browser row stays — the compare page is still a valid destination.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <div class="dialog dialog--compact" data-od-id="pr-sheet-nochanges">
+              <div class="dialog__head">
+                <span class="head-icon head-icon--neutral"><svg data-lucide="git-pull-request"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow" style="color:var(--subtle)">fix-flaky-e2e</span>
+                  <h3>Open a pull request</h3>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <div class="prhead"><code>run/fix-flaky-e2e</code><span class="arrow">→</span><code class="base">main</code></div>
+                </div>
+                <!-- gating: aheadCount === 0 vs base → create/draft blocked with reason (synara logic.ts:30);
+                     reason rendered as functional label, disabled rows repeat it on title -->
+                <div class="fgroup">
+                  <div class="blockedbox"><svg data-lucide="git-compare"></svg>No branch changes to include in a PR.</div>
+                </div>
+                <div class="fgroup">
+                  <div class="practs">
+                    <button class="pract" data-disabled title="No branch changes to include in a PR."><svg data-lucide="git-pull-request-draft"></svg>Create draft PR</button>
+                    <button class="pract" data-disabled title="No branch changes to include in a PR."><svg data-lucide="git-pull-request"></svg>Create PR</button>
+                    <button class="pract"><svg data-lucide="external-link"></svg>Open PR in browser</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      Pairs with <span class="mono">worktree-commit-sheet.html</span> (before) and <span class="mono">worktree-exit-progress.html</span> (after).
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S14</span> · US-022 · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

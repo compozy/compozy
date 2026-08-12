@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Loop worktree default · Node environment · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-loop-config · S12 + S13 — loop-level worktree default and the single node
+  Environment control that absorbs "Working dir".
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S12 §S13 · stories US-017, US-018.
+  Provenance:
+    production            — configure-dialog anatomy from loop-configure-dialog.tsx (eyebrow
+                            "Loops · Configure", FormSection groups, Reset/Cancel/Save footer);
+                            run-form section/limrow voice from loops/loop-run-form.html
+                            (RunLoopRequest.config_overrides precedent); inspector head + node-card
+                            anatomy from loops/loop-editor.html (insp-head, enode, krow); the absorbed
+                            field "Working dir" → params.cwd from loop-node-fields.ts:324-334; goal
+                            field inventory from loop-node-goal-fields.ts:10-97
+    spec worktree-support — LoopConfig.worktree{mode: none|ref|per_run, worktree_ref} (unset = key
+                            absent); RunLoopRequest.config_overrides.worktree per-run override
+                            (US-017 AC-2); node params.environment{mode: root|worktree|new|dir,
+                            worktree_ref?, dir?} on run-agent and goal (US-018); Business Rule 22 —
+                            never two directory fields on one node
+    authorized delta      — mode selects render as pill-group segments (DS hard rule); RuntimeDefaults
+                            layering readout (loop default → node override → per-run) shown as the
+                            node-card env micro line
+-->
+<style>
+  .dlg-title{font-size:15px;font-weight:500;letter-spacing:-.014em;color:var(--fg-strong)}
+  .dlg-desc{margin-top:3px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .demo-card{max-width:460px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft)}
+  /* FormSection voice — loop-configure-dialog.tsx group heading */
+  .fsec{margin-bottom:16px}
+  .fsec:last-child{margin-bottom:0}
+  .fsec__t{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+  .fsec__t .rlab{margin-left:auto;font-size:10.5px;color:var(--faint)}
+  /* run-form fragment — loops/loop-run-form.html sec/limrow voice */
+  .sec-sum{display:flex;align-items:center;gap:8px;padding-bottom:10px}
+  .sec-sum svg{width:14px;height:14px;color:var(--subtle);flex:none}
+  .sec-sum .st{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--subtle)}
+  .sec-sum .ssum{font-size:11.5px;color:var(--faint);margin-left:2px}
+  .limrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;border-top:1px solid var(--line-soft)}
+  .limrow:first-child{border-top:0}
+  .limrow .lk{font-size:12px;color:var(--subtle)}
+  .limrow .lv{display:flex;align-items:center;gap:8px}
+  .rnote{font-size:11px;color:var(--faint);line-height:1.5;padding:10px 14px;border-top:1px solid var(--line-soft)}
+  select.input{appearance:none;-webkit-appearance:none;width:220px;height:28px;padding:0 26px 0 9px;cursor:pointer;
+    font-family:var(--font-mono);font-size:11px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239a9a9f' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 9px center;background-size:10px 10px}
+  /* node inspector — loop-editor.html insp voice */
+  .insp{max-width:400px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas);overflow:hidden}
+  .insp-head{padding:12px 14px;border-bottom:1px solid var(--line-soft)}
+  .insp-head__row{display:flex;align-items:center;gap:8px}
+  .insp-name{font-size:14px;font-weight:510;color:var(--fg-strong)}
+  .monotag{border-radius:var(--radius-xs);background:var(--badge-fill);padding:2px 6px;
+    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle)}
+  .insp-meta{display:flex;align-items:center;gap:8px;margin-top:5px;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+  .insp-body{padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+  .flabel-mono{display:flex;align-items:baseline;gap:7px;margin-bottom:6px}
+  .flabel-mono .fname{font-family:var(--font-mono);font-size:12px;color:var(--fg-strong)}
+  .flabel-mono .ftyp{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+  .input--sm{height:30px;font-family:var(--font-mono);font-size:11.5px}
+  /* node card — loop-editor.html enode anatomy, static for the lab */
+  .enode{width:208px;border-radius:var(--radius-md);border:1px solid var(--line);background:var(--canvas-tint)}
+  .enode__head{display:flex;align-items:center;gap:8px;padding:8px 10px;min-height:38px;border-bottom:1px solid var(--line-soft)}
+  .enode__tile{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);
+    background:var(--elevated);border:1px solid var(--line-strong);color:var(--muted)}
+  .enode__tile svg{width:14px;height:14px}
+  .enode__id{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:510;color:var(--fg-strong)}
+  .enode__cls{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);flex:none}
+  .enode__body{display:flex;flex-direction:column;gap:4px;padding:7px 10px 8px}
+  .krow{display:flex;align-items:center;gap:8px;height:18px}
+  .krow .kk{flex:none;font-size:10.5px;color:var(--subtle)}
+  .krow .kv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;
+    font-family:var(--font-mono);font-size:10px;color:var(--fg)}
+  .krow .kv--dim{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-loopcfg-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Loop default · Node environment</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">S12 · S13</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-task-setup.html">Task setup →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ═══════════ PART 1 — S12 · LOOP CONFIGURE (US-017) ═══════════ -->
+
+    <!-- ════ 01 · CONFIGURE DIALOG — WORKTREE DEFAULT, UNSET ════ -->
+    <section class="lab-sec" data-od-id="lab-configure-unset">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Configure — worktree default, unset</h2>
+        <span class="lab-sec__gist">RuntimeDefaults layering: loop default → node override → per-run</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Unset is truthful</b>The stored <code>loop_config</code> carries no worktree key: nodes choose their own environment, unset nodes run at the workspace root. The control says so instead of pretending a default exists. New section rides the existing Configure dialog (<code>loop-configure-dialog.tsx</code>); everything else unchanged.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- production: loop-configure-dialog.tsx writes the per-loop loop_config store
+                 gating: spec worktree-support — LoopConfig.worktree{mode: none|ref|per_run, worktree_ref}; unset = key absent -->
+            <div class="dialog dialog--compact" role="dialog" aria-labelledby="lc1t" data-od-id="loop-configure-dialog">
+              <div class="dialog__head">
+                <span class="head-icon" aria-hidden="true"><svg data-lucide="sliders-horizontal"></svg></span>
+                <div class="head-copy">
+                  <span class="eyebrow">Loops · Configure</span>
+                  <h3 class="dlg-title" id="lc1t">Configure software-delivery</h3>
+                  <p class="dlg-desc">Adjust how software-delivery runs without changing its structure.</p>
+                </div>
+                <button class="icon-button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="dialog__body">
+                <div class="fsec">
+                  <div class="fsec__t"><span class="eyebrow">Review gate</span><span class="rlab">declared in the loop</span></div>
+                  <p style="font-size:11px;color:var(--faint)">Unchanged — check toggles + command overrides. Elided here.</p>
+                </div>
+                <div class="fsec" data-od-id="loop-configure-worktree">
+                  <!-- new section · spec worktree-support — provenance stays in comments, never rendered -->
+                  <div class="fsec__t"><span class="eyebrow">Environment default</span></div>
+                  <div class="pill-group" role="group" aria-label="Loop environment default">
+                    <button class="pill-group__item" aria-pressed="true">Inherit</button>
+                    <button class="pill-group__item">Workspace root</button>
+                    <button class="pill-group__item">Named worktree</button>
+                    <button class="pill-group__item">Per-run</button>
+                  </div>
+                  <p class="fhint">No loop default declared. Agent-executing nodes pick their own environment; nodes that don't declare one run at the workspace root.</p>
+                </div>
+                <div class="fsec">
+                  <div class="fsec__t"><span class="eyebrow">Stop limits</span><span class="rlab">per-loop defaults</span></div>
+                  <p style="font-size:11px;color:var(--faint)">Unchanged — 6 clamped limit overrides. Elided here.</p>
+                </div>
+              </div>
+              <div class="dialog__foot">
+                <div class="foot-note"><button class="btn btn--ghost btn--sm"><svg data-lucide="rotate-ccw"></svg>Reset to defaults</button></div>
+                <button class="btn">Cancel</button>
+                <button class="btn btn--primary"><svg data-lucide="save"></svg>Save configuration</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · SPECIFIC WORKTREE + PER-RUN ════ -->
+    <section class="lab-sec" data-od-id="lab-configure-modes">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Specific worktree · per-run</h2>
+        <span class="lab-sec__gist">nodes inherit the default unless they override (US-017 AC-1)</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Specific — auth-refresh</b><code>worktree.mode=ref</code>. Every agent-executing node inherits it unless the node declares its own. If the worktree is removed before a run starts, the run fails validation naming it (US-017 EC-1) — never a silent root fallback.</div>
+        <div class="spec__demo"><div class="demo-card">
+          <div class="fsec" style="margin:0">
+            <div class="fsec__t"><span class="eyebrow">Environment default</span></div>
+            <div class="pill-group" role="group" aria-label="Loop environment default">
+              <button class="pill-group__item">Inherit</button>
+              <button class="pill-group__item">Workspace root</button>
+              <button class="pill-group__item" aria-pressed="true">Named worktree</button>
+              <button class="pill-group__item">Per-run</button>
+            </div>
+            <div style="margin-top:8px">
+              <!-- gating: LoopConfig.worktree.worktree_ref — same-workspace ready worktrees only -->
+              <button class="command-select" aria-haspopup="listbox">
+                <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                <span class="command-select__label">auth-refresh<span class="path">pedro/auth-refresh</span></span>
+                <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+              </button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Per-run</b><code>worktree.mode=per_run</code>. Each run of the loop materializes its own worktree on a <code>run/</code> branch. A child loop invoked mid-run inherits the parent run's environment unless its own configuration declares one (US-017 EC-2).</div>
+        <div class="spec__demo"><div class="demo-card">
+          <div class="fsec" style="margin:0">
+            <div class="fsec__t"><span class="eyebrow">Environment default</span></div>
+            <div class="pill-group" role="group" aria-label="Loop environment default">
+              <button class="pill-group__item">Inherit</button>
+              <button class="pill-group__item">Workspace root</button>
+              <button class="pill-group__item">Named worktree</button>
+              <button class="pill-group__item" aria-pressed="true">Per-run</button>
+            </div>
+            <p class="fhint">Fresh worktree per run, marked <span class="wt-origin">per-run</span> in every list.</p>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · RUN-FORM OVERRIDE ════ -->
+    <section class="lab-sec" data-od-id="lab-run-override">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Run-form override — this run only</h2>
+        <span class="lab-sec__gist">the stored default stays put (US-017 AC-2)</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Override surface</b>A compact row in the run form's overrides voice (<code>loop-run-form.html</code> limits precedent). The select leads with the effective loop default; picking anything else applies to this run only.</div>
+        <div class="spec__demo">
+          <div style="max-width:520px" data-od-id="run-form-worktree-override">
+            <div class="sec-sum"><svg data-lucide="folder-git-2"></svg><span class="st">Environment · this run only</span><span class="ssum">loop default: per-run</span></div>
+            <div class="panelbox">
+              <!-- gating: RunLoopRequest.config_overrides.worktree{mode, worktree_ref} (spec worktree-support US-017 AC-2) -->
+              <div class="limrow">
+                <span class="lk">Environment</span>
+                <span class="lv">
+                  <select class="input" aria-label="Environment override">
+                    <option>loop default (per-run)</option>
+                    <option>Workspace root</option>
+                    <option selected>auth-refresh</option>
+                    <option>Per-run</option>
+                  </select>
+                </span>
+              </div>
+              <div class="rnote">Overrides apply to this run only; the loop's saved default stays put.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ PART 2 — S13 · NODE INSPECTOR (US-018) ═══════════ -->
+
+    <!-- ════ 04 · RUN-AGENT — ONE ENVIRONMENT CONTROL, DEFAULT ROOT ════ -->
+    <section class="lab-sec" data-od-id="lab-node-root">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">run-agent — one Environment control</h2>
+        <span class="lab-sec__gist">"Working dir" is absorbed · never two directory fields</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Default — workspace root</b>The Environment control replaces the "Working dir" field (<code>loop-node-fields.ts:324-334</code>, <code>params.cwd</code>). One control, one value: root · existing worktree · new worktree · raw directory. Non-agent nodes get no environment control at all (US-018 AC-3).</div>
+        <div class="spec__demo">
+          <!-- Business Rule 22: NEVER two directory fields on one node — params.cwd is absorbed into
+               params.environment; when mode=dir, the raw input below IS the single directory field.
+               gating: spec worktree-support — params.environment{mode: root|worktree|new|dir, worktree_ref?, dir?} -->
+          <div class="insp" data-od-id="node-insp-run-agent">
+            <div class="insp-head">
+              <div class="insp-head__row"><span class="insp-name">execute_task</span><span class="monotag">action</span></div>
+              <div class="insp-meta">run-agent</div>
+            </div>
+            <div class="insp-body">
+              <div>
+                <div class="flabel-mono"><span class="fname">agent</span><span class="ftyp">agent</span></div>
+                <input class="input input--sm" value="code_implementer" aria-label="Agent">
+              </div>
+              <div>
+                <div class="flabel-mono"><span class="fname">environment</span><span class="ftyp">optional</span></div>
+                <div class="pill-group pill-group--sm" role="group" aria-label="Environment">
+                  <button class="pill-group__item" aria-pressed="true">Workspace root</button>
+                  <button class="pill-group__item">Named worktree</button>
+                  <button class="pill-group__item">New worktree</button>
+                  <button class="pill-group__item">Directory</button>
+                </div>
+                <!-- effective environment is part of the session binding key (ADR-021) -->
+                <p class="fhint">Runs at the workspace root. Part of the session binding key.</p>
+              </div>
+              <p style="font-size:10.5px;color:var(--faint)">Prompt · output schema · overrides — unchanged. Elided here.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>New worktree selected</b>The mode carries no fields — each run materializes a fresh worktree for this node when it starts, on the same generated <code>run/</code> naming as per-run. The quiet line states the sub-state instead of leaving the pill a dead end.</div>
+        <div class="spec__demo"><div class="demo-card" style="max-width:400px">
+          <div class="flabel-mono"><span class="fname">environment</span><span class="ftyp">optional</span></div>
+          <div class="pill-group pill-group--sm" role="group" aria-label="Environment">
+            <button class="pill-group__item">Workspace root</button>
+            <button class="pill-group__item">Named worktree</button>
+            <button class="pill-group__item" aria-pressed="true">New worktree</button>
+            <button class="pill-group__item">Directory</button>
+          </div>
+          <!-- gating: params.environment.mode=new — no name/branch inputs; both generated at run start (US-018), run/ branch naming as per-run -->
+          <p class="fhint">Name and branch are generated at run start — <span class="mono">run/&lt;task-slug&gt;</span>.</p>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · WORKTREE PICKED (GOAL NODE) ════ -->
+    <section class="lab-sec" data-od-id="lab-node-worktree">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">goal — worktree picked</h2>
+        <span class="lab-sec__gist">goal gains the same single control (it had none)</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Node setting wins</b>Goal nodes had no directory field (<code>loop-node-goal-fields.ts</code>); they get the identical control. With a loop default of per-run and this node set to <code>auth-refresh</code>, the node setting wins and the effective environment is visible on the node card (§07, US-018 AC-2).</div>
+        <div class="spec__demo">
+          <div class="insp" data-od-id="node-insp-goal">
+            <div class="insp-head">
+              <div class="insp-head__row"><span class="insp-name">reach_goal</span><span class="monotag">goal</span></div>
+              <div class="insp-meta">goal · continuous session</div>
+            </div>
+            <div class="insp-body">
+              <div>
+                <div class="flabel-mono"><span class="fname">environment</span><span class="ftyp">optional</span></div>
+                <div class="pill-group pill-group--sm" role="group" aria-label="Environment">
+                  <button class="pill-group__item">Workspace root</button>
+                  <button class="pill-group__item" aria-pressed="true">Named worktree</button>
+                  <button class="pill-group__item">New worktree</button>
+                  <button class="pill-group__item">Directory</button>
+                </div>
+                <div style="margin-top:8px">
+                  <button class="command-select" aria-haspopup="listbox" style="min-height:32px">
+                    <span class="command-select__avatar"><svg data-lucide="folder-git-2" style="width:11px;height:11px"></svg></span>
+                    <span class="command-select__label">auth-refresh<span class="path">pedro/auth-refresh</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <p class="fhint">Overrides the loop default (per-run) for this node.</p>
+              </div>
+              <p style="font-size:10.5px;color:var(--faint)">Objective · judge criteria · retry — unchanged. Elided here.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 06 · RAW DIRECTORY — ESCAPE HATCH ════ -->
+    <section class="lab-sec" data-od-id="lab-node-rawdir">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Raw directory — the escape hatch</h2>
+        <span class="lab-sec__gist">legacy values keep working · templates resolve at run time</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Legacy value displayed</b>A definition that only carried <code>params.cwd</code> keeps working unchanged (US-018 EC-1): the control reads it back as mode <code>Directory</code> with the stored value — no migration, no second field.</div>
+        <div class="spec__demo"><div class="demo-card" style="max-width:400px">
+          <div class="flabel-mono"><span class="fname">environment</span><span class="ftyp">legacy · params.cwd</span></div>
+          <div class="pill-group pill-group--sm" role="group" aria-label="Environment">
+            <button class="pill-group__item">Workspace root</button>
+            <button class="pill-group__item">Named worktree</button>
+            <button class="pill-group__item">New worktree</button>
+            <button class="pill-group__item" aria-pressed="true">Directory</button>
+          </div>
+          <div style="margin-top:8px">
+            <!-- gating: params.environment.dir — the ONE directory field (Business Rule 22) -->
+            <input class="input input--sm" value="/tmp/scratch/{{ run.id }}" aria-label="Raw directory" spellcheck="false">
+          </div>
+        </div></div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Templated value</b>Template-interpolable over the loop namespace, resolved at run start. An unresolvable value fails the node with a clear reason before any session starts (US-018 EC-2) — never a session in the wrong place.</div>
+        <div class="spec__demo"><div class="demo-card" style="max-width:400px">
+          <div class="flabel-mono"><span class="fname">environment</span><span class="ftyp">template</span></div>
+          <div class="pill-group pill-group--sm" role="group" aria-label="Environment">
+            <button class="pill-group__item">Workspace root</button>
+            <button class="pill-group__item">Named worktree</button>
+            <button class="pill-group__item">New worktree</button>
+            <button class="pill-group__item" aria-pressed="true">Directory</button>
+          </div>
+          <div style="margin-top:8px">
+            <input class="input input--sm" value="{{ inputs.scratch_root }}/{{ run.id }}" aria-label="Templated directory" spellcheck="false">
+          </div>
+          <p class="fhint">Resolved when the run starts. Type <code>{{</code> to autocomplete references.</p>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ════ 07 · EFFECTIVE ENVIRONMENT ON THE NODE CARD ════ -->
+    <section class="lab-sec" data-od-id="lab-node-readout">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Effective environment on the node card</h2>
+        <span class="lab-sec__gist">one micro mono line · the layering is legible at rest</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>US-018 AC-2</b>The node card states where it runs as a quiet <code>env</code> row. Node override reads plainly; an inherited value names its source so the layering (loop default → node override → per-run) is auditable without opening the inspector.</div>
+        <div class="spec__demo" style="display:flex;gap:14px;flex-wrap:wrap">
+          <!-- gating: effective environment = node params.environment ?? loop_config.worktree (spec worktree-support) -->
+          <div class="enode" data-od-id="node-card-override">
+            <div class="enode__head">
+              <span class="enode__tile"><svg data-lucide="bot"></svg></span>
+              <span class="enode__id">reach_goal</span>
+              <span class="enode__cls">goal</span>
+            </div>
+            <div class="enode__body">
+              <div class="krow"><span class="kk">agent</span><span class="kv">code_implementer</span></div>
+              <div class="krow"><span class="kk">env</span><span class="kv">worktree auth-refresh</span></div>
+            </div>
+          </div>
+          <div class="enode" data-od-id="node-card-inherited">
+            <div class="enode__head">
+              <span class="enode__tile"><svg data-lucide="bot"></svg></span>
+              <span class="enode__id">execute_task</span>
+              <span class="enode__cls">action</span>
+            </div>
+            <div class="enode__body">
+              <div class="krow"><span class="kk">agent</span><span class="kv">code_implementer</span></div>
+              <div class="krow"><span class="kk">env</span><span class="kv kv--dim">per-run · loop default</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S12 + S13 · Loop worktree default and the single node Environment control. Fan-out branches follow the same
+      environment rule per instance; per-branch isolation only when loop/node declares per-run (US-018 EC-3).
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S12 §S13</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

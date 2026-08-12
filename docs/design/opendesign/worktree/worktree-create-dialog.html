@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Worktree create dialog · S4 · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-create-dialog · S4 — the new worktree-create dialog (name-first, progressive advanced).
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S4 · stories US-001, US-002.
+  Provenance:
+    production            — dialog chrome/anatomy = EntityDialogHeader/Body/Footer via the modal-system
+                            transcription in worktree.css (.dialog/.fgroup/.command-select/.cs-pop);
+                            advanced fold = ds-core .adv-toggle canon; 36px inputs = ds-core .input
+    spec worktree-support — name-first shape, generated-name hint, existing-branch picker marking held
+                            branches, refusal states (_uiux.md §S4; herdr dialogs.rs:259-344 is the
+                            interaction reference for create prefill + branch defaulting)
+    authorized delta      — generated-name suggestion carried by the placeholder (no extra field);
+                            derived branch → path preview (US-001 EC-2) rides the dialog foot-note
+                            so it sits immediately before the confirm action
+  Shared story: creating "docs-refresh" is the moment that produces the pending docs-refresh row in
+  worktree-row-states.html §04. The collision demo is a later re-attempt of the same name.
+-->
+<style>
+  .spin{width:12px;height:12px;flex:none;border-radius:50%;
+    border:1.5px solid color-mix(in srgb,var(--accent-ink) 35%,transparent);
+    border-top-color:var(--accent-ink);animation:wtspin .8s linear infinite}
+  .wt-preview{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wt-preview b{color:var(--fg);font-weight:500}
+  .wt-preview .arr{color:var(--faint);padding:0 3px}
+  .adv-body{border-left:1px solid var(--line-soft);margin-left:6px;padding-left:14px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-create-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Create dialog</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">S4</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-session-create.html">Session create →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · SIMPLE — name-first ════ -->
+    <section class="lab-sec" data-od-id="sec-simple">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Simple — one field</h2>
+        <span class="lab-sec__gist">name only · generated suggestion lives in the placeholder</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Name-first (US-001)</b>One required field. The daemon suggests a free name (<code>payments-retry-2</code>) as placeholder — submitting empty accepts it. Branch + path derive from the name; the mono preview sits in the foot, immediately before confirm (US-001 EC-2).</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- gating: POST /api/workspaces/:id/worktrees {name, branch?, base_ref?} -->
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="New worktree" data-od-id="wt-create-simple">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="git-branch-plus"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Workspace · compozy</div>
+                  <!-- production anatomy: EntityDialogHeader carries a one-line description -->
+                  <h3>New worktree</h3>
+                  <p>A separate checkout of <b>compozy</b> on its own branch and directory.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <label class="flabel" for="wtc-name-1">Name</label>
+                  <!-- payload: name · placeholder = daemon-generated free name (never a value the user must clear) -->
+                  <input class="input" id="wtc-name-1" placeholder="payments-retry-2" data-od-id="wtc-name-input">
+                  <div class="fhint">Leave empty to accept <code>payments-retry-2</code>.</div>
+                </div>
+                <button class="adv-toggle" type="button" aria-expanded="false" data-od-id="wtc-adv-toggle">
+                  <svg class="chev" data-lucide="chevron-right"></svg>Advanced
+                </button>
+              </div>
+              <footer class="dialog__foot">
+                <!-- US-001 EC-2: derived branch → path preview, live from the effective name.
+                     Branch derives from the name alone (docs-refresh → docs-refresh) — no forced
+                     prefix, no prefix config (BR-15); path = ADR-005 central home -->
+                <div class="foot-note"><svg data-lucide="git-branch"></svg>
+                  <span class="wt-preview"><b>payments-retry-2</b><span class="arr">→</span>~/.compozy/worktrees/compozy/payments-retry-2</span>
+                </div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit" data-od-id="wtc-submit">Create worktree</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · ADVANCED EXPANDED ════ -->
+    <section class="lab-sec" data-od-id="sec-advanced">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Advanced expanded</h2>
+        <span class="lab-sec__gist">branch (no forced prefix) · base ref · existing-branch picker</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>The fold (US-001)</b>Branch prefills the name-derived value (<code>docs-refresh</code>) and stays fully editable — <code>pedro/docs-refresh</code> here is what the user typed, never a forced prefix. Base ref defaults to <code>main</code>. Preview tracks the effective branch.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="New worktree" data-od-id="wt-create-advanced">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="git-branch-plus"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Workspace · compozy</div>
+                  <h3>New worktree</h3>
+                  <p>A separate checkout of <b>compozy</b> on its own branch and directory.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <label class="flabel" for="wtc-name-2">Name</label>
+                  <input class="input" id="wtc-name-2" value="docs-refresh" placeholder="payments-retry-2">
+                </div>
+                <button class="adv-toggle" type="button" aria-expanded="true">
+                  <svg class="chev" data-lucide="chevron-right"></svg>Advanced
+                </button>
+                <div class="adv-body">
+                  <div class="fgroup">
+                    <label class="flabel" for="wtc-branch-2">Branch</label>
+                    <!-- payload: branch · prefill = name-derived ("docs-refresh"), fully editable;
+                         "pedro/docs-refresh" is a value the user typed — no prefix config exists,
+                         forced prefixes are forbidden (US-001, BR-15) -->
+                    <input class="input input--mono" id="wtc-branch-2" value="pedro/docs-refresh" data-od-id="wtc-branch-input">
+                  </div>
+                  <div class="grid-2">
+                    <div class="fgroup">
+                      <label class="flabel" for="wtc-base-2">Base ref</label>
+                      <!-- payload: base_ref · default = workspace default branch (main) -->
+                      <input class="input input--mono" id="wtc-base-2" value="main" data-od-id="wtc-base-input">
+                    </div>
+                    <div class="fgroup">
+                      <span class="flabel" id="wtc-existing-label-2">Use existing branch<span class="opt">optional</span></span>
+                      <!-- payload: existing_branch · choosing one replaces branch+base with the picked ref -->
+                      <button class="command-select" type="button" aria-labelledby="wtc-existing-label-2" data-od-id="wtc-existing-select">
+                        <span class="command-select__label" style="color:var(--muted)">None</span>
+                        <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="git-branch"></svg>
+                  <span class="wt-preview"><b>pedro/docs-refresh</b><span class="arr">→</span>~/.compozy/worktrees/compozy/docs-refresh</span>
+                </div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit">Create worktree</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Existing-branch picker (US-002)</b>Branches already held by a worktree stay listed and are badged with the holder, so the refusal is predictable before the click. Picking one refuses the create at the field and offers <em>Select that worktree instead</em> as the escape (US-002 EC-2, §03) — never a duplicate checkout, never a silent jump. Free branches are selectable normally.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo" style="display:grid;justify-items:start">
+            <!-- gating: candidates = git branches ∪ GET /api/workspaces/:id/worktrees → items[].branch marks held rows -->
+            <div class="cs-pop" data-od-id="wtc-branch-pop">
+              <div class="cs-pop__search"><svg data-lucide="search"></svg><input placeholder="Search branches…" aria-label="Search branches"></div>
+              <div class="cs-pop__list">
+                <div class="cs-group">
+                  <div class="cs-group__h">Branches</div>
+                  <!-- free branch names are illustrative; runtime truth owns the list -->
+                  <button class="cs-item" type="button"><span class="cs-item__label">pedro/release-notes</span></button>
+                  <button class="cs-item" type="button"><span class="cs-item__label">fix/ipc-timeout</span></button>
+                </div>
+                <div class="cs-group">
+                  <div class="cs-group__h">Already in a worktree</div>
+                  <!-- held rows: badge = holding worktree name · picking one → field refusal +
+                       "Select that worktree instead" escape (US-002 EC-2, §03) — never a duplicate
+                       checkout, never a silent jump -->
+
+                  <button class="cs-item" type="button"><span class="cs-item__label">pedro/payments-retry</span><span class="cs-item__badge">payments-retry</span></button>
+                  <button class="cs-item" type="button"><span class="cs-item__label">pedro/auth-refresh</span><span class="cs-item__badge">auth-refresh</span></button>
+                  <button class="cs-item" type="button"><span class="cs-item__label">run/fix-flaky-e2e</span><span class="cs-item__badge">fix-flaky-e2e</span></button>
+                  <button class="cs-item" type="button"><span class="cs-item__label">pedro/data-migration</span><span class="cs-item__badge">data-migration</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · REFUSALS — functional labels, primary blocked ════ -->
+    <section class="lab-sec" data-od-id="sec-refusals">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Refusals</h2>
+        <span class="lab-sec__gist">reason on the failing field · primary blocked · no prose</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Name collision</b><code>docs-refresh</code> already exists in the shared story (pending). The refusal is a functional label on the field; the primary blocks until the name changes.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- gating: POST … → 409 name_conflict; primary disabled while the conflict stands -->
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="New worktree" data-od-id="wt-create-collision">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="git-branch-plus"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Workspace · compozy</div>
+                  <h3>New worktree</h3>
+                  <p>A separate checkout of <b>compozy</b> on its own branch and directory.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <label class="flabel" for="wtc-name-3">Name</label>
+                  <input class="input input--err" id="wtc-name-3" value="docs-refresh" aria-invalid="true" aria-describedby="wtc-name-3-err">
+                  <div class="ferr" id="wtc-name-3-err"><svg data-lucide="circle-alert"></svg>A worktree named docs-refresh already exists.</div>
+                </div>
+                <button class="adv-toggle" type="button" aria-expanded="false">
+                  <svg class="chev" data-lucide="chevron-right"></svg>Advanced
+                </button>
+              </div>
+              <footer class="dialog__foot">
+                <!-- simple mode: branch = name-derived, no prefix -->
+                <div class="foot-note"><svg data-lucide="git-branch"></svg>
+                  <span class="wt-preview"><b>docs-refresh</b><span class="arr">→</span>~/.compozy/worktrees/compozy/docs-refresh</span>
+                </div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit" disabled>Create worktree</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Branch held elsewhere (US-002 EC-1/EC-2)</b>Picking a branch another worktree holds refuses the create and offers the jump as a secondary action — never a duplicate checkout, never a silent switch.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- gating: existing_branch matches worktrees[].branch (auth-refresh) → refusal + jump action -->
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="New worktree" data-od-id="wt-create-branch-held">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="git-branch-plus"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Workspace · compozy</div>
+                  <h3>New worktree</h3>
+                  <p>A separate checkout of <b>compozy</b> on its own branch and directory.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <label class="flabel" for="wtc-name-4">Name</label>
+                  <input class="input" id="wtc-name-4" value="auth-refresh-2" placeholder="payments-retry-2">
+                </div>
+                <button class="adv-toggle" type="button" aria-expanded="true">
+                  <svg class="chev" data-lucide="chevron-right"></svg>Advanced
+                </button>
+                <div class="adv-body">
+                  <div class="fgroup">
+                    <span class="flabel" id="wtc-existing-label-4">Use existing branch</span>
+                    <button class="command-select input--err" type="button" aria-labelledby="wtc-existing-label-4" aria-invalid="true" aria-describedby="wtc-existing-4-err">
+                      <span class="command-select__label mono" style="font-size:12px">pedro/auth-refresh</span>
+                      <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                    </button>
+                    <div class="ferr" id="wtc-existing-4-err"><svg data-lucide="circle-alert"></svg>Branch pedro/auth-refresh is checked out in auth-refresh.</div>
+                    <!-- secondary action, not a second primary: closes the dialog and scopes context to auth-refresh -->
+                    <div style="margin-top:8px">
+                      <button class="btn btn--sm" type="button" data-od-id="wtc-jump-held"><svg data-lucide="arrow-right"></svg>Select that worktree instead</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <!-- preview absent (truthful): the refused existing-branch pick leaves no valid
+                     branch → path derivation to show -->
+                <div class="foot-note"></div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit" disabled>Create worktree</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Base ref missing</b>An unknown base ref refuses at the field. The preview stays on the derived branch but the path resolves nowhere until the ref exists.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- gating: base_ref fails git rev-parse in workspace compozy → field-level refusal -->
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="New worktree" data-od-id="wt-create-base-missing">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="git-branch-plus"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Workspace · compozy</div>
+                  <h3>New worktree</h3>
+                  <p>A separate checkout of <b>compozy</b> on its own branch and directory.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <label class="flabel" for="wtc-name-5">Name</label>
+                  <input class="input" id="wtc-name-5" value="docs-refresh" placeholder="payments-retry-2">
+                </div>
+                <button class="adv-toggle" type="button" aria-expanded="true">
+                  <svg class="chev" data-lucide="chevron-right"></svg>Advanced
+                </button>
+                <div class="adv-body">
+                  <div class="fgroup">
+                    <label class="flabel" for="wtc-branch-5">Branch</label>
+                    <!-- user-typed branch (no forced prefix — BR-15) -->
+                    <input class="input input--mono" id="wtc-branch-5" value="pedro/docs-refresh">
+                  </div>
+                  <div class="grid-2">
+                    <div class="fgroup">
+                      <label class="flabel" for="wtc-base-5">Base ref</label>
+                      <input class="input input--mono input--err" id="wtc-base-5" value="trunk" aria-invalid="true" aria-describedby="wtc-base-5-err">
+                      <div class="ferr" id="wtc-base-5-err"><svg data-lucide="circle-alert"></svg>Base ref trunk was not found.</div>
+                    </div>
+                    <div class="fgroup">
+                      <span class="flabel" id="wtc-existing-label-5">Use existing branch<span class="opt">optional</span></span>
+                      <button class="command-select" type="button" aria-labelledby="wtc-existing-label-5">
+                        <span class="command-select__label" style="color:var(--muted)">None</span>
+                        <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="git-branch"></svg>
+                  <span class="wt-preview"><b>pedro/docs-refresh</b><span class="arr">→</span>~/.compozy/worktrees/compozy/docs-refresh</span>
+                </div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit" disabled>Create worktree</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · SUBMITTING ════ -->
+    <section class="lab-sec" data-od-id="sec-submitting">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Submitting</h2>
+        <span class="lab-sec__gist">fields lock · primary spins · closing never aborts the create</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Creating…</b>The daemon materializes in the background (create → branch → bootstrap) and the row appears as <code>pending</code> in every list the moment the request is accepted — so Cancel and the close control stay live: dismissing the dialog never aborts or orphans the create.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- gating: operation.status === "submitting" — fields lock; close/Cancel stay live because
+                 the create continues daemon-side as the pending row (dismiss ≠ abort) -->
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="New worktree" data-od-id="wt-create-submitting" aria-busy="true">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="git-branch-plus"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Workspace · compozy</div>
+                  <h3>New worktree</h3>
+                  <p>A separate checkout of <b>compozy</b> on its own branch and directory.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <label class="flabel" for="wtc-name-6">Name</label>
+                  <input class="input" id="wtc-name-6" value="docs-refresh" disabled>
+                </div>
+                <button class="adv-toggle" type="button" aria-expanded="false" disabled style="opacity:.5;cursor:not-allowed">
+                  <svg class="chev" data-lucide="chevron-right"></svg>Advanced
+                </button>
+              </div>
+              <footer class="dialog__foot">
+                <!-- user-typed branch carried from the advanced fold (shared story) -->
+                <div class="foot-note"><svg data-lucide="git-branch"></svg>
+                  <span class="wt-preview"><b>pedro/docs-refresh</b><span class="arr">→</span>~/.compozy/worktrees/compozy/docs-refresh</span>
+                </div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit" disabled data-od-id="wtc-submit-pending"><span class="spin" aria-hidden="true"></span>Creating…</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S4 create dialog — feeds the <span class="mono">pending</span> row in <a href="worktree-row-states.html" style="color:var(--subtle)">row-states</a>
+      and the "New worktree…" option in <a href="worktree-session-create.html" style="color:var(--subtle)">session create</a>.
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S4</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

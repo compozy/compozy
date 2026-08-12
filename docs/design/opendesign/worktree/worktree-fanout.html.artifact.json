@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "worktree/worktree-fanout.html",
+  "entry": "worktree/worktree-fanout.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-11T19:45:29.264Z",
+  "updatedAt": "2026-08-11T19:45:29.264Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Worktree row &amp; state vocabulary · Lab · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-row-states · S5 vocabulary sheet — the anchor artboard every other worktree surface reuses.
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S5 · stories US-008, US-012, US-015.
+  Provenance:
+    production            — row anatomy from compozy-code worktree-list-item.tsx:99-242 (mono branch,
+                            status badge, setup badge, relative activity); ± presentation from diff-header.tsx:72-77
+    spec worktree-support — state enum ready·pending·discovered·missing·error + origin/setup-flagged/merged
+                            companions (_uiux.md §Shared state vocabulary)
+    authorized delta      — shape-coded chip dots reuse the ds-core session status-shape canon
+-->
+<style>
+  .chip-grid{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .badge-grid{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 16px;align-items:center}
+  .badge-grid .k{font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .anat{position:relative;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:4px 6px}
+  .callouts{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px}
+  .co{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--subtle)}
+  .co i{font-family:var(--font-mono);font-style:normal;font-size:8.5px;font-weight:600;color:var(--faint);
+    border:1px solid var(--line-strong);border-radius:var(--radius-xxs);padding:0 4px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-lab-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Row &amp; state vocabulary</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">lab</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-nav-switcher.html">Switcher →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · STATE CHIPS — each alone ════ -->
+    <section class="lab-sec" data-od-id="lab-chips">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">State chip — the shared enum</h2>
+        <span class="lab-sec__gist">color AND shape carry state · ready stays calm</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>The five states</b>Payload <code>worktree.state</code>. One chip per row, ever. <code>pending</code> is never rendered as ready; <code>error</code> means the status read failed — it blocks dependent actions, it does not mean "dirty".</div>
+        <div class="spec__demo chip-grid">
+          <span class="wt-chip" data-state="ready">ready</span>
+          <span class="wt-chip" data-state="pending">pending</span>
+          <span class="wt-chip" data-state="discovered">discovered</span>
+          <span class="wt-chip" data-state="missing">missing</span>
+          <span class="wt-chip" data-state="error">error</span>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Ready in dense lists</b>Inside the switcher / menubar nest, ready rows drop the chip and keep only the quiet dot — the chip appears when any other state needs saying.</div>
+        <div class="spec__demo chip-grid">
+          <span class="d d--ok" title="ready"></span>
+          <span style="font-size:11px;color:var(--subtle)">← the whole "ready" signal in a nested row</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · COMPANION BADGES ════ -->
+    <section class="lab-sec" data-od-id="lab-badges">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Companion signals</h2>
+        <span class="lab-sec__gist">max two per row · unknown renders absent, never zero</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Full inventory</b>Each maps to one payload field. Nullable numbers hide instead of lying (<code>+0 −0</code> forbidden — synara git.ts:88-92). Ahead/behind renders only when <code>hasUpstream</code> and counts are known.</div>
+        <div class="spec__demo badge-grid">
+          <span class="k">dirty · workingTree ±</span><span class="wt-dirty"><span class="ins">+142</span><span class="del">−18</span><span style="color:var(--faint)">· 6 files</span></span>
+          <span class="k">ahead / behind</span><span class="wt-ab"><span class="ahead">3</span><span class="behind" data-hot>2</span></span>
+          <span class="k">agent activity · runtime</span><span class="wt-agent"><span class="d d--run d--pulse"></span>agent running</span>
+          <span class="k">agent awaiting input</span><span class="wt-agent"><span class="d d--wait"></span>awaiting input <span style="font-size:9px;color:var(--faint)">— turn finished; exit actions unlock (S6)</span></span>
+          <span class="k">agent idle</span><span class="wt-agent"><span class="d d--idle"></span>idle <span style="font-size:9px;color:var(--faint)">— rows render nothing when idle; the label appears in S6 headers only</span></span>
+          <span class="k">origin · run-created</span><span class="wt-origin">per-run</span>
+          <span class="k">setup-flagged · US-029</span><span class="wt-flag"><svg data-lucide="triangle-alert"></svg>setup failed</span>
+          <span class="k">merged · forge</span><span class="wt-merged"><svg data-lucide="git-merge"></svg>Merged</span>
+          <span class="k">stale remote values</span><span class="wt-ab"><span class="ahead">1</span><span class="wt-stale">as of 18m ago</span></span>
+          <span class="k">detached · US-012 EC-1</span><span class="mono" style="font-size:10.5px;color:var(--subtle)">pinned at <span style="color:var(--fg)">9ec3d15</span></span>
+          <span class="k">unknown (no upstream)</span><span class="mono" style="font-size:10.5px;color:var(--faint)">no upstream</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · ROW ANATOMY ════ -->
+    <section class="lab-sec" data-od-id="lab-anatomy">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Row anatomy</h2>
+        <span class="lab-sec__gist">name is the record label — never the basename</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>44px full row</b>Icon well · name + mono copyable branch · path lane · trailing signals · relative activity. Anatomy from old-Compozy <code>worktree-list-item.tsx:99-242</code>, re-set in ds-core row grammar. Density rule: the chip renders only when state ≠ ready — this ready row carries no chip.</div>
+        <div class="spec__demo">
+          <div class="anat">
+            <!-- gating: GET /api/workspaces/:id/worktrees → items[] -->
+            <div class="wt-row" data-od-id="wt-row-anatomy">
+              <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>payments-retry</b></span>
+                <span class="wt-row__branch"><code>pedro/payments-retry</code>
+                  <!-- gating: client clipboard — copies worktree.branch, no API call -->
+                  <button class="copy" title="Copy branch" aria-label="Copy branch"><svg data-lucide="copy"></svg></button></span>
+                <span class="wt-row__path">~/.compozy/worktrees/compozy/payments-retry</span>
+              </span>
+              <span class="wt-row__trail">
+                <span class="wt-row__meta">
+                  <span class="wt-dirty"><span class="ins">+142</span><span class="del">−18</span></span>
+                  <span class="wt-ab"><span class="ahead">3</span></span>
+                  <span class="wt-agent"><span class="d d--run d--pulse"></span></span>
+                </span>
+                <span class="wt-row__time">4m</span>
+              </span>
+            </div>
+          </div>
+          <div class="callouts">
+            <span class="co"><i>A</i>icon well 26px</span>
+            <span class="co"><i>B</i>name 12.5/550 · chip only when ≠ ready</span>
+            <span class="co"><i>C</i>branch mono 10.5 · copy on hover</span>
+            <span class="co"><i>D</i>path micro mono ≤10.5 faint — demoted, never removed</span>
+            <span class="co"><i>E</i>± / ↑↓ / activity dot</span>
+            <span class="co"><i>F</i>relative time mono 9.5</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · REALISTIC COMBINATIONS (the shared story) ════ -->
+    <section class="lab-sec" data-od-id="lab-combos">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Realistic combinations</h2>
+        <span class="lab-sec__gist">the eight story rows — reused verbatim by every list surface</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Workspace compozy</b>ready+dirty+running · ready+behind+PR · per-run+merged · setup-flagged · discovered · pending · missing · error. Discovered/missing get a dashed icon well; missing/error mute the name.</div>
+        <div class="spec__demo">
+          <div class="panelbox" style="padding:4px 6px">
+
+            <div class="wt-row">
+              <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>payments-retry</b></span>
+                <span class="wt-row__branch"><code>pedro/payments-retry</code><button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <span class="wt-dirty"><span class="ins">+142</span><span class="del">−18</span></span>
+                <span class="wt-ab"><span class="ahead">3</span></span>
+                <span class="wt-agent" title="Fix payment retries · claude"><span class="d d--run d--pulse"></span></span>
+              </span><span class="wt-row__time">4m</span></span>
+            </div>
+
+            <div class="wt-row">
+              <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>auth-refresh</b></span>
+                <span class="wt-row__branch"><code>pedro/auth-refresh</code><button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <span class="wt-ab"><span class="behind" data-hot>2</span></span>
+                <span class="pill" data-tone="info" data-mono="true">PR #412</span>
+              </span><span class="wt-row__time">1h</span></span>
+            </div>
+
+            <div class="wt-row">
+              <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>fix-flaky-e2e</b><span class="wt-origin">per-run</span></span>
+                <span class="wt-row__branch"><code>run/fix-flaky-e2e</code><button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <span class="wt-merged"><svg data-lucide="git-merge"></svg>Merged</span>
+              </span><span class="wt-row__time">2d</span></span>
+            </div>
+
+            <div class="wt-row">
+              <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>data-migration</b><span class="wt-flag" title="bun install exited 1 — worktree is usable"><svg data-lucide="triangle-alert"></svg>setup failed</span></span>
+                <span class="wt-row__branch"><code>pedro/data-migration</code><button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <span class="wt-ab"><span class="ahead">1</span></span>
+              </span><span class="wt-row__time">3h</span></span>
+            </div>
+
+            <div class="wt-row" data-state="discovered">
+              <span class="wt-row__icon"><svg data-lucide="folder-search"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>spike-sqlite-vacuum</b><span class="wt-chip" data-state="discovered">discovered</span></span>
+                <span class="wt-row__branch"><code>spike/sqlite-vacuum</code><button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <!-- gating: POST /api/workspaces/:id/worktrees/spike-sqlite-vacuum/adopt — opens the
+                     adopt confirm (nav-switcher §05); adopt-on-select per US-009 AC-1 / ADR-002 -->
+                <button class="btn btn--sm">Adopt</button>
+              </span></span>
+            </div>
+
+            <div class="wt-row">
+              <span class="wt-row__icon"><svg data-lucide="loader"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>docs-refresh</b><span class="wt-chip" data-state="pending">pending</span></span>
+                <span class="wt-row__branch"><code>pedro/docs-refresh</code></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <span class="mono" style="font-size:9.5px;color:var(--faint)">creating branch…</span>
+              </span></span>
+            </div>
+
+            <div class="wt-row" data-state="missing">
+              <span class="wt-row__icon"><svg data-lucide="folder-x"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>hotfix-cors</b><span class="wt-chip" data-state="missing">missing</span></span>
+                <span class="wt-row__branch"><code>pedro/hotfix-cors</code><button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <!-- gating: opens the S15 missing-resolution dialog (dismiss record / re-verify path) -->
+                <button class="btn btn--sm">Resolve…</button>
+              </span></span>
+            </div>
+
+            <div class="wt-row" data-state="error">
+              <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>bench-harness</b><span class="wt-chip" data-state="error">error</span></span>
+                <span class="wt-row__branch"><code>pedro/bench-harness</code><button class="copy" title="Copy branch"><svg data-lucide="copy"></svg></button></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <span class="mono" style="font-size:9.5px;color:var(--danger)">status read failed</span>
+              </span></span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Stale + detached</b>Remote-derived values carry an "as of" marker instead of pretending freshness; a detached worktree states its pin, and push/PR actions are blocked with a reason (US-012 EC-1).</div>
+        <div class="spec__demo">
+          <div class="panelbox" style="padding:4px 6px">
+            <div class="wt-row">
+              <span class="wt-row__icon"><svg data-lucide="folder-git-2"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>auth-refresh</b></span>
+                <span class="wt-row__branch"><code>pedro/auth-refresh</code></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__meta">
+                <span class="wt-ab"><span class="behind" data-hot>2</span><span class="wt-stale">as of 18m ago</span></span>
+              </span><span class="wt-row__time">1h</span></span>
+            </div>
+            <div class="wt-row">
+              <span class="wt-row__icon"><svg data-lucide="pin"></svg></span>
+              <span class="wt-row__main">
+                <span class="wt-row__name"><b>bisect-lab</b></span>
+                <span class="wt-row__branch"><code>pinned at 9ec3d15</code><button class="copy" title="Copy sha"><svg data-lucide="copy"></svg></button></span>
+              </span>
+              <span class="wt-row__trail"><span class="wt-row__time">5d</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · DENSITY VARIANTS ════ -->
+    <section class="lab-sec" data-od-id="lab-density">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Density variants</h2>
+        <span class="lab-sec__gist">nested 30px rows inside .wt-nest · rail, never box glyphs</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Nested projection</b>The switcher / menubar / overview consume the same rows at 30px inside <code>.wt-nest</code> (15px indent + 1px rail). Ready drops the chip; every other state keeps it. State dots come from <code>.wt-dot[data-state]</code> — this sheet is the shape source of truth.</div>
+        <div class="spec__demo">
+          <div class="panelbox" style="padding:6px 8px;max-width:360px">
+            <div class="cs-item" aria-selected="true">
+              <span class="command-select__avatar">CO</span>
+              <span class="cs-item__label">compozy<span class="sub">~/dev/compozy</span></span>
+              <svg class="cs-item__check" data-lucide="check"></svg>
+            </div>
+            <div class="wt-nest">
+              <div class="wt-row">
+                <span class="d d--ok" style="justify-self:center"></span>
+                <span class="wt-row__main"><span class="wt-row__name"><b>payments-retry</b></span></span>
+                <span class="wt-row__trail"><span class="wt-agent"><span class="d d--run d--pulse"></span></span></span>
+              </div>
+              <div class="wt-row">
+                <span class="d d--ok" style="justify-self:center"></span>
+                <span class="wt-row__main"><span class="wt-row__name"><b>auth-refresh</b></span></span>
+                <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+              </div>
+              <div class="wt-row" data-inert aria-disabled="true">
+                <!-- pending = FILLED warning diamond (.wt-dot mirrors the chip's ::before) — never the
+                     hollow ring, which is the discovered/missing shape -->
+                <span class="wt-dot" data-state="pending"></span>
+                <span class="wt-row__main"><span class="wt-row__name"><b>docs-refresh</b><span class="wt-chip" data-state="pending">pending</span></span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Collapsed parent aggregate</b>A collapsed workspace keeps one quiet signal: live-agent dot + count. Zero renders nothing (badge budget — zero counts render nothing).</div>
+        <div class="spec__demo chip-grid">
+          <span class="wt-agg"><span class="d d--run d--pulse"></span>2 active</span>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      Anchor sheet for the worktree set — every other artboard reuses these classes from <span class="mono">worktree.css</span>.
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S5</span> · copy register per COPY.md · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

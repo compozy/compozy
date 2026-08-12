@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Session create · environment select · S7 · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="worktree.css">
+<!--
+  worktree-session-create · S7 — the session-create dialog gains an Environment select (US-003).
+  Spec: .compozy/tasks/worktree-support/_uiux.md §S7 · story US-003.
+  Provenance:
+    production            — dialog anatomy transcribed from session-create-dialog.tsx:102-182
+                            (EntityDialogHeader copy "Start a durable session…", simple/advanced mode
+                            toolbar, footer hint "Choose a runtime when you send the first message.",
+                            submit disabled while invalid) and session-create-advanced-section.tsx:38-84
+                            (advanced order: Workspace → session name → network fields); prototype
+                            precedent _done/modals/start-session.html (agent select, workspace select,
+                            name, network channel)
+    spec worktree-support — Environment select DIRECTLY UNDER Workspace: Workspace root (default) ·
+                            ready worktrees only · "New worktree…" (opens S4). Resets when the
+                            workspace changes — precedent session-create-store.ts:102-111
+                            (workspaceSelected replaces the draft with ADVANCED_DEFAULTS)
+    authorized delta      — dialog chrome re-set on worktree.css bare tokens; network participation
+                            fields condensed to the single channel select from start-session.html
+                            (full NetworkParticipationFields grammar is out of S7 scope)
+  Shared story: workspace compozy (four READY worktrees) · branas-site (zero worktrees) ·
+  notes (not git-backed → the Environment control is ABSENT, never disabled).
+-->
+<style>
+  .command-select__avatar svg{width:12px;height:12px}
+  .modetools{display:flex;align-items:center;padding:10px 20px 0}
+  .envrow{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="wt-sess-head">
+    <a class="w2-back" href="index.html" aria-label="Back to worktree set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Worktrees</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Session create · environment</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">S7</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="worktree-create-dialog.html">Create dialog →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <!-- ════ 01 · DEFAULT — Workspace root selected ════ -->
+    <section class="lab-sec" data-od-id="sec-default">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Default — workspace root</h2>
+        <span class="lab-sec__gist">Environment sits directly under Workspace · root is the calm default</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Advanced mode (US-003)</b>Production anatomy unchanged — agent, then the advanced fields. The one addition is <b>Environment</b>, pinned under Workspace so "where new work runs" reads as a single decision. Default is the workspace root; no accent, no chip.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- gating: POST /api/sessions {workspace_id, environment:{type:"workspace_root"}} — default when untouched -->
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Start session" data-od-id="sess-create-default">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="play"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Operate · Session</div>
+                  <h3>Start session</h3>
+                  <!-- runtime line lives in the footer only — production string, stated once -->
+                  <p>Start a durable session.</p>
+                </div>
+                <!-- gating: Close and Cancel discard the dialog draft — no request -->
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="modetools">
+                <!-- gating: Simple/Advanced is view state only — Advanced reveals workspace · environment · name · network; no payload field -->
+                <div class="pill-group" role="group" aria-label="Editor mode">
+                  <button class="pill-group__item" type="button" aria-pressed="false">Simple</button>
+                  <button class="pill-group__item" type="button" aria-pressed="true">Advanced</button>
+                </div>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <!-- gating: POST /api/sessions {agent} — the ACP agent that owns the session -->
+                  <span class="flabel" id="sc-agent-1">Agent</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-agent-1">
+                    <span class="command-select__avatar">CL</span>
+                    <span class="command-select__label">claude<span class="path">ACP agent</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <div class="fgroup">
+                  <!-- gating: {workspace_id}; changing it resets environment to workspace_root (session-create-store.ts:102-111) -->
+                  <span class="flabel" id="sc-ws-1">Workspace</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-ws-1">
+                    <span class="command-select__avatar">CO</span>
+                    <span class="command-select__label">compozy<span class="path">~/dev/compozy</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <div class="fgroup">
+                  <span class="flabel" id="sc-env-1">Environment</span>
+                  <!-- payload: environment · resets to workspace_root when workspace changes
+                       (session-create-store.ts:102-111 workspaceSelected → ADVANCED_DEFAULTS precedent) -->
+                  <button class="command-select" type="button" aria-labelledby="sc-env-1" data-od-id="sc-env-select">
+                    <span class="command-select__avatar"><svg data-lucide="folder"></svg></span>
+                    <span class="command-select__label">Workspace root<span class="path">~/dev/compozy</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <div class="fgroup">
+                  <!-- gating: {name} optional — blank lets the first prompt title the session -->
+                  <label class="flabel" for="sc-name-1">Session name<span class="opt">optional</span></label>
+                  <input class="input" id="sc-name-1" placeholder="Investigate checkout latency">
+                </div>
+                <div class="fgroup">
+                  <!-- gating: {network_channel} optional — None joins no channel -->
+                  <span class="flabel" id="sc-net-1">Network channel<span class="opt">optional</span></span>
+                  <button class="command-select" type="button" aria-labelledby="sc-net-1">
+                    <span class="command-select__label" style="color:var(--muted)">None</span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="info"></svg><span>Choose a runtime when you send the first message.</span></div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <!-- gating: Start session → POST /api/sessions, disabled while the draft is invalid (production: submit disabled while invalid) -->
+                <button class="btn btn--primary" type="submit" data-od-id="sc-submit">Start session</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 02 · POPOVER OPEN — ready worktrees only ════ -->
+    <section class="lab-sec" data-od-id="sec-popover">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Popover — worktrees listed</h2>
+        <span class="lab-sec__gist">root · ready worktrees · New worktree… — nothing else</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Ready only</b>A session can only start in an environment that exists and answers. Signals stay per-row truth: running agent on <code>payments-retry</code>, <code>per-run</code> origin on <code>fix-flaky-e2e</code>, setup flag on <code>data-migration</code> (usable — flagged, not blocked).</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Start session" data-od-id="sess-create-popover">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="play"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Operate · Session</div>
+                  <h3>Start session</h3>
+                  <!-- runtime line lives in the footer only — production string, stated once -->
+                  <p>Start a durable session.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="modetools">
+                <div class="pill-group" role="group" aria-label="Editor mode">
+                  <button class="pill-group__item" type="button" aria-pressed="false">Simple</button>
+                  <button class="pill-group__item" type="button" aria-pressed="true">Advanced</button>
+                </div>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <span class="flabel" id="sc-ws-2">Workspace</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-ws-2">
+                    <span class="command-select__avatar">CO</span>
+                    <span class="command-select__label">compozy<span class="path">~/dev/compozy</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <div class="fgroup">
+                  <span class="flabel" id="sc-env-2">Environment</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-env-2" aria-expanded="true">
+                    <span class="command-select__avatar"><svg data-lucide="folder"></svg></span>
+                    <span class="command-select__label">Workspace root<span class="path">~/dev/compozy</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                  <!-- gating: options = workspace_root + GET /api/workspaces/:id/worktrees → items[state=="ready"].
+                       Absent by state, not disabled (truthful UI):
+                         docs-refresh (pending — still materializing, not a usable directory yet)
+                         hotfix-cors (missing — directory removed out of band)
+                         bench-harness (error — status read failed; existence unverified)
+                         spike-sqlite-vacuum (discovered — external, not adopted into this workspace) -->
+                  <div class="cs-pop" style="margin-top:6px" data-od-id="sc-env-pop">
+                    <div class="cs-pop__search"><svg data-lucide="search"></svg><input placeholder="Search environments…" aria-label="Search environments"></div>
+                    <div class="cs-pop__list">
+                      <div class="cs-group">
+                        <div class="cs-group__h">Environment</div>
+                        <button class="cs-item" type="button" aria-selected="true">
+                          <span class="command-select__avatar"><svg data-lucide="folder"></svg></span>
+                          <span class="cs-item__label">Workspace root<span class="sub">~/dev/compozy</span></span>
+                          <svg class="cs-item__check" data-lucide="check"></svg>
+                        </button>
+                      </div>
+                      <div class="cs-group">
+                        <div class="cs-group__h">Worktrees</div>
+                        <button class="cs-item" type="button">
+                          <span class="command-select__avatar"><svg data-lucide="folder-git-2"></svg></span>
+                          <span class="cs-item__label">payments-retry<span class="sub">pedro/payments-retry</span></span>
+                          <span class="wt-agent" title="Fix payment retries · claude"><span class="d d--run d--pulse"></span></span>
+                        </button>
+                        <button class="cs-item" type="button">
+                          <span class="command-select__avatar"><svg data-lucide="folder-git-2"></svg></span>
+                          <span class="cs-item__label">auth-refresh<span class="sub">pedro/auth-refresh</span></span>
+                        </button>
+                        <button class="cs-item" type="button">
+                          <span class="command-select__avatar"><svg data-lucide="folder-git-2"></svg></span>
+                          <span class="cs-item__label">fix-flaky-e2e<span class="sub">run/fix-flaky-e2e</span></span>
+                          <span class="wt-origin">per-run</span>
+                        </button>
+                        <button class="cs-item" type="button">
+                          <span class="command-select__avatar"><svg data-lucide="folder-git-2"></svg></span>
+                          <span class="cs-item__label">data-migration<span class="sub">pedro/data-migration</span></span>
+                          <span class="wt-flag" title="bun install exited 1 — worktree is usable"><svg data-lucide="triangle-alert"></svg></span>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="cs-foot">
+                      <!-- gating: opens the S4 create dialog (worktree-create-dialog.html); the session draft keeps its state while creating — pending return state in §07 -->
+                      <a class="cs-item" href="worktree-create-dialog.html" data-od-id="sc-env-new">
+                        <svg data-lucide="plus"></svg>
+                        <span class="cs-item__label">New worktree…</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="info"></svg><span>Choose a runtime when you send the first message.</span></div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit">Start session</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 03 · ZERO WORKTREES ════ -->
+    <section class="lab-sec" data-od-id="sec-zero">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Zero worktrees</h2>
+        <span class="lab-sec__gist">branas-site — root + New worktree… · no empty group noise</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>No group noise</b><code>branas-site</code> is git-backed but has no worktrees: the popover is just the root and the create path. An empty "Worktrees" heading would be a lie of structure.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Start session" data-od-id="sess-create-zero">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="play"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Operate · Session</div>
+                  <h3>Start session</h3>
+                  <!-- runtime line lives in the footer only — production string, stated once -->
+                  <p>Start a durable session.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="modetools">
+                <div class="pill-group" role="group" aria-label="Editor mode">
+                  <button class="pill-group__item" type="button" aria-pressed="false">Simple</button>
+                  <button class="pill-group__item" type="button" aria-pressed="true">Advanced</button>
+                </div>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <span class="flabel" id="sc-ws-3">Workspace</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-ws-3">
+                    <span class="command-select__avatar">BS</span>
+                    <span class="command-select__label">branas-site<span class="path">~/dev/branas/site</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <div class="fgroup">
+                  <span class="flabel" id="sc-env-3">Environment</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-env-3" aria-expanded="true">
+                    <span class="command-select__avatar"><svg data-lucide="folder"></svg></span>
+                    <span class="command-select__label">Workspace root<span class="path">~/dev/branas/site</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                  <!-- GET /api/workspaces/:id/worktrees → items = [] → no "Worktrees" group rendered -->
+                  <div class="cs-pop" style="margin-top:6px" data-od-id="sc-env-pop-zero">
+                    <div class="cs-pop__search"><svg data-lucide="search"></svg><input placeholder="Search environments…" aria-label="Search environments"></div>
+                    <div class="cs-pop__list">
+                      <div class="cs-group">
+                        <div class="cs-group__h">Environment</div>
+                        <button class="cs-item" type="button" aria-selected="true">
+                          <span class="command-select__avatar"><svg data-lucide="folder"></svg></span>
+                          <span class="cs-item__label">Workspace root<span class="sub">~/dev/branas/site</span></span>
+                          <svg class="cs-item__check" data-lucide="check"></svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="cs-foot">
+                      <a class="cs-item" href="worktree-create-dialog.html">
+                        <svg data-lucide="plus"></svg>
+                        <span class="cs-item__label">New worktree…</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="info"></svg><span>Choose a runtime when you send the first message.</span></div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit">Start session</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 04 · WORKTREE SELECTED ════ -->
+    <section class="lab-sec" data-od-id="sec-selected">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Worktree selected</h2>
+        <span class="lab-sec__gist">auth-refresh — trigger states name + mono branch · resets on workspace change</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Selection reads like a row</b>The trigger takes the S5 vocabulary: name as record label, branch as mono sub. Switching Workspace resets Environment to root — a worktree never silently follows across workspaces (<code>session-create-store.ts:102-111</code> precedent).</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- payload on submit: environment:{type:"worktree", worktree:"auth-refresh"} -->
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Start session" data-od-id="sess-create-selected">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="play"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Operate · Session</div>
+                  <h3>Start session</h3>
+                  <!-- runtime line lives in the footer only — production string, stated once -->
+                  <p>Start a durable session.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="modetools">
+                <div class="pill-group" role="group" aria-label="Editor mode">
+                  <button class="pill-group__item" type="button" aria-pressed="false">Simple</button>
+                  <button class="pill-group__item" type="button" aria-pressed="true">Advanced</button>
+                </div>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <span class="flabel" id="sc-ws-4">Workspace</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-ws-4">
+                    <span class="command-select__avatar">CO</span>
+                    <span class="command-select__label">compozy<span class="path">~/dev/compozy</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <div class="fgroup">
+                  <span class="flabel" id="sc-env-4">Environment</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-env-4" data-od-id="sc-env-selected">
+                    <span class="command-select__avatar"><svg data-lucide="folder-git-2"></svg></span>
+                    <span class="command-select__label">auth-refresh<span class="path">pedro/auth-refresh</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <div class="fgroup">
+                  <label class="flabel" for="sc-name-4">Session name<span class="opt">optional</span></label>
+                  <input class="input" id="sc-name-4" placeholder="Investigate checkout latency">
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="info"></svg><span>Choose a runtime when you send the first message.</span></div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit">Start session</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 05 · WORKSPACE NOT GIT-BACKED ════ -->
+    <section class="lab-sec" data-od-id="sec-nogit">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Not git-backed</h2>
+        <span class="lab-sec__gist">notes — the Environment control is absent, never disabled</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Absent, not disabled</b><code>notes</code> has no repository, so worktrees are impossible — the control does not render at all. A disabled select would advertise a capability the workspace cannot ever have (truthful-UI rule; same as the zero-credential PR widgets).</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Start session" data-od-id="sess-create-nogit">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="play"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Operate · Session</div>
+                  <h3>Start session</h3>
+                  <!-- runtime line lives in the footer only — production string, stated once -->
+                  <p>Start a durable session.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="modetools">
+                <div class="pill-group" role="group" aria-label="Editor mode">
+                  <button class="pill-group__item" type="button" aria-pressed="false">Simple</button>
+                  <button class="pill-group__item" type="button" aria-pressed="true">Advanced</button>
+                </div>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <span class="flabel" id="sc-ws-5">Workspace</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-ws-5">
+                    <span class="command-select__avatar">NO</span>
+                    <span class="command-select__label">notes<span class="path">~/notes</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <!-- Environment fgroup ABSENT here: workspace.git_backed == false →
+                     GET /api/workspaces/:id/worktrees is not even offered; no worktree affordance
+                     anywhere for this workspace (DESIGN-NOTES shared story · _uiux.md §S7) -->
+                <div class="fgroup">
+                  <label class="flabel" for="sc-name-5">Session name<span class="opt">optional</span></label>
+                  <input class="input" id="sc-name-5" placeholder="Investigate checkout latency">
+                </div>
+                <div class="fgroup">
+                  <span class="flabel" id="sc-net-5">Network channel<span class="opt">optional</span></span>
+                  <button class="command-select" type="button" aria-labelledby="sc-net-5">
+                    <span class="command-select__label" style="color:var(--muted)">None</span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="info"></svg><span>Choose a runtime when you send the first message.</span></div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit">Start session</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 06 · SELECTED WORKTREE WENT MISSING ════ -->
+    <section class="lab-sec" data-od-id="sec-missing">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Selection went missing</h2>
+        <span class="lab-sec__gist">US-003 EC-2 — refusal on the control · primary blocked</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Missing before submit</b><code>hotfix-cors</code> was ready when picked, then its directory was removed out of band. The refusal lands on the control as a functional label; submit stays blocked until another environment is chosen. The draft is never silently rewritten to root.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- gating: submit revalidates worktree state → "missing" refuses (US-003 EC-2);
+                 history preserved — the record still lists as missing in S5 surfaces -->
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Start session" data-od-id="sess-create-missing">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="play"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Operate · Session</div>
+                  <h3>Start session</h3>
+                  <!-- runtime line lives in the footer only — production string, stated once -->
+                  <p>Start a durable session.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="modetools">
+                <div class="pill-group" role="group" aria-label="Editor mode">
+                  <button class="pill-group__item" type="button" aria-pressed="false">Simple</button>
+                  <button class="pill-group__item" type="button" aria-pressed="true">Advanced</button>
+                </div>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <span class="flabel" id="sc-ws-6">Workspace</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-ws-6">
+                    <span class="command-select__avatar">CO</span>
+                    <span class="command-select__label">compozy<span class="path">~/dev/compozy</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <div class="fgroup">
+                  <span class="flabel" id="sc-env-6">Environment</span>
+                  <button class="command-select input--err" type="button" aria-labelledby="sc-env-6" aria-invalid="true" aria-describedby="sc-env-6-err" data-od-id="sc-env-missing">
+                    <span class="command-select__avatar"><svg data-lucide="folder-x"></svg></span>
+                    <span class="command-select__label">hotfix-cors<span class="path">pedro/hotfix-cors</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                  <div class="ferr" id="sc-env-6-err"><svg data-lucide="circle-alert"></svg>Worktree hotfix-cors is no longer available. Choose another environment.</div>
+                </div>
+                <div class="fgroup">
+                  <label class="flabel" for="sc-name-6">Session name<span class="opt">optional</span></label>
+                  <input class="input" id="sc-name-6" placeholder="Investigate checkout latency">
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="info"></svg><span>Choose a runtime when you send the first message.</span></div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--primary" type="submit" disabled>Start session</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════ 07 · NEW WORKTREE SELECTED — STILL MATERIALIZING ════ -->
+    <section class="lab-sec" data-od-id="sec-new-pending">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">New worktree — selected while materializing</h2>
+        <span class="lab-sec__gist">back from New worktree… · pending on the trigger · start waits for ready</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>The create path returns here</b>"New worktree…" chains the create dialog; the draft keeps its state and comes back with <code>docs-refresh</code> selected while it materializes. The trigger wears the shared pending treatment with the live phase line; the primary is held — the draft is never silently rebound to root.</div>
+        <div class="spec__demo">
+          <div class="scrim--demo">
+            <!-- gating: "New worktree…" → POST /api/workspaces/:id/worktrees {name,branch}; the selection pins to the pending record;
+                 phases stream via SSE worktree.pending; POST /api/sessions is held until worktree.state == "ready" -->
+            <form class="dialog dialog--compact" role="dialog" aria-modal="true" aria-label="Start session" data-od-id="sess-create-new-pending">
+              <header class="dialog__head">
+                <div class="head-icon" aria-hidden="true"><svg data-lucide="play"></svg></div>
+                <div class="head-copy">
+                  <div class="eyebrow">Operate · Session</div>
+                  <h3>Start session</h3>
+                  <p>Start a durable session.</p>
+                </div>
+                <button class="icon-button" type="button" aria-label="Close"><svg data-lucide="x"></svg></button>
+              </header>
+              <div class="modetools">
+                <div class="pill-group" role="group" aria-label="Editor mode">
+                  <button class="pill-group__item" type="button" aria-pressed="false">Simple</button>
+                  <button class="pill-group__item" type="button" aria-pressed="true">Advanced</button>
+                </div>
+              </div>
+              <div class="dialog__body">
+                <div class="fgroup">
+                  <span class="flabel" id="sc-ws-7">Workspace</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-ws-7">
+                    <span class="command-select__avatar">CO</span>
+                    <span class="command-select__label">compozy<span class="path">~/dev/compozy</span></span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                </div>
+                <div class="fgroup">
+                  <span class="flabel" id="sc-env-7">Environment</span>
+                  <button class="command-select" type="button" aria-labelledby="sc-env-7" data-od-id="sc-env-pending">
+                    <span class="command-select__avatar"><svg data-lucide="folder-plus"></svg></span>
+                    <span class="command-select__label">docs-refresh<span class="path">pedro/docs-refresh</span></span>
+                    <span class="wt-chip" data-state="pending">pending</span>
+                    <svg class="command-select__chev" data-lucide="chevrons-up-down"></svg>
+                  </button>
+                  <p class="fhint"><span class="mono">creating branch…</span></p>
+                </div>
+                <div class="fgroup">
+                  <label class="flabel" for="sc-name-7">Session name<span class="opt">optional</span></label>
+                  <input class="input" id="sc-name-7" placeholder="Investigate checkout latency">
+                </div>
+              </div>
+              <footer class="dialog__foot">
+                <div class="foot-note"><svg data-lucide="info"></svg><span>Choose a runtime when you send the first message.</span></div>
+                <button class="btn btn--ghost" type="button">Cancel</button>
+                <!-- gating: submit held while worktree.state == "pending" — the session starts once the worktree is ready -->
+                <button class="btn btn--primary" type="submit" disabled data-od-id="sc-submit-pending">Start session</button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      S7 session create — Environment options reuse the S5 vocabulary from
+      <a href="worktree-row-states.html" style="color:var(--subtle)">row-states</a>; "New worktree…" opens
+      <a href="worktree-create-dialog.html" style="color:var(--subtle)">the S4 create dialog</a>.
+      Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S7</span> · content illustrative, runtime truth owns final values.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>
