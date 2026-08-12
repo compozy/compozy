@@ -1045,6 +1045,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		catalog, err := newSessionCommandService(
 			skillRegistry,
+			nil,
 			func() promptSkillsWorkspaceResolver { return workspaces },
 		).Catalog(t.Context(), info, manager.agent)
 		if err != nil {

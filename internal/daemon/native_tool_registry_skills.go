@@ -223,9 +223,14 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 			"source-qualified skill registry is unavailable",
 		)
 	}
-	service := newSessionCommandService(registry, func() promptSkillsWorkspaceResolver {
-		return n.deps.WorkspaceResolver
-	})
+	service := newSessionCommandService(
+		registry,
+		func() sessionCommandAgentResolver {
+			agentResolver, _ := n.deps.AgentCatalog.(sessionCommandAgentResolver)
+			return agentResolver
+		},
+		func() promptSkillsWorkspaceResolver { return n.deps.WorkspaceResolver },
+	)
 	_, byCommandID, err := service.project(ctx, info, agent)
 	if err != nil {
 		return nil, err

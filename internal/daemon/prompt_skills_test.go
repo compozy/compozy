@@ -318,7 +318,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: "/workspace"},
 		}}
-		service := newSessionCommandService(registry, func() promptSkillsWorkspaceResolver { return resolver })
+		service := newSessionCommandService(registry, nil, func() promptSkillsWorkspaceResolver { return resolver })
 		info := &session.Info{
 			ID: "sess-command", AgentName: "coder", WorkspaceID: "ws-command", Workspace: "/workspace",
 			AdvertisedCommands: []store.SessionAdvertisedCommand{{Name: "compact", Description: "Compact context"}},
