@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-use-session-slash-commands
 expected: Web, CLI JSON, and HTTP expose the same session revision, path-free command ids, tokens, lanes, sources, scopes, and availability, while a wrong workspace cannot read the catalog.
 entry_points: web session composer; compozy session commands <session-id> -o json; GET /api/workspaces/{workspace_id}/sessions/{session_id}/commands
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/cli-command-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/http-command-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/http-wrong-workspace.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/cli-command-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/http-command-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/screenshots/07-effective-skills-narrow.png
-last_report: docs/qa/reports/2026-08-05-session-slash-commands.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/cli-command-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/http-command-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-commands-20260805-035316-316748-lab/qa-artifacts/qa/http-wrong-workspace.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/cli-command-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/http-command-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-session-slash-review-20260805-071845-995212-lab/qa-artifacts/qa/screenshots/07-effective-skills-narrow.png;/Users/pedronauck/dev/qa-labs/compozy-issue-349-extension-agent-commands-20260812-031407-850286-lab/qa-artifacts/qa/command-catalog-parity.json;/Users/pedronauck/dev/qa-labs/compozy-issue-349-extension-agent-commands-20260812-031407-850286-lab/qa-artifacts/qa/native-tool-prompt.json;/Users/pedronauck/dev/qa-labs/compozy-issue-349-extension-agent-commands-20260812-031407-850286-lab/qa-artifacts/qa/slash-skill-prompt.json;/Users/pedronauck/dev/qa-labs/compozy-issue-349-extension-agent-commands-20260812-031407-850286-lab/qa-artifacts/qa/web-command-menu.json;/Users/pedronauck/dev/qa-labs/compozy-issue-349-extension-agent-commands-20260812-031407-850286-lab/qa-artifacts/qa/workspace-fence.json
+last_report: docs/qa/reports/2026-08-12-issue-349-extension-agent-commands.md
 overlaps: ET-native-workspace-scope-isolation
 ---
 
@@ -23,3 +23,7 @@ QA verdict 2026-08-05: passed in the isolated lab. CLI JSON and HTTP returned re
 QA verdict 2026-08-05 (reviewed head): passed again with revision `4932bd30db7b9a2d60442ec259142c0245197fe97604fdbd658f7bb8d37c4c0d`. CLI, HTTP, and the 320 px Web menu agreed on `/goal`, `/browser-qa`, and `/compozy`; `/hidden-skill` remained unavailable for `slash-operator`.
 
 QA impact 2026-08-05 (composer redesign): reset — menu presentation changed to a single categorized list with humanized built-in/agent titles, kebab skill identities, canonical token trailing text, and skill scope labels. Re-verify catalog parity against `compozy session commands` output.
+
+QA impact 2026-08-12 (GitHub #349 / PR #350): reset remains in force. Session command and prompt resolution now falls back to the workspace-fenced daemon catalog for extension-published agents only after the authored-agent lookup reports the agent absent. Re-walk Web, CLI, HTTP/UDS, prompt, native command/skill reads, refresh, and wrong-workspace fencing with the bundled `dev-cycle` reviewer.
+
+QA verdict 2026-08-12: passed in the fresh isolated lab. The unbound `reviewer` session exposed 11 commands and revision `9fce06ed445f6e2e51a6110ca3dcc54c4e8e22ef7f9e8b031e8344b64cd74512` through CLI, HTTP, and direct UDS, including all nine `dev-cycle` extension skills. The live Codex agent used `compozy__command_list` and source-qualified `compozy__skill_view`, slash expansion persisted the extension source in the user event, the Web composer retained the catalog after refresh, and a foreign workspace request returned 404.

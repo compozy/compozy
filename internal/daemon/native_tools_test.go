@@ -1000,6 +1000,32 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 	})
 
+	t.Run("Should reject a command id skill view when the session has no agent snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: &nativeSessionAgentManagerWithoutSnapshot{
+				StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
+			},
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			Skills:     newLoadedNativeSkillRegistry(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-command", SessionID: "sess-command"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSkillView,
+				Input:  json.RawMessage(`{"command_id":"skill:workspace:review:sha256:abc"}`),
+			},
+		)
+		requireToolReason(
+			t,
+			err,
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	})
+
 	t.Run("Should require a source-qualified skill registry for command id skill views", func(t *testing.T) {
 		t.Parallel()
 
@@ -1030,21 +1056,38 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 	})
 
-	t.Run("Should read the exact session skill by command id without exposing its path", func(t *testing.T) {
+	t.Run("Should read an extension agent session skill by command id without exposing its path", func(t *testing.T) {
 		t.Parallel()
 
-		skillRegistry := newLoadedNativeSkillRegistry(t)
+		const skillContent = "Review changes carefully."
+		reviewSkill := &skills.Skill{
+			Meta:                   skills.SkillMeta{Name: "review", Description: "Review changes."},
+			Source:                 skills.SourceBundled,
+			InstalledFromExtension: "dev-cycle",
+			FilePath:               "/extensions/dev-cycle/skills/review/SKILL.md",
+		}
+		skillRegistry := nativeExtensionAgentSkillsRegistry{
+			candidates: []skills.CommandCandidate{{
+				Skill: reviewSkill, SourceKind: "extension", SourceID: "dev-cycle", Available: true,
+			}},
+			content: skillContent,
+		}
 		workspaces := nativeNetworkTestWorkspaceService(t)
 		manager := &nativeSessionAgentManager{
 			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
-			agent:              compozyconfig.AgentDef{Name: "coder"},
+			agent: compozyconfig.AgentDef{
+				Name:       "reviewer",
+				SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+			},
 		}
+		agentResolver := nativeExtensionAgentResolver{agent: manager.agent}
 		info, err := manager.Status(t.Context(), "sess-command")
 		if err != nil {
 			t.Fatalf("Status() error = %v", err)
 		}
 		catalog, err := newSessionCommandService(
 			skillRegistry,
+			func() session.AgentResolver { return agentResolver },
 			func() promptSkillsWorkspaceResolver { return workspaces },
 		).Catalog(t.Context(), info, manager.agent)
 		if err != nil {
@@ -1062,7 +1105,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: manager, Workspaces: workspaces, Skills: skillRegistry,
+			Sessions: manager, Workspaces: workspaces, Skills: skillRegistry, AgentResolver: agentResolver,
 		}, nativeApproveAllPolicyInputs())
 		result, err := registry.Call(
 			t.Context(),
@@ -1076,7 +1119,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(skill_view command_id) error = %v", err)
 		}
 		if !strings.Contains(string(result.Structured), commandID) || len(result.Content) != 1 ||
-			strings.TrimSpace(result.Content[0].Text) == "" {
+			result.Content[0].Text != skillContent || strings.Contains(string(result.Structured), reviewSkill.FilePath) {
 			t.Fatalf("skill_view command_id result = %#v", result)
 		}
 		var payload map[string]any
@@ -10381,8 +10424,80 @@ func (r nativeSkillsWithoutCommandCandidates) ForAgentDefSession(
 	return r.ForAgent(ctx, resolved, agent.Name)
 }
 
+// SessionAgentDefinition reports the manager's fixed stub agent as an always-cached snapshot.
 func (m *nativeSessionAgentManager) SessionAgentDefinition(string) (compozyconfig.AgentDef, bool) {
 	return compozyconfig.CloneAgentDef(m.agent), true
+}
+
+// nativeSessionAgentManagerWithoutSnapshot implements the snapshot reader but
+// reports no cached definition, mirroring session.Manager for a live session
+// whose agent definition snapshot is empty.
+type nativeSessionAgentManagerWithoutSnapshot struct {
+	apitest.StubSessionManager
+}
+
+func (m *nativeSessionAgentManagerWithoutSnapshot) SessionAgentDefinition(string) (compozyconfig.AgentDef, bool) {
+	return compozyconfig.AgentDef{}, false
+}
+
+type nativeExtensionAgentSkillsRegistry struct {
+	core.SkillsRegistry
+	candidates []skills.CommandCandidate
+	content    string
+}
+
+func (r nativeExtensionAgentSkillsRegistry) ForAgentSession(
+	context.Context,
+	*workspacepkg.ResolvedWorkspace,
+	string,
+	string,
+) ([]*skills.Skill, error) {
+	return nil, nil
+}
+
+func (r nativeExtensionAgentSkillsRegistry) ForAgentDefSession(
+	context.Context,
+	*workspacepkg.ResolvedWorkspace,
+	compozyconfig.AgentDef,
+	string,
+) ([]*skills.Skill, error) {
+	return nil, nil
+}
+
+func (r nativeExtensionAgentSkillsRegistry) CommandCandidatesForAgentSession(
+	context.Context,
+	*workspacepkg.ResolvedWorkspace,
+	string,
+	string,
+) ([]skills.CommandCandidate, error) {
+	return nil, skills.ErrAgentNotFound
+}
+
+func (r nativeExtensionAgentSkillsRegistry) CommandCandidatesForAgentDefSession(
+	context.Context,
+	*workspacepkg.ResolvedWorkspace,
+	compozyconfig.AgentDef,
+	string,
+) ([]skills.CommandCandidate, error) {
+	return append([]skills.CommandCandidate(nil), r.candidates...), nil
+}
+
+func (r nativeExtensionAgentSkillsRegistry) LoadContent(context.Context, *skills.Skill) (string, error) {
+	return r.content, nil
+}
+
+type nativeExtensionAgentResolver struct {
+	agent compozyconfig.AgentDef
+}
+
+func (r nativeExtensionAgentResolver) ResolveAgent(
+	name string,
+	_ *workspacepkg.ResolvedWorkspace,
+) (compozyconfig.AgentDef, error) {
+	if compozyconfig.NormalizeAgentName(name) == compozyconfig.NormalizeAgentName(r.agent.Name) {
+		return r.agent, nil
+	}
+	return compozyconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
 }
 
 type recordingNativeSessionSkillRegistry struct {
