@@ -19,12 +19,12 @@ charter:
       - "Create workspace A's dev link through CLI, HTTP, UDS, and native reads; inspect request bodies/tool inputs to prove workspace_id is never accepted and the global published instance remains distinct."
       - "Race watch with explicit reload, interrupt a build, submit a stale or malformed generation hash, and fail activation after validation. No partial generation may become observable; the last-good generation must run with explicit activation_failed status."
       - "Move or escape the origin after linking. Canonical containment must be rechecked, status must become missing_origin, and no binary outside the recorded generation directory may execute."
-      - "Emit configured secrets and more than 256 KiB of stderr, then follow over CLI, HTTP/UDS named extension_log SSE, native logs, and the Web panel. Oldest lines may drop; ingestion must already be redacted, the producer must not block, and reconnect must remain monotonic."
+      - "Emit configured secrets and more than 256 KiB of stderr, then follow over CLI, HTTP/UDS extension_log and extension_log_reset SSE, native logs, and the Web panel. Oldest lines may drop; ingestion must already be redacted, the producer must not block, reconnect must use the paired epoch/sequence cursor, and unlink/relink must atomically reset retained rows."
     must_avoid:
       - "Publishing or global-install trust cases, direct database edits, reading global logs through an agent scope, or accepting an unnamed SSE message event as equivalent."
   evidence_expectations:
     - "Per-instance state captures for workspaces A/B and global, operation ordering, immutable generation handles, last-good invocation, and missing-origin refusal."
-    - "Ring bound and redaction evidence upstream of CLI/HTTP/UDS/native/Web, including reconnect sequence and teardown of every follower."
+    - "Ring bound and redaction evidence upstream of CLI/HTTP/UDS/native/Web, including paired stream_epoch/sequence resume, an empty reset, an unlink/relink epoch change, and teardown of every follower."
 ```
 
 ## Selection rationale
