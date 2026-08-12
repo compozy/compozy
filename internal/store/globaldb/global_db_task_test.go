@@ -1716,7 +1716,7 @@ func TestGlobalDBListTasksSearchAndActivityOrdering(t *testing.T) {
 }
 
 // Invariant: the catalog SQL derivation mirrors taskStatusFromPolicySnapshot —
-// a completed coordinator pulse keeps the umbrella task in_progress, and an
+// completed and canceled coordinator pulses keep the umbrella task in_progress, and an
 // explicitly closed task keeps its persisted terminal status.
 func TestGlobalDBTaskCatalogCoordinatorPulseStaysInProgress(t *testing.T) {
 	t.Parallel()
@@ -1753,7 +1753,7 @@ func TestGlobalDBTaskCatalogCoordinatorPulseStaysInProgress(t *testing.T) {
 		}
 	}
 
-	t.Run("Should keep the umbrella task in progress after a completed coordinator pulse", func(t *testing.T) {
+	t.Run("Should keep the umbrella task in progress after coordinator pulses", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
@@ -1770,12 +1770,38 @@ func TestGlobalDBTaskCatalogCoordinatorPulseStaysInProgress(t *testing.T) {
 			ctx, t, globalDB, "run-pulse-2", umbrella.ID, "coordinator", "completed", 2, now.Add(time.Minute),
 		)
 
+		canceledUmbrella := taskRecordForTest("task-catalog-coordinator-canceled")
+		canceledUmbrella.Status = taskpkg.TaskStatusInProgress
+		if err := globalDB.CreateTask(ctx, canceledUmbrella); err != nil {
+			t.Fatalf("CreateTask(canceled umbrella) error = %v", err)
+		}
+		insertCatalogRun(
+			ctx,
+			t,
+			globalDB,
+			"run-pulse-canceled",
+			canceledUmbrella.ID,
+			"coordinator",
+			"canceled",
+			3,
+			now.Add(2*time.Minute),
+		)
+
 		worker := taskRecordForTest("task-catalog-worker")
 		worker.Status = taskpkg.TaskStatusInProgress
 		if err := globalDB.CreateTask(ctx, worker); err != nil {
 			t.Fatalf("CreateTask(worker) error = %v", err)
 		}
 		insertCatalogRun(ctx, t, globalDB, "run-worker-1", worker.ID, "worker", "completed", 1, now)
+
+		canceledWorker := taskRecordForTest("task-catalog-worker-canceled")
+		canceledWorker.Status = taskpkg.TaskStatusInProgress
+		if err := globalDB.CreateTask(ctx, canceledWorker); err != nil {
+			t.Fatalf("CreateTask(canceled worker) error = %v", err)
+		}
+		insertCatalogRun(
+			ctx, t, globalDB, "run-worker-canceled", canceledWorker.ID, "worker", "canceled", 1, now,
+		)
 
 		closed := taskRecordForTest("task-catalog-closed")
 		closed.Status = taskpkg.TaskStatusCompleted
@@ -1798,8 +1824,14 @@ func TestGlobalDBTaskCatalogCoordinatorPulseStaysInProgress(t *testing.T) {
 		if got := statusByID[umbrella.ID]; got != taskpkg.TaskStatusInProgress {
 			t.Fatalf("coordinator umbrella status = %q, want in_progress from a completed pulse", got)
 		}
+		if got := statusByID[canceledUmbrella.ID]; got != taskpkg.TaskStatusInProgress {
+			t.Fatalf("canceled coordinator umbrella status = %q, want in_progress from a canceled pulse", got)
+		}
 		if got := statusByID[worker.ID]; got != taskpkg.TaskStatusCompleted {
 			t.Fatalf("worker status = %q, want completed from its terminal run", got)
+		}
+		if got := statusByID[canceledWorker.ID]; got != taskpkg.TaskStatusCanceled {
+			t.Fatalf("canceled worker status = %q, want canceled from its terminal run", got)
 		}
 		if got := statusByID[closed.ID]; got != taskpkg.TaskStatusCompleted {
 			t.Fatalf("closed umbrella status = %q, want persisted completed", got)

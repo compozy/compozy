@@ -300,7 +300,7 @@ func taskRunPolicyState(runs []Run) taskRunPolicySnapshot {
 func taskStatusFromTerminalRun(run Run, attemptsExhausted bool) (Status, bool) {
 	switch run.Status.Normalize() {
 	case TaskRunStatusCompleted:
-		// A completed coordinator pulse is loop progress between boundaries, not
+		// A terminal coordinator pulse is loop progress between boundaries, not
 		// task completion; only the loop terminal closes the umbrella task.
 		if run.RunKind.Normalize() == RunKindCoordinator {
 			return TaskStatusInProgress, true
@@ -309,6 +309,9 @@ func taskStatusFromTerminalRun(run Run, attemptsExhausted bool) (Status, bool) {
 	case TaskRunStatusFailed:
 		return TaskStatusFailed, attemptsExhausted
 	case TaskRunStatusCanceled:
+		if run.RunKind.Normalize() == RunKindCoordinator {
+			return TaskStatusInProgress, true
+		}
 		return TaskStatusCanceled, true
 	default:
 		return "", false

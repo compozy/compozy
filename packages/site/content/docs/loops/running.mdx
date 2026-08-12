@@ -84,7 +84,9 @@ paused` only at the boundary. Pause is hidden or disabled outside `running`.
 - **Resume** continues a paused (or pause-requested) run.
 - **Cancel run** cooperatively moves through request, delivery, and drain before ending `canceled`
   with cause `operator_cancel`. The request is durable: boot recovery and scheduler sweeps retry
-  interrupted delivery until the active worker acknowledges it and the run drains.
+  interrupted delivery until the active worker acknowledges it or its session is already absent,
+  then the run drains. If a canceled coordinator task belongs to a nonterminal Loop, recovery
+  reopens that task and reserves one replacement coordinator run.
 - **Kill run** immediately fences stale work and ends `canceled` with cause `operator_kill`. It is
   destructive and never happens as a hidden escalation from Cancel.
 

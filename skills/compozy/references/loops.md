@@ -221,7 +221,9 @@ find workspace-scoped cells. Pages default to 50 and cap at 200; narrow with Loo
 the exact run/node/item identity with node pause (`drain|cancel`), resume
 (`plain|reset_attempts|immediate`, optional manual-wait payload), cancel, kill, or requeue. Requeue is
 quarantine-only and creates a bounded successor generation. Cancel is cooperative; Kill fences
-immediately. Run cancel/kill both end `canceled` with distinct operator causes.
+immediately. A missing managed session is already stopped for cancellation delivery. Recovery
+reopens a canceled coordinator task only while its Loop remains nonterminal, then reserves one
+replacement coordinator run. Run cancel/kill both end `canceled` with distinct operator causes.
 
 Silence raises attention and never auto-kills or auto-pauses. Confirmed process/transport death may
 resume from progress through the bounded death-streak authority; parked nodes are never

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -583,6 +584,154 @@ func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T)
 			}
 		})
 	}
+
+	t.Run("Should repair a canceled coordinator task and replay boot reconciliation once", func(t *testing.T) {
+		t.Parallel()
+
+		db := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		repairAt := now.Add(10 * time.Minute)
+		cancelingRun, liveTaskRunID := seedLiveLoopLivenessCellForTest(t, db, repairAt)
+		if strings.TrimSpace(liveTaskRunID) == "" {
+			t.Fatal("seedLiveLoopLivenessCellForTest() task run id is empty")
+		}
+		cancelMutation := looppkg.CancellationMutation{
+			WorkspaceID: cancelingRun.WorkspaceID,
+			RunID:       cancelingRun.ID,
+			Kind:        looppkg.RunCancelCancel,
+			Reason:      "operator request",
+			Actor:       operatorActorContextForTest("operator:repair-cancel"),
+			RequestedAt: repairAt.Add(time.Minute),
+		}
+		if result, err := db.RequestRunCancellation(ctx, cancelMutation); err != nil {
+			t.Fatalf("RequestRunCancellation() error = %v", err)
+		} else if !result.Applied || result.Terminal {
+			t.Fatalf("RequestRunCancellation() = %#v, want durable non-terminal request", result)
+		}
+
+		coordinatorTaskID := loopCoordinatorTaskID(cancelingRun.ID)
+		manager, err := taskpkg.NewManager(
+			taskpkg.WithStore(db),
+			taskpkg.WithManagerNow(func() time.Time { return repairAt.Add(2 * time.Minute) }),
+		)
+		if err != nil {
+			t.Fatalf("task.NewManager() error = %v", err)
+		}
+		canceledTask, err := manager.CancelTask(
+			ctx,
+			coordinatorTaskID,
+			taskpkg.CancelTask{Reason: "simulate canceled coordinator pulse"},
+			operatorActorContextForTest("operator:cancel-coordinator"),
+		)
+		if err != nil {
+			t.Fatalf("CancelTask(coordinator) error = %v", err)
+		}
+		if canceledTask.Status != taskpkg.TaskStatusCanceled {
+			t.Fatalf("canceled coordinator task status = %q, want canceled", canceledTask.Status)
+		}
+
+		origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "daemon.boot"}
+		recovered, err := db.ReconcileLoopCoordinatorsOnBoot(ctx, origin, repairAt.Add(3*time.Minute))
+		if err != nil {
+			t.Fatalf("ReconcileLoopCoordinatorsOnBoot() error = %v", err)
+		}
+		if len(recovered) != 1 {
+			t.Fatalf("recovered coordinator runs = %#v, want one", recovered)
+		}
+		if recovered[0].TaskID != coordinatorTaskID ||
+			recovered[0].LoopRunID != string(cancelingRun.ID) ||
+			recovered[0].WorkspaceID != string(cancelingRun.WorkspaceID) ||
+			recovered[0].RunKind.Normalize() != taskpkg.RunKindCoordinator {
+			t.Fatalf("recovered coordinator = %#v, want exact workspace-scoped Loop coordinator", recovered[0])
+		}
+		repairedTask, err := db.GetTask(ctx, coordinatorTaskID)
+		if err != nil {
+			t.Fatalf("GetTask(repaired coordinator) error = %v", err)
+		}
+		if repairedTask.Status != taskpkg.TaskStatusInProgress {
+			t.Fatalf("repaired coordinator task status = %q, want in_progress", repairedTask.Status)
+		}
+		if !repairedTask.ClosedAt.IsZero() || !repairedTask.UpdatedAt.Equal(repairAt.Add(3*time.Minute)) {
+			t.Fatalf(
+				"repaired coordinator task timestamps = updated %s closed %s, want repair time and open task",
+				repairedTask.UpdatedAt,
+				repairedTask.ClosedAt,
+			)
+		}
+
+		replayed, err := db.ReconcileLoopCoordinatorsOnBoot(ctx, origin, repairAt.Add(4*time.Minute))
+		if err != nil {
+			t.Fatalf("ReconcileLoopCoordinatorsOnBoot(replay) error = %v", err)
+		}
+		if len(replayed) != 0 {
+			t.Fatalf("replayed coordinator runs = %#v, want no duplicate", replayed)
+		}
+		if _, err := manager.CancelRun(
+			ctx,
+			recovered[0].ID,
+			taskpkg.CancelRun{Reason: "simulate canceled recovery pulse"},
+			coordinatorActorContextForTest(),
+		); err != nil {
+			t.Fatalf("CancelRun(recovered coordinator) error = %v", err)
+		}
+		recoveredAgain, err := db.ReconcileLoopCoordinatorsOnBoot(ctx, origin, repairAt.Add(5*time.Minute))
+		if err != nil {
+			t.Fatalf("ReconcileLoopCoordinatorsOnBoot(after canceled recovery) error = %v", err)
+		}
+		if len(recoveredAgain) != 1 || recoveredAgain[0].ID == recovered[0].ID {
+			t.Fatalf("recovered coordinator after canceled recovery = %#v, want one new run", recoveredAgain)
+		}
+		replayedAgain, err := db.ReconcileLoopCoordinatorsOnBoot(ctx, origin, repairAt.Add(6*time.Minute))
+		if err != nil {
+			t.Fatalf("ReconcileLoopCoordinatorsOnBoot(second replay) error = %v", err)
+		}
+		if len(replayedAgain) != 0 {
+			t.Fatalf("second replay coordinator runs = %#v, want no duplicate", replayedAgain)
+		}
+
+		if _, err := db.AdvanceRunCancellation(ctx, cancelMutation, looppkg.CancelStateDelivering); err != nil {
+			t.Fatalf("AdvanceRunCancellation(delivering) error = %v", err)
+		}
+		draining, err := db.AdvanceRunCancellation(ctx, cancelMutation, looppkg.CancelStateDraining)
+		if err != nil {
+			t.Fatalf("AdvanceRunCancellation(draining) error = %v", err)
+		}
+		if draining.Coordinator == nil || draining.Coordinator.ID != recoveredAgain[0].ID {
+			t.Fatalf(
+				"draining coordinator = %#v, want recovered run %q",
+				draining.Coordinator,
+				recoveredAgain[0].ID,
+			)
+		}
+
+		statusEvents, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{
+			TaskID: coordinatorTaskID, EventType: string(hookspkg.HookTaskStatusChanged),
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(status changed) error = %v", err)
+		}
+		repairEvents := 0
+		for _, event := range statusEvents {
+			var statusPayload struct {
+				FromStatus string `json:"from_status"`
+				ToStatus   string `json:"to_status"`
+			}
+			if err := json.Unmarshal(event.Payload, &statusPayload); err != nil {
+				t.Fatalf("json.Unmarshal(status changed payload) error = %v", err)
+			}
+			if statusPayload.FromStatus == string(taskpkg.TaskStatusCanceled) &&
+				statusPayload.ToStatus == string(taskpkg.TaskStatusInProgress) {
+				repairEvents++
+				if event.Actor.Kind.Normalize() != taskpkg.ActorKindDaemon ||
+					event.Origin.Kind.Normalize() != taskpkg.OriginKindDaemon {
+					t.Fatalf("repair event actor/origin = %#v/%#v, want daemon ownership", event.Actor, event.Origin)
+				}
+			}
+		}
+		if repairEvents != 1 {
+			t.Fatalf("canceled to in_progress repair events = %d, want one", repairEvents)
+		}
+	})
 }
 
 // Invariant: node cancellation fences only that node, delivers only its managed session,

@@ -61,14 +61,18 @@ func (g *LoopRepo) reconcileMissingRunningLoopCoordinators(
 			return nil, err
 		}
 		generation := candidate.generation + 1
+		previousRunID, err := lastCoordinatorRunIDForLoopRun(ctx, exec, string(current.ID))
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
 		run, added, err := g.reserveLoopCoordinatorRunWithExecutor(
 			ctx,
 			exec,
 			current,
 			origin,
 			now,
-			loopCoordinatorRunID(current.ID, generation),
-			loopCoordinatorIdempotencyKey(current.ID, generation),
+			"",
+			loopCoordinatorRecoveryIdempotencyKey(current.ID, generation, previousRunID),
 		)
 		if err != nil {
 			return nil, err
@@ -159,6 +163,9 @@ func (g *LoopRepo) reserveCoordinatorRun(
 	if err != nil {
 		return taskpkg.Run{}, false, err
 	}
+	if err := g.repairLoopCoordinatorTaskWithExecutor(ctx, exec, loopRun, taskID, now); err != nil {
+		return taskpkg.Run{}, false, err
+	}
 	reservation := queuedRunReservationInput{
 		taskID:         taskID,
 		runID:          reservedRunID,
@@ -228,6 +235,21 @@ func lastCoordinatorTaskIDForLoopRun(
 		return "", fmt.Errorf("store: find coordinator task for loop run %q: %w", loopRunID, err)
 	}
 	return taskNullStringValue(taskID), nil
+}
+
+func lastCoordinatorRunIDForLoopRun(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	loopRunID string,
+) (string, error) {
+	runID, err := sqlcgen.New(exec).GetLastCoordinatorRunIDForLoopRun(ctx, nullString(loopRunID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", err
+		}
+		return "", fmt.Errorf("store: find last coordinator run for loop run %q: %w", loopRunID, err)
+	}
+	return strings.TrimSpace(runID), nil
 }
 
 func errorsIsNoRows(err error) bool {
