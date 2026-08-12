@@ -13,6 +13,7 @@ import (
 
 	"time"
 
+	modelpkg "github.com/compozy/compozy/internal/automation/model"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 )
@@ -128,7 +129,7 @@ func memoryConsolidatedEnvelope(event MemoryConsolidatedEvent) (ActivationEnvelo
 	}
 
 	envelope := ActivationEnvelope{
-		Kind:        "memory.consolidated",
+		Kind:        modelpkg.TriggerEventMemoryConsolidated,
 		Scope:       scopeFromWorkspaceID(workspaceID),
 		WorkspaceID: workspaceID,
 		Source:      ActivationSourceObserver,

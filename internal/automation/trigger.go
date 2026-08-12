@@ -69,8 +69,8 @@ var (
 
 const (
 	webhookSignaturePrefix = "sha256="
-	sessionEventCreated    = "session.created"
-	sessionEventStopped    = "session.stopped"
+	sessionEventCreated    = modelpkg.TriggerEventSessionCreated
+	sessionEventStopped    = modelpkg.TriggerEventSessionStopped
 )
 
 // DefaultWebhookFreshnessWindow is the default accepted clock skew for webhook requests.

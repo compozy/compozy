@@ -162,7 +162,6 @@ func normalizeExtensionTrigger(value ExtensionTrigger) (ExtensionTrigger, error)
 	value.Name = strings.TrimSpace(value.Name)
 	value.Agent = strings.TrimSpace(value.Agent)
 	value.Prompt = strings.TrimSpace(value.Prompt)
-	value.Event = strings.TrimSpace(value.Event)
 	value.EndpointSlug = strings.TrimSpace(value.EndpointSlug)
 	if value.Event == "webhook" {
 		return ExtensionTrigger{}, fmt.Errorf(

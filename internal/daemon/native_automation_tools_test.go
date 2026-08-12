@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -357,6 +358,25 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			t.Fatalf("Registry.Call(automation_triggers_create) error = %v", err)
 		}
 		requireNativeStructuredContains(t, triggerCreateResult, []byte(`"on-session"`))
+
+		t.Run("Should reject a padded event on trigger creation", func(t *testing.T) {
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationTriggersCreate,
+					Input: json.RawMessage(
+						`{"scope":"global","name":"padded-event","agent_name":"codex","prompt":"handle {{ .Kind }}","event":" session.created"}`,
+					),
+				},
+			)
+			if err == nil || !strings.Contains(err.Error(), "automation validation failed") {
+				t.Fatalf(
+					"Registry.Call(automation_triggers_create padded event) error = %v, want validation failure",
+					err,
+				)
+			}
+		})
 
 		_, err = registry.Call(
 			t.Context(),

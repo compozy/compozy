@@ -271,6 +271,87 @@ func TestCreateAutomationTriggerRejectsInvalidWebhookID(t *testing.T) {
 	}
 }
 
+func TestAutomationTriggerHandlersRejectPaddedEvents(t *testing.T) {
+	t.Parallel()
+
+	current := automationpkg.Trigger{
+		ID:        "trigger-padded-event",
+		Scope:     automationpkg.AutomationScopeGlobal,
+		Name:      "padded-event",
+		AgentName: "coder",
+		Prompt:    "Review the event.",
+		Event:     "session.stopped",
+		Enabled:   true,
+		Retry:     automationpkg.DefaultRetryConfig(),
+		FireLimit: automationpkg.DefaultFireLimitConfig(),
+		Source:    automationpkg.JobSourceDynamic,
+	}
+	router := newAutomationCoreTestRouter(t, stubAutomationManager{
+		GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {
+			return current, nil
+		},
+		CreateTriggerFn: func(
+			context.Context,
+			automationpkg.Trigger,
+			automationpkg.WebhookSecretWrite,
+		) (automationpkg.Trigger, error) {
+			t.Fatal("CreateTrigger() called for a padded event")
+			return automationpkg.Trigger{}, nil
+		},
+		UpdateTriggerFn: func(
+			context.Context,
+			automationpkg.Trigger,
+			*automationpkg.WebhookSecretWrite,
+		) (automationpkg.Trigger, error) {
+			t.Fatal("UpdateTrigger() called for a padded event")
+			return automationpkg.Trigger{}, nil
+		},
+	})
+
+	for _, testCase := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{
+			name:   "Should reject surrounding whitespace on create",
+			method: http.MethodPost,
+			path:   "/automation/triggers",
+			body:   `{"scope":"global","name":"padded","agent_name":"coder","prompt":"review","event":" session.stopped"}`,
+		},
+		{
+			name:   "Should reject surrounding whitespace on update",
+			method: http.MethodPatch,
+			path:   "/automation/triggers/" + current.ID,
+			body:   `{"event":"session.stopped "}`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			response := performAutomationCoreRequest(
+				t,
+				router,
+				testCase.method,
+				testCase.path,
+				[]byte(testCase.body),
+				nil,
+			)
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"status = %d, want %d; body=%s",
+					response.Code,
+					http.StatusBadRequest,
+					response.Body.String(),
+				)
+			}
+			if body := response.Body.String(); !strings.Contains(body, "surrounding whitespace") {
+				t.Fatalf("body = %q, want surrounding whitespace validation", body)
+			}
+		})
+	}
+}
+
 func TestAutomationTriggerWritesAuthorizeBeforeMutation(t *testing.T) {
 	t.Parallel()
 
@@ -1516,7 +1597,7 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should map and clone trigger patch fields", func(t *testing.T) {
+	t.Run("Should preserve trigger event input for canonical validation and clone patch fields", func(t *testing.T) {
 		createdTrigger := triggerFromCreateRequest(contract.CreateTriggerRequest{
 			Scope:        automationpkg.AutomationScopeWorkspace,
 			Name:         " deploy-review ",
@@ -1531,11 +1612,15 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		if createdTrigger.Scope != automationpkg.AutomationScopeWorkspace || createdTrigger.Name != "deploy-review" ||
 			createdTrigger.AgentName != "coder" ||
 			createdTrigger.WorkspaceID != "ws-alpha" ||
-			createdTrigger.Event != "webhook" ||
+			createdTrigger.Event != " webhook " ||
 			createdTrigger.WebhookID != "wbh_456" ||
 			createdTrigger.EndpointSlug != "deploy-review" ||
 			createdTrigger.Filter["data.branch"] != "main" {
 			t.Fatalf("triggerFromCreateRequest() = %#v", createdTrigger)
+		}
+		if err := createdTrigger.Validate("trigger"); err == nil ||
+			!strings.Contains(err.Error(), "surrounding whitespace") {
+			t.Fatalf("triggerFromCreateRequest().Validate() error = %v, want surrounding whitespace", err)
 		}
 
 		jobName := " renamed "

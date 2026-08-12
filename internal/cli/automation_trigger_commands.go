@@ -2,6 +2,9 @@ package cli
 
 import "github.com/spf13/cobra"
 
+const automationTriggerEventHelp = "Trigger event: session.created, session.stopped, memory.consolidated, " +
+	"hook.<hook_name>.completed, webhook, or ext.*"
+
 func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 	input := automationTriggerCommandInput{}
 
@@ -42,7 +45,12 @@ func bindAutomationTriggerCreateFlags(
 ) {
 	cmd.Flags().StringVar(&input.Name, automationNameKey, "", "Trigger name")
 	cmd.Flags().StringVar(&input.ScopeRaw, automationScopeKey, "", "Trigger scope: global or workspace")
-	cmd.Flags().StringVar(&input.EventRaw, automationEventKey, "", "Trigger event name")
+	cmd.Flags().StringVar(
+		&input.EventRaw,
+		automationEventKey,
+		"",
+		automationTriggerEventHelp,
+	)
 	cmd.Flags().
 		StringVar(&input.WorkspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	bindAutomationCreateTargetFlags(cmd, &input.automationCreateTargetInput, true)
@@ -133,7 +141,7 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&name, automationNameKey, "", "Update the trigger name")
 	cmd.Flags().StringVar(&prompt, automationPromptKey, "", "Update the prompt template body")
-	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", "Update the trigger event")
+	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", automationTriggerEventHelp)
 	cmd.Flags().
 		StringArrayVar(&filterFlags, "filter", nil, "Replace filters with key=value entries")
 	cmd.Flags().

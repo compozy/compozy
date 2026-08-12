@@ -80,6 +80,20 @@ func TestAutomationResourceCodecsRejectInvalidSpecs(t *testing.T) {
 		t.Fatalf("trigger filter error = %v, want validate trigger resource spec context", err)
 	}
 
+	t.Run("Should reject a padded event in the trigger codec", func(t *testing.T) {
+		triggerWithPaddedEvent := validTrigger
+		triggerWithPaddedEvent.Event = " session.stopped"
+		if _, err := triggerCodec.DecodeAndValidate(
+			ctx,
+			workspaceScope,
+			mustAutomationJSON(t, triggerWithPaddedEvent),
+		); err == nil {
+			t.Fatal("trigger codec accepted a padded event")
+		} else if !strings.Contains(err.Error(), "surrounding whitespace") {
+			t.Fatalf("padded trigger event error = %v, want surrounding whitespace validation", err)
+		}
+	})
+
 	webhookWithoutEndpoint := validTrigger
 	webhookWithoutEndpoint.Event = "webhook"
 	if _, err := triggerCodec.DecodeAndValidate(

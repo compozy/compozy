@@ -98,10 +98,10 @@ describe("trigger-event-id", () => {
     );
   });
 
-  it("treats unknown runtime events as usable custom events", () => {
-    const custom = parseEventSelection("payments.chargeback.spike");
-    expect(custom.catalogId).toBe("");
-    expect(formatEventKind(custom, "payments.chargeback.spike")).toBe("payments.chargeback.spike");
+  it("keeps unknown runtime events unavailable without a catalog match", () => {
+    const unknown = parseEventSelection("payments.chargeback.spike");
+    expect(unknown.catalogId).toBe("");
+    expect(formatEventKind(unknown)).toBe("");
   });
 });
 

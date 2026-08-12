@@ -31,6 +31,14 @@ func TestExtensionTriggerRequestValidateRequiresExtPrefix(t *testing.T) {
 			wantErr: `must start with "ext."`,
 		},
 		{
+			name: "Should reject a bare ext. prefix without an event name",
+			request: ExtensionTriggerRequest{
+				Event: "ext.",
+				Scope: AutomationScopeGlobal,
+			},
+			wantErr: `must name an extension event after the "ext." prefix`,
+		},
+		{
 			name: "Should reject surrounding whitespace",
 			request: ExtensionTriggerRequest{
 				Event: " ext.github.push ",

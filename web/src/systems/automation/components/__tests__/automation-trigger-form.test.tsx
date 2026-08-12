@@ -189,6 +189,29 @@ describe("AutomationTriggerForm", () => {
     );
   });
 
+  it.each([
+    { name: "an unknown event", event: "payments.chargeback.spike", enabled: false },
+    { name: "an event with surrounding whitespace", event: " session.stopped", enabled: false },
+    { name: "a padded hook event", event: "hook. release.completed", enabled: false },
+    { name: "a free-form extension suffix", event: "ext. release", enabled: true },
+  ])("keeps submit state producer-aligned for $name", ({ event, enabled }) => {
+    renderTriggerForm({
+      draft: {
+        ...createAutomationTriggerDraft("ws_alpha"),
+        name: "event-contract",
+        agent_name: agentFixtures[0].name,
+        prompt: "Review the event.",
+        event,
+      },
+    });
+
+    if (enabled) {
+      expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
+      return;
+    }
+    expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
+  });
+
   it("toggles scope between workspace and global for non-webhook events", () => {
     const { onChange } = renderTriggerForm();
 

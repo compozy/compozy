@@ -3841,6 +3841,13 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		if got, want := fire.Matched, 1; got != want {
 			t.Fatalf("automation/triggers/fire matched = %d, want %d", got, want)
 		}
+		if _, err := env.call(t, "ext-automation", "automation/triggers/fire", map[string]any{
+			"event":        " ext.github.push",
+			"scope":        "workspace",
+			"workspace_id": env.workspaceID,
+		}); err == nil || !strings.Contains(err.Error(), "Invalid params") {
+			t.Fatalf("Handle(automation/triggers/fire padded event) error = %v, want invalid params", err)
+		}
 
 		runsResult, err := env.call(t, "ext-automation", "automation/triggers/runs", map[string]any{"id": created.ID})
 		if err != nil {

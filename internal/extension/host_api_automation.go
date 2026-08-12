@@ -325,7 +325,7 @@ func (h *HostAPIHandler) handleAutomationTriggersFire(ctx context.Context, raw j
 	}
 
 	request := automationpkg.ExtensionTriggerRequest{
-		Event:       strings.TrimSpace(params.Event),
+		Event:       params.Event,
 		Scope:       params.Scope,
 		WorkspaceID: workspaceID,
 		Payload:     cloneJSONMap(params.Payload),

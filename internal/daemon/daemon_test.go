@@ -2489,11 +2489,25 @@ func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 	managerLifecycle := &recordingNotifier{}
 	baseTelemetry := &recordingHookTelemetrySink{}
 	managerTelemetry := &recordingHookTelemetrySink{}
+	memoryObserver := &recordingMemoryObserver{}
 	manager := &fakeAutomationManager{
 		sessionObserver:   managerLifecycle,
 		hookTelemetrySink: managerTelemetry,
+		memoryObserver:    memoryObserver,
 		status:            automationpkg.ManagerStatus{Running: true, SchedulerRunning: true},
 	}
+	completedAt := time.Date(2026, 8, 12, 13, 0, 0, 0, time.UTC)
+	dreamRuntime := consolidation.NewRuntime(
+		func() bool { return true },
+		&fakeDreamService{
+			shouldRun: true,
+			runResult: memory.ConsolidationResult{WorkspaceID: "ws-memory", CompletedAt: completedAt},
+		},
+		func(context.Context, string, string, string, time.Time) error { return nil },
+		time.Hour,
+		discardLogger(),
+		nil,
+	)
 
 	var captured automationManagerDeps
 	d := newTestDaemon(t, homePaths, &cfg)
@@ -2508,6 +2522,7 @@ func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 		registry:           db,
 		sessions:           &fakeSessionManager{},
 		workspaceResolver:  resolver,
+		dreamRuntime:       dreamRuntime,
 		lifecycleObservers: newSessionLifecycleFanout(baseLifecycle),
 		hookTelemetrySinks: newHookTelemetryFanout(baseTelemetry),
 	}
@@ -2574,6 +2589,20 @@ func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 	}
 	if got, want := managerTelemetry.count(), 1; got != want {
 		t.Fatalf("manager telemetry count = %d, want %d", got, want)
+	}
+
+	triggered, reason, err := dreamRuntime.Trigger(testutil.Context(t), "ws-memory")
+	if err != nil {
+		t.Fatalf("dreamRuntime.Trigger() error = %v", err)
+	}
+	if !triggered || reason != "" {
+		t.Fatalf("dreamRuntime.Trigger() = (%t, %q), want (true, empty)", triggered, reason)
+	}
+	if got, want := memoryObserver.events, []automationpkg.MemoryConsolidatedEvent{{
+		WorkspaceID: "ws-memory",
+		Timestamp:   completedAt,
+	}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("memory consolidation events = %#v, want %#v", got, want)
 	}
 }
 
@@ -9257,6 +9286,18 @@ func (noopMemoryObserver) OnMemoryConsolidated(context.Context, automationpkg.Me
 	return nil
 }
 
+type recordingMemoryObserver struct {
+	events []automationpkg.MemoryConsolidatedEvent
+}
+
+func (o *recordingMemoryObserver) OnMemoryConsolidated(
+	_ context.Context,
+	event automationpkg.MemoryConsolidatedEvent,
+) error {
+	o.events = append(o.events, event)
+	return nil
+}
+
 type fakeAutomationManager struct {
 	jobs              []automationpkg.Job
 	triggers          []automationpkg.Trigger
@@ -9270,6 +9311,7 @@ type fakeAutomationManager struct {
 	onShutdown        func()
 	sessionObserver   session.Notifier
 	hookTelemetrySink hookspkg.TelemetrySink
+	memoryObserver    automationpkg.MemoryConsolidationObserver
 }
 
 func (f *fakeAutomationManager) Start(context.Context) error {
@@ -9539,7 +9581,10 @@ func (f *fakeAutomationManager) HookTelemetrySink() hookspkg.TelemetrySink {
 	return &recordingHookTelemetrySink{}
 }
 
-func (*fakeAutomationManager) MemoryObserver() automationpkg.MemoryConsolidationObserver {
+func (f *fakeAutomationManager) MemoryObserver() automationpkg.MemoryConsolidationObserver {
+	if f.memoryObserver != nil {
+		return f.memoryObserver
+	}
 	return noopMemoryObserver{}
 }
 
@@ -10264,6 +10309,7 @@ type fakeDreamService struct {
 	shouldRun      bool
 	shouldRunErr   error
 	runErr         error
+	runResult      memory.ConsolidationResult
 	shouldRunCalls int
 	runCalls       int
 	runHook        func(context.Context, memory.SessionSpawner, string) error
@@ -10285,17 +10331,24 @@ func (f *fakeDreamService) ShouldRun() (bool, error) {
 	return f.shouldRun, f.shouldRunErr
 }
 
-func (f *fakeDreamService) Run(ctx context.Context, spawn memory.SessionSpawner, workspace string) error {
+func (f *fakeDreamService) Run(
+	ctx context.Context,
+	spawn memory.SessionSpawner,
+	workspace string,
+) (memory.ConsolidationResult, error) {
 	f.mu.Lock()
 	f.runCalls++
 	runHook := f.runHook
 	runErr := f.runErr
+	runResult := f.runResult
 	f.mu.Unlock()
 
 	if runHook != nil {
-		return runHook(ctx, spawn, workspace)
+		if err := runHook(ctx, spawn, workspace); err != nil {
+			return memory.ConsolidationResult{}, err
+		}
 	}
-	return runErr
+	return runResult, runErr
 }
 
 func (f *fakeDreamService) runCount() int {
