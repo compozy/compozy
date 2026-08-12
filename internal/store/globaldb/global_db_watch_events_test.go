@@ -257,6 +257,15 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		); err != nil {
 			t.Fatalf("CompareAndSwapLoopRunStatus(fresh) error = %v", err)
 		}
+		noisyMaxSeq := maxLoopRunEventSeqForTest(ctx, t, globalDB, noisy.ID)
+		freshMaxSeq := maxLoopRunEventSeqForTest(ctx, t, globalDB, fresh.ID)
+		if freshMaxSeq >= noisyMaxSeq {
+			t.Fatalf(
+				"fresh per-run seq = %d, want below noisy maximum %d so a per-run cursor would hide it",
+				freshMaxSeq,
+				noisyMaxSeq,
+			)
+		}
 
 		events, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
 			WorkspaceID: "ws-a",
@@ -2509,6 +2518,26 @@ func decodeWatchEventsConfirmedRefForTest(
 		t.Fatalf("watch-events ref kind = %q, want watch_events_confirmed", confirmed.Kind)
 	}
 	return confirmed
+}
+
+// maxLoopRunEventSeqForTest reads one run's persisted per-run ledger maximum so
+// tests can pin preconditions about the per-run seq namespace.
+func maxLoopRunEventSeqForTest(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID looppkg.RunID,
+) int64 {
+	t.Helper()
+	var maxSeq int64
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COALESCE(MAX(seq), 0) FROM loop_run_events WHERE loop_run_id = ?`,
+		runID,
+	).Scan(&maxSeq); err != nil {
+		t.Fatalf("read max loop run event seq for %q: %v", runID, err)
+	}
+	return maxSeq
 }
 
 func watchEventCountsByStream(events []looppkg.WatchEvent) map[string]int {
