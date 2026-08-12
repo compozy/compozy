@@ -1,7 +1,11 @@
 import { createStoreLogic } from "@xstate/store";
 
-import { applyLoopEventFrame, emptyLoopRunLiveState, type LoopRunLiveState } from "@/systems/loops";
-import type { LoopRunEventFrame } from "@/systems/loops";
+import {
+  applyLoopEventFrame,
+  emptyLoopRunLiveState,
+  type LoopRunEventFrame,
+  type LoopRunLiveState,
+} from "@/systems/loops";
 
 interface LoopRunPageState {
   live: LoopRunLiveState;

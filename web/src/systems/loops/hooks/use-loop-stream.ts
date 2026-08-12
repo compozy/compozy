@@ -1,5 +1,6 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useStore } from "@xstate/store-react";
 
 import { LOOP_RUN_EVENT_KINDS, LOOP_RUN_LIFECYCLE_EVENT_KINDS } from "@/generated/loop-enums";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
@@ -8,6 +9,10 @@ import { buildLoopStreamUrl } from "../adapters/loops-api";
 import { isTerminalLoopStatus } from "../lib/loop-formatters";
 import { loopsKeys } from "../lib/query-keys";
 import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
+import {
+  loopStreamLifecycleLogic,
+  type LoopStreamSubscription,
+} from "./loop-stream-lifecycle-store";
 
 interface LoopStreamEventSource {
   addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
@@ -25,12 +30,6 @@ interface UseLoopStreamOptions {
   eventSourceFactory?: LoopStreamEventSourceFactory;
   onEvent?: (payload: LoopRunEventFrame, subscription: LoopStreamSubscription) => void;
   onError?: (error: unknown) => void;
-}
-
-export interface LoopStreamSubscription {
-  generation: number;
-  runId: string;
-  workspaceId: string;
 }
 
 // CompozyOS Loop SSE emits named events via `event: <kind>` from the run-events writer
@@ -126,10 +125,9 @@ export function useLoopStream(
   }: UseLoopStreamOptions = {}
 ) {
   const queryClient = useQueryClient();
+  const lifecycleStore = useStore(loopStreamLifecycleLogic);
   const trimmedWorkspace = workspaceId.trim();
   const trimmedRun = runId.trim();
-  const nextGeneration = useRef(0);
-  const activeSubscription = useRef<LoopStreamSubscription | null>(null);
 
   const notifyEvent = useEffectEvent(
     (payload: LoopRunEventFrame, subscription: LoopStreamSubscription) => {
@@ -160,15 +158,14 @@ export function useLoopStream(
     });
     const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
     const subscription = {
-      generation: nextGeneration.current + 1,
+      generation: lifecycleStore.getSnapshot().context.generation + 1,
       runId: trimmedRun,
       workspaceId: trimmedWorkspace,
     };
-    nextGeneration.current = subscription.generation;
-    activeSubscription.current = subscription;
+    lifecycleStore.trigger.subscriptionOpened({ subscription });
 
     const handleFrame = (event: MessageEvent) => {
-      if (activeSubscription.current !== subscription) {
+      if (lifecycleStore.getSnapshot().context.activeSubscription !== subscription) {
         return;
       }
       if (typeof event.data !== "string") {
@@ -196,7 +193,7 @@ export function useLoopStream(
       }
       notifyEvent(payload, subscription);
       if (isTerminalStatusFrame(kind, payload)) {
-        activeSubscription.current = null;
+        lifecycleStore.trigger.subscriptionClosed({ subscription });
         source.close();
       }
     };
@@ -207,12 +204,19 @@ export function useLoopStream(
 
     const detach = attachLoopStreamSource(source, handleFrame, handleError);
     return () => {
-      if (activeSubscription.current === subscription) {
-        activeSubscription.current = null;
-      }
+      lifecycleStore.trigger.subscriptionClosed({ subscription });
       detach();
     };
-  }, [enabled, trimmedWorkspace, trimmedRun, afterSequence, customEventSourceFactory, queryClient]);
+  }, [
+    afterSequence,
+    customEventSourceFactory,
+    enabled,
+    lifecycleStore,
+    queryClient,
+    trimmedRun,
+    trimmedWorkspace,
+  ]);
 }
 
 export type { LoopStreamEventSource, LoopStreamEventSourceFactory, UseLoopStreamOptions };
+export type { LoopStreamSubscription } from "./loop-stream-lifecycle-store";

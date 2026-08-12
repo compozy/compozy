@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { validateVaultSearch } from "@/systems/vault";
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadVaultRoute } from "./-vault-preload";
+import { createOsRouteSync } from "@/systems/os";
+import { validateVaultSearch } from "@/systems/vault";
 
 export const Route = createFileRoute("/_app/vault")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -11,6 +10,7 @@ export const Route = createFileRoute("/_app/vault")({
   }),
   validateSearch: validateVaultSearch,
   loaderDeps: ({ search }) => ({ namespace: search.namespace, prefix: search.q }),
-  loader: ({ context, deps }) => preloadVaultRoute(context.queryClient, deps),
+  loader: async ({ context, deps }) =>
+    (await import("./-vault-preload")).preloadVaultRoute(context.queryClient, deps),
   component: createOsRouteSync("vault"),
 });

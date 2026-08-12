@@ -1,8 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { sessionKeys } from "@/systems/session";
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import { NetworkApiError, sendNetworkMessage } from "../adapters/network-api";
 import { networkKeys } from "../lib/query-keys";
 import type {
@@ -24,6 +21,8 @@ import {
   reconcileOptimisticMessage,
   resetOptimisticMessage,
 } from "./network-message-cache";
+import { sessionKeys } from "@/systems/session";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 function invalidateConversation(
   queryClient: ReturnType<typeof useQueryClient>,

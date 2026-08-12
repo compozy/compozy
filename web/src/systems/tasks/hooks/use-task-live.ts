@@ -11,6 +11,16 @@ import type { TaskTimelineFilter } from "../types";
 
 interface QueryHookOptions {
   enabled?: boolean;
+  refetchIntervalMs?: number | false;
+}
+
+function withQueryHookOptions<T extends object>(queryOptions: T, hookOptions: QueryHookOptions) {
+  return {
+    ...queryOptions,
+    ...(hookOptions.refetchIntervalMs === undefined
+      ? {}
+      : { refetchInterval: hookOptions.refetchIntervalMs }),
+  };
 }
 
 export function useTaskTimeline(
@@ -18,21 +28,27 @@ export function useTaskTimeline(
   filters: TaskTimelineFilter = {},
   options: QueryHookOptions = {}
 ) {
-  return useQuery(taskTimelineOptions(id, filters, options.enabled ?? true));
+  return useQuery(
+    withQueryHookOptions(taskTimelineOptions(id, filters, options.enabled ?? true), options)
+  );
 }
 
 export function useTaskTree(id: string, options: QueryHookOptions = {}) {
-  return useQuery(taskTreeOptions(id, options.enabled ?? true));
+  return useQuery(withQueryHookOptions(taskTreeOptions(id, options.enabled ?? true), options));
 }
 
 export function useTaskInspect(id: string, options: QueryHookOptions = {}) {
-  return useQuery(taskInspectOptions(id, options.enabled ?? true));
+  return useQuery(withQueryHookOptions(taskInspectOptions(id, options.enabled ?? true), options));
 }
 
 export function useTaskRunDetail(runId: string, options: QueryHookOptions = {}) {
-  return useQuery(taskRunDetailOptions(runId, options.enabled ?? true));
+  return useQuery(
+    withQueryHookOptions(taskRunDetailOptions(runId, options.enabled ?? true), options)
+  );
 }
 
 export function useTaskRunInspect(runId: string, options: QueryHookOptions = {}) {
-  return useQuery(taskRunInspectOptions(runId, options.enabled ?? true));
+  return useQuery(
+    withQueryHookOptions(taskRunInspectOptions(runId, options.enabled ?? true), options)
+  );
 }

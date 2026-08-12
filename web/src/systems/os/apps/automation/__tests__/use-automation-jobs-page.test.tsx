@@ -43,27 +43,24 @@ vi.mock("@/systems/os/apps/automation/use-automation-page-base", async importOri
   };
 });
 
-vi.mock("@/systems/automation", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/automation")>();
-  return {
-    ...actual,
-    useAutomationJobs: () => ({
-      error: jobsState.error,
-      fetchNextPage: vi.fn(),
-      hasNextPage: false,
-      isFetchingNextPage: false,
-      isLoading: false,
-      jobs: jobsState.jobs,
-      total: jobsState.jobs.length,
-    }),
-    useAutomationJob: () => ({ data: null, error: null, isLoading: false }),
-    useAutomationJobRuns: () => ({ data: [], error: null, isLoading: false }),
-    useCreateAutomationJob: () => ({ isPending: false, mutateAsync: vi.fn() }),
-    useDeleteAutomationJob: () => ({ isPending: false, mutateAsync: vi.fn() }),
-    useTriggerAutomationJob: () => ({ isPending: false, mutateAsync: jobsState.triggerJob }),
-    useUpdateAutomationJob: () => ({ isPending: false, mutateAsync: vi.fn() }),
-  };
-});
+vi.mock("@/systems/automation/hooks/use-automation", () => ({
+  useAutomationJobs: () => ({
+    error: jobsState.error,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    isLoading: false,
+    jobs: jobsState.jobs,
+    total: jobsState.jobs.length,
+  }),
+}));
+
+vi.mock("@/systems/automation/hooks/use-automation-actions", () => ({
+  useCreateAutomationJob: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useDeleteAutomationJob: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useTriggerAutomationJob: () => ({ isPending: false, mutateAsync: jobsState.triggerJob }),
+  useUpdateAutomationJob: () => ({ isPending: false, mutateAsync: vi.fn() }),
+}));
 
 const { useAutomationJobsPage } =
   await import("@/systems/os/apps/automation/use-automation-jobs-page");

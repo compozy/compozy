@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSelector } from "@xstate/store-react";
 
+import { useStoreBinding } from "@/hooks/use-store-binding";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import {
@@ -11,11 +13,12 @@ import {
 } from "../lib/extension-log-stream";
 import { extensionLogsOptions } from "../lib/query-options";
 import type { ExtensionLogEntry } from "../types";
+import { extensionLogsLogic, type ExtensionLogStreamStatus } from "./extension-logs-store";
 
 /** The daemon publishes log records as the named `extension_log` SSE event (never `message`). */
 export const EXTENSION_LOG_EVENT_NAME = "extension_log";
 
-export type ExtensionLogStreamStatus = "idle" | "connecting" | "live" | "reconnecting" | "paused";
+export type { ExtensionLogStreamStatus } from "./extension-logs-store";
 
 export interface ExtensionLogEventSource {
   addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
@@ -62,33 +65,18 @@ export function useExtensionLogs({
     ...extensionLogsOptions(name, { workspaceId }),
     enabled: enabled && name !== "",
   });
-  const [streamed, setStreamed] = useState<{ instance: string; entries: ExtensionLogEntry[] }>({
-    entries: [],
-    instance,
-  });
-  const [follow, setFollow] = useState(true);
-  const [streamStatus, setStreamStatus] = useState<ExtensionLogStreamStatus>("idle");
-  const cursorRef = useRef(0);
+  const { store } = useStoreBinding(instance, () => extensionLogsLogic.createStore());
+  const streamedEntries = useSelector(store, snapshot => snapshot.context.entries);
+  const follow = useSelector(store, snapshot => snapshot.context.follow);
+  const streamStatus = useSelector(store, snapshot => snapshot.context.streamStatus);
 
-  const streamedEntries = streamed.instance === instance ? streamed.entries : [];
   const entries = appendExtensionLogEntries(history.data ?? [], streamedEntries);
+  const readCursor = useEffectEvent(() => extensionLogCursor(entries));
   const status: ExtensionLogStreamStatus = !follow
     ? "paused"
     : enabled && name !== ""
       ? streamStatus
       : "idle";
-
-  if (streamed.instance !== instance) {
-    setStreamed({ entries: [], instance });
-  }
-
-  useEffect(() => {
-    cursorRef.current = extensionLogCursor(entries);
-  }, [entries]);
-
-  useEffect(() => {
-    cursorRef.current = 0;
-  }, [instance]);
 
   useEffect(() => {
     if (!enabled || name === "" || !follow) {
@@ -96,22 +84,22 @@ export function useExtensionLogs({
     }
     const factory = eventSourceFactory ?? defaultEventSourceFactory;
     if (!eventSourceFactory && typeof EventSource === "undefined") return undefined;
-    setStreamStatus("connecting");
-    const source = factory(
-      buildExtensionLogsStreamUrl(name, { after: cursorRef.current, workspaceId })
-    );
+    store.trigger.connecting();
+    let source: ExtensionLogEventSource;
+    try {
+      source = factory(buildExtensionLogsStreamUrl(name, { after: readCursor(), workspaceId }));
+    } catch (error) {
+      store.trigger.streamFailed();
+      console.error("Failed to open the extension log stream", error);
+      return undefined;
+    }
     const handleLog = (event: Event) => {
       const entry = parseExtensionLogEvent((event as MessageEvent).data);
       if (!entry) return;
-      setStreamStatus("live");
-      setStreamed(current =>
-        current.instance === instance
-          ? { entries: appendExtensionLogEntries(current.entries, [entry]), instance }
-          : { entries: [entry], instance }
-      );
+      store.trigger.entryReceived({ entry });
     };
-    const handleOpen = () => setStreamStatus("live");
-    const handleError = () => setStreamStatus("reconnecting");
+    const handleOpen = () => store.trigger.streamOpened();
+    const handleError = () => store.trigger.streamFailed();
     source.addEventListener(EXTENSION_LOG_EVENT_NAME, handleLog);
     source.onopen = handleOpen;
     source.onerror = handleError;
@@ -121,7 +109,7 @@ export function useExtensionLogs({
       source.onerror = null;
       source.close();
     };
-  }, [enabled, eventSourceFactory, follow, instance, name, workspaceId]);
+  }, [enabled, eventSourceFactory, follow, instance, name, store, workspaceId]);
 
   return {
     entries,
@@ -129,7 +117,7 @@ export function useExtensionLogs({
     follow,
     isLoading: history.isLoading,
     refetch: () => void history.refetch(),
-    setFollow,
+    setFollow: next => store.trigger.followChanged({ follow: next }),
     status,
   };
 }

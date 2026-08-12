@@ -13,15 +13,15 @@ import {
   type EntityMode,
 } from "@compozy/ui";
 
-import type { AgentPayload } from "@/systems/agent";
 import {
   isNetworkParticipationDraftValid,
   type NetworkParticipationDraft,
 } from "@/lib/network-participation";
-import type { WorkspaceCommandSelectOption, WorkspacePayload } from "@/systems/workspace";
 
 import { SessionCreateAdvancedSection } from "./session-create-advanced-section";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
+import type { AgentPayload } from "@/systems/agent";
+import type { WorkspaceCommandSelectOption, WorkspacePayload } from "@/systems/workspace";
 
 export interface SessionCreateDialogProps {
   open: boolean;

@@ -1,10 +1,11 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useNetworkLiveDataEnabled } from "./use-network-live-data-enabled";
 
 import { flattenNetworkThreads } from "../lib/infinite-data";
 import { networkThreadDetailOptions, networkThreadsOptions } from "../lib/query-options";
 import type { NetworkThreadDetail, NetworkThreadsListQuery, NetworkThreadSummary } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface UseNetworkThreadsResult {
   threads: NetworkThreadSummary[];
@@ -28,9 +29,14 @@ export function useNetworkThreads(
   options: UseNetworkThreadsOptions = {}
 ): UseNetworkThreadsResult {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
-  const enabled = options.enabled !== false && Boolean(channel) && Boolean(selectedWorkspaceId);
+  const enabled =
+    liveDataEnabled &&
+    options.enabled !== false &&
+    Boolean(channel) &&
+    Boolean(selectedWorkspaceId);
   const query = useInfiniteQuery(
     networkThreadsOptions(
       workspaceId,
@@ -69,9 +75,11 @@ export function useNetworkThreadDetail(
   options: { enabled?: boolean; workspaceId?: string | null } = {}
 ): UseNetworkThreadDetailResult {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
   const enabled =
+    liveDataEnabled &&
     options.enabled !== false &&
     Boolean(channel) &&
     Boolean(threadId) &&

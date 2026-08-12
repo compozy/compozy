@@ -1,40 +1,18 @@
 import type { QueryClient } from "@tanstack/react-query";
-import {
-  BookOpen,
-  Boxes,
-  Bot,
-  Clock3,
-  Globe,
-  Home,
-  KeyRound,
-  ListChecks,
-  Plus,
-  Repeat2,
-  Settings,
-  SquareTerminal,
-  Store,
-  Waypoints,
-  Zap,
-  type LucideIcon,
-} from "lucide-react";
 import { lazy, type ComponentType } from "react";
 
-import { OS_WINDOW_MIN_HEIGHT, OS_WINDOW_MIN_WIDTH, type OsAppId } from "./os-types";
-import type { PixelSize } from "./window-manager-types";
+import {
+  dockAppDescriptors,
+  getOsAppMinimum,
+  matchSessionInstance,
+  OS_APP_DESCRIPTORS,
+  OS_WINDOW_CONSERVATIVE_MINIMUM,
+  resolveAppDescriptorForPath,
+  type OsAppDescriptor,
+} from "./app-catalog";
+import type { OsAppId } from "./os-types";
 
-export interface OsAppDefinition {
-  id: OsAppId;
-  title: string;
-  icon: LucideIcon;
-  /** Route prefixes owned by this app's window subtree. */
-  paths: string[];
-  /** Optional measured product floor; the shared frame floor is the conservative fallback. */
-  minimumSize?: PixelSize;
-  /** Dock strip group, sessions modal toggle, or null for menubar-only settings. */
-  dock: { group: 1 | 2 | 3 | 4 } | "sessions-toggle" | null;
-  badge?: "sessions" | "tasks";
-  /** Extracts the multi-instance key from a pathname (session windows). */
-  matchInstance?: (pathname: string) => string | null;
+export interface OsAppDefinition extends OsAppDescriptor {
   /** Warms the app's index caches; loaders and unfocused mounts share it. */
   preload?: (qc: QueryClient, ctx: { workspaceId: string }) => Promise<void>;
   Controller: ComponentType<{ windowId: string }>;
@@ -85,15 +63,8 @@ const MarketplaceWindow = lazy(() =>
 const NewTabWindow = lazy(() =>
   import("../apps/new-tab/new-tab-window").then(m => ({ default: m.NewTabWindow }))
 );
-const SESSION_PATH_PATTERN = /^\/agents\/[^/]+\/sessions\/([^/]+)/;
-
-export function matchSessionInstance(pathname: string): string | null {
-  const match = SESSION_PATH_PATTERN.exec(pathname);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
 async function preloadDashboard(qc: QueryClient, ctx: { workspaceId: string }): Promise<void> {
-  const { preloadHomeWorkspace } = await import("@/routes/_app/-app-preload");
+  const { preloadHomeWorkspace } = await import("@/routes/_app/-home-preload");
   await preloadHomeWorkspace(qc, ctx.workspaceId);
 }
 
@@ -154,137 +125,74 @@ async function preloadTriggers(qc: QueryClient): Promise<void> {
 
 export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   dashboard: {
-    id: "dashboard",
-    title: "Home",
-    icon: Home,
-    paths: ["/"],
-    dock: { group: 1 },
+    ...OS_APP_DESCRIPTORS.dashboard,
     preload: preloadDashboard,
     Controller: DashboardWindow,
   },
   session: {
-    id: "session",
-    title: "Session",
-    icon: SquareTerminal,
-    paths: [],
-    dock: "sessions-toggle",
-    badge: "sessions",
-    matchInstance: matchSessionInstance,
+    ...OS_APP_DESCRIPTORS.session,
     Controller: SessionWindow,
   },
   "new-tab": {
-    id: "new-tab",
-    title: "New tab",
-    icon: Plus,
-    paths: ["/new-tab"],
-    dock: null,
+    ...OS_APP_DESCRIPTORS["new-tab"],
     Controller: NewTabWindow,
   },
   agents: {
-    id: "agents",
-    title: "Agents",
-    icon: Bot,
-    paths: ["/agents"],
-    dock: { group: 2 },
+    ...OS_APP_DESCRIPTORS.agents,
     preload: preloadAgents,
     Controller: AgentsWindow,
   },
   network: {
-    id: "network",
-    title: "Network",
-    icon: Globe,
-    paths: ["/network"],
-    dock: { group: 2 },
+    ...OS_APP_DESCRIPTORS.network,
     preload: preloadNetwork,
     Controller: NetworkWindow,
   },
   tasks: {
-    id: "tasks",
-    title: "Tasks",
-    icon: ListChecks,
-    paths: ["/tasks"],
-    dock: { group: 2 },
-    badge: "tasks",
+    ...OS_APP_DESCRIPTORS.tasks,
     preload: preloadTasks,
     Controller: TasksWindow,
   },
   loops: {
-    id: "loops",
-    title: "Loops",
-    icon: Repeat2,
-    paths: ["/loops", "/loop-runs"],
-    dock: { group: 2 },
+    ...OS_APP_DESCRIPTORS.loops,
     preload: preloadLoops,
     Controller: LoopsWindow,
   },
   jobs: {
-    id: "jobs",
-    title: "Jobs",
-    icon: Clock3,
-    paths: ["/jobs"],
-    dock: { group: 2 },
+    ...OS_APP_DESCRIPTORS.jobs,
     preload: preloadJobs,
     Controller: JobsWindow,
   },
   triggers: {
-    id: "triggers",
-    title: "Triggers",
-    icon: Zap,
-    paths: ["/triggers"],
-    dock: { group: 2 },
+    ...OS_APP_DESCRIPTORS.triggers,
     preload: preloadTriggers,
     Controller: TriggersWindow,
   },
   marketplace: {
-    id: "marketplace",
-    title: "Marketplace",
-    icon: Store,
-    paths: ["/marketplace"],
-    dock: { group: 3 },
+    ...OS_APP_DESCRIPTORS.marketplace,
     Controller: MarketplaceWindow,
   },
   bridges: {
-    id: "bridges",
-    title: "Bridges",
-    icon: Waypoints,
-    paths: ["/bridges"],
-    dock: { group: 3 },
+    ...OS_APP_DESCRIPTORS.bridges,
     preload: preloadBridges,
     Controller: BridgesWindow,
   },
   knowledge: {
-    id: "knowledge",
-    title: "Knowledge",
-    icon: BookOpen,
-    paths: ["/knowledge"],
-    dock: { group: 3 },
+    ...OS_APP_DESCRIPTORS.knowledge,
     preload: preloadKnowledge,
     Controller: KnowledgeWindow,
   },
   sandbox: {
-    id: "sandbox",
-    title: "Sandbox",
-    icon: Boxes,
-    paths: ["/sandbox"],
-    dock: { group: 4 },
+    ...OS_APP_DESCRIPTORS.sandbox,
     preload: preloadSandbox,
     Controller: SandboxWindow,
   },
   vault: {
-    id: "vault",
-    title: "Vault",
-    icon: KeyRound,
-    paths: ["/vault"],
-    dock: { group: 4 },
+    ...OS_APP_DESCRIPTORS.vault,
     preload: preloadVault,
     Controller: VaultWindow,
   },
   settings: {
-    id: "settings",
-    title: "Settings",
-    icon: Settings,
-    paths: ["/settings"],
-    dock: null,
+    ...OS_APP_DESCRIPTORS.settings,
     preload: preloadSettings,
     Controller: SettingsWindow,
   },
@@ -294,29 +202,9 @@ export function getOsApp(id: OsAppId): OsAppDefinition {
   return OS_APPS[id];
 }
 
-export const OS_WINDOW_CONSERVATIVE_MINIMUM: PixelSize = {
-  width: OS_WINDOW_MIN_WIDTH,
-  height: OS_WINDOW_MIN_HEIGHT,
-};
-
-/** One source for both interactive resize limits and viewport projection minima. */
-export function getOsAppMinimum(id: OsAppId): PixelSize {
-  const minimum = OS_APPS[id].minimumSize ?? OS_WINDOW_CONSERVATIVE_MINIMUM;
-  return { width: minimum.width, height: minimum.height };
-}
-
 /** Dock strip order: group 1..4 in registry order (prototype DOCK_ORDER). */
 export function dockApps(): OsAppDefinition[][] {
-  const groups: OsAppDefinition[][] = [[], [], [], []];
-  for (const app of Object.values(OS_APPS)) {
-    if (app.dock && app.dock !== "sessions-toggle") groups[app.dock.group - 1].push(app);
-  }
-  return groups.filter(group => group.length > 0);
-}
-
-function ownsPath(prefix: string, pathname: string): boolean {
-  if (prefix === "/") return pathname === "/";
-  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+  return dockAppDescriptors().map(group => group.map(app => OS_APPS[app.id]));
 }
 
 /**
@@ -326,14 +214,8 @@ function ownsPath(prefix: string, pathname: string): boolean {
 export function resolveAppForPath(
   pathname: string
 ): { app: OsAppDefinition; instanceKey: string | null } | null {
-  for (const app of Object.values(OS_APPS)) {
-    const instanceKey = app.matchInstance?.(pathname) ?? null;
-    if (instanceKey !== null) return { app, instanceKey };
-  }
-  for (const app of Object.values(OS_APPS)) {
-    if (app.paths.some(prefix => ownsPath(prefix, pathname))) {
-      return { app, instanceKey: null };
-    }
-  }
-  return null;
+  const resolved = resolveAppDescriptorForPath(pathname);
+  return resolved ? { app: OS_APPS[resolved.app.id], instanceKey: resolved.instanceKey } : null;
 }
+
+export { getOsAppMinimum, matchSessionInstance, OS_WINDOW_CONSERVATIVE_MINIMUM };

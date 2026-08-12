@@ -1,9 +1,16 @@
 import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
 import { useSelector } from "@xstate/store-react";
+
+import { onboardingModelFacts, type OnboardingModelFact } from "../lib/model-facts";
+import { buildOnboardingProviderRequest } from "../lib/provider-request";
+import {
+  onboardingDraftStore,
+  type OnboardingAuthMode,
+} from "../stores/use-onboarding-draft-store";
 import {
   providerNeedsAuth,
-  useRuntimeModelCatalog,
   type RuntimeCatalogProvider,
+  useRuntimeModelCatalog,
 } from "@/systems/model-catalog";
 import { useProviders } from "@/systems/providers";
 import {
@@ -13,18 +20,11 @@ import {
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
 import {
+  usePutSettingsProvider,
   useSettingsGeneral,
   useSettingsProvider,
   useUpdateSettingsGeneral,
-  usePutSettingsProvider,
 } from "@/systems/settings";
-
-import { onboardingModelFacts, type OnboardingModelFact } from "../lib/model-facts";
-import { buildOnboardingProviderRequest } from "../lib/provider-request";
-import {
-  onboardingDraftStore,
-  type OnboardingAuthMode,
-} from "../stores/use-onboarding-draft-store";
 
 export interface OnboardingDefaultModelApi {
   providersLoading: boolean;

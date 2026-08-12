@@ -6,13 +6,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { rehydrateStore } from "@xstate/store/persist";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WorkspacePayload } from "@/systems/workspace";
-
 import {
   ONBOARDING_DRAFT_STORAGE_KEY,
   onboardingDraftStore,
 } from "../../stores/use-onboarding-draft-store";
 import { useOnboardingWorkspaces } from "../use-onboarding-workspaces";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 const mocks = vi.hoisted(() => ({
   createWorkspace: vi.fn(),
@@ -23,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   refetchWorkspaces: vi.fn(),
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
   useCreateWorkspace: () => ({
     isPending: false,
     mutateAsync: mocks.createWorkspace,

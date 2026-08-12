@@ -15,6 +15,7 @@ interface UseTaskRunPageOptions {
   enableTaskDetail?: boolean;
   enableInspect?: boolean;
   enableRunReviews?: boolean;
+  liveDataEnabled?: boolean;
 }
 
 function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOptions = {}) {
@@ -22,16 +23,38 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
   const enableTaskDetail = options.enableTaskDetail ?? true;
   const enableInspect = options.enableInspect ?? true;
   const enableRunReviews = options.enableRunReviews ?? true;
+  const liveDataEnabled = options.liveDataEnabled ?? true;
 
-  const runQuery = useTaskRunDetail(runId, { enabled: hasRunId });
+  const runQuery = useTaskRunDetail(runId, {
+    enabled: hasRunId,
+    refetchIntervalMs: liveDataEnabled ? undefined : false,
+  });
   const run = runQuery.data ?? null;
   const authoritativeTaskId = run?.run.task_id ?? run?.task?.id ?? "";
   const routeTaskMismatch = Boolean(authoritativeTaskId && authoritativeTaskId !== taskId);
-  const inspectQuery = useTaskRunInspect(runId, { enabled: hasRunId && enableInspect });
+  const runStatus = run?.run?.status;
+  const isLive =
+    runStatus === "running" ||
+    runStatus === "starting" ||
+    runStatus === "claimed" ||
+    runStatus === "queued";
+  const refetchIntervalMs = isLive && liveDataEnabled ? undefined : false;
+  const inspectQuery = useTaskRunInspect(runId, {
+    enabled: hasRunId && enableInspect,
+    refetchIntervalMs,
+  });
   const taskQuery = useTask(authoritativeTaskId, {
     enabled: Boolean(authoritativeTaskId) && enableTaskDetail,
+    refetchIntervalMs,
   });
-  const reviewsQuery = useTaskRunReviews(runId, {}, { enabled: hasRunId && enableRunReviews });
+  const reviewsQuery = useTaskRunReviews(
+    runId,
+    {},
+    {
+      enabled: hasRunId && enableRunReviews,
+      refetchIntervalMs,
+    }
+  );
   const cancelMutation = useCancelTaskRun();
   const forceReleaseMutation = useForceReleaseTaskRun();
   const forceFailMutation = useForceFailTaskRun();
@@ -48,13 +71,6 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     : routeTaskMismatch
       ? new Error(`Task run not found: ${runId}`)
       : (runQuery.error ?? null);
-
-  const runStatus = run?.run?.status;
-  const isLive =
-    runStatus === "running" ||
-    runStatus === "starting" ||
-    runStatus === "claimed" ||
-    runStatus === "queued";
 
   const handleCancelRun = async () => {
     if (!hasRunId) {

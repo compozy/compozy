@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { RndResizeCallback, RndResizeStartCallback } from "react-rnd";
 
 import { getOsAppMinimum, OS_WINDOW_CONSERVATIVE_MINIMUM } from "../lib/app-registry";
@@ -20,12 +19,13 @@ export interface OsWindowResizeDeps {
   activeId: string;
   movesAsUnit: boolean;
   nextGestureAttempt: () => number;
-  holdRectWhileInFlight: (
+  trackGestureOutcome: (
     rect: OsRect,
     outcome: WindowManagerCommandOutcome,
     gestureAttempt: number
   ) => void;
-  reconcileGestureOutcome: (outcome: WindowManagerCommandOutcome, gestureAttempt: number) => void;
+  resizeMax: { width: number; height: number } | null;
+  setResizeMax: (maximum: { width: number; height: number } | null) => void;
   scheduleAuthoritativeRollback: (gestureAttempt: number) => void;
 }
 
@@ -46,7 +46,6 @@ export function useOsWindowResize(
   deps: OsWindowResizeDeps
 ): OsWindowResizeModel {
   const { manager, activeId } = deps;
-  const [resizeMax, setResizeMax] = useState<{ width: number; height: number } | null>(null);
 
   const layoutAreaRect = (): PixelRect | null => {
     const area = windowManagerStore.getSnapshot().context.workArea?.rect;
@@ -99,7 +98,7 @@ export function useOsWindowResize(
       : moved.bottom
         ? limits.bottom - (zone.y + zone.h)
         : 0;
-    setResizeMax({
+    deps.setResizeMax({
       width: frame.rect.w + Math.max(0, growW) * area.w,
       height: frame.rect.h + Math.max(0, growH) * area.h,
     });
@@ -132,12 +131,11 @@ export function useOsWindowResize(
       return;
     }
     const outcome = manager.resizeWindowFrame(activeId, next);
-    deps.holdRectWhileInFlight(resized, outcome, gestureAttempt);
-    deps.reconcileGestureOutcome(outcome, gestureAttempt);
+    deps.trackGestureOutcome(resized, outcome, gestureAttempt);
   };
 
   const handleResizeStop: RndResizeCallback = (_event, direction, element, delta, position) => {
-    setResizeMax(null);
+    deps.setResizeMax(null);
     const gestureAttempt = deps.nextGestureAttempt();
     const resized = {
       x: position.x,
@@ -150,9 +148,8 @@ export function useOsWindowResize(
       return;
     }
     const outcome = manager.commitFloatingRect(activeId, resized, undefined, deps.movesAsUnit);
-    deps.holdRectWhileInFlight(resized, outcome, gestureAttempt);
-    deps.reconcileGestureOutcome(outcome, gestureAttempt);
+    deps.trackGestureOutcome(resized, outcome, gestureAttempt);
   };
 
-  return { resizeMax, handleResizeStart, handleResizeStop };
+  return { resizeMax: deps.resizeMax, handleResizeStart, handleResizeStop };
 }

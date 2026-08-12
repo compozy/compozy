@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import { createOsRouteSync } from "@/systems/os";
 import { validateTaskDetailSearch } from "@/systems/tasks";
-import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/tasks/$id")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({

@@ -1,8 +1,7 @@
 import { useTopbarSlot } from "@compozy/ui";
 
-import { TaskPageActions, TaskPageOverflow, TaskPageStatus } from "@/systems/tasks";
-
 import type { TaskDetailLocationController } from "./use-task-detail-location";
+import { TaskPageActions, TaskPageOverflow, TaskPageStatus } from "@/systems/tasks";
 
 /**
  * Publishes task-detail crumbs, status, and actions into the window topbar.

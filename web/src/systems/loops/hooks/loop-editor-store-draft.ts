@@ -37,14 +37,18 @@ export const loopEditorDraftTransitions = {
     structuralRevision: current.structuralRevision + 1,
     validationGeneration: current.validationGeneration + 1,
   }),
-  draftInitialized: (current: LoopEditorState, event: LoopEditorEvents["draftInitialized"]) => ({
-    ...createLoopEditorState(current.scopeGeneration + 1),
-    baseDefinition: event.definition,
-    edges: event.edges,
-    nodes: event.nodes,
-    selectedNodeId: event.nodes[0]?.id ?? null,
-    structuralRevision: current.structuralRevision + 1,
-  }),
+  draftInitialized: (current: LoopEditorState, event: LoopEditorEvents["draftInitialized"]) => {
+    if (event.sourceKey !== undefined && event.sourceKey === current.initializedSourceKey) return;
+    return {
+      ...createLoopEditorState(current.scopeGeneration + 1),
+      baseDefinition: event.definition,
+      edges: event.edges,
+      initializedSourceKey: event.sourceKey ?? current.initializedSourceKey,
+      nodes: event.nodes,
+      selectedNodeId: event.nodes[0]?.id ?? null,
+      structuralRevision: current.structuralRevision + 1,
+    };
+  },
   graphEdgesApplied: (current: LoopEditorState, event: LoopEditorEvents["graphEdgesApplied"]) => ({
     ...current,
     edges: event.edges,

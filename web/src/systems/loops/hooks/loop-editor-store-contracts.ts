@@ -9,9 +9,12 @@ export type LoopEditorView = "graph" | "dsl";
 export type LoopEditorSidebarTab = "contract" | "node";
 
 export interface LoopEditorState {
+  annotationsUnavailable: boolean;
+  automaticValidationRevision: number | null;
   baseDefinition: LoopDefinition | null;
   edges: EditorEdge[];
   isDirty: boolean;
+  initializedSourceKey: string | null;
   lint: LoopLintState;
   nodes: EditorNode[];
   pendingPositionsGeneration: number | null;
@@ -44,9 +47,18 @@ export interface LoopPositionAnnotation {
 }
 
 export type LoopEditorEvents = {
+  annotationsStatusObserved: { failed: boolean; notify: () => void };
+  automaticValidationCancelled: Record<never, never>;
+  automaticValidationElapsed: { revision: number };
+  automaticValidationRequested: { execute: () => void; revision: number };
   connectionCreated: { edges: EditorEdge[] };
   contractFieldChanged: { definition: LoopDefinition | null };
-  draftInitialized: { definition: LoopDefinition; edges: EditorEdge[]; nodes: EditorNode[] };
+  draftInitialized: {
+    definition: LoopDefinition;
+    edges: EditorEdge[];
+    nodes: EditorNode[];
+    sourceKey?: string;
+  };
   graphEdgesApplied: { edges: EditorEdge[]; structureChanged: boolean };
   graphNodesApplied: {
     nodes: EditorNode[];
@@ -54,6 +66,7 @@ export type LoopEditorEvents = {
     structureChanged: boolean;
   };
   layoutApplied: { nodes: EditorNode[] };
+  lifecycleDisposed: Record<never, never>;
   nodeAdded: { item: PaletteItem };
   nodeFieldChanged: { nodes: EditorNode[] };
   nodeRenamed: { edges: EditorEdge[]; nodes: EditorNode[]; selectedNodeId: string };
@@ -114,9 +127,12 @@ export type LoopEditorEnqueue = EnqueueObject<
 
 export function createLoopEditorState(scopeGeneration = 0): LoopEditorState {
   return {
+    annotationsUnavailable: false,
+    automaticValidationRevision: null,
     baseDefinition: null,
     edges: [],
     isDirty: false,
+    initializedSourceKey: null,
     lint: emptyLintState(),
     nodes: [],
     pendingPositionsGeneration: null,

@@ -15,8 +15,6 @@ import {
   isNetworkParticipationDraftValid,
   networkParticipationDraftFromValues,
 } from "@/lib/network-participation";
-import { NetworkParticipationFields } from "@/systems/network";
-import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 import type { TaskEditorDraft } from "../lib/task-editor";
 import { SIMPLE_TASK_TEMPLATE_IDS, type TaskTemplateId } from "../lib/task-templates";
@@ -28,6 +26,8 @@ import { PrioritySection } from "./task-form/priority-section";
 import { QueueOwnershipSection } from "./task-form/queue-ownership-section";
 import { TemplateCards } from "./task-form/template-cards";
 import { useTasksCreateModalForm } from "./use-tasks-create-modal-form";
+import { NetworkParticipationFields } from "@/systems/network";
+import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 export type TaskEditorSurfaceMode = "new" | "edit";
 

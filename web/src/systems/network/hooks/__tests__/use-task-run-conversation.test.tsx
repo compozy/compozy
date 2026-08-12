@@ -155,6 +155,26 @@ describe("useTaskRunConversation", () => {
     await waitFor(() => expect(result.current?.streamError?.message).toMatch(/reconnecting/i));
   });
 
+  it("Should own no conversation stream while its retained window is hidden", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { rerender } = renderHook(
+      ({ enabled }) => useTaskRunConversation("run-1", network, { enabled }),
+      { initialProps: { enabled: false }, wrapper }
+    );
+
+    await act(async () => Promise.resolve());
+    expect(FakeEventSource.instances).toHaveLength(0);
+
+    rerender({ enabled: true });
+    const source = await openedSource();
+
+    rerender({ enabled: false });
+    expect(source.closed).toBe(true);
+  });
+
   it("Should ignore a late usage frame from another workspace run", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = ({ children }: { children: ReactNode }) => (

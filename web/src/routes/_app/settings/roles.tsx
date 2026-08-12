@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadSettingsRolesRoute } from "../-settings-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/settings/roles")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: "Roles" } },
   }),
-  loader: ({ context }) => preloadSettingsRolesRoute(context.queryClient),
+  loader: async ({ context }) =>
+    (await import("../-settings-preload")).preloadSettingsRolesRoute(context.queryClient),
   component: createOsRouteSync("settings"),
 });

@@ -4,9 +4,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AgentPayload } from "@/systems/agent";
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
-import type { WorkspacePayload } from "@/systems/workspace";
 
 import type { SessionPayload } from "../../types";
 import {
@@ -14,6 +12,8 @@ import {
   useSessionCreateDialogViewModel,
   type SessionCreateDialogApi,
 } from "../use-session-create-dialog";
+import type { AgentPayload } from "@/systems/agent";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 // Invariant: creation submits only durable session identity and launch context, then hands off
 // to the canonical session route. Owning layer: session-create view model. Canonical suite: this hook test.
@@ -35,24 +35,22 @@ const {
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
 
-vi.mock("@/systems/agent", async () => {
-  const actual = await vi.importActual<typeof import("@/systems/agent")>("@/systems/agent");
-  return {
-    ...actual,
-    useAgents: (workspaceId: string, options?: { enabled?: boolean }) =>
-      mockUseAgents(workspaceId, options),
-  };
-});
+vi.mock("@/systems/agent/hooks/use-agents", () => ({
+  useAgents: (workspaceId: string, options?: { enabled?: boolean }) =>
+    mockUseAgents(workspaceId, options),
+}));
 
-vi.mock("@/systems/workspace", async () => {
-  const actual = await vi.importActual<typeof import("@/systems/workspace")>("@/systems/workspace");
-  return {
-    ...actual,
-    setActiveWorkspaceId: mockSetActiveWorkspaceId,
-    useUserHomeDir: () => mockUserHomeDir.current,
-    useWorkspaces: () => ({ data: mockWorkspaceListRef.current, error: null, isLoading: false }),
-  };
-});
+vi.mock("@/systems/workspace/stores/active-workspace-store", () => ({
+  setActiveWorkspaceId: mockSetActiveWorkspaceId,
+}));
+
+vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({
+  useUserHomeDir: () => mockUserHomeDir.current,
+}));
+
+vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
+  useWorkspaces: () => ({ data: mockWorkspaceListRef.current, error: null, isLoading: false }),
+}));
 
 vi.mock("../use-session-actions", () => ({
   useCreateSession: () => ({ mutateAsync: mockMutateAsync, isPending: false }),

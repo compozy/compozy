@@ -3,17 +3,17 @@ import { AlertTriangle, ChevronRight } from "lucide-react";
 
 import { Button, Empty, OwnerAvatar, Pill, Section, SkeletonRows, Surface } from "@compozy/ui";
 
-import { useSessionCreateActions } from "@/systems/session";
-
 import { useElapsedNowSeconds } from "../hooks/use-elapsed-ticker";
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
 import type { HomeRunCardModel, HomeWorkingNowStatus } from "../types";
+import { useSessionCreateActions } from "@/systems/session";
 
 export interface HomeWorkingNowProps {
   cards: HomeRunCardModel[];
   total: number;
   status: HomeWorkingNowStatus;
   errorMessage?: string | null;
+  liveEnabled?: boolean;
 }
 
 function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds: number }) {
@@ -100,8 +100,14 @@ function HomeWorkingNowPartialNote() {
  * (not a false "nothing here"), and a partial read shows what loaded but flags
  * the gap.
  */
-export function HomeWorkingNow({ cards, total, status, errorMessage }: HomeWorkingNowProps) {
-  const nowSeconds = useElapsedNowSeconds();
+export function HomeWorkingNow({
+  cards,
+  total,
+  status,
+  errorMessage,
+  liveEnabled = true,
+}: HomeWorkingNowProps) {
+  const nowSeconds = useElapsedNowSeconds(liveEnabled);
   const sessionCreate = useSessionCreateActions();
 
   return (

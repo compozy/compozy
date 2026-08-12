@@ -1,9 +1,8 @@
 import { Alert, AlertDescription, AlertTitle, Button, Empty } from "@compozy/ui";
 
-import { SettingsGroup } from "@/systems/settings";
-
 import type { GatewayDevice } from "../types";
 import { GatewayDeviceRow } from "./gateway-device-row";
+import { SettingsGroup } from "@/systems/settings";
 
 export interface GatewayDeviceListProps {
   devices: readonly GatewayDevice[];

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import type { NetworkConversationMessage, NetworkThreadDetail } from "../types";
+import { useNetworkLiveDataEnabled } from "./use-network-live-data-enabled";
 import { useLastRead } from "./use-last-read";
 import { useNetworkMessages } from "./use-messages";
 import { useNetworkThreadDetail } from "./use-threads";
@@ -49,6 +50,7 @@ export function useThreadOverlay({
   fullPage,
   onClose,
 }: UseThreadOverlayArgs): UseThreadOverlayResult {
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const detail = useNetworkThreadDetail(channel, threadId, { workspaceId });
   const messagesQuery = useNetworkMessages({
     workspaceId,
@@ -70,7 +72,7 @@ export function useThreadOverlay({
   );
 
   useEffect(() => {
-    if (fullPage) {
+    if (fullPage || !liveDataEnabled) {
       return undefined;
     }
     function handleKey(event: KeyboardEvent) {
@@ -81,15 +83,15 @@ export function useThreadOverlay({
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [fullPage, onClose]);
+  }, [fullPage, liveDataEnabled, onClose]);
 
   useEffect(() => {
     const lastTimestamp = messagesQuery.messages.at(-1)?.timestamp;
-    if (!lastTimestamp) {
+    if (!liveDataEnabled || !lastTimestamp) {
       return;
     }
     markRead({ channel, containerId: threadId, surface: "thread" }, lastTimestamp);
-  }, [channel, markRead, messagesQuery.messages, threadId]);
+  }, [channel, liveDataEnabled, markRead, messagesQuery.messages, threadId]);
 
   return {
     detail: detail.thread,

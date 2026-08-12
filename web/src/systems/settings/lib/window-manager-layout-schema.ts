@@ -13,6 +13,7 @@ import type {
   WindowManagerLayoutWindow,
   WindowManagerNormalizedRect,
 } from "./window-manager-layout-types";
+
 import type { WindowManagerConfig } from "@/systems/os";
 
 const identifierSchema = z.string().trim().min(1);

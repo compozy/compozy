@@ -47,15 +47,11 @@ function approveMutationStub() {
   return { mutateAsync: execute };
 }
 
-vi.mock("@/systems/tasks", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/tasks")>();
-  return {
-    ...actual,
-    useApproveTask: (() => approveMutationStub()) as unknown as typeof actual.useApproveTask,
-    useRejectTask: (() => mutationStub()) as unknown as typeof actual.useRejectTask,
-    useRetryTaskRun: (() => mutationStub()) as unknown as typeof actual.useRetryTaskRun,
-  };
-});
+vi.mock("@/systems/tasks/hooks/task-actions-public-api", () => ({
+  useApproveTask: () => approveMutationStub(),
+  useRejectTask: () => mutationStub(),
+  useRetryTaskRun: () => mutationStub(),
+}));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 

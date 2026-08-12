@@ -3,7 +3,7 @@
 // Boundary IN: useAutomationPageBase setters and current TanStack Router search.
 // Boundary OUT: Route validation and automation list transport.
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ navigate: vi.fn() }));
 
@@ -12,24 +12,30 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
 }));
 
-vi.mock("@/systems/automation", () => ({
+vi.mock("@/systems/automation/adapters/automation-api", () => ({
   AutomationApiError: class AutomationApiError extends Error {
     status = 500;
   },
 }));
 
-vi.mock("@/systems/settings", () => ({
+vi.mock("@/systems/settings/hooks/use-settings-sections", () => ({
   useSettingsAutomation: () => ({ data: { runtime: { available: true } } }),
 }));
 
-vi.mock("@/systems/workspace", () => ({
-  toWorkspaceCommandSelectOptions: () => [],
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspace: null,
     activeWorkspaceId: "ws-a",
     workspaces: [],
   }),
+}));
+
+vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({
   useUserHomeDir: () => "/Users/test",
+}));
+
+vi.mock("@/systems/workspace/lib/workspace-command-select-options", () => ({
+  toWorkspaceCommandSelectOptions: () => [],
 }));
 
 import {
@@ -40,8 +46,10 @@ import {
 
 describe("useAutomationPageBase route state", () => {
   beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.useRealTimers());
 
   it("Should write every list control and clear only filters", () => {
+    vi.useFakeTimers();
     const current = {
       enabled: true,
       event: "task.created",
@@ -55,6 +63,8 @@ describe("useAutomationPageBase route state", () => {
     const updatedSearch = () => mocks.navigate.mock.lastCall?.[0].search(current);
 
     act(() => result.current.setSearchQuery("  review  "));
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(180));
     expect(updatedSearch()).toEqual({ ...current, q: "review" });
     act(() => result.current.setScopeFilter("global"));
     expect(updatedSearch()).toEqual({ ...current, scope: "global" });

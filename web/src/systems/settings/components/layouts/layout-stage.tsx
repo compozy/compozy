@@ -1,7 +1,5 @@
 import { useState } from "react";
 
-import type { WindowManagerConfig } from "@/systems/os";
-
 import { useLayoutCanvasSelection } from "../../hooks/use-layout-canvas-selection";
 import type { WindowManagerLayoutEditorModel } from "../../hooks/use-window-manager-layout-editor";
 import { layoutCanvasProjection } from "../../lib/window-manager-layout-canvas";
@@ -10,6 +8,7 @@ import { LayoutCanvasBoardBar } from "./layout-canvas-board-bar";
 import { LayoutDesktopTabs } from "./layout-desktop-tabs";
 import { LayoutInspector } from "./layout-inspector";
 import { LayoutReviewBar } from "./layout-review-bar";
+import type { WindowManagerConfig } from "@/systems/os";
 
 interface LayoutStageProps {
   editor: WindowManagerLayoutEditorModel;

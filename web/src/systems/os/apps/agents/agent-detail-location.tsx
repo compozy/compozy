@@ -12,26 +12,26 @@ import {
   type LaneTabsItem,
 } from "@compozy/ui";
 
+import { useAgentDetail } from "./use-agent-detail";
 import {
   AgentConfigurationTab,
   AgentDetailHeader,
+  type AgentDetailSearch,
+  type AgentDetailTab,
   AgentDiagnosticsBanner,
+  type AgentInstructionFile,
   AgentInstructionsTab,
   AgentOverviewTab,
   AgentPageActions,
   AgentPageOverflow,
   AgentPageStatusPill,
+  type AgentPayload,
   AgentRuntimeControl,
   AgentSessionsTab,
   useAgentInstructionsTab,
-  type AgentDetailSearch,
-  type AgentDetailTab,
-  type AgentInstructionFile,
-  type AgentPayload,
 } from "@/systems/agent";
 import { SessionDeleteDialog, type SessionPayload } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
-import { useAgentDetail } from "./use-agent-detail";
 
 interface AgentInstructionsSectionProps {
   agent: AgentPayload;

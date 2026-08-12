@@ -16,6 +16,7 @@ import { formatClarifyDeadline } from "../lib/clarify-event";
 import type { ClarificationPending } from "../types";
 
 export interface ClarificationDockProps {
+  enabled?: boolean;
   clarification: ClarificationPending;
   sessionId: string;
   workspaceId: string;
@@ -41,13 +42,20 @@ function indexedChoices(choices: readonly string[]) {
  * Submitting and retryable errors render as quiet dock status lines.
  */
 export function ClarificationDock({
+  enabled = true,
   clarification,
   sessionId,
   workspaceId,
   countLabel,
   onResolved,
 }: ClarificationDockProps) {
-  const dock = useClarificationDock({ clarification, sessionId, workspaceId, onResolved });
+  const dock = useClarificationDock({
+    clarification,
+    enabled,
+    sessionId,
+    workspaceId,
+    onResolved,
+  });
   const deadlineHint = formatClarifyDeadline(clarification.deadline);
 
   const handleTextareaKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {

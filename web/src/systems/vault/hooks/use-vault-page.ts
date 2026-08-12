@@ -3,8 +3,13 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import type { ListingViewMode } from "@compozy/ui";
 
-import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { VaultApiError } from "../adapters/vault-api";
+import {
+  normalizeVaultPrefixForNamespace,
+  type VaultNamespaceFilter,
+  type VaultRouteSearch,
+} from "../lib/vault-route-search";
 import { useDeleteVaultSecret, usePutVaultSecret } from "./use-vault-actions";
 import { useVaultSecrets } from "./use-vault";
 import {
@@ -16,14 +21,6 @@ import {
 import { vaultPageLogic, type VaultDraft } from "./vault-page-logic";
 
 export type { VaultDraft, VaultEditorState, VaultLastAction } from "./vault-page-logic";
-
-export type VaultNamespaceFilter = VaultNamespace | "all";
-
-export interface VaultRouteSearch {
-  q?: string;
-  namespace?: VaultNamespace;
-  view?: ListingViewMode;
-}
 
 export type VaultDeleteState = { mode: "closed" } | { mode: "open"; secret: VaultSecret };
 
@@ -45,17 +42,6 @@ function errorMessage(error: unknown): string | null {
   if (error instanceof VaultApiError) return error.message;
   if (error instanceof Error) return error.message;
   return null;
-}
-
-export function normalizeVaultPrefixForNamespace(
-  value: unknown,
-  namespace: VaultNamespace | undefined
-): string | undefined {
-  const prefix = normalizeListingSearchValue(value);
-  if (!prefix || !namespace) return prefix;
-
-  const match = /^vault:([^/]+)\//.exec(prefix);
-  return match && match[1] !== namespace ? undefined : prefix;
 }
 
 function filterFor(namespace: VaultNamespaceFilter, prefix: string): VaultListFilter {
@@ -82,22 +68,6 @@ function countVaultSecrets(secrets: VaultSecret[]) {
   };
 }
 
-export function parseVaultNamespaceFilter(value: unknown): VaultNamespace | undefined {
-  if (typeof value !== "string") return undefined;
-  return (VAULT_NAMESPACES as readonly string[]).includes(value)
-    ? (value as VaultNamespace)
-    : undefined;
-}
-
-export function validateVaultSearch(search: Record<string, unknown>): VaultRouteSearch {
-  const namespace = parseVaultNamespaceFilter(search.namespace);
-  return {
-    q: normalizeVaultPrefixForNamespace(search.q, namespace),
-    namespace,
-    view: parseListingView(search.view),
-  };
-}
-
 export function useVaultPage(search: VaultRouteSearch = {}) {
   const navigate = useNavigate({ from: "/vault" });
   const prefix = search.q ?? "";
@@ -109,8 +79,11 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   const filter = filterFor(namespace, prefix);
   const query = useVaultSecrets(filter);
   // Collision detection and identity resolution must see the whole vault, not
-  // only the active namespace/prefix projection.
-  const allSecretsQuery = useVaultSecrets({});
+  // only the active namespace/prefix projection. Keep that unbounded read cold
+  // until an action actually needs cross-filter truth.
+  const inventoryRequired =
+    flow.editor.mode === "create" || flow.selectedRef !== null || flow.deleteTargetRef !== null;
+  const allSecretsQuery = useVaultSecrets({}, { enabled: inventoryRequired });
   const putMutation = usePutVaultSecret();
   const deleteMutation = useDeleteVaultSecret();
 

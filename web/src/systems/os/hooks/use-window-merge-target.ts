@@ -24,25 +24,18 @@ export function useWindowMergeTarget(
 ): WindowMergeTargetModel {
   const { manager } = useOsShell();
   const chromeRef = React.useRef<HTMLElement | null>(null);
-  // The frame projection is reallocated every publish; the listener reads the
-  // latest through a ref so mid-drag re-renders never tear the drop target
-  // down. A mounted frame keeps its id, so the cleanup clear stays scoped.
-  const frameRef = React.useRef(frame);
+  const readCommittedFrame = React.useEffectEvent(() => frame);
   const mergeTargeted = useSelector(
     windowManagerStore,
     snapshot => snapshot.context.deckDropTarget?.frameId === frame.id
   );
-
-  React.useLayoutEffect(() => {
-    frameRef.current = frame;
-  }, [frame]);
 
   const frameId = frame.id;
   React.useEffect(() => {
     if (!enabled) return;
     return registerWindowMergeTarget(manager, {
       frameId,
-      getFrame: () => frameRef.current,
+      getFrame: readCommittedFrame,
       getChrome: () => chromeRef.current,
     });
   }, [enabled, frameId, manager]);

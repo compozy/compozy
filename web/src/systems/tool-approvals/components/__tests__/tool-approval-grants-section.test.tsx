@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch, createStatefulMswStore } from "@/test/msw-fetch";
 import { toolApprovalGrantFixtures } from "@/systems/tool-approvals/mocks/fixtures";
+
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
 
 const WS = "ws_default";
@@ -17,7 +18,7 @@ const workspaceMock = vi.hoisted(() => ({
   value: { activeWorkspaceId: "ws_default" as string | null, hasHydrated: true, isLoading: false },
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => workspaceMock.value,
 }));
 

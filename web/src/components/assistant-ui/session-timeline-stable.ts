@@ -37,7 +37,7 @@ export function computeStableSessionRows(
 
   const result = rows.map((row, index) => {
     const previousRow = previous.byId.get(row.id);
-    const stableRow = previousRow && isRowUnchanged(previousRow, row) ? previousRow : row;
+    const stableRow = previousRow && sessionRowEqual(previousRow, row) ? previousRow : row;
     next.set(row.id, stableRow);
     if (!anyChanged && previous.result[index] !== stableRow) {
       anyChanged = true;
@@ -49,7 +49,7 @@ export function computeStableSessionRows(
 }
 
 /** Shallow, per-variant content comparison — avoids serialization cost. */
-function isRowUnchanged(a: SessionRow, b: SessionRow): boolean {
+export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
   if (a.kind !== b.kind || a.id !== b.id) return false;
 
   switch (a.kind) {
@@ -188,6 +188,6 @@ function rowsEqual(a: readonly SessionRow[], b: readonly SessionRow[]): boolean 
   if (a.length !== b.length) return false;
   return a.every((row, index) => {
     const other = b[index];
-    return other !== undefined && isRowUnchanged(row, other);
+    return other !== undefined && sessionRowEqual(row, other);
   });
 }

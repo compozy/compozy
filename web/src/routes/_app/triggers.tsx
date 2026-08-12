@@ -1,12 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  automationListLoopFilter,
-  validateTriggersSearch,
-} from "@/systems/os/apps/automation/use-automation-page";
-import { createOsRouteSync } from "@/systems/os";
+import { automationListLoopFilter, validateTriggersSearch } from "@/systems/automation";
+
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadAutomationTriggersRoute } from "./-automation-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/triggers")({
   validateSearch: validateTriggersSearch,
@@ -21,6 +18,10 @@ export const Route = createFileRoute("/_app/triggers")({
     scope: search.scope,
     source: search.source,
   }),
-  loader: ({ context, deps }) => preloadAutomationTriggersRoute(context.queryClient, deps),
+  loader: async ({ context, deps }) =>
+    (await import("./-automation-preload")).preloadAutomationTriggersRoute(
+      context.queryClient,
+      deps
+    ),
   component: createOsRouteSync("triggers"),
 });

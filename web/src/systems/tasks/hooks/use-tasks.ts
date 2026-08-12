@@ -26,7 +26,12 @@ export function useTasks(filters: TaskListFilter = {}, options: QueryHookOptions
 }
 
 export function useTask(id: string, options: QueryHookOptions = {}) {
-  return useQuery(taskDetailOptions(id, options.enabled ?? true));
+  return useQuery({
+    ...taskDetailOptions(id, options.enabled ?? true),
+    ...(options.refetchIntervalMs === undefined
+      ? {}
+      : { refetchInterval: options.refetchIntervalMs }),
+  });
 }
 
 export function useTaskRuns(
@@ -34,5 +39,10 @@ export function useTaskRuns(
   filters: TaskRunsFilter = {},
   options: QueryHookOptions = {}
 ) {
-  return useQuery(taskRunsOptions(id, filters, options.enabled ?? true));
+  return useQuery({
+    ...taskRunsOptions(id, filters, options.enabled ?? true),
+    ...(options.refetchIntervalMs === undefined
+      ? {}
+      : { refetchInterval: options.refetchIntervalMs }),
+  });
 }

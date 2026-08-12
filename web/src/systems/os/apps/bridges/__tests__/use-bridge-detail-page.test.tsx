@@ -23,31 +23,33 @@ const {
   mockUseBridgeSecretBindings: vi.fn(),
 }));
 
-vi.mock("@/systems/bridges", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/bridges")>();
-  return {
-    ...actual,
-    useBridge: mockUseBridge,
-    useBridgeHealthStream: vi.fn(),
-    useBridgeProviders: mockUseBridgeProviders,
-    useBridgeRoutes: vi.fn(() => ({ data: [], error: null, isLoading: false })),
-    useBridgeSecretBindings: mockUseBridgeSecretBindings,
-    useBridgeTargets: vi.fn(() => ({ data: undefined, error: null, isLoading: false })),
-    useBridges: vi.fn(() => ({ bridgeHealth: {}, bridges: bridgesListFixture.bridges })),
-    useDeleteBridgeSecretBinding: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
-    useDisableBridge: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
-    useEnableBridge: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
-    usePutBridgeSecretBinding: vi.fn(() => ({
-      isPending: false,
-      mutateAsync: mockPutSecretBinding,
-    })),
-    useResolveBridgeTarget: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
-    useRestartBridge: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
-    useUpdateBridge: vi.fn(() => ({ isPending: false, mutateAsync: mockUpdateBridge })),
-  };
-});
+vi.mock("@/systems/bridges/hooks/use-bridges", () => ({
+  useBridge: mockUseBridge,
+  useBridgeProviders: mockUseBridgeProviders,
+  useBridgeRoutes: vi.fn(() => ({ data: [], error: null, isLoading: false })),
+  useBridgeSecretBindings: mockUseBridgeSecretBindings,
+  useBridgeTargets: vi.fn(() => ({ data: undefined, error: null, isLoading: false })),
+  useBridges: vi.fn(() => ({ bridgeHealth: {}, bridges: bridgesListFixture.bridges })),
+}));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/bridges/hooks/use-bridge-health-stream", () => ({
+  useBridgeHealthStream: vi.fn(),
+}));
+
+vi.mock("@/systems/bridges/hooks/use-bridge-actions", () => ({
+  useDeleteBridgeSecretBinding: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
+  useDisableBridge: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
+  useEnableBridge: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
+  usePutBridgeSecretBinding: vi.fn(() => ({
+    isPending: false,
+    mutateAsync: mockPutSecretBinding,
+  })),
+  useResolveBridgeTarget: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
+  useRestartBridge: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
+  useUpdateBridge: vi.fn(() => ({ isPending: false, mutateAsync: mockUpdateBridge })),
+}));
+
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspace: { name: "HQ" }, activeWorkspaceId: "ws_hq" }),
 }));
 

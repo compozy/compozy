@@ -1,9 +1,8 @@
 import { useRef, useState, type Dispatch, type PointerEvent, type SetStateAction } from "react";
 
-import type { WindowManagerConfig } from "@/systems/os";
-
 import { nearestDetent } from "../lib/window-manager-layout-detents";
 import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
+import type { WindowManagerConfig } from "@/systems/os";
 
 const EDGE_PAD = 10;
 

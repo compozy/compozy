@@ -9,6 +9,7 @@ import {
 } from "@compozy/ui";
 
 import type { NetworkParticipationDraft } from "@/lib/network-participation";
+
 import { NetworkParticipationFields } from "@/systems/network";
 import { WorkspaceCommandSelect, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 

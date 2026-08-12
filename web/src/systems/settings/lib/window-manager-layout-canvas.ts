@@ -1,12 +1,16 @@
-import { buildWindowManagerMinimums, projectLayout, type LayoutProjection } from "@/systems/os";
-import type { PixelRect, WindowManagerConfig } from "@/systems/os";
-
 import { LAYOUT_CANVAS_REFERENCE } from "./window-manager-layout-reference";
 import type {
   WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
   WindowManagerNormalizedRect,
 } from "./window-manager-layout-types";
+import {
+  buildWindowManagerMinimums,
+  type LayoutProjection,
+  type PixelRect,
+  projectLayout,
+  type WindowManagerConfig,
+} from "@/systems/os";
 
 export function layoutCanvasProjection(
   document: WindowManagerLayoutDocument,

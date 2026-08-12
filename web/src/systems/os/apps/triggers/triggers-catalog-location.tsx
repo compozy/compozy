@@ -10,15 +10,16 @@ import {
   ListingToolbar,
   useTopbarSlot,
 } from "@compozy/ui";
+
+import {
+  useAutomationTriggersPage,
+  type AutomationRouteSearch,
+} from "../automation/use-automation-page";
 import {
   AutomationEditorDialog,
   AutomationListFilters,
   AutomationTriggersCatalog,
 } from "@/systems/automation";
-import {
-  useAutomationTriggersPage,
-  type AutomationRouteSearch,
-} from "../automation/use-automation-page";
 
 export function TriggersCatalogLocation({ search }: { search: AutomationRouteSearch }) {
   const page = useAutomationTriggersPage(

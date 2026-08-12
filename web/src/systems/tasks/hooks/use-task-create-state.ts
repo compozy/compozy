@@ -1,7 +1,10 @@
-import { useRef, useState, type SetStateAction } from "react";
+import type { SetStateAction } from "react";
+import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
+import { useStoreBinding } from "@/hooks/use-store-binding";
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "./use-task-actions";
+import { taskEditorDraftLogic } from "./task-editor-draft-store";
 import {
   applyTaskTemplateToEditorDraft,
   buildCreateChildTaskRequest,
@@ -15,22 +18,17 @@ import {
   getTaskTemplate,
   type TaskTemplateId,
 } from "@/systems/tasks/lib/task-templates";
+
+import { taskScopeForActiveWorkspace } from "../lib/workspace-scope";
 import {
   toWorkspaceCommandSelectOptions,
   useActiveWorkspace,
   useUserHomeDir,
 } from "@/systems/workspace";
-import { taskScopeForActiveWorkspace } from "../lib/workspace-scope";
 
 interface TaskCreateLocation {
   pathname: string;
   search: Record<string, unknown>;
-}
-
-interface TaskCreateDraftState {
-  draft: TaskEditorDraft;
-  templateId: TaskTemplateId;
-  workspaceKey: string;
 }
 
 export function useTaskCreateState(
@@ -42,46 +40,43 @@ export function useTaskCreateState(
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();
-  const submitInFlightRef = useRef(false);
 
   const templateId = search.template ?? DEFAULT_TASK_TEMPLATE_ID;
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const createDraftWorkspaceId =
     activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
   const workspaceKey = createDraftWorkspaceId ?? "global";
-  const [draftState, setDraftState] = useState<TaskCreateDraftState>(() => ({
-    draft: createTaskEditorDraft(templateId, createDraftWorkspaceId),
-    templateId,
-    workspaceKey,
-  }));
-  const currentDraftState =
-    draftState.workspaceKey === workspaceKey && draftState.templateId === templateId
-      ? draftState
-      : {
-          draft:
-            draftState.workspaceKey !== workspaceKey
-              ? createTaskEditorDraft(templateId, createDraftWorkspaceId)
-              : applyTaskTemplateToEditorDraft(draftState.draft, templateId),
-          templateId,
-          workspaceKey,
-        };
-  if (currentDraftState !== draftState) {
-    setDraftState(currentDraftState);
-  }
-  const draft = currentDraftState.draft;
+  const bindingKey = `${workspaceKey}\u0000${templateId}`;
+  const { store } = useStoreBinding(
+    bindingKey,
+    () =>
+      taskEditorDraftLogic.createStore({
+        draft: createTaskEditorDraft(templateId, createDraftWorkspaceId),
+        scopeKey: workspaceKey,
+        variantKey: templateId,
+      }),
+    previous => {
+      const previousState = previous.getSnapshot().context;
+      return taskEditorDraftLogic.createStore({
+        draft:
+          previousState.scopeKey === workspaceKey
+            ? applyTaskTemplateToEditorDraft(previousState.draft, templateId)
+            : createTaskEditorDraft(templateId, createDraftWorkspaceId),
+        scopeKey: workspaceKey,
+        variantKey: templateId,
+      });
+    },
+    (current, nextKey) => current.key !== nextKey
+  );
+  const draft = useSelector(store, snapshot => snapshot.context.draft);
+  const submissionPhase = useSelector(store, snapshot => snapshot.context.submissionPhase);
 
-  const setDraft = (update: SetStateAction<TaskEditorDraft>) =>
-    setDraftState(current => {
-      const currentDraft =
-        current.workspaceKey === workspaceKey && current.templateId === templateId
-          ? current.draft
-          : draft;
-      return {
-        draft: typeof update === "function" ? update(currentDraft) : update,
-        templateId,
-        workspaceKey,
-      };
+  const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
+    const currentDraft = store.getSnapshot().context.draft;
+    store.trigger.draftChanged({
+      draft: typeof update === "function" ? update(currentDraft) : update,
     });
+  };
 
   const handleTemplateChange = (nextTemplateId: TaskTemplateId) => {
     const { template: _template, ...catalogSearch } = search;
@@ -95,7 +90,7 @@ export function useTaskCreateState(
   };
 
   const handleSubmit = async (nextDraft: TaskEditorDraft, asDraft: boolean) => {
-    if (submitInFlightRef.current) {
+    if (store.getSnapshot().context.submissionPhase === "submitting") {
       return null;
     }
 
@@ -113,7 +108,7 @@ export function useTaskCreateState(
     const parentTaskId = nextDraft.parentTaskId.trim();
     const isChildTask = parentTaskId.length > 0;
 
-    submitInFlightRef.current = true;
+    store.trigger.submissionStarted();
     try {
       const created = isChildTask
         ? await createChildMutation.mutateAsync({
@@ -149,11 +144,11 @@ export function useTaskCreateState(
         onNavigate({ pathname: `/tasks/${encodeURIComponent(created.id)}`, search: {} });
       }
 
-      submitInFlightRef.current = false;
+      store.trigger.submissionFinished();
       return created;
     } catch (error) {
+      store.trigger.submissionFinished();
       toast.error(error instanceof Error ? error.message : "Failed to create task");
-      submitInFlightRef.current = false;
       return null;
     }
   };
@@ -163,7 +158,10 @@ export function useTaskCreateState(
     handleSubmit,
     handleTemplateChange,
     isSubmitting:
-      createMutation.isPending || createChildMutation.isPending || enqueueMutation.isPending,
+      submissionPhase === "submitting" ||
+      createMutation.isPending ||
+      createChildMutation.isPending ||
+      enqueueMutation.isPending,
     setDraft,
     template: getTaskTemplate(templateId),
     templateId,

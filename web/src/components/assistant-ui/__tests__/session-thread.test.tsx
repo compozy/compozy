@@ -6,7 +6,6 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { sessionStore } from "@/systems/session";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -25,6 +24,7 @@ import type { SessionTranscriptData } from "@/systems/session/lib/session-transc
 import { SessionThread } from "../session-thread";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { WorkingIndicator } from "../session-working-row";
+import { sessionStore } from "@/systems/session";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -1387,6 +1387,44 @@ describe("SessionThread transcript states", () => {
     });
   });
 
+  it("Should not apply a stale live-edge reconciliation after the reader scrolls away", async () => {
+    const pendingFrames: FrameRequestCallback[] = [];
+    const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => {
+      pendingFrames.push(callback);
+      return pendingFrames.length;
+    });
+    const messages = toReadonlyThreadMessages(
+      Array.from({ length: 40 }, (_, index) => ({
+        id: `reader-controlled-${index}`,
+        role: index % 2 === 0 ? "user" : "assistant",
+        parts: [{ type: "text", text: `Message ${index}`, state: "done" }],
+      })) as SessionMessage[]
+    );
+
+    try {
+      renderThreadState({ status: "success", messages });
+      expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+      const viewport = screen.getByTestId("chat-view");
+      primeScrolledAwayViewport(viewport);
+      fireEvent.scroll(viewport);
+      const scrollTo = vi.fn((optionsOrX?: ScrollToOptions | number, y?: number) => {
+        const top = typeof optionsOrX === "number" ? y : optionsOrX?.top;
+        viewport.scrollTop = top ?? viewport.scrollTop;
+      });
+      viewport.scrollTo = scrollTo;
+
+      const reconciliation = pendingFrames.shift();
+      expect(reconciliation).toBeDefined();
+      act(() => reconciliation?.(performance.now()));
+
+      expect(scrollTo).not.toHaveBeenCalled();
+      expect(viewport.scrollTop).toBe(300);
+    } finally {
+      requestFrame.mockRestore();
+    }
+  });
+
   it("Should preserve the anchor row position when expanding a work-group disclosure", async () => {
     const transcript = [
       {
@@ -1412,9 +1450,9 @@ describe("SessionThread transcript states", () => {
     const viewport = screen.getByTestId("chat-view");
     primeScrolledAwayViewport(viewport);
 
-    // Expanding reveals the folded calls without yanking the reader's position:
-    // the anchor-preserving toggle corrects scrollTop by the height delta (0
-    // under the static jsdom geometry), so the reading offset is unchanged.
+    // Expanding only changes the XState row store. The virtualizer owns height
+    // measurement and scroll compensation, so the disclosure has no competing
+    // imperative scroll writer.
     fireEvent.click(screen.getByRole("button", { name: /Read 8 files/ }));
 
     expect(await screen.findByText(/\/tmp\/anchor-1\.ts/)).toBeInTheDocument();

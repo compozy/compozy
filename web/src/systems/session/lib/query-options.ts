@@ -158,23 +158,23 @@ export function sessionGoalOptions(workspace: string, id: string) {
  * and a successful answer reconciles the exact key. A short stale window lets focus/remount self-heal
  * a dropped wake.
  */
-export function sessionClarificationsOptions(workspace: string, id: string) {
+export function sessionClarificationsOptions(workspace: string, id: string, enabled = true) {
   return queryOptions({
     queryKey: sessionKeys.clarifications(workspace, id),
     queryFn: ({ signal }) => fetchSessionClarifications(workspace, id, signal),
     staleTime: 5_000,
-    enabled: !!workspace && !!id,
+    enabled: !!workspace && !!id && enabled,
   });
 }
 
 /** Exact current-generation pending operator input, owned by the daemon. */
-export function sessionInputsOptions(workspace: string, id: string) {
+export function sessionInputsOptions(workspace: string, id: string, enabled = true) {
   return queryOptions({
     queryKey: sessionKeys.inputQueue(workspace, id),
     queryFn: ({ signal }) => fetchSessionInputs(workspace, id, signal),
     refetchInterval: SESSION_LIVE_REFETCH_INTERVAL_MS,
     staleTime: 1_000,
-    enabled: !!workspace && !!id,
+    enabled: !!workspace && !!id && enabled,
   });
 }
 

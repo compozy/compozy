@@ -10,18 +10,19 @@ import {
   serializeNetworkParticipation,
   type NetworkParticipationDraft,
 } from "@/lib/network-participation";
-import { useAgents, type AgentPayload } from "@/systems/agent";
-import type { WorkspaceCommandSelectOption, WorkspacePayload } from "@/systems/workspace";
-import {
-  toWorkspaceCommandSelectOptions,
-  useUserHomeDir,
-  useWorkspaces,
-} from "@/systems/workspace";
 
 import type { SessionCreateDialogDraft } from "../lib/session-create-draft";
 import { activateCreatedSessionWorkspace } from "../lib/session-create-navigation";
 import { sessionCreateStoreLogic, type SessionCreateStore } from "../stores/session-create-store";
 import { useCreateSession } from "./use-session-actions";
+import { type AgentPayload, useAgents } from "@/systems/agent";
+import {
+  toWorkspaceCommandSelectOptions,
+  useUserHomeDir,
+  useWorkspaces,
+  type WorkspaceCommandSelectOption,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 interface SessionCreateDialogContext {
   agents: AgentPayload[] | undefined;

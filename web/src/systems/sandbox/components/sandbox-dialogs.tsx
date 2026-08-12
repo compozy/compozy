@@ -3,6 +3,7 @@ import { Check, Trash2, X } from "lucide-react";
 import { Alert, AlertAction, AlertDescription, Button, ConfirmDialog } from "@compozy/ui";
 
 import type { SandboxLastAction } from "../hooks/use-sandbox-page";
+
 import type { SettingsSandboxEntry } from "@/systems/settings";
 
 export function SandboxDeleteDialog({

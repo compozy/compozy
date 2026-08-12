@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { loopDetailByName } from "../../mocks/fixtures";
 import { loopEditorLogic } from "../loop-editor-store";
@@ -13,6 +13,10 @@ function deferred<T>() {
   });
   return { promise, reject, resolve };
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("loopEditorLogic", () => {
   // Invariant: positions, publish, and validation advance independently; scope
@@ -49,6 +53,61 @@ describe("loopEditorLogic", () => {
       expect(store.getSnapshot().context.lint.validated).toBe(true);
       expect(store.getSnapshot().context.pendingValidationGeneration).toBeNull();
     });
+  });
+
+  it("Should preserve an edited draft when the same source is observed again", () => {
+    const store = loopEditorLogic.createStore(undefined);
+    const definition = loopDetailByName.get("implement-tasks")!.definition;
+    store.trigger.draftInitialized({
+      definition,
+      edges: [],
+      nodes: [],
+      sourceKey: "workspace-a:loop-a:workspace",
+    });
+    store.trigger.connectionCreated({ edges: [] });
+
+    store.trigger.draftInitialized({
+      definition,
+      edges: [],
+      nodes: [],
+      sourceKey: "workspace-a:loop-a:workspace",
+    });
+
+    expect(store.getSnapshot().context.isDirty).toBe(true);
+    expect(store.getSnapshot().context.initializedSourceKey).toBe("workspace-a:loop-a:workspace");
+  });
+
+  it("Should debounce automatic validation to the latest store event", () => {
+    vi.useFakeTimers();
+    const store = loopEditorLogic.createStore(undefined);
+    const definition = loopDetailByName.get("implement-tasks")!.definition;
+    const first = vi.fn();
+    const latest = vi.fn();
+    store.trigger.draftInitialized({ definition, edges: [], nodes: [] });
+    const revision = store.getSnapshot().context.structuralRevision;
+
+    store.trigger.automaticValidationRequested({ execute: first, revision });
+    store.trigger.automaticValidationRequested({ execute: latest, revision });
+    vi.advanceTimersByTime(399);
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledOnce();
+  });
+
+  it("Should notify once for each annotations-error transition", () => {
+    const store = loopEditorLogic.createStore(undefined);
+    const notify = vi.fn();
+
+    store.trigger.annotationsStatusObserved({ failed: true, notify });
+    store.trigger.annotationsStatusObserved({ failed: true, notify });
+    expect(notify).toHaveBeenCalledOnce();
+
+    store.trigger.annotationsStatusObserved({ failed: false, notify });
+    store.trigger.annotationsStatusObserved({ failed: true, notify });
+    expect(notify).toHaveBeenCalledTimes(2);
   });
 
   it("runs request regions in parallel and fences replaced draft work", async () => {

@@ -11,25 +11,12 @@ import { humanizeLoopNodeId } from "./loop-run-story-rows";
  * there, both taken from the row's own fields.
  */
 
-export const LOOP_NODE_INVENTORY_STATES = [
-  "waiting",
-  "quarantined",
-  "attention",
-  "retrying",
-] as const satisfies readonly LoopNodeInventoryState[];
-
 export const LOOP_NODE_INVENTORY_LABELS = {
   waiting: "Waiting",
   quarantined: "Quarantined",
   attention: "Attention",
   retrying: "Retrying",
 } as const satisfies Record<LoopNodeInventoryState, string>;
-
-export function isLoopNodeInventoryState(value: unknown): value is LoopNodeInventoryState {
-  return (
-    typeof value === "string" && (LOOP_NODE_INVENTORY_STATES as readonly string[]).includes(value)
-  );
-}
 
 export interface LoopNodeInventoryRowView {
   key: string;
@@ -48,6 +35,8 @@ export interface LoopNodeInventoryRowView {
   /** Mono identity trail. */
   micro: string;
 }
+
+export { isLoopNodeInventoryState, LOOP_NODE_INVENTORY_STATES } from "./loop-node-inventory-state";
 
 /** `1080` → `18m`; the inventory's age column form. */
 export function inventoryAgeLabel(seconds: number): string {

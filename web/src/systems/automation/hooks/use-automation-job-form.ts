@@ -1,4 +1,3 @@
-import type { AgentPayload } from "@/systems/agent";
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 
@@ -8,11 +7,6 @@ import {
   serializeNetworkParticipation,
   type NetworkParticipationDraft,
 } from "@/lib/network-participation";
-import {
-  loopTargetAvailabilityMessage,
-  useLoopTargetCatalog,
-  type LoopTargetDraft,
-} from "@/systems/loops";
 
 import {
   automationTargetMode,
@@ -45,6 +39,12 @@ import type {
   AutomationScope,
   CreateAutomationJobRequest,
 } from "../types";
+import type { AgentPayload } from "@/systems/agent";
+import {
+  loopTargetAvailabilityMessage,
+  type LoopTargetDraft,
+  useLoopTargetCatalog,
+} from "@/systems/loops";
 
 type JobTask = NonNullable<CreateAutomationJobRequest["task"]>;
 type JobOwner = NonNullable<JobTask["owner"]>;

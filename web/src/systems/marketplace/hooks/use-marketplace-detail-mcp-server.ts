@@ -1,11 +1,10 @@
+import type { MarketplaceEntryResponse } from "../types";
 import {
   SETTINGS_QUERY_INTERVALS,
-  useSettingsMCPServers,
   type SettingsMCPServerEntry,
+  useSettingsMCPServers,
 } from "@/systems/settings";
 import { useActiveWorkspace } from "@/systems/workspace";
-
-import type { MarketplaceEntryResponse } from "../types";
 
 type SettingsMCPServersFilter =
   | { scope: "global" }
@@ -34,7 +33,8 @@ function findInstalledMCPServer(
 function useMarketplaceDetailMCPServer(
   entry: MarketplaceEntryResponse["entry"],
   scope?: "global" | "workspace",
-  workspaceId?: string
+  workspaceId?: string,
+  liveDataEnabled = true
 ) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const resolvedWorkspaceId = workspaceId ?? activeWorkspaceId ?? undefined;
@@ -46,7 +46,7 @@ function useMarketplaceDetailMCPServer(
   const queryEnabled =
     entry.installed && (resolvedScope === "global" || Boolean(resolvedWorkspaceId));
   const query = useSettingsMCPServers(queryFilter, {
-    enabled: queryEnabled,
+    enabled: queryEnabled && liveDataEnabled,
     refetchInterval: SETTINGS_QUERY_INTERVALS.collectionRefetchInterval,
   });
   const server = findInstalledMCPServer(entry, query.data?.mcp_servers ?? []);

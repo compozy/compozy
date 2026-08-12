@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ export function ThreadContentRail({
   inset: SessionThreadContentInset;
   className?: string;
   children: ReactNode;
-} & Omit<ComponentPropsWithoutRef<"div">, "className" | "children">) {
+} & Omit<ComponentProps<"div">, "className" | "children">) {
   return (
     <div
       className={cn("w-full min-w-0", inset, className)}

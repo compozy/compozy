@@ -1,12 +1,6 @@
-import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
-
-import {
-  useAutomationJobEditor,
-  useAutomationJobs,
-  useTriggerAutomationJob,
-} from "@/systems/automation";
 
 import {
   automationListError,
@@ -16,6 +10,12 @@ import {
   type AutomationCreateSeed,
   type AutomationRouteSearch,
 } from "./use-automation-page-base";
+import { automationJobRunLogic } from "./automation-job-run-store";
+import {
+  useAutomationJobEditor,
+  useAutomationJobs,
+  useTriggerAutomationJob,
+} from "@/systems/automation";
 
 export function useAutomationJobsPage(
   seed: AutomationCreateSeed = {},
@@ -23,8 +23,8 @@ export function useAutomationJobsPage(
 ) {
   const page = useAutomationPageBase("jobs", search);
   const navigate = useNavigate();
-  const pendingRunIdsRef = useRef<Set<string> | null>(null);
-  const [runPendingIds, setRunPendingIds] = useState<ReadonlySet<string>>(() => new Set());
+  const runStore = useStore(automationJobRunLogic);
+  const runPendingIds = useSelector(runStore, snapshot => snapshot.context.pendingIds);
 
   const jobsQuery = useAutomationJobs(page.listFilters);
   const jobs = jobsQuery.jobs;
@@ -47,19 +47,15 @@ export function useAutomationJobsPage(
   const triggerJobMutation = useTriggerAutomationJob();
   const onRunJob = async (id: string) => {
     if (runDisabled) return;
-    const pendingRunIds = pendingRunIdsRef.current ?? new Set<string>();
-    pendingRunIdsRef.current = pendingRunIds;
-    if (pendingRunIds.has(id)) return;
-    pendingRunIds.add(id);
-    setRunPendingIds(new Set(pendingRunIds));
+    if (runStore.getSnapshot().context.pendingIds.has(id)) return;
+    runStore.trigger.runRequested({ id });
     try {
       const run = await triggerJobMutation.mutateAsync({ id });
       toast.success(`Queued run ${run.id}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to trigger automation job");
     }
-    pendingRunIds.delete(id);
-    setRunPendingIds(new Set(pendingRunIds));
+    runStore.trigger.runSettled({ id });
   };
 
   return {

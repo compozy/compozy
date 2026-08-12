@@ -9,6 +9,7 @@ import type { PermissionRequest } from "../types";
 const DANGER_GHOST_CLASS = "text-muted hover:bg-danger-tint hover:text-danger";
 
 export interface PermissionDockProps {
+  enabled?: boolean;
   permission: PermissionRequest;
   sessionId: string;
   workspaceId: string;
@@ -23,6 +24,7 @@ export interface PermissionDockProps {
  * reject split menu; digit keys 1–4 decide directly (ignoring focused inputs).
  */
 export function PermissionDock({
+  enabled = true,
   permission,
   sessionId,
   workspaceId,
@@ -32,6 +34,7 @@ export function PermissionDock({
   const { menuItemRef, menuOpen, setMenuOpen, splitElement, splitRef, triggerRef } =
     useRejectMenuElements();
   const { decide, decisionOptions, isResolved, isSubmitting, subject } = usePermissionDock({
+    enabled,
     permission,
     sessionId,
     workspaceId,

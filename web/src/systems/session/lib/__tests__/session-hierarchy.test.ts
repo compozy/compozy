@@ -11,6 +11,7 @@ import {
   buildSessionTree,
   childSessionSignalTone,
   collectThreadSessions,
+  filterThreadSessions,
 } from "../session-hierarchy";
 
 function treeSession(
@@ -103,6 +104,24 @@ describe("collectThreadSessions", () => {
       "sess-b",
     ]);
     expect(collectThreadSessions("sess-b", tree.childrenByParent)).toEqual([]);
+  });
+
+  it("Should retain one matching descendant and its ancestors in linear tree order", () => {
+    const sessions = [
+      treeSession("sess-root"),
+      treeSession("sess-parent", { parent: "sess-root" }),
+      treeSession("sess-match", { parent: "sess-parent" }),
+      treeSession("sess-sibling", { parent: "sess-root" }),
+    ];
+    const tree = buildSessionTree(sessions);
+
+    expect(
+      filterThreadSessions(
+        sessions[0]!,
+        tree.childrenByParent,
+        session => session.id === "sess-match"
+      )?.map(session => session.id)
+    ).toEqual(["sess-parent", "sess-match"]);
   });
 });
 

@@ -1,13 +1,14 @@
 import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "./use-settings-page";
+
 import { useTriggerMemoryDream } from "@/systems/knowledge";
 import {
   SettingsApiError,
-  useSettingsMemory,
-  useUpdateSettingsMemory,
   type SettingsMemorySection,
   type SettingsUpdateMemoryRequest,
+  useSettingsMemory,
+  useUpdateSettingsMemory,
 } from "@/systems/settings";
 
 type MemoryConfig = SettingsMemorySection["config"];

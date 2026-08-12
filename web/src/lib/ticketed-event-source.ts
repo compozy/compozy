@@ -17,6 +17,7 @@ export interface StreamEventSource {
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 8_000;
 const RECONNECT_MAX_EXPONENT = 4;
+const RECONNECT_STABLE_MS = RECONNECT_MAX_MS;
 
 /**
  * Opens a live SSE stream for the page's own origin.
@@ -42,6 +43,7 @@ class TicketedEventSource implements StreamEventSource {
   private native: EventSource | null = null;
   private attachedTypes = new Set<string>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private stableTimer: ReturnType<typeof setTimeout> | null = null;
   private controller: AbortController | null = null;
   private attempt = 0;
   private closed = false;
@@ -70,6 +72,7 @@ class TicketedEventSource implements StreamEventSource {
   close(): void {
     this.closed = true;
     this.clearReconnect();
+    this.clearStableReset();
     this.controller?.abort();
     this.controller = null;
     this.teardownNative();
@@ -118,7 +121,7 @@ class TicketedEventSource implements StreamEventSource {
     this.attachedTypes = new Set();
     native.onmessage = event => this.onmessage?.(event);
     native.onopen = event => {
-      this.attempt = 0;
+      this.scheduleStableReset(native);
       this.onopen?.(event);
     };
     native.onerror = event => {
@@ -169,7 +172,24 @@ class TicketedEventSource implements StreamEventSource {
     this.reconnectTimer = null;
   }
 
+  private scheduleStableReset(native: EventSource): void {
+    this.clearStableReset();
+    this.stableTimer = setTimeout(() => {
+      this.stableTimer = null;
+      if (!this.closed && this.native === native) {
+        this.attempt = 0;
+      }
+    }, RECONNECT_STABLE_MS);
+  }
+
+  private clearStableReset(): void {
+    if (this.stableTimer === null) return;
+    clearTimeout(this.stableTimer);
+    this.stableTimer = null;
+  }
+
   private teardownNative(): void {
+    this.clearStableReset();
     const native = this.native;
     if (!native) return;
     native.onmessage = null;

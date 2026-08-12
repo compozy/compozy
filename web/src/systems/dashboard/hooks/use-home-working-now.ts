@@ -1,10 +1,9 @@
-import { useSessions } from "@/systems/session";
-import { useTaskDashboard } from "@/systems/tasks";
-
 import type { HomeScope } from "../lib/home-scope";
 import { homeWorkingNowSessionFilters } from "../lib/home-working-now-query";
 import type { HomeRunCardModel, HomeWorkingNowModel, HomeWorkingNowStatus } from "../types";
 import { elapsedSecondsSince } from "./use-elapsed-ticker";
+import { useSessions } from "@/systems/session";
+import { useTaskDashboard } from "@/systems/tasks";
 
 /** Reads sessions and task runs only after workspace scope has settled. */
 export function useHomeWorkingNow(scope: HomeScope, enabled: boolean): HomeWorkingNowModel {

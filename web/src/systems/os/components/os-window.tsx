@@ -5,6 +5,7 @@ import { Rnd } from "react-rnd";
 
 import { cn } from "@/lib/utils";
 
+import { WindowLiveDataContext } from "../contexts/window-live-data-context";
 import {
   OS_WINDOW_DRAG_CANCEL_SELECTOR,
   OS_WINDOW_DRAG_HANDLE_CLASS,
@@ -13,6 +14,7 @@ import {
 import { useDesktop } from "../hooks/use-desktop";
 import { useOsShell } from "../hooks/use-os-shell";
 import { useWindowManagerGestureDragging } from "../hooks/use-window-manager-store";
+import { useWindowLiveDataEnabled } from "../hooks/use-window-live-data-enabled";
 import { useWindowMergeTarget } from "../hooks/use-window-merge-target";
 import { getOsApp, getOsAppMinimum } from "../lib/app-registry";
 import type { OsWindowFrameModel } from "../lib/group-projection";
@@ -33,7 +35,22 @@ export interface OsWindowProps {
  * tabs never reloads a surface (US-003).
  */
 export function OsWindow({ frame }: OsWindowProps) {
-  const model = useOsWindow(frame);
+  const {
+    focused,
+    handleDrag,
+    handleDragStart,
+    handleDragStop,
+    handleFocusCapture,
+    handlePointerDownCapture,
+    handlePointerEnter,
+    handleResizeStart,
+    handleResizeStop,
+    handleTrafficLight,
+    keepMounted,
+    rect,
+    registerRnd,
+    resizeMax,
+  } = useOsWindow(frame);
   const { presentation, activeApp, reduceMotion } = useDesktop(
     state => ({
       presentation: state.presentation,
@@ -49,7 +66,7 @@ export function OsWindow({ frame }: OsWindowProps) {
   const slotStores = new Map<string, TopbarSlotStore>(
     frame.members.map(member => [member, ensureWindowSlotStore(member)])
   );
-  if (!model.keepMounted || activeApp === null) return null;
+  if (!keepMounted || activeApp === null) return null;
 
   const minimum = getOsAppMinimum(activeApp);
   // Floating frames resize on every edge; tiled frames only on free edges —
@@ -71,25 +88,23 @@ export function OsWindow({ frame }: OsWindowProps) {
 
   return (
     <Rnd
-      ref={model.rndRef}
+      ref={registerRnd}
       className={compact ? "absolute inset-0" : undefined}
-      position={compact ? { x: 0, y: 0 } : { x: model.rect.x, y: model.rect.y }}
-      size={
-        compact ? { width: "100%", height: "100%" } : { width: model.rect.w, height: model.rect.h }
-      }
+      position={compact ? { x: 0, y: 0 } : { x: rect.x, y: rect.y }}
+      size={compact ? { width: "100%", height: "100%" } : { width: rect.w, height: rect.h }}
       minWidth={compact ? undefined : minimum.width}
       minHeight={compact ? undefined : minimum.height}
-      maxWidth={model.resizeMax?.width}
-      maxHeight={model.resizeMax?.height}
+      maxWidth={resizeMax?.width}
+      maxHeight={resizeMax?.height}
       disableDragging={compact}
       enableResizing={!compact && enableResizing}
       dragHandleClassName={OS_WINDOW_DRAG_HANDLE_CLASS}
       cancel={OS_WINDOW_DRAG_CANCEL_SELECTOR}
-      onDragStart={model.handleDragStart}
-      onDrag={model.handleDrag}
-      onDragStop={model.handleDragStop}
-      onResizeStart={model.handleResizeStart}
-      onResizeStop={model.handleResizeStop}
+      onDragStart={handleDragStart}
+      onDrag={handleDrag}
+      onDragStop={handleDragStop}
+      onResizeStart={handleResizeStart}
+      onResizeStop={handleResizeStop}
       style={{
         zIndex: frame.layer,
         display: frame.minimized ? "none" : undefined,
@@ -97,7 +112,7 @@ export function OsWindow({ frame }: OsWindowProps) {
     >
       <OsWindowChrome
         ref={merge.chromeRef}
-        focused={model.focused}
+        focused={focused}
         presentation={presentation}
         // Reduced opacity plus a slight shrink while dragging keeps the merge
         // and snap affordances underneath readable through the moving frame.
@@ -109,15 +124,15 @@ export function OsWindow({ frame }: OsWindowProps) {
         data-dragging={dragging ? "" : undefined}
         data-testid={`os-window-frame-${frame.id}`}
         data-frame-kind={frame.kind}
-        onPointerEnter={model.handlePointerEnter}
-        onPointerDownCapture={model.handlePointerDownCapture}
-        onFocusCapture={model.handleFocusCapture}
+        onPointerEnter={handlePointerEnter}
+        onPointerDownCapture={handlePointerDownCapture}
+        onFocusCapture={handleFocusCapture}
       >
         {deckVisible ? (
           <OsWindowDeck
             frame={frame}
             slotStores={slotStores}
-            onTrafficLight={model.handleTrafficLight}
+            onTrafficLight={handleTrafficLight}
             zoomMenu={button => <OsZoomMenu windowId={frame.activeWindowId}>{button}</OsZoomMenu>}
             dragHandleClassName={OS_WINDOW_DRAG_HANDLE_CLASS}
           />
@@ -127,11 +142,11 @@ export function OsWindow({ frame }: OsWindowProps) {
             key={member}
             windowId={member}
             active={member === frame.activeWindowId}
-            focused={model.focused && member === frame.activeWindowId}
+            focused={focused && member === frame.activeWindowId}
             controls={deckVisible ? "deck" : "head"}
             presentation={presentation}
             slotStore={slotStores.get(member)}
-            onTrafficLight={model.handleTrafficLight}
+            onTrafficLight={handleTrafficLight}
           />
         ))}
         {merge.mergeTargeted ? (
@@ -169,6 +184,7 @@ function OsWindowMember({
 }) {
   const { coordinator } = useOsShell();
   const win = useDesktop(state => state.windows[windowId]);
+  const liveDataEnabled = useWindowLiveDataEnabled(windowId);
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   if (!win) return null;
   const app = getOsApp(win.app);
@@ -231,7 +247,9 @@ function OsWindowMember({
                 </div>
               }
             >
-              <Controller windowId={windowId} />
+              <WindowLiveDataContext value={liveDataEnabled}>
+                <Controller windowId={windowId} />
+              </WindowLiveDataContext>
             </Suspense>
           </OsWindowErrorBoundary>
         ) : (

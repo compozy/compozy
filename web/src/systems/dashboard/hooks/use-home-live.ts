@@ -1,8 +1,8 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useStore } from "@xstate/store-react";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
-import { tasksKeys } from "@/systems/tasks";
 
 import { buildHomeLogsStreamUrl } from "../adapters/overview-api";
 import { isTaskLifecycleEvent } from "../lib/activity-classes";
@@ -10,6 +10,8 @@ import { homeActivityEventSchema } from "../lib/home-activity-schema";
 import { dashboardKeys } from "../lib/query-keys";
 import { HOME_ACTIVITY_LIMIT, homeActivityOptions } from "../lib/query-options";
 import type { HomeActivityEvent } from "../types";
+import { homeLiveRefreshLogic } from "./home-live-refresh-store";
+import { tasksKeys } from "@/systems/tasks";
 
 const PULSE_INVALIDATE_MIN_INTERVAL_MS = 60_000;
 
@@ -70,7 +72,7 @@ export function useHomeLive({
   onError,
 }: UseHomeLiveOptions = {}) {
   const queryClient = useQueryClient();
-  const lastOverviewInvalidateAt = useRef(0);
+  const refreshStore = useStore(homeLiveRefreshLogic);
   const notifyError = useEffectEvent((error: unknown, fallback: string) => {
     if (onError) {
       onError(error);
@@ -90,6 +92,7 @@ export function useHomeLive({
 
     const url = buildHomeLogsStreamUrl(workspaceId);
     const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
+    refreshStore.trigger.scopeActivated({ scope: workspaceId });
 
     source.onmessage = (event: MessageEvent) => {
       if (typeof event.data !== "string") {
@@ -103,16 +106,16 @@ export function useHomeLive({
           return;
         }
         prependHomeActivityEvent(queryClient, workspaceId, payload);
-        if (isTaskLifecycleEvent(payload)) {
-          lastOverviewInvalidateAt.current = Date.now();
-          invalidateTaskAggregates(queryClient);
-          return;
-        }
-        const elapsed = Date.now() - lastOverviewInvalidateAt.current;
-        if (elapsed >= PULSE_INVALIDATE_MIN_INTERVAL_MS) {
-          lastOverviewInvalidateAt.current = Date.now();
-          void queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() });
-        }
+        refreshStore.trigger.activityReceived({
+          at: Date.now(),
+          invalidateOverview: () => {
+            void queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() });
+          },
+          invalidateTaskAggregates: () => invalidateTaskAggregates(queryClient),
+          lifecycle: isTaskLifecycleEvent(payload),
+          minimumIntervalMs: PULSE_INVALIDATE_MIN_INTERVAL_MS,
+          scope: workspaceId,
+        });
       } catch (error) {
         notifyError(error, "Failed to parse home activity stream payload");
       }
@@ -126,7 +129,7 @@ export function useHomeLive({
       source.onerror = null;
       source.close();
     };
-  }, [customEventSourceFactory, enabled, queryClient, workspaceId]);
+  }, [customEventSourceFactory, enabled, queryClient, refreshStore, workspaceId]);
 }
 
 export type { HomeLiveEventSource, HomeLiveEventSourceFactory, UseHomeLiveOptions };

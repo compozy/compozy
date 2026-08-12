@@ -12,18 +12,6 @@ import {
 
 import { Empty, MonoId } from "@compozy/ui";
 
-import {
-  ExtensionKitInventoryPanel,
-  ExtensionLogPanel,
-  ExtensionNetworkConfirmDialog,
-  ExtensionProvenanceDialog,
-  extensionTrustFacts,
-  RemoveExtensionDialog,
-  useExtensionDetailState,
-  type ExtensionEntry,
-  type ExtensionLogEventSource,
-} from "@/systems/extensions";
-
 import type { MarketplaceEntryResponse } from "../types";
 import {
   MarketplaceExtensionManageCard,
@@ -42,6 +30,17 @@ import {
 import { MarketplaceDetailColumns, MarketplaceDetailSection } from "./marketplace-detail-shell";
 import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
 import { MarketplaceDetailManageFallbackCard } from "./marketplace-detail-manage-state";
+import {
+  type ExtensionEntry,
+  ExtensionKitInventoryPanel,
+  type ExtensionLogEventSource,
+  ExtensionLogPanel,
+  ExtensionNetworkConfirmDialog,
+  ExtensionProvenanceDialog,
+  extensionTrustFacts,
+  RemoveExtensionDialog,
+  useExtensionDetailState,
+} from "@/systems/extensions";
 
 interface MarketplaceDetailExtensionInstalledProps {
   data: MarketplaceEntryResponse;

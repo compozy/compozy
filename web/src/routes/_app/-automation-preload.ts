@@ -1,20 +1,20 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import type { AutomationRouteSearch } from "@/systems/automation";
+
+import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import {
   automationJobDetailOptions,
   automationJobRunsOptions,
   automationJobsListOptions,
+  type AutomationJobStableFilter,
   automationMatchesActiveWorkspace,
+  automationSuggestionsListOptions,
   automationTriggerDetailOptions,
   automationTriggerRunsOptions,
-  automationSuggestionsListOptions,
   automationTriggersListOptions,
-  type AutomationJobStableFilter,
   type AutomationTriggerStableFilter,
 } from "@/systems/automation";
-import type { AutomationRouteSearch } from "@/systems/os/apps/automation/use-automation-page";
-
-import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
 async function resolveListScope(
   queryClient: QueryClient,

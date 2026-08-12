@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadNetworkRootRoute } from "./-network-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/network")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: "Network", to: "/network" } },
   }),
-  loader: ({ context }) => preloadNetworkRootRoute(context.queryClient),
+  loader: async ({ context }) =>
+    (await import("./-network-preload")).preloadNetworkRootRoute(context.queryClient),
   component: createOsRouteSync("network"),
 });

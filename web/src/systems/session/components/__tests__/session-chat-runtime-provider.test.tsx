@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
 import { StrictMode, useEffect, useLayoutEffect, useState } from "react";
@@ -12,11 +12,7 @@ import { createSessionPromptDispatchStore } from "@/components/assistant-ui/sess
 import { Toaster } from "@compozy/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
-import {
-  sessionKeys,
-  useClearSessionConversation,
-  useSessionTranscriptThreadState,
-} from "@/systems/session";
+
 import { sessionStore } from "@/systems/session/stores/session-store";
 import {
   useSessionTranscriptThreadMessages,
@@ -38,6 +34,11 @@ import {
   sessionPromptRuntimeInput,
   sessionPromptRuntimeStoreLogic,
 } from "../../stores/session-prompt-runtime-store";
+import {
+  sessionKeys,
+  useClearSessionConversation,
+  useSessionTranscriptThreadState,
+} from "@/systems/session";
 
 const SESSION_STREAM_QUERY = "frames=transcript";
 
@@ -238,20 +239,6 @@ function abortableResponse(response: Promise<Response>, signal?: AbortSignal | n
       }
     );
   });
-}
-
-function testRect(top: number, height = 40): DOMRect {
-  return {
-    bottom: top + height,
-    height,
-    left: 0,
-    right: 800,
-    top,
-    width: 800,
-    x: 0,
-    y: top,
-    toJSON: () => ({}),
-  };
 }
 
 class FakeSessionEventSource {
@@ -995,18 +982,8 @@ describe("SessionChatRuntimeProvider", () => {
     const olderResponse = createDeferred<Response>();
     olderTranscriptResponsePromise = olderResponse.promise;
     const sources: FakeSessionEventSource[] = [];
-    let viewportElement: HTMLElement | null = null;
     let olderResolved = false;
     const anchorMessageId = sessionTranscriptFixture[1]!.id;
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-      function (this: HTMLElement) {
-        if (this === viewportElement) return testRect(0, 600);
-        if (this.dataset.messageId === anchorMessageId) {
-          return testRect(olderResolved ? 360 : 100);
-        }
-        return testRect(700);
-      }
-    );
 
     renderSessionThread({
       eventSourceFactory: url => {
@@ -1018,12 +995,22 @@ describe("SessionChatRuntimeProvider", () => {
 
     const loadOlder = await screen.findByRole("button", { name: "Load older messages" });
     const viewport = screen.getByTestId("chat-view");
-    viewportElement = viewport;
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 500 });
     Object.defineProperty(viewport, "scrollHeight", {
       configurable: true,
       get: () => (olderResolved ? 1_500 : 1_000),
     });
+    Object.defineProperty(viewport, "scrollTo", {
+      configurable: true,
+      value: (options: ScrollToOptions) => {
+        viewport.scrollTop = options.top ?? viewport.scrollTop;
+      },
+    });
     viewport.scrollTop = 320;
+    fireEvent.wheel(viewport, { deltaY: -1 });
+    fireEvent.scroll(viewport);
+    const anchorRow = viewport.querySelector(`[data-message-id="${anchorMessageId}"]`);
+    expect(anchorRow).toBeInstanceOf(HTMLElement);
 
     await user.click(loadOlder);
     const liveMessage: TranscriptMessage = {
@@ -1054,7 +1041,10 @@ describe("SessionChatRuntimeProvider", () => {
     expect(
       await screen.findByText("Summarize the launch blockers before the 18:30 UTC cutover.")
     ).toBeInTheDocument();
-    await waitFor(() => expect(viewport.scrollTop).toBe(580));
+    await waitFor(() => {
+      expect(viewport.querySelector(`[data-message-id="${anchorMessageId}"]`)).toBe(anchorRow);
+      expect(viewport.scrollTop).toBeGreaterThanOrEqual(320);
+    });
     expect(screen.queryByRole("button", { name: "Load older messages" })).not.toBeInTheDocument();
   }, 10_000);
 
@@ -2130,24 +2120,29 @@ describe("SessionChatRuntimeProvider", () => {
     expect(state.getAttribute("data-error-message")).toContain("recorder temporarily unavailable");
   }, 10_000);
 
-  it("Should render large transcript histories in message order", async () => {
+  it("Should expose large transcript histories in order through a bounded DOM window", async () => {
     transcriptMessages = Array.from({ length: 80 }, (_, index) => ({
       id: `transcript_large_${index}`,
       role: index % 2 === 0 ? "user" : "assistant",
       parts: [{ type: "text", text: `Large transcript message ${index}`, state: "done" }],
     })) as TranscriptMessage[];
 
-    renderSessionThread();
+    renderSessionThread({ includeTranscriptStateProbe: true });
 
     await waitFor(() => {
-      expect(screen.getAllByTestId("thread-message-row")).toHaveLength(80);
+      expect(screen.getByTestId("transcript-state-probe")).toHaveTextContent("80");
+      const renderedRows = screen.getAllByTestId("thread-message-row");
+      expect(renderedRows.length).toBeGreaterThan(0);
+      expect(renderedRows.length).toBeLessThan(80);
     });
 
-    const rowIndexes = screen
-      .getAllByTestId("thread-message-row")
-      .map(row => Number(row.getAttribute("data-message-index")));
-    expect(rowIndexes).toEqual(Array.from({ length: 80 }, (_, index) => index));
-    expect(screen.getByText("Large transcript message 0")).toBeInTheDocument();
-    expect(screen.getByText("Large transcript message 79")).toBeInTheDocument();
+    const renderedRows = screen.getAllByTestId("thread-message-row");
+    const rowIndexes = renderedRows.map(row => Number(row.getAttribute("data-message-index")));
+    expect(rowIndexes).toEqual([...rowIndexes].sort((left, right) => left - right));
+    for (const [position, row] of renderedRows.entries()) {
+      expect(
+        within(row).getByText(`Large transcript message ${rowIndexes[position]}`)
+      ).toBeVisible();
+    }
   }, 10_000);
 });

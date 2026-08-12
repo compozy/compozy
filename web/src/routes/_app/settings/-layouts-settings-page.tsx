@@ -4,7 +4,7 @@ import { useRef, type ReactNode } from "react";
 
 import { Button, Spinner } from "@compozy/ui";
 
-import { windowManagerConfigOptions } from "@/systems/os";
+import { type WindowManagerConfig, windowManagerConfigOptions } from "@/systems/os";
 import {
   LayoutProfileGrid,
   LayoutStage,
@@ -13,18 +13,15 @@ import {
   SettingsSaveBar,
   useSettingsSaveBarState,
   useSettingsTopbar,
-  WindowManagerConfigEditor,
   useWindowManagerConfigEditor,
   useWindowManagerLayoutEditor,
   useWindowManagerLayoutProfiles,
+  WindowManagerConfigEditor,
   windowManagerLayoutOptions,
   windowManagerLayoutProfilesOptions,
+  type WindowManagerLayoutResourceRecord,
+  type WindowManagerLayoutState,
 } from "@/systems/settings";
-import type {
-  WindowManagerLayoutResourceRecord,
-  WindowManagerLayoutState,
-} from "@/systems/settings";
-import type { WindowManagerConfig } from "@/systems/os";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 function LoadingState() {

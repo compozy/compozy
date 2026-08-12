@@ -1,9 +1,9 @@
 import { AlertCircle, Repeat2 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
 
-import { Empty, Spinner, useTopbarSlot } from "@compozy/ui";
-import { LoopConfigureDialog, useLoop, useLoopConfig } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { Empty, Spinner } from "@compozy/ui";
+
+import { useLoopConfigureLocation } from "./hooks/use-loop-configure-location";
+import { LoopConfigureDialog } from "@/systems/loops";
 
 /**
  * The no-fork Configure surface (design §4.7): a dialog over a dimmed backdrop that
@@ -11,21 +11,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
  * closing or saving returns to the loop detail. Structural edits route to the fork editor.
  */
 export function LoopConfigureLocation({ name }: { name: string }) {
-  const navigate = useNavigate();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
-  const loopQuery = useLoop(workspaceId, name, workspaceId !== "");
-  const configQuery = useLoopConfig(workspaceId, name, workspaceId !== "");
-  const openLoops = () => void navigate({ to: "/loops" });
-  const close = () => void navigate({ to: "/loops/$name", params: { name } });
-  useTopbarSlot({
-    onBack: close,
-    crumbs: [
-      { id: "loops", label: "Loops", onSelect: openLoops },
-      { id: "loop", label: name, onSelect: close },
-    ],
-    crumb: "Configure",
-  });
+  const { close, configQuery, loopQuery, openEditor, workspaceId } = useLoopConfigureLocation(name);
 
   if (workspaceId === "") {
     return (
@@ -87,7 +73,7 @@ export function LoopConfigureLocation({ name }: { name: string }) {
       onOpenChange={next => {
         if (!next) close();
       }}
-      onOpenEditor={() => void navigate({ to: "/loops/$name/editor", params: { name } })}
+      onOpenEditor={openEditor}
     />
   );
 }

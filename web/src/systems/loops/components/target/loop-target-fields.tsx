@@ -12,7 +12,6 @@ import {
   networkParticipationDraftFromPayload,
   serializeNetworkParticipation,
 } from "@/lib/network-participation";
-import { NetworkParticipationFields } from "@/systems/network";
 
 import {
   setLoopTargetInput,
@@ -27,6 +26,7 @@ import {
 } from "../../lib/loop-target-availability";
 import { LoopInputControl } from "./loop-input-control";
 import { LoopInputMapping } from "./loop-input-mapping";
+import { NetworkParticipationFields } from "@/systems/network";
 
 interface LoopTargetFieldsProps {
   catalog: LoopTargetCatalog;

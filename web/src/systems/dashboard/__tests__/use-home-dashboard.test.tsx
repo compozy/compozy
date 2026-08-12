@@ -43,25 +43,17 @@ const activeWorkspaceState = {
   isLoading: false,
 };
 
-vi.mock("@/systems/workspace", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/workspace")>();
-  return {
-    ...actual,
-    useActiveWorkspace: () => activeWorkspaceState,
-  };
-});
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  useActiveWorkspace: () => activeWorkspaceState,
+}));
 
-vi.mock("@/systems/status", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/status")>();
-  return {
-    ...actual,
-    useDaemonHealth: () => ({
-      connectionStatus: "connected" as const,
-      health: undefined,
-      isInitialLoading: false,
-    }),
-  };
-});
+vi.mock("@/systems/status/hooks/use-daemon-health", () => ({
+  useDaemonHealth: () => ({
+    connectionStatus: "connected" as const,
+    health: undefined,
+    isInitialLoading: false,
+  }),
+}));
 
 import { homePrefsStore } from "../hooks/use-home-prefs-store";
 import { useHomeDashboard } from "../hooks/use-home-dashboard";

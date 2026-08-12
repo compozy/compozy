@@ -41,7 +41,7 @@ vi.mock("@compozy/ui", async () => {
   };
 });
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha" }),
 }));
 

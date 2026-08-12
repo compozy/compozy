@@ -17,8 +17,11 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/systems/onboarding", () => ({
+vi.mock("@/systems/onboarding/hooks/use-onboarding-status", () => ({
   useOnboardingStatus: () => mocks.status,
+}));
+
+vi.mock("@/systems/onboarding/components/onboarding-setup-panel", () => ({
   OnboardingSetupPanel: ({ onComplete }: { onComplete: () => void }) => (
     <div data-testid="onboarding-setup-panel">
       <button type="button" onClick={onComplete}>

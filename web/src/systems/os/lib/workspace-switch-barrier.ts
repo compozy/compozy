@@ -1,6 +1,5 @@
-import { activeWorkspaceStore } from "@/systems/workspace";
-
 import type { RoutingCoordinator } from "./routing-coordinator";
+import { activeWorkspaceStore } from "@/systems/workspace";
 
 /** Enters hydration synchronously, before route layout effects can report the new location. */
 export function subscribeWorkspaceSwitchBarrier(

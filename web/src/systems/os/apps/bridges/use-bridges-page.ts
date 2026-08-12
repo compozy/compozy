@@ -2,51 +2,62 @@ import { useNavigate } from "@tanstack/react-router";
 
 import type { ListingViewMode } from "@compozy/ui";
 
-import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
+
+import type { BridgesRouteSearch } from "@/systems/bridges";
+
+import { useBridgeCreateFlow } from "@/hooks/routes/use-bridge-create-flow";
+import { useDebouncedInput } from "@/hooks/use-debounced-input";
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
   bridgeListFilterForScope,
-  parseBridgePlatformFilter,
-  parseBridgeScopeFilter,
-  parseBridgeStatusFilter,
-  useBridgeHealthStream,
-  useBridgeProviders,
-  useBridges,
   type BridgePlatformFilter,
   type BridgeScopeFilter,
   type BridgeStatusFilter,
+  useBridgeHealthStream,
+  useBridgeProviders,
+  useBridges,
 } from "@/systems/bridges";
 import { useActiveWorkspace, useUserHomeDir } from "@/systems/workspace";
-import { useBridgeCreateFlow } from "@/hooks/routes/use-bridge-create-flow";
-
-export interface BridgesRouteSearch {
-  q?: string;
-  view?: ListingViewMode;
-  scope?: BridgeScopeFilter;
-  platform?: BridgePlatformFilter;
-  status?: BridgeStatusFilter;
-}
 
 function useBridgesPage(search: BridgesRouteSearch = {}) {
   const navigate = useNavigate({ from: "/bridges" });
 
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const userHomeDir = useUserHomeDir();
 
-  const searchQuery = search.q ?? "";
+  const routeSearchQuery = search.q ?? "";
   const view: ListingViewMode = search.view ?? "rows";
   const scopeFilter: BridgeScopeFilter = search.scope ?? "all";
   const platformFilter = search.platform ?? null;
   const statusFilter = search.status ?? null;
 
+  const updateSearch = (updater: (current: BridgesRouteSearch) => BridgesRouteSearch) => {
+    void navigate({
+      search: current => updater((current as BridgesRouteSearch | undefined) ?? {}),
+      to: "/bridges",
+    });
+  };
+  const searchInput = useDebouncedInput({
+    externalValue: routeSearchQuery,
+    onCommit: nextQuery =>
+      updateSearch(current => ({
+        ...current,
+        q: normalizeListingSearchValue(nextQuery),
+      })),
+  });
+  const searchQuery = searchInput.draftValue;
   const bridgeListFilters = {
     ...bridgeListFilterForScope(scopeFilter, activeWorkspaceId),
-    q: searchQuery,
+    q: normalizeListingSearchValue(searchInput.committedValue) ?? "",
     platform: platformFilter ?? undefined,
     status: statusFilter ?? undefined,
     sort: "name" as const,
     limit: 50,
   };
-  const bridgeListEnabled = scopeFilter !== "workspace" || Boolean(activeWorkspaceId);
+  const bridgeListEnabled =
+    liveDataEnabled && (scopeFilter !== "workspace" || Boolean(activeWorkspaceId));
 
   const bridgesQuery = useBridges(bridgeListFilters, { enabled: bridgeListEnabled });
   useBridgeHealthStream({
@@ -54,7 +65,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     enabled: bridgeListEnabled,
     filters: bridgeListFilters,
   });
-  const providersQuery = useBridgeProviders();
+  const providersQuery = useBridgeProviders({ enabled: liveDataEnabled });
 
   const bridges = bridgesQuery.bridges;
   const bridgeHealth = bridgesQuery.bridgeHealth;
@@ -89,20 +100,6 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
         ? providersQuery.error
         : null;
 
-  const updateSearch = (updater: (current: BridgesRouteSearch) => BridgesRouteSearch) => {
-    void navigate({
-      search: current => updater((current as BridgesRouteSearch | undefined) ?? {}),
-      to: "/bridges",
-    });
-  };
-
-  const setSearchQuery = (nextQuery: string) => {
-    updateSearch(current => ({
-      ...current,
-      q: normalizeListingSearchValue(nextQuery),
-    }));
-  };
-
   const setView = (nextView: ListingViewMode) => {
     updateSearch(current => ({
       ...current,
@@ -132,6 +129,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
   };
 
   const clearFilters = () => {
+    searchInput.reset("");
     updateSearch(current => ({
       ...current,
       platform: undefined,
@@ -169,7 +167,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     searchQuery,
     setPlatformFilter,
     setScopeFilter,
-    setSearchQuery,
+    setSearchQuery: searchInput.setDraftValue,
     setStatusFilter,
     setView,
     statusFilter,
@@ -179,19 +177,5 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
   };
 }
 
-export {
-  parseBridgePlatformFilter,
-  parseBridgeScopeFilter,
-  parseBridgeStatusFilter,
-  useBridgesPage,
-};
-
-export function validateBridgesSearch(search: Record<string, unknown>): BridgesRouteSearch {
-  return {
-    platform: parseBridgePlatformFilter(search.platform),
-    q: normalizeListingSearchValue(search.q),
-    scope: parseBridgeScopeFilter(search.scope),
-    status: parseBridgeStatusFilter(search.status),
-    view: parseListingView(search.view),
-  };
-}
+export { useBridgesPage };
+export type { BridgesRouteSearch } from "@/systems/bridges";

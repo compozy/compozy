@@ -1,7 +1,5 @@
 import { ActionResultBanner, Button } from "@compozy/ui";
 
-import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
-
 import type { AgentSettingsDraft, AgentSettingsValidation } from "../lib/agent-settings-draft";
 import type { AgentSettingsSection } from "../lib/agent-settings-search";
 import type { AgentPayload } from "../types";
@@ -12,6 +10,7 @@ import { AgentSettingsDangerSection } from "./agent-settings-danger-section";
 import { AgentSettingsInstructionsSection } from "./agent-settings-instructions-section";
 import { AgentSettingsMcpSection } from "./agent-settings-mcp-section";
 import { AgentSettingsRuntimeSection } from "./agent-settings-runtime-section";
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 
 export interface AgentSettingsPanelsProps {
   section: AgentSettingsSection;

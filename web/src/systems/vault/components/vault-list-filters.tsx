@@ -3,7 +3,7 @@ import { ListFilter } from "lucide-react";
 import { Button } from "@compozy/ui";
 import { FiltersWithSearch, type Filter } from "@compozy/ui";
 
-import type { VaultNamespaceFilter } from "../hooks/use-vault-page";
+import type { VaultNamespaceFilter } from "../lib/vault-route-search";
 import {
   applyVaultFilterChips,
   buildVaultFilterFields,

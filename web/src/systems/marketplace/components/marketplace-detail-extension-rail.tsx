@@ -2,11 +2,11 @@ import { Activity, Fingerprint, Network, SlidersHorizontal } from "lucide-react"
 
 import { MonoId, Pill, PropertyRow } from "@compozy/ui";
 
-import { extensionTrustFacts, VerifiedMark, type ExtensionEntry } from "@/systems/extensions";
 import { formatUptimeSeconds } from "@/lib/format-time";
 
 import { MarketplaceDetailExtensionActions } from "./marketplace-detail-extension-actions";
 import { MarketplaceDetailRailCard, MarketplaceDetailRailNote } from "./marketplace-detail-shell";
+import { type ExtensionEntry, extensionTrustFacts, VerifiedMark } from "@/systems/extensions";
 
 interface MarketplaceExtensionManageCardProps {
   extension: ExtensionEntry;

@@ -1,7 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import {
   sessionDetailOptions,
   sessionGoalOptions,
@@ -16,6 +14,7 @@ import {
   sessionListTotal,
 } from "../lib/session-list-query";
 import type { SessionListFilters, SessionState } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 interface UseSessionsOptions {
   enabled?: boolean;
@@ -86,9 +85,13 @@ export function useSessionRecap(id: string, workspace?: string | null, limit?: n
 export function useSessionUsage(
   id: string,
   workspace?: string | null,
-  sessionState?: SessionState | null
+  sessionState?: SessionState | null,
+  options?: { enabled?: boolean }
 ) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = workspace ?? activeWorkspaceId ?? "";
-  return useQuery(sessionUsageOptions(workspaceId, id, sessionState));
+  return useQuery({
+    ...sessionUsageOptions(workspaceId, id, sessionState),
+    enabled: Boolean(workspaceId) && Boolean(id) && (options?.enabled ?? true),
+  });
 }

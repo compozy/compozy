@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useSelector } from "@xstate/store-react";
 
-import { useCreateWorkspace, useDeleteWorkspace, useWorkspaces } from "@/systems/workspace";
-import type { WorkspacePayload } from "@/systems/workspace";
-
 import { useDirectoryBrowser } from "./use-directory-browser";
 import {
   onboardingDraftStore,
   type OnboardingWorkspaceDraft,
 } from "../stores/use-onboarding-draft-store";
 import type { FSEntry } from "../types";
+import {
+  useCreateWorkspace,
+  useDeleteWorkspace,
+  useWorkspaces,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 export interface OnboardingWorkspacesApi {
   currentPath: string;

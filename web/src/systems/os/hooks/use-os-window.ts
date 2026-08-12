@@ -1,13 +1,6 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type FocusEvent,
-  type PointerEvent,
-  type RefObject,
-} from "react";
+import { useEffect, useLayoutEffect, type FocusEvent, type PointerEvent } from "react";
 import type { Rnd, RndDragCallback, RndResizeCallback, RndResizeStartCallback } from "react-rnd";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import type { OsTrafficLightAction } from "../components/os-traffic-lights";
 import { bindLayoutGestureCancellation } from "../lib/layout-gesture-cancellation";
@@ -22,6 +15,7 @@ import { useDesktop } from "./use-desktop";
 import { useAnimationFrameLatest } from "./use-animation-frame-latest";
 import { useOsShell } from "./use-os-shell";
 import { useOsWindowResize } from "./use-os-window-resize";
+import { osWindowInteractionLogic } from "./os-window-interaction-store";
 import {
   useWindowManagerGestureActive,
   useWindowManagerWorkArea,
@@ -32,11 +26,6 @@ type OsDragEvent = Parameters<RndDragCallback>[0];
 interface PendingDragPreview {
   point: { x: number; y: number };
   swapModifierActive: boolean;
-}
-
-function applyAuthoritativeRndRect(rnd: Rnd | null, rect: OsRect) {
-  rnd?.updatePosition({ x: rect.x, y: rect.y });
-  rnd?.updateSize({ width: rect.w, height: rect.h });
 }
 
 export const OS_WINDOW_DRAG_HANDLE_CLASS = "os-window-drag-handle";
@@ -54,7 +43,7 @@ export interface OsWindowModel {
   focused: boolean;
   keepMounted: boolean;
   rect: OsRect;
-  rndRef: RefObject<Rnd | null>;
+  registerRnd: (instance: Rnd | null) => void;
   /** Live pixel ceiling for the active tiled edge drag; null when unconstrained. */
   resizeMax: { width: number; height: number } | null;
   handleTrafficLight: (action: OsTrafficLightAction) => void;
@@ -132,19 +121,14 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
   // groups — their members still drag away individually.
   const movesAsUnit = frame.stackId !== null && frame.members.length > 1;
   const visibleNow = frame.desktopId === activeDesktopId && !frame.minimized;
-  const [hasBeenVisible, setHasBeenVisible] = useState(visibleNow);
-  const [rollbackEpoch, setRollbackEpoch] = useState(0);
-  // Drop commits round-trip to the daemon before the snapshot moves; holding
-  // the dropped rect until the command settles keeps the controlled rnd from
-  // flashing the stale authoritative rect between release and reconcile.
-  const [pendingRect, setPendingRect] = useState<OsRect | null>(null);
-  const rndRef = useRef<Rnd | null>(null);
-  const gestureAttemptRef = useRef(0);
-  const rollbackAttemptRef = useRef<number | null>(null);
+  const interactionStore = useStore(osWindowInteractionLogic, { visible: visibleNow });
+  const interaction = useSelector(interactionStore, snapshot => snapshot.context);
 
-  if (visibleNow && !hasBeenVisible) {
-    setHasBeenVisible(true);
-  }
+  useEffect(() => {
+    interactionStore.trigger.visibilityObserved({ visible: visibleNow });
+  }, [interactionStore, visibleNow]);
+
+  useEffect(() => () => interactionStore.trigger.disposed(), [interactionStore]);
 
   useEffect(() => {
     if (!gestureActive) return;
@@ -222,40 +206,33 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
   const snapBackToAuthoritative = () => {
     const authoritative = manager.getState().windows[activeId];
     if (authoritative) {
-      applyAuthoritativeRndRect(rndRef.current, authoritative.rect);
+      interactionStore.trigger.authoritativeRectApplied({ rect: authoritative.rect });
     }
   };
 
   const scheduleAuthoritativeRollback = (gestureAttempt: number) => {
-    rollbackAttemptRef.current = gestureAttempt;
-    setRollbackEpoch(current => current + 1);
+    interactionStore.trigger.rollbackRequested({ attempt: gestureAttempt });
   };
 
   useLayoutEffect(() => {
-    const gestureAttempt = rollbackAttemptRef.current;
-    if (gestureAttempt === null || gestureAttemptRef.current !== gestureAttempt) return;
-    rollbackAttemptRef.current = null;
-    setPendingRect(null);
+    const gestureAttempt = interaction.rollbackAttempt;
+    if (gestureAttempt === null || interaction.gestureAttempt !== gestureAttempt) return;
+    interactionStore.trigger.rollbackApplied({ attempt: gestureAttempt });
     const authoritative = manager.getState().windows[activeId];
     if (!authoritative) return;
-    applyAuthoritativeRndRect(rndRef.current, authoritative.rect);
-  }, [manager, rollbackEpoch, activeId]);
+    interactionStore.trigger.authoritativeRectApplied({ rect: authoritative.rect });
+  }, [
+    activeId,
+    interaction.gestureAttempt,
+    interaction.rollbackAttempt,
+    interactionStore,
+    manager,
+  ]);
 
   // Holds the released rect while the commit is in flight; the settled
   // authoritative rect replaces it, and rollbacks clear it explicitly.
-  const holdRectWhileInFlight = (
+  const trackGestureOutcome = (
     rect: OsRect,
-    outcome: WindowManagerCommandOutcome,
-    gestureAttempt: number
-  ) => {
-    if (!outcome.accepted) return;
-    setPendingRect(rect);
-    void outcome.completion.finally(() => {
-      if (gestureAttemptRef.current === gestureAttempt) setPendingRect(null);
-    });
-  };
-
-  const reconcileGestureOutcome = (
     outcome: WindowManagerCommandOutcome,
     gestureAttempt: number
   ) => {
@@ -263,11 +240,18 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
       scheduleAuthoritativeRollback(gestureAttempt);
       return;
     }
-    void outcome.completion.then(applied => {
-      if (!applied && gestureAttemptRef.current === gestureAttempt) {
+    interactionStore.trigger.rectHeld({ attempt: gestureAttempt, rect });
+    void outcome.completion.then(
+      applied => {
+        interactionStore.trigger.gestureCompletionSettled({ attempt: gestureAttempt });
+        if (!applied) scheduleAuthoritativeRollback(gestureAttempt);
+      },
+      error => {
+        interactionStore.trigger.gestureCompletionSettled({ attempt: gestureAttempt });
         scheduleAuthoritativeRollback(gestureAttempt);
+        console.error("Window gesture command failed", error);
       }
-    });
+    );
   };
 
   // Escape cancelled the gesture: snap back to the source rect instead of tracking the pointer.
@@ -279,7 +263,7 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
   };
 
   const settleUncommittedDrag = () => {
-    const gestureAttempt = gestureAttemptRef.current;
+    const gestureAttempt = interactionStore.getSnapshot().context.gestureAttempt;
     windowManagerStore.trigger.gestureCleared();
     scheduleAuthoritativeRollback(gestureAttempt);
   };
@@ -305,7 +289,7 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
     const config = state.windowManagerConfig;
     const win = state.windows[activeId];
     if (!point || !workArea || !win || !state.snapshot || config === null) return;
-    gestureAttemptRef.current += 1;
+    interactionStore.trigger.gestureAttemptStarted();
     const moveGroup =
       movesAsUnit ||
       config.dragAwayPolicy === "group" ||
@@ -361,15 +345,14 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
     // member of the dragged frame in order (US-001.EC-1, US-014).
     const dropTarget = windowManagerStore.getSnapshot().context.deckDropTarget;
     if (dropTarget !== null) {
-      const gestureAttempt = gestureAttemptRef.current;
+      const gestureAttempt = interactionStore.getSnapshot().context.gestureAttempt;
       windowManagerStore.trigger.gestureCleared();
       const outcome = manager.groupWindows(
         dropTarget.targetWindowId,
         frame.members,
         dropTarget.insertIndex
       );
-      holdRectWhileInFlight({ ...win.rect, x: data.x, y: data.y }, outcome, gestureAttempt);
-      reconcileGestureOutcome(outcome, gestureAttempt);
+      trackGestureOutcome({ ...win.rect, x: data.x, y: data.y }, outcome, gestureAttempt);
       return;
     }
     const target = targetAt(point, currentGesture.workArea, swapModifierHeld(event));
@@ -381,14 +364,13 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
       clientValid: state.client !== null,
     });
     if (decision?.kind === "commit") {
-      const gestureAttempt = gestureAttemptRef.current;
+      const gestureAttempt = interactionStore.getSnapshot().context.gestureAttempt;
       const outcome = manager.applySnapTarget(
         activeId,
         decision.command.target,
         decision.command.source.moveMode === "group"
       );
-      holdRectWhileInFlight(decision.command.target.rect, outcome, gestureAttempt);
-      reconcileGestureOutcome(outcome, gestureAttempt);
+      trackGestureOutcome(decision.command.target.rect, outcome, gestureAttempt);
       return;
     }
     if (decision?.kind === "cancel" && decision.reason !== "no-target") {
@@ -396,7 +378,7 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
       return;
     }
     if (decision?.reason === "no-target") {
-      const gestureAttempt = gestureAttemptRef.current;
+      const gestureAttempt = interactionStore.getSnapshot().context.gestureAttempt;
       const dropped = clampFloatingRect({
         proposedRect: { ...win.rect, x: data.x, y: data.y },
         workArea: currentWorkArea,
@@ -407,8 +389,7 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
         },
       });
       const outcome = manager.commitFloatingRect(activeId, dropped, undefined, movesAsUnit);
-      holdRectWhileInFlight(dropped, outcome, gestureAttempt);
-      reconcileGestureOutcome(outcome, gestureAttempt);
+      trackGestureOutcome(dropped, outcome, gestureAttempt);
     }
     windowManagerStore.trigger.gestureCleared();
   };
@@ -418,19 +399,22 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
     activeId,
     movesAsUnit,
     nextGestureAttempt: () => {
-      gestureAttemptRef.current += 1;
-      return gestureAttemptRef.current;
+      interactionStore.trigger.gestureAttemptStarted();
+      return interactionStore.getSnapshot().context.gestureAttempt;
     },
-    holdRectWhileInFlight,
-    reconcileGestureOutcome,
+    resizeMax: interaction.resizeMax,
+    setResizeMax: maximum => interactionStore.trigger.resizeMaximumChanged({ maximum }),
+    trackGestureOutcome,
     scheduleAuthoritativeRollback,
   });
 
   return {
     focused,
-    keepMounted: hasBeenVisible || visibleNow,
-    rect: pendingRect ?? frame.rect,
-    rndRef,
+    keepMounted: interaction.hasBeenVisible || visibleNow,
+    rect: interaction.pendingRect ?? frame.rect,
+    registerRnd: instance => {
+      interactionStore.trigger.rndRegistered({ instance });
+    },
     resizeMax: resize.resizeMax,
     handleTrafficLight: action => {
       if (action === "close") {

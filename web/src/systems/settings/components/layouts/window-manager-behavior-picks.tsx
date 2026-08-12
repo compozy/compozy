@@ -2,8 +2,6 @@ import type { ComponentType, Dispatch, SetStateAction } from "react";
 
 import { Switch, cn } from "@compozy/ui";
 
-import type { WindowManagerConfig, WindowManagerDragModifier } from "@/systems/os";
-
 import { SettingRow } from "../setting-row";
 import {
   DiagramClickAndKeys,
@@ -18,6 +16,7 @@ import {
   DiagramSlide,
   DiagramSplitBesideFocus,
 } from "./window-manager-behavior-diagrams";
+import type { WindowManagerConfig, WindowManagerDragModifier } from "@/systems/os";
 
 type ConfigDraft = Dispatch<SetStateAction<WindowManagerConfig>>;
 

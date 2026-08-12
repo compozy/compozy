@@ -1,9 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ConnectionStatus } from "@compozy/ui";
 
-import { useDaemonHealth, useDaemonStatus } from "@/systems/status";
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import { homeScopeForActiveWorkspace, type HomeScope } from "../lib/home-scope";
 import { homeActivityOptions, homeOverviewOptions } from "../lib/query-options";
 import type {
@@ -19,6 +16,8 @@ import { useHomeNetwork, type HomeNetworkModel } from "./use-home-network";
 import { homePrefsStore, useHomeSystemOpen, useHomeUsageWindow } from "./use-home-prefs-store";
 import { useHomeSystem, type HomeSystemModel } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
+import { useDaemonHealth, useDaemonStatus } from "@/systems/status";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface HomeDashboardModel {
   scope: HomeScope;

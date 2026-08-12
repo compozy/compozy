@@ -14,6 +14,7 @@ interface MarketplaceDetailProps {
   data: MarketplaceEntryResponse;
   managementScope?: "global" | "workspace";
   managementWorkspaceId?: string;
+  liveDataEnabled?: boolean;
 }
 
 /**
@@ -26,9 +27,10 @@ const MARKETPLACE_DETAIL_KIND_VIEWS: Record<
   (props: MarketplaceDetailProps) => ReactNode
 > = {
   extension: ({ data }) => <MarketplaceDetailExtensionView data={data} />,
-  mcp: ({ data, managementScope, managementWorkspaceId }) => (
+  mcp: ({ data, managementScope, managementWorkspaceId, liveDataEnabled }) => (
     <MarketplaceDetailMCPView
       data={data}
+      liveDataEnabled={liveDataEnabled}
       scope={managementScope}
       workspaceId={managementWorkspaceId}
     />

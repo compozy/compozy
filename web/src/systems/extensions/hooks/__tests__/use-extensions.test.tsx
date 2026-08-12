@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   useMarketplaceKind: vi.fn(),
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
 }));
 

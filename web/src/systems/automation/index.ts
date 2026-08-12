@@ -117,10 +117,16 @@ export {
   applyAutomationFilterChips,
   automationFiltersToChips,
   buildAutomationFilterFields,
+} from "./lib/automation-list-filters";
+export {
+  automationListLoopFilter,
   parseAutomationEnabled,
   parseAutomationScope,
   parseAutomationSource,
-} from "./lib/automation-list-filters";
+  validateJobsSearch,
+  validateTriggersSearch,
+  type AutomationRouteSearch,
+} from "./lib/automation-route-search";
 export {
   automationMatchesActiveWorkspace,
   automationWorkspaceAccessError,

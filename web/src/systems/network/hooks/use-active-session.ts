@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useNetworkLiveDataEnabled } from "./use-network-live-data-enabled";
 
 import { networkChannelDetailOptions } from "../lib/query-options";
 import type { NetworkChannel } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface ActiveNetworkSession {
   channel: string;
@@ -44,11 +45,13 @@ function pickLocalPeer(channel: NetworkChannel | null | undefined) {
  */
 export function useActiveNetworkSession(
   channel: string | null | undefined,
-  options?: { workspaceId?: string | null }
+  options?: { enabled?: boolean; workspaceId?: string | null }
 ): UseActiveNetworkSessionResult {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const workspaceId = options?.workspaceId ?? activeWorkspaceId ?? "";
-  const enabled = Boolean(channel) && workspaceId !== "";
+  const enabled =
+    liveDataEnabled && (options?.enabled ?? true) && Boolean(channel) && workspaceId !== "";
   const detailQuery = useQuery(networkChannelDetailOptions(workspaceId, channel ?? "", enabled));
 
   if (!enabled) {

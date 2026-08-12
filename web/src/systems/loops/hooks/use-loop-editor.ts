@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import {
   addEdge,
   applyEdgeChanges,
@@ -41,8 +41,6 @@ import {
   type LoopEditorSidebarTab,
   type LoopEditorView,
 } from "./use-loop-editor-state";
-
-const AUTO_VALIDATE_DEBOUNCE_MS = 400;
 
 export type LoopEditorStatus = "no-workspace" | "loading" | "error" | "ready";
 export type { LoopEditorSidebarTab, LoopEditorView } from "./use-loop-editor-state";
@@ -102,9 +100,10 @@ export interface UseLoopEditorResult {
 export function useLoopEditor(
   workspaceId: string,
   name: string,
-  onPublished?: (loop: LoopDetail) => void
+  onPublished?: (loop: LoopDetail) => void,
+  liveDataEnabled = true
 ): UseLoopEditorResult {
-  const enabled = workspaceId !== "" && name !== "";
+  const enabled = workspaceId !== "" && name !== "" && liveDataEnabled;
   const loopQuery = useLoop(workspaceId, name, enabled);
   const annotationsQuery = useLoopAnnotations(workspaceId, name, enabled);
   const validateMutation = useValidateLoop();
@@ -116,7 +115,7 @@ export function useLoopEditor(
     baseDefinition,
     busy,
     edges,
-    initialize,
+    initializedSourceKey,
     isDirty,
     lint,
     nodes,
@@ -145,9 +144,6 @@ export function useLoopEditor(
     store,
   } = useLoopEditorState();
 
-  const initedKeyRef = useRef<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const annotationsErrorNotifiedRef = useRef(false);
   const handlePublished = useEffectEvent((loop: LoopDetail) => {
     onPublished?.(loop);
   });
@@ -161,29 +157,28 @@ export function useLoopEditor(
     if (!loop || annotationsQuery.isLoading) return;
     const definition = editorDefinitionFromLoop(loop);
     const key = `${workspaceId}:${name}:${loop.source}`;
-    if (initedKeyRef.current === key) return;
-    initedKeyRef.current = key;
+    if (initializedSourceKey === key) return;
     const graph = definitionToGraph(definition);
     const laid = layoutEditorGraph(graph.nodes, graph.edges, annotationsQuery.data ?? []);
-    initialize(definition, graph.edges, laid);
+    store.trigger.draftInitialized({ definition, edges: graph.edges, nodes: laid, sourceKey: key });
   }, [
     loopQuery.data,
     annotationsQuery.data,
     annotationsQuery.isLoading,
     workspaceId,
     name,
-    initialize,
+    initializedSourceKey,
+    store,
   ]);
 
   // Positions are cosmetic (auto-layout is the fallback), but a broken sidecar should be
   // observable, not silently swallowed. Surface it once per error, non-blocking.
   useEffect(() => {
-    if (annotationsQuery.isError && !annotationsErrorNotifiedRef.current) {
-      annotationsErrorNotifiedRef.current = true;
-      toast.error("Could not load saved node positions — using auto-layout.");
-    }
-    if (!annotationsQuery.isError) annotationsErrorNotifiedRef.current = false;
-  }, [annotationsQuery.isError]);
+    store.trigger.annotationsStatusObserved({
+      failed: annotationsQuery.isError,
+      notify: () => toast.error("Could not load saved node positions — using auto-layout."),
+    });
+  }, [annotationsQuery.isError, store]);
 
   useEffect(() => {
     const published = store.on("publishCompleted", event => handlePublished(event.loop));
@@ -208,14 +203,13 @@ export function useLoopEditor(
   // the render-local validation function identity.
   const runAutoValidation = useEffectEvent(() => runValidation());
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      void runAutoValidation();
-    }, AUTO_VALIDATE_DEBOUNCE_MS);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [structuralRevision]);
+    store.trigger.automaticValidationRequested({
+      execute: runAutoValidation,
+      revision: structuralRevision,
+    });
+  }, [store, structuralRevision]);
+
+  useEffect(() => () => store.trigger.lifecycleDisposed(), [store]);
 
   // Positions live in the annotations sidecar and remain editable for read-only definitions.
   const definitionEditable = loopQuery.data?.source === "workspace";
@@ -306,10 +300,7 @@ export function useLoopEditor(
   const publish = () => {
     // Publish validates atomically on the daemon. Its verdict must not be overwritten by an
     // older passive validation that was queued or already in flight for the same draft.
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
+    store.trigger.automaticValidationCancelled();
 
     requestPublish((definition, expectedVersion) =>
       patchMutation.mutateAsync({

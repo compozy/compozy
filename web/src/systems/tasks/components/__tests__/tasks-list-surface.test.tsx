@@ -23,6 +23,7 @@ const { TasksListSurface } = await import("../tasks-list-surface");
 const { TasksListToolbar } = await import("../tasks-list-toolbar");
 type TaskListItem = import("../../types").TaskListItem;
 const { countTasksByStatus } = await import("../../lib/task-formatters");
+const { buildTaskListTree } = await import("../../lib/task-hierarchy");
 
 function buildTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
@@ -65,7 +66,7 @@ function renderSurface(options: RenderOptions = {}) {
         searchQuery={options.searchQuery ?? ""}
         filterState={options.statusFilter ? "active" : "inactive"}
         statusCounts={options.statusCounts ?? countTasksByStatus(tasks)}
-        tasks={tasks}
+        taskTree={buildTaskListTree(tasks)}
         hasMore={options.hasMore}
       />
     </UIProvider>

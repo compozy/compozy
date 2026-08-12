@@ -2,6 +2,10 @@ import { AlertCircle } from "lucide-react";
 
 import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section, Skeleton } from "@compozy/ui";
 
+import { TaskRunTopbar } from "./task-run-topbar";
+import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
+import { useTaskRunLocation } from "./use-task-run-location";
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
   formatTaskRunBounds,
   TaskRunConversationPanel,
@@ -9,24 +13,23 @@ import {
   useTaskRunConversation,
 } from "@/systems/network";
 import {
+  TaskResultSection,
   TaskRunActivitySection,
   TaskRunForceFailDialog,
   TaskRunInspectDrawer,
   TaskRunOutcome,
   TaskRunRail,
   TaskRunReviewCard,
-  TaskResultSection,
   TaskRunSubhead,
 } from "@/systems/tasks";
 
-import { TaskRunTopbar } from "./task-run-topbar";
-import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
-import { useTaskRunLocation } from "./use-task-run-location";
-
 export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: string }) {
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const controller = useTaskRunLocation(taskId, runId);
   const { page, record } = controller;
-  const conversation = useTaskRunConversation(runId, page.run?.network);
+  const conversation = useTaskRunConversation(runId, page.run?.network, {
+    enabled: liveDataEnabled,
+  });
 
   if (page.runLoading) {
     return (

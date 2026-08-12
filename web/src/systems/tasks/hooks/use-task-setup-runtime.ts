@@ -1,11 +1,11 @@
 import {
   providerNeedsAuth,
-  useRuntimeModelCatalog,
   type RuntimeCatalogProvider,
+  useRuntimeModelCatalog,
 } from "@/systems/model-catalog";
 import type { RuntimeProviderOption } from "@/systems/runtime";
-import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/settings";
-import { useWorkspace, type SessionProviderOption } from "@/systems/workspace";
+import { type SettingsProviderEntry, useSettingsProviders } from "@/systems/settings";
+import { type SessionProviderOption, useWorkspace } from "@/systems/workspace";
 
 function settingsProviderOption(provider: SettingsProviderEntry): RuntimeProviderOption {
   return {

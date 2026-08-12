@@ -39,8 +39,8 @@ function upstreamNodeIds(nodeId: string, edges: readonly EditorEdge[]): Set<stri
   }
   const ancestors = new Set<string>();
   const queue = [...(incoming.get(nodeId) ?? [])];
-  while (queue.length > 0) {
-    const current = queue.shift()!;
+  for (let head = 0; head < queue.length; head += 1) {
+    const current = queue[head]!;
     if (ancestors.has(current)) continue;
     ancestors.add(current);
     for (const parent of incoming.get(current) ?? []) queue.push(parent);

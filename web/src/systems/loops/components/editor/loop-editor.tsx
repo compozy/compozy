@@ -23,6 +23,7 @@ interface LoopEditorProps {
   topbarIdentity?: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">;
   /** Called after a successful publish with the updated loop (route → toast / navigate to run). */
   onPublished?: (loop: LoopDetail) => void;
+  liveDataEnabled?: boolean;
 }
 
 type ReadyEditor = UseLoopEditorResult & {
@@ -36,8 +37,14 @@ type ReadyEditor = UseLoopEditorResult & {
  * Loop definition. The bijective codec + shared-linter authority live in the view-model
  * (useLoopEditor); this composition wires the surfaces and the publish → run handoff.
  */
-export function LoopEditor({ workspaceId, name, topbarIdentity, onPublished }: LoopEditorProps) {
-  const editor = useLoopEditor(workspaceId, name, onPublished);
+export function LoopEditor({
+  workspaceId,
+  name,
+  topbarIdentity,
+  onPublished,
+  liveDataEnabled = true,
+}: LoopEditorProps) {
+  const editor = useLoopEditor(workspaceId, name, onPublished, liveDataEnabled);
   const forkState = useLoopFork(workspaceId, name);
   const readyEditor: ReadyEditor | null =
     editor.status === "ready" && editor.loop && editor.definition

@@ -1,6 +1,5 @@
-import type { ExtensionEntry } from "@/systems/extensions";
-
 import type { GatewayProviderStatus, GatewayStatus, GatewayTier } from "../types";
+import type { ExtensionEntry } from "@/systems/extensions";
 
 /** The capability an extension must declare to serve daemon reachability. */
 export const CONNECTIVITY_PROVIDER_CAPABILITY = "connectivity.provider";

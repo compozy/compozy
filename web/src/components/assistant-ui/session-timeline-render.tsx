@@ -1,22 +1,10 @@
 import { CircleStop, Target } from "lucide-react";
-import { createElement, useRef } from "react";
+import { createElement, memo } from "react";
 import type { ReactNode } from "react";
 import { useSelector } from "@xstate/store-react";
 
 import { cn } from "@/lib/utils";
-import {
-  ClarificationDataPart,
-  isAgentEventPayload,
-  isClarifyEventData,
-  PermissionDataPart,
-  resolveToolResult,
-  RuntimeActivityNotice,
-  SessionToolCallRow,
-  ThinkingBlock,
-  type CompozyPermissionData,
-  type GoalPromptMeta,
-  type UIMessage,
-} from "@/systems/session";
+
 import { getToolIcon, resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
 import { Marker, MarkerMeta } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
@@ -41,8 +29,22 @@ import {
   type SessionTurnFoldRow,
   type SessionWorkRow,
   type SessionWorkToggleRow,
+  sessionRowEqual,
   visibleWorkEntries,
 } from "./session-timeline.logic";
+import {
+  ClarificationDataPart,
+  type CompozyPermissionData,
+  type GoalPromptMeta,
+  isAgentEventPayload,
+  isClarifyEventData,
+  PermissionDataPart,
+  resolveToolResult,
+  RuntimeActivityNotice,
+  SessionToolCallRow,
+  ThinkingBlock,
+  type UIMessage,
+} from "@/systems/session";
 
 function isCompozyPermissionData(value: unknown): value is CompozyPermissionData {
   return isAgentEventPayload(value) && typeof value.request_id === "string";
@@ -92,21 +94,13 @@ function workToggleLabel(row: SessionWorkToggleRow): string {
 }
 
 // `.tmore` — bare-text overflow toggle above the visible live tail.
-function WorkToggleButton({
-  row,
-  onToggle,
-}: {
-  row: SessionWorkToggleRow;
-  onToggle: (button: HTMLElement | null) => void;
-}) {
-  const ref = useRef<HTMLButtonElement | null>(null);
+function WorkToggleButton({ row, onToggle }: { row: SessionWorkToggleRow; onToggle: () => void }) {
   return (
     <button
-      ref={ref}
       type="button"
       data-testid="work-toggle-row"
       aria-expanded={row.expanded}
-      onClick={() => onToggle(ref.current)}
+      onClick={onToggle}
       className={cn(
         "ml-transcript-detail-indent inline-flex min-h-transcript-row w-fit items-center gap-1.5 rounded-xs px-1",
         "text-transcript-meta text-subtle transition-colors duration-base ease-out hover:text-fg",
@@ -127,7 +121,7 @@ function SessionWorkSummaryRow({
 }: {
   row: SessionWorkRow;
   summary: SessionToolGroupSummary;
-  onToggle: (button: HTMLElement | null) => void;
+  onToggle: () => void;
 }) {
   const first = row.entries[0];
   const leadIcon = createElement(
@@ -160,7 +154,7 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
       <SessionWorkSummaryRow
         row={row}
         summary={row.summary}
-        onToggle={button => toggleTimelineExpansion(store, "work-group", row.groupId, button)}
+        onToggle={() => toggleTimelineExpansion(store, "work-group", row.groupId)}
       />
     );
   }
@@ -183,7 +177,7 @@ function SessionWorkToggleRowView({ row }: { row: SessionWorkToggleRow }) {
   return (
     <WorkToggleButton
       row={row}
-      onToggle={button => toggleTimelineExpansion(store, "work-group", row.groupId, button)}
+      onToggle={() => toggleTimelineExpansion(store, "work-group", row.groupId)}
     />
   );
 }
@@ -193,7 +187,7 @@ function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow })
   return (
     <SessionChangedFilesRowView
       row={row}
-      onToggle={button => toggleTimelineExpansion(store, "changed-files", row.id, button)}
+      onToggle={() => toggleTimelineExpansion(store, "changed-files", row.id)}
     />
   );
 }
@@ -227,7 +221,7 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
       <TranscriptDisclosure
         data-testid="turn-fold-row"
         expanded={expanded}
-        onToggle={button => toggleTimelineExpansion(store, "turn", turnId, button)}
+        onToggle={() => toggleTimelineExpansion(store, "turn", turnId)}
         icon={null}
         label={row.label}
         variant="turn"
@@ -239,30 +233,32 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
   );
 }
 
-// Structural sharing (`computeStableSessionRows`) keeps unchanged row inputs
-// referentially stable so the React Compiler can reuse their rendered subtrees.
-// Interactive variants select their own expansion state from the stable store
-// handle in `TimelineRowContext`.
-function TimelineRowContent({ row }: { row: SessionRow }) {
-  switch (row.kind) {
-    case "text":
-      return <SessionTextRowView row={row} />;
-    case "reasoning":
-      return <SessionReasoningRowView row={row} />;
-    case "data":
-      return <SessionDataRowView row={row} />;
-    case "working":
-      return <SessionWorkingRowView row={row} />;
-    case "work":
-      return <SessionWorkRowView row={row} />;
-    case "work-toggle":
-      return <SessionWorkToggleRowView row={row} />;
-    case "changed-files":
-      return <SessionChangedFilesRowContent row={row} />;
-    case "turn-fold":
-      return <SessionTurnFoldRowView row={row} />;
-  }
-}
+// Semantic row equality keeps settled subtrees out of streaming updates without
+// storing a second derived row list. Interactive variants select their expansion
+// state from the stable store handle in `TimelineRowContext`.
+const TimelineRowContent = memo(
+  function TimelineRowContent({ row }: { row: SessionRow }) {
+    switch (row.kind) {
+      case "text":
+        return <SessionTextRowView row={row} />;
+      case "reasoning":
+        return <SessionReasoningRowView row={row} />;
+      case "data":
+        return <SessionDataRowView row={row} />;
+      case "working":
+        return <SessionWorkingRowView row={row} />;
+      case "work":
+        return <SessionWorkRowView row={row} />;
+      case "work-toggle":
+        return <SessionWorkToggleRowView row={row} />;
+      case "changed-files":
+        return <SessionChangedFilesRowContent row={row} />;
+      case "turn-fold":
+        return <SessionTurnFoldRowView row={row} />;
+    }
+  },
+  (previous, next) => sessionRowEqual(previous.row, next.row)
+);
 
 // Referentially stable renderer: no closure deps, so re-deriving the row list
 // never re-creates the mapping function. Row identity carries the change signal.

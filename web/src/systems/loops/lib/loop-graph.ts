@@ -178,8 +178,8 @@ export function topoOrder(graph: LoopGraph): string[] {
   }
   const ordered: string[] = [];
   const seen = new Set<string>();
-  while (queue.length > 0) {
-    const id = queue.shift();
+  for (let head = 0; head < queue.length; head += 1) {
+    const id = queue[head];
     if (id === undefined || seen.has(id)) continue;
     seen.add(id);
     ordered.push(id);

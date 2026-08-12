@@ -3,7 +3,6 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SkillPayload } from "@/systems/skill";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
 import type { MarketplaceEntryResponse, MarketplaceListing, MCPInstallResponse } from "../../types";
@@ -16,6 +15,7 @@ import { MarketplaceInstalledCard } from "../marketplace-installed-card";
 import { MarketplaceKindPage } from "../marketplace-kind-page";
 import { MCPInstallDialog } from "../mcp-install-dialog";
 import { buildMCPInstallRequest } from "../mcp-install-model";
+import type { SkillPayload } from "@/systems/skill";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -102,6 +102,10 @@ vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
 }));
 
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
+}));
+
 vi.mock("@/systems/vault", async () => {
   const actual = await vi.importActual<typeof import("@/systems/vault")>("@/systems/vault");
   return {
@@ -115,6 +119,19 @@ vi.mock("@/systems/vault", async () => {
     }),
   };
 });
+
+vi.mock("@/systems/vault/hooks/use-vault", () => ({
+  useVaultSecrets: () => ({
+    data: mocks.vaultSecrets,
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
+}));
+
+vi.mock("@/systems/vault/hooks/use-vault-actions", () => ({
+  usePutVaultSecret: () => ({ isPending: false, mutateAsync: mocks.createSecret }),
+}));
 
 vi.mock("../../hooks/use-marketplace", () => ({
   useMarketplaceKind: (options: unknown) => {
@@ -156,6 +173,18 @@ vi.mock("@/systems/skill", async () => {
   };
 });
 
+vi.mock("@/systems/skill/hooks/use-skills", () => ({
+  useSkills: (workspace: string) => {
+    mocks.skillsWorkspace(workspace);
+    return {
+      data: mocks.skills,
+      error: null,
+      isLoading: false,
+      refetch: vi.fn(),
+    };
+  },
+}));
+
 vi.mock("@/systems/extensions", async () => {
   const actual =
     await vi.importActual<typeof import("@/systems/extensions")>("@/systems/extensions");
@@ -171,6 +200,15 @@ vi.mock("@/systems/extensions", async () => {
     useToggleExtension: () => ({ mutateAsync: vi.fn() }),
   };
 });
+
+vi.mock("@/systems/extensions/hooks/use-extensions", () => ({
+  useExtensionInventory: () => ({
+    data: mocks.extensions,
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
+}));
 
 vi.mock("@/systems/settings/hooks/use-settings-collections", async () => {
   const actual = await vi.importActual<

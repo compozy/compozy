@@ -1,15 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
-import { useExtensionInventory } from "@/systems/extensions";
-import {
-  SETTINGS_QUERY_INTERVALS,
-  useSettingsMCPServers,
-  type SettingsMCPServerEntry,
-} from "@/systems/settings";
-import { useSkills } from "@/systems/skill";
-import { useActiveWorkspace } from "@/systems/workspace";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
+import { useDebouncedInput } from "@/hooks/use-debounced-input";
 
 import { useMarketplaceKind } from "./use-marketplace";
 import type { MCPConfigScope } from "./marketplace-mcp-scope";
@@ -26,8 +19,14 @@ import {
   type MarketplaceInstalledItem,
 } from "../lib/marketplace-installed-items";
 import { countMarketplaceUpdates } from "../lib/marketplace-updates";
-
-const SEARCH_DEBOUNCE_MS = 180;
+import { useExtensionInventory } from "@/systems/extensions";
+import {
+  SETTINGS_QUERY_INTERVALS,
+  type SettingsMCPServerEntry,
+  useSettingsMCPServers,
+} from "@/systems/settings";
+import { useSkills } from "@/systems/skill";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export type { MarketplaceInstalledItem } from "../lib/marketplace-installed-items";
 
@@ -63,7 +62,8 @@ export interface MarketplaceKindPageModel {
 
 function useMarketplaceKindPage(
   kind: MarketplaceKind,
-  search: MarketplaceKindSearch
+  search: MarketplaceKindSearch,
+  { liveDataEnabled = true }: { liveDataEnabled?: boolean } = {}
 ): MarketplaceKindPageModel {
   const navigate = useNavigate();
   const routeKind = marketplaceRouteKindFor(kind);
@@ -71,9 +71,21 @@ function useMarketplaceKindPage(
   const routeQuery = search.q ?? "";
   const { activeWorkspaceId } = useActiveWorkspace();
   const mcpConfigScope = search.config_scope ?? (activeWorkspaceId ? "workspace" : "global");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [draftState, setDraftState] = useState({ routeQuery, value: routeQuery });
-  const draftQuery = draftState.routeQuery === routeQuery ? draftState.value : routeQuery;
+  const updateSearch = (updater: (current: MarketplaceKindSearch) => MarketplaceKindSearch) => {
+    void navigate({
+      search: current => updater(current as MarketplaceKindSearch),
+      to: `/marketplace/${routeKind}`,
+    });
+  };
+  const searchInput = useDebouncedInput({
+    externalValue: routeQuery,
+    onCommit: nextQuery =>
+      updateSearch(current => ({
+        ...current,
+        q: normalizeListingSearchValue(nextQuery),
+      })),
+  });
+  const draftQuery = searchInput.draftValue;
 
   const marketQuery = useMarketplaceKind({
     kind,
@@ -87,32 +99,20 @@ function useMarketplaceKindPage(
   const mcpPollInterval = SETTINGS_QUERY_INTERVALS.collectionRefetchInterval;
   const mcpGlobalQuery = useSettingsMCPServers(
     { scope: "global" },
-    { enabled: kind === "mcp", refetchInterval: mcpPollInterval }
+    { enabled: kind === "mcp" && liveDataEnabled, refetchInterval: mcpPollInterval }
   );
   const mcpWorkspaceQuery = useSettingsMCPServers(
     { scope: "workspace", workspace_id: activeWorkspaceId ?? undefined },
     {
-      enabled: kind === "mcp" && Boolean(activeWorkspaceId),
+      enabled: kind === "mcp" && Boolean(activeWorkspaceId) && liveDataEnabled,
       refetchInterval: mcpPollInterval,
     }
   );
 
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-  }, [routeQuery]);
-
-  useEffect(() => {
     if (
       scope === "installed" &&
+      liveDataEnabled &&
       marketQuery.hasNextPage &&
       !marketQuery.isFetchingNextPage &&
       !marketQuery.isFetchNextPageError
@@ -124,27 +124,9 @@ function useMarketplaceKindPage(
     marketQuery.hasNextPage,
     marketQuery.isFetchNextPageError,
     marketQuery.isFetchingNextPage,
+    liveDataEnabled,
     scope,
   ]);
-
-  const updateSearch = (updater: (current: MarketplaceKindSearch) => MarketplaceKindSearch) => {
-    void navigate({
-      search: current => updater(current as MarketplaceKindSearch),
-      to: `/marketplace/${routeKind}`,
-    });
-  };
-
-  const setDraftQuery = (nextQuery: string) => {
-    setDraftState({ routeQuery, value: nextQuery });
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      debounceRef.current = null;
-      updateSearch(current => ({
-        ...current,
-        q: normalizeListingSearchValue(nextQuery),
-      }));
-    }, SEARCH_DEBOUNCE_MS);
-  };
 
   const setScope = (next: MarketplaceKindScope) => {
     updateSearch(current => ({
@@ -161,12 +143,7 @@ function useMarketplaceKindPage(
   };
 
   const clearSearch = () => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-    setDraftState({ routeQuery, value: "" });
-    updateSearch(current => ({ ...current, q: undefined }));
+    searchInput.clear();
   };
 
   const marketPages = marketQuery.data?.pages ?? [];
@@ -176,9 +153,13 @@ function useMarketplaceKindPage(
 
   const listingBySlug = new Map<string, MarketplaceListing>();
   const listingByEntryId = new Map<string, MarketplaceListing>();
+  const listingByInstalledName = new Map<string, MarketplaceListing>();
+  const listingByName = new Map<string, MarketplaceListing>();
   for (const entry of marketItems) {
     listingByEntryId.set(entry.entry_id, entry);
     if (entry.install_slug) listingBySlug.set(entry.install_slug, entry);
+    if (entry.installed_name) listingByInstalledName.set(entry.installed_name, entry);
+    listingByName.set(entry.name, entry);
   }
 
   const mcpServers = mergeMCPServers(
@@ -195,6 +176,8 @@ function useMarketplaceKindPage(
     mcpServers,
     listingBySlug,
     listingByEntryId,
+    listingByInstalledName,
+    listingByName,
   });
   const installedItems = routeQuery
     ? buildInstalledItems({
@@ -206,6 +189,8 @@ function useMarketplaceKindPage(
         mcpServers,
         listingBySlug,
         listingByEntryId,
+        listingByInstalledName,
+        listingByName,
       })
     : installedInventory;
 
@@ -250,7 +235,7 @@ function useMarketplaceKindPage(
     scope,
     query: routeQuery,
     draftQuery,
-    setDraftQuery,
+    setDraftQuery: searchInput.setDraftValue,
     setScope,
     clearSearch,
     mcpConfigScope,

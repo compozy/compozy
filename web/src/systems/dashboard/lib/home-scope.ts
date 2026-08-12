@@ -1,4 +1,4 @@
-import { taskScopeForActiveWorkspace, type ActiveTaskScopeFilter } from "@/systems/tasks";
+import { type ActiveTaskScopeFilter, taskScopeForActiveWorkspace } from "@/systems/tasks";
 
 type ActiveWorkspaceScopeCandidate = Parameters<typeof taskScopeForActiveWorkspace>[0];
 

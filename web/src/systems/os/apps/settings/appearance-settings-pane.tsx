@@ -10,10 +10,9 @@ import {
   cn,
 } from "@compozy/ui";
 
-import { useSettingsTopbar } from "@/systems/settings";
-
 import { useAppearanceSettingsPane } from "../../hooks/use-appearance-settings-pane";
 import type { OsWallpaper } from "../../lib/os-types";
+import { useSettingsTopbar } from "@/systems/settings";
 
 const WALLPAPERS: Array<{ id: OsWallpaper; label: string }> = [
   { id: "ember", label: "Ember" },

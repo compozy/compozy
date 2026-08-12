@@ -11,6 +11,7 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 import { type LoopsRouteSearch, useLoopsCatalog } from "./use-loops-catalog";
+
 import { LoopCatalog, LoopCatalogFilters, LoopCatalogLede } from "@/systems/loops";
 
 export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {

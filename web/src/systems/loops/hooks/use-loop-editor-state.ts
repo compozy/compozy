@@ -24,6 +24,7 @@ export function useLoopEditorState() {
       context.pendingValidationGeneration !== null,
     edges: context.edges,
     isDirty: context.isDirty,
+    initializedSourceKey: context.initializedSourceKey,
     lint: context.lint,
     nodes: context.nodes,
     positionsDirty: context.positionsDirty,
@@ -46,8 +47,12 @@ export function useLoopEditorState() {
       store.trigger.contractFieldChanged({ definition }),
     changeNodeField: (nodes: EditorNode[]) => store.trigger.nodeFieldChanged({ nodes }),
     connectNodes: (edges: EditorEdge[]) => store.trigger.connectionCreated({ edges }),
-    initialize: (definition: LoopDefinition, edges: EditorEdge[], nodes: EditorNode[]) =>
-      store.trigger.draftInitialized({ definition, edges, nodes }),
+    initialize: (
+      definition: LoopDefinition,
+      edges: EditorEdge[],
+      nodes: EditorNode[],
+      sourceKey?: string
+    ) => store.trigger.draftInitialized({ definition, edges, nodes, sourceKey }),
     renameNode: (edges: EditorEdge[], nodes: EditorNode[], selectedNodeId: string) =>
       store.trigger.nodeRenamed({ edges, nodes, selectedNodeId }),
     requestPositionsSave: (execute: (annotations: LoopPositionAnnotation[]) => Promise<unknown>) =>

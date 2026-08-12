@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
+import { sessionBusyInputLogic } from "./session-busy-input-store";
 import type { QueuedPrompt } from "@/systems/session";
 
 export type SessionBusyInputHandler = (message: string) => void | Promise<unknown>;
@@ -43,32 +44,38 @@ export function useSessionBusyInputActions({
   setComposerText,
   trimmedComposerText,
 }: UseSessionBusyInputActionsOptions) {
-  const editingQueuedPromptId = useRef<string | null>(null);
+  const store = useStore(sessionBusyInputLogic);
 
   const handleBusyInputAction = (
     handler: SessionBusyInputHandler | undefined,
     failureMessage: string,
     onSuccess?: () => void
   ) => {
-    if (!handler || !canSubmitBusyInput) {
+    if (!handler || !canSubmitBusyInput || store.getSnapshot().context.phase === "submitting") {
       return;
     }
+    store.trigger.submissionStarted();
 
     void Promise.resolve()
       .then(() => handler(trimmedComposerText))
       .then(() => {
         clearComposer();
         onSuccess?.();
+        store.trigger.submissionFinished();
       })
       .catch(error => {
-        if (isAbortError(error)) return;
-        toast.error(describeComposerActionError(error, failureMessage));
+        if (!isAbortError(error)) {
+          toast.error(describeComposerActionError(error, failureMessage));
+        }
+        store.trigger.submissionFinished();
       });
   };
 
   const handleQueueAction = () => {
     const editingQueuedPrompt =
-      queuedPrompts.find(prompt => prompt.id === editingQueuedPromptId.current) ?? null;
+      queuedPrompts.find(
+        prompt => prompt.id === store.getSnapshot().context.editingQueuedPromptId
+      ) ?? null;
     if (editingQueuedPrompt) {
       if (!onReplaceQueuedPrompt) {
         toast.error("Couldn't update queued prompt.");
@@ -78,7 +85,7 @@ export function useSessionBusyInputActions({
         message => onReplaceQueuedPrompt(editingQueuedPrompt, message),
         "Couldn't update queued prompt.",
         () => {
-          editingQueuedPromptId.current = null;
+          store.trigger.editCompleted();
         }
       );
       return;
@@ -100,13 +107,11 @@ export function useSessionBusyInputActions({
       return;
     }
     setComposerText(prompt.text);
-    editingQueuedPromptId.current = prompt.id;
+    store.trigger.editStarted({ id: prompt.id });
   };
 
   const handleRemoveQueuedPrompt = (id: string) => {
-    if (editingQueuedPromptId.current === id) {
-      editingQueuedPromptId.current = null;
-    }
+    store.trigger.promptRemoved({ id });
     onRemoveQueuedPrompt?.(id);
   };
 

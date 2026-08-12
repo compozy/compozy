@@ -1,6 +1,13 @@
 import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 
 import { bridgeStatusLabel } from "./bridge-formatters";
+import {
+  bridgePlatformFilterFrom,
+  bridgeScopeFilterFrom,
+  bridgeStatusFilterFrom,
+  type BridgePlatformFilter,
+  type BridgeStatusFilter,
+} from "./bridge-route-search";
 import type {
   BridgeHealthMap,
   BridgeListFilter,
@@ -8,9 +15,6 @@ import type {
   BridgeStatus,
   BridgeSummary,
 } from "../types";
-
-export type BridgePlatformFilter = string;
-export type BridgeStatusFilter = BridgeStatus;
 
 export type BridgeFilterFieldKey = "scope" | "platform" | "status";
 
@@ -45,7 +49,7 @@ const SCOPE_OPTIONS: { value: BridgeScopeFilter; label: string }[] = [
   { value: "workspace", label: "Workspace" },
 ];
 
-const STATUS_OPTIONS: BridgeStatusFilter[] = [
+const STATUS_OPTIONS: readonly BridgeStatusFilter[] = [
   "disabled",
   "starting",
   "ready",
@@ -124,9 +128,9 @@ export function applyBridgeFilterChips(
   for (const chip of chips) {
     lookup.set(chip.field, chip.values[0]);
   }
-  handlers.onScopeChange(asBridgeScope(lookup.get("scope")) ?? "all");
-  handlers.onPlatformChange(asBridgePlatform(lookup.get("platform")));
-  handlers.onStatusChange(asBridgeStatus(lookup.get("status")));
+  handlers.onScopeChange(bridgeScopeFilterFrom(lookup.get("scope")) ?? "all");
+  handlers.onPlatformChange(bridgePlatformFilterFrom(lookup.get("platform")));
+  handlers.onStatusChange(bridgeStatusFilterFrom(lookup.get("status")));
 }
 
 export function effectiveBridgeStatus(
@@ -136,38 +140,4 @@ export function effectiveBridgeStatus(
   return health?.status ?? bridge.status;
 }
 
-export function parseBridgeScopeFilter(value: unknown): BridgeScopeFilter | undefined {
-  if (typeof value !== "string") return undefined;
-  const scope = asBridgeScope(value);
-  return scope === "all" ? undefined : (scope ?? undefined);
-}
-
-export function parseBridgePlatformFilter(value: unknown): BridgePlatformFilter | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed === "" ? undefined : trimmed;
-}
-
-export function parseBridgeStatusFilter(value: unknown): BridgeStatusFilter | undefined {
-  if (typeof value !== "string") return undefined;
-  return asBridgeStatus(value) ?? undefined;
-}
-
-function asBridgeScope(value: string | undefined): BridgeScopeFilter | null {
-  if (!value) return null;
-  if (value === "all" || value === "global" || value === "workspace") return value;
-  return null;
-}
-
-function asBridgePlatform(value: string | undefined): BridgePlatformFilter | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  return trimmed === "" ? null : trimmed;
-}
-
-function asBridgeStatus(value: string | undefined): BridgeStatusFilter | null {
-  if (!value) return null;
-  return (STATUS_OPTIONS as readonly string[]).includes(value)
-    ? (value as BridgeStatusFilter)
-    : null;
-}
+export type { BridgePlatformFilter, BridgeStatusFilter } from "./bridge-route-search";

@@ -5,6 +5,8 @@ export interface TaskListTree {
   roots: TaskListItem[];
   /** Children keyed by parent task id, in the incoming list order. */
   childrenByParent: Map<string, TaskListItem[]>;
+  /** Number of tasks represented by roots plus nested children. */
+  size: number;
 }
 
 /**
@@ -29,7 +31,7 @@ export function buildTaskListTree(tasks: TaskListItem[]): TaskListTree {
     }
     roots.push(task);
   }
-  return { roots, childrenByParent };
+  return { roots, childrenByParent, size: tasks.length };
 }
 
 export interface SubtaskSignalSummary {

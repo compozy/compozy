@@ -4,7 +4,7 @@ import { useSelector } from "@xstate/store-react";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { useSettingsPage } from "./use-settings-page";
-import { useAgents, type AgentPayload } from "@/systems/agent";
+
 import { SettingsApiError } from "../adapters/settings-api";
 import type {
   SettingsSkillsFilter,
@@ -13,8 +13,10 @@ import type {
 } from "../types";
 import { useSettingsSkills } from "./use-settings-sections";
 import { useUpdateSettingsSkills } from "./use-settings-mutations";
-import { useWorkspaces, type WorkspacePayload } from "@/systems/workspace";
+
 import { settingsSkillsDraftLogic, shouldRebindSkillsDraft } from "./settings-skills-draft-logic";
+import { type AgentPayload, useAgents } from "@/systems/agent";
+import { useWorkspaces, type WorkspacePayload } from "@/systems/workspace";
 
 type SkillsConfig = SettingsSkillsSection["config"];
 

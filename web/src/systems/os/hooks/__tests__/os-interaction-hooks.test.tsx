@@ -3,6 +3,7 @@
 // Owning layer: the browser-to-OS-hook interaction boundary.
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { type ReactNode, useEffect, useLayoutEffect } from "react";
+import type { Rnd } from "react-rnd";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
@@ -24,6 +25,7 @@ import { useOsWindow } from "../use-os-window";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
 import { useOsWindowCommands } from "../use-os-window-commands";
 import { useWindowMergeTarget } from "../use-window-merge-target";
+import { useWindowLiveDataEnabled } from "../use-window-live-data-enabled";
 import { useOsWinLayer } from "../use-os-win-layer";
 import { useOsShortcuts, type OsShortcutHandlers } from "../use-os-shortcuts";
 import { windowManagerStore } from "../../stores/window-manager-store";
@@ -332,6 +334,26 @@ describe("useAnimationFrameLatest", () => {
   });
 });
 
+describe("useWindowLiveDataEnabled", () => {
+  it("Should disable retained window work while the browser document is hidden", () => {
+    let visibilityState: DocumentVisibilityState = "visible";
+    vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibilityState);
+    const shell = createShell();
+    const { result } = renderHook(() => useWindowLiveDataEnabled("window:primary"), {
+      wrapper: shell.wrapper,
+    });
+
+    expect(result.current).toBe(true);
+    visibilityState = "hidden";
+    fireEvent(document, new Event("visibilitychange"));
+    expect(result.current).toBe(false);
+
+    visibilityState = "visible";
+    fireEvent(document, new Event("visibilitychange"));
+    expect(result.current).toBe(true);
+  });
+});
+
 describe("useOsWindow", () => {
   it("Should coalesce drag previews to the latest point in each animation frame", () => {
     const frames = installAnimationFrameQueue();
@@ -385,10 +407,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(
@@ -413,10 +432,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(
@@ -441,10 +457,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(
@@ -469,10 +482,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(
@@ -496,10 +506,7 @@ describe("useOsWindow", () => {
     });
     const updatePosition = vi.fn();
     const updateSize = vi.fn();
-    Object.defineProperty(result.current.rndRef, "current", {
-      configurable: true,
-      value: { updatePosition, updateSize },
-    });
+    result.current.registerRnd({ updatePosition, updateSize } as unknown as Rnd);
 
     await act(async () => {
       result.current.handleDragStop(

@@ -23,20 +23,29 @@ const { jobsCatalog, jobsPage, suggestionPanel, workspaceContext } = vi.hoisted(
   },
 }));
 
-vi.mock("@/systems/automation", () => ({
+vi.mock("@/systems/automation/components/automation-editor-dialog", () => ({
   AutomationEditorDialog: () => null,
+}));
+
+vi.mock("@/systems/automation/components/automation-jobs-catalog", () => ({
   AutomationJobsCatalog: (props: { isLoading: boolean; view: string }) => {
     jobsCatalog(props);
     return <div data-testid="automation-jobs-catalog" />;
   },
+}));
+
+vi.mock("@/systems/automation/components/automation-list-filters", () => ({
   AutomationListFilters: () => null,
+}));
+
+vi.mock("@/systems/automation/components/automation-suggestions-panel", () => ({
   AutomationSuggestionsPanel: ({ workspaceID }: { workspaceID: string }) => {
     suggestionPanel(workspaceID);
     return <div data-testid="automation-suggestions-panel" />;
   },
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => workspaceContext.current,
 }));
 

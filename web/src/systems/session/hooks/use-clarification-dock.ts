@@ -24,6 +24,7 @@ function retryableErrorMessage(error: unknown): string | null {
 }
 
 export interface UseClarificationDockOptions {
+  enabled?: boolean;
   clarification: ClarificationPending;
   sessionId: string;
   workspaceId: string;
@@ -36,6 +37,7 @@ export interface UseClarificationDockOptions {
  * inputs), and the free-text draft state.
  */
 export function useClarificationDock({
+  enabled = true,
   clarification,
   sessionId,
   workspaceId,
@@ -92,9 +94,10 @@ export function useClarificationDock({
   });
 
   useEffect(() => {
+    if (!enabled) return undefined;
     document.addEventListener("keydown", handleChoiceKey);
     return () => document.removeEventListener("keydown", handleChoiceKey);
-  }, []);
+  }, [enabled]);
 
   return {
     choices,

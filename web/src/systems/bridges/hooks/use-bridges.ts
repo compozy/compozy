@@ -32,8 +32,11 @@ export function useBridges(filters: BridgeCatalogFilter = {}, options?: { enable
   };
 }
 
-export function useBridgeProviders() {
-  return useQuery(bridgeProvidersOptions());
+export function useBridgeProviders(options?: { enabled?: boolean }) {
+  return useQuery({
+    ...bridgeProvidersOptions(),
+    enabled: options?.enabled ?? true,
+  });
 }
 
 export function useSlackBridgeManifest(instanceID: string, options?: { enabled?: boolean }) {

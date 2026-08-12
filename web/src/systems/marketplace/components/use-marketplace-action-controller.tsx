@@ -5,23 +5,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
-  ExtensionNetworkConfirmDialog,
-  extensionNetworkConfirmation,
-  useRemoveExtension,
-  useToggleExtension,
-  type ToggleExtensionVariables,
-} from "@/systems/extensions";
-import {
-  deriveMCPAuthFilter,
-  deriveMCPManagementFilter,
-  isMCPAuthorizeAwaiting,
-  isMCPAuthorizePending,
-  useDeleteSettingsMCPServer,
-  useMCPAuthorize,
-} from "@/systems/settings";
-import { useRemoveSkillMarketplace } from "@/systems/skill";
-
-import {
   useInstallMarketplaceExtension,
   useInstallMarketplaceMCP,
   useInstallMarketplaceSkill,
@@ -50,6 +33,22 @@ import {
   type MarketplaceDialogSelection,
 } from "./marketplace-action-controller-logic";
 import { useMarketplacePending } from "./use-marketplace-pending";
+import {
+  extensionNetworkConfirmation,
+  ExtensionNetworkConfirmDialog,
+  type ToggleExtensionVariables,
+  useRemoveExtension,
+  useToggleExtension,
+} from "@/systems/extensions";
+import {
+  deriveMCPAuthFilter,
+  deriveMCPManagementFilter,
+  isMCPAuthorizeAwaiting,
+  isMCPAuthorizePending,
+  useDeleteSettingsMCPServer,
+  useMCPAuthorize,
+} from "@/systems/settings";
+import { useRemoveSkillMarketplace } from "@/systems/skill";
 
 interface MarketplaceActionControllerOptions {
   onViewInstalled?: () => void;

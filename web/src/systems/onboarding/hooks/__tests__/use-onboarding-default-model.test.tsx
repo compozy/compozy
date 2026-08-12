@@ -41,10 +41,11 @@ const {
   mockCatalogRefresh: vi.fn(),
 }));
 
-vi.mock("@/systems/providers", () => ({ useProviders: () => mockProviders }));
+vi.mock("@/systems/providers/hooks/use-providers", () => ({
+  useProviders: () => mockProviders,
+}));
 
-vi.mock("@/systems/model-catalog", () => ({
-  providerNeedsAuth: () => false,
+vi.mock("@/systems/model-catalog/hooks/use-runtime-model-catalog", () => ({
   useRuntimeModelCatalog: () => ({
     models: [],
     payloadsByProvider: {},
@@ -58,11 +59,21 @@ vi.mock("@/systems/model-catalog", () => ({
   }),
 }));
 
-vi.mock("@/systems/settings", () => ({
-  useSettingsGeneral: () => mockSettingsGeneral,
+vi.mock("@/systems/model-catalog/lib/to-runtime-selector-options", () => ({
+  providerNeedsAuth: () => false,
+}));
+
+vi.mock("@/systems/settings/hooks/use-settings-collections", () => ({
   useSettingsProvider: () => mockSettingsProvider,
+}));
+
+vi.mock("@/systems/settings/hooks/use-settings-mutations", () => ({
   useUpdateSettingsGeneral: () => mockUpdateGeneral,
   usePutSettingsProvider: () => mockPutProvider,
+}));
+
+vi.mock("@/systems/settings/hooks/use-settings-sections", () => ({
+  useSettingsGeneral: () => mockSettingsGeneral,
 }));
 
 import { onboardingDraftStore } from "../../stores/use-onboarding-draft-store";

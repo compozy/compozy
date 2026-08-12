@@ -1,6 +1,6 @@
 import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 
-import type { VaultNamespaceFilter } from "../hooks/use-vault-page";
+import type { VaultNamespaceFilter } from "./vault-route-search";
 import { VAULT_NAMESPACES } from "../types";
 
 export interface VaultFilterState {

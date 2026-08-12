@@ -17,6 +17,7 @@ import type {
 
 interface QueryHookOptions {
   enabled?: boolean;
+  refetchIntervalMs?: number | false;
 }
 
 interface RequestReviewParams {
@@ -70,7 +71,12 @@ export function useTaskRunReviews(
   filters: TaskRunReviewsFilter = {},
   options: QueryHookOptions = {}
 ) {
-  return useQuery(taskRunReviewsOptions(runId, filters, options.enabled ?? true));
+  return useQuery({
+    ...taskRunReviewsOptions(runId, filters, options.enabled ?? true),
+    ...(options.refetchIntervalMs === undefined
+      ? {}
+      : { refetchInterval: options.refetchIntervalMs }),
+  });
 }
 
 export function useTaskReviews(
@@ -78,11 +84,21 @@ export function useTaskReviews(
   filters: TaskReviewsFilter = {},
   options: QueryHookOptions = {}
 ) {
-  return useQuery(taskReviewsOptions(taskId, filters, options.enabled ?? true));
+  return useQuery({
+    ...taskReviewsOptions(taskId, filters, options.enabled ?? true),
+    ...(options.refetchIntervalMs === undefined
+      ? {}
+      : { refetchInterval: options.refetchIntervalMs }),
+  });
 }
 
 export function useTaskRunReview(reviewId: string, options: QueryHookOptions = {}) {
-  return useQuery(taskRunReviewDetailOptions(reviewId, options.enabled ?? true));
+  return useQuery({
+    ...taskRunReviewDetailOptions(reviewId, options.enabled ?? true),
+    ...(options.refetchIntervalMs === undefined
+      ? {}
+      : { refetchInterval: options.refetchIntervalMs }),
+  });
 }
 
 export function useRequestTaskRunReview() {

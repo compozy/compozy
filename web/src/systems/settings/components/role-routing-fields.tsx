@@ -1,6 +1,5 @@
 import { useId } from "react";
 
-import { AgentCommandSelect } from "@/systems/agent";
 import { Button } from "@compozy/ui";
 
 import type { RolesRuntimeOptions } from "../hooks/use-roles-runtime-options";
@@ -9,6 +8,7 @@ import type { RoleViewModel } from "../lib/roles-view-model";
 import { RoleEffectiveHint } from "./role-effective-hint";
 import { RoleRuntimeSelector } from "./role-runtime-selector";
 import { SettingsFieldRow } from "./settings-field-row";
+import { AgentCommandSelect } from "@/systems/agent";
 
 export interface RoleRoutingFieldsProps {
   vm: RoleViewModel;

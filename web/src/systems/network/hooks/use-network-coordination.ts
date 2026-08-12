@@ -1,7 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import {
   putNetworkCoordination,
   putNetworkCoordinationInvitation,
@@ -12,6 +10,7 @@ import {
 import { networkCoordinationOptions, networkUsageOptions } from "../lib/query-options";
 import { networkKeys } from "../lib/query-keys";
 import type { NetworkUsageFilters } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 function coordinationToggleRequest(
   ref: NetworkCoordinationRef,

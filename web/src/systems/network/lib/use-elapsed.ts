@@ -1,50 +1,11 @@
-import { useSyncExternalStore } from "react";
+import { useSecondClock } from "@/hooks/use-second-clock";
+import { useNetworkLiveDataEnabled } from "../hooks/use-network-live-data-enabled";
 
 /**
  * Live ticker shared across work chips and other duration displays. A single
  * 1-second `setInterval` is preferable to per-component timers because many
  * `working` chips can render simultaneously in busy timelines.
  */
-const TICK_MS = 1_000;
-
-let listeners: Set<() => void> | null = null;
-let timer: ReturnType<typeof setInterval> | null = null;
-let cachedNow = Date.now();
-
-function startTimer() {
-  if (timer != null || typeof window === "undefined") {
-    return;
-  }
-  timer = setInterval(() => {
-    cachedNow = Date.now();
-    if (!listeners) {
-      return;
-    }
-    for (const listener of listeners) {
-      listener();
-    }
-  }, TICK_MS);
-}
-
-function stopTimer() {
-  if (timer != null && (listeners == null || listeners.size === 0)) {
-    clearInterval(timer);
-    timer = null;
-  }
-}
-
-function subscribe(listener: () => void): () => void {
-  if (listeners == null) {
-    listeners = new Set();
-  }
-  listeners.add(listener);
-  startTimer();
-  return () => {
-    listeners?.delete(listener);
-    stopTimer();
-  };
-}
-
 export interface UseElapsedOptions {
   /** Disable the live ticker for terminal states. */
   enabled?: boolean;
@@ -58,11 +19,8 @@ export function useElapsedSeconds(
   start: string | Date | null | undefined,
   { enabled = true }: UseElapsedOptions = {}
 ): number | null {
-  const now = useSyncExternalStore(
-    enabled ? subscribe : () => () => undefined,
-    () => cachedNow,
-    () => cachedNow
-  );
+  const liveDataEnabled = useNetworkLiveDataEnabled();
+  const now = useSecondClock(enabled && liveDataEnabled);
 
   if (start == null) {
     return null;

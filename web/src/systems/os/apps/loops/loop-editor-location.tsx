@@ -1,10 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
 
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { LoopEditor } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export function LoopEditorLocation({ name }: { name: string }) {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const navigate = useNavigate();
   const openLoops = () => void navigate({ to: "/loops" });
   const openLoop = () => void navigate({ to: "/loops/$name", params: { name } });
@@ -12,6 +14,7 @@ export function LoopEditorLocation({ name }: { name: string }) {
     <LoopEditor
       workspaceId={activeWorkspaceId ?? ""}
       name={name}
+      liveDataEnabled={liveDataEnabled}
       topbarIdentity={{
         onBack: openLoop,
         crumbs: [

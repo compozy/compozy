@@ -1,11 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import { NetworkApiError, resolveNetworkDirectRoom } from "../adapters/network-api";
 import { networkKeys } from "../lib/query-keys";
 import type { NetworkResolveDirectRoomResponse } from "../types";
 import type { ResolveNetworkDirectRoomInput } from "./network-action-types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface UseResolveNetworkDirectRoomResult {
   resolveRoom: (

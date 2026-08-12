@@ -50,8 +50,8 @@ vi.mock("@/systems/vault/hooks/use-vault-actions", () => ({
 }));
 
 vi.mock("@/systems/vault/hooks/use-vault", () => ({
-  useVaultSecrets: (filter: unknown) => {
-    mocks.vaultFilter(filter);
+  useVaultSecrets: (filter: unknown, options?: { enabled?: boolean }) => {
+    mocks.vaultFilter(filter, options);
     const isUnfiltered =
       typeof filter === "object" && filter !== null && Object.keys(filter).length === 0;
     return {
@@ -65,11 +65,9 @@ vi.mock("@/systems/vault/hooks/use-vault", () => ({
   },
 }));
 
+import { useVaultPage } from "@/systems/vault/hooks/use-vault-page";
+import { normalizeVaultPrefixForNamespace } from "@/systems/vault/lib/vault-route-search";
 import type { VaultSecret } from "@/systems/vault";
-import {
-  normalizeVaultPrefixForNamespace,
-  useVaultPage,
-} from "@/systems/vault/hooks/use-vault-page";
 
 const providerSecret = {
   created_at: "2026-07-18T12:00:00Z",
@@ -114,13 +112,14 @@ describe("useVaultPage route state", () => {
       view: "cards" as const,
     };
 
-    // Two reads are issued: the filtered listing, plus an unfiltered pass used
-    // only to detect ref collisions the active filter would otherwise hide.
-    expect(mocks.vaultFilter).toHaveBeenCalledWith({
-      namespace: "providers",
-      prefix: "vault:providers/",
-    });
-    expect(mocks.vaultFilter).toHaveBeenCalledWith({});
+    expect(mocks.vaultFilter).toHaveBeenCalledWith(
+      {
+        namespace: "providers",
+        prefix: "vault:providers/",
+      },
+      undefined
+    );
+    expect(mocks.vaultFilter).toHaveBeenCalledWith({}, { enabled: false });
 
     act(() => result.current.setPrefix("  vault:mcp/  "));
     expect(mocks.navigate.mock.lastCall?.[0].search(current)).toEqual({
@@ -280,6 +279,7 @@ describe("useVaultPage route state", () => {
     const { result, rerender } = renderHook(() => useVaultPage({ namespace: "providers" }));
 
     act(() => result.current.openCreate());
+    expect(mocks.vaultFilter).toHaveBeenLastCalledWith({}, { enabled: true });
     act(() =>
       result.current.updateDraft(draft => ({
         ...draft,

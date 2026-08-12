@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import { NetworkCoordinationInvitation } from "./coordination-invitation";
+import { coordinationInvitationLogic } from "./coordination-invitation-store";
 import {
   useAcceptNetworkCoordinationInvitation,
   useDismissNetworkCoordinationInvitation,
@@ -18,7 +19,8 @@ export function TaskRunCoordinationInvitationHost({
   runId,
   workspaceId,
 }: TaskRunCoordinationInvitationHostProps) {
-  const actionLocked = useRef(false);
+  const actionStore = useStore(coordinationInvitationLogic);
+  const actionPhase = useSelector(actionStore, snapshot => snapshot.context.phase);
   const ref = { scope: "task" as const, taskId, runId };
   const coordination = useNetworkCoordination(workspaceId, ref);
   const accept = useAcceptNetworkCoordinationInvitation(workspaceId, ref);
@@ -26,9 +28,9 @@ export function TaskRunCoordinationInvitationHost({
 
   const revision = coordination.data?.revision;
   const visible = Boolean(coordination.data?.eligibility.eligible);
-  const pending = accept.isPending || dismiss.isPending;
+  const pending = actionPhase === "submitting" || accept.isPending || dismiss.isPending;
   const unlock = () => {
-    actionLocked.current = false;
+    actionStore.trigger.actionSettled();
   };
 
   return (
@@ -37,13 +39,25 @@ export function TaskRunCoordinationInvitationHost({
       dismissing={dismiss.isPending}
       errorMessage={accept.error?.message ?? dismiss.error?.message}
       onAccept={() => {
-        if (actionLocked.current || pending || revision === undefined) return;
-        actionLocked.current = true;
+        if (
+          actionStore.getSnapshot().context.phase === "submitting" ||
+          pending ||
+          revision === undefined
+        ) {
+          return;
+        }
+        actionStore.trigger.actionStarted();
         accept.mutate(revision, { onSettled: unlock });
       }}
       onDismiss={() => {
-        if (actionLocked.current || pending || revision === undefined) return;
-        actionLocked.current = true;
+        if (
+          actionStore.getSnapshot().context.phase === "submitting" ||
+          pending ||
+          revision === undefined
+        ) {
+          return;
+        }
+        actionStore.trigger.actionStarted();
         dismiss.mutate(revision, { onSettled: unlock });
       }}
       visible={visible}

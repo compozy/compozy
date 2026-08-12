@@ -11,21 +11,20 @@ import {
   type LaneTabsItem,
 } from "@compozy/ui";
 
-import {
-  TaskActivityPanel,
-  TaskOverviewPanel,
-  TaskPropertiesRail,
-  TaskRunsPanel,
-  TasksDetailSubhead,
-  type ResolvedTaskDetailSearch,
-  type TaskDetailTab,
-  type TaskRunReview,
-} from "@/systems/tasks";
-
 import { TaskDetailOverlays } from "./task-detail-overlays";
 import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
 import { TaskDetailTopbar } from "./task-detail-topbar";
 import { useTaskDetailLocation } from "./use-task-detail-location";
+import {
+  type ResolvedTaskDetailSearch,
+  TaskActivityPanel,
+  type TaskDetailTab,
+  TaskOverviewPanel,
+  TaskPropertiesRail,
+  type TaskRunReview,
+  TaskRunsPanel,
+  TasksDetailSubhead,
+} from "@/systems/tasks";
 
 function buildTabItems(runCount: number): ReadonlyArray<LaneTabsItem<TaskDetailTab>> {
   return [
@@ -155,6 +154,7 @@ export function TaskDetailLocation({
                   <TaskOverviewPanel
                     detail={detail}
                     isLive={page.isLive}
+                    liveDataEnabled={controller.liveDataEnabled}
                     nowHandlers={{
                       onOpenRun: controller.openRun,
                       onOpenTask: controller.openTask,

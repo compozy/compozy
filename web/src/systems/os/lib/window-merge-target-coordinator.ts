@@ -1,15 +1,28 @@
 import type { OsWindowFrameModel } from "./group-projection";
 import type { OsDesktopRuntimeStore, OsRect, WindowManagerController } from "./os-types";
+import { autoScrollDeckAtEdges, insertSlotAt, pointInsideDeck } from "./window-deck-geometry";
 import { windowManagerStore } from "../stores/window-manager-store";
 
 const HEAD_HIT_SLOP_TOP = 4;
 const HEAD_HIT_SLOP_BOTTOM = 8;
 
-interface MergeTargetRegistration {
+interface MergeTargetRegistrationBase {
   frameId: string;
   getFrame: () => OsWindowFrameModel;
+}
+
+interface HeadMergeTargetRegistration extends MergeTargetRegistrationBase {
+  kind: "head";
   getChrome: () => HTMLElement | null;
 }
+
+interface DeckMergeTargetRegistration extends MergeTargetRegistrationBase {
+  kind: "deck";
+  getTabElements: () => ReadonlyMap<string, HTMLElement>;
+  getTabs: () => HTMLElement | null;
+}
+
+type MergeTargetRegistration = HeadMergeTargetRegistration | DeckMergeTargetRegistration;
 
 interface MergeTargetCoordinator {
   frameID: number | null;
@@ -75,16 +88,42 @@ function resolveMergeTarget(
   candidates.sort((left, right) => right.frame.layer - left.frame.layer);
 
   for (const { registration, frame } of candidates) {
+    const covered = coveredByHigherFrame(state, frame, gesture.source.windowId, layerPoint);
+    if (registration.kind === "deck") {
+      const tabs = registration.getTabs();
+      const bounds = tabs?.getBoundingClientRect();
+      if (
+        tabs === null ||
+        bounds === undefined ||
+        covered ||
+        !pointInsideDeck(
+          tabs,
+          point,
+          {
+            top: HEAD_HIT_SLOP_TOP,
+            bottom: HEAD_HIT_SLOP_BOTTOM,
+          },
+          bounds
+        )
+      ) {
+        continue;
+      }
+      autoScrollDeckAtEdges(tabs, point.clientX, bounds);
+      return {
+        frameId: frame.id,
+        targetWindowId: frame.activeWindowId,
+        insertIndex: insertSlotAt(frame.members, registration.getTabElements(), point.clientX),
+      };
+    }
     const head = registration.getChrome()?.querySelector('[data-slot="os-window-head"]');
-    if (!(head instanceof HTMLElement)) continue;
+    if (!(head instanceof HTMLElement) || covered) continue;
     const box = head.getBoundingClientRect();
     const inside =
       point.clientX >= box.left &&
       point.clientX <= box.right &&
       point.clientY >= box.top - HEAD_HIT_SLOP_TOP &&
       point.clientY <= box.bottom + HEAD_HIT_SLOP_BOTTOM;
-    if (!inside || coveredByHigherFrame(state, frame, gesture.source.windowId, layerPoint))
-      continue;
+    if (!inside) continue;
     return {
       frameId: frame.id,
       targetWindowId: frame.activeWindowId,
@@ -158,6 +197,21 @@ function createCoordinator(manager: WindowManagerController): MergeTargetCoordin
 
 /** Registers one solo frame with the gesture-wide merge hit-test coordinator. */
 export function registerWindowMergeTarget(
+  manager: WindowManagerController,
+  registration: Omit<HeadMergeTargetRegistration, "kind">
+): () => void {
+  return registerMergeTarget(manager, { ...registration, kind: "head" });
+}
+
+/** Registers one tab deck with the shared, frame-rate-bounded merge hit tester. */
+export function registerWindowDeckMergeTarget(
+  manager: WindowManagerController,
+  registration: Omit<DeckMergeTargetRegistration, "kind">
+): () => void {
+  return registerMergeTarget(manager, { ...registration, kind: "deck" });
+}
+
+function registerMergeTarget(
   manager: WindowManagerController,
   registration: MergeTargetRegistration
 ): () => void {

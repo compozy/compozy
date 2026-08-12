@@ -1,13 +1,9 @@
-import {
-  MessageByIndexProvider,
-  ReadonlyThreadProvider,
-  type ThreadMessage,
-  useAuiState,
-} from "@assistant-ui/react";
-import { useEffect } from "react";
+import { ReadonlyThreadProvider, ThreadPrimitive, useAuiState } from "@assistant-ui/react";
+import type { VirtualItem } from "@tanstack/react-virtual";
+import { type ComponentProps, useEffect } from "react";
 
-import type { SessionFailurePayload, SessionState } from "@/systems/session";
-import { useSessionTranscriptThreadState } from "@/systems/session";
+import { SessionLoadOlderButton } from "@/systems/session";
+
 import {
   recordSessionDebugEvent,
   SESSION_DEBUG_EVENTS,
@@ -15,6 +11,11 @@ import {
 import { AssistantMessage } from "./session-assistant-message";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
+import {
+  type SessionFailurePayload,
+  type SessionState,
+  useSessionTranscriptThreadState,
+} from "@/systems/session";
 
 function SessionThreadMessage() {
   const role = useAuiState(state => state.message.role);
@@ -28,31 +29,70 @@ function SessionThreadMessage() {
   return null;
 }
 
+type MessageComponents = ComponentProps<typeof ThreadPrimitive.Unstable_MessageById>["components"];
+
+const MESSAGE_COMPONENTS: MessageComponents = { Message: SessionThreadMessage };
+
 function ThreadMessageRows({
-  messageCount,
-  transcriptMessages,
+  messageIds,
+  measureVirtualElement,
+  virtualItems,
+  virtualTotalSize,
+  leadingItemCount,
+  isFetchingOlder,
+  loadOlder,
 }: {
-  messageCount: number;
-  transcriptMessages: readonly ThreadMessage[];
+  messageIds: readonly string[];
+  measureVirtualElement: (element: HTMLDivElement | null) => void;
+  virtualItems: VirtualItem[];
+  virtualTotalSize: number;
+  leadingItemCount: number;
+  isFetchingOlder: boolean;
+  loadOlder: () => void;
 }) {
-  const committedMessageCount = useAuiState(state => state.thread.messages.length);
-  const renderableCount = Math.min(messageCount, committedMessageCount);
+  const paddingTop = virtualItems[0]?.start ?? 0;
+  const paddingBottom = Math.max(0, virtualTotalSize - (virtualItems.at(-1)?.end ?? 0));
 
   return (
-    <div className="w-full" data-testid="thread-messages">
-      {Array.from({ length: renderableCount }, (_, index) => (
-        <div
-          key={transcriptMessages[index]?.id ?? index}
-          data-message-id={transcriptMessages[index]?.id}
-          data-message-index={index}
-          data-testid="thread-message-row"
-          className="w-full [content-visibility:auto] [contain-intrinsic-size:auto_120px]"
-        >
-          <MessageByIndexProvider index={index}>
-            <SessionThreadMessage />
-          </MessageByIndexProvider>
-        </div>
-      ))}
+    <div className="w-full" style={{ paddingTop, paddingBottom }} data-testid="thread-messages">
+      {virtualItems.map(virtualItem => {
+        if (leadingItemCount > 0 && virtualItem.index === 0) {
+          return (
+            <div
+              key={virtualItem.key}
+              ref={measureVirtualElement}
+              data-index={virtualItem.index}
+              className="w-full"
+            >
+              <SessionLoadOlderButton isLoading={isFetchingOlder} onClick={loadOlder} />
+            </div>
+          );
+        }
+
+        const messageIndex = virtualItem.index - leadingItemCount;
+        if (messageIndex < 0 || messageIndex >= messageIds.length) {
+          return null;
+        }
+        const messageId = messageIds[messageIndex];
+        if (!messageId) return null;
+
+        return (
+          <div
+            key={virtualItem.key}
+            ref={measureVirtualElement}
+            data-index={virtualItem.index}
+            data-message-id={messageId}
+            data-message-index={messageIndex}
+            data-testid="thread-message-row"
+            className="w-full [content-visibility:auto] [contain-intrinsic-size:auto_120px]"
+          >
+            <ThreadPrimitive.Unstable_MessageById
+              messageId={messageId}
+              components={MESSAGE_COMPONENTS}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -66,6 +106,13 @@ export function ThreadMessages({
   transcriptError,
   retryTranscript,
   transcriptMessages,
+  measureVirtualElement,
+  virtualItems,
+  virtualTotalSize,
+  leadingItemCount,
+  showLoadOlder,
+  isFetchingOlder,
+  loadOlder,
   sessionState,
   failure,
   startupFailed,
@@ -78,6 +125,13 @@ export function ThreadMessages({
   transcriptError: ReturnType<typeof useSessionTranscriptThreadState>["error"];
   retryTranscript: () => void;
   transcriptMessages: ReturnType<typeof useSessionTranscriptThreadState>["messages"];
+  measureVirtualElement: (element: HTMLDivElement | null) => void;
+  virtualItems: VirtualItem[];
+  virtualTotalSize: number;
+  leadingItemCount: number;
+  showLoadOlder: boolean;
+  isFetchingOlder: boolean;
+  loadOlder: () => void;
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
   startupFailed: boolean;
@@ -97,22 +151,35 @@ export function ThreadMessages({
 
   if (messageCount === 0) {
     return (
-      <ThreadStatePane
-        status={transcriptStatus}
-        agentName={agentName}
-        error={transcriptError}
-        onRetry={retryTranscript}
-        sessionState={sessionState}
-        failure={failure}
-        startupFailed={startupFailed}
-        isSessionRunning={isSessionRunning}
-      />
+      <>
+        {showLoadOlder ? (
+          <SessionLoadOlderButton isLoading={isFetchingOlder} onClick={loadOlder} />
+        ) : null}
+        <ThreadStatePane
+          status={transcriptStatus}
+          agentName={agentName}
+          error={transcriptError}
+          onRetry={retryTranscript}
+          sessionState={sessionState}
+          failure={failure}
+          startupFailed={startupFailed}
+          isSessionRunning={isSessionRunning}
+        />
+      </>
     );
   }
 
   return (
     <ReadonlyThreadProvider messages={transcriptMessages}>
-      <ThreadMessageRows messageCount={messageCount} transcriptMessages={transcriptMessages} />
+      <ThreadMessageRows
+        messageIds={transcriptMessages.map(message => message.id)}
+        measureVirtualElement={measureVirtualElement}
+        virtualItems={virtualItems}
+        virtualTotalSize={virtualTotalSize}
+        leadingItemCount={leadingItemCount}
+        isFetchingOlder={isFetchingOlder}
+        loadOlder={loadOlder}
+      />
     </ReadonlyThreadProvider>
   );
 }

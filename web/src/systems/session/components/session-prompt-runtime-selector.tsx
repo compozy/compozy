@@ -1,8 +1,8 @@
-import { RuntimeSelector } from "@/systems/runtime";
 import { Button } from "@compozy/ui";
 
 import { useSessionPromptRuntimeContext } from "../hooks/use-session-prompt-runtime-context";
 import { useSessionPromptRuntime } from "../hooks/use-session-prompt-runtime";
+import { RuntimeSelector } from "@/systems/runtime";
 
 export interface SessionPromptRuntimeSelectorProps {
   canPrompt: boolean;

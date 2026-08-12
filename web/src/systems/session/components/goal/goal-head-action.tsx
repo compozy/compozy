@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 
 import { Button, Spinner } from "@compozy/ui";
 
-import type { GoalControlAction } from "@/systems/loops";
 import type { SessionGoalSnapshot } from "./goal-status-types";
+import type { GoalControlAction } from "@/systems/loops";
 
 export interface SessionGoalHeadActionProps {
   snapshot: SessionGoalSnapshot | null;

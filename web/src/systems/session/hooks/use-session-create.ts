@@ -2,9 +2,9 @@ import { use } from "react";
 import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
-import { useActiveWorkspace } from "@/systems/workspace";
 import { SessionCreateContext } from "../contexts/session-create-context-value";
 import type { SessionCreateStore } from "../stores/session-create-store";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export function useSessionCreateStore(): SessionCreateStore {
   const store = use(SessionCreateContext);

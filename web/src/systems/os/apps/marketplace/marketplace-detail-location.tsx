@@ -2,42 +2,54 @@ import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle } from "lucide-react";
 
 import { Button, Empty, useTopbarSlot } from "@compozy/ui";
+
+import type { MarketplaceDetailSearch } from "./marketplace-detail-search";
 import {
   MarketplaceApiError,
   MarketplaceDetail,
-  MarketplaceEntryAction,
-  MarketplaceEntryStatus,
   MarketplaceDetailNotFound,
   MarketplaceDetailSkeleton,
+  MarketplaceEntryAction,
+  MarketplaceEntryStatus,
+  type MarketplaceKind,
   MarketplaceMCPDetailTopbarActions,
   marketplaceRouteKindFor,
   useMarketplaceActionController,
   useMarketplaceEntry,
-  type MarketplaceKind,
 } from "@/systems/marketplace";
 import { useActiveWorkspace } from "@/systems/workspace";
-import type { MarketplaceDetailSearch } from "./marketplace-detail-search";
 
 export function MarketplaceDetailLocation({
   kind,
   entryId,
   search,
+  liveDataEnabled,
 }: {
   kind: MarketplaceKind;
   entryId: string;
   search: MarketplaceDetailSearch;
+  liveDataEnabled: boolean;
 }) {
-  return <MarketplaceDetailRouteBody entryId={entryId} kind={kind} search={search} />;
+  return (
+    <MarketplaceDetailRouteBody
+      entryId={entryId}
+      kind={kind}
+      liveDataEnabled={liveDataEnabled}
+      search={search}
+    />
+  );
 }
 
 function MarketplaceDetailRouteBody({
   entryId,
   kind,
   search,
+  liveDataEnabled,
 }: {
   entryId: string;
   kind: MarketplaceKind;
   search: MarketplaceDetailSearch;
+  liveDataEnabled: boolean;
 }) {
   const navigate = useNavigate();
   const { activeWorkspaceId } = useActiveWorkspace();
@@ -67,6 +79,7 @@ function MarketplaceDetailRouteBody({
       mcpInstalled ? (
         <MarketplaceMCPDetailTopbarActions
           entry={entry}
+          liveDataEnabled={liveDataEnabled}
           onAction={actions.handleAction}
           pending={actions.isEntryPending(entry)}
           scope={managementScope}
@@ -106,6 +119,7 @@ function MarketplaceDetailRouteBody({
     <>
       <MarketplaceDetail
         data={query.data}
+        liveDataEnabled={liveDataEnabled}
         managementScope={managementScope}
         managementWorkspaceId={workspaceId ?? undefined}
       />

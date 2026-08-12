@@ -1,7 +1,6 @@
+import type { SettingsProviderEntry } from "../types";
 import { providerNeedsAuth } from "@/systems/model-catalog";
 import type { RuntimeProviderOption } from "@/systems/runtime";
-
-import type { SettingsProviderEntry } from "../types";
 
 /**
  * Adapt a configured settings provider into a runtime-selector option. Settings

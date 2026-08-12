@@ -4,7 +4,8 @@ import {
   type Unstable_TriggerItem,
   unstable_useTriggerPopoverScopeContext as useTriggerPopoverScopeContext,
 } from "@assistant-ui/react";
-import { Fragment, useEffect, useRef } from "react";
+import { createElement, Fragment, useEffect, useEffectEvent, useRef } from "react";
+import { useStore } from "@xstate/store-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -16,6 +17,7 @@ import {
   type SessionComposerCommandCatalog,
   type SessionComposerCommandSection,
 } from "./session-command-menu-model";
+import { sessionCommandOpenLogic } from "./session-command-open-store";
 
 export type {
   SessionCommandLane,
@@ -80,7 +82,7 @@ function CommandMenuItemRow({
           "group-data-[highlighted]/command-row:text-fg-strong"
         )}
       >
-        <Icon className="size-3.5" aria-hidden="true" />
+        {createElement(Icon, { className: "size-3.5", "aria-hidden": "true" })}
       </span>
       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
         <span className="shrink-0 font-medium">{presentation.menuTitle}</span>
@@ -146,14 +148,12 @@ function CommandDirectiveBehavior() {
 
 function CommandCatalogOpenReporter({ onOpen }: { onOpen?: () => void }) {
   const { open } = useTriggerPopoverScopeContext();
-  const wasOpenRef = useRef(false);
+  const store = useStore(sessionCommandOpenLogic);
+  const reportOpen = useEffectEvent(onOpen ?? (() => undefined));
 
   useEffect(() => {
-    if (open && !wasOpenRef.current) {
-      onOpen?.();
-    }
-    wasOpenRef.current = open;
-  }, [onOpen, open]);
+    store.trigger.observed({ open, onOpen: reportOpen });
+  }, [open, store]);
 
   return null;
 }

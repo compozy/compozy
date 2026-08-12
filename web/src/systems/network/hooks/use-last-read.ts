@@ -2,9 +2,8 @@ import { createStoreLogic } from "@xstate/store";
 import { persist, rehydrateStore } from "@xstate/store/persist";
 import { useSelector } from "@xstate/store-react";
 
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import type { NetworkSurface } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export const LAST_READ_STORAGE_KEY = "compozy:network:last-read:v2";
 const KEY_SEPARATOR = ":";

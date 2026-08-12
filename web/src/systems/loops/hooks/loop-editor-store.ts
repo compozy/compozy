@@ -7,6 +7,7 @@ import {
   type LoopEditorState,
 } from "./loop-editor-store-contracts";
 import { loopEditorDraftTransitions } from "./loop-editor-store-draft";
+import { loopEditorLifecycleTransitions } from "./loop-editor-store-lifecycle";
 import { loopEditorPositionTransitions } from "./loop-editor-store-positions";
 import { loopEditorPublishTransitions } from "./loop-editor-store-publish";
 import { loopEditorValidationTransitions } from "./loop-editor-store-validation";
@@ -27,6 +28,7 @@ export const loopEditorLogic = createStoreLogic<
   context: () => createLoopEditorState(),
   on: {
     ...loopEditorDraftTransitions,
+    ...loopEditorLifecycleTransitions,
     ...loopEditorPositionTransitions,
     ...loopEditorPublishTransitions,
     ...loopEditorValidationTransitions,

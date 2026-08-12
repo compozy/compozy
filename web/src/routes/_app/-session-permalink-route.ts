@@ -2,18 +2,19 @@ import type { QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
 
 import type { RouterContext } from "@/integrations/tanstack-query/root-context";
+
+import type { TopbarRouteContext } from "@/types/topbar";
+import { resolveActiveWorkspaceId } from "./-route-preload";
 import {
   cachedForeignSessionOwner,
   resolveForeignSessionOwner,
-  SessionNotFoundError,
-  sessionDetailOptions,
-  sessionTranscriptOptions,
   type SessionDeepLinkSearch,
+  sessionDetailOptions,
+  SessionNotFoundError,
   type SessionOwnerDialogState,
   type SessionPayload,
+  sessionTranscriptOptions,
 } from "@/systems/session";
-import type { TopbarRouteContext } from "@/types/topbar";
-import { resolveActiveWorkspaceId } from "./-route-preload";
 
 export interface SessionPermalinkRouteContext {
   topbar: TopbarRouteContext;

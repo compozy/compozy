@@ -1,12 +1,13 @@
 import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "./use-settings-page";
+
 import {
   SettingsApiError,
-  useSettingsAutomation,
-  useUpdateSettingsAutomation,
   type SettingsAutomationSection,
   type SettingsUpdateAutomationRequest,
+  useSettingsAutomation,
+  useUpdateSettingsAutomation,
 } from "@/systems/settings";
 
 type AutomationConfig = SettingsAutomationSection["config"];

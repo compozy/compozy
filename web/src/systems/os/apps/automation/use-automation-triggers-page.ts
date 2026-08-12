@@ -1,7 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
 
-import { useAutomationTriggerEditor, useAutomationTriggers } from "@/systems/automation";
-
 import {
   automationListError,
   automationUnavailableMessage,
@@ -10,6 +8,7 @@ import {
   type AutomationCreateSeed,
   type AutomationRouteSearch,
 } from "./use-automation-page-base";
+import { useAutomationTriggerEditor, useAutomationTriggers } from "@/systems/automation";
 
 export function useAutomationTriggersPage(
   seed: AutomationCreateSeed = {},

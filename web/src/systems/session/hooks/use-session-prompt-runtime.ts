@@ -3,20 +3,20 @@ import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { isReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
-import { resolveAgentRuntimeValue, useAgents } from "@/systems/agent";
-import {
-  providerNeedsAuth,
-  useRuntimeModelCatalog,
-  type RuntimeCatalogProvider,
-} from "@/systems/model-catalog";
-import { useProviders, type ProviderSummary } from "@/systems/providers";
-import type { RuntimeProviderOption, RuntimeSelectorValue } from "@/systems/runtime";
-import { useWorkspace, type SessionProviderOption } from "@/systems/workspace";
 
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
 import type { SessionRuntimeEffective } from "../types";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
+import { resolveAgentRuntimeValue, useAgents } from "@/systems/agent";
+import {
+  providerNeedsAuth,
+  type RuntimeCatalogProvider,
+  useRuntimeModelCatalog,
+} from "@/systems/model-catalog";
+import { type ProviderSummary, useProviders } from "@/systems/providers";
+import type { RuntimeProviderOption, RuntimeSelectorValue } from "@/systems/runtime";
+import { type SessionProviderOption, useWorkspace } from "@/systems/workspace";
 
 function runtimeValueFromEffective(
   effective: SessionRuntimeEffective | undefined

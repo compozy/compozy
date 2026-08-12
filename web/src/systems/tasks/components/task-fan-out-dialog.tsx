@@ -14,10 +14,10 @@ import {
   Spinner,
   Textarea,
 } from "@compozy/ui";
-import { NetworkParticipationFields } from "@/systems/network";
 
 import { useTaskFanOutDialog } from "../hooks/use-task-fan-out-dialog";
 import type { FanOutTaskRunsRequest } from "../types";
+import { NetworkParticipationFields } from "@/systems/network";
 
 export interface TaskFanOutDialogProps {
   open: boolean;

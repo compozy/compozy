@@ -56,7 +56,7 @@ export function SessionChangedFilesRowView({
   onToggle,
 }: {
   row: SessionChangedFilesRow;
-  onToggle: (button: HTMLElement | null) => void;
+  onToggle: () => void;
 }) {
   const fileCount = row.files.length;
   const visibleFiles = row.files.slice(0, CHANGED_FILES_VISIBLE_CAP);

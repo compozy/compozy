@@ -1,23 +1,23 @@
 import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
+
+import { useSessionWindowSidebar } from "./use-session-window-sidebar";
 import {
-  SessionGoalHeadAction,
   getSessionPromptRuntimeSnapshot,
-  useSessionGoalHeader,
+  type InspectorMemoryState,
+  type InspectorUsage,
+  SessionGoalHeadAction,
+  type SessionPayload,
   useSessionCommands,
+  useSessionGoalHeader,
   useSessionInspectorState,
   useSessionLedger,
   useSessionPromptRuntimeContext,
   useSessionTopbarSlot,
   useSessionUsage,
-  type InspectorMemoryState,
-  type InspectorUsage,
-  type SessionPayload,
 } from "@/systems/session";
 import { useSessionVaultSecrets } from "@/systems/vault";
-
-import { useSessionWindowSidebar } from "./use-session-window-sidebar";
 
 export function useSessionWindowController(input: {
   windowId: string;
@@ -25,8 +25,9 @@ export function useSessionWindowController(input: {
   workspaceId: string;
   session: SessionPayload;
   onDeleteSuccess: () => void;
+  liveDataEnabled: boolean;
 }) {
-  const { windowId, sessionId, workspaceId, session, onDeleteSuccess } = input;
+  const { windowId, sessionId, workspaceId, session, onDeleteSuccess, liveDataEnabled } = input;
   const promptRuntime = useSessionPromptRuntimeContext();
   const controls = useSessionPageControls(sessionId, session, {
     getRuntimeSnapshot: () => getSessionPromptRuntimeSnapshot(promptRuntime),
@@ -42,7 +43,9 @@ export function useSessionWindowController(input: {
     isLoading: sessionLedger.isLoading,
     error: sessionLedger.error,
   };
-  const sessionUsage = useSessionUsage(sessionId, session.workspace_id, session.state);
+  const sessionUsage = useSessionUsage(sessionId, session.workspace_id, session.state, {
+    enabled: liveDataEnabled,
+  });
   const sessionCommands = useSessionCommands(workspaceId, sessionId);
   const usage = sessionUsage.data;
   const inspectorUsage: InspectorUsage | null = usage
@@ -64,6 +67,7 @@ export function useSessionWindowController(input: {
   // Secondary goal reader for the head action — the goal strip inside the
   // thread owns the loop-stream reconciliation, so this instance reads cache only.
   const goal = useSessionGoalHeader(workspaceId, sessionId, {
+    enabled: liveDataEnabled,
     stream: false,
   });
 

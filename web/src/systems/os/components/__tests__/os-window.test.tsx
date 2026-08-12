@@ -2,8 +2,7 @@
 // Invariant: the live OsWindow frame mounts safely in StrictMode, keeps every member mounted
 // across minimize/compact/tab switches, and hosts the deck only at ≥2 members.
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { createRef, StrictMode, useState } from "react";
-import type { Rnd } from "react-rnd";
+import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDesktop } from "../../hooks/use-desktop";
@@ -30,7 +29,7 @@ vi.mock("../../hooks/use-os-window-deck", () => ({
     tabDrag: null,
     dropIndex: null,
     otherWindowCount: 0,
-    tabsRef: { current: null },
+    registerTabs: vi.fn(),
     registerTab: vi.fn(),
     handleTabPointerDown: vi.fn(),
     wasDragged: () => false,
@@ -122,7 +121,7 @@ function hookModel(frame: OsWindowFrameModel): OsWindowModel {
     focused: true,
     keepMounted: true,
     rect: frame.rect,
-    rndRef: createRef<Rnd>(),
+    registerRnd: vi.fn(),
     handleTrafficLight: vi.fn(),
     handlePointerEnter: vi.fn(),
     handlePointerDownCapture: vi.fn(),

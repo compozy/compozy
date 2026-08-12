@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useSelector } from "@xstate/store-react";
 
-import { useActiveWorkspace } from "@/systems/workspace";
 import { useStoreBinding } from "@/hooks/use-store-binding";
+import { useNetworkLiveDataEnabled } from "./use-network-live-data-enabled";
 
 import { NETWORK_DEFAULT_RECENTS_LIMIT, networkChannelsOptions } from "../lib/query-options";
 import type { NetworkChannelSummary, NetworkChannelsResponse } from "../types";
@@ -12,6 +12,7 @@ import {
   PINNED_CHANNELS_STORAGE_KEY,
   rehydratePinnedChannelsStore,
 } from "./pinned-channels-store";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface UseNetworkChannelsResult {
   channels: NetworkChannelSummary[];
@@ -38,9 +39,10 @@ export function useNetworkChannels({
   recentLimit = NETWORK_DEFAULT_RECENTS_LIMIT,
 }: UseNetworkChannelsOptions = {}): UseNetworkChannelsResult {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const selectedWorkspaceId = requestedWorkspaceId ?? activeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
-  const enabled = enabledOption && Boolean(selectedWorkspaceId);
+  const enabled = enabledOption && liveDataEnabled && Boolean(selectedWorkspaceId);
   const query = useQuery(
     networkChannelsOptions(workspaceId, { recent_limit: recentLimit }, enabled)
   );

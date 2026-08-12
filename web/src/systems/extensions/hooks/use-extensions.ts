@@ -1,13 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import {
   extensionInventoryOptions,
   extensionProvenanceOptions,
   extensionsListOptions,
 } from "../lib/query-options";
 import type { InstalledExtensionView } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 /**
  * The active workspace selects which daemon instance a name resolves to: the workspace dev overlay

@@ -1,18 +1,17 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import {
+  type BridgeCatalogFilter,
   bridgeDetailOptions,
   bridgeListFilterForScope,
   bridgeProvidersOptions,
   bridgeRoutesOptions,
-  bridgeSecretBindingsOptions,
-  bridgeTargetsOptions,
-  bridgesListOptions,
-  type BridgeCatalogFilter,
   type BridgeScopeFilter,
+  bridgeSecretBindingsOptions,
+  bridgesListOptions,
+  bridgeTargetsOptions,
 } from "@/systems/bridges";
-
-import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
 export async function preloadBridgesRoute(
   queryClient: QueryClient,

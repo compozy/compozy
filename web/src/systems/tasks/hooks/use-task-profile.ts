@@ -8,6 +8,7 @@ import type { TaskExecutionProfileSetRequest } from "../types";
 
 interface QueryHookOptions {
   enabled?: boolean;
+  refetchIntervalMs?: number | false;
 }
 
 interface SetExecutionProfileParams {
@@ -31,7 +32,12 @@ function invalidateProfileRelatedQueries(queryClient: QueryClient, taskId: strin
 }
 
 export function useTaskExecutionProfile(taskId: string, options: QueryHookOptions = {}) {
-  return useQuery(taskExecutionProfileOptions(taskId, options.enabled ?? true));
+  return useQuery({
+    ...taskExecutionProfileOptions(taskId, options.enabled ?? true),
+    ...(options.refetchIntervalMs === undefined
+      ? {}
+      : { refetchInterval: options.refetchIntervalMs }),
+  });
 }
 
 export function useSetTaskExecutionProfile() {

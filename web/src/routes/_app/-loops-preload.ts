@@ -1,17 +1,16 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import {
   loopAnnotationsOptions,
+  type LoopCatalogStableFilter,
   loopConfigOptions,
   loopDetailOptions,
   loopRunDetailOptions,
+  type LoopRunsFilter,
   loopRunsOptions,
   loopsCatalogOptions,
-  type LoopCatalogStableFilter,
-  type LoopRunsFilter,
 } from "@/systems/loops";
-
-import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
 async function withActiveWorkspace(
   queryClient: QueryClient,
@@ -53,6 +52,7 @@ export function preloadLoopRunFormRoute(queryClient: QueryClient, name: string):
 
 export function preloadLoopEditorRoute(queryClient: QueryClient, name: string): Promise<void> {
   return withActiveWorkspace(queryClient, workspaceId => [
+    import("@/systems/os/apps/loops/loop-editor-location"),
     queryClient.ensureQueryData(loopDetailOptions(workspaceId, name)),
     queryClient.ensureQueryData(loopAnnotationsOptions(workspaceId, name)),
   ]);

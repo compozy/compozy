@@ -1,6 +1,6 @@
 import { shallowEqual } from "@xstate/store";
 
-import { getOsApp } from "../lib/app-registry";
+import { getOsAppDescriptor } from "../lib/app-catalog";
 import { useDesktop } from "./use-desktop";
 import {
   useDesktopOverviewSegmentRequest,
@@ -48,7 +48,7 @@ export function useDesktopManagerSurfaces() {
       windowRecords,
       windows: windowRecords.map(window => ({
         id: window.id,
-        title: getOsApp(window.app).title,
+        title: getOsAppDescriptor(window.app).title,
         detail: window.instanceKey ?? undefined,
       })),
     };

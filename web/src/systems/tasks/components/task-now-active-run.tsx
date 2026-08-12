@@ -12,12 +12,18 @@ interface TaskNowActiveRunProps {
   run: ActiveRun;
   maxAttempts?: number | null;
   onOpenRun: (runId: string) => void;
+  liveDataEnabled?: boolean;
 }
 
 /** Active-run renderer for the task Overview Now strip. */
-export function TaskNowActiveRun({ run, maxAttempts, onOpenRun }: TaskNowActiveRunProps) {
+export function TaskNowActiveRun({
+  run,
+  maxAttempts,
+  onOpenRun,
+  liveDataEnabled = true,
+}: TaskNowActiveRunProps) {
   const isRunning = run.status === "running" || run.status === "starting";
-  const elapsed = useLiveElapsed(run.started_at ?? undefined, isRunning);
+  const elapsed = useLiveElapsed(run.started_at ?? undefined, isRunning && liveDataEnabled);
   const attempts = maxAttempts
     ? `Attempt ${run.attempt} of ${maxAttempts}`
     : `Attempt ${run.attempt}`;

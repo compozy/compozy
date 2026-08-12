@@ -75,6 +75,7 @@ interface RenderDockOptions {
   liveMessages?: readonly ThreadMessage[];
   clarifications?: ClarificationPending[];
   clarificationError?: Error;
+  enabled?: boolean;
 }
 
 function renderDock({
@@ -82,6 +83,7 @@ function renderDock({
   liveMessages,
   clarifications = [] as ClarificationPending[],
   clarificationError,
+  enabled = true,
 }: RenderDockOptions = {}) {
   if (clarificationError) {
     vi.mocked(fetchSessionClarifications).mockRejectedValue(clarificationError);
@@ -98,7 +100,7 @@ function renderDock({
         error={null}
         retry={vi.fn()}
       >
-        <SessionDecisionDock sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
+        <SessionDecisionDock enabled={enabled} sessionId={SESSION_ID} workspaceId={WORKSPACE_ID} />
       </SessionTranscriptThreadProvider>
     </QueryClientProvider>
   );
@@ -170,6 +172,14 @@ describe("SessionDecisionDock", () => {
         decision: "reject-always",
       });
     });
+  });
+
+  it("Should ignore document-level decision shortcuts while its window is inactive", async () => {
+    renderDock({ enabled: false, messages: [permissionMessage("req-1")] });
+
+    fireEvent.keyDown(document.body, { key: "1" });
+    await Promise.resolve();
+    expect(approveSession).not.toHaveBeenCalled();
   });
 
   it("Should ignore digit shortcuts while an input owns focus", async () => {

@@ -6,7 +6,7 @@ const updateAutomationJobMock = vi.fn();
 const createAutomationTriggerMock = vi.fn();
 const updateAutomationTriggerMock = vi.fn();
 
-vi.mock("@/systems/agent", () => ({
+vi.mock("@/systems/agent/hooks/use-agents", () => ({
   useAgents: () => ({ data: [], error: null, isLoading: false }),
 }));
 

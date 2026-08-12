@@ -14,11 +14,10 @@ import {
   Spinner,
 } from "@compozy/ui";
 
-import { DirectoryBrowser } from "@/systems/onboarding";
-
 import { WORKSPACE_SETUP_COPY } from "../lib/workspace-setup-copy";
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
 import { OptionCard } from "./option-card";
+import { DirectoryBrowser } from "@/systems/onboarding";
 
 interface WorkspaceSetupLocationPaneProps {
   setup: WorkspaceSetupContent;

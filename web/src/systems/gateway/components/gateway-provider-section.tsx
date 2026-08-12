@@ -9,13 +9,12 @@ import {
 } from "@compozy/ui";
 import { Radio } from "lucide-react";
 
-import { SettingsGroup } from "@/systems/settings";
-
 import { TIER_LABEL } from "../lib/gateway-copy";
 import type { GatewayProviderCandidate, GatewayProviderModel } from "../lib/gateway-provider-model";
 import type { GatewayTier } from "../types";
 import { GatewayProviderHealthChip } from "./gateway-provider-health-chip";
 import { GatewayProviderRow } from "./gateway-provider-row";
+import { SettingsGroup } from "@/systems/settings";
 
 export interface GatewayProviderSectionProps {
   model: GatewayProviderModel;

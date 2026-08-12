@@ -1,15 +1,14 @@
+import { useTasksNavigation } from "./hooks/use-tasks-navigation";
 import {
-  TaskEditorModal,
-  taskCatalogSearchFor,
-  useTaskCreateState,
-  useTaskEditState,
   type ResolvedTaskDetailSearch,
+  taskCatalogSearchFor,
   type TaskCreateSearch,
+  TaskEditorModal,
   type TaskEditorModalStatus,
   type TaskViewMode,
+  useTaskCreateState,
+  useTaskEditState,
 } from "@/systems/tasks";
-
-import { useTasksNavigation } from "./hooks/use-tasks-navigation";
 
 /**
  * Task creation is a focused single-entity form on the `md` host, so it stays a

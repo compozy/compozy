@@ -1,14 +1,9 @@
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type PointerEvent,
-} from "react";
+import { useEffect, useEffectEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import { seamWeightDelta } from "../lib/seam-preview";
 import type { ProjectedSeam } from "../lib/window-manager-types";
+import { createSeamDragLogic } from "./seam-drag-store";
 
 /** Matches the daemon's `weightTolerance` no-op band for layout.resize. */
 const SEAM_WEIGHT_EPSILON = 0.000001;
@@ -19,13 +14,7 @@ function resizeKeyDelta(event: KeyboardEvent<HTMLElement>): number | null {
   return null;
 }
 
-interface SeamDrag {
-  pointerId: number;
-  coordinate: number;
-  /** Seam captured at pointer-down: preview and commit both resolve against
-   * the unadjusted projection, so the live preview never compounds itself. */
-  seam: ProjectedSeam;
-}
+const layoutSeamDragLogic = createSeamDragLogic<ProjectedSeam>();
 
 export interface LayoutSeamModel {
   dragging: boolean;
@@ -44,32 +33,17 @@ export function useLayoutSeam(
   onSeamPreview: (seam: ProjectedSeam, deltaPx: number) => void,
   onSeamPreviewEnd: () => void
 ): LayoutSeamModel {
-  const drag = useRef<SeamDrag | null>(null);
-  const frame = useRef<number | null>(null);
-  const pendingDeltaPx = useRef(0);
-  const [dragging, setDragging] = useState(false);
+  const dragStore = useStore(layoutSeamDragLogic);
+  const dragging = useSelector(dragStore, snapshot => snapshot.context.phase === "dragging");
   const vertical = seam.orientation === "vertical";
 
-  const cancelFrame = () => {
-    if (frame.current !== null) {
-      cancelAnimationFrame(frame.current);
-      frame.current = null;
-    }
-  };
-
   const cancelDrag = () => {
-    cancelFrame();
-    drag.current = null;
-    setDragging(false);
-    onSeamPreviewEnd();
+    dragStore.trigger.dragCancelled({ endPreview: onSeamPreviewEnd });
   };
 
   const handleEscapeKeyDown = useEffectEvent((event: globalThis.KeyboardEvent) => {
     if (event.key !== "Escape") return;
-    cancelFrame();
-    drag.current = null;
-    setDragging(false);
-    onSeamPreviewEnd();
+    dragStore.trigger.dragCancelled({ endPreview: onSeamPreviewEnd });
   });
 
   useEffect(() => {
@@ -79,10 +53,9 @@ export function useLayoutSeam(
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [dragging]);
 
-  const cleanupActivePreview = useEffectEvent(() => {
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    if (drag.current !== null) onSeamPreviewEnd();
-  });
+  const cleanupActivePreview = useEffectEvent(() =>
+    dragStore.trigger.disposed({ endPreview: onSeamPreviewEnd })
+  );
 
   // A remote commit can unmount the seam mid-drag; never leave a stale preview.
   useEffect(() => {
@@ -96,31 +69,23 @@ export function useLayoutSeam(
       // Suppresses the browser's native drag-select under the moving pointer.
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
-      drag.current = {
+      dragStore.trigger.dragStarted({
         pointerId: event.pointerId,
         coordinate: vertical ? event.clientX : event.clientY,
         seam,
-      };
-      pendingDeltaPx.current = 0;
-      setDragging(true);
+      });
     },
     handlePointerMove: event => {
-      const state = drag.current;
-      if (!state || state.pointerId !== event.pointerId) return;
-      pendingDeltaPx.current = (vertical ? event.clientX : event.clientY) - state.coordinate;
-      if (frame.current !== null) return;
-      frame.current = requestAnimationFrame(() => {
-        frame.current = null;
-        const active = drag.current;
-        if (active !== null) onSeamPreview(active.seam, pendingDeltaPx.current);
+      dragStore.trigger.pointerMoved({
+        coordinate: vertical ? event.clientX : event.clientY,
+        pointerId: event.pointerId,
+        preview: (capturedSeam, deltaPx) => onSeamPreview(capturedSeam, deltaPx),
       });
     },
     handlePointerUp: event => {
-      const state = drag.current;
-      if (!state || state.pointerId !== event.pointerId) return;
-      cancelFrame();
-      drag.current = null;
-      setDragging(false);
+      const state = dragStore.getSnapshot().context;
+      if (state.phase !== "dragging" || state.pointerId !== event.pointerId || !state.seam) return;
+      dragStore.trigger.dragEnded({ pointerId: event.pointerId });
       const deltaPixels = (vertical ? event.clientX : event.clientY) - state.coordinate;
       const delta = seamWeightDelta(state.seam, deltaPixels);
       if (Math.abs(delta) > SEAM_WEIGHT_EPSILON) {
@@ -133,7 +98,7 @@ export function useLayoutSeam(
     },
     handlePointerCancel: cancelDrag,
     handleLostPointerCapture: () => {
-      if (drag.current !== null) cancelDrag();
+      if (dragStore.getSnapshot().context.phase === "dragging") cancelDrag();
     },
     handleKeyDown: event => {
       const weightStep = resizeKeyDelta(event);

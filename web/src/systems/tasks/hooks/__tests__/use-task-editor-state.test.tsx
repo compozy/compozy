@@ -1,5 +1,6 @@
 // Suite: task editor local draft identity
-// Invariant: one source identity preserves edits; a new task/workspace source is visible in every render.
+// Invariant: one source identity preserves edits, a new task/workspace source is visible in every
+// render, and the create boundary admits only one concurrent submission.
 // Boundary IN: task/profile Query projections, active workspace, and template route search.
 // Boundary OUT: mutations and the presentational editor surface.
 import { act, renderHook } from "@testing-library/react";
@@ -14,6 +15,11 @@ const editorMocks = vi.hoisted(() => ({
   enqueue: vi.fn(),
   update: vi.fn(),
 }));
+
+const editorWorkspaces = vi.hoisted(() => [
+  { id: "ws_alpha", name: "Alpha", root_dir: "/workspace/alpha" },
+  { id: "ws_beta", name: "Beta", root_dir: "/workspace/beta" },
+]);
 
 vi.mock("../use-task-actions", () => ({
   useCreateTask: () => ({ isPending: false, mutateAsync: editorMocks.create }),
@@ -36,21 +42,16 @@ vi.mock("../use-tasks", () => ({
   }),
 }));
 
-vi.mock("@/systems/workspace", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/workspace")>();
-  const workspaces = [
-    { id: "ws_alpha", name: "Alpha", root_dir: "/workspace/alpha" },
-    { id: "ws_beta", name: "Beta", root_dir: "/workspace/beta" },
-  ];
-  return {
-    ...actual,
-    useActiveWorkspace: () => ({
-      activeWorkspace: workspaces.find(item => item.id === editorMocks.activeWorkspaceId),
-      workspaces,
-    }),
-    useUserHomeDir: () => "/Users/operator",
-  };
-});
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  useActiveWorkspace: () => ({
+    activeWorkspace: editorWorkspaces.find(item => item.id === editorMocks.activeWorkspaceId),
+    workspaces: editorWorkspaces,
+  }),
+}));
+
+vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({
+  useUserHomeDir: () => "/Users/operator",
+}));
 
 import { buildDetailFixture, buildTaskExecutionProfileFixture } from "../../mocks/fixtures";
 import { useTaskCreateState } from "../use-task-create-state";
@@ -129,6 +130,33 @@ describe("task editor state identity", () => {
     expect(navigate).toHaveBeenCalledWith({
       pathname: "/tasks/new",
       search: { ...search, template: "human_in_loop" },
+    });
+  });
+
+  it("Should admit only one create submission while the first request is pending", async () => {
+    let resolveCreate: ((value: { draft: boolean; id: string }) => void) | undefined;
+    editorMocks.create.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveCreate = resolve;
+      })
+    );
+    const { result } = renderHook(() => useTaskCreateState({}, vi.fn()));
+    const draft = { ...result.current.draft, title: "Single submission" };
+
+    let first: ReturnType<typeof result.current.handleSubmit> | undefined;
+    let second: ReturnType<typeof result.current.handleSubmit> | undefined;
+    await act(async () => {
+      first = result.current.handleSubmit(draft, true);
+      second = result.current.handleSubmit(draft, true);
+      await Promise.resolve();
+    });
+
+    expect(editorMocks.create).toHaveBeenCalledTimes(1);
+    await expect(second).resolves.toBeNull();
+
+    resolveCreate?.({ draft: true, id: "task-created" });
+    await act(async () => {
+      await first;
     });
   });
 

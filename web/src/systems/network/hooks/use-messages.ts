@@ -1,6 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useNetworkLiveDataEnabled } from "./use-network-live-data-enabled";
 
 import { flattenNetworkMessages } from "../lib/infinite-data";
 import { networkDirectMessagesOptions, networkThreadMessagesOptions } from "../lib/query-options";
@@ -10,6 +10,7 @@ import type {
   NetworkSurface,
 } from "../types";
 import { useNetworkMessageTail } from "./use-network-message-tail";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface UseNetworkMessagesResult {
   messages: NetworkConversationMessage[];
@@ -39,6 +40,7 @@ export function useNetworkMessages({
   enabled = true,
 }: UseNetworkMessagesArgs): UseNetworkMessagesResult {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const selectedWorkspaceId = requestedWorkspaceId ?? activeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
   const isReady =
@@ -46,6 +48,7 @@ export function useNetworkMessages({
     Boolean(surface) &&
     Boolean(containerId) &&
     enabled &&
+    liveDataEnabled &&
     Boolean(selectedWorkspaceId);
   const threadQuery = useInfiniteQuery(
     networkThreadMessagesOptions(

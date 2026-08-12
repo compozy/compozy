@@ -1,8 +1,8 @@
 import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
-import type { RuntimeProviderOption } from "@/systems/runtime";
 
 import { joinAgentCategorySegments } from "./agent-category";
 import type { AgentPayload, CreateAgentParams, DuplicateAgentParams } from "../types";
+import type { RuntimeProviderOption } from "@/systems/runtime";
 
 export type AgentCreateScope = CreateAgentParams["scope"];
 export type AgentCreatePermission = NonNullable<CreateAgentParams["agent"]["permissions"]>;

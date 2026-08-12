@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadSettingsMemoryRoute } from "../-settings-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/settings/memory")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: "Memory" } },
   }),
-  loader: ({ context }) => preloadSettingsMemoryRoute(context.queryClient),
+  loader: async ({ context }) =>
+    (await import("../-settings-preload")).preloadSettingsMemoryRoute(context.queryClient),
   component: createOsRouteSync("settings"),
 });

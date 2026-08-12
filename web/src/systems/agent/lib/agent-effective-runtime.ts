@@ -1,6 +1,5 @@
-import type { RuntimeSelectorValue } from "@/systems/runtime";
-
 import type { AgentPayload } from "../types";
+import type { RuntimeSelectorValue } from "@/systems/runtime";
 
 export function resolveAgentRuntimeValue(agent: AgentPayload | undefined): RuntimeSelectorValue {
   const effective = agent?.effective_runtime;

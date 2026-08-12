@@ -8,8 +8,9 @@ import {
   type ParsedNetworkWindowLocation,
 } from "../lib/network-window-location";
 import type { NetworkChannelSummary, NetworkRecentEntry } from "../types";
-import { useActiveWorkspace } from "@/systems/workspace";
+
 import { useNetworkPage, type UseNetworkPageResult } from "./use-network-page";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface UseNetworkRouteShellArgs {
   active: boolean;

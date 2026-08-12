@@ -26,6 +26,8 @@ import type {
   AgentContextIdentity,
   TaskBridgeNotificationSubscriptionsFilter,
   TaskDashboardFilter,
+  TaskDetailView,
+  TaskRunDetailView,
   TaskInboxFilter,
   TaskListFilter,
   TaskReviewsFilter,
@@ -39,6 +41,28 @@ const DEFAULT_REFETCH_INTERVAL = 30_000;
 const LIVE_STALE_TIME = 5_000;
 const LIVE_REFETCH_INTERVAL = 15_000;
 const INITIAL_CURSOR: string | undefined = undefined;
+
+function taskDetailRefetchInterval(detail: TaskDetailView | undefined): number | false {
+  if (!detail) return DEFAULT_REFETCH_INTERVAL;
+  const status = detail.summary.active_run?.status;
+  return status === "queued" ||
+    status === "claimed" ||
+    status === "starting" ||
+    status === "running"
+    ? DEFAULT_REFETCH_INTERVAL
+    : false;
+}
+
+function taskRunDetailRefetchInterval(detail: TaskRunDetailView | undefined): number | false {
+  if (!detail) return LIVE_REFETCH_INTERVAL;
+  const status = detail.run.status;
+  return status === "queued" ||
+    status === "claimed" ||
+    status === "starting" ||
+    status === "running"
+    ? LIVE_REFETCH_INTERVAL
+    : false;
+}
 
 export function tasksListOptions(filters: TaskListFilter = {}, enabled = true) {
   const stableFilters = taskListStableFilter(filters);
@@ -58,7 +82,7 @@ export function taskDetailOptions(id: string, enabled = true) {
     queryKey: tasksKeys.detail(id),
     queryFn: ({ signal }) => getTask(id, signal),
     staleTime: DEFAULT_STALE_TIME,
-    refetchInterval: DEFAULT_REFETCH_INTERVAL,
+    refetchInterval: query => taskDetailRefetchInterval(query.state.data),
     enabled: Boolean(id) && enabled,
   });
 }
@@ -108,7 +132,7 @@ export function taskRunDetailOptions(runId: string, enabled = true) {
     queryKey: tasksKeys.runDetail(runId),
     queryFn: ({ signal }) => getTaskRun(runId, signal),
     staleTime: LIVE_STALE_TIME,
-    refetchInterval: LIVE_REFETCH_INTERVAL,
+    refetchInterval: query => taskRunDetailRefetchInterval(query.state.data),
     enabled: Boolean(runId) && enabled,
   });
 }

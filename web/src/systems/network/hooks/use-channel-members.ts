@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useNetworkLiveDataEnabled } from "./use-network-live-data-enabled";
 
 import { toNetworkPresenceState } from "../lib/network-formatters";
 import { networkPeersOptions } from "../lib/query-options";
 import type { NetworkPeerSummary, NetworkPresenceState } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export type ChannelMemberRole = "agent" | "human";
 
@@ -42,8 +43,10 @@ export function useChannelMembers(
   options?: { enabled?: boolean; workspaceId?: string | null }
 ): UseChannelMembersResult {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const workspaceId = options?.workspaceId ?? activeWorkspaceId ?? "";
-  const enabled = (options?.enabled ?? true) && Boolean(channel) && workspaceId !== "";
+  const enabled =
+    liveDataEnabled && (options?.enabled ?? true) && Boolean(channel) && workspaceId !== "";
   const query = useQuery(networkPeersOptions(workspaceId, channel ?? undefined, enabled));
 
   const peers: ReadonlyArray<NetworkPeerSummary> = query.data ?? [];

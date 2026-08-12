@@ -33,14 +33,14 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
 }));
 
-vi.mock("@/systems/agent", () => ({
+vi.mock("@/systems/agent/hooks/use-agents", () => ({
   useAgents: () => ({
     data: agentFixtures,
     isLoading: false,
   }),
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspace: { id: "ws_123", name: "polybot" },
     activeWorkspaceId: "ws_123",

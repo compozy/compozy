@@ -23,12 +23,13 @@ import {
 } from "@compozy/ui";
 
 import { getAgentSessionStatus } from "../lib/session-status";
+
 import {
   getSessionDisplayTitle,
   isSessionRunning,
-  SessionRowActions,
   type SessionLifecycleActionHandlers,
   type SessionPayload,
+  SessionRowActions,
 } from "@/systems/session";
 
 const RELATIVE_TIME_REFRESH_MS = 30_000;

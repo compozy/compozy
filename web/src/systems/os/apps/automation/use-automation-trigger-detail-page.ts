@@ -1,12 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
+  automationMatchesActiveWorkspace,
+  automationWorkspaceAccessError,
   useAutomationTrigger,
   useAutomationTriggerEditor,
   useAutomationTriggerRuns,
-  automationMatchesActiveWorkspace,
-  automationWorkspaceAccessError,
   useDeleteAutomationTrigger,
   useUpdateAutomationTrigger,
 } from "@/systems/automation";
@@ -19,10 +20,13 @@ import {
 /** Detail view-model for a single automation trigger resolved from `triggerId`. */
 export function useAutomationTriggerDetailPage(triggerId: string) {
   const navigate = useNavigate();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const { activeWorkspaceId, isLoading: workspaceLoading, workspaces } = useActiveWorkspace();
   const userHomeDir = useUserHomeDir();
 
-  const triggerDetailQuery = useAutomationTrigger(triggerId, { enabled: Boolean(triggerId) });
+  const triggerDetailQuery = useAutomationTrigger(triggerId, {
+    enabled: liveDataEnabled && Boolean(triggerId),
+  });
   const loadedTrigger = triggerDetailQuery.data;
   const canAccessTrigger =
     loadedTrigger !== undefined &&
@@ -31,7 +35,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
   const triggerRunsQuery = useAutomationTriggerRuns(
     triggerId,
     { limit: 10 },
-    { enabled: Boolean(triggerId) && canAccessTrigger }
+    { enabled: liveDataEnabled && Boolean(triggerId) && canAccessTrigger }
   );
 
   const updateMutation = useUpdateAutomationTrigger();

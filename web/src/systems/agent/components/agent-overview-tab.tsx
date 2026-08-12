@@ -4,8 +4,6 @@ import type { ReactNode } from "react";
 
 import { Empty, MetadataList, Pill, Section, Skeleton } from "@compozy/ui";
 
-import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
-
 import {
   formatAbsentOverride,
   formatPromptWordCount,
@@ -15,6 +13,7 @@ import type { AgentPayload } from "../types";
 import { AgentPanelBox } from "./agent-panel-box";
 import { AgentStatsGrid } from "./agent-stats-grid";
 import { formatAgentRuntimeDuration } from "../lib/format-agent-runtime-duration";
+import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 
 export interface AgentOverviewTabProps {
   agent: AgentPayload;

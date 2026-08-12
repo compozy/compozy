@@ -1,7 +1,15 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useSelector } from "@xstate/store-react";
+
+import { useStoreBinding } from "@/hooks/use-store-binding";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 import { registerWindowManagerClient } from "../adapters/window-manager-api";
 import type { WindowManagerClientView } from "../lib/window-manager-types";
+import {
+  windowManagerClientRegistrationLogic,
+  windowManagerRetryDelay,
+} from "./window-manager-client-registration-store";
 
 const CLIENT_ID_STORAGE_KEY = "compozy.window-manager.client-id";
 
@@ -15,20 +23,6 @@ function randomClientId(): string {
     return `web-${Array.from(bytes, value => value.toString(16).padStart(2, "0")).join("")}`;
   }
   return `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function scheduleRetry(callback: () => void, delay: number): () => void {
-  let active = true;
-  const timer = setTimeout(() => {
-    if (!active) return;
-    active = false;
-    callback();
-  }, delay);
-  return () => {
-    if (!active) return;
-    active = false;
-    clearTimeout(timer);
-  };
 }
 
 export function stableWindowManagerClientId(): string {
@@ -53,101 +47,68 @@ export interface WindowManagerClientRegistrationState {
   reregister: () => void;
 }
 
-interface RegistrationResult {
-  workspaceId: string;
-  client: WindowManagerClientView | null;
-  status: "registering" | "registered" | "error";
-  error: Error | null;
-}
-
 export function useWindowManagerClient(
-  workspaceId: string | null,
-  onClientChange: (client: WindowManagerClientView | null) => void,
-  onErrorChange: (error: Error | null) => void = () => {}
+  workspaceId: string | null
 ): WindowManagerClientRegistrationState {
   const [clientId] = useState(stableWindowManagerClientId);
-  const [registration, setRegistration] = useState<RegistrationResult | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const publishedWorkspace = useRef<string | null>(null);
-  const retryCount = useRef(0);
-  const cancelRetry = useRef<(() => void) | null>(null);
-  const publishClient = useEffectEvent(onClientChange);
-  const publishError = useEffectEvent(onErrorChange);
+  const documentVisible = useDocumentVisible();
+  const { store } = useStoreBinding(workspaceId, () =>
+    windowManagerClientRegistrationLogic.createStore({
+      clientId,
+      documentVisible,
+      workspaceId,
+    })
+  );
+  const client = useSelector(store, snapshot => snapshot.context.client);
+  const epoch = useSelector(store, snapshot => snapshot.context.epoch);
+  const error = useSelector(store, snapshot => snapshot.context.error);
+  const phase = useSelector(store, snapshot => snapshot.context.phase);
+  const retryCount = useSelector(store, snapshot => snapshot.context.retryCount);
+  const selectedWorkspaceId = useSelector(store, snapshot => snapshot.context.workspaceId);
 
   useEffect(() => {
-    if (workspaceId === null) {
-      publishError(null);
-      publishClient(null);
-      publishedWorkspace.current = null;
-      retryCount.current = 0;
-      return undefined;
-    }
+    store.trigger.documentVisibilityChanged({ visible: documentVisible });
+  }, [documentVisible, store]);
 
+  useEffect(() => {
+    if (phase !== "registering" || selectedWorkspaceId === null) return undefined;
     const controller = new AbortController();
-    let ownedCancelRetry: (() => void) | null = null;
-    if (publishedWorkspace.current !== workspaceId) {
-      publishClient(null);
-      publishedWorkspace.current = workspaceId;
-      retryCount.current = 0;
-    }
-    publishError(null);
-
-    void registerWindowManagerClient(workspaceId, clientId, undefined, controller.signal)
+    void registerWindowManagerClient(selectedWorkspaceId, clientId, undefined, controller.signal)
       .then(view => {
         if (controller.signal.aborted) return;
-        if (view.workspaceId !== workspaceId || view.clientId !== clientId) {
+        if (view.workspaceId !== selectedWorkspaceId || view.clientId !== clientId) {
           throw new Error("The daemon registered a different window-manager client.");
         }
-        setRegistration({ workspaceId, client: view, status: "registered", error: null });
-        publishError(null);
-        retryCount.current = 0;
-        publishClient(view);
+        store.trigger.registrationSucceeded({ client: view, epoch });
       })
       .catch(cause => {
         if (controller.signal.aborted) return;
-        const nextError =
-          cause instanceof Error ? cause : new Error("Unable to register this browser client.");
-        setRegistration({ workspaceId, client: null, status: "error", error: nextError });
-        publishError(nextError);
-        publishClient(null);
-        const delay = Math.min(8_000, 500 * 2 ** Math.min(retryCount.current, 4));
-        const cancel = scheduleRetry(() => {
-          if (cancelRetry.current === cancel) cancelRetry.current = null;
-          retryCount.current += 1;
-          setRegistration({ workspaceId, client: null, status: "registering", error: null });
-          setAttempt(current => current + 1);
-        }, delay);
-        ownedCancelRetry = cancel;
-        cancelRetry.current = cancel;
+        store.trigger.registrationFailed({
+          epoch,
+          error:
+            cause instanceof Error ? cause : new Error("Unable to register this browser client."),
+        });
       });
+    return () => controller.abort();
+  }, [clientId, epoch, phase, selectedWorkspaceId, store]);
 
-    return () => {
-      controller.abort();
-      ownedCancelRetry?.();
-      if (cancelRetry.current === ownedCancelRetry) {
-        cancelRetry.current = null;
-      }
-    };
-  }, [attempt, clientId, workspaceId]);
+  useEffect(() => {
+    if (phase !== "waiting-retry") return undefined;
+    const timer = setTimeout(
+      () => store.trigger.retryElapsed(),
+      windowManagerRetryDelay(retryCount)
+    );
+    return () => clearTimeout(timer);
+  }, [phase, retryCount, store]);
 
-  const current = registration?.workspaceId === workspaceId ? registration : null;
-  const status = workspaceId === null ? "idle" : (current?.status ?? "registering");
-
+  const status =
+    phase === "idle" || phase === "registering" || phase === "registered" ? phase : "error";
   return {
     clientId,
-    registrationEpoch: attempt,
-    client: current?.client ?? null,
+    registrationEpoch: epoch,
+    client,
     status,
-    error: current?.error ?? null,
-    reregister: () => {
-      cancelRetry.current?.();
-      cancelRetry.current = null;
-      retryCount.current = 0;
-      if (workspaceId === null) return;
-      setRegistration({ workspaceId, client: null, status: "registering", error: null });
-      onClientChange(null);
-      onErrorChange(null);
-      setAttempt(current => current + 1);
-    },
+    error,
+    reregister: () => store.trigger.recoveryRequested(),
   };
 }

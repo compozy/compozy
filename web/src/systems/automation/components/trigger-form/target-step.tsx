@@ -1,9 +1,9 @@
 import { PillGroup } from "@compozy/ui";
-import type { AgentPayload } from "@/systems/agent";
-import { LoopTargetFields, type LoopTargetCatalog, type LoopTargetDraft } from "@/systems/loops";
 
 import type { AutomationTargetMode } from "../../lib/automation-drafts";
 import { AgentPromptStep } from "./agent-prompt-step";
+import type { AgentPayload } from "@/systems/agent";
+import { type LoopTargetCatalog, type LoopTargetDraft, LoopTargetFields } from "@/systems/loops";
 
 interface TriggerTargetStepProps {
   mode: AutomationTargetMode;

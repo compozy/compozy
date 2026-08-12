@@ -168,6 +168,38 @@ describe("ticketed event source", () => {
     vi.useRealTimers();
   });
 
+  it("Should preserve reconnect backoff across short-lived open connections", async () => {
+    vi.useFakeTimers();
+    let issued = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        if (requestPath(input) === "/api/status") {
+          return Promise.resolve(listenerResponse("private"));
+        }
+        issued += 1;
+        return Promise.resolve(ticketResponse(`tkt_${issued}`));
+      })
+    );
+
+    const source = createStreamEventSource("/api/tasks/t1/stream");
+    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    FakeEventSource.instances[0].onopen?.(new Event("open"));
+    FakeEventSource.instances[0].onerror?.(new Event("error"));
+
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+    FakeEventSource.instances[1].onopen?.(new Event("open"));
+    FakeEventSource.instances[1].onerror?.(new Event("error"));
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(FakeEventSource.instances).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(3));
+
+    source.close();
+  });
+
   it("Should re-attach registered listeners to each reconnected socket", async () => {
     vi.useFakeTimers();
     let issued = 0;

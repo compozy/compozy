@@ -1,6 +1,8 @@
-import { useState, type SetStateAction } from "react";
+import type { SetStateAction } from "react";
+import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
+import { useStoreBinding } from "@/hooks/use-store-binding";
 import { useUpdateTask } from "./use-task-actions";
 import { useTaskExecutionProfile } from "./use-task-profile";
 import { useTask } from "./use-tasks";
@@ -10,6 +12,7 @@ import {
   taskEditorDraftFromTask,
   type TaskEditorDraft,
 } from "@/systems/tasks/lib/task-editor";
+import { taskEditorDraftLogic } from "./task-editor-draft-store";
 
 /**
  * Edit-form state for one task. `onSaved` runs after the update lands so the
@@ -27,21 +30,29 @@ export function useTaskEditState(id: string | undefined, onSaved: () => void) {
     task && profile ? `${task.id}:${task.updated_at}:${profile.updated_at}` : "pending";
   const sourceDraft =
     task && profile ? taskEditorDraftFromTask(task, profile) : EMPTY_TASK_EDITOR_DRAFT;
-  const [draftState, setDraftState] = useState(() => ({ draft: sourceDraft, sourceKey: taskKey }));
-  const currentDraftState =
-    draftState.sourceKey === taskKey ? draftState : { draft: sourceDraft, sourceKey: taskKey };
-  if (currentDraftState !== draftState) {
-    setDraftState(currentDraftState);
-  }
-  const draft = currentDraftState.draft;
-  const setDraft = (update: SetStateAction<TaskEditorDraft>) =>
-    setDraftState(current => {
-      const currentDraft = current.sourceKey === taskKey ? current.draft : sourceDraft;
-      return {
-        draft: typeof update === "function" ? update(currentDraft) : update,
-        sourceKey: taskKey,
-      };
+  const { store } = useStoreBinding(
+    taskKey,
+    () =>
+      taskEditorDraftLogic.createStore({
+        draft: sourceDraft,
+        scopeKey: taskKey,
+        variantKey: "edit",
+      }),
+    () =>
+      taskEditorDraftLogic.createStore({
+        draft: sourceDraft,
+        scopeKey: taskKey,
+        variantKey: "edit",
+      }),
+    (current, nextKey) => current.key !== nextKey
+  );
+  const draft = useSelector(store, snapshot => snapshot.context.draft);
+  const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
+    const currentDraft = store.getSnapshot().context.draft;
+    store.trigger.draftChanged({
+      draft: typeof update === "function" ? update(currentDraft) : update,
     });
+  };
 
   const handleSubmit = async (nextDraft: TaskEditorDraft) => {
     if (!id || !task || !profile) return null;
