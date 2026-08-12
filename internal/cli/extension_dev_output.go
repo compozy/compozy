@@ -7,7 +7,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const extensionLogMessageKey = "message"
+const (
+	extensionLogEventName      = "extension_log"
+	extensionLogMessageKey     = "message"
+	extensionLogResetEventName = "extension_log_reset"
+	extensionLogStreamEpochKey = "stream_epoch"
+)
 
 type extensionLogResetRecord struct {
 	Event       string               `json:"event"`
@@ -48,7 +53,7 @@ func extensionLogsBundle(snapshot ExtensionLogsRecord) outputBundle {
 			}
 			return renderToonArray(
 				"extension_logs",
-				[]string{"stream_epoch", "sequence", "timestamp", extensionLogMessageKey},
+				[]string{extensionLogStreamEpochKey, "sequence", "timestamp", extensionLogMessageKey},
 				rows,
 			), nil
 		},
@@ -57,7 +62,7 @@ func extensionLogsBundle(snapshot ExtensionLogsRecord) outputBundle {
 
 func extensionLogResetBundle(snapshot ExtensionLogsRecord) outputBundle {
 	record := extensionLogResetRecord{
-		Event:       "extension_log_reset",
+		Event:       extensionLogResetEventName,
 		Logs:        snapshot.Logs,
 		StreamEpoch: snapshot.StreamEpoch,
 	}
@@ -80,8 +85,8 @@ func extensionLogResetBundle(snapshot ExtensionLogsRecord) outputBundle {
 			}
 			return renderHumanBlocks(
 				renderToonObject(
-					"extension_log_reset",
-					[]string{"stream_epoch", "log_count"},
+					extensionLogResetEventName,
+					[]string{extensionLogStreamEpochKey, "log_count"},
 					[]string{snapshot.StreamEpoch, strconv.Itoa(len(snapshot.Logs))},
 				),
 				logs,

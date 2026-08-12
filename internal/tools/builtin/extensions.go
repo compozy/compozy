@@ -394,7 +394,8 @@ const extensionLogsInputSchema = `{
 	"properties":{
 		"name":{"type":"string","minLength":1},
 		"after":{"type":"integer","minimum":0,"description":"Return entries after this sequence within stream_epoch"},
-		"stream_epoch":{"type":"string","minLength":1,"description":"Opaque ring identity returned by an earlier log read; required when after is greater than zero"}
+		"stream_epoch":{"type":"string","minLength":1,"description":` +
+	`"Opaque ring identity returned by an earlier log read; required when after is greater than zero"}
 	},
 	"additionalProperties":false
 }`

@@ -312,10 +312,10 @@ func streamExtensionLogs(
 	streamEpoch string,
 ) error {
 	return client.StreamExtensionLogs(cmd.Context(), workspace, name, after, streamEpoch, func(event sse.Event) error {
-		if event.Event != "extension_log" && event.Event != "extension_log_reset" {
+		if event.Event != extensionLogEventName && event.Event != extensionLogResetEventName {
 			return nil
 		}
-		if event.Event == "extension_log_reset" {
+		if event.Event == extensionLogResetEventName {
 			var snapshot ExtensionLogsRecord
 			if err := json.Unmarshal(event.Data, &snapshot); err != nil {
 				return fmt.Errorf("cli: decode extension log reset event: %w", err)

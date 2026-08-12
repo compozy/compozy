@@ -137,7 +137,11 @@ func (h *BaseHandlers) ExtensionLogs(c *gin.Context) {
 	}
 	streamEpoch := strings.TrimSpace(c.Query("stream_epoch"))
 	if after > 0 && streamEpoch == "" {
-		h.respondExtensionError(c, http.StatusBadRequest, errors.New("stream_epoch is required when after is greater than zero"))
+		h.respondExtensionError(
+			c,
+			http.StatusBadRequest,
+			errors.New("stream_epoch is required when after is greater than zero"),
+		)
 		return
 	}
 	follow, err := ParseOptionalBool(c.Query("follow"))
@@ -182,7 +186,7 @@ func (h *BaseHandlers) streamExtensionLogs(
 		return
 	}
 	streamEpoch := initial.StreamEpoch
-	cursor := after
+	var cursor int64
 	if requestedEpoch != "" && requestedEpoch != streamEpoch {
 		if err := emitExtensionLogReset(writer, initial); err != nil {
 			h.logSSEWriteFailure(extensionLogResetSSEEventName, err)
