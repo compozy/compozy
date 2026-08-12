@@ -226,6 +226,11 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 	service := newSessionCommandService(
 		registry,
 		func() sessionCommandAgentResolver {
+			// A miss here intentionally degrades to the name-based lookup inside
+			// resolveAgentDef: catalog resolution is an enhancement for
+			// extension-published agents, never a requirement. The production
+			// *resourceAgentCatalog is guaranteed to satisfy the interface by the
+			// compile-time assertion in agent_skill_catalog.go.
 			agentResolver, _ := n.deps.AgentCatalog.(sessionCommandAgentResolver)
 			return agentResolver
 		},
