@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, type FocusEvent, type PointerEvent } from "react";
 import type { Rnd, RndDragCallback, RndResizeCallback, RndResizeStartCallback } from "react-rnd";
+import { shallowEqual } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import type { OsTrafficLightAction } from "../components/os-traffic-lights";
@@ -122,7 +123,16 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
   const movesAsUnit = frame.stackId !== null && frame.members.length > 1;
   const visibleNow = frame.desktopId === activeDesktopId && !frame.minimized;
   const interactionStore = useStore(osWindowInteractionLogic, { visible: visibleNow });
-  const interaction = useSelector(interactionStore, snapshot => snapshot.context);
+  const interaction = useSelector(
+    interactionStore,
+    snapshot => ({
+      hasBeenVisible: snapshot.context.hasBeenVisible,
+      pendingRect: snapshot.context.pendingRect,
+      resizeMax: snapshot.context.resizeMax,
+      rollbackAttempt: snapshot.context.rollbackAttempt,
+    }),
+    shallowEqual
+  );
 
   useEffect(() => {
     interactionStore.trigger.visibilityObserved({ visible: visibleNow });
@@ -216,18 +226,17 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
 
   useLayoutEffect(() => {
     const gestureAttempt = interaction.rollbackAttempt;
-    if (gestureAttempt === null || interaction.gestureAttempt !== gestureAttempt) return;
+    if (
+      gestureAttempt === null ||
+      interactionStore.getSnapshot().context.gestureAttempt !== gestureAttempt
+    ) {
+      return;
+    }
     interactionStore.trigger.rollbackApplied({ attempt: gestureAttempt });
     const authoritative = manager.getState().windows[activeId];
     if (!authoritative) return;
     interactionStore.trigger.authoritativeRectApplied({ rect: authoritative.rect });
-  }, [
-    activeId,
-    interaction.gestureAttempt,
-    interaction.rollbackAttempt,
-    interactionStore,
-    manager,
-  ]);
+  }, [activeId, interaction.rollbackAttempt, interactionStore, manager]);
 
   // Holds the released rect while the commit is in flight; the settled
   // authoritative rect replaces it, and rollbacks clear it explicitly.

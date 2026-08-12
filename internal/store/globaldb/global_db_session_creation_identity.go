@@ -61,8 +61,7 @@ func (g *SessionRepo) RegisterSessionWithCreationIdentity(
 				}
 				return nil
 			}
-			if strings.TrimSpace(storedState) != globalDBSessionStateStarting ||
-				strings.TrimSpace(normalized.State) != globalDBSessionStateStarting {
+			if strings.TrimSpace(storedState) != globalDBSessionStateStarting {
 				return sessionCreationIdentityMismatch(normalized.ID)
 			}
 		}

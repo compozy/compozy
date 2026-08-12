@@ -846,7 +846,7 @@ describe("useWindowMergeTarget", () => {
     });
   });
 
-  it("Should not advertise a head occluded by a higher floating frame", () => {
+  it("Should measure only the visible top frame when heads overlap", () => {
     const frames = installAnimationFrameQueue();
     const shell = createShell();
     const over: OsWindowFrameModel = {
@@ -858,16 +858,36 @@ describe("useWindowMergeTarget", () => {
       rect: { x: 0, y: 0, w: 1280, h: 800 },
     };
     shell.setRuntimeState({ frames: { "desktop:main": [targetFrame(), over] } });
-    const { result } = renderHook(() => useWindowMergeTarget(targetFrame(), true), {
-      wrapper: shell.wrapper,
-    });
-    result.current.chromeRef.current = chromeWithHead();
+    const { result } = renderHook(
+      () => ({
+        lower: useWindowMergeTarget(targetFrame(), true),
+        upper: useWindowMergeTarget(over, true),
+      }),
+      { wrapper: shell.wrapper }
+    );
+    const lowerChrome = chromeWithHead();
+    const upperChrome = chromeWithHead();
+    const lowerHead = lowerChrome.querySelector('[data-slot="os-window-head"]');
+    const upperHead = upperChrome.querySelector('[data-slot="os-window-head"]');
+    if (!(lowerHead instanceof HTMLElement) || !(upperHead instanceof HTMLElement)) {
+      throw new Error("window head fixtures are required");
+    }
+    const measureLower = vi.spyOn(lowerHead, "getBoundingClientRect");
+    const measureUpper = vi.spyOn(upperHead, "getBoundingClientRect");
+    result.current.lower.chromeRef.current = lowerChrome;
+    result.current.upper.chromeRef.current = upperChrome;
 
     act(() => beginPrimarySnapGesture());
     act(() => pointerMove(200, 60));
     frames.flush();
 
-    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toBeNull();
+    expect(measureUpper).toHaveBeenCalledOnce();
+    expect(measureLower).not.toHaveBeenCalled();
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
+      frameId: "frame:over",
+      targetWindowId: "window:over",
+      insertIndex: 1,
+    });
   });
 
   it("Should measure only the latest pointer position once per animation frame", () => {

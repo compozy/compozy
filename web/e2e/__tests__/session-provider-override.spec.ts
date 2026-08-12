@@ -7,13 +7,17 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { openAppWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
-import { waitForSeedSessionActive } from "../fixtures/runtime";
+import {
+  cleanupBrowserSettingsFixtures,
+  seedBrowserSettingsFixtures,
+  waitForSeedSessionActive,
+} from "../fixtures/runtime";
 import {
   SESSION_CREATE_FIRST_MESSAGE,
   sessionLifecycleSelectors,
   sessionWindowSelectors,
 } from "../fixtures/selectors";
-import { expect, test } from "../fixtures/test";
+import { expect, test as base } from "../fixtures/test";
 import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
@@ -70,6 +74,58 @@ interface WorkspaceDetailPayload {
   providers: Array<{ name: string }>;
 }
 
+interface ProviderCatalogFixture {
+  overrideCommand: string;
+}
+
+const test = base.extend<{ providerCatalog: ProviderCatalogFixture }>({
+  providerCatalog: async ({ runtime }, use) => {
+    if (!runtime.paths) {
+      throw new Error("provider override browser test requires launch-mode runtime paths");
+    }
+    const overrideCommand = await readAgentCommand(runtime.paths.homeDir, browserLifecycleAgent);
+    const settingsSeed = await seedBrowserSettingsFixtures(runtime, {
+      providers: [
+        {
+          name: overrideProvider,
+          settings: {
+            command: overrideCommand,
+            display_name: "QA Browser Override",
+            harness: "acp",
+            auth_mode: "none",
+            models: {
+              default: "qa-browser-model",
+              reasoning: { apply: "acp_option" },
+              curated: [
+                {
+                  id: "qa-browser-model",
+                  display_name: "QA Browser Model",
+                  supports_reasoning: true,
+                  reasoning_efforts: ["low", "medium", "high"],
+                  default_reasoning_effort: "medium",
+                },
+                ...Array.from({ length: 30 }, (_, index) => {
+                  const suffix = (index + 1).toString().padStart(2, "0");
+                  return {
+                    id: `qa-browser-model-${suffix}`,
+                    display_name: `QA Browser Model ${suffix}`,
+                  };
+                }),
+              ],
+            },
+          },
+        },
+      ],
+    });
+
+    try {
+      await use({ overrideCommand });
+    } finally {
+      await cleanupBrowserSettingsFixtures(runtime, settingsSeed);
+    }
+  },
+});
+
 test.use({
   runtimeOptions: {
     env: { PATH: ["/usr/bin", "/bin"].join(path.delimiter) },
@@ -88,6 +144,7 @@ test.use({
 test("operator can create a provider/model override session and attach without losing provider truth", async ({
   appPage,
   browserArtifacts,
+  providerCatalog,
   runtime,
 }) => {
   if (!runtime.paths) {
@@ -98,8 +155,7 @@ test("operator can create a provider/model override session and attach without l
   const workspaceRoot = await mkdtemp(
     path.join(os.tmpdir(), "compozy-provider-override-workspace-")
   );
-  const overrideCommand = await readAgentCommand(runtime.paths.homeDir, browserLifecycleAgent);
-
+  const { overrideCommand } = providerCatalog;
   await writeWorkspaceConfig({
     rootDir: workspaceRoot,
     defaultProvider: mockAgentProvider,
@@ -200,7 +256,9 @@ test("operator can create a provider/model override session and attach without l
     documentScrollBefore
   );
   await appPage.getByTestId("runtime-selector-search").fill("qa-browser-model");
-  await appPage.getByTestId("runtime-selector-custom").click();
+  await appPage
+    .locator(`[data-provider="${overrideProvider}"][data-model="qa-browser-model"]`)
+    .click();
   await appPage.keyboard.press("Escape");
   const promptRequestPromise = appPage.waitForRequest(
     request => request.method() === "POST" && request.url().endsWith("/prompt")
@@ -468,14 +526,6 @@ async function writeWorkspaceConfig(input: {
       `default_reasoning_effort = "medium"`,
       ""
     );
-    for (let index = 1; index <= 30; index += 1) {
-      lines.push(
-        `[[providers.${overrideProvider}.models.curated]]`,
-        `id = "qa-browser-model-${index.toString().padStart(2, "0")}"`,
-        `display_name = "QA Browser Model ${index.toString().padStart(2, "0")}"`,
-        ""
-      );
-    }
   }
 
   await writeFile(configPath, `${lines.join("\n")}\n`, "utf8");

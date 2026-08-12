@@ -44,22 +44,35 @@ function pointInRect(point: { x: number; y: number }, rect: OsRect): boolean {
   );
 }
 
-/** A higher floating frame over the pointer occludes this head visually. */
-function coveredByHigherFrame(
+function highestFloatingLayerAtPoint(
   state: OsDesktopRuntimeStore,
-  frame: OsWindowFrameModel,
   draggedWindowId: string,
   layerPoint: { x: number; y: number }
-): boolean {
-  const frames = state.frames[frame.desktopId] ?? [];
-  return frames.some(
-    other =>
-      other.id !== frame.id &&
-      other.kind === "floating" &&
-      !other.minimized &&
-      !other.members.some(member => member === draggedWindowId) &&
-      other.layer > frame.layer &&
-      pointInRect(layerPoint, other.rect)
+): ReadonlyMap<string, number> {
+  const layers = new Map<string, number>();
+  for (const [desktopId, frames] of Object.entries(state.frames)) {
+    for (const frame of frames) {
+      if (
+        frame.kind !== "floating" ||
+        frame.minimized ||
+        frame.members.some(member => member === draggedWindowId) ||
+        !pointInRect(layerPoint, frame.rect)
+      ) {
+        continue;
+      }
+      const current = layers.get(desktopId);
+      if (current === undefined || frame.layer > current) layers.set(desktopId, frame.layer);
+    }
+  }
+  return layers;
+}
+
+function pointCanReachFrameHead(point: { x: number; y: number }, rect: OsRect): boolean {
+  return (
+    point.x >= rect.x &&
+    point.x <= rect.x + rect.w &&
+    point.y >= rect.y - HEAD_HIT_SLOP_TOP &&
+    point.y <= rect.y + rect.h
   );
 }
 
@@ -86,16 +99,18 @@ function resolveMergeTarget(
     }
   }
   candidates.sort((left, right) => right.frame.layer - left.frame.layer);
+  const highestLayers = highestFloatingLayerAtPoint(state, gesture.source.windowId, layerPoint);
 
   for (const { registration, frame } of candidates) {
-    const covered = coveredByHigherFrame(state, frame, gesture.source.windowId, layerPoint);
+    if (!pointCanReachFrameHead(layerPoint, frame.rect)) continue;
+    const covered = (highestLayers.get(frame.desktopId) ?? frame.layer) > frame.layer;
+    if (covered) continue;
     if (registration.kind === "deck") {
       const tabs = registration.getTabs();
       const bounds = tabs?.getBoundingClientRect();
       if (
         tabs === null ||
         bounds === undefined ||
-        covered ||
         !pointInsideDeck(
           tabs,
           point,
@@ -116,7 +131,7 @@ function resolveMergeTarget(
       };
     }
     const head = registration.getChrome()?.querySelector('[data-slot="os-window-head"]');
-    if (!(head instanceof HTMLElement) || covered) continue;
+    if (!(head instanceof HTMLElement)) continue;
     const box = head.getBoundingClientRect();
     const inside =
       point.clientX >= box.left &&

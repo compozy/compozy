@@ -85,6 +85,61 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 			t.Fatalf("loaded identity = %#v, want %#v", loaded, identity)
 		}
 	})
+
+	t.Run("Should bind a terminal recovery snapshot over an identityless starting projection", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-recovery")
+		now := time.Date(2026, 8, 12, 12, 28, 45, 0, time.UTC)
+		identity := store.SessionCreationIdentity{
+			CreationProfileRef: "profile-recovered",
+			PolicySpecDigest:   "policy-recovered",
+			CreationDigest:     "creation-recovered",
+		}
+		provisional := goalSessionInfoForTest("session-recovered", "ws-goal-recovery", now)
+		provisional.State = globalDBSessionStateStarting
+		if err := globalDB.RegisterSession(testutil.Context(t), provisional); err != nil {
+			t.Fatalf("RegisterSession(provisional) error = %v", err)
+		}
+
+		recovered := provisional
+		recovered.State = globalDBSessionStateStopped
+		recovered.UpdatedAt = now.Add(time.Second)
+		registration, err := globalDB.RegisterSessionWithCreationIdentity(
+			testutil.Context(t),
+			recovered,
+			identity,
+		)
+		if err != nil {
+			t.Fatalf("RegisterSessionWithCreationIdentity(recovered) error = %v", err)
+		}
+		if registration.Created || registration.Identity != identity {
+			t.Fatalf("recovered registration = %#v, want existing exact identity", registration)
+		}
+
+		indexed, err := globalDB.ListSessions(testutil.Context(t), store.SessionListQuery{ID: recovered.ID})
+		if err != nil {
+			t.Fatalf("ListSessions(recovered) error = %v", err)
+		}
+		if len(indexed) != 1 || indexed[0].State != recovered.State {
+			t.Fatalf("ListSessions(recovered) = %#v, want one stopped session", indexed)
+		}
+		loaded, err := globalDB.GetSessionCreationIdentity(testutil.Context(t), recovered.ID)
+		if err != nil {
+			t.Fatalf("GetSessionCreationIdentity(recovered) error = %v", err)
+		}
+		if loaded != identity {
+			t.Fatalf("recovered identity = %#v, want %#v", loaded, identity)
+		}
+
+		settled := goalSessionInfoForTest("session-settled", "ws-goal-recovery", now)
+		settled.State = globalDBSessionStateStopped
+		if err := globalDB.RegisterSession(testutil.Context(t), settled); err != nil {
+			t.Fatalf("RegisterSession(settled) error = %v", err)
+		}
+		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), settled, identity)
+		requireSessionCreationIdentityMismatch(t, err)
+	})
 }
 
 func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
