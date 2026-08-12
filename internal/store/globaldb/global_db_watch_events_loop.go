@@ -8,6 +8,8 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 )
 
+// readLoopWatchEvents returns loop-stream ledger rows strictly after the
+// stream cursor, projecting each row's rowid as the event's cursor value.
 func (g *WatchEventsRepo) readLoopWatchEvents(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,

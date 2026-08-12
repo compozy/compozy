@@ -155,6 +155,10 @@ func normalizeWatchEventsQuery(query looppkg.WatchEventsQuery) (normalizedWatchE
 	}, nil
 }
 
+// readWatchEventsCursor returns one stream's current replay position for the
+// queried workspace and kinds. Every stream cursors on a value that is
+// monotonic across the whole stream; the loop stream uses the ledger rowid
+// because its seq column restarts per loop run.
 func (g *WatchEventsRepo) readWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
