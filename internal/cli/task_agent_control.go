@@ -193,7 +193,13 @@ func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
 		Use:     "fan-out <task-id>",
 		Aliases: []string{"fanout"},
 		Short:   "Enqueue designated sibling runs for one task",
-		Args:    exactOneNonBlankArg(),
+		Example: `  # Enqueue two sibling runs in separate worktrees
+  compozy task fan-out task_123 --worktree-per-run \
+    --designation "Review the API" --designation "Review the web app"
+
+  # Output example
+  compozy task fan-out task_123 --worktree-per-run --designation "Review the API"`,
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			designations, err := taskFanOutDesignations(input.Designations)
 			if err != nil {
@@ -211,6 +217,7 @@ func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
 				NetworkParticipation: participationRequest,
 				Designations:         designations,
 				IdempotencyKey:       strings.TrimSpace(input.IdempotencyKey),
+				WorktreePerRun:       input.WorktreePerRun,
 			})
 			if err != nil {
 				return err
@@ -222,6 +229,7 @@ func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringArrayVar(&input.Designations, "designation", nil, "Designation brief for one sibling run; repeatable")
 	cmd.Flags().StringVar(&input.IdempotencyKey, "idempotency-key", "", "Optional fan-out idempotency key")
+	cmd.Flags().BoolVar(&input.WorktreePerRun, "worktree-per-run", false, "Create a dedicated worktree for each run")
 	mustMarkFlagRequired(cmd, "designation")
 	return cmd
 }

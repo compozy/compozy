@@ -1,4 +1,4 @@
 {
     "title": "Profile",
-    "pages": ["index", "delete", "inspect", "update"]
+    "pages": ["index", "delete", "inspect", "set-worktree", "update"]
 }

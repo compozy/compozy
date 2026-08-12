@@ -120,7 +120,9 @@ func TestTaskRunHooksDispatchAfterAuditEventsIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("claimExactRunIntegration() error = %v", err)
 		}
-		if _, err := manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor); err != nil {
+		if _, err := manager.StartRun(ctx, run.ID, taskpkg.StartRun{
+			ClaimToken: claim.ClaimToken,
+		}, actor); err != nil {
 			t.Fatalf("StartRun() error = %v", err)
 		}
 		taskID = taskRecord.ID
@@ -208,7 +210,9 @@ func TestTaskRunHooksDispatchAfterAuditEventsIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("claimExactRunIntegration() error = %v", err)
 		}
-		if _, err := manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor); err != nil {
+		if _, err := manager.StartRun(ctx, run.ID, taskpkg.StartRun{
+			ClaimToken: claim.ClaimToken,
+		}, actor); err != nil {
 			t.Fatalf("StartRun() error = %v", err)
 		}
 		taskID = taskRecord.ID

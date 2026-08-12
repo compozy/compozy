@@ -393,6 +393,11 @@ type stubClient struct {
 		string,
 		*TaskExecutionProfileRequest,
 	) (TaskExecutionProfileRecord, error)
+	setTaskWorktreePolicyFn func(
+		context.Context,
+		string,
+		*TaskWorktreePolicyRequest,
+	) (TaskExecutionProfileRecord, error)
 	deleteTaskExecutionProfileFn               func(context.Context, string) error
 	createTaskBridgeNotificationSubscriptionFn func(
 		context.Context,
@@ -3380,6 +3385,17 @@ func (s *stubClient) SetTaskExecutionProfile(
 		return s.setTaskExecutionProfileFn(ctx, id, request)
 	}
 	return TaskExecutionProfileRecord{}, errors.New("unexpected SetTaskExecutionProfile call")
+}
+
+func (s *stubClient) SetTaskWorktreePolicy(
+	ctx context.Context,
+	id string,
+	request *TaskWorktreePolicyRequest,
+) (TaskExecutionProfileRecord, error) {
+	if s.setTaskWorktreePolicyFn != nil {
+		return s.setTaskWorktreePolicyFn(ctx, id, request)
+	}
+	return TaskExecutionProfileRecord{}, errors.New("unexpected SetTaskWorktreePolicy call")
 }
 
 func (s *stubClient) DeleteTaskExecutionProfile(ctx context.Context, id string) error {

@@ -274,6 +274,10 @@ func (e *Executor) actionSessionBindRequest(
 	if segment.input.Contract != nil {
 		contract = *segment.input.Contract
 	}
+	environment, err := loop.ResolveActionEnvironment(segment.params.Environment, segment.input.Environment)
+	if err != nil {
+		return loop.ActionSessionBindRequest{}, err
+	}
 	return loop.ActionSessionBindRequest{
 		WorkspaceID:                    segment.key.WorkspaceID,
 		LoopRunID:                      segment.key.LoopRunID,
@@ -281,7 +285,7 @@ func (e *Executor) actionSessionBindRequest(
 		NodeID:                         segment.key.NodeID,
 		ItemIndex:                      segment.key.ItemIndex,
 		Agent:                          strings.TrimSpace(segment.params.Agent),
-		CWD:                            strings.TrimSpace(segment.input.CWD),
+		Environment:                    environment,
 		Handle:                         handle,
 		Mode:                           mode,
 		OriginSessionID:                strings.TrimSpace(segment.input.OriginSessionID),

@@ -332,6 +332,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/agent/tasks/:run_id/fail",
 			"POST /api/agent/tasks/:run_id/heartbeat",
 			"POST /api/agent/tasks/:run_id/release",
+			"POST /api/agent/tasks/:run_id/start",
 			"POST /api/agents/:name/duplicate",
 			"POST /api/agent/tasks/claim-next",
 			"POST /api/agents",
@@ -475,6 +476,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 			"PUT /api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
 			"PUT /api/tasks/:id/execution-profile",
+			"PATCH /api/tasks/:id/execution-profile/worktree",
 			"PUT /api/vault/secrets",
 			"PUT /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 			"PUT /api/workspaces/:workspace_id/sessions/:session_id/runtime",
@@ -1107,6 +1109,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"POST /api/agent/tasks/:run_id/complete":                       "AgentTaskComplete",
 		"POST /api/agent/tasks/:run_id/fail":                           "AgentTaskFail",
 		"POST /api/agent/tasks/:run_id/heartbeat":                      "AgentTaskHeartbeat",
+		"POST /api/agent/tasks/:run_id/start":                          "AgentTaskStart",
 		"POST /api/agent/tasks/:run_id/release":                        "AgentTaskRelease",
 		"POST /api/agent/tasks/claim-next":                             "AgentTaskClaimNext",
 		"POST /api/agent/spawn":                                        "AgentSpawn",
@@ -1126,6 +1129,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"POST /api/task-runs/:id/reviews":                              "RequestTaskRunReview",
 		"POST /api/task-reviews/:id/verdict":                           "SubmitTaskRunReviewVerdict",
 		"PUT /api/tasks/:id/execution-profile":                         "SetTaskExecutionProfile",
+		"PATCH /api/tasks/:id/execution-profile/worktree":              "SetTaskWorktreePolicy",
 	}
 
 	routes := engine.Routes()

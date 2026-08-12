@@ -15,6 +15,12 @@ func (c *lintContext) lintGoalNode(node dsl.Node) {
 		c.add(node.ID, refs.CodeUnresolvablePath, "goal params are invalid: %v", err)
 		return
 	}
+	if _, exists := params.Extra["cwd"]; exists {
+		c.add(node.ID, CodeEnvironmentCWDRemoved, "params.cwd is retired; use params.environment.directory")
+	}
+	if _, err := ResolveActionEnvironment(params.Environment, dsl.EnvironmentSpec{}); err != nil {
+		c.add(node.ID, CodeEnvironmentInvalid, "goal environment is invalid: %v", err)
+	}
 	if strings.TrimSpace(params.Objective) == "" {
 		c.add(node.ID, CodeGoalObjectiveRequired, "goal params.objective is required")
 	}

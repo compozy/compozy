@@ -379,6 +379,62 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 	}
 }
 
+func TestAgentTaskStartUsesSessionBoundLeaseWithoutEchoingToken(t *testing.T) {
+	t.Parallel()
+
+	const rawToken = "compozy_claim_STARTTOKEN123"
+	manager := &stubTaskManager{
+		LookupActiveRunForSessionFn: func(
+			_ context.Context,
+			sessionID string,
+			runID string,
+		) (taskpkg.AutonomyLeaseHandle, error) {
+			return agentTaskLeaseHandleForTest(
+				t,
+				sessionID,
+				runID,
+				rawToken,
+				time.Now().UTC().Add(time.Minute),
+			), nil
+		},
+		StartRunFn: func(
+			_ context.Context,
+			runID string,
+			req taskpkg.StartRun,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.Run, error) {
+			if runID != "run-1" || req.ClaimToken != rawToken || req.IdempotencyKey != "start-1" ||
+				actor.Actor.Ref != "sess-agent" || actor.Origin.Ref != "agent.task.start" {
+				t.Fatalf("StartRun() = run %q req=%#v actor=%#v, want session-brokered lease", runID, req, actor)
+			}
+			run := agentTaskRun(taskpkg.TaskRunStatusRunning)
+			run.WorktreeID = "worktree-1"
+			return &run, nil
+		},
+	}
+	recorder := performAgentKernelRequest(
+		t,
+		newTestRouter(t, newAgentTaskHandlers(t, manager)),
+		http.MethodPost,
+		"/api/agent/tasks/run-1/start",
+		[]byte(`{"idempotency_key":"start-1"}`),
+		agentKernelHeaders(),
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), rawToken) ||
+		strings.Contains(recorder.Body.String(), `"claim_token"`) {
+		t.Fatalf("response exposed raw token material: %s", recorder.Body.String())
+	}
+	var response contract.TaskRunResponse
+	decodeJSONResponse(t, recorder, &response)
+	if response.Run.ID != "run-1" || response.Run.Status != taskpkg.TaskRunStatusRunning ||
+		response.Run.WorktreeID != "worktree-1" {
+		t.Fatalf("run = %#v, want running worktree-bound run", response.Run)
+	}
+}
+
 func TestAgentTaskHandlersRejectDeniedMalformedAndRedactToken(t *testing.T) {
 	t.Parallel()
 

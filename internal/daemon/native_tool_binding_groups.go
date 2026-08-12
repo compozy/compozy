@@ -320,6 +320,10 @@ func (n *daemonNativeTools) taskToolBindings(
 			call:         n.taskExecutionProfileSet,
 			availability: availability,
 		},
+		toolspkg.ToolIDTaskWorktreePolicySet: {
+			call:         n.taskWorktreePolicySet,
+			availability: availability,
+		},
 		toolspkg.ToolIDTaskExecutionProfileDelete: {
 			call:         n.taskExecutionProfileDelete,
 			availability: availability,

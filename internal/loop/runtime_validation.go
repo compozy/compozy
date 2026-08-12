@@ -38,6 +38,11 @@ func ValidateDefinitionRuntime(
 
 // ValidateLoopConfigRuntime validates runtime values in one raw configuration layer.
 func ValidateLoopConfigRuntime(ctx context.Context, catalog RuntimeCatalog, cfg LoopConfig) error {
+	if cfg.Environment != nil {
+		if _, err := ResolveActionEnvironment(*cfg.Environment, dsl.EnvironmentSpec{}); err != nil {
+			return err
+		}
+	}
 	if cfg.RuntimeDefaults != nil {
 		if err := validateRuntimeSpec(
 			ctx,
@@ -75,6 +80,13 @@ func ValidateEffectiveRuntime(ctx context.Context, catalog RuntimeCatalog, cfg E
 
 func validateRuntimeGraph(ctx context.Context, catalog RuntimeCatalog, graph dsl.Graph) error {
 	for _, node := range graph.Nodes {
+		if value, exists := node.Params["cwd"]; exists {
+			return runtimeValidation(
+				fmt.Sprintf("graph.nodes.%s.cwd", node.ID),
+				value,
+				"retired_key_use_environment_directory",
+			)
+		}
 		if value, exists := node.Params["model"]; exists {
 			return runtimeValidation(fmt.Sprintf("graph.nodes.%s.params.model", node.ID), value, "retired_key")
 		}

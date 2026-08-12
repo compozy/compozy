@@ -58,6 +58,12 @@ func (fakeStore) SetTaskExecutionProfile(
 ) (taskpkg.ExecutionProfile, error) {
 	return taskpkg.ExecutionProfile{}, nil
 }
+func (fakeStore) SetTaskWorktreePolicy(
+	context.Context,
+	*taskpkg.WorktreePolicyMutation,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
 func (fakeStore) DeleteTaskExecutionProfile(
 	context.Context,
 	taskpkg.ExecutionProfileDeleteMutation,

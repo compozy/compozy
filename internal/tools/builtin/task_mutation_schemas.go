@@ -206,6 +206,17 @@ const taskExecutionProfileSetInputSchema = `{
 	"additionalProperties":false
 }`
 
+const taskWorktreePolicySetInputSchema = `{
+	"type":"object",
+	"required":["task_id","mode"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"mode":{"type":"string","enum":["inherit","none","ref","per_run"]},
+		"worktree_ref":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
 const taskNotificationSubscribeInputSchema = `{
 	"type":"object",
 	"required":["task_id","bridge_instance_id"],
@@ -265,6 +276,7 @@ const taskExecutionProfileSchema = `{
 		"review":` + reviewProfileSchema + `,
 		"participants":` + participantPolicySchema + `,
 		"sandbox":` + sandboxPolicySchema + `,
+		"worktree":` + worktreePolicySchema + `,
 		"runtime":` + runtimePolicySchema + `,
 		"network_participation":` + networkParticipationRequestSchema + `
 	},
@@ -336,6 +348,15 @@ const sandboxPolicySchema = `{
 	"properties":{
 		"mode":{"type":"string","enum":["","inherit","none","ref"]},
 		"sandbox_ref":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const worktreePolicySchema = `{
+	"type":"object",
+	"properties":{
+		"mode":{"type":"string","enum":["","inherit","none","ref","per_run"]},
+		"worktree_ref":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

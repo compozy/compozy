@@ -20,12 +20,17 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 ) (*session.Info, error) {
 	policy := coordinator.PermissionPolicy(coordinatorParticipation)
 	now := r.now().UTC()
+	workerWorktrees, err := r.activeWorkerWorktrees(ctx, decision.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
 	promptOverlay := coordinator.PromptOverlay(coordinator.PromptInput{
 		WorkspaceID:          decision.WorkspaceID,
 		TaskID:               decision.TaskID,
 		RunID:                decision.RunID,
 		WorkflowID:           decision.WorkflowID,
 		NetworkParticipation: coordinatorParticipation,
+		WorkerWorktrees:      workerWorktrees,
 	})
 	if r.contextOverlay != nil &&
 		strings.TrimSpace(decision.TaskID) != "" &&

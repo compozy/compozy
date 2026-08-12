@@ -311,6 +311,30 @@ func TestLineageAndHealthySession(t *testing.T) {
 func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should name active worker worktrees in stable run order", func(t *testing.T) {
+		t.Parallel()
+
+		overlay := PromptOverlay(PromptInput{
+			WorkspaceID:          "ws-1",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			NetworkParticipation: participation.LocalSpec(),
+			WorkerWorktrees: []WorkerWorktreeBinding{
+				{RunID: " run-z ", WorktreeID: " wt-z "},
+				{RunID: "run-a", WorktreeID: "wt-a"},
+				{RunID: "", WorktreeID: "wt-invalid"},
+			},
+		})
+		want := "Active worker worktrees:\n- run_id: run-a; worktree_id: wt-a\n" +
+			"- run_id: run-z; worktree_id: wt-z"
+		if !strings.Contains(overlay, want) {
+			t.Fatalf("PromptOverlay worker worktrees = %q, want ordered bindings %q", overlay, want)
+		}
+		if strings.Contains(overlay, "wt-invalid") {
+			t.Fatalf("PromptOverlay contains incomplete worker binding:\n%s", overlay)
+		}
+	})
+
 	t.Run("Should omit channel guidance for local coordinators", func(t *testing.T) {
 		t.Parallel()
 

@@ -110,6 +110,13 @@ thread, terminal run state is summarized back to the origin thread by `compozy.r
 duplicate raw worker logs into the thread. Read aggregated designation results from task detail JSON
 (`compozy task get <id> -o json`, field `designation_rollups`).
 
+Task execution profiles accept worktree modes `inherit`, `none`, `ref`, and `per_run`. Set only that
+block with `compozy task profile set-worktree <task-id> --mode <mode> [--ref <worktree>]` or
+`compozy__task_worktree_policy_set`; the dedicated mutation preserves the profile's other blocks. An
+enqueued run keeps its resolved policy even after later profile edits. A removed `ref` fails run start
+as `worktree_ref_invalid`; it never falls back to the workspace root. Add `--worktree-per-run` or
+`worktree_per_run: true` to fan-out when every sibling needs its own fresh worktree.
+
 For dependency DAGs, opt a dependent task into auto-enqueue so it starts on its own the moment its blockers finish: `compozy task create … --auto-enqueue-on-ready`, or toggle it on an assembled tree with `compozy task update <id> --auto-enqueue-on-ready` (`--auto-enqueue-on-ready=false` turns it off). When set, a blocking dependency completing and the task reaching `ready` enqueues exactly one run through the canonical path — no manual start. It is conservative by design: a failed or expired blocker never triggers it, paused dependents are skipped, and the open-run reservation guarantees one queued run even under concurrent blocker completions. Read the flag back from `compozy task inspect <id> -o json` (`auto_enqueue_on_ready`).
 
 Never spawn another coordinator unless the runtime explicitly supports that delegation. Never use channel messages as task ownership state.

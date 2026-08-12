@@ -1043,6 +1043,14 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 			want: "cli: task execution profile request is required",
 		},
 		{
+			name: "Should reject nil task worktree policy request",
+			run: func() error {
+				_, err := client.SetTaskWorktreePolicy(context.Background(), "task-1", nil)
+				return err
+			},
+			want: "cli: task worktree policy request is required",
+		},
+		{
 			name: "Should reject nil bridge notification subscription request",
 			run: func() error {
 				_, err := client.CreateTaskBridgeNotificationSubscription(context.Background(), "task-1", nil)

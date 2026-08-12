@@ -224,6 +224,52 @@ func (h *RuntimeHarness) StartTaskRun(
 	return h.updateTaskRun(ctx, runID, "/start", request)
 }
 
+// StartClaimedTaskRunForSession starts a claimed run through the session-bound
+// agent surface without exposing its raw lease credential to the caller.
+func (h *RuntimeHarness) StartClaimedTaskRunForSession(
+	ctx context.Context,
+	runID string,
+	session compozycontract.SessionPayload,
+	request compozycontract.StartTaskRunRequest,
+) (compozycontract.TaskRunPayload, error) {
+	path := "/api/agent/tasks/" + url.PathEscape(strings.TrimSpace(runID)) + "/start"
+	response, err := doRequestWithHeaders(
+		ctx,
+		h.UDSClient,
+		h.UDSURL(path),
+		http.MethodPost,
+		request,
+		map[string]string{
+			agentidentity.HeaderSessionID: session.ID,
+			agentidentity.HeaderAgent:     session.AgentName,
+		},
+	)
+	if err != nil {
+		return compozycontract.TaskRunPayload{}, err
+	}
+	payload, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return compozycontract.TaskRunPayload{}, fmt.Errorf("read claimed task-run start response: %w", readErr)
+	}
+	if closeErr != nil {
+		return compozycontract.TaskRunPayload{}, fmt.Errorf("close claimed task-run start response: %w", closeErr)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return compozycontract.TaskRunPayload{}, fmt.Errorf(
+			"POST %s status %d: %s",
+			h.UDSURL(path),
+			response.StatusCode,
+			strings.TrimSpace(string(payload)),
+		)
+	}
+	var started compozycontract.TaskRunResponse
+	if err := json.Unmarshal(payload, &started); err != nil {
+		return compozycontract.TaskRunPayload{}, fmt.Errorf("decode claimed task-run start response: %w", err)
+	}
+	return started.Run, nil
+}
+
 // CompleteTaskRun completes one running task run through the public UDS surface.
 func (h *RuntimeHarness) CompleteTaskRun(
 	ctx context.Context,

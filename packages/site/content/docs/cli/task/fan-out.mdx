@@ -11,6 +11,17 @@ Enqueue designated sibling runs for one task
 compozy task fan-out <task-id> [flags]
 ```
 
+### Examples
+
+```
+  # Enqueue two sibling runs in separate worktrees
+  compozy task fan-out task_123 --worktree-per-run \
+    --designation "Review the API" --designation "Review the web app"
+
+  # Output example
+  compozy task fan-out task_123 --worktree-per-run --designation "Review the API"
+```
+
 ### Options
 
 ```
@@ -21,6 +32,7 @@ compozy task fan-out <task-id> [flags]
       --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
       --network-channel string            Named channel id when strategy is named
       --network-channel-strategy string   Live channel strategy: named, run, or loop_run
+      --worktree-per-run                  Create a dedicated worktree for each run
 ```
 
 ### Options inherited from parent commands
@@ -44,5 +56,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy task fan-out <task-id> -o json
+compozy task fan-out task_123 --worktree-per-run --designation "Review the API" -o json
 ```

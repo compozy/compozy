@@ -224,6 +224,13 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 			wantErr: "task.orchestration.profile.default_worktree_mode",
 		},
 		{
+			name: "Should reject ref as a worktree default without a reference key",
+			mutate: func(cfg *TaskConfig) {
+				cfg.Orchestration.Profile.DefaultWorktreeMode = TaskWorktreeModeRef
+			},
+			wantErr: "task.orchestration.profile.default_worktree_mode",
+		},
+		{
 			name: "Should reject unknown review policy",
 			mutate: func(cfg *TaskConfig) {
 				cfg.Orchestration.Review.DefaultPolicy = "manual"

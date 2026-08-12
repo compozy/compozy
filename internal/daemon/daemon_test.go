@@ -8720,6 +8720,13 @@ func (r *recordingRegistry) SetTaskExecutionProfile(
 	return taskpkg.ExecutionProfile{}, nil
 }
 
+func (r *recordingRegistry) SetTaskWorktreePolicy(
+	context.Context,
+	*taskpkg.WorktreePolicyMutation,
+) (taskpkg.ExecutionProfile, error) {
+	return taskpkg.ExecutionProfile{}, nil
+}
+
 func (r *recordingRegistry) DeleteTaskExecutionProfile(
 	context.Context,
 	taskpkg.ExecutionProfileDeleteMutation,

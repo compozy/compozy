@@ -41,6 +41,14 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND id = sqlc.arg(worktree_id)
   AND state = 'pending';
 
+-- name: DeleteRunMaterialization :execrows
+DELETE FROM worktrees
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND id = sqlc.arg(worktree_id)
+  AND run_id = sqlc.arg(run_id)
+  AND origin = 'per_run'
+  AND state IN ('pending', 'ready');
+
 -- name: UpdatePendingWorktree :execrows
 UPDATE worktrees SET
   pending_phase = sqlc.arg(pending_phase),

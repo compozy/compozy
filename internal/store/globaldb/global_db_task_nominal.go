@@ -62,14 +62,14 @@ func (g *TaskRunRepo) transitionRunStartingWithExecutor(
 	exec taskSQLExecutor,
 	mutation taskpkg.RunStartingMutation,
 ) (taskpkg.NominalRunMutationResult, error) {
-	previous, err := g.requireFencedTaskRun(ctx, exec, mutation.Fence(), true)
+	previous, err := g.requireLeaseAuthorizedTaskRun(ctx, exec, mutation, true)
 	if err != nil {
 		return taskpkg.NominalRunMutationResult{}, err
 	}
 	if previous.Status.Normalize() != taskpkg.TaskRunStatusClaimed {
 		return taskpkg.NominalRunMutationResult{}, invalidNominalRunTransition(previous, "starting")
 	}
-	params := nominalRunFenceParams(mutation.Fence())
+	params := nominalRunFenceParams(taskpkg.NewRunMutationFence(previous))
 	affected, err := sqlcgen.New(exec).TransitionTaskRunStarting(
 		ctx,
 		sqlcgen.TransitionTaskRunStartingParams{
@@ -92,7 +92,7 @@ func (g *TaskRunRepo) bindRunSessionWithExecutor(
 	exec taskSQLExecutor,
 	mutation taskpkg.RunSessionBindingMutation,
 ) (taskpkg.NominalRunMutationResult, error) {
-	previous, err := g.requireFencedTaskRun(ctx, exec, mutation.Fence(), true)
+	previous, err := g.requireLeaseAuthorizedTaskRun(ctx, exec, mutation, true)
 	if err != nil {
 		return taskpkg.NominalRunMutationResult{}, err
 	}
@@ -108,9 +108,10 @@ func (g *TaskRunRepo) bindRunSessionWithExecutor(
 		!allowsManagedSessionTransfer(previous) {
 		return taskpkg.NominalRunMutationResult{}, taskpkg.ErrSessionAlreadyBound
 	}
-	params := nominalRunFenceParams(mutation.Fence())
+	params := nominalRunFenceParams(taskpkg.NewRunMutationFence(previous))
 	affected, err := sqlcgen.New(exec).BindTaskRunSession(ctx, sqlcgen.BindTaskRunSessionParams{
 		SessionID:              nullableTaskString(sessionID),
+		WorktreeID:             nullableTaskString(mutation.WorktreeID()),
 		ID:                     params.id,
 		ExpectedTaskID:         params.taskID,
 		ExpectedWorkspaceID:    params.workspaceID,
@@ -133,7 +134,7 @@ func (g *TaskRunRepo) transitionRunRunningWithExecutor(
 	exec taskSQLExecutor,
 	mutation taskpkg.RunRunningMutation,
 ) (taskpkg.NominalRunMutationResult, error) {
-	previous, err := g.requireFencedTaskRun(ctx, exec, mutation.Fence(), true)
+	previous, err := g.requireLeaseAuthorizedTaskRun(ctx, exec, mutation, true)
 	if err != nil {
 		return taskpkg.NominalRunMutationResult{}, err
 	}
@@ -145,7 +146,7 @@ func (g *TaskRunRepo) transitionRunRunningWithExecutor(
 	if startedAt.IsZero() {
 		return taskpkg.NominalRunMutationResult{}, fmt.Errorf("%w: run started_at is required", taskpkg.ErrValidation)
 	}
-	params := nominalRunFenceParams(mutation.Fence())
+	params := nominalRunFenceParams(taskpkg.NewRunMutationFence(previous))
 	affected, err := sqlcgen.New(exec).TransitionTaskRunRunning(
 		ctx,
 		sqlcgen.TransitionTaskRunRunningParams{
@@ -190,6 +191,13 @@ type nominalFenceParams struct {
 	leaseUntil     sql.NullString
 }
 
+type leaseAuthorizedRunMutation interface {
+	Fence() taskpkg.RunMutationFence
+	MatchesSource(taskpkg.Run) bool
+	ClaimToken() string
+	CommandAt() time.Time
+}
+
 func nominalRunFenceParams(fence taskpkg.RunMutationFence) nominalFenceParams {
 	return nominalFenceParams{
 		id:             strings.TrimSpace(fence.RunID()),
@@ -200,6 +208,44 @@ func nominalRunFenceParams(fence taskpkg.RunMutationFence) nominalFenceParams {
 		claimTokenHash: nullableTaskString(fence.ClaimTokenHash()),
 		leaseUntil:     nullableTaskTime(fence.LeaseUntil()),
 	}
+}
+
+func (g *TaskRunRepo) requireLeaseAuthorizedTaskRun(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	mutation leaseAuthorizedRunMutation,
+	taskAnchored bool,
+) (taskpkg.Run, error) {
+	runID, err := requireTaskValue(mutation.Fence().RunID(), "task run id")
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	if !mutation.MatchesSource(current) {
+		return taskpkg.Run{}, fmt.Errorf(
+			"%w: task run %q ownership changed before lease-authorized mutation",
+			taskpkg.ErrInvalidStatusTransition,
+			runID,
+		)
+	}
+	if current.IsTaskAnchored() != taskAnchored {
+		return taskpkg.Run{}, fmt.Errorf(
+			"%w: task run %q has the wrong ownership kind",
+			taskpkg.ErrInvalidStatusTransition,
+			runID,
+		)
+	}
+	if err := taskpkg.ValidateRunLeaseMutation(
+		current,
+		mutation.ClaimToken(),
+		mutation.CommandAt(),
+	); err != nil {
+		return taskpkg.Run{}, err
+	}
+	return current, nil
 }
 
 func (g *TaskRunRepo) requireFencedTaskRun(

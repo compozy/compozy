@@ -79,6 +79,7 @@ type taskRoleActivation struct {
 	NetworkParticipation *participation.Spec
 	Title                string
 	Profile              *taskpkg.ExecutionProfile
+	Worktree             taskpkg.WorktreePolicy
 	Capabilities         []string
 	Designation          taskpkg.RunDesignation
 	HasDesignation       bool
@@ -299,6 +300,10 @@ func (r *taskRoleRuntime) activationForRun(
 		NetworkParticipation: new(run.NetworkSpecSnapshot()),
 		Title:                strings.TrimSpace(taskRecord.Title),
 		Profile:              profile,
+		Worktree: taskpkg.WorktreePolicy{
+			Mode:        run.ResolvedWorktreeMode,
+			WorktreeRef: run.ResolvedWorktreeRef,
+		},
 		Capabilities: append(
 			append([]string(nil), run.RequiredCapabilities...),
 			profileRequiredWorkerCapabilities(profile)...,

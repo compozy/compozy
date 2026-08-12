@@ -97,6 +97,22 @@ func loopRetrySchema() *openapi3.Schema {
 		WithoutAdditionalProperties()
 }
 
+func loopEnvironmentSchema() *openapi3.Schema {
+	schema := openapi3.NewObjectSchema().
+		WithProperty("mode", openapi3.NewStringSchema().WithEnum(enumAsAny(loopEnvironmentModeValues())...)).
+		WithProperty("worktree_ref", openapi3.NewStringSchema()).
+		WithProperty("directory", openapi3.NewStringSchema()).
+		WithoutAdditionalProperties()
+	schema.Required = []string{"mode"}
+	return schema
+}
+
+func loopActionParamsSchema() *openapi3.Schema {
+	return openapi3.NewObjectSchema().
+		WithProperty("environment", loopEnvironmentSchema()).
+		WithAdditionalProperties(openapi3.NewSchema())
+}
+
 func loopGraphNodeSchema() *openapi3.Schema {
 	schema := withLoopLifecycleProperties(openapi3.NewObjectSchema()).
 		WithProperty("id", openapi3.NewStringSchema()).
@@ -107,7 +123,7 @@ func loopGraphNodeSchema() *openapi3.Schema {
 		WithProperty("retry", loopRetrySchema()).
 		WithProperty("harvest", loopFreeformObjectSchema()).
 		WithProperty("produces", loopFreeformObjectSchema()).
-		WithProperty("params", loopFreeformObjectSchema()).
+		WithProperty("params", loopActionParamsSchema()).
 		WithProperty("collection", openapi3.NewStringSchema()).
 		WithProperty("filter", openapi3.NewStringSchema()).
 		WithProperty("batch_size", openapi3.NewIntegerSchema()).

@@ -177,6 +177,9 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 		node.Params["output_schema"] = map[string]any{
 			"type": "object", "description": "{{ .inputs.slug }}",
 		}
+		node.Params["environment"] = map[string]any{
+			"mode": "directory", "directory": "packages/{{ .inputs.slug }}",
+		}
 		input := testGoalInput(t)
 		input.Namespace = map[string]any{"inputs": map[string]any{
 			"slug":    "weather-app",
@@ -193,6 +196,11 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 			"Finish weather-app and preserve {{ .inputs.slug }}",
 		) {
 			t.Fatalf("prepared Goal prompt = %#v, want one-pass materialized objective", requests)
+		}
+		if len(binder.binds) != 1 || binder.binds[0].Environment != (dsl.EnvironmentSpec{
+			Mode: dsl.EnvironmentDirectory, Directory: "packages/weather-app",
+		}) {
+			t.Fatalf("Goal bind environment = %#v, want one-pass materialized directory", binder.binds)
 		}
 		judge.mu.Lock()
 		defer judge.mu.Unlock()

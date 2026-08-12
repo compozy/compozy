@@ -161,7 +161,14 @@ func (s *service) prepareResolvedStart(
 	if err != nil {
 		return Run{}, err
 	}
-	effective, err := s.effectiveConfig(ctx, ws, loopName, resolved, inputs.ConfigOverrides)
+	effective, err := s.effectiveConfig(
+		ctx,
+		ws,
+		loopName,
+		resolved,
+		inputs.InheritedEnvironment,
+		inputs.ConfigOverrides,
+	)
 	if err != nil {
 		return Run{}, err
 	}

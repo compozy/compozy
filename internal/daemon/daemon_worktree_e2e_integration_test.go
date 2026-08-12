@@ -21,12 +21,518 @@ import (
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/worktree"
 	"golang.org/x/sys/execabs"
 )
+
+func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	root := initWorktreeE2ERepository(t)
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		Workspace: e2etest.WorkspaceSeedOptions{Root: root},
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			DefaultAgent:    "local-default",
+			DefaultProvider: acpmock.ProviderName,
+		},
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixtureAgent: "local-default",
+			AgentName:    "local-default",
+		}},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	t.Cleanup(cancel)
+
+	claimer := createFixtureBackedSession(t, ctx, harness, "local-default", "per-run-claimer")
+	taskRecord := createTaskViaUDS(t, ctx, harness, "Per-run task worktree journey")
+
+	var cliProfile compozycontract.TaskExecutionProfilePayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx,
+		root,
+		&cliProfile,
+		"task",
+		"profile",
+		"set-worktree",
+		taskRecord.ID,
+		"--mode",
+		string(taskpkg.WorktreeModePerRun),
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("task profile set-worktree(per_run) error = %v", err)
+	}
+	if cliProfile.Worktree.Mode != taskpkg.WorktreeModePerRun {
+		t.Fatalf("CLI worktree profile = %#v, want per_run", cliProfile.Worktree)
+	}
+	assertTaskWorktreeProfileParity(t, ctx, harness, taskRecord.ID, cliProfile)
+
+	run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID, "")
+	if run.ResolvedWorktreeMode != taskpkg.WorktreeModePerRun || run.WorktreeID != "" {
+		t.Fatalf("queued run worktree snapshot = %#v, want unresolved per_run", run)
+	}
+
+	var currentProfile compozycontract.TaskExecutionProfilePayload
+	if err := harness.CLI.RunJSONInDir(
+		ctx,
+		root,
+		&currentProfile,
+		"task",
+		"profile",
+		"set-worktree",
+		taskRecord.ID,
+		"--mode",
+		string(taskpkg.WorktreeModeNone),
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("post-enqueue task profile set-worktree(none) error = %v", err)
+	}
+
+	if _, err := harness.ClaimExactTaskRunForSession(ctx, run.ID, claimer); err != nil {
+		t.Fatalf("ClaimExactTaskRunForSession(%s) error = %v", run.ID, err)
+	}
+	started, err := harness.StartClaimedTaskRunForSession(
+		ctx,
+		run.ID,
+		claimer,
+		compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + run.ID},
+	)
+	if err != nil {
+		storedRuns, listErr := harness.ListTaskRuns(ctx, taskRecord.ID, nil)
+		daemonLog, logErr := os.ReadFile(filepath.Join(harness.Artifacts.RootDir(), "daemon-process.log"))
+		t.Fatalf(
+			"StartTaskRun(%s) error = %v; runs=%#v list_error=%v log_error=%v daemon_log=%s",
+			run.ID,
+			err,
+			storedRuns,
+			listErr,
+			logErr,
+			daemonLog,
+		)
+	}
+	if started.ResolvedWorktreeMode != taskpkg.WorktreeModePerRun || started.WorktreeID == "" {
+		t.Fatalf("started run worktree = %#v, want frozen per_run materialization", started)
+	}
+	taskSession, err := harness.GetSession(ctx, started.SessionID)
+	if err != nil {
+		t.Fatalf("GetSession(%s) error = %v", started.SessionID, err)
+	}
+	if taskSession.WorktreeID != started.WorktreeID {
+		t.Fatalf("session worktree_id = %q, want run worktree_id %q", taskSession.WorktreeID, started.WorktreeID)
+	}
+
+	inspection := waitForWorktreeE2EState(
+		t,
+		ctx,
+		harness,
+		harness.WorkspaceID,
+		started.WorktreeID,
+		worktree.StateReady,
+	)
+	if inspection.Worktree.Origin != string(worktree.OriginPerRun) || inspection.Worktree.RunID != run.ID ||
+		!strings.HasPrefix(inspection.Worktree.Branch, "run/") {
+		t.Fatalf("per-run worktree = %#v, want attributable run/ branch", inspection.Worktree)
+	}
+	branchCommand := execabs.CommandContext(ctx, "git", "branch", "--show-current")
+	branchCommand.Dir = inspection.Worktree.Path
+	branchOutput, err := branchCommand.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git branch --show-current in per-run worktree error = %v; output=%s", err, branchOutput)
+	}
+	if got := strings.TrimSpace(string(branchOutput)); got != inspection.Worktree.Branch {
+		t.Fatalf("checked-out branch = %q, want %q", got, inspection.Worktree.Branch)
+	}
+
+	lease, err := harness.CompleteClaimedTaskRunForSession(
+		ctx,
+		run.ID,
+		taskSession,
+		compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
+	)
+	if err != nil {
+		t.Fatalf("CompleteClaimedTaskRunForSession(%s) error = %v", run.ID, err)
+	}
+	if lease.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
+		t.Fatalf("completed lease status = %q, want completed", lease.Status)
+	}
+	runs, err := harness.ListTaskRuns(ctx, taskRecord.ID, nil)
+	if err != nil {
+		t.Fatalf("ListTaskRuns(%s) error = %v", taskRecord.ID, err)
+	}
+	if len(runs) != 1 || runs[0].WorktreeID != started.WorktreeID ||
+		runs[0].ResolvedWorktreeMode != taskpkg.WorktreeModePerRun {
+		t.Fatalf("terminal run history = %#v, want durable worktree binding", runs)
+	}
+	waitForWorktreeE2EState(t, ctx, harness, harness.WorkspaceID, started.WorktreeID, worktree.StateReady)
+
+	secondClaimer := createFixtureBackedSession(t, ctx, harness, "local-default", "root-claimer")
+	rootTask := createTaskViaUDS(t, ctx, harness, "Root snapshot authority")
+	rootRun := enqueueTaskRunViaUDS(t, ctx, harness, rootTask.ID, "")
+	if rootRun.ResolvedWorktreeMode != taskpkg.WorktreeModeNone {
+		t.Fatalf("root queued run worktree mode = %q, want none", rootRun.ResolvedWorktreeMode)
+	}
+	if err := harness.CLI.RunJSONInDir(
+		ctx,
+		root,
+		&currentProfile,
+		"task",
+		"profile",
+		"set-worktree",
+		rootTask.ID,
+		"--mode",
+		string(taskpkg.WorktreeModePerRun),
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("post-enqueue root task profile set-worktree(per_run) error = %v", err)
+	}
+	if _, err := harness.ClaimExactTaskRunForSession(ctx, rootRun.ID, secondClaimer); err != nil {
+		t.Fatalf("ClaimExactTaskRunForSession(root %s) error = %v", rootRun.ID, err)
+	}
+	rootStarted, err := harness.StartClaimedTaskRunForSession(
+		ctx,
+		rootRun.ID,
+		secondClaimer,
+		compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + rootRun.ID},
+	)
+	if err != nil {
+		t.Fatalf("StartTaskRun(root %s) error = %v", rootRun.ID, err)
+	}
+	if rootStarted.ResolvedWorktreeMode != taskpkg.WorktreeModeNone || rootStarted.WorktreeID != "" {
+		t.Fatalf("started root run worktree = %#v, want frozen root execution", rootStarted)
+	}
+}
+
+func TestDaemonTaskFanOutPerRunIsolationIT029IT031(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	root := initWorktreeE2ERepository(t)
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		Workspace: e2etest.WorkspaceSeedOptions{Root: root},
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			DefaultAgent:    "local-default",
+			DefaultProvider: acpmock.ProviderName,
+		},
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixtureAgent: "local-default",
+			AgentName:    "local-default",
+		}},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	t.Cleanup(cancel)
+
+	taskRecord := createTaskViaUDS(t, ctx, harness, "Fan-out isolated workers")
+	var fanOut compozycontract.FanOutTaskRunsResponse
+	if err := harness.CLI.RunJSONInDir(
+		ctx,
+		root,
+		&fanOut,
+		"task",
+		"fan-out",
+		taskRecord.ID,
+		"--designation",
+		"frontend",
+		"--designation",
+		"runtime",
+		"--designation",
+		"tests",
+		"--idempotency-key",
+		"fanout-worktrees",
+		"--worktree-per-run",
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("task fan-out --worktree-per-run error = %v", err)
+	}
+	if fanOut.DesignationGroupID == "" || len(fanOut.Runs) != 3 {
+		t.Fatalf("fan-out response = %#v, want one group with three runs", fanOut)
+	}
+
+	worktreeIDs := make(map[string]string, len(fanOut.Runs))
+	branches := make(map[string]string, len(fanOut.Runs))
+	paths := make(map[string]string, len(fanOut.Runs))
+	startedRuns := make([]compozycontract.TaskRunPayload, 0, len(fanOut.Runs))
+	for index, queued := range fanOut.Runs {
+		if queued.ResolvedWorktreeMode != taskpkg.WorktreeModePerRun ||
+			queued.DesignationGroupID != fanOut.DesignationGroupID {
+			t.Fatalf("queued fan-out run[%d] = %#v, want grouped per_run snapshot", index, queued)
+		}
+		claimer := createFixtureBackedSession(
+			t,
+			ctx,
+			harness,
+			"local-default",
+			"fanout-claimer-"+strconv.Itoa(index+1),
+		)
+		if _, err := harness.ClaimExactTaskRunForSession(ctx, queued.ID, claimer); err != nil {
+			t.Fatalf("ClaimExactTaskRunForSession(%s) error = %v", queued.ID, err)
+		}
+		started, err := harness.StartClaimedTaskRunForSession(
+			ctx,
+			queued.ID,
+			claimer,
+			compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + queued.ID},
+		)
+		if err != nil {
+			t.Fatalf("StartTaskRun(%s) error = %v", queued.ID, err)
+		}
+		if started.WorktreeID == "" || started.ResolvedWorktreeMode != taskpkg.WorktreeModePerRun {
+			t.Fatalf("started fan-out run[%d] = %#v, want per-run worktree", index, started)
+		}
+		inspection := waitForWorktreeE2EState(
+			t,
+			ctx,
+			harness,
+			harness.WorkspaceID,
+			started.WorktreeID,
+			worktree.StateReady,
+		)
+		if inspection.Worktree.RunID != queued.ID || inspection.Worktree.Origin != string(worktree.OriginPerRun) {
+			t.Fatalf("fan-out worktree[%d] = %#v, want run %s attribution", index, inspection.Worktree, queued.ID)
+		}
+		if previous, duplicate := worktreeIDs[started.WorktreeID]; duplicate {
+			t.Fatalf("worktree %q reused by runs %s and %s", started.WorktreeID, previous, queued.ID)
+		}
+		if previous, duplicate := branches[inspection.Worktree.Branch]; duplicate {
+			t.Fatalf("branch %q reused by runs %s and %s", inspection.Worktree.Branch, previous, queued.ID)
+		}
+		if previous, duplicate := paths[inspection.Worktree.Path]; duplicate {
+			t.Fatalf("path %q reused by runs %s and %s", inspection.Worktree.Path, previous, queued.ID)
+		}
+		worktreeIDs[started.WorktreeID] = queued.ID
+		branches[inspection.Worktree.Branch] = queued.ID
+		paths[inspection.Worktree.Path] = queued.ID
+
+		events := readWorktreeE2ESSE(
+			t,
+			ctx,
+			harness,
+			worktreeE2EPath(harness.WorkspaceID, started.WorktreeID)+"/stream?after_sequence=0",
+			1,
+			nil,
+		)
+		if len(events) != 1 || events[0].Name != worktree.EventCreated {
+			t.Fatalf("worktree events for run %s = %#v, want one created event", queued.ID, events)
+		}
+		var eventPayload struct {
+			RunID string `json:"run_id"`
+		}
+		if err := json.Unmarshal(events[0].Data, &eventPayload); err != nil {
+			t.Fatalf("decode worktree.created for run %s: %v", queued.ID, err)
+		}
+		if eventPayload.RunID != queued.ID {
+			t.Fatalf("worktree.created run_id = %q, want %q", eventPayload.RunID, queued.ID)
+		}
+		startedRuns = append(startedRuns, started)
+	}
+
+	var canceled compozycontract.TaskRunResponse
+	if err := harness.UDSJSON(
+		ctx,
+		http.MethodPost,
+		"/api/task-runs/"+url.PathEscape(startedRuns[1].ID)+"/cancel",
+		compozycontract.CancelTaskRunRequest{Reason: "fan-out cancellation retention"},
+		&canceled,
+	); err != nil {
+		t.Fatalf("cancel fan-out run %s error = %v", startedRuns[1].ID, err)
+	}
+	if canceled.Run.Status.Normalize() != taskpkg.TaskRunStatusCanceled {
+		t.Fatalf("canceled fan-out run status = %q, want canceled", canceled.Run.Status)
+	}
+	waitForWorktreeE2EState(
+		t,
+		ctx,
+		harness,
+		harness.WorkspaceID,
+		startedRuns[1].WorktreeID,
+		worktree.StateReady,
+	)
+
+	for _, started := range []compozycontract.TaskRunPayload{startedRuns[0], startedRuns[2]} {
+		taskSession, err := harness.GetSession(ctx, started.SessionID)
+		if err != nil {
+			t.Fatalf("GetSession(%s) error = %v", started.SessionID, err)
+		}
+		if _, err := harness.CompleteClaimedTaskRunForSession(
+			ctx,
+			started.ID,
+			taskSession,
+			compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
+		); err != nil {
+			t.Fatalf("complete fan-out run %s error = %v", started.ID, err)
+		}
+	}
+}
+
+func TestDaemonTaskFanOutSecondMaterializationFailureIT031(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	root := initWorktreeE2ERepository(t)
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		Workspace: e2etest.WorkspaceSeedOptions{Root: root},
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			DefaultAgent:    "local-default",
+			DefaultProvider: acpmock.ProviderName,
+		},
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "network_local_fixture.json"),
+			FixtureAgent: "local-default",
+			AgentName:    "local-default",
+		}},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	t.Cleanup(cancel)
+
+	const taskTitle = "Fan-out isolated failure attribution"
+	taskRecord := createTaskViaUDS(t, ctx, harness, taskTitle)
+	var fanOut compozycontract.FanOutTaskRunsResponse
+	if err := harness.CLI.RunJSONInDir(
+		ctx,
+		root,
+		&fanOut,
+		"task",
+		"fan-out",
+		taskRecord.ID,
+		"--designation",
+		"first succeeds",
+		"--designation",
+		"second fails",
+		"--designation",
+		"third succeeds",
+		"--idempotency-key",
+		"fanout-second-materialization-fails",
+		"--worktree-per-run",
+		"-o",
+		"json",
+	); err != nil {
+		t.Fatalf("task fan-out --worktree-per-run error = %v", err)
+	}
+	if len(fanOut.Runs) != 3 {
+		t.Fatalf("fan-out runs = %d, want 3", len(fanOut.Runs))
+	}
+
+	startedRuns := make([]compozycontract.TaskRunPayload, 0, 2)
+	placementDir := ""
+	for index, queued := range fanOut.Runs {
+		claimer := createFixtureBackedSession(
+			t,
+			ctx,
+			harness,
+			"local-default",
+			"fanout-failure-claimer-"+strconv.Itoa(index+1),
+		)
+		if _, err := harness.ClaimExactTaskRunForSession(ctx, queued.ID, claimer); err != nil {
+			t.Fatalf("ClaimExactTaskRunForSession(%s) error = %v", queued.ID, err)
+		}
+		if index == 1 {
+			if placementDir == "" {
+				t.Fatal("placement directory is empty after first materialization")
+			}
+			blockedPath := filepath.Join(
+				placementDir,
+				worktree.RunWorktreeName(taskTitle, queued.ID),
+			)
+			if err := os.MkdirAll(blockedPath, 0o755); err != nil {
+				t.Fatalf("pre-create second materialization path %q: %v", blockedPath, err)
+			}
+			if _, err := harness.StartClaimedTaskRunForSession(
+				ctx,
+				queued.ID,
+				claimer,
+				compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + queued.ID},
+			); err == nil || !strings.Contains(err.Error(), worktree.ErrPerRunMaterialization.Error()) {
+				t.Fatalf(
+					"StartClaimedTaskRunForSession(second) error = %v, want %s",
+					err,
+					worktree.ErrPerRunMaterialization,
+				)
+			}
+			continue
+		}
+
+		started, err := harness.StartClaimedTaskRunForSession(
+			ctx,
+			queued.ID,
+			claimer,
+			compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + queued.ID},
+		)
+		if err != nil {
+			t.Fatalf("StartClaimedTaskRunForSession(%s) error = %v", queued.ID, err)
+		}
+		inspection := waitForWorktreeE2EState(
+			t,
+			ctx,
+			harness,
+			harness.WorkspaceID,
+			started.WorktreeID,
+			worktree.StateReady,
+		)
+		if placementDir == "" {
+			placementDir = filepath.Dir(inspection.Worktree.Path)
+		}
+		startedRuns = append(startedRuns, started)
+	}
+
+	runs, err := harness.ListTaskRuns(ctx, taskRecord.ID, nil)
+	if err != nil {
+		t.Fatalf("ListTaskRuns(%s) error = %v", taskRecord.ID, err)
+	}
+	byID := make(map[string]compozycontract.TaskRunPayload, len(runs))
+	for _, run := range runs {
+		byID[run.ID] = run
+	}
+	if got := byID[fanOut.Runs[0].ID]; got.Status.Normalize() != taskpkg.TaskRunStatusRunning || got.WorktreeID == "" {
+		t.Fatalf("first fan-out run = %#v, want running with worktree", got)
+	}
+	if got := byID[fanOut.Runs[1].ID]; got.Status.Normalize() != taskpkg.TaskRunStatusFailed ||
+		got.WorktreeID != "" || !strings.Contains(got.Error, worktree.ErrPerRunMaterialization.Error()) {
+		t.Fatalf("second fan-out run = %#v, want attributable materialization failure", got)
+	}
+	if got := byID[fanOut.Runs[2].ID]; got.Status.Normalize() != taskpkg.TaskRunStatusRunning || got.WorktreeID == "" {
+		t.Fatalf("third fan-out run = %#v, want running with worktree", got)
+	}
+
+	var listing compozycontract.WorktreesResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/workspaces/"+url.PathEscape(harness.WorkspaceID)+"/worktrees",
+		nil,
+		&listing,
+	); err != nil {
+		t.Fatalf("list worktrees after fan-out failure: %v", err)
+	}
+	for _, item := range listing.Worktrees {
+		if item.RunID == fanOut.Runs[1].ID {
+			t.Fatalf("failed second run left worktree row: %#v", item)
+		}
+	}
+
+	for _, started := range startedRuns {
+		taskSession, err := harness.GetSession(ctx, started.SessionID)
+		if err != nil {
+			t.Fatalf("GetSession(%s) error = %v", started.SessionID, err)
+		}
+		if _, err := harness.CompleteClaimedTaskRunForSession(
+			ctx,
+			started.ID,
+			taskSession,
+			compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
+		); err != nil {
+			t.Fatalf("complete fan-out run %s error = %v", started.ID, err)
+		}
+	}
+}
 
 func TestDaemonWorktreeCLIJourneyE2E003(t *testing.T) {
 	t.Parallel()
@@ -466,6 +972,41 @@ func createWorktreeE2E(
 		t.Fatalf("create worktree %q response = %#v, want pending", name, response)
 	}
 	return response.Worktree
+}
+
+func assertTaskWorktreeProfileParity(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	taskID string,
+	want compozycontract.TaskExecutionProfilePayload,
+) {
+	t.Helper()
+
+	path := "/api/tasks/" + url.PathEscape(taskID) + "/execution-profile"
+	for _, transport := range []struct {
+		name string
+		get  func(context.Context, string, string, any, any) error
+	}{
+		{name: "HTTP", get: harness.HTTPJSON},
+		{name: "UDS", get: harness.UDSJSON},
+	} {
+		var response compozycontract.TaskExecutionProfileResponse
+		if err := transport.get(ctx, http.MethodGet, path, nil, &response); err != nil {
+			t.Fatalf("%s get task execution profile error = %v", transport.name, err)
+		}
+		gotJSON, err := json.Marshal(response.Profile)
+		if err != nil {
+			t.Fatalf("marshal %s task execution profile: %v", transport.name, err)
+		}
+		wantJSON, err := json.Marshal(want)
+		if err != nil {
+			t.Fatalf("marshal CLI task execution profile: %v", err)
+		}
+		if !bytes.Equal(gotJSON, wantJSON) {
+			t.Fatalf("%s profile = %s, want CLI profile %s", transport.name, gotJSON, wantJSON)
+		}
+	}
 }
 
 func worktreeE2ECLIRemovalRefusal(

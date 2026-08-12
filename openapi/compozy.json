@@ -766,6 +766,32 @@
                 },
                 "params": {
                   "additionalProperties": {},
+                  "properties": {
+                    "environment": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "directory": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "root",
+                            "worktree",
+                            "per_run",
+                            "directory"
+                          ],
+                          "type": "string"
+                        },
+                        "worktree_ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "mode"
+                      ],
+                      "type": "object"
+                    }
+                  },
                   "type": "object"
                 },
                 "parse": {
@@ -12856,6 +12882,18 @@
                                         }
                                       ]
                                     },
+                                    "resolved_worktree_mode": {
+                                      "enum": [
+                                        "inherit",
+                                        "none",
+                                        "ref",
+                                        "per_run"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "resolved_worktree_ref": {
+                                      "type": "string"
+                                    },
                                     "run_kind": {
                                       "maximum": 255,
                                       "minimum": 0,
@@ -12887,6 +12925,9 @@
                                     "tokens_used": {
                                       "format": "int64",
                                       "type": "integer"
+                                    },
+                                    "worktree_id": {
+                                      "type": "string"
                                     }
                                   },
                                   "required": [
@@ -13345,6 +13386,26 @@
                                         "mode"
                                       ],
                                       "type": "object"
+                                    },
+                                    "worktree": {
+                                      "properties": {
+                                        "mode": {
+                                          "enum": [
+                                            "inherit",
+                                            "none",
+                                            "ref",
+                                            "per_run"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "worktree_ref": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "mode"
+                                      ],
+                                      "type": "object"
                                     }
                                   },
                                   "required": [
@@ -13356,7 +13417,8 @@
                                     "sandbox",
                                     "task_id",
                                     "updated_at",
-                                    "worker"
+                                    "worker",
+                                    "worktree"
                                   ],
                                   "type": "object"
                                 },
@@ -13619,6 +13681,18 @@
                                           }
                                         ]
                                       },
+                                      "resolved_worktree_mode": {
+                                        "enum": [
+                                          "inherit",
+                                          "none",
+                                          "ref",
+                                          "per_run"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "resolved_worktree_ref": {
+                                        "type": "string"
+                                      },
                                       "run_kind": {
                                         "maximum": 255,
                                         "minimum": 0,
@@ -13650,6 +13724,9 @@
                                       "tokens_used": {
                                         "format": "int64",
                                         "type": "integer"
+                                      },
+                                      "worktree_id": {
+                                        "type": "string"
                                       }
                                     },
                                     "required": [
@@ -13962,6 +14039,18 @@
                                               }
                                             ]
                                           },
+                                          "resolved_worktree_mode": {
+                                            "enum": [
+                                              "inherit",
+                                              "none",
+                                              "ref",
+                                              "per_run"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "resolved_worktree_ref": {
+                                            "type": "string"
+                                          },
                                           "run_kind": {
                                             "maximum": 255,
                                             "minimum": 0,
@@ -13993,6 +14082,9 @@
                                           "tokens_used": {
                                             "format": "int64",
                                             "type": "integer"
+                                          },
+                                          "worktree_id": {
+                                            "type": "string"
                                           }
                                         },
                                         "required": [
@@ -20307,6 +20399,18 @@
                                 }
                               ]
                             },
+                            "resolved_worktree_mode": {
+                              "enum": [
+                                "inherit",
+                                "none",
+                                "ref",
+                                "per_run"
+                              ],
+                              "type": "string"
+                            },
+                            "resolved_worktree_ref": {
+                              "type": "string"
+                            },
                             "result": {},
                             "session_id": {
                               "type": "string"
@@ -20331,6 +20435,9 @@
                             },
                             "task_id": {
                               "type": "string"
+                            },
+                            "worktree_id": {
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -20339,6 +20446,7 @@
                             "origin",
                             "queued_at",
                             "recovery_count",
+                            "resolved_worktree_mode",
                             "status",
                             "task_id"
                           ],
@@ -24297,6 +24405,957 @@
           }
         },
         "summary": "Release a claimed task run for the calling agent",
+        "tags": [
+          "agent",
+          "tasks"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agent/tasks/{run_id}/start": {
+      "post": {
+        "operationId": "startAgentTaskRun",
+        "parameters": [
+          {
+            "description": "Daemon-issued active session id",
+            "in": "header",
+            "name": "X-Compozy-Session-ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Daemon-issued session agent name",
+            "in": "header",
+            "name": "X-Compozy-Agent",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Task run id",
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "idempotency_key": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "run": {
+                      "properties": {
+                        "attempt": {
+                          "type": "integer"
+                        },
+                        "claim_token_hash": {
+                          "type": "string"
+                        },
+                        "claimed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "claimed_by": {
+                          "nullable": true,
+                          "properties": {
+                            "kind": {
+                              "enum": [
+                                "human",
+                                "agent_session",
+                                "automation",
+                                "extension",
+                                "network_peer",
+                                "daemon"
+                              ],
+                              "type": "string"
+                            },
+                            "ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "ref"
+                          ],
+                          "type": "object"
+                        },
+                        "coordination_channel": {
+                          "nullable": true,
+                          "properties": {
+                            "allowed_message_kinds": {
+                              "items": {
+                                "enum": [
+                                  "status",
+                                  "request",
+                                  "reply",
+                                  "blocker",
+                                  "handoff",
+                                  "result",
+                                  "review_request"
+                                ],
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "display_name": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "last_activity_at": {
+                              "format": "date-time",
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "purpose": {
+                              "type": "string"
+                            },
+                            "run_id": {
+                              "type": "string"
+                            },
+                            "task_id": {
+                              "type": "string"
+                            },
+                            "workflow_id": {
+                              "type": "string"
+                            },
+                            "workspace_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "allowed_message_kinds",
+                            "display_name",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "designation": {
+                          "nullable": true,
+                          "properties": {
+                            "brief": {
+                              "type": "string"
+                            },
+                            "index": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "index"
+                          ],
+                          "type": "object"
+                        },
+                        "designation_group_id": {
+                          "type": "string"
+                        },
+                        "ended_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "failure_kind": {
+                          "type": "string"
+                        },
+                        "heartbeat_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "idempotency_key": {
+                          "type": "string"
+                        },
+                        "lease_until": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "metadata": {},
+                        "origin": {
+                          "properties": {
+                            "kind": {
+                              "enum": [
+                                "cli",
+                                "web",
+                                "uds",
+                                "http",
+                                "automation",
+                                "extension",
+                                "network",
+                                "agent_session",
+                                "daemon"
+                              ],
+                              "type": "string"
+                            },
+                            "ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "ref"
+                          ],
+                          "type": "object"
+                        },
+                        "previous_run_id": {
+                          "type": "string"
+                        },
+                        "queued_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "recovery_count": {
+                          "type": "integer"
+                        },
+                        "resolved_network_participation": {
+                          "nullable": true,
+                          "oneOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "mode": {
+                                  "enum": [
+                                    "local"
+                                  ],
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "enum": [
+                                    "explicit_request",
+                                    "task_profile",
+                                    "workspace_coordination",
+                                    "loop_definition",
+                                    "automation_job",
+                                    "built_in_local"
+                                  ],
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "enum": [
+                                    "network-participation/v1"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "mode",
+                                "source",
+                                "version"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "bounds": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "coalesce_window",
+                                    "max_input_tokens",
+                                    "max_output_tokens",
+                                    "max_total_wall_time",
+                                    "max_wake_depth",
+                                    "max_wake_wall_time",
+                                    "max_wakes"
+                                  ],
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "enum": [
+                                    "named",
+                                    "run",
+                                    "loop_run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "live"
+                                  ],
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "enum": [
+                                    "explicit_request",
+                                    "task_profile",
+                                    "workspace_coordination",
+                                    "loop_definition",
+                                    "automation_job",
+                                    "built_in_local"
+                                  ],
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "enum": [
+                                    "network-participation/v1"
+                                  ],
+                                  "type": "string"
+                                },
+                                "workspace_id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "bounds",
+                                "channel_id",
+                                "channel_strategy",
+                                "mode",
+                                "source",
+                                "version",
+                                "workspace_id"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
+                        "result": {},
+                        "session_id": {
+                          "type": "string"
+                        },
+                        "started_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "status": {
+                          "enum": [
+                            "queued",
+                            "claimed",
+                            "starting",
+                            "running",
+                            "completed",
+                            "failed",
+                            "canceled",
+                            "needs_attention"
+                          ],
+                          "type": "string"
+                        },
+                        "task_id": {
+                          "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "attempt",
+                        "id",
+                        "origin",
+                        "queued_at",
+                        "recovery_count",
+                        "resolved_worktree_mode",
+                        "status",
+                        "task_id"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "run"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Agent caller identity is missing"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Forbidden - workspace or permission mismatch"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task run not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task-run start conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid start request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Start a claimed task run under the calling agent's lease",
         "tags": [
           "agent",
           "tasks"
@@ -109503,6 +110562,18 @@
                                   }
                                 ]
                               },
+                              "resolved_worktree_mode": {
+                                "enum": [
+                                  "inherit",
+                                  "none",
+                                  "ref",
+                                  "per_run"
+                                ],
+                                "type": "string"
+                              },
+                              "resolved_worktree_ref": {
+                                "type": "string"
+                              },
                               "result": {},
                               "session_id": {
                                 "type": "string"
@@ -109527,6 +110598,9 @@
                               },
                               "task_id": {
                                 "type": "string"
+                              },
+                              "worktree_id": {
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -109535,6 +110609,7 @@
                               "origin",
                               "queued_at",
                               "recovery_count",
+                              "resolved_worktree_mode",
                               "status",
                               "task_id"
                             ],
@@ -110358,6 +111433,18 @@
                                   }
                                 ]
                               },
+                              "resolved_worktree_mode": {
+                                "enum": [
+                                  "inherit",
+                                  "none",
+                                  "ref",
+                                  "per_run"
+                                ],
+                                "type": "string"
+                              },
+                              "resolved_worktree_ref": {
+                                "type": "string"
+                              },
                               "result": {},
                               "session_id": {
                                 "type": "string"
@@ -110382,6 +111469,9 @@
                               },
                               "task_id": {
                                 "type": "string"
+                              },
+                              "worktree_id": {
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -110390,6 +111480,7 @@
                               "origin",
                               "queued_at",
                               "recovery_count",
+                              "resolved_worktree_mode",
                               "status",
                               "task_id"
                             ],
@@ -111144,6 +112235,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -111168,6 +112271,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -111176,6 +112282,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -112351,6 +113458,18 @@
                                     }
                                   ]
                                 },
+                                "resolved_worktree_mode": {
+                                  "enum": [
+                                    "inherit",
+                                    "none",
+                                    "ref",
+                                    "per_run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "resolved_worktree_ref": {
+                                  "type": "string"
+                                },
                                 "session_id": {
                                   "type": "string"
                                 },
@@ -112374,6 +113493,9 @@
                                 },
                                 "task_id": {
                                   "type": "string"
+                                },
+                                "worktree_id": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -112382,6 +113504,7 @@
                                 "max_attempts",
                                 "queued_at",
                                 "recovery_count",
+                                "resolved_worktree_mode",
                                 "status",
                                 "task_id"
                               ],
@@ -113608,6 +114731,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -113632,6 +114767,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -113640,6 +114778,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -113956,6 +115095,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -113980,6 +115131,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -113988,6 +115142,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -114874,6 +116029,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -114898,6 +116065,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -114906,6 +116076,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -115788,6 +116959,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -115812,6 +116995,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -115820,6 +117006,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -116136,6 +117323,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -116160,6 +117359,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -116168,6 +117370,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -117367,6 +118570,18 @@
                                       }
                                     ]
                                   },
+                                  "resolved_worktree_mode": {
+                                    "enum": [
+                                      "inherit",
+                                      "none",
+                                      "ref",
+                                      "per_run"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "resolved_worktree_ref": {
+                                    "type": "string"
+                                  },
                                   "result": {},
                                   "session_id": {
                                     "type": "string"
@@ -117391,6 +118606,9 @@
                                   },
                                   "task_id": {
                                     "type": "string"
+                                  },
+                                  "worktree_id": {
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -117399,6 +118617,7 @@
                                   "origin",
                                   "queued_at",
                                   "recovery_count",
+                                  "resolved_worktree_mode",
                                   "status",
                                   "task_id"
                                 ],
@@ -117691,6 +118910,18 @@
                                           }
                                         ]
                                       },
+                                      "resolved_worktree_mode": {
+                                        "enum": [
+                                          "inherit",
+                                          "none",
+                                          "ref",
+                                          "per_run"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "resolved_worktree_ref": {
+                                        "type": "string"
+                                      },
                                       "session_id": {
                                         "type": "string"
                                       },
@@ -117714,6 +118945,9 @@
                                       },
                                       "task_id": {
                                         "type": "string"
+                                      },
+                                      "worktree_id": {
+                                        "type": "string"
                                       }
                                     },
                                     "required": [
@@ -117722,6 +118956,7 @@
                                       "max_attempts",
                                       "queued_at",
                                       "recovery_count",
+                                      "resolved_worktree_mode",
                                       "status",
                                       "task_id"
                                     ],
@@ -154943,6 +156178,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -154967,6 +156214,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -154975,6 +156225,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -156134,6 +157385,18 @@
                                 }
                               ]
                             },
+                            "resolved_worktree_mode": {
+                              "enum": [
+                                "inherit",
+                                "none",
+                                "ref",
+                                "per_run"
+                              ],
+                              "type": "string"
+                            },
+                            "resolved_worktree_ref": {
+                              "type": "string"
+                            },
                             "result": {},
                             "session_id": {
                               "type": "string"
@@ -156158,6 +157421,9 @@
                             },
                             "task_id": {
                               "type": "string"
+                            },
+                            "worktree_id": {
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -156166,6 +157432,7 @@
                             "origin",
                             "queued_at",
                             "recovery_count",
+                            "resolved_worktree_mode",
                             "status",
                             "task_id"
                           ],
@@ -157035,6 +158302,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -157059,6 +158338,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -157067,6 +158349,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -157806,6 +159089,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -157830,6 +159125,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -157838,6 +159136,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -158580,6 +159879,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -158604,6 +159915,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -158612,6 +159926,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -160103,6 +161418,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -160127,6 +161454,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -160135,6 +161465,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -162174,6 +163505,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -162198,6 +163541,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -162206,6 +163552,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -165681,6 +167028,18 @@
                                       }
                                     ]
                                   },
+                                  "resolved_worktree_mode": {
+                                    "enum": [
+                                      "inherit",
+                                      "none",
+                                      "ref",
+                                      "per_run"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "resolved_worktree_ref": {
+                                    "type": "string"
+                                  },
                                   "session_id": {
                                     "type": "string"
                                   },
@@ -165704,6 +167063,9 @@
                                   },
                                   "task_id": {
                                     "type": "string"
+                                  },
+                                  "worktree_id": {
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -165712,6 +167074,7 @@
                                   "max_attempts",
                                   "queued_at",
                                   "recovery_count",
+                                  "resolved_worktree_mode",
                                   "status",
                                   "task_id"
                                 ],
@@ -166840,6 +168203,18 @@
                                   }
                                 ]
                               },
+                              "resolved_worktree_mode": {
+                                "enum": [
+                                  "inherit",
+                                  "none",
+                                  "ref",
+                                  "per_run"
+                                ],
+                                "type": "string"
+                              },
+                              "resolved_worktree_ref": {
+                                "type": "string"
+                              },
                               "result": {},
                               "session_id": {
                                 "type": "string"
@@ -166864,6 +168239,9 @@
                               },
                               "task_id": {
                                 "type": "string"
+                              },
+                              "worktree_id": {
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -166872,6 +168250,7 @@
                               "origin",
                               "queued_at",
                               "recovery_count",
+                              "resolved_worktree_mode",
                               "status",
                               "task_id"
                             ],
@@ -167166,6 +168545,18 @@
                                     }
                                   ]
                                 },
+                                "resolved_worktree_mode": {
+                                  "enum": [
+                                    "inherit",
+                                    "none",
+                                    "ref",
+                                    "per_run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "resolved_worktree_ref": {
+                                  "type": "string"
+                                },
                                 "session_id": {
                                   "type": "string"
                                 },
@@ -167189,6 +168580,9 @@
                                 },
                                 "task_id": {
                                   "type": "string"
+                                },
+                                "worktree_id": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -167197,6 +168591,7 @@
                                 "max_attempts",
                                 "queued_at",
                                 "recovery_count",
+                                "resolved_worktree_mode",
                                 "status",
                                 "task_id"
                               ],
@@ -170148,6 +171543,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -170172,6 +171579,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -170180,6 +171590,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -174957,6 +176368,18 @@
                                       }
                                     ]
                                   },
+                                  "resolved_worktree_mode": {
+                                    "enum": [
+                                      "inherit",
+                                      "none",
+                                      "ref",
+                                      "per_run"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "resolved_worktree_ref": {
+                                    "type": "string"
+                                  },
                                   "session_id": {
                                     "type": "string"
                                   },
@@ -174980,6 +176403,9 @@
                                   },
                                   "task_id": {
                                     "type": "string"
+                                  },
+                                  "worktree_id": {
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -174988,6 +176414,7 @@
                                   "max_attempts",
                                   "queued_at",
                                   "recovery_count",
+                                  "resolved_worktree_mode",
                                   "status",
                                   "task_id"
                                 ],
@@ -176116,6 +177543,18 @@
                                   }
                                 ]
                               },
+                              "resolved_worktree_mode": {
+                                "enum": [
+                                  "inherit",
+                                  "none",
+                                  "ref",
+                                  "per_run"
+                                ],
+                                "type": "string"
+                              },
+                              "resolved_worktree_ref": {
+                                "type": "string"
+                              },
                               "result": {},
                               "session_id": {
                                 "type": "string"
@@ -176140,6 +177579,9 @@
                               },
                               "task_id": {
                                 "type": "string"
+                              },
+                              "worktree_id": {
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -176148,6 +177590,7 @@
                               "origin",
                               "queued_at",
                               "recovery_count",
+                              "resolved_worktree_mode",
                               "status",
                               "task_id"
                             ],
@@ -176442,6 +177885,18 @@
                                     }
                                   ]
                                 },
+                                "resolved_worktree_mode": {
+                                  "enum": [
+                                    "inherit",
+                                    "none",
+                                    "ref",
+                                    "per_run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "resolved_worktree_ref": {
+                                  "type": "string"
+                                },
                                 "session_id": {
                                   "type": "string"
                                 },
@@ -176465,6 +177920,9 @@
                                 },
                                 "task_id": {
                                   "type": "string"
+                                },
+                                "worktree_id": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -176473,6 +177931,7 @@
                                 "max_attempts",
                                 "queued_at",
                                 "recovery_count",
+                                "resolved_worktree_mode",
                                 "status",
                                 "task_id"
                               ],
@@ -178163,6 +179622,18 @@
                                       }
                                     ]
                                   },
+                                  "resolved_worktree_mode": {
+                                    "enum": [
+                                      "inherit",
+                                      "none",
+                                      "ref",
+                                      "per_run"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "resolved_worktree_ref": {
+                                    "type": "string"
+                                  },
                                   "session_id": {
                                     "type": "string"
                                   },
@@ -178186,6 +179657,9 @@
                                   },
                                   "task_id": {
                                     "type": "string"
+                                  },
+                                  "worktree_id": {
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -178194,6 +179668,7 @@
                                   "max_attempts",
                                   "queued_at",
                                   "recovery_count",
+                                  "resolved_worktree_mode",
                                   "status",
                                   "task_id"
                                 ],
@@ -179322,6 +180797,18 @@
                                   }
                                 ]
                               },
+                              "resolved_worktree_mode": {
+                                "enum": [
+                                  "inherit",
+                                  "none",
+                                  "ref",
+                                  "per_run"
+                                ],
+                                "type": "string"
+                              },
+                              "resolved_worktree_ref": {
+                                "type": "string"
+                              },
                               "result": {},
                               "session_id": {
                                 "type": "string"
@@ -179346,6 +180833,9 @@
                               },
                               "task_id": {
                                 "type": "string"
+                              },
+                              "worktree_id": {
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -179354,6 +180844,7 @@
                               "origin",
                               "queued_at",
                               "recovery_count",
+                              "resolved_worktree_mode",
                               "status",
                               "task_id"
                             ],
@@ -179648,6 +181139,18 @@
                                     }
                                   ]
                                 },
+                                "resolved_worktree_mode": {
+                                  "enum": [
+                                    "inherit",
+                                    "none",
+                                    "ref",
+                                    "per_run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "resolved_worktree_ref": {
+                                  "type": "string"
+                                },
                                 "session_id": {
                                   "type": "string"
                                 },
@@ -179671,6 +181174,9 @@
                                 },
                                 "task_id": {
                                   "type": "string"
+                                },
+                                "worktree_id": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -179679,6 +181185,7 @@
                                 "max_attempts",
                                 "queued_at",
                                 "recovery_count",
+                                "resolved_worktree_mode",
                                 "status",
                                 "task_id"
                               ],
@@ -181754,6 +183261,26 @@
                             "mode"
                           ],
                           "type": "object"
+                        },
+                        "worktree": {
+                          "properties": {
+                            "mode": {
+                              "enum": [
+                                "inherit",
+                                "none",
+                                "ref",
+                                "per_run"
+                              ],
+                              "type": "string"
+                            },
+                            "worktree_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
                         }
                       },
                       "required": [
@@ -181765,7 +183292,8 @@
                         "sandbox",
                         "task_id",
                         "updated_at",
-                        "worker"
+                        "worker",
+                        "worktree"
                       ],
                       "type": "object"
                     }
@@ -182535,6 +184063,26 @@
                       "mode"
                     ],
                     "type": "object"
+                  },
+                  "worktree": {
+                    "properties": {
+                      "mode": {
+                        "enum": [
+                          "inherit",
+                          "none",
+                          "ref",
+                          "per_run"
+                        ],
+                        "type": "string"
+                      },
+                      "worktree_ref": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
@@ -182546,7 +184094,8 @@
                   "sandbox",
                   "task_id",
                   "updated_at",
-                  "worker"
+                  "worker",
+                  "worktree"
                 ],
                 "type": "object"
               }
@@ -182999,6 +184548,26 @@
                             "mode"
                           ],
                           "type": "object"
+                        },
+                        "worktree": {
+                          "properties": {
+                            "mode": {
+                              "enum": [
+                                "inherit",
+                                "none",
+                                "ref",
+                                "per_run"
+                              ],
+                              "type": "string"
+                            },
+                            "worktree_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
                         }
                       },
                       "required": [
@@ -183010,7 +184579,8 @@
                         "sandbox",
                         "task_id",
                         "updated_at",
-                        "worker"
+                        "worker",
+                        "worktree"
                       ],
                       "type": "object"
                     }
@@ -183391,6 +184961,914 @@
           }
         },
         "summary": "Replace one task execution profile",
+        "tags": [
+          "tasks"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/tasks/{id}/execution-profile/worktree": {
+      "patch": {
+        "operationId": "setTaskWorktreePolicy",
+        "parameters": [
+          {
+            "description": "Task id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "mode": {
+                    "enum": [
+                      "inherit",
+                      "none",
+                      "ref",
+                      "per_run"
+                    ],
+                    "type": "string"
+                  },
+                  "worktree_ref": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "profile": {
+                      "properties": {
+                        "coordinator": {
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "guidance": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "enum": [
+                                "inherit",
+                                "guided"
+                              ],
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "provider": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        },
+                        "created_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "network_participation": {
+                          "nullable": true,
+                          "oneOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "mode": {
+                                  "enum": [
+                                    "local"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "bounds": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "enum": [
+                                    "named"
+                                  ],
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "live"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "channel_strategy",
+                                "mode",
+                                "channel_id"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "bounds": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_strategy": {
+                                  "enum": [
+                                    "run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "live"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "channel_strategy",
+                                "mode"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "bounds": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "maximum": 9007199254740991,
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "minimum": 1,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_strategy": {
+                                  "enum": [
+                                    "loop_run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "live"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "channel_strategy",
+                                "mode"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "participants": {
+                          "properties": {
+                            "allowed_agent_names": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "allowed_channel_ids": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "allowed_peer_ids": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "preferred_agent_names": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "preferred_capabilities": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "preferred_channel_ids": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "preferred_peer_ids": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "required_capabilities": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "review": {
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "allowed_agent_names": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "allowed_channel_ids": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "allowed_peer_ids": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "preferred_agent_names": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "preferred_capabilities": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "preferred_channel_ids": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "preferred_peer_ids": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "required_capabilities": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "runtime": {
+                          "properties": {
+                            "mode": {
+                              "enum": [
+                                "default",
+                                "evidence"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        },
+                        "sandbox": {
+                          "properties": {
+                            "mode": {
+                              "enum": [
+                                "inherit",
+                                "none",
+                                "ref"
+                              ],
+                              "type": "string"
+                            },
+                            "sandbox_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        },
+                        "task_id": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "worker": {
+                          "properties": {
+                            "agent_name": {
+                              "type": "string"
+                            },
+                            "allowed_agent_names": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "mode": {
+                              "enum": [
+                                "inherit",
+                                "select"
+                              ],
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "preferred_agent_names": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "preferred_capabilities": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "required_capabilities": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        },
+                        "worktree": {
+                          "properties": {
+                            "mode": {
+                              "enum": [
+                                "inherit",
+                                "none",
+                                "ref",
+                                "per_run"
+                              ],
+                              "type": "string"
+                            },
+                            "worktree_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "coordinator",
+                        "created_at",
+                        "participants",
+                        "review",
+                        "runtime",
+                        "sandbox",
+                        "task_id",
+                        "updated_at",
+                        "worker",
+                        "worktree"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "profile"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid task worktree policy"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task execution profile conflict"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task service is not configured"
+          }
+        },
+        "summary": "Set one task worktree policy",
         "tags": [
           "tasks"
         ],
@@ -184038,6 +186516,18 @@
                                     }
                                   ]
                                 },
+                                "resolved_worktree_mode": {
+                                  "enum": [
+                                    "inherit",
+                                    "none",
+                                    "ref",
+                                    "per_run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "resolved_worktree_ref": {
+                                  "type": "string"
+                                },
                                 "session_id": {
                                   "type": "string"
                                 },
@@ -184061,6 +186551,9 @@
                                 },
                                 "task_id": {
                                   "type": "string"
+                                },
+                                "worktree_id": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -184069,6 +186562,7 @@
                                 "max_attempts",
                                 "queued_at",
                                 "recovery_count",
+                                "resolved_worktree_mode",
                                 "status",
                                 "task_id"
                               ],
@@ -188193,6 +190687,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -188217,6 +190723,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -188225,6 +190734,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -192598,6 +195108,18 @@
                               }
                             ]
                           },
+                          "resolved_worktree_mode": {
+                            "enum": [
+                              "inherit",
+                              "none",
+                              "ref",
+                              "per_run"
+                            ],
+                            "type": "string"
+                          },
+                          "resolved_worktree_ref": {
+                            "type": "string"
+                          },
                           "result": {},
                           "session_id": {
                             "type": "string"
@@ -192622,6 +195144,9 @@
                           },
                           "task_id": {
                             "type": "string"
+                          },
+                          "worktree_id": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -192630,6 +195155,7 @@
                           "origin",
                           "queued_at",
                           "recovery_count",
+                          "resolved_worktree_mode",
                           "status",
                           "task_id"
                         ],
@@ -193498,6 +196024,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -193522,6 +196060,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -193530,6 +196071,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -194162,6 +196704,9 @@
                         "type": "object"
                       }
                     ]
+                  },
+                  "worktree_per_run": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -194495,6 +197040,18 @@
                               }
                             ]
                           },
+                          "resolved_worktree_mode": {
+                            "enum": [
+                              "inherit",
+                              "none",
+                              "ref",
+                              "per_run"
+                            ],
+                            "type": "string"
+                          },
+                          "resolved_worktree_ref": {
+                            "type": "string"
+                          },
                           "result": {},
                           "session_id": {
                             "type": "string"
@@ -194519,6 +197076,9 @@
                           },
                           "task_id": {
                             "type": "string"
+                          },
+                          "worktree_id": {
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -194527,6 +197087,7 @@
                           "origin",
                           "queued_at",
                           "recovery_count",
+                          "resolved_worktree_mode",
                           "status",
                           "task_id"
                         ],
@@ -195472,6 +198033,18 @@
                             }
                           ]
                         },
+                        "resolved_worktree_mode": {
+                          "enum": [
+                            "inherit",
+                            "none",
+                            "ref",
+                            "per_run"
+                          ],
+                          "type": "string"
+                        },
+                        "resolved_worktree_ref": {
+                          "type": "string"
+                        },
                         "result": {},
                         "session_id": {
                           "type": "string"
@@ -195496,6 +198069,9 @@
                         },
                         "task_id": {
                           "type": "string"
+                        },
+                        "worktree_id": {
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -195504,6 +198080,7 @@
                         "origin",
                         "queued_at",
                         "recovery_count",
+                        "resolved_worktree_mode",
                         "status",
                         "task_id"
                       ],
@@ -196695,6 +199272,18 @@
                                 }
                               ]
                             },
+                            "resolved_worktree_mode": {
+                              "enum": [
+                                "inherit",
+                                "none",
+                                "ref",
+                                "per_run"
+                              ],
+                              "type": "string"
+                            },
+                            "resolved_worktree_ref": {
+                              "type": "string"
+                            },
                             "session_id": {
                               "type": "string"
                             },
@@ -196718,6 +199307,9 @@
                             },
                             "task_id": {
                               "type": "string"
+                            },
+                            "worktree_id": {
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -196726,6 +199318,7 @@
                             "max_attempts",
                             "queued_at",
                             "recovery_count",
+                            "resolved_worktree_mode",
                             "status",
                             "task_id"
                           ],
@@ -197542,6 +200135,18 @@
                                   }
                                 ]
                               },
+                              "resolved_worktree_mode": {
+                                "enum": [
+                                  "inherit",
+                                  "none",
+                                  "ref",
+                                  "per_run"
+                                ],
+                                "type": "string"
+                              },
+                              "resolved_worktree_ref": {
+                                "type": "string"
+                              },
                               "session_id": {
                                 "type": "string"
                               },
@@ -197565,6 +200170,9 @@
                               },
                               "task_id": {
                                 "type": "string"
+                              },
+                              "worktree_id": {
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -197573,6 +200181,7 @@
                               "max_attempts",
                               "queued_at",
                               "recovery_count",
+                              "resolved_worktree_mode",
                               "status",
                               "task_id"
                             ],
@@ -198314,6 +200923,18 @@
                                       }
                                     ]
                                   },
+                                  "resolved_worktree_mode": {
+                                    "enum": [
+                                      "inherit",
+                                      "none",
+                                      "ref",
+                                      "per_run"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "resolved_worktree_ref": {
+                                    "type": "string"
+                                  },
                                   "session_id": {
                                     "type": "string"
                                   },
@@ -198337,6 +200958,9 @@
                                   },
                                   "task_id": {
                                     "type": "string"
+                                  },
+                                  "worktree_id": {
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -198345,6 +200969,7 @@
                                   "max_attempts",
                                   "queued_at",
                                   "recovery_count",
+                                  "resolved_worktree_mode",
                                   "status",
                                   "task_id"
                                 ],
@@ -198751,6 +201376,18 @@
                                     }
                                   ]
                                 },
+                                "resolved_worktree_mode": {
+                                  "enum": [
+                                    "inherit",
+                                    "none",
+                                    "ref",
+                                    "per_run"
+                                  ],
+                                  "type": "string"
+                                },
+                                "resolved_worktree_ref": {
+                                  "type": "string"
+                                },
                                 "session_id": {
                                   "type": "string"
                                 },
@@ -198774,6 +201411,9 @@
                                 },
                                 "task_id": {
                                   "type": "string"
+                                },
+                                "worktree_id": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -198782,6 +201422,7 @@
                                 "max_attempts",
                                 "queued_at",
                                 "recovery_count",
+                                "resolved_worktree_mode",
                                 "status",
                                 "task_id"
                               ],
@@ -223522,6 +226163,32 @@
                                   },
                                   "params": {
                                     "additionalProperties": {},
+                                    "properties": {
+                                      "environment": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "directory": {
+                                            "type": "string"
+                                          },
+                                          "mode": {
+                                            "enum": [
+                                              "root",
+                                              "worktree",
+                                              "per_run",
+                                              "directory"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "worktree_ref": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "mode"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    },
                                     "type": "object"
                                   },
                                   "parse": {
@@ -235862,6 +238529,32 @@
                                 },
                                 "params": {
                                   "additionalProperties": {},
+                                  "properties": {
+                                    "environment": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "directory": {
+                                          "type": "string"
+                                        },
+                                        "mode": {
+                                          "enum": [
+                                            "root",
+                                            "worktree",
+                                            "per_run",
+                                            "directory"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "worktree_ref": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "mode"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
                                   "type": "object"
                                 },
                                 "parse": {
@@ -237478,6 +240171,32 @@
                                       },
                                       "params": {
                                         "additionalProperties": {},
+                                        "properties": {
+                                          "environment": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "directory": {
+                                                "type": "string"
+                                              },
+                                              "mode": {
+                                                "enum": [
+                                                  "root",
+                                                  "worktree",
+                                                  "per_run",
+                                                  "directory"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "worktree_ref": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "mode"
+                                            ],
+                                            "type": "object"
+                                          }
+                                        },
                                         "type": "object"
                                       },
                                       "parse": {
@@ -240073,6 +242792,32 @@
                                       },
                                       "params": {
                                         "additionalProperties": {},
+                                        "properties": {
+                                          "environment": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "directory": {
+                                                "type": "string"
+                                              },
+                                              "mode": {
+                                                "enum": [
+                                                  "root",
+                                                  "worktree",
+                                                  "per_run",
+                                                  "directory"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "worktree_ref": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "mode"
+                                            ],
+                                            "type": "object"
+                                          }
+                                        },
                                         "type": "object"
                                       },
                                       "parse": {
@@ -242080,6 +244825,32 @@
                                 },
                                 "params": {
                                   "additionalProperties": {},
+                                  "properties": {
+                                    "environment": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "directory": {
+                                          "type": "string"
+                                        },
+                                        "mode": {
+                                          "enum": [
+                                            "root",
+                                            "worktree",
+                                            "per_run",
+                                            "directory"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "worktree_ref": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "mode"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
                                   "type": "object"
                                 },
                                 "parse": {
@@ -243700,6 +246471,32 @@
                                       },
                                       "params": {
                                         "additionalProperties": {},
+                                        "properties": {
+                                          "environment": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "directory": {
+                                                "type": "string"
+                                              },
+                                              "mode": {
+                                                "enum": [
+                                                  "root",
+                                                  "worktree",
+                                                  "per_run",
+                                                  "directory"
+                                                ],
+                                                "type": "string"
+                                              },
+                                              "worktree_ref": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "mode"
+                                            ],
+                                            "type": "object"
+                                          }
+                                        },
                                         "type": "object"
                                       },
                                       "parse": {
@@ -245502,6 +248299,30 @@
                           "type": "integer"
                         },
                         "enabled_checks_json": {},
+                        "environment": {
+                          "nullable": true,
+                          "properties": {
+                            "directory": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "enum": [
+                                "root",
+                                "worktree",
+                                "per_run",
+                                "directory"
+                              ],
+                              "type": "string"
+                            },
+                            "worktree_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        },
                         "fan_out_width": {
                           "nullable": true,
                           "type": "integer"
@@ -245623,6 +248444,29 @@
                           "type": "integer"
                         },
                         "enabled_checks_json": {},
+                        "environment": {
+                          "properties": {
+                            "directory": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "enum": [
+                                "root",
+                                "worktree",
+                                "per_run",
+                                "directory"
+                              ],
+                              "type": "string"
+                            },
+                            "worktree_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        },
                         "fan_out_width": {
                           "type": "integer"
                         },
@@ -245764,6 +248608,7 @@
                         "budget_tokens",
                         "budget_wall_sec",
                         "enabled_checks_json",
+                        "environment",
                         "fan_out_width",
                         "gate_max_revisions",
                         "human_gate_enabled",
@@ -246134,6 +248979,30 @@
                         "type": "integer"
                       },
                       "enabled_checks_json": {},
+                      "environment": {
+                        "nullable": true,
+                        "properties": {
+                          "directory": {
+                            "type": "string"
+                          },
+                          "mode": {
+                            "enum": [
+                              "root",
+                              "worktree",
+                              "per_run",
+                              "directory"
+                            ],
+                            "type": "string"
+                          },
+                          "worktree_ref": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "type": "object"
+                      },
                       "fan_out_width": {
                         "nullable": true,
                         "type": "integer"
@@ -246276,6 +249145,30 @@
                           "type": "integer"
                         },
                         "enabled_checks_json": {},
+                        "environment": {
+                          "nullable": true,
+                          "properties": {
+                            "directory": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "enum": [
+                                "root",
+                                "worktree",
+                                "per_run",
+                                "directory"
+                              ],
+                              "type": "string"
+                            },
+                            "worktree_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        },
                         "fan_out_width": {
                           "nullable": true,
                           "type": "integer"
@@ -246397,6 +249290,29 @@
                           "type": "integer"
                         },
                         "enabled_checks_json": {},
+                        "environment": {
+                          "properties": {
+                            "directory": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "enum": [
+                                "root",
+                                "worktree",
+                                "per_run",
+                                "directory"
+                              ],
+                              "type": "string"
+                            },
+                            "worktree_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        },
                         "fan_out_width": {
                           "type": "integer"
                         },
@@ -246538,6 +249454,7 @@
                         "budget_tokens",
                         "budget_wall_sec",
                         "enabled_checks_json",
+                        "environment",
                         "fan_out_width",
                         "gate_max_revisions",
                         "human_gate_enabled",
@@ -249158,6 +252075,30 @@
                         "type": "integer"
                       },
                       "enabled_checks_json": {},
+                      "environment": {
+                        "nullable": true,
+                        "properties": {
+                          "directory": {
+                            "type": "string"
+                          },
+                          "mode": {
+                            "enum": [
+                              "root",
+                              "worktree",
+                              "per_run",
+                              "directory"
+                            ],
+                            "type": "string"
+                          },
+                          "worktree_ref": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "type": "object"
+                      },
                       "fan_out_width": {
                         "nullable": true,
                         "type": "integer"
@@ -250074,6 +253015,29 @@
                               "type": "integer"
                             },
                             "enabled_checks_json": {},
+                            "environment": {
+                              "properties": {
+                                "directory": {
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "root",
+                                    "worktree",
+                                    "per_run",
+                                    "directory"
+                                  ],
+                                  "type": "string"
+                                },
+                                "worktree_ref": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ],
+                              "type": "object"
+                            },
                             "fan_out_width": {
                               "type": "integer"
                             },
@@ -250215,6 +253179,7 @@
                             "budget_tokens",
                             "budget_wall_sec",
                             "enabled_checks_json",
+                            "environment",
                             "fan_out_width",
                             "gate_max_revisions",
                             "human_gate_enabled",
@@ -251883,6 +254848,29 @@
                               "type": "integer"
                             },
                             "enabled_checks_json": {},
+                            "environment": {
+                              "properties": {
+                                "directory": {
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "root",
+                                    "worktree",
+                                    "per_run",
+                                    "directory"
+                                  ],
+                                  "type": "string"
+                                },
+                                "worktree_ref": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ],
+                              "type": "object"
+                            },
                             "fan_out_width": {
                               "type": "integer"
                             },
@@ -252024,6 +255012,7 @@
                             "budget_tokens",
                             "budget_wall_sec",
                             "enabled_checks_json",
+                            "environment",
                             "fan_out_width",
                             "gate_max_revisions",
                             "human_gate_enabled",
@@ -254834,6 +257823,32 @@
                                 },
                                 "params": {
                                   "additionalProperties": {},
+                                  "properties": {
+                                    "environment": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "directory": {
+                                          "type": "string"
+                                        },
+                                        "mode": {
+                                          "enum": [
+                                            "root",
+                                            "worktree",
+                                            "per_run",
+                                            "directory"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "worktree_ref": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "mode"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
                                   "type": "object"
                                 },
                                 "parse": {
@@ -284058,6 +287073,18 @@
                                 }
                               ]
                             },
+                            "resolved_worktree_mode": {
+                              "enum": [
+                                "inherit",
+                                "none",
+                                "ref",
+                                "per_run"
+                              ],
+                              "type": "string"
+                            },
+                            "resolved_worktree_ref": {
+                              "type": "string"
+                            },
                             "result": {},
                             "session_id": {
                               "type": "string"
@@ -284082,6 +287109,9 @@
                             },
                             "task_id": {
                               "type": "string"
+                            },
+                            "worktree_id": {
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -284090,6 +287120,7 @@
                             "origin",
                             "queued_at",
                             "recovery_count",
+                            "resolved_worktree_mode",
                             "status",
                             "task_id"
                           ],

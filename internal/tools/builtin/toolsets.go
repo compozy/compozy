@@ -202,6 +202,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDTaskRunReviewShow.String(),
 			toolspkg.ToolIDTaskExecutionProfileGet.String(),
 			toolspkg.ToolIDTaskExecutionProfileSet.String(),
+			toolspkg.ToolIDTaskWorktreePolicySet.String(),
 			toolspkg.ToolIDTaskExecutionProfileDelete.String(),
 			toolspkg.ToolIDTaskNotificationSubscribe.String(),
 			toolspkg.ToolIDTaskNotificationList.String(),

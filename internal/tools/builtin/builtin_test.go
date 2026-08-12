@@ -144,6 +144,27 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatalf("%s profile schema omits network_participation", profileDescriptor.ID)
 		}
 		assertTypedNetworkParticipationSchema(t, profileDescriptor.ID.String(), participationSchema)
+		var worktreePolicy nativeObjectSchema
+		if err := json.Unmarshal(profile.Properties["worktree"], &worktreePolicy); err != nil {
+			t.Fatalf("%s worktree schema unmarshal error = %v", profileDescriptor.ID, err)
+		}
+		assertClosedObjectSchema(
+			t,
+			profileDescriptor.ID.String()+" worktree",
+			worktreePolicy,
+			[]string{"mode", "worktree_ref"},
+		)
+		worktreeDescriptor := descriptors[toolspkg.ToolIDTaskWorktreePolicySet]
+		var worktreeInput nativeObjectSchema
+		if err := json.Unmarshal(worktreeDescriptor.InputSchema, &worktreeInput); err != nil {
+			t.Fatalf("%s input schema unmarshal error = %v", worktreeDescriptor.ID, err)
+		}
+		assertClosedObjectSchema(
+			t,
+			worktreeDescriptor.ID.String(),
+			worktreeInput,
+			[]string{"mode", "task_id", "worktree_ref"},
+		)
 
 		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDTaskList, toolspkg.ToolIDTaskRunList} {
 			var schema struct {
@@ -160,6 +181,26 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 					t.Fatalf("%s input schema exposes removed %s", id, legacy)
 				}
 			}
+		}
+	})
+
+	t.Run("Should expose the closed Loop environment on create configure and run", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		configure := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopConfigure], "config")
+		assertNativeLoopEnvironmentSchema(t, toolspkg.ToolIDLoopConfigure.String(), configure.Properties["environment"])
+		run := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopRun], "config_overrides")
+		assertNativeLoopEnvironmentSchema(t, toolspkg.ToolIDLoopRun.String(), run.Properties["environment"])
+
+		definition := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopCreate], "definition")
+		graph := decodeRawNativeObjectSchema(t, toolspkg.ToolIDLoopCreate.String()+" graph", definition.Properties["graph"])
+		nodes := decodeRawNativeObjectSchema(t, toolspkg.ToolIDLoopCreate.String()+" nodes", graph.Properties["nodes"])
+		node := decodeRawNativeObjectSchema(t, toolspkg.ToolIDLoopCreate.String()+" node", nodes.Items)
+		params := decodeRawNativeObjectSchema(t, toolspkg.ToolIDLoopCreate.String()+" params", node.Properties["params"])
+		assertNativeLoopEnvironmentSchema(t, toolspkg.ToolIDLoopCreate.String(), params.Properties["environment"])
+		if _, ok := params.Properties["cwd"]; ok {
+			t.Fatal("compozy__loop_create params schema exposes retired cwd")
 		}
 	})
 
@@ -1293,6 +1334,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__task_execution_profile_set", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__task_worktree_policy_set", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_fanout_runs", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_list", risk: toolspkg.RiskRead,
@@ -2210,6 +2253,52 @@ func assertClosedObjectSchema(t *testing.T, owner string, schema nativeObjectSch
 	}
 }
 
+func decodeNativeObjectSchema(
+	t *testing.T,
+	descriptor toolspkg.Descriptor,
+	property string,
+) nativeObjectSchema {
+	t.Helper()
+	var input nativeObjectSchema
+	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+	}
+	raw, ok := input.Properties[property]
+	if !ok {
+		t.Fatalf("%s input schema omits %s", descriptor.ID, property)
+	}
+	return decodeRawNativeObjectSchema(t, descriptor.ID.String()+" "+property, raw)
+}
+
+func decodeRawNativeObjectSchema(t *testing.T, owner string, raw json.RawMessage) nativeObjectSchema {
+	t.Helper()
+	var schema nativeObjectSchema
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("%s schema unmarshal error = %v", owner, err)
+	}
+	return schema
+}
+
+func assertNativeLoopEnvironmentSchema(t *testing.T, owner string, raw json.RawMessage) {
+	t.Helper()
+	environment := decodeRawNativeObjectSchema(t, owner+" environment", raw)
+	assertClosedObjectSchema(
+		t,
+		owner+" environment",
+		environment,
+		[]string{"directory", "mode", "worktree_ref"},
+	)
+	if !slices.Equal(environment.Required, []string{"mode"}) {
+		t.Fatalf("%s environment required = %#v, want mode", owner, environment.Required)
+	}
+	assertStringEnumSchema(
+		t,
+		owner+" environment.mode",
+		environment.Properties["mode"],
+		[]string{"root", "worktree", "per_run", "directory"},
+	)
+}
+
 func assertStringEnumSchema(t *testing.T, owner string, raw json.RawMessage, want []string) {
 	t.Helper()
 	var schema nativeObjectSchema
@@ -2386,6 +2475,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(tasks, toolspkg.ToolIDTaskRunReviewShow) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileGet) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileSet) ||
+			!slices.Contains(tasks, toolspkg.ToolIDTaskWorktreePolicySet) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskExecutionProfileDelete) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationSubscribe) ||
 			!slices.Contains(tasks, toolspkg.ToolIDTaskNotificationList) ||

@@ -62,6 +62,36 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	}
 }
 
+func TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot(t *testing.T) {
+	t.Parallel()
+
+	var current executionWorktreeService
+	resolver := daemonExecutionWorktrees{lookup: func() executionWorktreeService { return current }}
+	if _, err := resolver.MaterializeForRun(
+		context.Background(),
+		"ws-late",
+		worktree.RunWorktreeRequest{TaskSlug: "late", RunID: "run-late"},
+	); !errors.Is(err, worktree.ErrPerRunMaterialization) {
+		t.Fatalf("MaterializeForRun(before boot) error = %v, want %v", err, worktree.ErrPerRunMaterialization)
+	}
+
+	backing := &recordingTaskBridgeWorktrees{materialized: &worktree.Worktree{
+		ID: "wt-late", WorkspaceID: "ws-late", RunID: "run-late",
+	}}
+	current = backing
+	item, err := resolver.MaterializeForRun(
+		context.Background(),
+		"ws-late",
+		worktree.RunWorktreeRequest{TaskSlug: "late", RunID: "run-late"},
+	)
+	if err != nil {
+		t.Fatalf("MaterializeForRun(after boot) error = %v", err)
+	}
+	if item == nil || item.ID != "wt-late" || len(backing.materializeCalls) != 1 {
+		t.Fatalf("MaterializeForRun(after boot) = %#v calls=%#v, want late-bound service", item, backing.materializeCalls)
+	}
+}
+
 func TestDaemonSessionWorktreeResolver(t *testing.T) {
 	t.Parallel()
 

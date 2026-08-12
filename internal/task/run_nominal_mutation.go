@@ -46,52 +46,107 @@ func (m RunDirectExecutionAdmissionMutation) ClaimedAt() time.Time { return m.cl
 // RunStartingMutation authorizes claimed -> starting against one exact run
 // ownership snapshot.
 type RunStartingMutation struct {
-	fence RunMutationFence
+	fence      RunMutationFence
+	claimToken string
+	commandAt  time.Time
 }
 
 // NewRunStartingMutation captures the claimed run that may enter starting.
-func NewRunStartingMutation(previous Run) RunStartingMutation {
-	return RunStartingMutation{fence: NewRunMutationFence(previous)}
+func NewRunStartingMutation(previous Run, claimToken string, commandAt time.Time) RunStartingMutation {
+	return RunStartingMutation{
+		fence:      NewRunMutationFence(previous),
+		claimToken: strings.TrimSpace(claimToken),
+		commandAt:  commandAt.UTC(),
+	}
 }
 
 // Fence reports the exact source snapshot required by the command.
 func (m RunStartingMutation) Fence() RunMutationFence { return m.fence }
 
+// MatchesSource reports whether the current run still has the captured lease owner.
+func (m RunStartingMutation) MatchesSource(run Run) bool { return m.fence.matchesLeaseOwner(run) }
+
+// ClaimToken reports the lease credential authorizing the transition.
+func (m RunStartingMutation) ClaimToken() string { return m.claimToken }
+
+// CommandAt reports when the transition was authorized.
+func (m RunStartingMutation) CommandAt() time.Time { return m.commandAt }
+
 // RunSessionBindingMutation authorizes one exact claimed or starting run to
 // bind the session returned by the runtime bridge.
 type RunSessionBindingMutation struct {
-	fence     RunMutationFence
-	sessionID string
+	fence      RunMutationFence
+	claimToken string
+	sessionID  string
+	worktreeID string
+	commandAt  time.Time
 }
 
 // NewRunSessionBindingMutation captures the source run and requested session.
-func NewRunSessionBindingMutation(previous Run, sessionID string) RunSessionBindingMutation {
+func NewRunSessionBindingMutation(
+	previous Run,
+	claimToken string,
+	sessionID string,
+	worktreeID string,
+	commandAt time.Time,
+) RunSessionBindingMutation {
 	return RunSessionBindingMutation{
-		fence:     NewRunMutationFence(previous),
-		sessionID: strings.TrimSpace(sessionID),
+		fence:      NewRunMutationFence(previous),
+		claimToken: strings.TrimSpace(claimToken),
+		sessionID:  strings.TrimSpace(sessionID),
+		worktreeID: strings.TrimSpace(worktreeID),
+		commandAt:  commandAt.UTC(),
 	}
 }
 
 // Fence reports the exact source snapshot required by the command.
 func (m RunSessionBindingMutation) Fence() RunMutationFence { return m.fence }
 
+// MatchesSource reports whether the current run still has the captured lease owner.
+func (m RunSessionBindingMutation) MatchesSource(run Run) bool {
+	return m.fence.matchesLeaseOwner(run)
+}
+
+// ClaimToken reports the lease credential authorizing the binding.
+func (m RunSessionBindingMutation) ClaimToken() string { return m.claimToken }
+
 // SessionID reports the normalized session binding requested by the command.
 func (m RunSessionBindingMutation) SessionID() string { return m.sessionID }
+
+// WorktreeID reports the normalized worktree binding returned by the runtime bridge.
+func (m RunSessionBindingMutation) WorktreeID() string { return m.worktreeID }
+
+// CommandAt reports when the binding was authorized.
+func (m RunSessionBindingMutation) CommandAt() time.Time { return m.commandAt }
 
 // RunRunningMutation authorizes starting -> running against one exact run
 // ownership snapshot.
 type RunRunningMutation struct {
-	fence     RunMutationFence
-	startedAt time.Time
+	fence      RunMutationFence
+	claimToken string
+	startedAt  time.Time
 }
 
 // NewRunRunningMutation captures the starting run and its execution timestamp.
-func NewRunRunningMutation(previous Run, startedAt time.Time) RunRunningMutation {
-	return RunRunningMutation{fence: NewRunMutationFence(previous), startedAt: startedAt}
+func NewRunRunningMutation(previous Run, claimToken string, startedAt time.Time) RunRunningMutation {
+	return RunRunningMutation{
+		fence:      NewRunMutationFence(previous),
+		claimToken: strings.TrimSpace(claimToken),
+		startedAt:  startedAt.UTC(),
+	}
 }
 
 // Fence reports the exact source snapshot required by the command.
 func (m RunRunningMutation) Fence() RunMutationFence { return m.fence }
+
+// MatchesSource reports whether the current run still has the captured lease owner.
+func (m RunRunningMutation) MatchesSource(run Run) bool { return m.fence.matchesLeaseOwner(run) }
+
+// ClaimToken reports the lease credential authorizing the transition.
+func (m RunRunningMutation) ClaimToken() string { return m.claimToken }
+
+// CommandAt reports when the transition was authorized.
+func (m RunRunningMutation) CommandAt() time.Time { return m.startedAt }
 
 // StartedAt reports the requested execution timestamp.
 func (m RunRunningMutation) StartedAt() time.Time { return m.startedAt }

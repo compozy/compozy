@@ -8,6 +8,7 @@ import (
 
 	"strings"
 
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -212,6 +213,7 @@ func newTaskProfileCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.AddCommand(newTaskProfileInspectCommand(deps))
 	cmd.AddCommand(newTaskProfileUpdateCommand(deps))
+	cmd.AddCommand(newTaskProfileSetWorktreeCommand(deps))
 	cmd.AddCommand(newTaskProfileDeleteCommand(deps))
 	return cmd
 }
@@ -259,6 +261,47 @@ func newTaskProfileUpdateCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&profileRaw, taskProfileKey, "", "Task execution profile JSON")
 	mustMarkFlagRequired(cmd, taskProfileKey)
+	return cmd
+}
+
+func newTaskProfileSetWorktreeCommand(deps commandDeps) *cobra.Command {
+	var modeRaw, worktreeRef string
+	cmd := &cobra.Command{
+		Use:   "set-worktree <id>",
+		Short: "Set a task worktree policy",
+		Example: `  # Create a fresh worktree for every future run
+  compozy task profile set-worktree task_123 --mode per_run
+
+  # Bind future runs to an existing ready worktree
+  compozy task profile set-worktree task_123 --mode ref --ref feature-docs
+
+  # Output example
+  compozy task profile set-worktree task_123 --mode per_run`,
+		Args: exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			request := TaskWorktreePolicyRequest{
+				Mode:        taskpkg.WorktreeMode(strings.TrimSpace(modeRaw)),
+				WorktreeRef: strings.TrimSpace(worktreeRef),
+			}
+			profile, err := client.SetTaskWorktreePolicy(cmd.Context(), args[0], &request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskExecutionProfileBundle(&profile))
+		},
+	}
+	cmd.Flags().StringVar(
+		&modeRaw,
+		taskWorktreeModeKey,
+		"",
+		"Worktree mode: inherit, none, ref, or per_run",
+	)
+	cmd.Flags().StringVar(&worktreeRef, taskWorktreeRefKey, "", "Attached worktree reference for ref mode")
+	mustMarkFlagRequired(cmd, taskWorktreeModeKey)
 	return cmd
 }
 

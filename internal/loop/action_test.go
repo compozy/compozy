@@ -345,6 +345,41 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should resolve node environment before Loop default and workspace root", func(t *testing.T) {
+		t.Parallel()
+
+		loopDefault := dsl.EnvironmentSpec{
+			Mode:        dsl.EnvironmentWorktree,
+			WorktreeRef: "loop-feature",
+		}
+		resolved, err := loop.ResolveActionEnvironment(
+			dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot},
+			loopDefault,
+		)
+		if err != nil {
+			t.Fatalf("ResolveActionEnvironment(node root) error = %v", err)
+		}
+		if resolved != (dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot}) {
+			t.Fatalf("node environment = %#v, want root override", resolved)
+		}
+
+		resolved, err = loop.ResolveActionEnvironment(dsl.EnvironmentSpec{}, loopDefault)
+		if err != nil {
+			t.Fatalf("ResolveActionEnvironment(Loop default) error = %v", err)
+		}
+		if resolved != loopDefault {
+			t.Fatalf("Loop default environment = %#v, want %#v", resolved, loopDefault)
+		}
+
+		resolved, err = loop.ResolveActionEnvironment(dsl.EnvironmentSpec{}, dsl.EnvironmentSpec{})
+		if err != nil {
+			t.Fatalf("ResolveActionEnvironment(workspace root) error = %v", err)
+		}
+		if resolved != (dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot}) {
+			t.Fatalf("implicit environment = %#v, want workspace root", resolved)
+		}
+	})
+
 	t.Run("Should reject unsupported harvest kinds before sync output", func(t *testing.T) {
 		t.Parallel()
 
@@ -404,6 +439,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			Params: dsl.NodeParams{
 				"agent":         "planner",
 				"prompt":        "Summarize {{ .inputs.topic }}",
+				"environment":   map[string]any{"mode": "directory", "directory": "packages/{{ .inputs.topic }}"},
 				"runtime":       map[string]any{"model": "gpt-5.4"},
 				"allowed_tools": []string{"compozy__task_read"},
 				"max_turns":     3,
@@ -429,6 +465,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				StopWhen:         "generation > 2",
 			},
 			RuntimeSelection: &loop.ActionRuntimeSelection{Catalog: actionTestRuntimeCatalog{}},
+			Environment:      dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot},
 		})
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -464,6 +501,9 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if bind.Runtime.Model != "gpt-5.4" || bind.MaxTurns != 3 || len(bind.AllowedTools) != 1 {
 			t.Fatalf("bind overrides = %#v, want model/tool/max_turns", bind)
 		}
+		if bind.Environment.Mode != dsl.EnvironmentDirectory || bind.Environment.Directory != "packages/delivery" {
+			t.Fatalf("bind environment = %#v, want rendered node directory", bind.Environment)
+		}
 		if raw.ResolvedRuntime.Runtime.Model != "gpt-5.4" ||
 			raw.ResolvedRuntime.Source.Model != loop.RuntimeSourceNode {
 			t.Fatalf("resolved runtime = %#v, want applied node model", raw.ResolvedRuntime)
@@ -492,6 +532,40 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		}
 		if !strings.Contains(prompts[1], "did not satisfy output_schema") {
 			t.Fatalf("retry prompt = %q, want schema validation feedback", prompts[1])
+		}
+	})
+
+	t.Run("Should reject an unresolved environment directory before session binding", func(t *testing.T) {
+		t.Parallel()
+
+		binder := &fakeActionSessionBinder{}
+		actions := newActionRegistryForTest(
+			t,
+			&fakeActionToolRegistry{},
+			loop.WithActionSessionBinder(binder),
+		)
+		executor, err := actions.Resolve(context.Background(), tools.Scope{}, string(dsl.ActionRunAgent))
+		if err != nil {
+			t.Fatalf("Resolve(run-agent) error = %v", err)
+		}
+		node := dsl.Node{
+			ID: "agent", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{
+				"agent":  "planner",
+				"prompt": "Plan the work",
+				"environment": map[string]any{
+					"mode": "directory", "directory": "packages/{{ .inputs.missing }}",
+				},
+			},
+		}
+		_, err = executor.Execute(context.Background(), node, loop.ActionExecutionInput{
+			Namespace: map[string]any{"inputs": map[string]any{"topic": "delivery"}},
+		})
+		if err == nil || !strings.Contains(err.Error(), ".inputs.missing") {
+			t.Fatalf("Execute() error = %v, want unresolved .inputs.missing expression", err)
+		}
+		if got := binder.bindCount(); got != 0 {
+			t.Fatalf("BindActionSession() calls = %d, want none", got)
 		}
 	})
 
@@ -727,6 +801,9 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if bind.Runtime.Model != "default-worker-model" {
 			t.Fatalf("bind model = %q, want default-worker-model", bind.Runtime.Model)
 		}
+		if bind.Environment.Mode != dsl.EnvironmentRoot {
+			t.Fatalf("bind environment = %#v, want root default", bind.Environment)
+		}
 	})
 
 	t.Run("Should start child loop in await and detach modes", func(t *testing.T) {
@@ -751,6 +828,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			WorkspaceID: "ws-1",
 			LoopRunID:   "parent-1",
 			Namespace:   map[string]any{"inputs": map[string]any{"ticket": "T-1"}},
+			Environment: dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "parent-feature"},
 			RuntimeSelection: &loop.ActionRuntimeSelection{
 				RunRules: []loop.RuntimeRule{{
 					Match:   loop.RuntimeMatch{Type: "frontend"},
@@ -773,6 +851,12 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				"child config runtime rules = %#v, want no parent propagation",
 				start.inputs.ConfigOverrides.RuntimeRules,
 			)
+		}
+		if start.inputs.InheritedEnvironment == nil ||
+			*start.inputs.InheritedEnvironment != (dsl.EnvironmentSpec{
+				Mode: dsl.EnvironmentWorktree, WorktreeRef: "parent-feature",
+			}) {
+			t.Fatalf("child environment = %#v, want forwarded parent environment", start.inputs.InheritedEnvironment)
 		}
 
 		detachNode := awaitNode
@@ -1075,6 +1159,12 @@ func (b *fakeActionSessionBinder) mustSingleBind(t *testing.T) loop.ActionSessio
 		t.Fatalf("bind count = %d, want 1", len(b.binds))
 	}
 	return b.binds[0]
+}
+
+func (b *fakeActionSessionBinder) bindCount() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.binds)
 }
 
 func (b *fakeActionSessionBinder) promptMessages() []string {

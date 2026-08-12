@@ -94,6 +94,7 @@ type managerOptions struct {
 	coordinatorStatusOK   func(string) bool
 	coordinatorHookOK     func(string) bool
 	profileValidation     ExecutionProfileValidationOptions
+	worktreeRefValidator  WorktreeRefValidator
 	forceRecovery         ForceRecoveryOptions
 	now                   func() time.Time
 	newID                 func(prefix string) (string, error)
@@ -126,6 +127,7 @@ type Service struct {
 	coordinatorStatusOK   func(string) bool
 	coordinatorHookOK     func(string) bool
 	profileValidation     ExecutionProfileValidationOptions
+	worktreeRefValidator  WorktreeRefValidator
 	forceRecovery         ForceRecoveryOptions
 	now                   func() time.Time
 	newID                 func(prefix string) (string, error)
@@ -244,6 +246,13 @@ func WithParticipationResolver(resolver participation.Resolver) Option {
 func WithExecutionProfileValidationOptions(options ExecutionProfileValidationOptions) Option {
 	return func(opts *managerOptions) {
 		opts.profileValidation = options
+	}
+}
+
+// WithWorktreeRefValidator injects attached same-workspace worktree validation.
+func WithWorktreeRefValidator(validator WorktreeRefValidator) Option {
+	return func(opts *managerOptions) {
+		opts.worktreeRefValidator = validator
 	}
 }
 

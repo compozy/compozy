@@ -141,6 +141,48 @@ func (g *TaskRepo) SetTaskExecutionProfile(
 	return stored, nil
 }
 
+// SetTaskWorktreePolicy commits one worktree policy patch and its event.
+func (g *TaskRepo) SetTaskWorktreePolicy(
+	ctx context.Context,
+	mutation *taskpkg.WorktreePolicyMutation,
+) (stored taskpkg.ExecutionProfile, err error) {
+	if mutation == nil {
+		return taskpkg.ExecutionProfile{}, fmt.Errorf(
+			"%w: worktree policy mutation is required",
+			taskpkg.ErrValidation,
+		)
+	}
+	if err := g.checkReady(ctx, "set task worktree policy"); err != nil {
+		return taskpkg.ExecutionProfile{}, err
+	}
+	taskID := strings.TrimSpace(mutation.TaskID)
+	if taskID == "" {
+		return taskpkg.ExecutionProfile{}, fmt.Errorf("%w: task id is required", taskpkg.ErrValidation)
+	}
+	err = g.withTaskImmediateTransaction(ctx, "set task worktree policy", func(exec taskSQLExecutor) error {
+		if lockErr := ensureTaskProfileMutationAllowedWithExecutor(ctx, g, exec, taskID); lockErr != nil {
+			return lockErr
+		}
+		profile, found, loadErr := loadExecutionProfile(ctx, exec, taskID)
+		if loadErr != nil {
+			return loadErr
+		}
+		if !found {
+			profile = taskpkg.DefaultExecutionProfile(taskID)
+		}
+		profile.Worktree = mutation.Policy
+		stored, loadErr = g.upsertExecutionProfileWithExecutor(ctx, exec, &profile)
+		if loadErr != nil {
+			return loadErr
+		}
+		return appendTaskEventsWithExecutor(ctx, exec, []taskpkg.Event{mutation.Event})
+	})
+	if err != nil {
+		return taskpkg.ExecutionProfile{}, err
+	}
+	return stored, nil
+}
+
 // DeleteTaskExecutionProfile commits a profile deletion and its event.
 func (g *TaskRepo) DeleteTaskExecutionProfile(
 	ctx context.Context,

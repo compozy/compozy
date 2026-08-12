@@ -120,6 +120,12 @@ const (
 	CodeContinuousHandleReused = "continuous_handle_reused"
 	// CodeRetryMaxUnsupported reports the retired retry.max key.
 	CodeRetryMaxUnsupported = "retry_max_unsupported"
+	// CodeEnvironmentCWDRemoved reports the retired action cwd field.
+	CodeEnvironmentCWDRemoved = "environment_cwd_removed"
+	// CodeEnvironmentInvalid reports a malformed EnvironmentSpec.
+	CodeEnvironmentInvalid = "environment_invalid"
+	// CodeEnvironmentUnsupported reports Environment on a node that cannot start agents.
+	CodeEnvironmentUnsupported = "environment_unsupported"
 	// CodeNetworkParticipationInvalid reports malformed authored participation intent.
 	CodeNetworkParticipationInvalid = "network_participation_invalid"
 	// CodeLoopRequiresLive reports a Network-using graph without authored Live participation.

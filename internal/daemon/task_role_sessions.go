@@ -60,6 +60,9 @@ func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, erro
 	policy := sessionPolicyFromTaskExecutionProfile(activation.Profile)
 	applySessionSandboxPolicy(&opts, policy)
 	applySessionPermissionPolicy(&opts, policy)
+	if activation.Worktree.Mode.Normalize() == taskpkg.WorktreeModeRef {
+		opts.Worktree = strings.TrimSpace(activation.Worktree.WorktreeRef)
+	}
 	switch activation.Scope {
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = activation.WorkspaceID
@@ -204,6 +207,10 @@ func (r *taskRoleRuntime) starvationActivation(
 		AgentName:            agentName,
 		NetworkParticipation: new(run.NetworkSpecSnapshot()),
 		Title:                strings.TrimSpace(taskRecord.Title),
+		Worktree: taskpkg.WorktreePolicy{
+			Mode:        run.ResolvedWorktreeMode,
+			WorktreeRef: run.ResolvedWorktreeRef,
+		},
 	}
 	applyTaskRoleDesignation(&activation, run)
 	if err := r.applyActivationScope(&activation, taskRecord.ID); err != nil {
@@ -239,6 +246,9 @@ func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) b
 		return false
 	}
 	if !taskRoleSessionStateReusable(info.State) {
+		return false
+	}
+	if activation.Worktree.Mode.Normalize() == taskpkg.WorktreeModePerRun {
 		return false
 	}
 	if strings.TrimSpace(info.AgentName) != activation.AgentName {
@@ -284,17 +294,26 @@ func taskRoleSessionName(activation taskRoleActivation) string {
 }
 
 func taskRoleProfileFingerprint(activation taskRoleActivation) string {
-	if activation.Profile == nil {
-		return ""
-	}
 	profile := activation.Profile
+	sandboxMode := taskpkg.SandboxModeInherit
+	sandboxRef := ""
+	runtimeMode := taskpkg.RuntimeModeDefault
+	requiredCapabilities := []string(nil)
+	if profile != nil {
+		sandboxMode = profile.Sandbox.Mode.Normalize()
+		sandboxRef = strings.TrimSpace(profile.Sandbox.SandboxRef)
+		runtimeMode = profile.Runtime.Mode.Normalize()
+		requiredCapabilities = profile.Worker.RequiredCapabilities
+	}
 	parts := []string{
 		strings.TrimSpace(activation.Provider),
 		strings.TrimSpace(activation.Model),
-		string(profile.Sandbox.Mode.Normalize()),
-		strings.TrimSpace(profile.Sandbox.SandboxRef),
-		string(profile.Runtime.Mode.Normalize()),
-		strings.Join(uniqueNonEmptyStrings(profile.Worker.RequiredCapabilities), "\x1f"),
+		string(sandboxMode),
+		sandboxRef,
+		string(activation.Worktree.Mode.Normalize()),
+		strings.TrimSpace(activation.Worktree.WorktreeRef),
+		string(runtimeMode),
+		strings.Join(uniqueNonEmptyStrings(requiredCapabilities), "\x1f"),
 	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(sum[:8])
@@ -303,6 +322,7 @@ func taskRoleProfileFingerprint(activation taskRoleActivation) string {
 func taskRolePromptOverlay(activation taskRoleActivation) string {
 	title := firstNonEmpty(activation.Title, activation.TaskID)
 	designation := taskRoleDesignationOverlay(activation)
+	worktree := taskRoleWorktreeOverlay(activation.Worktree)
 	channelLine := ""
 	if activation.NetworkParticipation != nil &&
 		activation.NetworkParticipation.Mode == participation.ModeLive {
@@ -314,14 +334,27 @@ Task: %s
 Run: %s
 %s
 %s
+%s
 %s %s`,
 		title,
 		activation.RunID,
 		channelLine,
 		designation,
+		worktree,
 		taskClaimNativeInstruction(activation.RunID, activation.Capabilities),
 		taskLeaseNativeInstruction(),
 	)
+}
+
+func taskRoleWorktreeOverlay(policy taskpkg.WorktreePolicy) string {
+	switch policy.Mode.Normalize() {
+	case taskpkg.WorktreeModeRef:
+		return fmt.Sprintf("Worktree: %s.", strings.TrimSpace(policy.WorktreeRef))
+	case taskpkg.WorktreeModePerRun:
+		return "Worktree: dedicated to this run after claim."
+	default:
+		return ""
+	}
 }
 
 func taskRoleDesignationOverlay(activation taskRoleActivation) string {

@@ -46,6 +46,7 @@ type LifecycleEvent struct {
 	Name        string
 	WorkspaceID string
 	WorktreeID  string
+	RunID       string
 	Payload     json.RawMessage
 }
 
@@ -61,6 +62,7 @@ type HookWorktree struct {
 	Branch        string `json:"branch"`
 	Path          string `json:"path"`
 	Origin        Origin `json:"origin"`
+	RunID         string `json:"run_id,omitempty"`
 }
 
 func (s *Service) dispatchGate(ctx context.Context, event string, payload any) error {
@@ -88,7 +90,8 @@ func (s *Service) emit(ctx context.Context, name string, item Worktree) {
 		if err != nil {
 			s.logger.ErrorContext(ctx, "worktree event payload failed", "event", name, "error", err)
 		} else if err := s.events.PublishWorktreeEvent(ctx, LifecycleEvent{
-			Name: name, WorkspaceID: item.WorkspaceID, WorktreeID: item.ID, Payload: payload,
+			Name: name, WorkspaceID: item.WorkspaceID, WorktreeID: item.ID,
+			RunID: item.RunID, Payload: payload,
 		}); err != nil {
 			s.logger.WarnContext(
 				ctx, "worktree event dispatch failed open", "event", name,

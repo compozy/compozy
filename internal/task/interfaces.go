@@ -40,6 +40,7 @@ type Manager interface {
 		profile *ExecutionProfile,
 		actor ActorContext,
 	) (ExecutionProfile, error)
+	SetWorktreePolicy(ctx context.Context, taskID string, policy WorktreePolicy, actor ActorContext) (ExecutionProfile, error)
 	DeleteExecutionProfile(ctx context.Context, taskID string, actor ActorContext) error
 
 	RequestRunReview(ctx context.Context, req RunReviewRequest, actor ActorContext) (RunReview, bool, error)
@@ -395,6 +396,18 @@ type SessionExecutor interface {
 	AttachTaskSession(ctx context.Context, runID string, sessionID string) (*SessionRef, error)
 	RequestTaskStop(ctx context.Context, sessionID string, reason StopReason) error
 	ForceTaskStop(ctx context.Context, sessionID string, reason StopReason) error
+}
+
+// UnboundTaskSessionCleaner compensates resources created before a fenced run
+// binding loses its lease race.
+type UnboundTaskSessionCleaner interface {
+	CleanupUnboundTaskSession(ctx context.Context, run Run, ref SessionRef) error
+}
+
+// RunSessionAttachmentExecutor validates an existing session against one
+// claimed run's immutable execution-environment snapshot before binding it.
+type RunSessionAttachmentExecutor interface {
+	AttachTaskRunSession(ctx context.Context, run Run, sessionID string) (*SessionRef, error)
 }
 
 // RunNetworkSessionBinder is the optional task-session bridge that moves a

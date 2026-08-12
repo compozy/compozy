@@ -74,6 +74,7 @@ type StartTaskSession struct {
 type SessionRef struct {
 	SessionID   string    `json:"session_id"`
 	WorkspaceID string    `json:"workspace_id,omitempty"`
+	WorktreeID  string    `json:"worktree_id,omitempty"`
 	StartedAt   time.Time `json:"started_at"`
 }
 

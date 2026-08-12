@@ -86,6 +86,15 @@ func loopBudgetExceededValues() []string {
 	}
 }
 
+func loopEnvironmentModeValues() []string {
+	return []string{
+		string(contract.LoopEnvironmentModeRoot),
+		string(contract.LoopEnvironmentModeWorktree),
+		string(contract.LoopEnvironmentModePerRun),
+		string(contract.LoopEnvironmentModeDirectory),
+	}
+}
+
 func loopGateDecisionValues() []string {
 	return []string{
 		string(contract.LoopGateDecisionApprove),

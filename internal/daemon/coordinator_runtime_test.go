@@ -30,6 +30,30 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	run := coordinatorRuntimeRun()
 	run.SetNetworkState(participation.LocalSpec(), "", "", "")
 	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), run)
+	store.runs["run-worker-z"] = taskpkg.Run{
+		ID: "run-worker-z", TaskID: "task-z", WorkspaceID: "ws-1", WorktreeID: "wt-z",
+		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+	}
+	store.runs["run-worker-a"] = taskpkg.Run{
+		ID: "run-worker-a", TaskID: "task-a", WorkspaceID: "ws-1", WorktreeID: "wt-a",
+		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusClaimed,
+	}
+	store.runs["run-loop-worker"] = taskpkg.Run{
+		ID: "run-loop-worker", WorkspaceID: "ws-1", WorktreeID: "wt-loop", LoopRunID: "loop-1",
+		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+	}
+	store.runs["run-coordinator"] = taskpkg.Run{
+		ID: "run-coordinator", WorkspaceID: "ws-1", WorktreeID: "wt-coordinator",
+		RunKind: taskpkg.RunKindCoordinator, Status: taskpkg.TaskRunStatusRunning,
+	}
+	store.runs["run-other-workspace"] = taskpkg.Run{
+		ID: "run-other-workspace", WorkspaceID: "ws-2", WorktreeID: "wt-other",
+		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+	}
+	store.runs["run-root-worker"] = taskpkg.Run{
+		ID: "run-root-worker", WorkspaceID: "ws-1",
+		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+	}
 	sessions := &coordinatorRuntimeSessions{}
 	hooks := &recordingCoordinatorHooks{}
 	runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), now)
@@ -113,9 +137,16 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 		toolspkg.ToolIDSessionDescribe.String(),
 		toolspkg.ToolIDTaskRunClaimNext.String(),
 		"compozy spawn",
+		"Active worker worktrees:\n- run_id: run-worker-a; worktree_id: wt-a\n" +
+			"- run_id: run-worker-z; worktree_id: wt-z",
 	} {
 		if !contains(call.PromptOverlay, required) {
 			t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
+		}
+	}
+	for _, excluded := range []string{"wt-loop", "wt-coordinator", "wt-other", "run-root-worker"} {
+		if contains(call.PromptOverlay, excluded) {
+			t.Fatalf("PromptOverlay contains excluded worker binding %q:\n%s", excluded, call.PromptOverlay)
 		}
 	}
 	for _, forbidden := range []string{"compozy ch", "ch-run-1", "participation_channel", "coordination_channel_id"} {

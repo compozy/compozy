@@ -938,6 +938,48 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 			wantCodes: []string{refs.CodeUnresolvablePath},
 		},
 		{
+			name: "Should reject environment on transform nodes",
+			def: singleNodeDefinition(dsl.Node{
+				ID:    "transform_environment",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionTransform),
+				Params: dsl.NodeParams{
+					"map":         map[string]any{"ok": map[string]any{"value": true}},
+					"environment": map[string]any{"mode": "root"},
+				},
+			}),
+			wantCodes: []string{loop.CodeEnvironmentUnsupported},
+		},
+		{
+			name: "Should reject environment on control nodes",
+			def: singleNodeDefinition(dsl.Node{
+				ID:          "fan_environment",
+				Class:       dsl.NodeClassControl,
+				Kind:        string(dsl.ControlFanOut),
+				Collection:  "{{ .inputs.items }}",
+				MaxFanOut:   1,
+				MaxParallel: 1,
+				Params: dsl.NodeParams{
+					"environment": map[string]any{"mode": "root"},
+				},
+			}),
+			wantCodes: []string{loop.CodeEnvironmentUnsupported},
+		},
+		{
+			name: "Should reject environment on source nodes",
+			def: singleNodeDefinition(dsl.Node{
+				ID:      "source_environment",
+				Class:   dsl.NodeClassSource,
+				Kind:    string(dsl.SourceFileImport),
+				Pattern: "docs/*.md",
+				Parse:   dsl.FileParseText,
+				Params: dsl.NodeParams{
+					"environment": map[string]any{"mode": "root"},
+				},
+			}),
+			wantCodes: []string{loop.CodeEnvironmentUnsupported},
+		},
+		{
 			name: "Should reject fan out max parallel over ceiling",
 			def: singleNodeDefinition(dsl.Node{
 				ID:          "fan",
@@ -1393,6 +1435,24 @@ func TestLinterShouldValidateGoalContractsWithoutMutation(t *testing.T) {
 				}
 			},
 			wantCodes: []string{loop.CodeRetryMaxUnsupported},
+		},
+		{
+			name:       "Should reject retired cwd with the environment migration",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["cwd"] = "packages/api"
+			},
+			wantCodes: []string{loop.CodeEnvironmentCWDRemoved},
+		},
+		{
+			name:       "Should reject an incomplete worktree environment",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["environment"] = map[string]any{
+					"mode": "worktree",
+				}
+			},
+			wantCodes: []string{loop.CodeEnvironmentInvalid},
 		},
 		{
 			name:       "Should reject explicit continuous handle reuse",

@@ -16,6 +16,7 @@ func registryTaskManagementOperations() []OperationSpec {
 		recoverTaskOperationSpec(),
 		getTaskExecutionProfileOperationSpec(),
 		setTaskExecutionProfileOperationSpec(),
+		setTaskWorktreePolicyOperationSpec(),
 		deleteTaskExecutionProfileOperationSpec(),
 		createTaskBridgeNotificationSubscriptionOperationSpec(),
 		listTaskBridgeNotificationSubscriptionsOperationSpec(),
@@ -284,6 +285,28 @@ func setTaskExecutionProfileOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskExecutionProfileResponse{}},
 			{Status: 400, Description: "Invalid task execution profile", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task execution profile conflict", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+func setTaskWorktreePolicyOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPatch,
+		Path:        specAPITasksIDExecutionProfileWorktreePath,
+		OperationID: "setTaskWorktreePolicy",
+		Summary:     "Set one task worktree policy",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		RequestBody: contract.SetTaskWorktreePolicyRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskExecutionProfileResponse{}},
+			{Status: 400, Description: "Invalid task worktree policy", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task execution profile conflict", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},

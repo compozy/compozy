@@ -36,7 +36,8 @@ const taskFanOutRunsInputSchema = `{
 				"additionalProperties":false
 			}
 		},
-		"idempotency_key":{"type":"string"}
+		"idempotency_key":{"type":"string"},
+		"worktree_per_run":{"type":"boolean"}
 	},
 	"additionalProperties":false
 }`

@@ -259,6 +259,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent/tasks/{run_id}/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start a claimed task run under the calling agent's lease */
+    post: operations["startAgentTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents": {
     parameters: {
       query?: never;
@@ -3918,6 +3935,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tasks/{id}/execution-profile/worktree": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Set one task worktree policy */
+    patch: operations["setTaskWorktreePolicy"];
+    trace?: never;
+  };
   "/api/tasks/{id}/inspect": {
     parameters: {
       query?: never;
@@ -6504,6 +6538,13 @@ export interface components {
             }
         )[];
         params?: {
+          environment?: {
+            directory?: string;
+            /** @enum {string} */
+            mode: "root" | "worktree" | "per_run" | "directory";
+            worktree_ref?: string;
+          };
+        } & {
           [key: string]: unknown;
         };
         parse?: string;
@@ -10174,6 +10215,9 @@ export interface operations {
                             }
                         )
                       | null;
+                    /** @enum {string} */
+                    resolved_worktree_mode?: "inherit" | "none" | "ref" | "per_run";
+                    resolved_worktree_ref?: string;
                     run_kind?: number;
                     session_id?: string;
                     /** Format: date-time */
@@ -10191,6 +10235,7 @@ export interface operations {
                     task_id: string;
                     /** Format: int64 */
                     tokens_used?: number;
+                    worktree_id?: string;
                   } | null;
                   execution_profile?: {
                     coordinator: {
@@ -10309,6 +10354,11 @@ export interface operations {
                       provider?: string;
                       required_capabilities?: string[];
                     };
+                    worktree: {
+                      /** @enum {string} */
+                      mode: "inherit" | "none" | "ref" | "per_run";
+                      worktree_ref?: string;
+                    };
                   } | null;
                   handoff_summary?: string;
                   /** Format: int64 */
@@ -10402,6 +10452,9 @@ export interface operations {
                             }
                         )
                       | null;
+                    /** @enum {string} */
+                    resolved_worktree_mode?: "inherit" | "none" | "ref" | "per_run";
+                    resolved_worktree_ref?: string;
                     run_kind?: number;
                     session_id?: string;
                     /** Format: date-time */
@@ -10419,6 +10472,7 @@ export interface operations {
                     task_id: string;
                     /** Format: int64 */
                     tokens_used?: number;
+                    worktree_id?: string;
                   }[];
                   recent_events: {
                     actor: {
@@ -10532,6 +10586,9 @@ export interface operations {
                               }
                           )
                         | null;
+                      /** @enum {string} */
+                      resolved_worktree_mode?: "inherit" | "none" | "ref" | "per_run";
+                      resolved_worktree_ref?: string;
                       run_kind?: number;
                       session_id?: string;
                       /** Format: date-time */
@@ -10549,6 +10606,7 @@ export interface operations {
                       task_id: string;
                       /** Format: int64 */
                       tokens_used?: number;
+                      worktree_id?: string;
                     } | null;
                     /** Format: int64 */
                     sequence: number;
@@ -12812,6 +12870,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -12827,6 +12888,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               };
               task: {
                 effective_paused?: boolean;
@@ -14315,6 +14377,382 @@ export interface operations {
         };
       };
       /** @description Invalid release request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  startAgentTaskRun: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
+      path: {
+        /** @description Task run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          idempotency_key?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              failure_kind?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              previous_run_id?: string;
+              /** Format: date-time */
+              queued_at: string;
+              recovery_count: number;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled"
+                | "needs_attention";
+              task_id: string;
+              worktree_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run start conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid start request */
       422: {
         headers: {
           [name: string]: unknown;
@@ -45814,6 +46252,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -45829,6 +46270,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               run_id: string;
             }[];
@@ -46147,6 +46589,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -46162,6 +46607,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               run_id: string;
             }[];
@@ -46459,6 +46905,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -46474,6 +46923,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -46923,6 +47373,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -46937,6 +47390,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -47406,6 +47860,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -47421,6 +47878,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             run: {
               attempt: number;
@@ -47539,6 +47997,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -47554,6 +48015,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -47907,6 +48369,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -47922,6 +48387,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -48274,6 +48740,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -48289,6 +48758,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             run: {
               attempt: number;
@@ -48407,6 +48877,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -48422,6 +48895,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -48897,6 +49371,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   result?: unknown;
                   session_id?: string;
                   /** Format: date-time */
@@ -48912,6 +49389,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 };
                 task: {
                   active_run?: {
@@ -49016,6 +49494,9 @@ export interface operations {
                             }
                         )
                       | null;
+                    /** @enum {string} */
+                    resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                    resolved_worktree_ref?: string;
                     session_id?: string;
                     /** Format: date-time */
                     started_at?: string | null;
@@ -49030,6 +49511,7 @@ export interface operations {
                       | "canceled"
                       | "needs_attention";
                     task_id: string;
+                    worktree_id?: string;
                   } | null;
                   /** @enum {string} */
                   approval_policy?: "none" | "manual";
@@ -63210,6 +63692,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -63225,6 +63710,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             } | null;
             review: {
               attempt: number;
@@ -63652,6 +64138,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -63667,6 +64156,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               };
               session?: {
                 agent_name?: string;
@@ -64008,6 +64498,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -64023,6 +64516,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -64318,6 +64812,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -64333,6 +64830,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -64628,6 +65126,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -64643,6 +65144,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -65206,6 +65708,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -65221,6 +65726,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -66045,6 +66551,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -66060,6 +66569,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -67250,6 +67760,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -67264,6 +67777,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -67678,6 +68192,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -67693,6 +68210,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               }[];
               summary: {
                 active_run?: {
@@ -67797,6 +68315,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -67811,6 +68332,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -69039,6 +69561,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -69054,6 +69579,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             task: {
               /** @enum {string} */
@@ -70913,6 +71439,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -70927,6 +71456,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -71341,6 +71871,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -71356,6 +71889,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               }[];
               summary: {
                 active_run?: {
@@ -71460,6 +71994,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -71474,6 +72011,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -72109,6 +72647,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -72123,6 +72664,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -72537,6 +73079,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -72552,6 +73097,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               }[];
               summary: {
                 active_run?: {
@@ -72656,6 +73202,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -72670,6 +73219,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -73287,6 +73837,11 @@ export interface operations {
                 provider?: string;
                 required_capabilities?: string[];
               };
+              worktree: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref" | "per_run";
+                worktree_ref?: string;
+              };
             };
           };
         };
@@ -73539,6 +74094,11 @@ export interface operations {
             provider?: string;
             required_capabilities?: string[];
           };
+          worktree: {
+            /** @enum {string} */
+            mode: "inherit" | "none" | "ref" | "per_run";
+            worktree_ref?: string;
+          };
         };
       };
     };
@@ -73666,6 +74226,11 @@ export interface operations {
                 preferred_capabilities?: string[];
                 provider?: string;
                 required_capabilities?: string[];
+              };
+              worktree: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref" | "per_run";
+                worktree_ref?: string;
               };
             };
           };
@@ -73838,6 +74403,307 @@ export interface operations {
         content?: never;
       };
       /** @description Task or execution profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task execution profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  setTaskWorktreePolicy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          mode: "inherit" | "none" | "ref" | "per_run";
+          worktree_ref?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            profile: {
+              coordinator: {
+                agent_name?: string;
+                guidance?: string;
+                /** @enum {string} */
+                mode: "inherit" | "guided";
+                model?: string;
+                provider?: string;
+              };
+              /** Format: date-time */
+              created_at: string;
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
+              participants: {
+                allowed_agent_names?: string[];
+                allowed_channel_ids?: string[];
+                allowed_peer_ids?: string[];
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                preferred_channel_ids?: string[];
+                preferred_peer_ids?: string[];
+                required_capabilities?: string[];
+              };
+              review: {
+                agent_name?: string;
+                allowed_agent_names?: string[];
+                allowed_channel_ids?: string[];
+                allowed_peer_ids?: string[];
+                model?: string;
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                preferred_channel_ids?: string[];
+                preferred_peer_ids?: string[];
+                provider?: string;
+                required_capabilities?: string[];
+              };
+              runtime: {
+                /** @enum {string} */
+                mode: "default" | "evidence";
+              };
+              sandbox: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref";
+                sandbox_ref?: string;
+              };
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              worker: {
+                agent_name?: string;
+                allowed_agent_names?: string[];
+                /** @enum {string} */
+                mode: "inherit" | "select";
+                model?: string;
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                provider?: string;
+                required_capabilities?: string[];
+              };
+              worktree: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref" | "per_run";
+                worktree_ref?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Invalid task worktree policy */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -74195,6 +75061,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -74209,6 +75078,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -75795,6 +76665,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -75810,6 +76683,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             task: {
               /** @enum {string} */
@@ -77526,6 +78400,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -77541,6 +78418,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             }[];
           };
         };
@@ -77867,6 +78745,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -77882,6 +78763,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -78113,6 +78995,7 @@ export interface operations {
                   }
               )
             | null;
+          worktree_per_run?: boolean;
         };
       };
     };
@@ -78242,6 +79125,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -78257,6 +79143,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             }[];
           };
         };
@@ -78612,6 +79499,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -78627,6 +79517,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             task: {
               /** @enum {string} */
@@ -79089,6 +79980,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -79103,6 +79997,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               /** Format: int64 */
               sequence: number;
@@ -79423,6 +80318,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -79437,6 +80335,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               /** Format: int64 */
               sequence: number;
@@ -79724,6 +80623,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -79738,6 +80640,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 child_count?: number;
                 depth: number;
@@ -79885,6 +80788,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -79899,6 +80805,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 child_count?: number;
                 depth: number;
@@ -91037,6 +91944,13 @@ export interface operations {
                       }
                   )[];
                   params?: {
+                    environment?: {
+                      directory?: string;
+                      /** @enum {string} */
+                      mode: "root" | "worktree" | "per_run" | "directory";
+                      worktree_ref?: string;
+                    };
+                  } & {
                     [key: string]: unknown;
                   };
                   parse?: string;
@@ -95721,6 +96635,13 @@ export interface operations {
                     }
                 )[];
                 params?: {
+                  environment?: {
+                    directory?: string;
+                    /** @enum {string} */
+                    mode: "root" | "worktree" | "per_run" | "directory";
+                    worktree_ref?: string;
+                  };
+                } & {
                   [key: string]: unknown;
                 };
                 parse?: string;
@@ -96266,6 +97187,13 @@ export interface operations {
                         }
                     )[];
                     params?: {
+                      environment?: {
+                        directory?: string;
+                        /** @enum {string} */
+                        mode: "root" | "worktree" | "per_run" | "directory";
+                        worktree_ref?: string;
+                      };
+                    } & {
                       [key: string]: unknown;
                     };
                     parse?: string;
@@ -97020,6 +97948,13 @@ export interface operations {
                         }
                     )[];
                     params?: {
+                      environment?: {
+                        directory?: string;
+                        /** @enum {string} */
+                        mode: "root" | "worktree" | "per_run" | "directory";
+                        worktree_ref?: string;
+                      };
+                    } & {
                       [key: string]: unknown;
                     };
                     parse?: string;
@@ -97873,6 +98808,13 @@ export interface operations {
                     }
                 )[];
                 params?: {
+                  environment?: {
+                    directory?: string;
+                    /** @enum {string} */
+                    mode: "root" | "worktree" | "per_run" | "directory";
+                    worktree_ref?: string;
+                  };
+                } & {
                   [key: string]: unknown;
                 };
                 parse?: string;
@@ -98418,6 +99360,13 @@ export interface operations {
                         }
                     )[];
                     params?: {
+                      environment?: {
+                        directory?: string;
+                        /** @enum {string} */
+                        mode: "root" | "worktree" | "per_run" | "directory";
+                        worktree_ref?: string;
+                      };
+                    } & {
                       [key: string]: unknown;
                     };
                     parse?: string;
@@ -99092,6 +100041,12 @@ export interface operations {
               budget_tokens?: number | null;
               budget_wall_sec?: number | null;
               enabled_checks_json?: unknown;
+              environment?: {
+                directory?: string;
+                /** @enum {string} */
+                mode: "root" | "worktree" | "per_run" | "directory";
+                worktree_ref?: string;
+              } | null;
               fan_out_width?: number | null;
               gate_max_revisions?: number | null;
               human_gate_enabled?: boolean | null;
@@ -99130,6 +100085,12 @@ export interface operations {
               budget_tokens: number;
               budget_wall_sec: number;
               enabled_checks_json: unknown;
+              environment: {
+                directory?: string;
+                /** @enum {string} */
+                mode: "root" | "worktree" | "per_run" | "directory";
+                worktree_ref?: string;
+              };
               fan_out_width: number;
               gate_max_revisions: number;
               human_gate_enabled: boolean;
@@ -99317,6 +100278,12 @@ export interface operations {
             budget_tokens?: number | null;
             budget_wall_sec?: number | null;
             enabled_checks_json?: unknown;
+            environment?: {
+              directory?: string;
+              /** @enum {string} */
+              mode: "root" | "worktree" | "per_run" | "directory";
+              worktree_ref?: string;
+            } | null;
             fan_out_width?: number | null;
             gate_max_revisions?: number | null;
             human_gate_enabled?: boolean | null;
@@ -99366,6 +100333,12 @@ export interface operations {
               budget_tokens?: number | null;
               budget_wall_sec?: number | null;
               enabled_checks_json?: unknown;
+              environment?: {
+                directory?: string;
+                /** @enum {string} */
+                mode: "root" | "worktree" | "per_run" | "directory";
+                worktree_ref?: string;
+              } | null;
               fan_out_width?: number | null;
               gate_max_revisions?: number | null;
               human_gate_enabled?: boolean | null;
@@ -99404,6 +100377,12 @@ export interface operations {
               budget_tokens: number;
               budget_wall_sec: number;
               enabled_checks_json: unknown;
+              environment: {
+                directory?: string;
+                /** @enum {string} */
+                mode: "root" | "worktree" | "per_run" | "directory";
+                worktree_ref?: string;
+              };
               fan_out_width: number;
               gate_max_revisions: number;
               human_gate_enabled: boolean;
@@ -100506,6 +101485,12 @@ export interface operations {
             budget_tokens?: number | null;
             budget_wall_sec?: number | null;
             enabled_checks_json?: unknown;
+            environment?: {
+              directory?: string;
+              /** @enum {string} */
+              mode: "root" | "worktree" | "per_run" | "directory";
+              worktree_ref?: string;
+            } | null;
             fan_out_width?: number | null;
             gate_max_revisions?: number | null;
             human_gate_enabled?: boolean | null;
@@ -100800,6 +101785,12 @@ export interface operations {
                 budget_tokens: number;
                 budget_wall_sec: number;
                 enabled_checks_json: unknown;
+                environment: {
+                  directory?: string;
+                  /** @enum {string} */
+                  mode: "root" | "worktree" | "per_run" | "directory";
+                  worktree_ref?: string;
+                };
                 fan_out_width: number;
                 gate_max_revisions: number;
                 human_gate_enabled: boolean;
@@ -101388,6 +102379,12 @@ export interface operations {
                 budget_tokens: number;
                 budget_wall_sec: number;
                 enabled_checks_json: unknown;
+                environment: {
+                  directory?: string;
+                  /** @enum {string} */
+                  mode: "root" | "worktree" | "per_run" | "directory";
+                  worktree_ref?: string;
+                };
                 fan_out_width: number;
                 gate_max_revisions: number;
                 human_gate_enabled: boolean;
@@ -102406,6 +103403,13 @@ export interface operations {
                     }
                 )[];
                 params?: {
+                  environment?: {
+                    directory?: string;
+                    /** @enum {string} */
+                    mode: "root" | "worktree" | "per_run" | "directory";
+                    worktree_ref?: string;
+                  };
+                } & {
                   [key: string]: unknown;
                 };
                 parse?: string;
@@ -113594,6 +114598,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "inherit" | "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -113609,6 +114616,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               pending_inputs: number;
               pending_markers: number;

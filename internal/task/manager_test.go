@@ -383,8 +383,12 @@ type attachSessionCall struct {
 }
 
 type recordingSessionExecutor struct {
-	startCalls       []StartTaskSession
-	attachCalls      []attachSessionCall
+	startCalls   []StartTaskSession
+	attachCalls  []attachSessionCall
+	cleanupCalls []struct {
+		run Run
+		ref SessionRef
+	}
 	requestStopCalls []sessionStopCall
 	forceStopCalls   []sessionStopCall
 	startRef         *SessionRef
@@ -394,6 +398,7 @@ type recordingSessionExecutor struct {
 	attachErr        error
 	requestStopErr   error
 	forceStopErr     error
+	cleanupErr       error
 }
 
 type testRuntimeViewReader struct {
@@ -656,6 +661,18 @@ func (e *recordingSessionExecutor) ForceTaskStop(
 		sessionStopCall{SessionID: sessionID, Reason: reason},
 	)
 	return e.forceStopErr
+}
+
+func (e *recordingSessionExecutor) CleanupUnboundTaskSession(
+	_ context.Context,
+	run Run,
+	ref SessionRef,
+) error {
+	e.cleanupCalls = append(e.cleanupCalls, struct {
+		run Run
+		ref SessionRef
+	}{run: run, ref: ref})
+	return e.cleanupErr
 }
 
 func newInMemoryManagerStore() *inMemoryManagerStore {
@@ -1615,7 +1632,7 @@ func (s *inMemoryManagerStore) TransitionRunStarting(
 	_ context.Context,
 	mutation RunStartingMutation,
 ) (NominalRunMutationResult, error) {
-	current, err := s.requireNominalRunFixture(mutation.Fence())
+	current, err := s.requireLeaseAuthorizedRunFixture(mutation)
 	if err != nil {
 		return NominalRunMutationResult{}, err
 	}
@@ -1632,7 +1649,7 @@ func (s *inMemoryManagerStore) BindRunSession(
 	_ context.Context,
 	mutation RunSessionBindingMutation,
 ) (NominalRunMutationResult, error) {
-	current, err := s.requireNominalRunFixture(mutation.Fence())
+	current, err := s.requireLeaseAuthorizedRunFixture(mutation)
 	if err != nil {
 		return NominalRunMutationResult{}, err
 	}
@@ -1649,6 +1666,7 @@ func (s *inMemoryManagerStore) BindRunSession(
 	updated := cloneTaskRun(current)
 	updated.Status = TaskRunStatusStarting
 	updated.SessionID = mutation.SessionID()
+	updated.WorktreeID = mutation.WorktreeID()
 	s.runs[updated.ID] = cloneTaskRun(updated)
 	return NominalRunMutationResult{Previous: current, Run: updated}, nil
 }
@@ -1657,7 +1675,7 @@ func (s *inMemoryManagerStore) TransitionRunRunning(
 	_ context.Context,
 	mutation RunRunningMutation,
 ) (NominalRunMutationResult, error) {
-	current, err := s.requireNominalRunFixture(mutation.Fence())
+	current, err := s.requireLeaseAuthorizedRunFixture(mutation)
 	if err != nil {
 		return NominalRunMutationResult{}, err
 	}
@@ -1729,6 +1747,29 @@ func (s *inMemoryManagerStore) requireNominalRunFixture(fence RunMutationFence) 
 	}
 	if !fence.Matches(current) {
 		return Run{}, ErrInvalidStatusTransition
+	}
+	return cloneTaskRun(current), nil
+}
+
+type leaseAuthorizedMutationFixture interface {
+	Fence() RunMutationFence
+	MatchesSource(Run) bool
+	ClaimToken() string
+	CommandAt() time.Time
+}
+
+func (s *inMemoryManagerStore) requireLeaseAuthorizedRunFixture(
+	mutation leaseAuthorizedMutationFixture,
+) (Run, error) {
+	current, ok := s.runs[mutation.Fence().RunID()]
+	if !ok {
+		return Run{}, ErrTaskRunNotFound
+	}
+	if !mutation.MatchesSource(current) {
+		return Run{}, ErrInvalidStatusTransition
+	}
+	if err := ValidateRunLeaseMutation(current, mutation.ClaimToken(), mutation.CommandAt()); err != nil {
+		return Run{}, err
 	}
 	return cloneTaskRun(current), nil
 }
@@ -1979,6 +2020,27 @@ func (s *inMemoryManagerStore) SetTaskExecutionProfile(
 	mutation *ExecutionProfileMutation,
 ) (ExecutionProfile, error) {
 	stored, err := s.UpsertExecutionProfile(ctx, &mutation.Profile)
+	if err != nil {
+		return ExecutionProfile{}, err
+	}
+	if err := s.CreateTaskEvent(ctx, mutation.Event); err != nil {
+		return ExecutionProfile{}, err
+	}
+	return stored, nil
+}
+
+func (s *inMemoryManagerStore) SetTaskWorktreePolicy(
+	ctx context.Context,
+	mutation *WorktreePolicyMutation,
+) (ExecutionProfile, error) {
+	profile, err := s.GetExecutionProfile(ctx, mutation.TaskID)
+	if errors.Is(err, ErrExecutionProfileNotFound) {
+		profile = DefaultExecutionProfile(mutation.TaskID)
+	} else if err != nil {
+		return ExecutionProfile{}, err
+	}
+	profile.Worktree = mutation.Policy
+	stored, err := s.UpsertExecutionProfile(ctx, &profile)
 	if err != nil {
 		return ExecutionProfile{}, err
 	}
@@ -2935,17 +2997,19 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	}
 
 	run := Run{
-		ID:                 normalizedReservation.RunID,
-		TaskID:             taskRecord.ID,
-		RunKind:            normalizedReservation.RunKind,
-		LoopRunID:          normalizedReservation.LoopRunID,
-		Status:             TaskRunStatusQueued,
-		Attempt:            int32(nextAttempt),
-		Origin:             normalizedReservation.Origin,
-		IdempotencyKey:     trimmedKey,
-		DesignationGroupID: requestedDesignationGroupID,
-		Metadata:           normalizedReservation.Metadata,
-		QueuedAt:           normalizedReservation.QueuedAt.UTC(),
+		ID:                   normalizedReservation.RunID,
+		TaskID:               taskRecord.ID,
+		RunKind:              normalizedReservation.RunKind,
+		LoopRunID:            normalizedReservation.LoopRunID,
+		Status:               TaskRunStatusQueued,
+		Attempt:              int32(nextAttempt),
+		Origin:               normalizedReservation.Origin,
+		IdempotencyKey:       trimmedKey,
+		DesignationGroupID:   requestedDesignationGroupID,
+		ResolvedWorktreeMode: normalizedReservation.ResolvedWorktreeMode,
+		ResolvedWorktreeRef:  normalizedReservation.ResolvedWorktreeRef,
+		Metadata:             normalizedReservation.Metadata,
+		QueuedAt:             normalizedReservation.QueuedAt.UTC(),
 	}
 	run.SetNetworkState(normalizedReservation.NetworkSpec, "", "", "")
 	if err := s.CreateTaskRun(context.Background(), run); err != nil {
@@ -7507,12 +7571,14 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	}
 
 	store.runs["run-active"] = Run{
-		ID:       "run-active",
-		TaskID:   child.ID,
-		Status:   TaskRunStatusRunning,
-		Attempt:  1,
-		Origin:   Origin{Kind: OriginKindAutomation, Ref: "rule:nightly"},
-		QueuedAt: time.Date(2026, 4, 14, 13, 0, 0, 0, time.UTC),
+		ID:                   "run-active",
+		TaskID:               child.ID,
+		WorktreeID:           "wt-run-active",
+		ResolvedWorktreeMode: WorktreeModePerRun,
+		Status:               TaskRunStatusRunning,
+		Attempt:              1,
+		Origin:               Origin{Kind: OriginKindAutomation, Ref: "rule:nightly"},
+		QueuedAt:             time.Date(2026, 4, 14, 13, 0, 0, 0, time.UTC),
 	}
 
 	view, err := manager.GetTask(context.Background(), child.ID, actor)
@@ -7539,6 +7605,10 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	}
 	if view.Summary.ActiveRun == nil || view.Summary.ActiveRun.ID != "run-active" {
 		t.Fatalf("view.Summary.ActiveRun = %#v, want run-active", view.Summary.ActiveRun)
+	}
+	if view.Summary.ActiveRun.WorktreeID != "wt-run-active" ||
+		view.Summary.ActiveRun.ResolvedWorktreeMode != WorktreeModePerRun {
+		t.Fatalf("view.Summary.ActiveRun worktree = %#v, want per-run binding", view.Summary.ActiveRun)
 	}
 	if view.Summary.LastActivityAt.IsZero() {
 		t.Fatal("view.Summary.LastActivityAt is zero, want latest activity timestamp")
@@ -8056,11 +8126,14 @@ func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 		t.Fatalf("CompleteRun(queued) error = %v, want %v", err, ErrInvalidStatusTransition)
 	}
 
-	claimedRun, err := claimExactRunForTest(context.Background(), manager, queuedRun.ID, actor)
+	claim, err := claimExactRunResultForTest(context.Background(), manager, queuedRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimNextRun() error = %v", err)
 	}
-	runningRun, err := manager.StartRun(context.Background(), claimedRun.ID, StartRun{}, actor)
+	claimedRun := &claim.Run
+	runningRun, err := manager.StartRun(context.Background(), claimedRun.ID, StartRun{
+		ClaimToken: claim.ClaimToken,
+	}, actor)
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}
@@ -11450,6 +11523,59 @@ func TestManagerStartRunPersistsDedicatedSessionAfterCallerCancellation(t *testi
 	}
 }
 
+func TestManagerStartRunTransfersClaimedPerRunExecutionToDedicatedSession(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	executor := &recordingSessionExecutor{
+		startRef: &SessionRef{SessionID: "sess-per-run", WorktreeID: "wt-per-run"},
+	}
+	manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+	actor := validActorContext()
+	claimer := agentSessionActorContext("sess-claimer")
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope:       ScopeWorkspace,
+		WorkspaceID: "ws-test",
+		Title:       "Per-run claimed transfer",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	store.profiles[taskRecord.ID] = ExecutionProfile{
+		TaskID:   taskRecord.ID,
+		Worktree: WorktreePolicy{Mode: WorktreeModePerRun},
+	}
+	run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	claim, err := claimExactRunResultForTest(context.Background(), manager, run.ID, claimer)
+	if err != nil {
+		t.Fatalf("claimExactRunForTest() error = %v", err)
+	}
+	claimed := &claim.Run
+	if claimed.SessionID != "sess-claimer" {
+		t.Fatalf("claimed SessionID = %q, want claimer session", claimed.SessionID)
+	}
+
+	running, err := manager.StartRun(context.Background(), run.ID, StartRun{
+		ClaimToken: claim.ClaimToken,
+	}, actor)
+	if err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+	if running.SessionID != "sess-per-run" || running.WorktreeID != "wt-per-run" {
+		t.Fatalf("running binding = session %q worktree %q, want dedicated per-run binding", running.SessionID, running.WorktreeID)
+	}
+	if got, want := len(executor.startCalls), 1; got != want {
+		t.Fatalf("StartTaskSession calls = %d, want %d", got, want)
+	}
+	if executor.startCalls[0].Run.ResolvedWorktreeMode != WorktreeModePerRun {
+		t.Fatalf("StartTaskSession run snapshot = %#v, want per_run", executor.startCalls[0].Run)
+	}
+}
+
 func TestManagerStartRunExecutionProfile(t *testing.T) {
 	t.Parallel()
 
@@ -11526,6 +11652,391 @@ func TestManagerStartRunExecutionProfile(t *testing.T) {
 
 func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should stop the session and clean up its worktree when binding loses the run fence", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{
+			startRef: &SessionRef{SessionID: "sess-stale-bind", WorktreeID: "wt-stale-bind"},
+		}
+		executor.onStart = func(_ context.Context, spec *StartTaskSession) {
+			current := cloneTaskRun(store.runs[spec.Run.ID])
+			current.Status = TaskRunStatusRunning
+			store.runs[current.ID] = current
+		}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Stale session binding",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		if _, err := manager.SetExecutionProfile(context.Background(), taskRecord.ID, &ExecutionProfile{
+			Worktree: WorktreePolicy{Mode: WorktreeModePerRun},
+		}, actor); err != nil {
+			t.Fatalf("SetExecutionProfile() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = admitRunDirectlyForTest(context.Background(), manager, run.ID, actor)
+		if err != nil {
+			t.Fatalf("admitRunDirectlyForTest() error = %v", err)
+		}
+
+		if _, err := manager.StartRun(context.Background(), run.ID, StartRun{}, actor); !errors.Is(
+			err,
+			ErrInvalidStatusTransition,
+		) {
+			t.Fatalf("StartRun() error = %v, want ErrInvalidStatusTransition", err)
+		}
+		if got, want := len(executor.requestStopCalls), 1; got != want {
+			t.Fatalf("RequestTaskStop() calls = %d, want %d", got, want)
+		}
+		if got, want := len(executor.forceStopCalls), 1; got != want {
+			t.Fatalf("ForceTaskStop() calls = %d, want %d", got, want)
+		}
+		if got, want := len(executor.cleanupCalls), 1; got != want {
+			t.Fatalf("CleanupUnboundTaskSession() calls = %d, want %d", got, want)
+		}
+		cleanup := executor.cleanupCalls[0]
+		if cleanup.run.ID != run.ID || cleanup.run.ResolvedWorktreeMode != WorktreeModePerRun ||
+			cleanup.ref.SessionID != "sess-stale-bind" || cleanup.ref.WorktreeID != "wt-stale-bind" {
+			t.Fatalf("CleanupUnboundTaskSession() call = %#v, want exact run/session worktree", cleanup)
+		}
+		stored, err := store.GetTaskRun(context.Background(), run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if stored.SessionID != "" || stored.WorktreeID != "" {
+			t.Fatalf("stored binding = session %q worktree %q, want unchanged", stored.SessionID, stored.WorktreeID)
+		}
+	})
+	t.Run("Should accept a heartbeat extension while materializing before session binding", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		now := time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{
+			startRef: &SessionRef{SessionID: "sess-heartbeat-bind", WorktreeID: "wt-heartbeat-bind"},
+		}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		operator := validActorContext()
+		agent := agentSessionActorContext("sess-heartbeat-owner")
+
+		taskRecord, err := manager.CreateTask(ctx, CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Heartbeat during materialization",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		if _, err := manager.SetWorktreePolicy(
+			ctx,
+			taskRecord.ID,
+			WorktreePolicy{Mode: WorktreeModePerRun},
+			operator,
+		); err != nil {
+			t.Fatalf("SetWorktreePolicy() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(ctx, ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: agent.Scope.SessionID,
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		executor.onStart = func(_ context.Context, spec *StartTaskSession) {
+			heartbeat, heartbeatErr := store.HeartbeatRunLease(ctx, LeaseHeartbeat{
+				RunID:         spec.Run.ID,
+				ClaimToken:    claim.ClaimToken,
+				LeaseDuration: 2 * time.Minute,
+				Now:           now.Add(30 * time.Second),
+			})
+			if heartbeatErr != nil {
+				t.Fatalf("HeartbeatRunLease() error = %v", heartbeatErr)
+			}
+			if got, want := heartbeat.LeaseUntil, now.Add(150*time.Second); !got.Equal(want) {
+				t.Fatalf("heartbeat lease_until = %s, want %s", got, want)
+			}
+		}
+
+		started, err := manager.StartRun(ctx, run.ID, StartRun{
+			IdempotencyKey: "start-heartbeat-materialization",
+			ClaimToken:     claim.ClaimToken,
+		}, agent)
+		if err != nil {
+			t.Fatalf("StartRun() error = %v", err)
+		}
+		if started.Status != TaskRunStatusRunning || started.SessionID != "sess-heartbeat-bind" ||
+			started.WorktreeID != "wt-heartbeat-bind" || !started.LeaseUntil.Equal(now.Add(150*time.Second)) {
+			t.Fatalf("StartRun() = %#v, want heartbeat-refreshed session binding", started)
+		}
+	})
+
+	t.Run("Should fail a materialization under the heartbeat-refreshed lease", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		base := time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
+		clockNow := base
+		store := newInMemoryManagerStore()
+		materializationErr := errors.New("materialization failed after heartbeat")
+		executor := &recordingSessionExecutor{startErr: materializationErr}
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(executor),
+			WithManagerNow(func() time.Time { return clockNow }),
+		)
+		operator := validActorContext()
+		agent := agentSessionActorContext("sess-heartbeat-failure")
+
+		taskRecord, err := manager.CreateTask(ctx, CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Heartbeat-fenced materialization failure",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		if _, err := manager.SetWorktreePolicy(
+			ctx,
+			taskRecord.ID,
+			WorktreePolicy{Mode: WorktreeModePerRun},
+			operator,
+		); err != nil {
+			t.Fatalf("SetWorktreePolicy() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(ctx, ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: agent.Scope.SessionID,
+			LeaseDuration:    time.Minute,
+			Now:              base,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		executor.onStart = func(_ context.Context, spec *StartTaskSession) {
+			clockNow = base.Add(30 * time.Second)
+			if _, heartbeatErr := store.HeartbeatRunLease(ctx, LeaseHeartbeat{
+				RunID:         spec.Run.ID,
+				ClaimToken:    claim.ClaimToken,
+				LeaseDuration: 2 * time.Minute,
+				Now:           clockNow,
+			}); heartbeatErr != nil {
+				t.Fatalf("HeartbeatRunLease() error = %v", heartbeatErr)
+			}
+		}
+
+		failed, err := manager.StartRun(ctx, run.ID, StartRun{
+			IdempotencyKey: "start-heartbeat-failure",
+			ClaimToken:     claim.ClaimToken,
+		}, agent)
+		if !errors.Is(err, materializationErr) {
+			t.Fatalf("StartRun() error = %v, want materialization failure", err)
+		}
+		if failed == nil || failed.Status != TaskRunStatusFailed ||
+			failed.ClaimTokenHash != claim.Run.ClaimTokenHash || !failed.LeaseUntil.IsZero() {
+			t.Fatalf("StartRun() failed run = %#v, want token-fenced terminal failure", failed)
+		}
+	})
+
+	t.Run("Should refuse a materialization failure after the lease expires", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		base := time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
+		clockNow := base
+		store := newInMemoryManagerStore()
+		materializationErr := errors.New("materialization failed after lease expiry")
+		executor := &recordingSessionExecutor{startErr: materializationErr}
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(executor),
+			WithManagerNow(func() time.Time { return clockNow }),
+		)
+		operator := validActorContext()
+		agent := agentSessionActorContext("sess-expired-failure")
+
+		taskRecord, err := manager.CreateTask(ctx, CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Expired materialization failure",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		if _, err := manager.SetWorktreePolicy(
+			ctx,
+			taskRecord.ID,
+			WorktreePolicy{Mode: WorktreeModePerRun},
+			operator,
+		); err != nil {
+			t.Fatalf("SetWorktreePolicy() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(ctx, ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: agent.Scope.SessionID,
+			LeaseDuration:    time.Minute,
+			Now:              base,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		executor.onStart = func(context.Context, *StartTaskSession) {
+			clockNow = base.Add(2 * time.Minute)
+		}
+
+		failed, err := manager.StartRun(ctx, run.ID, StartRun{
+			IdempotencyKey: "start-expired-failure",
+			ClaimToken:     claim.ClaimToken,
+		}, agent)
+		if failed != nil || !errors.Is(err, ErrLeaseExpired) || !errors.Is(err, materializationErr) {
+			t.Fatalf("StartRun() = %#v, %v; want nil plus materialization and lease errors", failed, err)
+		}
+		stored, err := store.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if stored.Status != TaskRunStatusStarting || stored.SessionID != agent.Scope.SessionID ||
+			stored.ClaimTokenHash == "" {
+			t.Fatalf("expired stored run = %#v, want starting run owned by the expired claimant", stored)
+		}
+	})
+
+	t.Run("Should unwind an expired materialization before a recovered run starts cleanly", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		now := time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC)
+		store := newInMemoryManagerStore()
+		executor := &recordingSessionExecutor{
+			startRef: &SessionRef{SessionID: "sess-expired-bind", WorktreeID: "wt-expired-bind"},
+		}
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
+		operator := validActorContext()
+		agent := agentSessionActorContext("sess-expired-owner")
+
+		taskRecord, err := manager.CreateTask(ctx, CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Expired materialization",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		if _, err := manager.SetWorktreePolicy(
+			ctx,
+			taskRecord.ID,
+			WorktreePolicy{Mode: WorktreeModePerRun},
+			operator,
+		); err != nil {
+			t.Fatalf("SetWorktreePolicy() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(ctx, EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(ctx, ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: agent.Scope.SessionID,
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		executor.onStart = func(_ context.Context, spec *StartTaskSession) {
+			current := cloneTaskRun(store.runs[spec.Run.ID])
+			current.HeartbeatAt = now
+			current.LeaseUntil = now
+			store.runs[current.ID] = current
+		}
+
+		if _, err := manager.StartRun(
+			ctx,
+			run.ID,
+			StartRun{
+				IdempotencyKey: "start-expired-materialization",
+				ClaimToken:     claim.ClaimToken,
+			},
+			agent,
+		); !errors.Is(err, ErrLeaseExpired) {
+			t.Fatalf("StartRun(expired) error = %v, want %v", err, ErrLeaseExpired)
+		}
+		if got, want := len(executor.cleanupCalls), 1; got != want {
+			t.Fatalf("CleanupUnboundTaskSession() calls = %d, want %d", got, want)
+		}
+		stored, err := store.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(expired) error = %v", err)
+		}
+		if stored.SessionID != agent.Scope.SessionID || stored.WorktreeID != "" ||
+			stored.Status != TaskRunStatusStarting {
+			t.Fatalf("expired stored run = %#v, want original claimant without worktree binding", stored)
+		}
+
+		recoveries, err := manager.RecoverExpiredRunLeases(ctx, ExpiredLeaseRecovery{
+			Now:    now.Add(time.Second),
+			Reason: "materialization lease expired",
+		}, operator)
+		if err != nil {
+			t.Fatalf("RecoverExpiredRunLeases() error = %v", err)
+		}
+		if len(recoveries) != 1 || recoveries[0].Run.Status != TaskRunStatusQueued {
+			t.Fatalf("recoveries = %#v, want one requeued run", recoveries)
+		}
+		reclaimed, err := manager.ClaimNextRun(ctx, ClaimCriteria{
+			RunID:            run.ID,
+			Scope:            ScopeGlobal,
+			ClaimerSessionID: agent.Scope.SessionID,
+			LeaseDuration:    time.Minute,
+			Now:              now.Add(2 * time.Second),
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(recovered) error = %v", err)
+		}
+		executor.onStart = nil
+		executor.startRef = &SessionRef{SessionID: "sess-recovered-bind", WorktreeID: "wt-recovered-bind"}
+		started, err := manager.StartRun(
+			ctx,
+			run.ID,
+			StartRun{
+				IdempotencyKey: "start-recovered-materialization",
+				ClaimToken:     reclaimed.ClaimToken,
+			},
+			agent,
+		)
+		if err != nil {
+			t.Fatalf("StartRun(recovered) error = %v", err)
+		}
+		if started.Status != TaskRunStatusRunning || started.WorktreeID != "wt-recovered-bind" {
+			t.Fatalf("StartRun(recovered) = %#v, want new running materialization", started)
+		}
+	})
 
 	t.Run(
 		"Should start run fails closed when executor returns nil session ref",

@@ -5,7 +5,8 @@ DELETE FROM task_execution_profiles WHERE task_id = sqlc.arg(task_id);
 SELECT task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
        coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
        worker_provider, worker_model, review_agent_name, review_provider,
-       review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at,
+       review_model, sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
+       runtime_mode, created_at, updated_at,
        network_mode, network_channel_strategy, network_channel, network_bounds_json
 FROM task_execution_profiles
 WHERE task_id = sqlc.arg(task_id);
@@ -15,7 +16,8 @@ INSERT INTO task_execution_profiles (
   task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
   coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
   worker_provider, worker_model, review_agent_name, review_provider,
-  review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at,
+  review_model, sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
+  runtime_mode, created_at, updated_at,
   network_mode, network_channel_strategy, network_channel, network_bounds_json
 ) VALUES (
   sqlc.arg(task_id), sqlc.arg(coordinator_mode), sqlc.arg(coordinator_agent_name),
@@ -23,7 +25,8 @@ INSERT INTO task_execution_profiles (
   sqlc.arg(worker_mode), sqlc.arg(worker_agent_name), sqlc.arg(worker_provider),
   sqlc.arg(worker_model), sqlc.arg(review_agent_name), sqlc.arg(review_provider),
   sqlc.arg(review_model), sqlc.arg(sandbox_mode), sqlc.arg(sandbox_ref),
-  sqlc.arg(runtime_mode), sqlc.arg(created_at), sqlc.arg(updated_at),
+  sqlc.arg(worktree_mode), sqlc.arg(worktree_ref), sqlc.arg(runtime_mode),
+  sqlc.arg(created_at), sqlc.arg(updated_at),
   sqlc.arg(network_mode), sqlc.arg(network_channel_strategy), sqlc.arg(network_channel),
   sqlc.arg(network_bounds_json)
 )
@@ -42,6 +45,8 @@ ON CONFLICT(task_id) DO UPDATE SET
   review_model = excluded.review_model,
   sandbox_mode = excluded.sandbox_mode,
   sandbox_ref = excluded.sandbox_ref,
+  worktree_mode = excluded.worktree_mode,
+  worktree_ref = excluded.worktree_ref,
   runtime_mode = excluded.runtime_mode,
   network_mode = excluded.network_mode,
   network_channel_strategy = excluded.network_channel_strategy,

@@ -2039,6 +2039,8 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 			inspectID     string
 			updateID      string
 			updateRequest TaskExecutionProfileRequest
+			worktreeID    string
+			worktree      TaskWorktreePolicyRequest
 			deleteID      string
 		)
 		deps := newWorkspaceTestDeps(t, &stubClient{
@@ -2059,6 +2061,21 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 				updateRequest = *request
 				record := *request
 				record.UpdatedAt = fixedTestNow
+				return record, nil
+			},
+			setTaskWorktreePolicyFn: func(
+				_ context.Context,
+				id string,
+				request *TaskWorktreePolicyRequest,
+			) (TaskExecutionProfileRecord, error) {
+				if request == nil {
+					t.Fatal("worktree request is nil")
+					return TaskExecutionProfileRecord{}, nil
+				}
+				worktreeID = id
+				worktree = *request
+				record := sampleTaskExecutionProfileRecord()
+				record.Worktree = *request
 				return record, nil
 			},
 			deleteTaskExecutionProfileFn: func(_ context.Context, id string) error {
@@ -2107,6 +2124,34 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 		}
 		if updated.TaskID != "task-1" || updated.Worker.AgentName != "worker-b" {
 			t.Fatalf("updated profile = %#v", updated)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"task",
+			"profile",
+			"set-worktree",
+			"task-1",
+			"--mode",
+			"ref",
+			"--ref",
+			"feature-a",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task profile set-worktree error = %v", err)
+		}
+		if worktreeID != "task-1" || worktree.Mode != taskpkg.WorktreeModeRef || worktree.WorktreeRef != "feature-a" {
+			t.Fatalf("set-worktree request = %q/%#v", worktreeID, worktree)
+		}
+		var worktreeProfile TaskExecutionProfileRecord
+		if err := json.Unmarshal([]byte(stdout), &worktreeProfile); err != nil {
+			t.Fatalf("json.Unmarshal(profile set-worktree) error = %v", err)
+		}
+		if worktreeProfile.Worktree != worktree {
+			t.Fatalf("set-worktree profile = %#v", worktreeProfile)
 		}
 
 		stdout, _, err = executeRootCommand(t, deps, "task", "profile", "delete", "task-1", "-o", "json")

@@ -2,10 +2,8 @@ package task
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 )
 
@@ -13,6 +11,7 @@ func (m *Service) transitionClaimedRunToStarting(
 	ctx context.Context,
 	taskRecord Task,
 	run Run,
+	claimToken string,
 	actor ActorContext,
 ) (Run, *Run, error) {
 	if strings.TrimSpace(run.SessionID) == "" {
@@ -22,19 +21,52 @@ func (m *Service) transitionClaimedRunToStarting(
 	}
 
 	lifecycleCtx := taskRunLifecycleContext(ctx)
-	startingRun, startingTask, err := m.persistClaimedRunStarting(lifecycleCtx, run, actor)
+	startingRun, startingTask, err := m.persistClaimedRunStarting(
+		lifecycleCtx,
+		run,
+		claimToken,
+		actor,
+	)
 	if err != nil {
 		return Run{}, nil, err
 	}
 	if strings.TrimSpace(startingRun.SessionID) != "" {
-		return startingRun, nil, nil
+		switch startingRun.ResolvedWorktreeMode.Normalize() {
+		case WorktreeModePerRun:
+			// A per-run checkout does not exist at claim time. Transfer the
+			// claimed run to a dedicated session only after materialization.
+		case WorktreeModeRef:
+			bound, bindErr := m.attachAndPersistRunSession(
+				lifecycleCtx,
+				startingRun,
+				startingRun.SessionID,
+				claimToken,
+				actor,
+			)
+			if bindErr == nil {
+				return *bound, nil, nil
+			}
+			if !errors.Is(bindErr, ErrSessionAttachNotAllowed) {
+				return Run{}, nil, bindErr
+			}
+		default:
+			return startingRun, nil, nil
+		}
 	}
-	return m.startAndBindClaimedRunSession(lifecycleCtx, taskRecord, startingTask, startingRun, actor)
+	return m.startAndBindClaimedRunSession(
+		lifecycleCtx,
+		taskRecord,
+		startingTask,
+		startingRun,
+		claimToken,
+		actor,
+	)
 }
 
 func (m *Service) persistClaimedRunStarting(
 	ctx context.Context,
 	run Run,
+	claimToken string,
 	actor ActorContext,
 ) (Run, Task, error) {
 	if err := m.preflightRunTransition(run, taskEventRunStarting, TaskRunStatusStarting, actor); err != nil {
@@ -48,7 +80,10 @@ func (m *Service) persistClaimedRunStarting(
 		actor,
 		commandAt,
 		func(store runMutationStore) (NominalRunMutationResult, error) {
-			return store.TransitionRunStarting(ctx, NewRunStartingMutation(run))
+			return store.TransitionRunStarting(
+				ctx,
+				NewRunStartingMutation(run, claimToken, commandAt),
+			)
 		},
 		transitionRunPayload,
 	)
@@ -63,16 +98,25 @@ func (m *Service) startAndBindClaimedRunSession(
 	taskRecord Task,
 	startingTask Task,
 	run Run,
+	claimToken string,
 	actor ActorContext,
 ) (Run, *Run, error) {
-	sessionID, failedRun, err := m.startRunSession(ctx, taskRecord, startingTask, run, actor)
+	sessionRef, failedRun, err := m.startRunSession(
+		ctx,
+		taskRecord,
+		startingTask,
+		run,
+		claimToken,
+		actor,
+	)
 	if err != nil {
 		return Run{}, failedRun, err
 	}
 	candidate := run
-	candidate.SessionID = sessionID
+	candidate.SessionID = sessionRef.SessionID
+	candidate.WorktreeID = sessionRef.WorktreeID
 	if err := m.preflightRunTransition(candidate, taskEventRunSessionBound, candidate.Status, actor); err != nil {
-		stopErr := m.stopUnboundStartedTaskSession(ctx, sessionID)
+		stopErr := m.stopUnboundStartedTaskSession(ctx, run, sessionRef)
 		return Run{}, nil, errorsJoin(err, stopErr)
 	}
 	commandAt := m.now().UTC()
@@ -83,12 +127,21 @@ func (m *Service) startAndBindClaimedRunSession(
 		actor,
 		commandAt,
 		func(store runMutationStore) (NominalRunMutationResult, error) {
-			return store.BindRunSession(ctx, NewRunSessionBindingMutation(run, sessionID))
+			return store.BindRunSession(
+				ctx,
+				NewRunSessionBindingMutation(
+					run,
+					claimToken,
+					sessionRef.SessionID,
+					sessionRef.WorktreeID,
+					commandAt,
+				),
+			)
 		},
 		transitionRunPayload,
 	)
 	if err != nil {
-		stopErr := m.stopUnboundStartedTaskSession(ctx, sessionID)
+		stopErr := m.stopUnboundStartedTaskSession(ctx, run, sessionRef)
 		return Run{}, nil, errorsJoin(err, stopErr)
 	}
 	return settlement.mutation.Run, nil, nil
@@ -99,17 +152,25 @@ func (m *Service) startRunSession(
 	taskRecord Task,
 	startingTask Task,
 	run Run,
+	claimToken string,
 	actor ActorContext,
-) (string, *Run, error) {
+) (*SessionRef, *Run, error) {
 	profile, err := m.startTaskExecutionProfile(ctx, startingTask.ID)
 	if err != nil {
 		publicErr := redactTaskError(err)
 		message := fmt.Sprintf("load execution profile: %v", publicErr)
-		failedRun, failErr := m.failRunAfterSessionStartError(ctx, taskRecord, run, actor, message)
+		failedRun, failErr := m.failRunAfterSessionStartError(
+			ctx,
+			taskRecord,
+			run,
+			claimToken,
+			actor,
+			message,
+		)
 		if failErr != nil {
-			return "", nil, errorsJoin(publicErr, redactTaskError(failErr))
+			return nil, nil, errorsJoin(publicErr, redactTaskError(failErr))
 		}
-		return "", failedRun, fmt.Errorf("task: load execution profile for run %q: %w", run.ID, publicErr)
+		return nil, failedRun, fmt.Errorf("task: load execution profile for run %q: %w", run.ID, publicErr)
 	}
 	sessionRef, err := m.sessions.StartTaskSession(ctx, &StartTaskSession{
 		Task:             startingTask,
@@ -120,24 +181,32 @@ func (m *Service) startRunSession(
 	if err != nil {
 		publicErr := redactTaskError(err)
 		message := fmt.Sprintf("start task session: %v", publicErr)
-		failedRun, failErr := m.failRunAfterSessionStartError(ctx, taskRecord, run, actor, message)
+		failedRun, failErr := m.failRunAfterSessionStartError(
+			ctx,
+			taskRecord,
+			run,
+			claimToken,
+			actor,
+			message,
+		)
 		if failErr != nil {
-			return "", nil, errorsJoin(publicErr, redactTaskError(failErr))
+			return nil, nil, errorsJoin(publicErr, redactTaskError(failErr))
 		}
-		return "", failedRun, fmt.Errorf("task: start task session for run %q: %w", run.ID, publicErr)
+		return nil, failedRun, fmt.Errorf("task: start task session for run %q: %w", run.ID, publicErr)
 	}
 	if sessionRef == nil {
 		failedRun, failErr := m.failRunAfterSessionStartError(
 			ctx,
 			taskRecord,
 			run,
+			claimToken,
 			actor,
 			"start task session: nil session reference",
 		)
 		if failErr != nil {
-			return "", nil, failErr
+			return nil, nil, failErr
 		}
-		return "", failedRun, fmt.Errorf(
+		return nil, failedRun, fmt.Errorf(
 			"%w: start_task_session returned nil session reference",
 			ErrValidation,
 		)
@@ -145,13 +214,20 @@ func (m *Service) startRunSession(
 	if err := sessionRef.Validate(); err != nil {
 		publicErr := redactTaskError(err)
 		message := fmt.Sprintf("start task session: %v", publicErr)
-		failedRun, failErr := m.failRunAfterSessionStartError(ctx, taskRecord, run, actor, message)
+		failedRun, failErr := m.failRunAfterSessionStartError(
+			ctx,
+			taskRecord,
+			run,
+			claimToken,
+			actor,
+			message,
+		)
 		if failErr != nil {
-			return "", nil, errorsJoin(publicErr, redactTaskError(failErr))
+			return nil, nil, errorsJoin(publicErr, redactTaskError(failErr))
 		}
-		return "", failedRun, publicErr
+		return nil, failedRun, publicErr
 	}
-	return strings.TrimSpace(sessionRef.SessionID), nil, nil
+	return sessionRef, nil, nil
 }
 
 func (m *Service) startTaskExecutionProfile(
@@ -172,8 +248,11 @@ func (m *Service) startTaskExecutionProfile(
 	}
 }
 
-func (m *Service) stopUnboundStartedTaskSession(ctx context.Context, sessionID string) error {
-	trimmedSessionID := strings.TrimSpace(sessionID)
+func (m *Service) stopUnboundStartedTaskSession(ctx context.Context, run Run, ref *SessionRef) error {
+	if ref == nil {
+		return nil
+	}
+	trimmedSessionID := strings.TrimSpace(ref.SessionID)
 	if trimmedSessionID == "" || m.sessions == nil {
 		return nil
 	}
@@ -189,16 +268,32 @@ func (m *Service) stopUnboundStartedTaskSession(ctx context.Context, sessionID s
 	if forceErr != nil {
 		forceErr = fmt.Errorf("task: force stop unbound session %q: %w", trimmedSessionID, forceErr)
 	}
-	return errorsJoin(requestErr, forceErr)
+	var cleanupErr error
+	if cleaner, ok := m.sessions.(UnboundTaskSessionCleaner); ok {
+		cleanupErr = cleaner.CleanupUnboundTaskSession(ctx, run, *ref)
+		if cleanupErr != nil {
+			cleanupErr = fmt.Errorf("task: clean up unbound session resources: %w", cleanupErr)
+		}
+	}
+	return errorsJoin(requestErr, forceErr, cleanupErr)
 }
 
 func (m *Service) failRunAfterSessionStartError(
 	ctx context.Context,
 	taskRecord Task,
 	run Run,
+	claimToken string,
 	actor ActorContext,
 	message string,
 ) (*Run, error) {
+	if strings.TrimSpace(run.ClaimTokenHash) != "" {
+		return m.FailRunLease(ctx, LeaseFailure{
+			RunID:      run.ID,
+			ClaimToken: claimToken,
+			Failure:    RunFailure{Error: message},
+			Now:        m.now().UTC(),
+		}, actor)
+	}
 	return m.failRunRecord(ctx, taskRecord, run, RunFailure{Error: message}, actor)
 }
 

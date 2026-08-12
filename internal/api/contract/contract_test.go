@@ -1659,14 +1659,16 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 
 		startedAt := time.Date(2026, 4, 14, 10, 1, 0, 0, time.UTC)
 		payload := contract.TaskRunPayload{
-			ID:             "run-1",
-			TaskID:         "task-1",
-			Status:         taskpkg.TaskRunStatusRunning,
-			Attempt:        2,
-			ClaimedBy:      &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			SessionID:      "sess-1",
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
-			IdempotencyKey: "key-1",
+			ID:                   "run-1",
+			TaskID:               "task-1",
+			Status:               taskpkg.TaskRunStatusRunning,
+			Attempt:              2,
+			ClaimedBy:            &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			SessionID:            "sess-1",
+			WorktreeID:           "wt-run-1",
+			ResolvedWorktreeMode: taskpkg.WorktreeModePerRun,
+			Origin:               taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
+			IdempotencyKey:       "key-1",
 			ResolvedNetworkParticipation: &participation.Spec{
 				Version:   participation.SpecVersion,
 				Mode:      participation.ModeLive,
@@ -1683,6 +1685,9 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 
 		if got["session_id"] != "sess-1" || got["idempotency_key"] != "key-1" {
 			t.Fatalf("task run JSON = %#v", got)
+		}
+		if got["worktree_id"] != "wt-run-1" || got["resolved_worktree_mode"] != "per_run" {
+			t.Fatalf("task run worktree JSON = %#v", got)
 		}
 		if resolvedChannelFromJSON(got) != "builders" || got["status"] != taskpkg.TaskRunStatusRunning.String() {
 			t.Fatalf("task run JSON = %#v", got)

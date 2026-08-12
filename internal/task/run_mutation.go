@@ -64,6 +64,15 @@ func (f RunMutationFence) Matches(run Run) bool {
 		run.LeaseUntil.Equal(f.leaseUntil)
 }
 
+func (f RunMutationFence) matchesLeaseOwner(run Run) bool {
+	return strings.TrimSpace(run.ID) == f.runID &&
+		strings.TrimSpace(run.TaskID) == f.taskID &&
+		strings.TrimSpace(run.WorkspaceID) == f.workspaceID &&
+		run.Status.Normalize() == f.status &&
+		strings.TrimSpace(run.SessionID) == f.sessionID &&
+		strings.TrimSpace(run.ClaimTokenHash) == f.claimTokenHash
+}
+
 // TerminalRunMutation declares the exact run snapshot that may win one
 // terminal transition. Construction always captures lifecycle, session, claim,
 // and lease identity together.

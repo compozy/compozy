@@ -8,6 +8,7 @@ type WorktreeContext struct {
 	Branch        string `json:"branch"`
 	Path          string `json:"path"`
 	Origin        string `json:"origin"`
+	RunID         string `json:"run_id,omitempty"`
 }
 
 type WorktreeRisk struct {

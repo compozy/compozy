@@ -105,6 +105,13 @@ func setTaskCurrentRunProjection(
 			trimmedRunID,
 		)
 	}
+	shared, err := taskRunsShareDesignationGroup(ctx, exec, currentRunID, trimmedRunID)
+	if err != nil {
+		return err
+	}
+	if shared {
+		return nil
+	}
 	return fmt.Errorf(
 		"%w: task %q already projects active run %q",
 		taskpkg.ErrInvalidStatusTransition,
@@ -143,7 +150,7 @@ func clearTaskCurrentRunProjection(
 		)
 	}
 	if rowsAffected > 0 {
-		return nil
+		return reprojectActiveDesignationSibling(ctx, exec, trimmedTaskID, trimmedRunID)
 	}
 
 	currentRunID, err := currentRunProjection(ctx, exec, trimmedTaskID)
@@ -153,6 +160,13 @@ func clearTaskCurrentRunProjection(
 	if currentRunID == "" {
 		return nil
 	}
+	shared, err := taskRunsShareDesignationGroup(ctx, exec, currentRunID, trimmedRunID)
+	if err != nil {
+		return err
+	}
+	if shared {
+		return nil
+	}
 	return fmt.Errorf(
 		"%w: task %q projects active run %q, not %q",
 		taskpkg.ErrInvalidStatusTransition,
@@ -160,6 +174,55 @@ func clearTaskCurrentRunProjection(
 		currentRunID,
 		trimmedRunID,
 	)
+}
+
+func taskRunsShareDesignationGroup(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	firstRunID string,
+	secondRunID string,
+) (bool, error) {
+	queries := sqlcgen.New(exec)
+	first, err := queries.GetTaskRunProjectionIdentity(ctx, firstRunID)
+	if err != nil {
+		return false, fmt.Errorf("store: load current run projection identity %q: %w", firstRunID, err)
+	}
+	second, err := queries.GetTaskRunProjectionIdentity(ctx, secondRunID)
+	if err != nil {
+		return false, fmt.Errorf("store: load candidate run projection identity %q: %w", secondRunID, err)
+	}
+	firstGroup := strings.TrimSpace(first.DesignationGroupID)
+	return firstGroup != "" && firstGroup == strings.TrimSpace(second.DesignationGroupID) &&
+		strings.TrimSpace(taskNullStringValue(first.TaskID)) == strings.TrimSpace(taskNullStringValue(second.TaskID)), nil
+}
+
+func reprojectActiveDesignationSibling(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	taskID string,
+	terminalRunID string,
+) error {
+	identity, err := sqlcgen.New(exec).GetTaskRunProjectionIdentity(ctx, terminalRunID)
+	if err != nil {
+		return fmt.Errorf("store: load terminal run projection identity %q: %w", terminalRunID, err)
+	}
+	groupID := strings.TrimSpace(identity.DesignationGroupID)
+	if groupID == "" {
+		return nil
+	}
+	candidate, err := sqlcgen.New(exec).FindActiveDesignationProjectionCandidate(
+		ctx,
+		sqlcgen.FindActiveDesignationProjectionCandidateParams{
+			TaskID: nullableTaskString(taskID), DesignationGroupID: groupID, ExcludedRunID: terminalRunID,
+		},
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("store: find active designation projection candidate: %w", err)
+	}
+	return setTaskCurrentRunProjection(ctx, exec, taskID, candidate)
 }
 
 func currentRunProjection(

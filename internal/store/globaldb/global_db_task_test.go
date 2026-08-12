@@ -3403,6 +3403,55 @@ func TestGlobalDBReserveQueuedRunPersistsResolvedNetworkSnapshot(t *testing.T) {
 	})
 }
 
+func TestGlobalDBReserveQueuedRunPersistsResolvedWorktreeSnapshot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist the resolved worktree policy with a queued reservation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-run-reserve-worktree-snapshot")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		reservation := queuedRunReservationForTest(
+			taskRecord.ID,
+			"run-reserve-worktree-snapshot",
+			"worktree-snapshot-key",
+			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+			nil,
+			time.Date(2026, 7, 13, 13, 0, 0, 0, time.UTC),
+		)
+		reservation.ResolvedWorktreeMode = taskpkg.WorktreeModeRef
+		reservation.ResolvedWorktreeRef = "feature-one"
+
+		_, run, existing, err := globalDB.ReserveQueuedRun(ctx, reservation)
+		if err != nil {
+			t.Fatalf("ReserveQueuedRun() error = %v", err)
+		}
+		if existing {
+			t.Fatal("ReserveQueuedRun() existing = true, want false")
+		}
+		if got, want := run.ResolvedWorktreeMode, taskpkg.WorktreeModeRef; got != want {
+			t.Fatalf("ResolvedWorktreeMode = %q, want %q", got, want)
+		}
+		if got, want := run.ResolvedWorktreeRef, "feature-one"; got != want {
+			t.Fatalf("ResolvedWorktreeRef = %q, want %q", got, want)
+		}
+		stored, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if got, want := stored.ResolvedWorktreeMode, taskpkg.WorktreeModeRef; got != want {
+			t.Fatalf("stored ResolvedWorktreeMode = %q, want %q", got, want)
+		}
+		if got, want := stored.ResolvedWorktreeRef, "feature-one"; got != want {
+			t.Fatalf("stored ResolvedWorktreeRef = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 	t.Parallel()
 

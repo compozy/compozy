@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -136,23 +137,59 @@ func (m *Service) reserveQueuedRunWithStore(
 	if err != nil {
 		return Run{}, false, err
 	}
+	worktreePolicy, err := m.resolveQueuedRunWorktreePolicyWithStore(
+		ctx,
+		store,
+		taskRecord.ID,
+		spec.WorktreePerRun,
+	)
+	if err != nil {
+		return Run{}, false, err
+	}
 
 	_, run, existing, err := store.ReserveQueuedRun(ctx, QueueRunReservation{
-		TaskID:             spec.TaskID,
-		RunID:              runID,
-		RunKind:            spec.RunKind,
-		LoopRunID:          spec.LoopRunID,
-		IdempotencyKey:     spec.IdempotencyKey,
-		Origin:             actor.Origin,
-		NetworkSpec:        networkSpec,
-		DesignationGroupID: spec.DesignationGroupID,
-		Metadata:           spec.Metadata,
-		QueuedAt:           m.now().UTC(),
+		TaskID:               spec.TaskID,
+		RunID:                runID,
+		RunKind:              spec.RunKind,
+		LoopRunID:            spec.LoopRunID,
+		IdempotencyKey:       spec.IdempotencyKey,
+		Origin:               actor.Origin,
+		NetworkSpec:          networkSpec,
+		DesignationGroupID:   spec.DesignationGroupID,
+		ResolvedWorktreeMode: worktreePolicy.Mode,
+		ResolvedWorktreeRef:  worktreePolicy.WorktreeRef,
+		Metadata:             spec.Metadata,
+		QueuedAt:             m.now().UTC(),
 	})
 	if err != nil {
 		return Run{}, false, err
 	}
 	return run, existing, nil
+}
+
+func (m *Service) resolveQueuedRunWorktreePolicyWithStore(
+	ctx context.Context,
+	store ExecutionMutationStore,
+	taskID string,
+	worktreePerRun bool,
+) (WorktreePolicy, error) {
+	if worktreePerRun {
+		return WorktreePolicy{Mode: WorktreeModePerRun}, nil
+	}
+	profile, err := store.GetExecutionProfile(ctx, taskID)
+	if errors.Is(err, ErrExecutionProfileNotFound) {
+		profile = defaultExecutionProfile(taskID)
+	} else if err != nil {
+		return WorktreePolicy{}, err
+	}
+	resolved, err := resolveWorktreePolicySnapshot(
+		profile.Worktree,
+		m.profileValidation.DefaultWorktreeMode,
+	)
+	if err != nil {
+		return WorktreePolicy{}, fmt.Errorf("task: resolve worktree policy for enqueue: %w", err)
+	}
+	return resolved, nil
 }
 
 func (m *Service) finishEnqueuedRunWithStore(
@@ -251,7 +288,13 @@ func (m *Service) StartRun(
 			return m.startCoordinatorRun(ctx, taskRecord, run, normalizedReq, actor)
 		}
 		var failedRun *Run
-		run, failedRun, err = m.transitionClaimedRunToStarting(ctx, taskRecord, run, actor)
+		run, failedRun, err = m.transitionClaimedRunToStarting(
+			ctx,
+			taskRecord,
+			run,
+			normalizedReq.ClaimToken,
+			actor,
+		)
 		if err != nil {
 			if failedRun != nil {
 				return failedRun, err
@@ -265,12 +308,13 @@ func (m *Service) StartRun(
 	default:
 		return nil, requireRunTransition(run, TaskRunStatusRunning)
 	}
-	return m.commitStartedRun(ctx, run, actor)
+	return m.commitStartedRun(ctx, run, normalizedReq.ClaimToken, actor)
 }
 
 func (m *Service) commitStartedRun(
 	ctx context.Context,
 	run Run,
+	claimToken string,
 	actor ActorContext,
 ) (*Run, error) {
 	lifecycleCtx := taskRunLifecycleContext(ctx)
@@ -297,7 +341,7 @@ func (m *Service) commitStartedRun(
 		func(store runMutationStore) (NominalRunMutationResult, error) {
 			return store.TransitionRunRunning(
 				lifecycleCtx,
-				NewRunRunningMutation(run, commandAt),
+				NewRunRunningMutation(run, claimToken, commandAt),
 			)
 		},
 		transitionRunPayload,
@@ -323,7 +367,7 @@ func (m *Service) AttachRunSession(
 	if err != nil {
 		return nil, err
 	}
-	return m.attachAndPersistRunSession(ctx, run, trimmedSessionID, actor)
+	return m.attachAndPersistRunSession(ctx, run, trimmedSessionID, "", actor)
 }
 
 func (m *Service) prepareRunSessionAttachment(
@@ -382,9 +426,16 @@ func (m *Service) attachAndPersistRunSession(
 	ctx context.Context,
 	run Run,
 	sessionID string,
+	claimToken string,
 	actor ActorContext,
 ) (*Run, error) {
-	sessionRef, err := m.sessions.AttachTaskSession(ctx, run.ID, sessionID)
+	var sessionRef *SessionRef
+	var err error
+	if executor, ok := m.sessions.(RunSessionAttachmentExecutor); ok {
+		sessionRef, err = executor.AttachTaskRunSession(ctx, run, sessionID)
+	} else {
+		sessionRef, err = m.sessions.AttachTaskSession(ctx, run.ID, sessionID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -401,6 +452,7 @@ func (m *Service) attachAndPersistRunSession(
 	boundSessionID := strings.TrimSpace(sessionRef.SessionID)
 	candidate := run
 	candidate.SessionID = boundSessionID
+	candidate.WorktreeID = strings.TrimSpace(sessionRef.WorktreeID)
 	candidate.Status = TaskRunStatusStarting
 	if err := m.preflightRunTransition(candidate, taskEventRunSessionBound, candidate.Status, actor); err != nil {
 		return nil, err
@@ -413,7 +465,16 @@ func (m *Service) attachAndPersistRunSession(
 		actor,
 		commandAt,
 		func(store runMutationStore) (NominalRunMutationResult, error) {
-			return store.BindRunSession(ctx, NewRunSessionBindingMutation(run, boundSessionID))
+			return store.BindRunSession(
+				ctx,
+				NewRunSessionBindingMutation(
+					run,
+					claimToken,
+					boundSessionID,
+					sessionRef.WorktreeID,
+					commandAt,
+				),
+			)
 		},
 		transitionRunPayload,
 	)

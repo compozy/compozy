@@ -186,11 +186,15 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 		var configPayload contract.LoopConfigResponse
 		testutil.DecodeJSONResponse(t, configResp, &configPayload)
 		if configPayload.Config == nil || configPayload.Config.IterationCap == nil ||
-			*configPayload.Config.IterationCap != 4 {
+			*configPayload.Config.IterationCap != 4 ||
+			configPayload.Config.Environment == nil ||
+			configPayload.Config.Environment.Mode != contract.LoopEnvironmentModeWorktree ||
+			configPayload.Config.Environment.WorktreeRef != "feature-a" {
 			t.Fatalf("GET /config payload = %#v", configPayload)
 		}
 		if configPayload.EffectiveConfig.FanOutWidth != 4 ||
-			configPayload.EffectiveConfig.GateMaxRevisions != 10 {
+			configPayload.EffectiveConfig.GateMaxRevisions != 10 ||
+			configPayload.EffectiveConfig.Environment.Mode != contract.LoopEnvironmentModeWorktree {
 			t.Fatalf("GET /config effective config = %#v", configPayload.EffectiveConfig)
 		}
 
@@ -204,7 +208,9 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 		assertLoopStatus(t, putConfigResp.Code, http.StatusOK, putConfigResp.Body.String())
 		var putConfigPayload contract.LoopConfigResponse
 		testutil.DecodeJSONResponse(t, putConfigResp, &putConfigPayload)
-		if putConfigPayload.Config == nil || putConfigPayload.Config.ReattemptStrategy == nil {
+		if putConfigPayload.Config == nil || putConfigPayload.Config.ReattemptStrategy == nil ||
+			putConfigPayload.Config.Environment == nil ||
+			putConfigPayload.Config.Environment.WorktreeRef != "feature-a" {
 			t.Fatalf("PUT /config payload = %#v", putConfigPayload)
 		}
 
@@ -1559,7 +1565,14 @@ func happyLoopService(t testing.TB) *stubLoopService {
 	t.Helper()
 
 	cfg := loopConfig()
-	effectiveCfg := contract.LoopEffectiveConfig{FanOutWidth: 4, GateMaxRevisions: 10}
+	effectiveCfg := contract.LoopEffectiveConfig{
+		FanOutWidth:      4,
+		GateMaxRevisions: 10,
+		Environment: contract.LoopEnvironment{
+			Mode:        contract.LoopEnvironmentModeWorktree,
+			WorktreeRef: "feature-a",
+		},
+	}
 	annotations := []contract.LoopAnnotationPayload{{NodeID: "draft", X: 12, Y: 34}}
 	return &stubLoopService{
 		listLoopsFn: func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error) {
@@ -2144,6 +2157,10 @@ func loopConfig() contract.LoopConfig {
 	return contract.LoopConfig{
 		IterationCap:      &iterationCap,
 		ReattemptStrategy: &reattempt,
+		Environment: &contract.LoopEnvironment{
+			Mode:        contract.LoopEnvironmentModeWorktree,
+			WorktreeRef: "feature-a",
+		},
 	}
 }
 

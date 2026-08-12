@@ -99,6 +99,9 @@ type TaskRunSummaryPayload struct {
 	FailureKind                  string                      `json:"failure_kind,omitempty"`
 	MaxAttempts                  int                         `json:"max_attempts"`
 	SessionID                    string                      `json:"session_id,omitempty"`
+	WorktreeID                   string                      `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode         WorktreeMode                `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef          string                      `json:"resolved_worktree_ref,omitempty"`
 	ClaimedBy                    *ActorIdentity              `json:"claimed_by,omitempty"`
 	ClaimTokenHash               string                      `json:"claim_token_hash,omitempty"`
 	LeaseUntil                   *time.Time                  `json:"lease_until,omitempty"`

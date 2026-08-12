@@ -29,6 +29,28 @@ WHERE id = sqlc.arg(task_id) AND current_run_id = sqlc.arg(run_id);
 -- name: GetTaskCurrentRunProjection :one
 SELECT current_run_id FROM tasks WHERE id = sqlc.arg(id);
 
+-- name: GetTaskRunProjectionIdentity :one
+SELECT task_id, designation_group_id
+FROM task_runs
+WHERE id = sqlc.arg(run_id);
+
+-- name: FindActiveDesignationProjectionCandidate :one
+SELECT id
+FROM task_runs
+WHERE task_id = sqlc.arg(task_id)
+  AND designation_group_id = sqlc.arg(designation_group_id)
+  AND id <> sqlc.arg(excluded_run_id)
+  AND status IN ('claimed', 'starting', 'running')
+ORDER BY
+  CASE status
+    WHEN 'running' THEN 3
+    WHEN 'starting' THEN 2
+    ELSE 1
+  END DESC,
+  queued_at DESC,
+  id DESC
+LIMIT 1;
+
 -- name: PauseTask :execrows
 UPDATE tasks
 SET paused = 1,

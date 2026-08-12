@@ -300,6 +300,21 @@ func TestLoopOpenAPIContract(t *testing.T) {
 
 		runLoop := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}/run", "POST")
 		assertRequired(t, jsonResponseSchema(t, runLoop, 422), "error")
+		runConfig := propertySchema(t, jsonRequestSchema(t, runLoop), "config_overrides")
+		assertRequired(t, propertySchema(t, runConfig, "environment"), "mode")
+
+		createLoop := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops", "POST")
+		definition := propertySchema(t, jsonRequestSchema(t, createLoop), "definition")
+		graph := propertySchema(t, definition, "graph")
+		nodes := propertySchema(t, graph, "nodes")
+		if nodes.Items == nil || nodes.Items.Value == nil {
+			t.Fatal("POST /loops definition graph nodes items are unresolved")
+		}
+		params := propertySchema(t, nodes.Items.Value, "params")
+		assertRequired(t, propertySchema(t, params, "environment"), "mode")
+		if _, ok := params.Properties["cwd"]; ok {
+			t.Fatal("POST /loops definition graph node params exposes retired cwd")
+		}
 
 		getConfig := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}/config", "GET")
 		configResponse := jsonResponseSchema(t, getConfig, 200)
@@ -307,6 +322,19 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		if config := propertySchema(t, configResponse, "config"); !config.Nullable {
 			t.Fatal("GET /config response config must be nullable")
 		}
+		config := propertySchema(t, configResponse, "config")
+		environment := propertySchema(t, config, "environment")
+		assertRequired(t, environment, "mode")
+		assertEnumValues(
+			t,
+			propertySchema(t, environment, "mode"),
+			"directory",
+			"per_run",
+			"root",
+			"worktree",
+		)
+		effective := propertySchema(t, configResponse, "effective_config")
+		assertRequired(t, effective, "environment")
 
 		pauseRun := operationFor(t, doc, "/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause", "POST")
 		assertRequired(t, jsonResponseSchema(t, pauseRun, 422), "error")

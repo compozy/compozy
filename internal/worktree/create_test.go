@@ -135,6 +135,47 @@ func TestServiceCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should roll back only the exact per-run materialization", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		request := RunWorktreeRequest{TaskSlug: "Review Docs", RunID: "run-rollback"}
+		item, err := fixture.service.MaterializeForRun(context.Background(), fixture.workspace.ID, request)
+		if err != nil {
+			t.Fatalf("MaterializeForRun() error = %v", err)
+		}
+		if err := fixture.service.RollbackRunMaterialization(
+			context.Background(),
+			fixture.workspace.ID,
+			item.ID,
+			"different-run",
+		); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("RollbackRunMaterialization(different run) error = %v, want ErrNotFound", err)
+		}
+		if _, err := fixture.store.Get(context.Background(), fixture.workspace.ID, item.ID); err != nil {
+			t.Fatalf("Get() after rejected rollback error = %v", err)
+		}
+		if err := fixture.service.RollbackRunMaterialization(
+			context.Background(),
+			fixture.workspace.ID,
+			item.ID,
+			request.RunID,
+		); err != nil {
+			t.Fatalf("RollbackRunMaterialization() error = %v", err)
+		}
+		if got, err := fixture.store.Get(context.Background(), fixture.workspace.ID, item.ID); !errors.Is(err, ErrNotFound) || got != nil {
+			t.Fatalf("Get() after rollback = %#v, %v, want ErrNotFound", got, err)
+		}
+		commands := invocationCommands(fixture.runner.invocations())
+		if !slices.ContainsFunc(commands, func(command string) bool {
+			return strings.HasSuffix(command, " worktree remove --force "+item.Path)
+		}) {
+			t.Fatalf("rollback Git calls = %#v, want forced checkout removal", commands)
+		}
+		if !containsCommandPrefix(commands, "update-ref -d refs/heads/"+item.Branch+" "+item.CreatedHead) {
+			t.Fatalf("rollback Git calls = %#v, want compare-and-delete", commands)
+		}
+	})
+
 	t.Run("Should create a branch and persist every phase before completing", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())

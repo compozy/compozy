@@ -12,6 +12,7 @@ type profileMutationEventPayload struct {
 	CoordinatorMode CoordinatorMode `json:"coordinator_mode,omitempty"`
 	WorkerMode      WorkerMode      `json:"worker_mode,omitempty"`
 	SandboxMode     SandboxMode     `json:"sandbox_mode,omitempty"`
+	WorktreeMode    WorktreeMode    `json:"worktree_mode,omitempty"`
 }
 
 // GetExecutionProfile returns the persisted profile or the default inherit profile.
@@ -85,6 +86,9 @@ func (m *Service) SetExecutionProfile(
 	if err != nil {
 		return ExecutionProfile{}, err
 	}
+	if err := m.validateTaskWorktreePolicy(ctx, record, normalized.Worktree); err != nil {
+		return ExecutionProfile{}, err
+	}
 	normalized.UpdatedAt = m.now().UTC()
 	if normalized.CreatedAt.IsZero() {
 		normalized.CreatedAt = normalized.UpdatedAt
@@ -95,6 +99,7 @@ func (m *Service) SetExecutionProfile(
 		CoordinatorMode: normalized.Coordinator.Mode,
 		WorkerMode:      normalized.Worker.Mode,
 		SandboxMode:     normalized.Sandbox.Mode,
+		WorktreeMode:    normalized.Worktree.Mode,
 	})
 	if err != nil {
 		return ExecutionProfile{}, err
@@ -157,8 +162,30 @@ func defaultExecutionProfile(taskID string) ExecutionProfile {
 		Coordinator: CoordinatorProfile{Mode: CoordinatorModeInherit},
 		Worker:      WorkerProfile{Mode: WorkerModeInherit},
 		Sandbox:     SandboxPolicy{Mode: SandboxModeInherit},
+		Worktree:    WorktreePolicy{Mode: WorktreeModeInherit},
 		Runtime:     RuntimePolicy{Mode: RuntimeModeDefault},
 	}
+}
+
+func (m *Service) validateTaskWorktreePolicy(
+	ctx context.Context,
+	taskRecord Task,
+	policy WorktreePolicy,
+) error {
+	if policy.Mode.Normalize() != WorktreeModeRef {
+		return nil
+	}
+	if m.worktreeRefValidator == nil {
+		return fmt.Errorf("%w: task worktree reference validation is unavailable", ErrValidation)
+	}
+	if err := m.worktreeRefValidator.ValidateTaskWorktreeRef(
+		ctx,
+		strings.TrimSpace(taskRecord.WorkspaceID),
+		policy.WorktreeRef,
+	); err != nil {
+		return fmt.Errorf("task_execution_profile.worktree.worktree_ref: %w", err)
+	}
+	return nil
 }
 
 // DefaultExecutionProfile returns the inherit-mode profile for one task.

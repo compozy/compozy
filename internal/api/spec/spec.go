@@ -81,6 +81,7 @@ const (
 	specAPITasksIDBlocksPath                                 = specAPITasksIDPath + "/blocks"
 	specAPITasksIDBlocksBlockIDClearPath                     = specAPITasksIDBlocksPath + "/{block_id}/clear"
 	specAPITasksIDExecutionProfilePath                       = "/api/tasks/{id}/execution-profile"
+	specAPITasksIDExecutionProfileWorktreePath               = specAPITasksIDExecutionProfilePath + "/worktree"
 	specAPITasksIDInspectPath                                = "/api/tasks/{id}/inspect"
 	specAPITasksIDNotificationsBridgesPath                   = "/api/tasks/{id}/notifications/bridges"
 	specAPITasksIDNotificationsBridgesSubscriptionIDPath     = "/api/tasks/{id}/notifications/bridges/{subscription_id}"

@@ -1197,7 +1197,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "877dc6bb0d5a4420c8952295baf71eed04e11524f2c4d4d0af186fc1d1f121f7",
+    "input_schema_digest": "ce7eb1b60e6c7def133d7ee4fa666bb3f8c3601e57b55b1a2b7269fc4496c7b9",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1210,7 +1210,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "23b041a6608b8efbdb1037c5857f6c000a25c1a73b7dd98200daea3b25d2ef13",
+    "input_schema_digest": "6e8a8f45f1b015779df6f983361f6adf0c422dc306eae677a266b5dbfd7bdc51",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1379,7 +1379,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "6d39ba744b605061f53d5db0549199f1b436beac993190540608631fbbb67cb5",
+    "input_schema_digest": "d9fb5b9cad68bc9b8f8a021169b25e64444c3a11041e3aa0362bcd138103b75e",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2666,7 +2666,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "0627968053cc0b4932fead39b20b98fa2c4e0fde2811a9a58d03fe701da301c5",
+    "input_schema_digest": "de86d3ea7e006ecb05b2c2a70518b6d9647ba4805ef506b2cf8edcc56f196b65",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2679,7 +2679,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "6007801c7c5ff33b00601ca7634ba0abeaca0c84cbab1ceff98bf64be6378017",
+    "input_schema_digest": "0699a34ef1606a96c0abd30933fac4fae786ced076c5fb4d6c5b88cb00f2f376",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2941,6 +2941,19 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "dc26481c6e9c9a64a57287487816d0641409335903a22f261c15e1a2c3fdc6a5",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_worktree_policy_set",
+    "native_name": "task_worktree_policy_set",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "adefd2f68ec27fc89d215385d44374be5e72db3fb84a94dfe75503e1edc6a4df",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

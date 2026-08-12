@@ -1,6 +1,6 @@
 ---
 name: compozy
-description: Agent guide for operating CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, desktops and windows, bridges, automation, extensions, or configuration. Do not use for unrelated projects.
+description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, desktops and windows, bridges, automation, extensions, or configuration. Don't use for unrelated projects.
 metadata:
   compozy:
     version: 1
@@ -11,7 +11,7 @@ metadata:
 
 # CompozyOS
 
-Use this skill when operating CompozyOS. This body is a router, not the manual. Load the matching reference before acting.
+This body routes to the matching reference. Load it before acting.
 
 ## Required Reading Router
 

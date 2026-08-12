@@ -99,6 +99,9 @@ func (s *Service) MaterializeForRun(
 		RunNamespace: settings.RunBranchNamespace,
 	})
 	if err != nil {
+		if errors.Is(err, ErrDeniedByHook) {
+			return nil, err
+		}
 		return nil, fmt.Errorf(
 			"%w: %s",
 			ErrPerRunMaterialization,
@@ -418,7 +421,7 @@ func eventPayloadFromWorktree(item Worktree, workspaceRoot string) HookWorktree 
 	return HookWorktree{
 		WorktreeID: item.ID, WorkspaceID: item.WorkspaceID, Name: redact.String(item.Name),
 		WorkspaceRoot: redact.String(workspaceRoot), Branch: redact.String(item.Branch),
-		Path: redact.String(item.Path), Origin: item.Origin,
+		Path: redact.String(item.Path), Origin: item.Origin, RunID: item.RunID,
 	}
 }
 

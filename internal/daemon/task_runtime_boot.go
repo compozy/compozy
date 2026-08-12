@@ -97,6 +97,7 @@ func (d *Daemon) newBootTaskSessionBridge(state *bootState) (*taskSessionBridge,
 		d.homePaths.HomeDir,
 		state.logger,
 		withTaskSessionContextOverlay(state.situationContext),
+		withTaskSessionWorktrees(executionWorktreesForState(state)),
 	)
 }
 
@@ -299,6 +300,14 @@ func newTaskRuntimeManager(
 	options = append(
 		options,
 		taskpkg.WithParticipationResolver(resolver),
+		taskpkg.WithExecutionProfileValidationOptions(taskpkg.ExecutionProfileValidationOptions{
+			AllowProviderOverride:       state.cfg.Task.Orchestration.Profile.AllowTaskProviderOverride,
+			AllowSandboxNone:            state.cfg.Task.Orchestration.Profile.AllowTaskSandboxNone,
+			AllowSandboxRef:             true,
+			DefaultWorktreeMode:         taskpkg.WorktreeMode(state.cfg.Task.Orchestration.Profile.DefaultWorktreeMode),
+			MaxCoordinatorGuidanceBytes: 0,
+		}),
+		taskpkg.WithWorktreeRefValidator(daemonSessionWorktreeResolver{state: state}),
 		taskpkg.WithCoordinatorPostCommitHandler(loopParentClosePostCommit{state: state}),
 		taskpkg.WithWorkAdmissionChecker(workAdmission),
 		taskpkg.WithWorkspaceAccessPolicy(state.accessPolicy),

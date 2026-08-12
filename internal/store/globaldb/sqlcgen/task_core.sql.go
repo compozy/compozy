@@ -183,9 +183,10 @@ func (q *Queries) GetTaskID(ctx context.Context, taskID string) (string, error) 
 
 const getTaskRun = `-- name: GetTaskRun :one
 SELECT
-  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
+  id, task_id, workspace_id, worktree_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
   network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  resolved_worktree_mode, resolved_worktree_ref,
   '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
@@ -199,6 +200,7 @@ type GetTaskRunRow struct {
 	ID                     string         `json:"id"`
 	TaskID                 sql.NullString `json:"task_id"`
 	WorkspaceID            sql.NullString `json:"workspace_id"`
+	WorktreeID             sql.NullString `json:"worktree_id"`
 	RunKind                string         `json:"run_kind"`
 	LoopRunID              sql.NullString `json:"loop_run_id"`
 	Status                 string         `json:"status"`
@@ -217,6 +219,8 @@ type GetTaskRunRow struct {
 	NetworkChannel         sql.NullString `json:"network_channel"`
 	NetworkSource          string         `json:"network_source"`
 	DesignationGroupID     string         `json:"designation_group_id"`
+	ResolvedWorktreeMode   string         `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef    string         `json:"resolved_worktree_ref"`
 	ClaimToken             string         `json:"claim_token"`
 	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
 	LeaseUntil             sql.NullString `json:"lease_until"`
@@ -251,6 +255,7 @@ func (q *Queries) GetTaskRun(ctx context.Context, id string) (GetTaskRunRow, err
 		&i.ID,
 		&i.TaskID,
 		&i.WorkspaceID,
+		&i.WorktreeID,
 		&i.RunKind,
 		&i.LoopRunID,
 		&i.Status,
@@ -269,6 +274,8 @@ func (q *Queries) GetTaskRun(ctx context.Context, id string) (GetTaskRunRow, err
 		&i.NetworkChannel,
 		&i.NetworkSource,
 		&i.DesignationGroupID,
+		&i.ResolvedWorktreeMode,
+		&i.ResolvedWorktreeRef,
 		&i.ClaimToken,
 		&i.ClaimTokenHash,
 		&i.LeaseUntil,
@@ -425,28 +432,31 @@ func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 
 const insertTaskRun = `-- name: InsertTaskRun :exec
 INSERT INTO task_runs (
-  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
+  id, task_id, workspace_id, worktree_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
   network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  resolved_worktree_mode, resolved_worktree_ref,
   claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
   continuation_reason, missing_work_json, next_round_guidance,
   network_wake_id, network_target_session_id, network_owner_key
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5, ?6,
-  ?7, ?8, ?9, ?10, ?11,
-  ?12, ?13, ?14, ?15,
-  ?16, ?17, ?18,
-  ?19, ?20, ?21,
-  NULL, ?22, ?23, ?24,
-  ?25, ?26, ?27, ?28,
-  ?29, ?30,
-  ?31, ?32, ?33,
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7,
+  ?8, ?9, ?10, ?11, ?12,
+  ?13, ?14, ?15, ?16,
+  ?17, ?18, ?19,
+  ?20, ?21, ?22,
+  ?23, ?24,
+  NULL, ?25, ?26, ?27,
+  ?28, ?29, ?30, ?31,
+  ?32, ?33,
   ?34, ?35, ?36,
   ?37, ?38, ?39,
   ?40, ?41, ?42,
-  ?43, ?44, ?45
+  ?43, ?44, ?45,
+  ?46, ?47, ?48
 )
 `
 
@@ -454,6 +464,7 @@ type InsertTaskRunParams struct {
 	ID                     string         `json:"id"`
 	TaskID                 sql.NullString `json:"task_id"`
 	WorkspaceID            sql.NullString `json:"workspace_id"`
+	WorktreeID             sql.NullString `json:"worktree_id"`
 	RunKind                string         `json:"run_kind"`
 	LoopRunID              sql.NullString `json:"loop_run_id"`
 	Status                 string         `json:"status"`
@@ -472,6 +483,8 @@ type InsertTaskRunParams struct {
 	NetworkChannel         sql.NullString `json:"network_channel"`
 	NetworkSource          string         `json:"network_source"`
 	DesignationGroupID     string         `json:"designation_group_id"`
+	ResolvedWorktreeMode   string         `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef    string         `json:"resolved_worktree_ref"`
 	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
 	LeaseUntil             sql.NullString `json:"lease_until"`
 	HeartbeatAt            sql.NullString `json:"heartbeat_at"`
@@ -503,6 +516,7 @@ func (q *Queries) InsertTaskRun(ctx context.Context, arg InsertTaskRunParams) er
 		arg.ID,
 		arg.TaskID,
 		arg.WorkspaceID,
+		arg.WorktreeID,
 		arg.RunKind,
 		arg.LoopRunID,
 		arg.Status,
@@ -521,6 +535,8 @@ func (q *Queries) InsertTaskRun(ctx context.Context, arg InsertTaskRunParams) er
 		arg.NetworkChannel,
 		arg.NetworkSource,
 		arg.DesignationGroupID,
+		arg.ResolvedWorktreeMode,
+		arg.ResolvedWorktreeRef,
 		arg.ClaimTokenHash,
 		arg.LeaseUntil,
 		arg.HeartbeatAt,
@@ -631,9 +647,10 @@ func (q *Queries) ListRequiredTaskRunCapabilities(ctx context.Context, runIds []
 
 const listTaskRunsByStatus = `-- name: ListTaskRunsByStatus :many
 SELECT
-  id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
+  id, task_id, workspace_id, worktree_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
   network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  resolved_worktree_mode, resolved_worktree_ref,
   '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
@@ -648,6 +665,7 @@ type ListTaskRunsByStatusRow struct {
 	ID                     string         `json:"id"`
 	TaskID                 sql.NullString `json:"task_id"`
 	WorkspaceID            sql.NullString `json:"workspace_id"`
+	WorktreeID             sql.NullString `json:"worktree_id"`
 	RunKind                string         `json:"run_kind"`
 	LoopRunID              sql.NullString `json:"loop_run_id"`
 	Status                 string         `json:"status"`
@@ -666,6 +684,8 @@ type ListTaskRunsByStatusRow struct {
 	NetworkChannel         sql.NullString `json:"network_channel"`
 	NetworkSource          string         `json:"network_source"`
 	DesignationGroupID     string         `json:"designation_group_id"`
+	ResolvedWorktreeMode   string         `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef    string         `json:"resolved_worktree_ref"`
 	ClaimToken             string         `json:"claim_token"`
 	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
 	LeaseUntil             sql.NullString `json:"lease_until"`
@@ -716,6 +736,7 @@ func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) (
 			&i.ID,
 			&i.TaskID,
 			&i.WorkspaceID,
+			&i.WorktreeID,
 			&i.RunKind,
 			&i.LoopRunID,
 			&i.Status,
@@ -734,6 +755,8 @@ func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) (
 			&i.NetworkChannel,
 			&i.NetworkSource,
 			&i.DesignationGroupID,
+			&i.ResolvedWorktreeMode,
+			&i.ResolvedWorktreeRef,
 			&i.ClaimToken,
 			&i.ClaimTokenHash,
 			&i.LeaseUntil,

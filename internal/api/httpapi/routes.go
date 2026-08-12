@@ -210,6 +210,7 @@ func registerTaskMutationRoutes(tasks *gin.RouterGroup, handlers *Handlers) {
 	tasks.DELETE("/:id", handlers.DeleteTask)
 	tasks.PATCH("/:id", handlers.UpdateTask)
 	tasks.PUT("/:id/execution-profile", handlers.SetTaskExecutionProfile)
+	tasks.PATCH("/:id/execution-profile/worktree", handlers.SetTaskWorktreePolicy)
 	tasks.DELETE("/:id/execution-profile", handlers.DeleteTaskExecutionProfile)
 	tasks.POST("/:id/notifications/bridges", handlers.CreateTaskBridgeNotificationSubscription)
 	tasks.DELETE("/:id/notifications/bridges/:subscription_id", handlers.DeleteTaskBridgeNotificationSubscription)

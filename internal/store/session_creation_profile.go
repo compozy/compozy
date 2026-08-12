@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
-const SessionCreationProfileVersion = 1
+const SessionCreationProfileVersion = 2
 
 const (
 	SessionCreationSandboxNone = "none"
@@ -29,6 +29,7 @@ type SessionCreationProfile struct {
 	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
 	WorkspaceID     string   `json:"workspace_id"`
 	CWD             string   `json:"cwd"`
+	WorktreeRef     string   `json:"worktree_ref,omitempty"`
 	SandboxMode     string   `json:"sandbox_mode"`
 	SandboxRef      string   `json:"sandbox_ref,omitempty"`
 	Permissions     string   `json:"permissions"`
@@ -59,6 +60,7 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 	profile.ReasoningEffort = strings.TrimSpace(profile.ReasoningEffort)
 	profile.WorkspaceID = strings.TrimSpace(profile.WorkspaceID)
 	profile.CWD = strings.TrimSpace(profile.CWD)
+	profile.WorktreeRef = strings.TrimSpace(profile.WorktreeRef)
 	profile.SandboxMode = strings.ToLower(strings.TrimSpace(profile.SandboxMode))
 	profile.SandboxRef = strings.TrimSpace(profile.SandboxRef)
 	profile.Permissions = strings.TrimSpace(profile.Permissions)

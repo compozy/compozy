@@ -244,6 +244,8 @@ const (
 	ToolIDTaskExecutionProfileGet ToolID = "compozy__task_execution_profile_get"
 	// ToolIDTaskExecutionProfileSet updates one task execution profile.
 	ToolIDTaskExecutionProfileSet ToolID = "compozy__task_execution_profile_set"
+	// ToolIDTaskWorktreePolicySet updates only one task execution profile's worktree policy.
+	ToolIDTaskWorktreePolicySet ToolID = "compozy__task_worktree_policy_set"
 	// ToolIDTaskExecutionProfileDelete removes one task execution profile.
 	ToolIDTaskExecutionProfileDelete ToolID = "compozy__task_execution_profile_delete"
 	// ToolIDTaskNotificationSubscribe creates one bridge notification subscription for a task.

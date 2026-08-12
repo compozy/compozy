@@ -11,6 +11,7 @@ func registryAgentRuntimeOperations() []OperationSpec {
 		sendAgentChannelMessageOperationSpec(),
 		replyAgentChannelMessageOperationSpec(),
 		claimNextAgentTaskOperationSpec(),
+		startAgentTaskRunOperationSpec(),
 		heartbeatAgentTaskRunOperationSpec(),
 		completeAgentTaskRunOperationSpec(),
 		failAgentTaskRunOperationSpec(),
@@ -19,6 +20,40 @@ func registryAgentRuntimeOperations() []OperationSpec {
 		getAgentCoordinatorConfigOperationSpec(),
 	}
 }
+
+func startAgentTaskRunOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/agent/tasks/{run_id}/start",
+		OperationID: "startAgentTaskRun",
+		Summary:     "Start a claimed task run under the calling agent's lease",
+		Tags:        []string{specAgentKey, specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("run_id", "Task run id"),
+		},
+		RequestBody: contract.StartTaskRunRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
+			{Status: 401, Description: specAgentCallerIdentityIsMissingDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      403,
+				Description: specForbiddenWorkspaceOrPermissionMismatchDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task-run start conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid start request", Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
 func getAgentMeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,

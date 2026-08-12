@@ -141,6 +141,7 @@ type Store interface {
 	List(context.Context, string) ([]Worktree, error)
 	ListRecoverable(context.Context) ([]Worktree, error)
 	DeletePending(context.Context, string, string) error
+	DeleteRunMaterialization(context.Context, string, string, string) error
 	UpdatePending(context.Context, string, string, PendingUpdate) error
 	CompleteCreate(context.Context, string, string, SetupState, string, time.Time) error
 	CompareAndSwapState(context.Context, string, string, State, State, time.Time) (bool, error)

@@ -143,7 +143,7 @@ func worktreeHookContext(item worktree.HookWorktree) hookspkg.WorktreeContext {
 	return hookspkg.WorktreeContext{
 		WorktreeID: item.WorktreeID, WorkspaceID: item.WorkspaceID,
 		WorkspaceRoot: item.WorkspaceRoot, Name: item.Name, Branch: item.Branch,
-		Path: item.Path, Origin: string(item.Origin),
+		Path: item.Path, Origin: string(item.Origin), RunID: item.RunID,
 	}
 }
 

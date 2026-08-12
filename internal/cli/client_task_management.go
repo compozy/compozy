@@ -201,6 +201,22 @@ func (c *daemonClient) SetTaskExecutionProfile(
 	return response.Profile, nil
 }
 
+func (c *daemonClient) SetTaskWorktreePolicy(
+	ctx context.Context,
+	id string,
+	request *TaskWorktreePolicyRequest,
+) (TaskExecutionProfileRecord, error) {
+	if request == nil {
+		return TaskExecutionProfileRecord{}, errors.New("cli: task worktree policy request is required")
+	}
+	var response contract.TaskExecutionProfileResponse
+	path := taskExecutionProfilePath(id) + "/worktree"
+	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+		return TaskExecutionProfileRecord{}, err
+	}
+	return response.Profile, nil
+}
+
 func (c *daemonClient) DeleteTaskExecutionProfile(ctx context.Context, id string) error {
 	return c.doJSON(ctx, http.MethodDelete, taskExecutionProfilePath(id), nil, nil, nil)
 }

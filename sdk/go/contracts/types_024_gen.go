@@ -32,6 +32,9 @@ type TaskRun struct {
 	FailureKind                  string                      `json:"failure_kind,omitempty"`
 	ClaimedBy                    *ActorIdentity              `json:"claimed_by,omitempty"`
 	SessionID                    string                      `json:"session_id,omitempty"`
+	WorktreeID                   string                      `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode         WorktreeMode                `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef          string                      `json:"resolved_worktree_ref,omitempty"`
 	Origin                       Origin                      `json:"origin"`
 	IdempotencyKey               string                      `json:"idempotency_key,omitempty"`
 	ResolvedNetworkParticipation *Spec                       `json:"resolved_network_participation,omitempty"`

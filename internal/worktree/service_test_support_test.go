@@ -154,6 +154,24 @@ func (s *memoryWorktreeStore) GetByPath(_ context.Context, workspaceID, path str
 	return nil, ErrNotFound
 }
 
+func (s *memoryWorktreeStore) DeleteRunMaterialization(
+	_ context.Context,
+	workspaceID string,
+	id string,
+	runID string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := worktreeStoreKey(workspaceID, id)
+	item, ok := s.items[key]
+	if !ok || item.RunID != runID || item.Origin != OriginPerRun ||
+		(item.State != StatePending && item.State != StateReady) {
+		return ErrNotFound
+	}
+	delete(s.items, key)
+	return nil
+}
+
 func (s *memoryWorktreeStore) List(_ context.Context, workspaceID string) ([]Worktree, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

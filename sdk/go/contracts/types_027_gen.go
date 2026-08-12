@@ -130,12 +130,15 @@ type WorktreeContext struct {
 	Branch        string `json:"branch"`
 	Path          string `json:"path"`
 	Origin        string `json:"origin"`
+	RunID         string `json:"run_id,omitempty"`
 }
 
 type WorktreeControlPatch struct {
 	Deny       bool   `json:"deny,omitempty"`
 	DenyReason string `json:"deny_reason,omitempty"`
 }
+
+type WorktreeMode string
 
 type WorktreeObservationPatch struct{}
 
@@ -149,6 +152,7 @@ type WorktreeObservationPayload struct {
 	Branch        string    `json:"branch"`
 	Path          string    `json:"path"`
 	Origin        string    `json:"origin"`
+	RunID         string    `json:"run_id,omitempty"`
 }
 
 type WorktreePreCreatePayload struct {
@@ -161,6 +165,7 @@ type WorktreePreCreatePayload struct {
 	Branch        string    `json:"branch"`
 	Path          string    `json:"path"`
 	Origin        string    `json:"origin"`
+	RunID         string    `json:"run_id,omitempty"`
 	Denied        bool      `json:"denied,omitempty"`
 	DenyReason    string    `json:"deny_reason,omitempty"`
 }

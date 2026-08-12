@@ -312,6 +312,14 @@ A gate's
 criterion with `expect: stdout_contains`, set the typed `contains` field to the required stdout
 substring.
 
+`run-agent` and `goal` accept one `params.environment` with mode `root`, `worktree`, `per_run`, or
+`directory`. The node value wins over the Loop default; otherwise execution uses the workspace root.
+`worktree` requires `worktree_ref`, `directory` requires a contained `directory`, and `per_run`
+creates one worktree per execution instance, including each fan-out branch. `run-loop` forwards the
+parent environment unless the child resolves its own default. Other node kinds reject `environment`.
+The retired `params.cwd` fails validation; migrate it to
+`params.environment: {mode: directory, directory: <path>}`.
+
 ### Metric Criteria
 
 One `command`, `agent-judge`, or `extension` criterion per definition may declare

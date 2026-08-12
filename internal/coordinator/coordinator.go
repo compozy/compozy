@@ -99,6 +99,13 @@ type PromptInput struct {
 	RunID                string
 	WorkflowID           string
 	NetworkParticipation participation.Spec
+	WorkerWorktrees      []WorkerWorktreeBinding
+}
+
+// WorkerWorktreeBinding identifies the worktree assigned to one active worker run.
+type WorkerWorktreeBinding struct {
+	RunID      string
+	WorktreeID string
 }
 
 // DecideBootstrap evaluates the mechanical coordinator bootstrap rules. It
@@ -254,6 +261,7 @@ func PromptOverlay(input PromptInput) string {
 	if input.NetworkParticipation.Mode == participation.ModeLive {
 		writePromptLine(&b, "participation_channel", input.NetworkParticipation.ChannelID)
 	}
+	writeWorkerWorktrees(&b, input.WorkerWorktrees)
 	b.WriteString("\nUse public Compozy agent APIs only:\n")
 	b.WriteString("- `" + toolspkg.ToolIDSessionDescribe.String() + "` for the Situation Surface.\n")
 	b.WriteString("- `" + toolspkg.ToolIDTaskCreate.String() + "` to persist follow-up task intent.\n")
@@ -278,6 +286,33 @@ func PromptOverlay(input PromptInput) string {
 	b.WriteString("Never spawn another coordinator. ")
 	b.WriteString("Worker delegation must stay inside safe-spawn permissions and task approvals.\n")
 	return strings.TrimSpace(b.String())
+}
+
+func writeWorkerWorktrees(b *strings.Builder, bindings []WorkerWorktreeBinding) {
+	bindings = slices.Clone(bindings)
+	slices.SortFunc(bindings, func(left WorkerWorktreeBinding, right WorkerWorktreeBinding) int {
+		if order := strings.Compare(strings.TrimSpace(left.RunID), strings.TrimSpace(right.RunID)); order != 0 {
+			return order
+		}
+		return strings.Compare(strings.TrimSpace(left.WorktreeID), strings.TrimSpace(right.WorktreeID))
+	})
+	wroteHeading := false
+	for _, binding := range bindings {
+		runID := strings.TrimSpace(binding.RunID)
+		worktreeID := strings.TrimSpace(binding.WorktreeID)
+		if runID == "" || worktreeID == "" {
+			continue
+		}
+		if !wroteHeading {
+			b.WriteString("\nActive worker worktrees:\n")
+			wroteHeading = true
+		}
+		b.WriteString("- run_id: ")
+		b.WriteString(runID)
+		b.WriteString("; worktree_id: ")
+		b.WriteString(worktreeID)
+		b.WriteByte('\n')
+	}
 }
 
 func writePromptLine(b *strings.Builder, key string, value string) {

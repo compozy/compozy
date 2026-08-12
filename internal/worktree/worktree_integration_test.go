@@ -975,6 +975,64 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deny manual and per-run creation before any real Git mutation", func(t *testing.T) {
+		denied := newRealGitFixture(t)
+		var calls atomic.Int64
+		denied.service.hooks = removalHookDispatcher{dispatch: func(request HookRequest) (HookVerdict, error) {
+			if request.Event != EventPreCreate {
+				return HookVerdict{}, nil
+			}
+			payload, ok := request.Payload.(HookWorktree)
+			if !ok {
+				t.Fatalf("pre-create payload = %#v, want HookWorktree", request.Payload)
+			}
+			call := calls.Add(1)
+			switch call {
+			case 1:
+				if payload.Origin != OriginManual || payload.RunID != "" {
+					t.Fatalf("manual pre-create payload = %#v, want manual origin without run", payload)
+				}
+			case 2:
+				if payload.Origin != OriginPerRun || payload.RunID != "run-denied" {
+					t.Fatalf("per-run pre-create payload = %#v, want run attribution", payload)
+				}
+			default:
+				t.Fatalf("unexpected pre-create call %d", call)
+			}
+			return HookVerdict{Denied: true, HookName: "deny-worktrees", Reason: "maintenance window"}, nil
+		}}
+
+		if _, err := denied.service.Create(
+			context.Background(), denied.workspace.ID, CreateOptions{Name: "Denied Manual"},
+		); !errors.Is(err, ErrDeniedByHook) {
+			t.Fatalf("Create(denied) error = %v, want ErrDeniedByHook", err)
+		}
+		if _, err := denied.service.MaterializeForRun(
+			context.Background(), denied.workspace.ID,
+			RunWorktreeRequest{TaskSlug: "Denied Task", RunID: "run-denied"},
+		); !errors.Is(err, ErrDeniedByHook) || errors.Is(err, ErrPerRunMaterialization) {
+			t.Fatalf("MaterializeForRun(denied) error = %v, want only ErrDeniedByHook", err)
+		}
+
+		rows, err := denied.store.List(context.Background(), denied.workspace.ID)
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("registry after denials = %#v, %v, want empty", rows, err)
+		}
+		if branches := denied.git(denied.workspace.Root, "branch", "--format=%(refname:short)"); branches != "main" {
+			t.Fatalf("branches after denials = %q, want only main", branches)
+		}
+		worktreeList := denied.git(denied.workspace.Root, "worktree", "list", "--porcelain")
+		if strings.Contains(worktreeList, denied.worktreesRoot) {
+			t.Fatalf("worktree list after denials = %q, want no linked checkout", worktreeList)
+		}
+		if got := denied.events.count(EventCreated); got != 0 {
+			t.Fatalf("created events after denials = %d, want zero", got)
+		}
+		if got := calls.Load(); got != 2 {
+			t.Fatalf("pre-create calls = %d, want two", got)
+		}
+	})
+
 	t.Run("Should emit every core lifecycle event with canonical correlation", func(t *testing.T) {
 		eventFixture := newRealGitFixture(t)
 		created, err := eventFixture.service.Create(
@@ -1074,6 +1132,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			}
 			if payload.WorkspaceID != event.WorkspaceID || payload.WorktreeID != event.WorktreeID {
 				t.Fatalf("event %s payload correlation = %#v, envelope=%#v", event.Name, payload, event)
+			}
+			if event.WorktreeID == runItem.ID && (event.RunID != runItem.RunID || payload.RunID != runItem.RunID) {
+				t.Fatalf("event %s run correlation = payload:%#v envelope:%#v, want %q", event.Name, payload, event, runItem.RunID)
 			}
 		}
 		for name, observed := range required {

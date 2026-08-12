@@ -321,6 +321,11 @@ type DaemonClient interface {
 		id string,
 		request *TaskExecutionProfileRequest,
 	) (TaskExecutionProfileRecord, error)
+	SetTaskWorktreePolicy(
+		ctx context.Context,
+		id string,
+		request *TaskWorktreePolicyRequest,
+	) (TaskExecutionProfileRecord, error)
 	DeleteTaskExecutionProfile(ctx context.Context, id string) error
 	CreateTaskBridgeNotificationSubscription(
 		ctx context.Context,

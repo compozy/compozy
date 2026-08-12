@@ -93,6 +93,29 @@ func (q *Queries) DeletePendingWorktree(ctx context.Context, arg DeletePendingWo
 	return result.RowsAffected()
 }
 
+const deleteRunMaterialization = `-- name: DeleteRunMaterialization :execrows
+DELETE FROM worktrees
+WHERE workspace_id = ?1
+  AND id = ?2
+  AND run_id = ?3
+  AND origin = 'per_run'
+  AND state IN ('pending', 'ready')
+`
+
+type DeleteRunMaterializationParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id"`
+	RunID       string `json:"run_id"`
+}
+
+func (q *Queries) DeleteRunMaterialization(ctx context.Context, arg DeleteRunMaterializationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteRunMaterialization, arg.WorkspaceID, arg.WorktreeID, arg.RunID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const failRunningWorktreeExitOperations = `-- name: FailRunningWorktreeExitOperations :exec
 UPDATE worktree_exit_ops SET state = 'failed', finished_at = ?1
 WHERE state = 'running'

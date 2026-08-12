@@ -96,6 +96,8 @@ const (
 	taskUpdateIDValue             = "update <id>"
 	taskUpdatedAtKey              = "updated_at"
 	taskWorkspaceIDKey            = "workspace_id"
+	taskWorktreeModeKey           = "mode"
+	taskWorktreeRefKey            = "ref"
 )
 
 type taskCreateInput struct {
@@ -167,6 +169,7 @@ type taskFanOutInput struct {
 	NetworkFlags   networkParticipationFlags
 	Designations   []string
 	IdempotencyKey string
+	WorktreePerRun bool
 }
 
 type taskInspectTarget string

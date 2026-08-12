@@ -104,6 +104,29 @@ func (g *WorktreeRepo) DeletePending(ctx context.Context, workspaceID, id string
 	return g.pendingMutationResult(ctx, workspaceID, id, count)
 }
 
+func (g *WorktreeRepo) DeleteRunMaterialization(
+	ctx context.Context,
+	workspaceID string,
+	id string,
+	runID string,
+) error {
+	if err := g.checkReady(ctx, "delete run worktree materialization"); err != nil {
+		return err
+	}
+	count, err := g.queries.DeleteRunMaterialization(ctx, sqlcgen.DeleteRunMaterializationParams{
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		WorktreeID:  strings.TrimSpace(id),
+		RunID:       strings.TrimSpace(runID),
+	})
+	if err != nil {
+		return fmt.Errorf("store: delete run worktree materialization: %w", err)
+	}
+	if count == 0 {
+		return worktree.ErrNotFound
+	}
+	return nil
+}
+
 func (g *WorktreeRepo) UpdatePending(
 	ctx context.Context,
 	workspaceID string,

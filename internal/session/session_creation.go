@@ -301,6 +301,7 @@ func creationProfileFromStart(
 		ReasoningEffort: spec.reasoningEffort,
 		WorkspaceID:     spec.workspace.ID,
 		CWD:             spec.cwd,
+		WorktreeRef:     spec.worktreeID,
 		SandboxMode:     sandboxMode,
 		SandboxRef:      sandboxRef,
 		Permissions:     startSpecPermissions(spec, resolved.Permissions),

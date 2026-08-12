@@ -147,6 +147,7 @@ type FanOutTaskRunsRequest struct {
 	NetworkParticipation *participation.Request            `json:"network_participation,omitempty"`
 	Designations         []TaskFanOutRunDesignationRequest `json:"designations"`
 	IdempotencyKey       string                            `json:"idempotency_key,omitempty"`
+	WorktreePerRun       bool                              `json:"worktree_per_run,omitempty"`
 }
 
 // NetworkCapabilityBriefPayload is the shared brief discovery projection for

@@ -5392,6 +5392,8 @@ export interface TaskDependencyReferencePayload {
   depends_on: TaskReferencePayload;
 }
 
+export type WorktreeMode = string;
+
 export type CoordinationMessageKind = string;
 
 export interface CoordinationChannelPayload {
@@ -5421,6 +5423,9 @@ export interface TaskRunSummaryPayload {
   failure_kind?: string;
   max_attempts: number;
   session_id?: string;
+  worktree_id?: string;
+  resolved_worktree_mode: WorktreeMode;
+  resolved_worktree_ref?: string;
   claimed_by?: ActorIdentity;
   claim_token_hash?: string;
   lease_until?: ISODateTime;
@@ -5495,6 +5500,9 @@ export interface TaskRun {
   failure_kind?: string;
   claimed_by?: ActorIdentity;
   session_id?: string;
+  worktree_id?: string;
+  resolved_worktree_mode: WorktreeMode;
+  resolved_worktree_ref?: string;
   origin: Origin;
   idempotency_key?: string;
   resolved_network_participation?: NetworkParticipationSpec;
@@ -6714,6 +6722,7 @@ export interface WorktreeObservationPayload {
   branch: string;
   path: string;
   origin: string;
+  run_id?: string;
 }
 
 export interface WorktreePreCreatePayload {
@@ -6726,6 +6735,7 @@ export interface WorktreePreCreatePayload {
   branch: string;
   path: string;
   origin: string;
+  run_id?: string;
   denied?: boolean;
   deny_reason?: string;
 }
@@ -6738,6 +6748,7 @@ export interface WorktreeContext {
   branch: string;
   path: string;
   origin: string;
+  run_id?: string;
 }
 
 export interface WorktreeRisk {

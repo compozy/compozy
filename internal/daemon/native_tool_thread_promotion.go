@@ -162,6 +162,7 @@ func (n *daemonNativeTools) taskFanOutRuns(
 				input.NetworkParticipation,
 			),
 			DesignationGroupID: groupID,
+			WorktreePerRun:     input.WorktreePerRun,
 			Metadata:           prepared[index].metadata,
 		}, actor)
 		if enqueueErr != nil {

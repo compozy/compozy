@@ -62,6 +62,7 @@ func enqueueFanOutTaskRuns(
 			TaskID:               taskID,
 			IdempotencyKey:       prepared[index].idempotencyKey,
 			DesignationGroupID:   groupID,
+			WorktreePerRun:       req.WorktreePerRun,
 			Metadata:             prepared[index].metadata,
 			NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
 		}, actor)

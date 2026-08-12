@@ -11,6 +11,19 @@ func claimExactRunForTest(
 	runID string,
 	actor ActorContext,
 ) (*Run, error) {
+	result, err := claimExactRunResultForTest(ctx, manager, runID, actor)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Run, nil
+}
+
+func claimExactRunResultForTest(
+	ctx context.Context,
+	manager *Service,
+	runID string,
+	actor ActorContext,
+) (*ClaimResult, error) {
 	run, err := manager.store.GetTaskRun(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -45,7 +58,7 @@ func claimExactRunForTest(
 	if err != nil {
 		return nil, err
 	}
-	return &result.Run, nil
+	return result, nil
 }
 
 // admitRunDirectlyForTest exercises the production tokenless admission while

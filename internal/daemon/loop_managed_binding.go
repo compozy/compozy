@@ -22,6 +22,7 @@ type loopActionSessionBinder struct {
 	usageReporters      managedGoalUsageReporters
 	globalWorkspacePath string
 	policyGate          *loopSessionPolicyGate
+	worktrees           loopActionWorktrees
 	now                 func() time.Time
 }
 
@@ -93,12 +94,21 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 	if _, err := b.policyGate.applyResolved(ctx, &opts, agent, req.AllowedTools); err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
-	created, err := b.sessions.Create(ctx, opts)
+	materialized, err := b.applyLoopActionEnvironment(ctx, &opts, req)
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
+	created, err := b.sessions.Create(ctx, opts)
+	if err != nil {
+		return looppkg.ActionSessionBinding{}, b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
+	}
 	if created == nil || created.Info() == nil {
-		return looppkg.ActionSessionBinding{}, errors.New("daemon: loop action session create returned nil")
+		return looppkg.ActionSessionBinding{}, b.rollbackLoopActionEnvironment(
+			ctx,
+			req,
+			materialized,
+			errors.New("daemon: loop action session create returned nil"),
+		)
 	}
 	return looppkg.ActionSessionBinding{
 		WorkspaceID:    req.WorkspaceID,
@@ -177,7 +187,7 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 	active goalpkg.SessionBinding,
 	activeFound bool,
 ) (looppkg.ActionSessionBinding, error) {
-	profile, opts, err := b.resolveRunOwnedBindingProfile(ctx, req, active, activeFound)
+	profile, opts, materialized, err := b.resolveRunOwnedBindingProfile(ctx, req, active, activeFound)
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
@@ -185,17 +195,18 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 	attemptID, sessionID := bindingAttemptIdentity(req, epoch)
 	identity, err := bindingCreationIdentity(profile, opts, sessionID)
 	if err != nil {
-		return looppkg.ActionSessionBinding{}, err
+		return looppkg.ActionSessionBinding{}, b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
 	}
 	prepared, err := b.prepareBindingAttempt(ctx, key, epoch, attemptID, sessionID, identity)
 	if err != nil {
-		return looppkg.ActionSessionBinding{}, err
+		return looppkg.ActionSessionBinding{}, b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
 	}
 	opts.DesiredSessionID = prepared.SessionID
 	opts.CreationProfile = cloneStoreCreationProfile(profile)
 	opts.CreationIdentity = cloneStoreCreationIdentity(identity)
 	_, createErr := creator.EnsureCreated(ctx, opts)
 	if createErr != nil {
+		createErr = b.stopAndRollbackLoopActionEnvironment(ctx, req, prepared.SessionID, materialized, createErr)
 		if _, settleErr := b.bindings.SettleStoppedSessionBindingCreation(
 			context.WithoutCancel(ctx),
 			goalpkg.SettleStoppedBindingCreationRequest{
@@ -227,10 +238,12 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 		return looppkg.ActionSessionBinding{}, err
 	}
 	if stopped {
-		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts)), fmt.Errorf(
+		stoppedErr := fmt.Errorf(
 			"%w: Goal session creation completed after its Run was stopped",
 			looppkg.ErrTransitionConflict,
 		)
+		stoppedErr = b.stopAndRollbackLoopActionEnvironment(ctx, req, prepared.SessionID, materialized, stoppedErr)
+		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts)), stoppedErr
 	}
 	return actionBindingFromGoal(req, activated, appliedRuntimeFromCreateOptions(opts)), nil
 }
@@ -280,9 +293,22 @@ func (b *loopActionSessionBinder) AdvanceActionSessionRetry(
 		if err != nil {
 			return err
 		}
-		profile, opts, err := b.resolveRunOwnedBindingProfile(ctx, req.BindRequest, active, activeFound)
+		profile, opts, materialized, err := b.resolveRunOwnedBindingProfile(
+			ctx,
+			req.BindRequest,
+			active,
+			activeFound,
+		)
 		if err != nil {
 			return err
+		}
+		if materialized != nil {
+			return b.rollbackLoopActionEnvironment(
+				ctx,
+				req.BindRequest,
+				materialized,
+				errors.New("daemon: retry profile unexpectedly materialized a new worktree"),
+			)
 		}
 		nextEpoch := failed.BindingEpoch + 1
 		nextAttemptID, nextSessionID := bindingAttemptIdentity(req.BindRequest, nextEpoch)
@@ -298,32 +324,6 @@ func (b *loopActionSessionBinder) AdvanceActionSessionRetry(
 		advance.SuccessorCreationDigest = identity.CreationDigest
 	}
 	return b.bindings.AdvanceBindingCreationFailure(ctx, advance)
-}
-
-func (b *loopActionSessionBinder) resolveRunOwnedBindingProfile(
-	ctx context.Context,
-	req looppkg.ActionSessionBindRequest,
-	active goalpkg.SessionBinding,
-	activeFound bool,
-) (store.SessionCreationProfile, session.CreateOpts, error) {
-	profileRef := strings.TrimSpace(req.PinnedCreationProfileRef)
-	if activeFound {
-		profileRef = active.CreationProfileRef
-	}
-	profile, opts, err := b.resolveEffectiveCreationProfile(ctx, req, profileRef)
-	if err != nil {
-		return store.SessionCreationProfile{}, session.CreateOpts{}, err
-	}
-	policyDigest, err := profile.PolicySpecDigest()
-	if err != nil {
-		return store.SessionCreationProfile{}, session.CreateOpts{}, err
-	}
-	if activeFound && (active.CreationProfileRef != profileRef || active.PolicySpecDigest != policyDigest) {
-		return store.SessionCreationProfile{}, session.CreateOpts{}, bindingMismatch(
-			"active binding policy/profile drifted",
-		)
-	}
-	return profile, opts, nil
 }
 
 func (b *loopActionSessionBinder) prepareBindingAttempt(
@@ -412,9 +412,17 @@ func (b *loopActionSessionBinder) revalidatePersistedProfile(
 	req looppkg.ActionSessionBindRequest,
 	identity store.SessionCreationIdentity,
 ) (looppkg.RuntimeSpec, error) {
-	profile, opts, err := b.resolveEffectiveCreationProfile(ctx, req, identity.CreationProfileRef)
+	profile, opts, materialized, err := b.resolveEffectiveCreationProfile(ctx, req, identity.CreationProfileRef)
 	if err != nil {
 		return looppkg.RuntimeSpec{}, err
+	}
+	if materialized != nil {
+		return looppkg.RuntimeSpec{}, b.rollbackLoopActionEnvironment(
+			ctx,
+			req,
+			materialized,
+			errors.New("daemon: persisted profile revalidation materialized a new worktree"),
+		)
 	}
 	profileRef, err := profile.Ref()
 	if err != nil {

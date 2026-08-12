@@ -46,6 +46,9 @@ func executionProfileFromGenerated(row sqlcgen.GetTaskExecutionProfileRow) (task
 		Sandbox: taskpkg.SandboxPolicy{
 			Mode: taskpkg.SandboxMode(row.SandboxMode), SandboxRef: row.SandboxRef,
 		},
+		Worktree: taskpkg.WorktreePolicy{
+			Mode: taskpkg.WorktreeMode(row.WorktreeMode), WorktreeRef: row.WorktreeRef,
+		},
 		Runtime:              taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeMode(row.RuntimeMode)},
 		NetworkParticipation: networkParticipation,
 		CreatedAt:            createdAt,

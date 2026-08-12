@@ -4017,7 +4017,8 @@ func TestDaemonNativeTools(t *testing.T) {
 						`"worker":{"mode":"select","agent_name":"worker-b","required_capabilities":["build"]},` +
 						`"review":{"agent_name":"reviewer-b","allowed_channel_ids":["reviews"]},` +
 						`"participants":{"allowed_agent_names":["worker-b"],"required_capabilities":["build"]},` +
-						`"sandbox":{"mode":"none"},"runtime":{"mode":"evidence"},` +
+						`"sandbox":{"mode":"none"},"worktree":{"mode":"ref","worktree_ref":"feature-a"},` +
+						`"runtime":{"mode":"evidence"},` +
 						`"network_participation":{"mode":"local"}}}`,
 				),
 			},
@@ -4031,6 +4032,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			tasks.lastSetProfile.TaskID != "task-profile" ||
 			tasks.lastSetProfile.Worker.AgentName != "worker-b" ||
 			tasks.lastSetProfile.Participants.RequiredCapabilities[0] != "build" ||
+			tasks.lastSetProfile.Worktree.Mode != taskpkg.WorktreeModeRef ||
+			tasks.lastSetProfile.Worktree.WorktreeRef != "feature-a" ||
 			tasks.lastSetProfile.Runtime.Mode != taskpkg.RuntimeModeEvidence ||
 			tasks.lastSetProfile.NetworkParticipation == nil ||
 			tasks.lastSetProfile.NetworkParticipation.Mode == nil ||
@@ -4039,6 +4042,29 @@ func TestDaemonNativeTools(t *testing.T) {
 				"SetExecutionProfile calls/profile = %d/%#v, want profile update",
 				tasks.profileSetCalls,
 				tasks.lastSetProfile,
+			)
+		}
+
+		worktreeResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskWorktreePolicySet,
+				Input:  json.RawMessage(`{"task_id":"task-profile","mode":"per_run"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_worktree_policy_set) error = %v", err)
+		}
+		requireNativeStructuredContains(t, worktreeResult, []byte(`"mode":"per_run"`))
+		if tasks.profileWorktreeCalls != 1 ||
+			tasks.lastProfileTaskID != "task-profile" ||
+			tasks.lastWorktreePolicy.Mode != taskpkg.WorktreeModePerRun {
+			t.Fatalf(
+				"SetWorktreePolicy calls/task/policy = %d/%q/%#v, want task-profile/per_run",
+				tasks.profileWorktreeCalls,
+				tasks.lastProfileTaskID,
+				tasks.lastWorktreePolicy,
 			)
 		}
 
@@ -11302,9 +11328,11 @@ type nativeTaskManager struct {
 	recordReviewErr         error
 	profileGetCalls         int
 	profileSetCalls         int
+	profileWorktreeCalls    int
 	profileDeleteCalls      int
 	lastProfileTaskID       string
 	lastSetProfile          taskpkg.ExecutionProfile
+	lastWorktreePolicy      taskpkg.WorktreePolicy
 	lastDeleteProfileTaskID string
 	executionProfile        taskpkg.ExecutionProfile
 	profileErr              error
@@ -11547,6 +11575,23 @@ func (m *nativeTaskManager) SetExecutionProfile(
 	}
 	m.executionProfile = m.lastSetProfile
 	return m.lastSetProfile, nil
+}
+
+func (m *nativeTaskManager) SetWorktreePolicy(
+	_ context.Context,
+	taskID string,
+	policy taskpkg.WorktreePolicy,
+	_ taskpkg.ActorContext,
+) (taskpkg.ExecutionProfile, error) {
+	m.profileWorktreeCalls++
+	m.lastProfileTaskID = taskID
+	m.lastWorktreePolicy = policy
+	if m.profileErr != nil {
+		return taskpkg.ExecutionProfile{}, m.profileErr
+	}
+	m.executionProfile.TaskID = taskID
+	m.executionProfile.Worktree = policy
+	return m.executionProfile, nil
 }
 
 func (m *nativeTaskManager) DeleteExecutionProfile(

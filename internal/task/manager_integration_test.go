@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 type integrationStopCall struct {
@@ -147,8 +148,17 @@ func seedNonLeasedClaimedRunIntegration(
 
 type integrationSessionExecutor struct {
 	startCalls       []taskpkg.StartTaskSession
+	cleanupCalls     []integrationCleanupCall
 	requestStopCalls []integrationStopCall
 	forceStopCalls   []integrationStopCall
+	worktreeID       string
+	startErr         error
+	onStart          func(context.Context, *taskpkg.StartTaskSession)
+}
+
+type integrationCleanupCall struct {
+	run taskpkg.Run
+	ref taskpkg.SessionRef
 }
 
 type integrationRuntimeViewReader struct {
@@ -236,14 +246,305 @@ func (r *countingParticipationResolver) LastObservation() participation.Resolved
 }
 
 func (e *integrationSessionExecutor) StartTaskSession(
-	_ context.Context,
+	ctx context.Context,
 	spec *taskpkg.StartTaskSession,
 ) (*taskpkg.SessionRef, error) {
 	if spec == nil {
 		return nil, errors.New("task integration session executor requires start spec")
 	}
 	e.startCalls = append(e.startCalls, *spec)
-	return &taskpkg.SessionRef{SessionID: "sess-int-" + strconv.Itoa(len(e.startCalls))}, nil
+	if e.onStart != nil {
+		e.onStart(ctx, spec)
+	}
+	if e.startErr != nil {
+		return nil, e.startErr
+	}
+	return &taskpkg.SessionRef{
+		SessionID:  "sess-int-" + strconv.Itoa(len(e.startCalls)),
+		WorktreeID: strings.TrimSpace(e.worktreeID),
+	}, nil
+}
+
+func (e *integrationSessionExecutor) CleanupUnboundTaskSession(
+	_ context.Context,
+	run taskpkg.Run,
+	ref taskpkg.SessionRef,
+) error {
+	e.cleanupCalls = append(e.cleanupCalls, integrationCleanupCall{run: run, ref: ref})
+	return nil
+}
+
+func TestTaskManagerPreservesPerRunHookDenialIntegration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openTaskManagerGlobalDB(t)
+	executor := &integrationSessionExecutor{
+		startErr: fmt.Errorf("%w: deny-worktrees: maintenance window", worktreepkg.ErrDeniedByHook),
+	}
+	manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(executor))
+	actor, err := taskpkg.DeriveHumanActorContext("user-hook-denial", taskpkg.OriginKindCLI, "compozy task run")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Denied per-run task",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := manager.SetWorktreePolicy(
+		ctx,
+		taskRecord.ID,
+		taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModePerRun},
+		actor,
+	); err != nil {
+		t.Fatalf("SetWorktreePolicy() error = %v", err)
+	}
+	run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	failedRun, err := manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
+	if !errors.Is(err, worktreepkg.ErrDeniedByHook) {
+		t.Fatalf("StartRun() error = %v, want ErrDeniedByHook", err)
+	}
+	if failedRun == nil || failedRun.Status != taskpkg.TaskRunStatusFailed {
+		t.Fatalf("StartRun() run = %#v, want failed", failedRun)
+	}
+	if !strings.Contains(failedRun.Error, worktreepkg.ErrDeniedByHook.Error()) ||
+		strings.Contains(failedRun.Error, worktreepkg.ErrPerRunMaterialization.Error()) {
+		t.Fatalf("failed run error = %q, want specific hook denial", failedRun.Error)
+	}
+	persisted, err := db.GetTaskRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	if persisted.Status != taskpkg.TaskRunStatusFailed || persisted.Error != failedRun.Error {
+		t.Fatalf("persisted run = %#v, want durable hook denial", persisted)
+	}
+}
+
+func TestTaskManagerFailsRemovedWorktreeRefAtRunStartIntegration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openTaskManagerGlobalDB(t)
+	executor := &integrationSessionExecutor{
+		startErr: fmt.Errorf("%w: referenced worktree was removed", worktreepkg.ErrRefInvalid),
+	}
+	manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(executor))
+	actor, err := taskpkg.DeriveHumanActorContext(
+		"user-removed-worktree-ref",
+		taskpkg.OriginKindCLI,
+		"compozy task run",
+	)
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Removed worktree ref task",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	profile := taskpkg.DefaultExecutionProfile(taskRecord.ID)
+	profile.Worktree = taskpkg.WorktreePolicy{
+		Mode: taskpkg.WorktreeModeRef, WorktreeRef: "removed-worktree",
+	}
+	if _, err := db.UpsertExecutionProfile(ctx, &profile); err != nil {
+		t.Fatalf("UpsertExecutionProfile() error = %v", err)
+	}
+	run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+
+	failed, err := manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
+	if !errors.Is(err, worktreepkg.ErrRefInvalid) {
+		t.Fatalf("StartRun() error = %v, want %v", err, worktreepkg.ErrRefInvalid)
+	}
+	if failed == nil || failed.Status != taskpkg.TaskRunStatusFailed || failed.WorktreeID != "" ||
+		!strings.Contains(failed.Error, worktreepkg.ErrRefInvalid.Error()) {
+		t.Fatalf("StartRun() run = %#v, want failed without a worktree binding", failed)
+	}
+	persisted, err := db.GetTaskRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun() error = %v", err)
+	}
+	if persisted.Status != taskpkg.TaskRunStatusFailed || persisted.WorktreeID != "" ||
+		persisted.Error != failed.Error {
+		t.Fatalf("persisted run = %#v, want durable worktree ref failure", persisted)
+	}
+}
+
+func TestTaskManagerLeaseFencesMaterializationWithGlobalDBIntegration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	base := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	clockNow := base
+	db := openTaskManagerGlobalDB(t)
+	executor := &integrationSessionExecutor{worktreeID: "wt-expired-materialization"}
+	manager := newTaskManagerIntegration(
+		t,
+		db,
+		taskpkg.WithSessionExecutor(executor),
+		taskpkg.WithManagerNow(func() time.Time { return clockNow }),
+	)
+	operator, err := taskpkg.DeriveHumanActorContext(
+		"operator-lease-fence",
+		taskpkg.OriginKindCLI,
+		"compozy task run",
+	)
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+	agent, err := taskpkg.DeriveAgentSessionActorContext("sess-lease-fence", "ws-test")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+	}
+	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Lease-fenced materialization",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := manager.SetWorktreePolicy(
+		ctx,
+		taskRecord.ID,
+		taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModePerRun},
+		operator,
+	); err != nil {
+		t.Fatalf("SetWorktreePolicy() error = %v", err)
+	}
+	run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, operator)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            run.ID,
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: agent.Scope.SessionID,
+		LeaseDuration:    time.Minute,
+		Now:              base,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	executor.onStart = func(context.Context, *taskpkg.StartTaskSession) {
+		clockNow = base.Add(2 * time.Minute)
+	}
+
+	if _, err := manager.StartRun(ctx, run.ID, taskpkg.StartRun{
+		IdempotencyKey: "start-expired-globaldb-materialization",
+		ClaimToken:     claim.ClaimToken,
+	}, agent); !errors.Is(err, taskpkg.ErrLeaseExpired) {
+		t.Fatalf("StartRun(expired) error = %v, want %v", err, taskpkg.ErrLeaseExpired)
+	}
+	if got, want := len(executor.cleanupCalls), 1; got != want {
+		t.Fatalf("CleanupUnboundTaskSession() calls = %d, want %d", got, want)
+	}
+	cleanup := executor.cleanupCalls[0]
+	if cleanup.run.ID != run.ID || cleanup.ref.WorktreeID != "wt-expired-materialization" {
+		t.Fatalf("cleanup call = %#v, want expired run worktree", cleanup)
+	}
+	stored, err := db.GetTaskRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(expired) error = %v", err)
+	}
+	if stored.Status != taskpkg.TaskRunStatusStarting || stored.WorktreeID != "" ||
+		stored.SessionID != agent.Scope.SessionID {
+		t.Fatalf("expired stored run = %#v, want unbound starting claimant", stored)
+	}
+
+	recoveries, err := manager.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
+		Now:    clockNow.Add(time.Second),
+		Reason: "materialization lease expired",
+	}, operator)
+	if err != nil {
+		t.Fatalf("RecoverExpiredRunLeases() error = %v", err)
+	}
+	if len(recoveries) != 1 || recoveries[0].Run.Status != taskpkg.TaskRunStatusQueued {
+		t.Fatalf("recoveries = %#v, want one requeued run", recoveries)
+	}
+	clockNow = clockNow.Add(2 * time.Second)
+	reclaimed, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            run.ID,
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: agent.Scope.SessionID,
+		LeaseDuration:    time.Minute,
+		Now:              clockNow,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun(recovered) error = %v", err)
+	}
+	executor.onStart = nil
+	executor.worktreeID = "wt-recovered-materialization"
+	started, err := manager.StartRun(ctx, run.ID, taskpkg.StartRun{
+		IdempotencyKey: "start-recovered-globaldb-materialization",
+		ClaimToken:     reclaimed.ClaimToken,
+	}, agent)
+	if err != nil {
+		t.Fatalf("StartRun(recovered) error = %v", err)
+	}
+	if started.Status != taskpkg.TaskRunStatusRunning ||
+		started.WorktreeID != "wt-recovered-materialization" {
+		t.Fatalf("StartRun(recovered) = %#v, want fresh running materialization", started)
+	}
+
+	failureTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Expired materialization failure",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask(failure) error = %v", err)
+	}
+	if _, err := manager.SetWorktreePolicy(
+		ctx,
+		failureTask.ID,
+		taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModePerRun},
+		operator,
+	); err != nil {
+		t.Fatalf("SetWorktreePolicy(failure) error = %v", err)
+	}
+	failureRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: failureTask.ID}, operator)
+	if err != nil {
+		t.Fatalf("EnqueueRun(failure) error = %v", err)
+	}
+	failureClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            failureRun.ID,
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: agent.Scope.SessionID,
+		LeaseDuration:    time.Minute,
+		Now:              clockNow,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun(failure) error = %v", err)
+	}
+	materializationErr := errors.New("materialization failed after lease expiry")
+	executor.startErr = materializationErr
+	executor.onStart = func(context.Context, *taskpkg.StartTaskSession) {
+		clockNow = clockNow.Add(2 * time.Minute)
+	}
+	failed, err := manager.StartRun(ctx, failureRun.ID, taskpkg.StartRun{
+		IdempotencyKey: "start-expired-globaldb-failure",
+		ClaimToken:     failureClaim.ClaimToken,
+	}, agent)
+	if failed != nil || !errors.Is(err, taskpkg.ErrLeaseExpired) || !errors.Is(err, materializationErr) {
+		t.Fatalf("StartRun(failure) = %#v, %v; want nil plus materialization and lease errors", failed, err)
+	}
+	persistedFailure, err := db.GetTaskRun(ctx, failureRun.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(failure) error = %v", err)
+	}
+	if persistedFailure.Status != taskpkg.TaskRunStatusStarting ||
+		persistedFailure.ClaimTokenHash == "" || persistedFailure.WorktreeID != "" {
+		t.Fatalf("persisted failed materialization = %#v, want lease-owned starting run", persistedFailure)
+	}
 }
 
 func (e *integrationSessionExecutor) AttachTaskSession(
@@ -2656,7 +2957,8 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	db := openTaskManagerGlobalDB(t)
-	manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
+	executor := &integrationSessionExecutor{worktreeID: "wt-beta-run"}
+	manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(executor))
 	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy task list")
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
@@ -2677,6 +2979,14 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(second) error = %v", err)
+	}
+	if _, err := manager.SetWorktreePolicy(
+		ctx,
+		second.ID,
+		taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModePerRun},
+		actor,
+	); err != nil {
+		t.Fatalf("SetWorktreePolicy(second) error = %v", err)
 	}
 	betaRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: second.ID}, actor)
 	if err != nil {
@@ -2714,6 +3024,10 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 	}
 	if byIdentifier[0].ActiveRun == nil || byIdentifier[0].ActiveRun.ID != betaRun.ID {
 		t.Fatalf("byIdentifier[0].ActiveRun = %#v, want %q", byIdentifier[0].ActiveRun, betaRun.ID)
+	}
+	if byIdentifier[0].ActiveRun.WorktreeID != "wt-beta-run" ||
+		byIdentifier[0].ActiveRun.ResolvedWorktreeMode != taskpkg.WorktreeModePerRun {
+		t.Fatalf("byIdentifier[0].ActiveRun worktree = %#v, want per-run binding", byIdentifier[0].ActiveRun)
 	}
 	if len(byIdentifier[0].Dependencies) != 1 {
 		t.Fatalf("len(byIdentifier[0].Dependencies) = %d, want 1", len(byIdentifier[0].Dependencies))
@@ -2858,7 +3172,9 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 		t.Fatalf("task status after claim = %q, want %q", got, want)
 	}
 
-	run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
+	run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{
+		ClaimToken: claim.ClaimToken,
+	}, actor)
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}
@@ -3336,7 +3652,9 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 		t.Fatalf("ClaimNextRun() error = %v", err)
 	}
 	run = &claim.Run
-	run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
+	run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{
+		ClaimToken: claim.ClaimToken,
+	}, actor)
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}
@@ -3823,7 +4141,9 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 		t.Fatalf("liveClaimed.Type = %q, want %q", got, want)
 	}
 
-	run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
+	run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{
+		ClaimToken: claim.ClaimToken,
+	}, actor)
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}

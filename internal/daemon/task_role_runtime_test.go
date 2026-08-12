@@ -360,6 +360,42 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should fingerprint worktree placement and structurally reject per-run reuse", func(t *testing.T) {
+		t.Parallel()
+
+		network := daemonTestLiveParticipation("ws-growth", "design-review")
+		base := taskRoleActivation{
+			RunID:                "run-fingerprint",
+			Scope:                taskpkg.ScopeWorkspace,
+			WorkspaceID:          "ws-growth",
+			AgentName:            "frontend-engineer",
+			NetworkParticipation: &network,
+			Worktree:             taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModeNone},
+		}
+		withRef := base
+		withRef.Worktree = taskpkg.WorktreePolicy{
+			Mode:        taskpkg.WorktreeModeRef,
+			WorktreeRef: "feature-docs",
+		}
+		if first, second := taskRoleProfileFingerprint(base), taskRoleProfileFingerprint(withRef); first == second {
+			t.Fatalf("worktree fingerprints = %q, want mode/ref-sensitive values", first)
+		}
+
+		perRun := base
+		perRun.Worktree = taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModePerRun}
+		info := &session.Info{
+			ID:                   "sess-role",
+			State:                session.StateActive,
+			AgentName:            perRun.AgentName,
+			Name:                 taskRoleSessionName(perRun),
+			WorkspaceID:          perRun.WorkspaceID,
+			NetworkParticipation: network,
+		}
+		if taskRoleSessionMatches(info, perRun) {
+			t.Fatal("taskRoleSessionMatches(per_run) = true, want structural no-reuse")
+		}
+	})
+
 	t.Run("Should start the selected execution-profile worker when no owner is set", func(t *testing.T) {
 		t.Parallel()
 

@@ -161,6 +161,15 @@ func taskSandboxModeValues() []string {
 	}
 }
 
+func taskWorktreeModeValues() []string {
+	return []string{
+		string(taskpkg.WorktreeModeInherit),
+		string(taskpkg.WorktreeModeNone),
+		string(taskpkg.WorktreeModeRef),
+		string(taskpkg.WorktreeModePerRun),
+	}
+}
+
 func taskRuntimeModeValues() []string {
 	return []string{
 		string(taskpkg.RuntimeModeDefault),

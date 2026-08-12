@@ -59,3 +59,14 @@ func (r daemonSessionWorktreeResolver) ResolveSessionWorktree(
 		return "", "", worktree.ErrNotReady
 	}
 }
+
+func (r daemonSessionWorktreeResolver) ValidateTaskWorktreeRef(
+	ctx context.Context,
+	workspaceID string,
+	ref string,
+) error {
+	if _, _, err := r.ResolveSessionWorktree(ctx, workspaceID, ref); err != nil {
+		return fmt.Errorf("%w: %v", worktree.ErrRefInvalid, err)
+	}
+	return nil
+}

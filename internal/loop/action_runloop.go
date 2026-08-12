@@ -43,8 +43,9 @@ func (e *RunLoopActionExecutor) Execute(
 		spec.Mode = dsl.RunLoopAwait
 	}
 	child, err := e.starter.Start(runCtx, in.WorkspaceID, spec.Loop, Inputs{
-		Values:          spec.Inputs,
-		ParentLoopRunID: in.LoopRunID,
+		Values:               spec.Inputs,
+		ParentLoopRunID:      in.LoopRunID,
+		InheritedEnvironment: cloneEnvironmentSpec(in.Environment),
 	}, in.Actor)
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("start child loop %q: %w", spec.Loop, err)
@@ -70,6 +71,11 @@ func (e *RunLoopActionExecutor) Execute(
 	}
 	// Detach intentionally emits no awaiting status; the coordinator should not wait for the child terminal wake.
 	return raw, nil
+}
+
+func cloneEnvironmentSpec(spec dsl.EnvironmentSpec) *dsl.EnvironmentSpec {
+	cloned := spec
+	return &cloned
 }
 
 // Harvest returns the run-loop child id and await status.

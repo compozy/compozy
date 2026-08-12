@@ -32,6 +32,7 @@ type Run struct {
 	ID             string         `json:"id"`
 	TaskID         string         `json:"task_id"`
 	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	WorktreeID     string         `json:"worktree_id,omitempty"`
 	Attempt        int32          `json:"attempt"`
 	RecoveryCount  int32          `json:"recovery_count"`
 	RunKind        RunKind        `json:"run_kind,omitempty"`
@@ -45,6 +46,8 @@ type Run struct {
 	IdempotencyKey string         `json:"idempotency_key,omitempty"`
 	*RunNetworkState
 	DesignationGroupID    string            `json:"designation_group_id,omitempty"`
+	ResolvedWorktreeMode  WorktreeMode      `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef   string            `json:"resolved_worktree_ref,omitempty"`
 	ClaimTokenHash        string            `json:"claim_token_hash,omitempty"`
 	LeaseUntil            time.Time         `json:"lease_until"`
 	HeartbeatAt           time.Time         `json:"heartbeat_at"`

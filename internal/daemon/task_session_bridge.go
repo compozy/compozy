@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 type taskBridgeSessionManager interface {
@@ -29,9 +31,16 @@ type taskBridgeSessionRequestStopper interface {
 
 type taskSessionBridge struct {
 	sessions            taskBridgeSessionManager
+	worktrees           taskBridgeWorktrees
 	globalWorkspacePath string
 	contextOverlay      taskSessionContextOverlay
 	logger              *slog.Logger
+}
+
+type taskBridgeWorktrees interface {
+	Get(context.Context, string, string) (*worktree.Worktree, error)
+	MaterializeForRun(context.Context, string, worktree.RunWorktreeRequest) (*worktree.Worktree, error)
+	RollbackRunMaterialization(context.Context, string, string, string) error
 }
 
 type taskSessionContextOverlay interface {
@@ -49,6 +58,14 @@ func withTaskSessionContextOverlay(overlay taskSessionContextOverlay) taskSessio
 	return func(bridge *taskSessionBridge) {
 		if bridge != nil {
 			bridge.contextOverlay = overlay
+		}
+	}
+}
+
+func withTaskSessionWorktrees(worktrees taskBridgeWorktrees) taskSessionBridgeOption {
+	return func(bridge *taskSessionBridge) {
+		if bridge != nil {
+			bridge.worktrees = worktrees
 		}
 	}
 }
@@ -137,41 +154,169 @@ func (b *taskSessionBridge) StartTaskSession(
 			spec.Task.Scope,
 		)
 	}
+	materialized, err := b.applySessionWorktreePolicy(ctx, &opts, spec)
+	if err != nil {
+		return nil, err
+	}
 	if b.contextOverlay != nil {
+		overlayRun := spec.Run
+		if materialized != nil {
+			overlayRun.WorktreeID = materialized.ID
+		}
 		overlay, err := b.contextOverlay.TaskRunPromptOverlay(
 			ctx,
 			spec.Task,
-			spec.Run,
+			overlayRun,
 			spec.ExecutionProfile,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("daemon: render task session context overlay: %w", err)
+			return nil, b.rollbackTaskSessionMaterialization(
+				ctx,
+				spec.Run,
+				materialized,
+				fmt.Errorf("daemon: render task session context overlay: %w", err),
+			)
 		}
 		opts.PromptOverlay = joinPromptOverlays(opts.PromptOverlay, overlay)
 	}
 
 	created, err := b.sessions.Create(ctx, opts)
 	if err != nil {
-		return nil, err
+		return nil, b.rollbackTaskSessionMaterialization(ctx, spec.Run, materialized, err)
 	}
 	if created == nil {
-		return nil, fmt.Errorf(
+		return nil, b.rollbackTaskSessionMaterialization(ctx, spec.Run, materialized, fmt.Errorf(
 			"%w: task session bridge create returned nil session",
 			taskpkg.ErrValidation,
-		)
+		))
 	}
 	info := created.Info()
 	if info == nil {
-		return nil, fmt.Errorf(
+		return nil, b.rollbackTaskSessionMaterialization(ctx, spec.Run, materialized, fmt.Errorf(
 			"%w: task session bridge create returned nil session info",
 			taskpkg.ErrValidation,
-		)
+		))
+	}
+	worktreeID := strings.TrimSpace(info.WorktreeID)
+	if worktreeID == "" && materialized != nil {
+		worktreeID = materialized.ID
 	}
 	return &taskpkg.SessionRef{
 		SessionID:   strings.TrimSpace(info.ID),
 		WorkspaceID: strings.TrimSpace(info.WorkspaceID),
+		WorktreeID:  worktreeID,
 		StartedAt:   info.CreatedAt,
 	}, nil
+}
+
+func (b *taskSessionBridge) applySessionWorktreePolicy(
+	ctx context.Context,
+	opts *session.CreateOpts,
+	spec *taskpkg.StartTaskSession,
+) (*worktree.Worktree, error) {
+	policy := taskpkg.WorktreePolicy{
+		Mode:        spec.Run.ResolvedWorktreeMode.Normalize(),
+		WorktreeRef: strings.TrimSpace(spec.Run.ResolvedWorktreeRef),
+	}
+	if policy.Mode == "" {
+		policy.Mode = taskpkg.WorktreeModeNone
+	}
+	switch policy.Mode {
+	case taskpkg.WorktreeModeNone:
+		return nil, nil
+	case taskpkg.WorktreeModeRef:
+		item, err := b.resolveTaskWorktreeRef(ctx, spec.Task.WorkspaceID, policy.WorktreeRef)
+		if err != nil {
+			return nil, err
+		}
+		opts.Worktree = item.ID
+		return nil, nil
+	case taskpkg.WorktreeModePerRun:
+		if b.worktrees == nil {
+			return nil, fmt.Errorf("%w: worktree service is unavailable", worktree.ErrPerRunMaterialization)
+		}
+		workspaceID := strings.TrimSpace(spec.Task.WorkspaceID)
+		if workspaceID == "" {
+			return nil, fmt.Errorf("%w: task workspace is required", worktree.ErrPerRunMaterialization)
+		}
+		item, err := b.worktrees.MaterializeForRun(ctx, workspaceID, worktree.RunWorktreeRequest{
+			TaskSlug: taskWorktreeSlug(spec.Task),
+			RunID:    spec.Run.ID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if item == nil {
+			return nil, fmt.Errorf("%w: materializer returned nil worktree", worktree.ErrPerRunMaterialization)
+		}
+		opts.Worktree = item.ID
+		return item, nil
+	default:
+		return nil, fmt.Errorf("%w: unsupported resolved worktree mode %q", taskpkg.ErrValidation, policy.Mode)
+	}
+}
+
+func (b *taskSessionBridge) resolveTaskWorktreeRef(
+	ctx context.Context,
+	workspaceID string,
+	ref string,
+) (*worktree.Worktree, error) {
+	if b.worktrees == nil {
+		return nil, fmt.Errorf("%w: worktree service is unavailable", worktree.ErrRefInvalid)
+	}
+	item, err := b.worktrees.Get(ctx, strings.TrimSpace(workspaceID), strings.TrimSpace(ref))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", worktree.ErrRefInvalid, err)
+	}
+	if item == nil || item.State != worktree.StateReady {
+		return nil, fmt.Errorf("%w: referenced worktree is not ready", worktree.ErrRefInvalid)
+	}
+	if _, err := os.Stat(item.Path); err != nil {
+		return nil, fmt.Errorf("%w: %v", worktree.ErrRefInvalid, err)
+	}
+	return item, nil
+}
+
+func taskWorktreeSlug(taskRecord taskpkg.Task) string {
+	return firstNonEmpty(taskRecord.Identifier, taskRecord.Title, taskRecord.ID)
+}
+
+func (b *taskSessionBridge) rollbackTaskSessionMaterialization(
+	ctx context.Context,
+	run taskpkg.Run,
+	item *worktree.Worktree,
+	cause error,
+) error {
+	if item == nil || b.worktrees == nil {
+		return cause
+	}
+	rollbackErr := b.worktrees.RollbackRunMaterialization(
+		context.WithoutCancel(ctx),
+		item.WorkspaceID,
+		item.ID,
+		run.ID,
+	)
+	if rollbackErr != nil {
+		rollbackErr = fmt.Errorf("daemon: roll back per-run worktree: %w", rollbackErr)
+	}
+	return errors.Join(cause, rollbackErr)
+}
+
+func (b *taskSessionBridge) CleanupUnboundTaskSession(
+	ctx context.Context,
+	run taskpkg.Run,
+	ref taskpkg.SessionRef,
+) error {
+	if run.ResolvedWorktreeMode.Normalize() != taskpkg.WorktreeModePerRun ||
+		strings.TrimSpace(ref.WorktreeID) == "" || b.worktrees == nil {
+		return nil
+	}
+	return b.worktrees.RollbackRunMaterialization(
+		context.WithoutCancel(ctx),
+		strings.TrimSpace(run.WorkspaceID),
+		strings.TrimSpace(ref.WorktreeID),
+		strings.TrimSpace(run.ID),
+	)
 }
 
 func joinPromptOverlays(values ...string) string {
@@ -198,6 +343,52 @@ func applyTaskSessionWorkerProfile(opts *session.CreateOpts, profile *taskpkg.Ex
 func (b *taskSessionBridge) AttachTaskSession(
 	ctx context.Context,
 	_ string,
+	sessionID string,
+) (*taskpkg.SessionRef, error) {
+	return b.attachTaskSession(ctx, sessionID)
+}
+
+func (b *taskSessionBridge) AttachTaskRunSession(
+	ctx context.Context,
+	run taskpkg.Run,
+	sessionID string,
+) (*taskpkg.SessionRef, error) {
+	ref, err := b.attachTaskSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	mode := run.ResolvedWorktreeMode.Normalize()
+	if mode == "" {
+		mode = taskpkg.WorktreeModeNone
+	}
+	switch mode {
+	case taskpkg.WorktreeModeNone:
+		if strings.TrimSpace(ref.WorktreeID) != "" {
+			return nil, fmt.Errorf("%w: root run cannot attach a worktree-bound session", taskpkg.ErrSessionAttachNotAllowed)
+		}
+	case taskpkg.WorktreeModePerRun:
+		return nil, fmt.Errorf("%w: per-run worktree requires a dedicated session", taskpkg.ErrSessionAttachNotAllowed)
+	case taskpkg.WorktreeModeRef:
+		if b.worktrees == nil {
+			return nil, fmt.Errorf("%w: worktree service is unavailable", taskpkg.ErrSessionAttachNotAllowed)
+		}
+		item, getErr := b.worktrees.Get(
+			ctx,
+			strings.TrimSpace(run.WorkspaceID),
+			strings.TrimSpace(run.ResolvedWorktreeRef),
+		)
+		if getErr != nil || item == nil || item.State != worktree.StateReady ||
+			strings.TrimSpace(item.ID) != strings.TrimSpace(ref.WorktreeID) {
+			return nil, fmt.Errorf("%w: attached session does not match resolved worktree", taskpkg.ErrSessionAttachNotAllowed)
+		}
+	default:
+		return nil, fmt.Errorf("%w: unsupported resolved worktree mode %q", taskpkg.ErrValidation, mode)
+	}
+	return ref, nil
+}
+
+func (b *taskSessionBridge) attachTaskSession(
+	ctx context.Context,
 	sessionID string,
 ) (*taskpkg.SessionRef, error) {
 	if ctx == nil {
@@ -227,6 +418,7 @@ func (b *taskSessionBridge) AttachTaskSession(
 	return &taskpkg.SessionRef{
 		SessionID:   strings.TrimSpace(info.ID),
 		WorkspaceID: strings.TrimSpace(info.WorkspaceID),
+		WorktreeID:  strings.TrimSpace(info.WorktreeID),
 		StartedAt:   info.CreatedAt,
 	}, nil
 }

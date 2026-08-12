@@ -23,6 +23,7 @@ func (g *GlobalDB) PublishWorktreeEvent(ctx context.Context, event worktree.Life
 		Content:     content,
 		EventCorrelation: store.EventCorrelation{
 			WorktreeID: event.WorktreeID,
+			RunID:      event.RunID,
 		},
 	})
 }
