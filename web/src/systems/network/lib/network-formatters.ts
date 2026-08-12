@@ -1,5 +1,3 @@
-import type { AgentPayload } from "@/systems/agent";
-
 import type {
   NetworkConversationMessage,
   NetworkCreateChannelDraft,
@@ -8,6 +6,7 @@ import type {
   NetworkPeerSummary,
   NetworkSignalTone,
 } from "../types";
+import type { AgentPayload } from "@/systems/agent";
 
 const NETWORK_SUPPORTED_KINDS: ReadonlyArray<Exclude<NetworkKindFilter, "all">> = [
   "say",

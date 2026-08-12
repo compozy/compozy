@@ -1,5 +1,5 @@
-import { validateVaultSearch, VaultPage } from "@/systems/vault";
 import { useDesktop } from "../../hooks/use-desktop";
+import { validateVaultSearch, VaultPage } from "@/systems/vault";
 
 const EMPTY_SEARCH: Record<string, unknown> = {};
 

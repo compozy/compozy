@@ -6,6 +6,8 @@ export { OsShellContext, type OsShellHandle } from "./contexts/os-shell-context"
 export { useOsShell } from "./hooks/use-os-shell";
 export { useDesktop } from "./hooks/use-desktop";
 export { OS_APPS, getOsApp, resolveAppForPath, matchSessionInstance } from "./lib/app-registry";
+export { getOsAppDescriptor, OS_APP_DESCRIPTORS } from "./lib/app-catalog";
+export { validateMarketplaceDetailSearch } from "./apps/marketplace/marketplace-detail-search";
 export { RoutingCoordinator, type OsRouterPort } from "./lib/routing-coordinator";
 export { WindowManagerRuntime } from "./runtime/window-manager-runtime";
 export { fetchWindowManagerSnapshot } from "./adapters/window-manager-api";

@@ -1,3 +1,7 @@
+// Suite: native tool provider
+// Invariant: native descriptors dispatch correctly and dynamic availability never becomes a stale projection.
+// Boundary IN: native provider indexing, resolution, availability, and calls.
+// Boundary OUT: daemon-specific native tool registration, owned by daemon suites.
 package tools
 
 import (
@@ -276,6 +280,60 @@ func TestNativeProviderDispatch(t *testing.T) {
 		}
 		if called {
 			t.Fatal("native handler was called for unavailable dependency")
+		}
+	})
+}
+
+func TestNativeProviderProjectionGeneration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should leave projections uncached when availability can change", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDescriptor()
+		available := false
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				return ToolResult{}, nil
+			},
+			Availability: func(context.Context, Scope) Availability {
+				if available {
+					return Available()
+				}
+				return Unavailable(ReasonDependencyMissing)
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewNativeProvider() error = %v", err)
+		}
+		registry, err := NewRegistry(
+			WithProviders(provider),
+			WithProjectionGeneration(func(context.Context, Scope) (string, bool) {
+				return "daemon-epoch", true
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		handle, resolved, err := provider.Resolve(t.Context(), Scope{SessionID: "sess-1"}, descriptor.ID)
+		if err != nil {
+			t.Fatalf("NativeProvider.Resolve() error = %v", err)
+		}
+		if !resolved {
+			t.Fatal("NativeProvider.Resolve() resolved = false, want true")
+		}
+		if got := handle.Availability(t.Context(), Scope{SessionID: "sess-1"}); got.Executable {
+			t.Fatalf("unavailable handle availability = %#v, want not executable", got)
+		}
+		available = true
+		if got := handle.Availability(t.Context(), Scope{SessionID: "sess-1"}); !got.Executable {
+			t.Fatalf("available handle availability = %#v, want executable", got)
+		}
+
+		generation, known := registry.ProjectionGeneration(t.Context(), Scope{SessionID: "sess-1"})
+		if known || generation != "" {
+			t.Fatalf("ProjectionGeneration() = %q, %t, want unknown", generation, known)
 		}
 	})
 }

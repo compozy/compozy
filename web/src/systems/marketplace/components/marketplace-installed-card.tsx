@@ -16,15 +16,14 @@ import {
 } from "@compozy/ui";
 import { createElement } from "react";
 
-import { ExtensionTrustBadges } from "@/systems/extensions";
-import { deriveMCPManagementFilter } from "@/systems/settings";
-import { SkillActivationPill, SkillActivationReasons } from "@/systems/skill";
-
 import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-page";
 import { marketplaceMCPInstalledStatus } from "../lib/mcp-installed-status";
 import type { MarketplaceKind, MarketplaceListing } from "../types";
 import { formatMarketplaceVersion, marketplaceKindIcon } from "./marketplace-ui";
 import { useMarketplaceInstalledCardConfirmation } from "./use-marketplace-installed-card-confirmation";
+import { ExtensionTrustBadges } from "@/systems/extensions";
+import { deriveMCPManagementFilter } from "@/systems/settings";
+import { SkillActivationPill, SkillActivationReasons } from "@/systems/skill";
 
 interface MarketplaceInstalledCardProps {
   item: MarketplaceInstalledItem;

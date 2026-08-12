@@ -18,7 +18,7 @@ import {
   stopSession,
   unarchiveSession,
 } from "../adapters/session-api";
-import { useActiveWorkspace } from "@/systems/workspace";
+
 import { sessionStore } from "../stores/session-store";
 import { sessionKeys } from "../lib/query-keys";
 import {
@@ -33,6 +33,7 @@ import type {
   SessionRepairQuery,
 } from "../types";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 function requireWorkspace(workspaceId: string | null | undefined): string {
   if (!workspaceId) {

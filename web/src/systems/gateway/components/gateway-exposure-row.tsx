@@ -1,11 +1,10 @@
 import { Switch } from "@compozy/ui";
 
-import { SettingRow } from "@/systems/settings";
-
 import { EXPOSURE_ROW_COPY, REACHABILITY_COPY } from "../lib/gateway-copy";
 import type { GatewayExposureRow } from "../lib/gateway-exposure-model";
 import { GatewayAddressesList } from "./gateway-addresses-list";
 import { GatewayStatusChip } from "./gateway-status-chip";
+import { SettingRow } from "@/systems/settings";
 
 export interface GatewayExposureRowProps {
   row: GatewayExposureRow;

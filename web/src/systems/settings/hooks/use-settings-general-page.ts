@@ -1,15 +1,16 @@
 import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "./use-settings-page";
+
 import {
   SettingsApiError,
+  type SettingsGeneralSection,
+  type SettingsUpdateGeneralRequest,
   useReloadSettings,
   useSettingsApplyRecords,
   useSettingsGeneral,
   useSettingsUpdate,
   useUpdateSettingsGeneral,
-  type SettingsGeneralSection,
-  type SettingsUpdateGeneralRequest,
 } from "@/systems/settings";
 import { useActiveWorkspace } from "@/systems/workspace";
 

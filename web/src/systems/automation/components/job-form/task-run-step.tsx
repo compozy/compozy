@@ -5,9 +5,9 @@ import {
   networkParticipationDraftFromPayload,
   type NetworkParticipationDraft,
 } from "@/lib/network-participation";
-import { NetworkParticipationFields } from "@/systems/network";
 
 import type { CreateAutomationJobRequest } from "../../types";
+import { NetworkParticipationFields } from "@/systems/network";
 
 type TaskDraft = NonNullable<CreateAutomationJobRequest["task"]>;
 type OwnerKind = NonNullable<TaskDraft["owner"]>["kind"];

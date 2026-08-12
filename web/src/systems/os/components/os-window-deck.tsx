@@ -135,7 +135,7 @@ export function OsWindowDeck({
         wrapZoom={zoomMenu}
       />
       <div
-        ref={deck.tabsRef}
+        ref={deck.registerTabs}
         role="tablist"
         aria-label="Open tabs"
         className="no-scrollbar flex min-w-0 items-end gap-0.5 overflow-x-auto"

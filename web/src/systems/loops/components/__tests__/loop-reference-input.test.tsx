@@ -1,6 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+// Suite: loop reference input
+// Invariant: the picker follows the active caret query, preserves selection focus, and a delayed
+// blur cannot dismiss a picker that regained focus.
+// Owning layer: loop reference input and autocomplete hook. Boundary OUT: namespace construction.
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LoopReferenceInput } from "../editor/loop-reference-input";
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
@@ -25,6 +29,10 @@ function Harness({ initial = "", cel = false }: { initial?: string; cel?: boolea
     </div>
   );
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("LoopReferenceInput", () => {
   it("Should surface namespace suggestions after `{{ .` and insert the selected reference", () => {
@@ -95,5 +103,20 @@ describe("LoopReferenceInput", () => {
     );
     fireEvent.keyDown(input, { key: "Enter" });
     expect(screen.getByTestId("value")).toHaveTextContent("post {{ .nodes.load_tasks.output }}");
+  });
+
+  it("Should retain suggestions when the field regains focus before blur dismissal", () => {
+    vi.useFakeTimers();
+    render(<Harness initial="post {{ .inp" />);
+    const input = screen.getByTestId("ref") as HTMLInputElement;
+    input.setSelectionRange(input.value.length, input.value.length);
+    fireEvent.focus(input);
+    expect(screen.getByTestId("loop-reference-suggestions")).toBeInTheDocument();
+
+    fireEvent.blur(input);
+    fireEvent.focus(input);
+    act(() => vi.advanceTimersByTime(120));
+
+    expect(screen.getByTestId("loop-reference-suggestions")).toBeInTheDocument();
   });
 });

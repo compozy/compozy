@@ -14,8 +14,11 @@ import {
   TooltipTrigger,
 } from "@compozy/ui";
 
-import { ExtensionTrustBadges, type ExtensionEntry } from "@/systems/extensions";
-import type { ExtensionTrustFacts } from "@/systems/extensions";
+import {
+  type ExtensionEntry,
+  ExtensionTrustBadges,
+  type ExtensionTrustFacts,
+} from "@/systems/extensions";
 
 interface MarketplaceDetailExtensionActionsProps {
   extension: ExtensionEntry;

@@ -1,8 +1,7 @@
 import { Field, FieldLabel } from "@compozy/ui";
 
-import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
-
 import { PromptTemplateField } from "./prompt-template-field";
+import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
 
 interface AgentPromptStepProps {
   agent: string;

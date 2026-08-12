@@ -115,12 +115,16 @@ export { loopFactsSegments } from "./lib/loop-catalog-presentation";
 
 // Listing filter bridge (status options + URL parsers)
 export type { LoopStatusFilterOption } from "./lib/loop-list-filters";
+export { loopStatusFilterOptions } from "./lib/loop-list-filters";
 export {
-  loopStatusFilterOptions,
   parseLoopCategoryFilter,
   parseLoopKindFilter,
   parseLoopStatusFilter,
-} from "./lib/loop-list-filters";
+  validateLoopRunsSearch,
+  validateLoopsSearch,
+  type LoopRunsRouteSearch,
+  type LoopsRouteSearch,
+} from "./lib/loops-route-search";
 
 // Start-binding helpers
 export type { LoopBindingKind, LoopBindingRow } from "./lib/loop-bindings";

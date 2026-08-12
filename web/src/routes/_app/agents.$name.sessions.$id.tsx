@@ -1,10 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 
+import { SessionWorkspaceSwitchRouteDecision } from "./-session-workspace-switch";
 import { createOsRouteSync } from "@/systems/os";
 import { validateSessionDeepLinkSearch } from "@/systems/session";
-import { prefetchAgentSessionRoute } from "./-agent-session-route-loader";
-import { SessionWorkspaceSwitchRouteDecision } from "./-session-workspace-switch";
 
 const SessionRouteSync = createOsRouteSync("session");
 
@@ -15,6 +14,7 @@ export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
   validateSearch: validateSessionDeepLinkSearch,
   loaderDeps: ({ search }) => ({ workspaceSwitch: search.workspaceSwitch }),
   loader: async ({ context, params, deps, preload }) => {
+    const { prefetchAgentSessionRoute } = await import("./-agent-session-route-loader");
     const data = await prefetchAgentSessionRoute({
       queryClient: context.queryClient,
       sessionId: params.id,

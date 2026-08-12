@@ -12,7 +12,7 @@ import type { AgentSettingsSection } from "../../lib/agent-settings-search";
 import type { AgentPayload } from "../../types";
 import { AgentSettingsPanels, type AgentSettingsPanelsProps } from "../agent-settings-panels";
 
-vi.mock("@/systems/runtime", () => ({
+vi.mock("@/systems/runtime/components/runtime-selector", () => ({
   RuntimeSelector: ({
     triggerTestId,
     onChange,

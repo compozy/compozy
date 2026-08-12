@@ -1,3 +1,7 @@
+// Suite: task overview panel
+// Invariant: the overview renders route-owned task state and forwards each operator action once.
+// Boundary IN: overview rendering, elapsed projection, and action wiring.
+// Boundary OUT: task queries and mutations, owned by hook and adapter suites.
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -158,5 +162,30 @@ describe("TaskOverviewPanel", () => {
     expect(handlers.onClearBlock).toHaveBeenNthCalledWith(1, "block_001");
     expect(handlers.onClearBlock).toHaveBeenNthCalledWith(2, "block_002");
     expect(handlers.onOpenRun).toHaveBeenCalledWith("run_active");
+  });
+
+  it("Should render the route-owned active-run elapsed value", () => {
+    const baseline = buildDetailFixture();
+    const detail = buildDetailFixture({
+      summary: {
+        ...baseline.summary,
+        active_run: buildTaskRunFixture({ id: "run_active", status: "running" }),
+        status: "in_progress",
+      },
+    });
+
+    render(
+      <TaskOverviewPanel
+        activeRunElapsed="2m 5s"
+        detail={detail}
+        isLive
+        nowHandlers={buildHandlers()}
+        onViewAllActivity={vi.fn()}
+        runs={[]}
+        timeline={[]}
+      />
+    );
+
+    expect(screen.getByTestId("tasks-detail-now-elapsed")).toHaveTextContent("2m 5s");
   });
 });

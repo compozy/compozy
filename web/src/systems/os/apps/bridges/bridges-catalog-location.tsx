@@ -11,6 +11,7 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 import { type BridgesRouteSearch, useBridgesPage } from "./use-bridges-page";
+
 import {
   BridgeCreateDialog,
   BridgeEmptyState,

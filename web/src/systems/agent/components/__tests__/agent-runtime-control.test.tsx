@@ -37,8 +37,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
-vi.mock("@/systems/model-catalog", () => ({
-  providerNeedsAuth: () => false,
+vi.mock("@/systems/model-catalog/hooks/use-runtime-model-catalog", () => ({
   useRuntimeModelCatalog: () => ({
     error: null,
     loaded: true,
@@ -49,7 +48,11 @@ vi.mock("@/systems/model-catalog", () => ({
   }),
 }));
 
-vi.mock("@/systems/runtime", () => ({
+vi.mock("@/systems/model-catalog/lib/to-runtime-selector-options", () => ({
+  providerNeedsAuth: () => false,
+}));
+
+vi.mock("@/systems/runtime/components/runtime-selector", () => ({
   RuntimeSelector: ({
     disabled,
     value,
@@ -69,11 +72,11 @@ vi.mock("@/systems/runtime", () => ({
   ),
 }));
 
-vi.mock("@/systems/settings", () => ({
+vi.mock("@/systems/settings/hooks/use-settings-collections", () => ({
   useSettingsProviders: () => mocks.settings,
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
   useWorkspace: () => mocks.workspace,
 }));
 

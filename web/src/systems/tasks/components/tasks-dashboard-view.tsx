@@ -1,8 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
 import { Empty, Eyebrow } from "@compozy/ui";
-import type { SchedulerBacklog, SchedulerStatus } from "@/systems/scheduler";
-import { SchedulerControlsPanel } from "@/systems/scheduler";
 
 import type { TaskDashboardView } from "../types";
 import { TasksDashboardActiveRuns } from "./tasks-dashboard-active-runs";
@@ -10,6 +8,11 @@ import { TasksDashboardCards } from "./tasks-dashboard-cards";
 import { TasksDashboardQueueHealth } from "./tasks-dashboard-queue-health";
 import { TasksDashboardStatusBreakdown } from "./tasks-dashboard-status-breakdown";
 import { TasksDashboardLoadingSkeleton } from "./task-loading-skeletons";
+import {
+  type SchedulerBacklog,
+  SchedulerControlsPanel,
+  type SchedulerStatus,
+} from "@/systems/scheduler";
 
 export interface TasksDashboardViewProps {
   dashboard: TaskDashboardView | null;

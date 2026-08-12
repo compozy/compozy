@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import type { TopbarRouteContext } from "@/types/topbar";
 import { validateMarketplaceKindSearch } from "@/systems/marketplace";
 import { createOsRouteSync } from "@/systems/os";
-import type { TopbarRouteContext } from "@/types/topbar";
 
 const MARKETPLACE_EXTENSIONS_TOPBAR_CONTEXT: { topbar: TopbarRouteContext } = {
   topbar: { crumb: { label: "Extensions" } },

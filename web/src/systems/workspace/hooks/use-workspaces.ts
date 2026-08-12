@@ -20,8 +20,8 @@ interface UseWorkspaceOptions {
   enabled?: boolean;
 }
 
-export function useWorkspaces() {
-  return useQuery(workspacesListOptions());
+export function useWorkspaces(options: UseWorkspaceOptions = {}) {
+  return useQuery(workspacesListOptions(options.enabled ?? true));
 }
 
 export function useWorkspace(workspaceID: string, options?: UseWorkspaceOptions) {

@@ -8,13 +8,12 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionPayload } from "@/systems/session";
-
 import { useDesktop } from "../../hooks/use-desktop";
 import { useOsWindowDeck, type OsWindowDeckModel } from "../../hooks/use-os-window-deck";
 import type { OsWindowFrameModel } from "../../lib/group-projection";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import { OsWindowDeck } from "../os-window-deck";
+import type { SessionPayload } from "@/systems/session";
 
 vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
 vi.mock("../../hooks/use-os-window-deck", () => ({ useOsWindowDeck: vi.fn() }));
@@ -89,7 +88,7 @@ function deckModel(overrides: Partial<OsWindowDeckModel> = {}): OsWindowDeckMode
     tabDrag: null,
     dropIndex: null,
     otherWindowCount: 0,
-    tabsRef: { current: null },
+    registerTabs: vi.fn(),
     registerTab: vi.fn(),
     handleTabPointerDown: vi.fn(),
     wasDragged: () => false,

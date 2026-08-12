@@ -130,6 +130,8 @@ export {
   toggleDraftAgent,
 } from "./lib/network-formatters";
 export type { NetworkWorkState } from "./lib/network-formatters";
+export { NetworkLiveDataContext } from "./contexts/network-live-data-context";
+export { useNetworkLiveDataEnabled } from "./hooks/use-network-live-data-enabled";
 export { formatElapsedSeconds, useElapsedSeconds } from "./lib/use-elapsed";
 export type { UseElapsedOptions } from "./lib/use-elapsed";
 export { formatTaskRunBounds } from "./lib/task-run-network";

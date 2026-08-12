@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import { DetailInspector, cn } from "@compozy/ui";
-import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
 
 import {
   deriveFileReads,
@@ -14,6 +13,7 @@ import {
   SessionInspectorUsageSection,
 } from "./session-inspector-sections";
 import type { InspectorMemoryState, InspectorUsage } from "./session-inspector-types";
+import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
 
 export type {
   InspectorMemoryState,

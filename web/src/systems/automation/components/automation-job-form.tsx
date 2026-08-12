@@ -15,9 +15,6 @@ import {
   PillGroup,
   type PillGroupItem,
 } from "@compozy/ui";
-import type { AgentPayload } from "@/systems/agent";
-import { ScopeSelector } from "@/systems/workspace";
-import { LoopTargetFields } from "@/systems/loops";
 
 import { useAutomationJobForm, type JobTargetMode } from "../hooks/use-automation-job-form";
 import { catchUpPolicyLabel } from "../lib/automation-formatters";
@@ -36,6 +33,9 @@ import { ReliabilitySection } from "./job-form/reliability-section";
 import { ScheduleAt } from "./job-form/schedule-at";
 import { ScheduleEvery } from "./job-form/schedule-every";
 import { TaskRunStep } from "./job-form/task-run-step";
+import type { AgentPayload } from "@/systems/agent";
+import { LoopTargetFields } from "@/systems/loops";
+import { ScopeSelector } from "@/systems/workspace";
 
 interface AutomationJobFormProps {
   activeWorkspaceId?: string | null;

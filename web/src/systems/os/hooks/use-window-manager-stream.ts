@@ -1,8 +1,8 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import { createStreamWebSocket } from "@/lib/ticketed-web-socket";
-import { workspaceKeys } from "@/systems/workspace";
 
 import {
   buildWindowManagerStreamUrl,
@@ -17,6 +17,8 @@ import type {
   WindowManagerErrorPayload,
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
+import { windowManagerStreamLogic } from "./window-manager-stream-store";
+import { workspaceKeys } from "@/systems/workspace";
 
 export interface WindowManagerSocket {
   close: () => void;
@@ -62,12 +64,10 @@ export function useWindowManagerStream({
   onError,
 }: UseWindowManagerStreamOptions): void {
   const queryClient = useQueryClient();
-  const [reconnectEpoch, setReconnectEpoch] = useState(0);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttempt = useRef(0);
-  const latestBindingKey = useRef<string | null>(null);
-  const latestTopologyRevision = useRef(afterRevision);
-  const latestPresentationRevision = useRef(0);
+  const lifecycleStore = useStore(windowManagerStreamLogic, {
+    topologyRevision: afterRevision,
+  });
+  const reconnectEpoch = useSelector(lifecycleStore, snapshot => snapshot.context.reconnectEpoch);
   const publishStatus = useEffectEvent(onStatusChange);
   const publishSnapshot = useEffectEvent(onSnapshot);
   const publishClient = useEffectEvent(onClient);
@@ -83,21 +83,12 @@ export function useWindowManagerStream({
       currentClient?.workspaceId === workspaceId && currentClient.clientId === clientId
         ? currentClient
         : null;
-    if (latestBindingKey.current !== bindingKey) {
-      latestBindingKey.current = bindingKey;
-      latestTopologyRevision.current = afterRevision;
-      latestPresentationRevision.current = boundClient?.presentationRevision ?? 0;
-      reconnectAttempt.current = 0;
-      return;
-    }
-    latestTopologyRevision.current = Math.max(latestTopologyRevision.current, afterRevision);
-    if (boundClient !== null) {
-      latestPresentationRevision.current = Math.max(
-        latestPresentationRevision.current,
-        boundClient.presentationRevision
-      );
-    }
-  }, [afterRevision, bindingKey, clientId, currentClient, workspaceId]);
+    lifecycleStore.trigger.bindingObserved({
+      bindingKey,
+      presentationRevision: boundClient?.presentationRevision ?? 0,
+      topologyRevision: afterRevision,
+    });
+  }, [afterRevision, bindingKey, clientId, currentClient, lifecycleStore, workspaceId]);
 
   useEffect(() => {
     if (
@@ -107,7 +98,7 @@ export function useWindowManagerStream({
       typeof window === "undefined" ||
       (!socketFactory && typeof WebSocket === "undefined")
     ) {
-      reconnectAttempt.current = 0;
+      lifecycleStore.trigger.disabled();
       publishStatus("disconnected");
       return undefined;
     }
@@ -119,20 +110,22 @@ export function useWindowManagerStream({
     let refreshRetryTimer: ReturnType<typeof setTimeout> | null = null;
     let refreshRetryAttempt = 0;
     let pendingMinimumRevision = -1;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     const refreshController = new AbortController();
-    const attempt = reconnectAttempt.current;
-    publishStatus(attempt === 0 ? "connecting" : "reconnecting");
     const cachedAtOpen = queryClient.getQueryData<WindowManagerSnapshot>(
       windowManagerKeys.snapshot(workspaceId)
     );
-    const topologyFence = Math.max(latestTopologyRevision.current, cachedAtOpen?.revision ?? 0);
+    const topologyFence = Math.max(
+      lifecycleStore.getSnapshot().context.topologyRevision,
+      cachedAtOpen?.revision ?? 0
+    );
     const socket = (socketFactory ?? browserWindowManagerSocket)(
       buildWindowManagerStreamUrl(workspaceId, clientId, topologyFence)
     );
 
     const applySnapshot = (snapshot: WindowManagerSnapshot) => {
       if (snapshot.workspaceId !== workspaceId) return;
-      latestTopologyRevision.current = Math.max(latestTopologyRevision.current, snapshot.revision);
+      lifecycleStore.trigger.topologyObserved({ revision: snapshot.revision });
       const key = windowManagerKeys.snapshot(workspaceId);
       queryClient.setQueryData<WindowManagerSnapshot>(key, current =>
         reconcileWindowManagerSnapshot(current, snapshot)
@@ -142,8 +135,12 @@ export function useWindowManagerStream({
 
     const applyClient = (client: WindowManagerClientView) => {
       if (client.workspaceId !== workspaceId || client.clientId !== clientId) return;
-      if (client.presentationRevision <= latestPresentationRevision.current) return;
-      latestPresentationRevision.current = client.presentationRevision;
+      if (
+        client.presentationRevision <= lifecycleStore.getSnapshot().context.presentationRevision
+      ) {
+        return;
+      }
+      lifecycleStore.trigger.presentationObserved({ revision: client.presentationRevision });
       publishClient(client);
     };
 
@@ -227,7 +224,7 @@ export function useWindowManagerStream({
         if (frame.workspaceId !== workspaceId) return;
         if (frame.type === "snapshot") {
           receivedSnapshot = true;
-          reconnectAttempt.current = 0;
+          lifecycleStore.trigger.snapshotObserved({ revision: frame.snapshot.revision });
           applySnapshot(frame.snapshot);
           if (frame.client !== null) applyClient(frame.client);
           publishStatus("connected");
@@ -237,7 +234,7 @@ export function useWindowManagerStream({
           applyClient(frame.client);
           return;
         }
-        latestTopologyRevision.current = Math.max(latestTopologyRevision.current, frame.revision);
+        lifecycleStore.trigger.topologyObserved({ revision: frame.revision });
         const cached = queryClient.getQueryData<WindowManagerSnapshot>(
           windowManagerKeys.snapshot(workspaceId)
         );
@@ -253,14 +250,13 @@ export function useWindowManagerStream({
       publishStatus("reconnecting");
     };
     socket.onclose = () => {
-      if (stopped) return;
+      if (stopped || reconnectTimer !== null) return;
       publishStatus("reconnecting");
-      const closingAttempt = reconnectAttempt.current;
+      const closingAttempt = lifecycleStore.getSnapshot().context.reconnectAttempt;
       const delay = Math.min(8_000, 500 * 2 ** Math.min(closingAttempt, 4));
-      reconnectTimer.current = setTimeout(() => {
-        reconnectTimer.current = null;
-        reconnectAttempt.current = closingAttempt + 1;
-        setReconnectEpoch(current => current + 1);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        lifecycleStore.trigger.reconnectElapsed({ attempt: closingAttempt });
       }, delay);
     };
 
@@ -272,9 +268,9 @@ export function useWindowManagerStream({
       socket.onerror = null;
       socket.onclose = null;
       socket.close();
-      if (reconnectTimer.current !== null) {
-        clearTimeout(reconnectTimer.current);
-        reconnectTimer.current = null;
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
       }
       if (refreshRetryTimer !== null) {
         clearTimeout(refreshRetryTimer);
@@ -288,6 +284,7 @@ export function useWindowManagerStream({
     queryClient,
     reconnectEpoch,
     registrationEpoch,
+    lifecycleStore,
     socketFactory,
     workspaceId,
   ]);

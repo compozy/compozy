@@ -1,10 +1,9 @@
-import type { LayoutDesktop, LayoutGroup, LayoutNode } from "@/systems/os";
-
 import type {
   WindowManagerLayoutDesktop,
   WindowManagerLayoutGroup,
   WindowManagerLayoutNode,
 } from "./window-manager-layout-types";
+import type { LayoutDesktop, LayoutGroup, LayoutNode } from "@/systems/os";
 
 /**
  * The settings document and the runtime topology are the same shape; they differ

@@ -2,13 +2,13 @@ import { createStoreLogic } from "@xstate/store";
 
 import { notifyUser } from "@/lib/user-feedback";
 
+import type { MCPConfigScope } from "./marketplace-mcp-scope";
 import type {
   MCPDraft,
   SettingsMCPServerEntry,
   SettingsMCPServerTarget,
   SettingsMutationResult,
 } from "@/systems/settings";
-import type { MCPConfigScope } from "./marketplace-mcp-scope";
 
 export type MarketplaceMCPEditorState =
   | { mode: "closed" }

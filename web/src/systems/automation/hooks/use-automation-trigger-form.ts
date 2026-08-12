@@ -4,12 +4,6 @@ import {
   isNetworkParticipationDraftValid,
   networkParticipationDraftFromPayload,
 } from "@/lib/network-participation";
-import {
-  loopTargetAvailabilityMessage,
-  useLoopTargetCatalog,
-  type LoopAutomationStartKind,
-  type LoopTargetDraft,
-} from "@/systems/loops";
 
 import {
   automationTargetMode,
@@ -40,6 +34,12 @@ import type {
   CreateAutomationTriggerRequest,
 } from "../types";
 import type { SubConfigValues } from "../lib/trigger-sub-config";
+import {
+  type LoopAutomationStartKind,
+  loopTargetAvailabilityMessage,
+  type LoopTargetDraft,
+  useLoopTargetCatalog,
+} from "@/systems/loops";
 
 export interface UseAutomationTriggerFormParams {
   activeWorkspaceId?: string | null;

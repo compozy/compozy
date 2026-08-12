@@ -15,11 +15,9 @@ const mocks = vi.hoisted(() => ({
   reset: vi.fn(),
 }));
 
-vi.mock("@/systems/settings", async () => {
-  const actual = await vi.importActual<typeof import("@/systems/settings")>("@/systems/settings");
+vi.mock("@/systems/settings/hooks/use-settings-mutations", async () => {
   const { useState } = await vi.importActual<typeof import("react")>("react");
   return {
-    ...actual,
     usePutSettingsMCPServer: () => {
       const [error, setError] = useState<Error | null>(null);
       return {
@@ -47,7 +45,7 @@ vi.mock("@/systems/settings", async () => {
   };
 });
 
-vi.mock("@/systems/vault", () => ({
+vi.mock("@/systems/vault/lib/query-options", () => ({
   vaultSecretsListOptions: () => ({
     queryFn: async () => [],
     queryKey: ["vault", "mcp"] as const,

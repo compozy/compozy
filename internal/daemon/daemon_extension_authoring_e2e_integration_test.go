@@ -378,22 +378,32 @@ func assertExtensionAuthoringLogs(
 	want string,
 ) {
 	t.Helper()
-	var logs []compozycontract.ExtensionLogPayload
+	var snapshot compozycontract.ExtensionLogsResponse
 	runExtensionAuthoringCLI(
 		t,
 		ctx,
 		harness,
-		&logs,
+		&snapshot,
 		"extension", "logs", extensionAuthoringE2EName,
 		"--workspace", harness.WorkspaceRoot,
 		"-o", "json",
 	)
-	for _, entry := range logs {
+	if strings.TrimSpace(snapshot.StreamEpoch) == "" {
+		t.Fatal("extension logs stream_epoch is empty")
+	}
+	for _, entry := range snapshot.Logs {
+		if entry.StreamEpoch != snapshot.StreamEpoch {
+			t.Fatalf(
+				"extension log stream_epoch = %q, want snapshot epoch %q",
+				entry.StreamEpoch,
+				snapshot.StreamEpoch,
+			)
+		}
 		if strings.Contains(entry.Message, want) {
 			return
 		}
 	}
-	t.Fatalf("extension logs = %#v, want message containing %q", logs, want)
+	t.Fatalf("extension logs = %#v, want message containing %q", snapshot.Logs, want)
 }
 
 func rewriteExtensionAuthoringGeneration(

@@ -25,6 +25,7 @@ export { markerClusterKey } from "./session-timeline-markers";
 export {
   computeStableSessionRows,
   EMPTY_STABLE_SESSION_ROWS,
+  sessionRowEqual,
   type StableSessionRowsState,
 } from "./session-timeline-stable";
 export {

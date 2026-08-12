@@ -1,11 +1,10 @@
 import { useQueries } from "@tanstack/react-query";
 
-import type { WorkspacePayload } from "@/systems/workspace";
-
 import { fetchSessions } from "../adapters/session-api";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionsResponse } from "../types";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 export interface WorkspaceSessionReturnTarget {
   sessionId: string;

@@ -1,11 +1,8 @@
 import { shallowEqual } from "@xstate/store";
 import { useEffect, useSyncExternalStore } from "react";
 
-import { getSessionDisplayTitle, useSessionCreateActions, useSessions } from "@/systems/session";
-import { useActiveWorkspace, type WorkspacePayload } from "@/systems/workspace";
-
 import { isWaitingSession } from "../lib/attention-model";
-import { getOsApp } from "../lib/app-registry";
+import { getOsAppDescriptor } from "../lib/app-catalog";
 import { frameForWindow } from "../lib/group-projection";
 import type {
   WindowArrangeCommand,
@@ -24,6 +21,8 @@ import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
 import { useOsWindowCommands, type OsFocusedWindowActions } from "./use-os-window-commands";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
+import { getSessionDisplayTitle, useSessionCreateActions, useSessions } from "@/systems/session";
+import { useActiveWorkspace, type WorkspacePayload } from "@/systems/workspace";
 
 type PaletteSession = NonNullable<ReturnType<typeof useSessions>["data"]>[number];
 
@@ -133,7 +132,7 @@ export function useOsCommandPalette(
           ? getSessionDisplayTitle(session)
           : typeof slot?.crumb === "string"
             ? slot.crumb
-            : getOsApp(win.app).title;
+            : getOsAppDescriptor(win.app).title;
       results.push({
         windowId: win.id,
         app: win.app,

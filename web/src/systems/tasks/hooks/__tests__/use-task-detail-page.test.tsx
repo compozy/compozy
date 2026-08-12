@@ -8,6 +8,8 @@ import {
   taskRunReviewListFixture,
 } from "@/systems/tasks/mocks/fixtures";
 
+const hooks = vi.hoisted(() => ({ stream: vi.fn() }));
+
 vi.mock("sonner", () => ({
   toast: {
     error: vi.fn(),
@@ -35,6 +37,8 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   clearTaskBlock: vi.fn(),
   fanOutTaskRuns: vi.fn(),
 }));
+
+vi.mock("../use-task-stream", () => ({ useTaskStream: hooks.stream }));
 
 import {
   approveTask,
@@ -88,6 +92,70 @@ afterEach(() => {
 });
 
 describe("useTaskDetailPage", () => {
+  it("Should own and expose the task stream state for detail consumers", async () => {
+    vi.mocked(getTask).mockResolvedValue({
+      task: {
+        id: "task_001",
+        latest_event_seq: 12,
+        scope: "workspace",
+        status: "in_progress",
+        title: "Review",
+      },
+      summary: {
+        active_run: { id: "run_active", status: "running" },
+        id: "task_001",
+        scope: "workspace",
+        status: "in_progress",
+        title: "Review",
+      },
+    } as never);
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.detail?.task.latest_event_seq).toBe(12));
+
+    const streamOptions = hooks.stream.mock.calls.at(-1)?.[1] as {
+      enabled: boolean;
+      onError: (error: unknown) => void;
+      onEvent: () => void;
+    };
+    expect(streamOptions.enabled).toBe(true);
+    expect(result.current.streamState).toBe("idle");
+
+    act(() => streamOptions.onEvent());
+    expect(result.current.streamState).toBe("receiving");
+
+    act(() => streamOptions.onError(new Error("Stream unavailable")));
+    expect(result.current.streamState).toBe("error");
+    expect(result.current.streamErrorMessage).toBe("Stream unavailable");
+  });
+
+  it("Should disable live task work while its retained window is inactive", async () => {
+    vi.mocked(getTask).mockResolvedValue({
+      task: {
+        id: "task_001",
+        latest_event_seq: 12,
+        scope: "workspace",
+        status: "in_progress",
+        title: "Review",
+      },
+      summary: {
+        active_run: { id: "run_active", status: "running" },
+        id: "task_001",
+        scope: "workspace",
+        status: "in_progress",
+        title: "Review",
+      },
+    } as never);
+
+    renderHook(() => useTaskDetailPage("task_001", { liveDataEnabled: false }), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(hooks.stream).toHaveBeenCalled());
+
+    expect(hooks.stream.mock.calls.at(-1)?.[1]).toMatchObject({ enabled: false });
+  });
+
   it("Should load detail, timeline, runs, profile, and reviews for a task", async () => {
     const { result } = renderHook(() => useTaskDetailPage("task_001"), {
       wrapper: createWrapper(),

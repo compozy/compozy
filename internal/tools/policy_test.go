@@ -16,6 +16,23 @@ func TestEffectivePolicyEvaluator(t *testing.T) {
 	builtinWrite.ReadOnly = false
 	builtinWrite.Risk = RiskMutating
 
+	t.Run("Should reject invalid descriptors supplied outside the registry index", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDescriptor()
+		evaluator, err := NewEffectivePolicyEvaluator(
+			DefaultPolicyInputs(),
+			ToolsetCatalog{},
+			[]ToolID{descriptor.ID},
+		)
+		if err != nil {
+			t.Fatalf("NewEffectivePolicyEvaluator() error = %v", err)
+		}
+		descriptor.InputSchema = []byte("{")
+		_, err = evaluator.Evaluate(t.Context(), Scope{}, descriptor)
+		requireReason(t, err, ReasonSchemaInvalid)
+	})
+
 	t.Run("Should let explicit denies override allows toolsets trusted sources and approve all", func(t *testing.T) {
 		t.Parallel()
 

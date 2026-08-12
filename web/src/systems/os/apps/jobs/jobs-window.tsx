@@ -1,5 +1,5 @@
 import { useDesktop } from "../../hooks/use-desktop";
-import { validateJobsSearch } from "../automation/use-automation-page";
+import { validateJobsSearch } from "@/systems/automation";
 import { JobDetailLocation } from "./job-detail-location";
 import { JobsCatalogLocation } from "./jobs-catalog-location";
 

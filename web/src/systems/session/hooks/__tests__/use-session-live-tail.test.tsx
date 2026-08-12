@@ -1,7 +1,8 @@
 // Suite: useSessionLiveTail
 // Invariants: the infinite transcript cache owns cursor/fences, preserves loaded history, and
-// retains readonly array identity while the exact message sequence is unchanged; Goal snapshot
-// frames invalidate only their exact read models without mutating transcript pages.
+// retains readonly array identity while the exact message sequence is unchanged; burst intake is
+// bounded and reconciles from an authoritative cursor; Goal snapshot frames invalidate only their
+// exact read models without mutating transcript pages.
 // Owning layer: session live-tail query orchestration.
 // Canonical suite: this hook's existing live-tail test suite.
 // Boundary IN: REST transcript pages, transcript SSE frames, Goal/command frames, and terminal frames.
@@ -211,6 +212,7 @@ function clarifyDeltaFrame(message: SessionMessage) {
 
 function renderLiveTail(
   options: {
+    enabled?: boolean;
     queryClient?: QueryClient;
     sources?: FakeSessionEventSource[];
   } = {}
@@ -225,6 +227,7 @@ function renderLiveTail(
   const rendered = renderHook(
     () =>
       useSessionLiveTail({
+        enabled: options.enabled,
         workspaceId: WORKSPACE_ID,
         sessionId: SESSION_ID,
         eventSourceFactory,
@@ -286,6 +289,13 @@ describe("useSessionLiveTail", () => {
       await vi.waitFor(() => expect(result.current.messages).toHaveLength(1));
     });
     expect(fetchSessionTranscript).toHaveBeenCalledTimes(2);
+    expect(fetchSessionTranscript).toHaveBeenNthCalledWith(
+      2,
+      WORKSPACE_ID,
+      SESSION_ID,
+      {},
+      expect.any(AbortSignal)
+    );
   });
 
   it("Should append older pages and preserve them across a same-fence snapshot", async () => {
@@ -480,6 +490,45 @@ describe("useSessionLiveTail", () => {
       sessionTranscriptFixture[2]?.id,
     ]);
     expect(JSON.stringify(result.current.messages[1])).toContain("Revised launch summary");
+  });
+
+  it("Should reconcile and reconnect when transcript intake outruns ordered application", async () => {
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const { result, sources } = renderLiveTail({ queryClient });
+    await waitFor(() => expect(result.current.status).toBe("success"));
+    await waitFor(() => expect(sources).toHaveLength(1));
+
+    vi.mocked(fetchSessionTranscript).mockClear();
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(
+      transcriptResponse([textMessage("reconciled", "Authoritative tail")], {
+        firstSequence: 300,
+      })
+    );
+
+    act(() => {
+      for (let sequence = 1; sequence <= 256; sequence += 1) {
+        sources[0]?.emit(
+          "transcript_delta",
+          {
+            cursor: sequence,
+            entries: [],
+            epoch: 1,
+            generation: 1,
+            has_more: false,
+            max_sequence: sequence,
+            session_id: SESSION_ID,
+          },
+          String(sequence)
+        );
+      }
+    });
+
+    await waitFor(() => expect(sources[0]?.closed).toBe(true));
+    await waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(sources).toHaveLength(2));
+    expect(sources[1]?.url).toBe(`${STREAM_URL}&after_sequence=300&epoch=1&generation=1`);
+    await waitFor(() => expect(result.current.messages[0]?.id).toBe("reconciled"));
   });
 
   it("Should keep every page bounded while rolling live overflow into loaded history", async () => {
@@ -927,6 +976,21 @@ describe("useSessionLiveTail", () => {
 
     const { result, sources } = renderLiveTail({ queryClient });
     await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(sources).toHaveLength(0);
+  });
+
+  it("Should suspend session-detail polling when live tail is disabled", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+
+    const { result, sources } = renderLiveTail({ enabled: false, queryClient });
+    await act(async () => {
+      await vi.waitFor(() => expect(result.current.status).toBe("success"));
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
+
+    expect(fetchSession).not.toHaveBeenCalled();
     expect(sources).toHaveLength(0);
   });
 

@@ -299,7 +299,7 @@ type extensionServiceStub struct {
 	marketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
 	devFn              func(context.Context, contract.DevLinkExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	reloadDevFn        func(context.Context, string, contract.ReloadExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
-	logsFn             func(context.Context, string, int64, taskpkg.ActorContext) ([]contract.ExtensionLogPayload, error)
+	logsFn             func(context.Context, string, int64, string, taskpkg.ActorContext) (contract.ExtensionLogsResponse, error)
 	listScopedFn       func(context.Context, taskpkg.ActorContext) ([]contract.ExtensionPayload, error)
 	statusScopedFn     func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	removeScopedFn     func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
@@ -476,12 +476,13 @@ func (s extensionServiceStub) ExtensionLogs(
 	ctx context.Context,
 	name string,
 	after int64,
+	streamEpoch string,
 	actor taskpkg.ActorContext,
-) ([]contract.ExtensionLogPayload, error) {
+) (contract.ExtensionLogsResponse, error) {
 	if s.logsFn != nil {
-		return s.logsFn(ctx, name, after, actor)
+		return s.logsFn(ctx, name, after, streamEpoch, actor)
 	}
-	return []contract.ExtensionLogPayload{}, nil
+	return contract.ExtensionLogsResponse{}, nil
 }
 
 func (s extensionServiceStub) ListScoped(
@@ -930,10 +931,11 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 					_ context.Context,
 					_ string,
 					_ int64,
+					_ string,
 					actor taskpkg.ActorContext,
-				) ([]contract.ExtensionLogPayload, error) {
+				) (contract.ExtensionLogsResponse, error) {
 					record(actor)
-					return []contract.ExtensionLogPayload{}, nil
+					return contract.ExtensionLogsResponse{Logs: []contract.ExtensionLogPayload{}, StreamEpoch: "epoch-a"}, nil
 				}
 			},
 		},
@@ -1139,13 +1141,15 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 			_ context.Context,
 			_ string,
 			_ int64,
+			_ string,
 			_ taskpkg.ActorContext,
-		) ([]contract.ExtensionLogPayload, error) {
-			return []contract.ExtensionLogPayload{{
-				Sequence:  1,
-				Timestamp: time.Date(2026, 7, 28, 13, 0, 0, 0, time.UTC),
-				Message:   "ready",
-			}}, nil
+		) (contract.ExtensionLogsResponse, error) {
+			return contract.ExtensionLogsResponse{StreamEpoch: "epoch-a", Logs: []contract.ExtensionLogPayload{{
+				Sequence:    1,
+				Timestamp:   time.Date(2026, 7, 28, 13, 0, 0, 0, time.UTC),
+				Message:     "ready",
+				StreamEpoch: "epoch-a",
+			}}}, nil
 		},
 		commandsScopedFn: func(
 			_ context.Context,

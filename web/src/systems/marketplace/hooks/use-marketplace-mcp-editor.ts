@@ -1,22 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 
+import { marketplaceMCPEditorLogic } from "./marketplace-mcp-editor-logic";
+import type { MCPConfigScope } from "./marketplace-mcp-scope";
 import {
-  emptyDraft,
   deriveMCPManagementFilter,
+  emptyDraft,
+  type MCPDraft,
+  type MCPServerEditorProps,
   SettingsApiError,
+  type SettingsMCPServerEntry,
+  type SettingsMCPServerTarget,
   toDraft,
   toRequest,
   usePutSettingsMCPServer,
   validateDraft,
-  type MCPDraft,
-  type MCPServerEditorProps,
-  type SettingsMCPServerEntry,
-  type SettingsMCPServerTarget,
 } from "@/systems/settings";
 import { vaultSecretsListOptions } from "@/systems/vault";
-import { marketplaceMCPEditorLogic } from "./marketplace-mcp-editor-logic";
-import type { MCPConfigScope } from "./marketplace-mcp-scope";
 
 interface UseMarketplaceMCPEditorOptions {
   enabled: boolean;

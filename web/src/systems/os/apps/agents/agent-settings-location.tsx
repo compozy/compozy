@@ -20,10 +20,10 @@ import {
 import {
   AGENT_SETTINGS_SECTIONS,
   AgentSettingsPanels,
-  resolveAgentSettingsSearch,
-  useAgentSettingsPage,
   type AgentSettingsSearch,
   type AgentSettingsSection,
+  resolveAgentSettingsSearch,
+  useAgentSettingsPage,
 } from "@/systems/agent";
 
 const SECTION_LABELS: Record<AgentSettingsSection, string> = {

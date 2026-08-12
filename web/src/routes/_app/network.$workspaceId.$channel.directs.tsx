@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadNetworkDirectsRoute } from "./-network-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/network/$workspaceId/$channel/directs")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
@@ -15,6 +14,10 @@ export const Route = createFileRoute("/_app/network/$workspaceId/$channel/direct
     },
   }),
   component: createOsRouteSync("network"),
-  loader: ({ context, params }) =>
-    preloadNetworkDirectsRoute(context.queryClient, params.workspaceId, params.channel),
+  loader: async ({ context, params }) =>
+    (await import("./-network-preload")).preloadNetworkDirectsRoute(
+      context.queryClient,
+      params.workspaceId,
+      params.channel
+    ),
 });

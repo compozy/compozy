@@ -1,12 +1,13 @@
 import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "./use-settings-page";
+
 import {
   SettingsApiError,
-  useSettingsObservability,
-  useUpdateSettingsObservability,
   type SettingsObservabilitySection,
   type SettingsUpdateObservabilityRequest,
+  useSettingsObservability,
+  useUpdateSettingsObservability,
 } from "@/systems/settings";
 
 type ObservabilityConfig = SettingsObservabilitySection["config"];

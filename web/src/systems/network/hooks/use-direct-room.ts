@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { useNetworkLiveDataEnabled } from "./use-network-live-data-enabled";
 import { toNetworkPresenceState } from "../lib/network-formatters";
 import { getOtherDirectSessionId } from "../lib/network-window-location";
 import { networkPeersOptions } from "../lib/query-options";
@@ -48,6 +49,7 @@ export function useDirectRoom({
   directId,
   selfSessionId,
 }: UseDirectRoomArgs): UseDirectRoomResult {
+  const liveDataEnabled = useNetworkLiveDataEnabled();
   const detail = useNetworkDirectDetail(channel, directId, { workspaceId });
   const messagesQuery = useNetworkMessages({
     workspaceId,
@@ -60,7 +62,11 @@ export function useDirectRoom({
     ? (getOtherDirectSessionId(detail.direct, selfSessionId) ?? "")
     : "";
   const peersQuery = useQuery(
-    networkPeersOptions(workspaceId, channel, Boolean(workspaceId && channel && otherSessionId))
+    networkPeersOptions(
+      workspaceId,
+      channel,
+      liveDataEnabled && Boolean(workspaceId && channel && otherSessionId)
+    )
   );
   const otherPeer = peersQuery.data?.find(peer => peer.session_id === otherSessionId);
   const otherPeerId = otherPeer?.peer_id ?? otherSessionId;
@@ -70,11 +76,11 @@ export function useDirectRoom({
 
   useEffect(() => {
     const lastTimestamp = messagesQuery.messages.at(-1)?.timestamp;
-    if (!lastTimestamp) {
+    if (!liveDataEnabled || !lastTimestamp) {
       return;
     }
     markRead({ channel, containerId: directId, surface: "direct" }, lastTimestamp);
-  }, [channel, directId, markRead, messagesQuery.messages]);
+  }, [channel, directId, liveDataEnabled, markRead, messagesQuery.messages]);
 
   return {
     detail: detail.direct,

@@ -1,8 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { vaultSecretsListOptions, type VaultListFilter } from "@/systems/vault";
-
 import { settleRouteQueries } from "./-route-preload";
+import { type VaultListFilter, vaultSecretsListOptions } from "@/systems/vault";
 
 export function preloadVaultRoute(
   queryClient: QueryClient,

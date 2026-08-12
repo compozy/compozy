@@ -10,7 +10,7 @@ import {
   extensionLogFixtures,
   extensionProvenanceFixtures,
 } from "./fixtures";
-import type { ExtensionEntry, ExtensionKitItem } from "../types";
+import type { ExtensionEntry, ExtensionKitItem, ExtensionLogsSnapshot } from "../types";
 
 function cloneExtensions(): ExtensionEntry[] {
   return structuredClone(extensionFixtures);
@@ -26,6 +26,13 @@ function cloneDevExtensions(): Record<string, ExtensionEntry[]> {
 
 function cloneExtensionLogs() {
   return structuredClone(extensionLogFixtures);
+}
+
+function emptyExtensionLogs(name: string, workspace: string): ExtensionLogsSnapshot {
+  return {
+    logs: [],
+    stream_epoch: `mock-${workspace || "global"}-${name}`,
+  };
 }
 
 let extensionsState = cloneExtensions();
@@ -95,11 +102,20 @@ export const handlers: HttpHandler[] = [
     const name = String(params.name);
     const search = new URL(request.url).searchParams;
     const after = Number(search.get("after") ?? "0");
+    const requestedEpoch = search.get("stream_epoch")?.trim() ?? "";
     const workspace = search.get("workspace")?.trim() ?? "";
-    const logs = (extensionLogsState[workspace]?.[name] ?? []).filter(
-      entry => entry.sequence > after
-    );
-    return HttpResponse.json({ logs });
+    if (after > 0 && requestedEpoch === "") {
+      return HttpResponse.json(
+        { error: "stream_epoch is required when after is greater than zero" },
+        { status: 400 }
+      );
+    }
+    const snapshot = extensionLogsState[workspace]?.[name] ?? emptyExtensionLogs(name, workspace);
+    const reset = requestedEpoch !== "" && requestedEpoch !== snapshot.stream_epoch;
+    return HttpResponse.json({
+      logs: reset ? snapshot.logs : snapshot.logs.filter(entry => entry.sequence > after),
+      stream_epoch: snapshot.stream_epoch,
+    });
   }),
   compozyApiMock.get("/api/extensions/{name}/provenance", ({ params }) => {
     const name = String(params.name);
@@ -214,7 +230,10 @@ export const handlers: HttpHandler[] = [
       };
       extensionLogsState = {
         ...extensionLogsState,
-        [workspace]: { ...extensionLogsState[workspace], [name]: [] },
+        [workspace]: {
+          ...extensionLogsState[workspace],
+          [name]: emptyExtensionLogs(name, workspace),
+        },
       };
       return HttpResponse.json({
         extension: {

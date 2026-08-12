@@ -1,13 +1,12 @@
 import { useState } from "react";
 
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import type { ToolApprovalGrant, ToolApprovalGrantSetRequest } from "../types";
 import {
   useRevokeToolApprovalGrant,
   useSetToolApprovalGrant,
 } from "./use-tool-approval-grant-actions";
 import { useToolApprovalGrants } from "./use-tool-approval-grants";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export type ToolApprovalGrantsState = "loading" | "error" | "empty" | "ready";
 

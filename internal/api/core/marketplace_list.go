@@ -219,7 +219,7 @@ func (h *BaseHandlers) marketplaceInstallIndex(
 	case contract.MarketplaceKindMCP:
 		return h.mcpInstallIndex(ctx, scope)
 	case contract.MarketplaceKindExtension:
-		return h.extensionInstallIndex(ctx)
+		return h.extensionInstallIndex(ctx, scope)
 	case contract.MarketplaceKindSkill:
 		return h.skillInstallIndex(ctx)
 	default:
@@ -260,14 +260,11 @@ func (h *BaseHandlers) mcpInstallIndex(
 	return index, nil
 }
 
-func (h *BaseHandlers) extensionInstallIndex(ctx context.Context) (marketplaceInstallIndex, error) {
-	if h.Extensions == nil {
-		return marketplaceInstallIndex{}, errors.Join(
-			ErrMarketplaceUnavailable,
-			errors.New("extension service is not configured"),
-		)
-	}
-	items, err := h.Extensions.List(ctx)
+func (h *BaseHandlers) extensionInstallIndex(
+	ctx context.Context,
+	scope marketplaceReadScope,
+) (marketplaceInstallIndex, error) {
+	items, err := h.marketplaceExtensions(ctx, scope)
 	if err != nil {
 		return marketplaceInstallIndex{}, err
 	}

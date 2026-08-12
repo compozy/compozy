@@ -1,8 +1,6 @@
 import { toast } from "@compozy/ui";
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import { NetworkApiError, sendNetworkMessage } from "../adapters/network-api";
 import { networkKeys } from "../lib/query-keys";
 import type {
@@ -23,6 +21,7 @@ import {
   discardOptimisticMessage,
   reconcileOptimisticMessage,
 } from "./network-message-cache";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export const THREAD_COLLISION_TOAST = "Couldn't open this thread. Try again.";
 

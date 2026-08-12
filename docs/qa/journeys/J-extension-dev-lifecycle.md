@@ -13,7 +13,8 @@ flowchart TD
   E -->|new generation validates and activates| F[Next invocation sees changed behavior]
   E -->|activation fails| F1[Last-good generation runs; status and redacted logs report activation_failed]
   C --> G[Read bounded logs via CLI, HTTP or UDS, native tool, and Web named SSE event]
-  G -->|disconnect or pause| G1[Rendered lines remain; reconnect resumes after monotonic sequence]
+  G -->|disconnect or pause| G1[Rendered lines remain; reconnect resumes with the paired epoch and sequence]
+  G1 -->|ring identity changes| G2[Atomic reset replaces the retained snapshot]
   C --> H[Workspace B reads the published global instance, never workspace A's dev link or logs]
   C -.->|origin disappears or escapes workspace| X1[Abandon: instance becomes missing_origin without executing outside content]
   F --> Z[True end: one workspace changed generation atomically and every other workspace remained isolated]
@@ -31,7 +32,7 @@ journey:
       origin: direct
     - url: POST /api/extensions/dev and POST /api/extensions/{name}/reload (HTTP + UDS)
       origin: direct
-    - url: GET /api/extensions/{name}/logs?follow=1&after= (HTTP + UDS)
+    - url: GET /api/extensions/{name}/logs?follow=1&after=&stream_epoch= (HTTP + UDS)
       origin: direct
     - url: compozy__extensions_build|compozy__extensions_validate|compozy__extensions_dev|compozy__extensions_reload|compozy__extensions_logs
       origin: direct
@@ -49,7 +50,7 @@ journey:
       expected_observable: Operations serialize per instance, torn generations are unobservable, and the last-good generation continues with truthful errored status
     - step: 4
       verb: Follow logs across supported planes
-      expected_observable: Secret masking happens before a bounded ring and every transport observes the same redacted monotonic sequence
+      expected_observable: Secret masking happens before a bounded ring and every transport observes the same redacted epoch/sequence cursor, replacing retained rows atomically when the ring changes
     - step: 5
       verb: Compare a second workspace and an invalidated origin
       expected_observable: No cross-workspace state or global-log access leaks; missing or escaping origins are refused without daemon failure
@@ -65,7 +66,7 @@ journey:
       resume: Fix the source and reload; the last-good generation remains callable
     - at_step: 4
       how: The log connection drops
-      resume: Reconnect with the last sequence cursor; retained lines remain visible and duplicates are rejected
+      resume: Reconnect with the last stream_epoch and sequence; retained lines remain visible, duplicates are rejected, and a changed epoch resets the snapshot
   crosses: [cli, httpapi, udsapi, native-tools, web, manifest-build, extension-manager, sse, workspace-isolation]
 ```
 

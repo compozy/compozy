@@ -3,6 +3,8 @@ package extensionpkg
 import (
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const extensionLogRingCapacity = 256 * 1024
@@ -13,6 +15,19 @@ type ExtensionLogEntry struct {
 	Timestamp      time.Time `json:"timestamp"`
 	Message        string    `json:"message"`
 	GenerationHash string    `json:"generation_hash,omitempty"`
+	StreamEpoch    string    `json:"stream_epoch"`
+}
+
+// ExtensionLogCursor identifies one position within one in-memory log ring.
+type ExtensionLogCursor struct {
+	Sequence    int64
+	StreamEpoch string
+}
+
+// ExtensionLogSnapshot is one complete or cursor-filtered view of a log ring.
+type ExtensionLogSnapshot struct {
+	Entries     []ExtensionLogEntry
+	StreamEpoch string
 }
 
 // ExtensionLogRing is a bounded, concurrency-safe, drop-oldest byte ring.
@@ -22,6 +37,7 @@ type ExtensionLogRing struct {
 	bytes    int
 	next     int64
 	now      func() time.Time
+	epoch    string
 	entries  []ExtensionLogEntry
 }
 
@@ -29,7 +45,7 @@ func newExtensionLogRing(now func() time.Time) *ExtensionLogRing {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &ExtensionLogRing{capacity: extensionLogRingCapacity, now: now}
+	return &ExtensionLogRing{capacity: extensionLogRingCapacity, now: now, epoch: uuid.NewString()}
 }
 
 func (r *ExtensionLogRing) append(message, generationHash string) {
@@ -47,6 +63,7 @@ func (r *ExtensionLogRing) append(message, generationHash string) {
 		Timestamp:      r.now().UTC(),
 		Message:        message,
 		GenerationHash: generationHash,
+		StreamEpoch:    r.epoch,
 	}
 	r.entries = append(r.entries, entry)
 	r.bytes += len(message)
@@ -57,12 +74,16 @@ func (r *ExtensionLogRing) append(message, generationHash string) {
 	}
 }
 
-func (r *ExtensionLogRing) snapshot(after int64) []ExtensionLogEntry {
+func (r *ExtensionLogRing) snapshot(cursor ExtensionLogCursor) ExtensionLogSnapshot {
 	if r == nil {
-		return []ExtensionLogEntry{}
+		return ExtensionLogSnapshot{Entries: []ExtensionLogEntry{}}
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	after := cursor.Sequence
+	if cursor.StreamEpoch != "" && cursor.StreamEpoch != r.epoch {
+		after = 0
+	}
 	entries := make([]ExtensionLogEntry, 0, len(r.entries))
 	for _, entry := range r.entries {
 		if entry.Sequence <= after {
@@ -70,5 +91,5 @@ func (r *ExtensionLogRing) snapshot(after int64) []ExtensionLogEntry {
 		}
 		entries = append(entries, entry)
 	}
-	return entries
+	return ExtensionLogSnapshot{Entries: entries, StreamEpoch: r.epoch}
 }

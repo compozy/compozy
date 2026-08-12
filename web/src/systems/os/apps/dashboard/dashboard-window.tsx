@@ -2,9 +2,8 @@ import { Home, Plus, ServerOff } from "lucide-react";
 
 import { Button, ConnectionIndicator, Empty, useTopbarSlot } from "@compozy/ui";
 
-import { HomeDashboard } from "@/systems/dashboard";
-
 import { useDashboardWindowModel } from "./hooks/use-dashboard-window-model";
+import { HomeDashboard } from "@/systems/dashboard";
 
 /**
  * Thin shell for the home window: identity, the Live pill, and the one primary

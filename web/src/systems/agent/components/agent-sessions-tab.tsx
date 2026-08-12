@@ -1,11 +1,10 @@
 import { PillGroup, Skeleton, type PillGroupItem } from "@compozy/ui";
 
-import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
-
 import { filterAgentSessionsByStatus, type AgentSessionFilter } from "../lib/agent-detail-search";
 import { AgentSessionsList } from "./agent-sessions-list";
 import { AgentStatsGrid } from "./agent-stats-grid";
 import { formatAgentRuntimeDuration } from "../lib/format-agent-runtime-duration";
+import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
 
 const FILTER_ITEMS: PillGroupItem<AgentSessionFilter>[] = [
   { value: "all", label: "All", testId: "agent-sessions-filter-all" },

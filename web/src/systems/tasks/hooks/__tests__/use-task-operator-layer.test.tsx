@@ -9,7 +9,6 @@ const hooks = vi.hoisted(() => ({
   deleteSubscription: { isPending: false, mutateAsync: vi.fn() },
   setProfile: { isPending: false, mutateAsync: vi.fn() },
   subscriptions: vi.fn(() => ({ data: [], error: null, isLoading: false })),
-  stream: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -30,10 +29,6 @@ vi.mock("../use-task-profile", () => ({
   useSetTaskExecutionProfile: () => hooks.setProfile,
 }));
 
-vi.mock("../use-task-stream", () => ({
-  useTaskStream: hooks.stream,
-}));
-
 import { toast } from "sonner";
 
 import { useTaskOperatorLayer } from "../use-task-operator-layer";
@@ -46,69 +41,52 @@ beforeEach(() => {
   hooks.setProfile.mutateAsync.mockResolvedValue(undefined);
 });
 
-function latestStreamOptions() {
-  return hooks.stream.mock.calls.at(-1)?.[1] as {
-    afterSequence: number;
-    enabled: boolean;
-    onError: (error: unknown) => void;
-    onEvent: () => void;
-  };
-}
-
 describe("useTaskOperatorLayer", () => {
-  it("Should gate subscriptions and stream activation on drawer state and a real replay seed", () => {
-    const initialProps: { enabled: boolean; latestEventSeq: number | null } = {
+  it("Should gate subscriptions and expose the stream state owned by the task page", () => {
+    const initialProps = {
       enabled: false,
-      latestEventSeq: 12,
+      streamErrorMessage: null as string | null,
+      streamSeedSequence: 12,
+      streamState: "receiving" as const,
     };
     const { result, rerender } = renderHook(
-      ({ enabled, latestEventSeq }: { enabled: boolean; latestEventSeq: number | null }) =>
-        useTaskOperatorLayer("task_001", { enabled, latestEventSeq }),
+      (props: typeof initialProps) => useTaskOperatorLayer("task_001", props),
       { initialProps }
     );
 
     expect(hooks.subscriptions).toHaveBeenLastCalledWith("task_001", {}, { enabled: false });
-    expect(latestStreamOptions()).toMatchObject({ afterSequence: 12, enabled: false });
     expect(result.current.streamState).toBe("disabled");
+    expect(result.current.streamSeedSequence).toBe(12);
 
-    rerender({ enabled: true, latestEventSeq: null });
+    rerender({ ...initialProps, enabled: true });
     expect(hooks.subscriptions).toHaveBeenLastCalledWith("task_001", {}, { enabled: true });
-    expect(latestStreamOptions()).toMatchObject({ afterSequence: 0, enabled: false });
-    expect(result.current.streamState).toBe("idle");
-
-    rerender({ enabled: true, latestEventSeq: 14 });
-    expect(latestStreamOptions()).toMatchObject({ afterSequence: 14, enabled: true });
-    expect(result.current.streamSeedSequence).toBe(14);
+    expect(result.current.streamState).toBe("receiving");
   });
 
-  it("Should derive receiving and error states from stream events and reset them for a new key", () => {
+  it("Should expose a supplied stream error only while the drawer is enabled", () => {
     const { result, rerender } = renderHook(
-      ({ taskId, enabled }: { taskId: string; enabled: boolean }) =>
-        useTaskOperatorLayer(taskId, { enabled, latestEventSeq: 7 }),
-      { initialProps: { taskId: "task_001", enabled: true } }
+      ({ enabled }: { enabled: boolean }) =>
+        useTaskOperatorLayer("task_001", {
+          enabled,
+          streamErrorMessage: "Stream unavailable",
+          streamSeedSequence: 7,
+          streamState: "error",
+        }),
+      { initialProps: { enabled: true } }
     );
 
-    act(() => latestStreamOptions().onEvent());
-    expect(result.current.streamState).toBe("receiving");
-
-    act(() => latestStreamOptions().onError(new Error("Stream unavailable")));
     expect(result.current.streamState).toBe("error");
     expect(result.current.streamErrorMessage).toBe("Stream unavailable");
 
-    rerender({ taskId: "task_002", enabled: true });
-    expect(result.current.streamState).toBe("idle");
-    expect(result.current.streamErrorMessage).toBeNull();
-
-    rerender({ taskId: "task_002", enabled: false });
+    rerender({ enabled: false });
     expect(result.current.streamState).toBe("disabled");
+    expect(result.current.streamErrorMessage).toBeNull();
   });
 
   it("Should notify and reject when setting the execution profile fails", async () => {
     const runtimeError = new Error("Profile rejected");
     hooks.setProfile.mutateAsync.mockRejectedValue(runtimeError);
-    const { result } = renderHook(() =>
-      useTaskOperatorLayer("task_001", { enabled: true, latestEventSeq: 0 })
-    );
+    const { result } = renderHook(() => useTaskOperatorLayer("task_001", { enabled: true }));
 
     await act(async () => {
       await expect(result.current.handleSetProfile(taskExecutionProfileFixture)).rejects.toBe(
@@ -126,9 +104,7 @@ describe("useTaskOperatorLayer", () => {
   it("Should notify and reject when deleting the execution profile fails", async () => {
     const runtimeError = new Error("Profile delete rejected");
     hooks.deleteProfile.mutateAsync.mockRejectedValue(runtimeError);
-    const { result } = renderHook(() =>
-      useTaskOperatorLayer("task_001", { enabled: true, latestEventSeq: 0 })
-    );
+    const { result } = renderHook(() => useTaskOperatorLayer("task_001", { enabled: true }));
 
     await act(async () => {
       await expect(result.current.handleDeleteProfile()).rejects.toBe(runtimeError);
@@ -146,9 +122,7 @@ describe("useTaskOperatorLayer", () => {
       delivery_mode: "direct-send" as const,
       scope: "workspace" as const,
     };
-    const { result } = renderHook(() =>
-      useTaskOperatorLayer("task_001", { enabled: true, latestEventSeq: 0 })
-    );
+    const { result } = renderHook(() => useTaskOperatorLayer("task_001", { enabled: true }));
 
     await act(async () => {
       await expect(result.current.handleCreateSubscription(request)).rejects.toBe(runtimeError);
@@ -164,9 +138,7 @@ describe("useTaskOperatorLayer", () => {
   it("Should notify and reject when deleting a bridge subscription fails", async () => {
     const runtimeError = new Error("Subscription delete rejected");
     hooks.deleteSubscription.mutateAsync.mockRejectedValue(runtimeError);
-    const { result } = renderHook(() =>
-      useTaskOperatorLayer("task_001", { enabled: true, latestEventSeq: 0 })
-    );
+    const { result } = renderHook(() => useTaskOperatorLayer("task_001", { enabled: true }));
 
     await act(async () => {
       await expect(result.current.handleDeleteSubscription("subscription_007")).rejects.toBe(

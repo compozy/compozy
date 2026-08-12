@@ -1,18 +1,18 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
+import { copyTaskRecordId } from "./copy-record-id";
 import {
   computeElapsed,
   taskRunCanRecover,
-  useLiveElapsed,
   useForceFailDialog,
+  useLiveElapsed,
   useTaskRunPage,
   useTaskRuns,
   useTaskStream,
   useTaskTimeline,
 } from "@/systems/tasks";
-
-import { copyTaskRecordId } from "./copy-record-id";
 
 /**
  * Controller for the run-detail window location: run page data, sibling runs
@@ -21,29 +21,38 @@ import { copyTaskRecordId } from "./copy-record-id";
  */
 export function useTaskRunLocation(taskId: string, runId: string) {
   const navigate = useNavigate();
-  const page = useTaskRunPage(taskId, runId);
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
+  const page = useTaskRunPage(taskId, runId, { liveDataEnabled });
   const [inspectOpen, setInspectOpen] = useState(false);
   const forceFailDialog = useForceFailDialog(page.handleForceFailRun);
 
   const authoritativeTaskId = page.run?.run.task_id ?? page.run?.task?.id ?? "";
+  const refetchIntervalMs = page.isLive && liveDataEnabled ? undefined : false;
   const timelineQuery = useTaskTimeline(
     authoritativeTaskId,
     {},
-    { enabled: Boolean(authoritativeTaskId) }
+    { enabled: Boolean(authoritativeTaskId) && liveDataEnabled, refetchIntervalMs }
   );
-  const runsQuery = useTaskRuns(authoritativeTaskId, {}, { enabled: Boolean(authoritativeTaskId) });
+  const runsQuery = useTaskRuns(
+    authoritativeTaskId,
+    {},
+    {
+      enabled: Boolean(authoritativeTaskId) && liveDataEnabled,
+      refetchIntervalMs,
+    }
+  );
 
   // Attach the task stream before the page advertises live state.
   const latestEventSeq = page.task?.task?.latest_event_seq;
   const hasEventSeq = typeof latestEventSeq === "number";
   useTaskStream(authoritativeTaskId, {
-    enabled: Boolean(authoritativeTaskId) && hasEventSeq,
+    enabled: liveDataEnabled && Boolean(authoritativeTaskId) && hasEventSeq,
     afterSequence: hasEventSeq ? Math.max(0, latestEventSeq) : undefined,
   });
 
   const record = page.run?.run ?? null;
   const runActive = record?.status === "running" || record?.status === "starting";
-  const liveElapsed = useLiveElapsed(record?.started_at, runActive);
+  const liveElapsed = useLiveElapsed(record?.started_at, runActive && liveDataEnabled);
   const runDuration = record ? (runActive ? liveElapsed : computeElapsed(record)) : undefined;
 
   const backToTask = () => {

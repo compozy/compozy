@@ -1,8 +1,6 @@
 import { useSelector, useStore } from "@xstate/store-react";
 import { useEffect, useEffectEvent } from "react";
 
-import { usePutVaultSecret, useVaultSecrets } from "@/systems/vault";
-
 import type { MarketplaceEntryResponse, MCPInstallRequest, MCPInstallResponse } from "../types";
 import {
   bindingValuePresent,
@@ -12,6 +10,7 @@ import {
   type MCPFieldBinding,
 } from "./mcp-install-model";
 import { mcpInstallDialogLogic } from "./mcp-install-dialog-store";
+import { usePutVaultSecret, useVaultSecrets } from "@/systems/vault";
 
 interface UseMCPInstallDialogOptions {
   data: MarketplaceEntryResponse;

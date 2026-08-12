@@ -176,6 +176,7 @@ func (s *HostedService) ReleaseBind(bindID string) {
 	s.mu.Lock()
 	delete(s.binds, bindID)
 	s.mu.Unlock()
+	s.projectionCache.remove(bindID)
 }
 
 // ReleaseBindForPeer removes a bind only after validating the requesting peer still owns it.
@@ -187,5 +188,6 @@ func (s *HostedService) ReleaseBindForPeer(ctx context.Context, bindID string, p
 	s.mu.Lock()
 	delete(s.binds, strings.TrimSpace(record.bindID))
 	s.mu.Unlock()
+	s.projectionCache.remove(strings.TrimSpace(record.bindID))
 	return nil
 }

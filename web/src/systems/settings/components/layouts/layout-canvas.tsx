@@ -2,8 +2,6 @@ import { useRef } from "react";
 
 import { cn } from "@compozy/ui";
 
-import type { LayoutProjection, WindowManagerConfig } from "@/systems/os";
-
 import type { LayoutSelection } from "../../hooks/use-layout-canvas-selection";
 import {
   normalizedPercentStyle,
@@ -18,6 +16,7 @@ import { LayoutCanvasFloating } from "./layout-canvas-floating";
 import { LayoutCanvasGroupEdge } from "./layout-canvas-group-edge";
 import { LayoutCanvasSeam } from "./layout-canvas-seam";
 import { LayoutCanvasTile } from "./layout-canvas-tile";
+import type { LayoutProjection, WindowManagerConfig } from "@/systems/os";
 
 const GROUP_EDGES = ["top", "right", "bottom", "left"] as const;
 

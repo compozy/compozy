@@ -16,6 +16,11 @@ func (d *Daemon) applyObserverFactoryDefault() {
 		if !ok {
 			return nil, errors.New("daemon: session manager does not implement observe session source")
 		}
+		configState := deps.AgentProbeConfig
+		if configState == nil {
+			configState = newAgentProbeConfigState(&deps.Config)
+		}
+		activeConfig, _ := configState.Snapshot()
 		opts := []observe.Option{
 			observe.WithRegistry(deps.Registry),
 			observe.WithHomePaths(deps.HomePaths),
@@ -27,8 +32,8 @@ func (d *Daemon) applyObserverFactoryDefault() {
 			observe.WithBridgeSource(bridgeObserveSource(deps.Bridges)),
 			observe.WithObservabilityConfig(deps.Config.Observability),
 			observe.WithAgentProbeSource(
-				agentProbeTargetSource(&deps.Config, deps.AgentCatalog, deps.Logger),
-				deps.Config.Observability.AgentProbeTimeoutOrDefault(),
+				agentProbeTargetSource(configState, deps.AgentCatalog, deps.Logger),
+				activeConfig.Observability.AgentProbeTimeoutOrDefault(),
 			),
 		}
 		if deps.MemoryStore != nil {

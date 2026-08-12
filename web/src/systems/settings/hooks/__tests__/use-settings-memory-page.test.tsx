@@ -17,7 +17,7 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
   },
 }));
 
-vi.mock("@/systems/knowledge", () => ({
+vi.mock("@/systems/knowledge/hooks/use-knowledge-actions", () => ({
   useTriggerMemoryDream: () => triggerDreamMock,
 }));
 
@@ -29,8 +29,9 @@ const triggerDreamMock = {
 import { getSettingsMemory, updateSettingsMemory } from "@/systems/settings/adapters/settings-api";
 import { settingsMemoryConfigFixture } from "@/systems/settings/mocks/fixtures";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
-import type { SettingsMemorySection } from "@/systems/settings";
+
 import { useSettingsMemoryPage } from "../use-settings-memory-page";
+import type { SettingsMemorySection } from "@/systems/settings";
 
 const memoryEnvelope: SettingsMemorySection = {
   section: "memory",

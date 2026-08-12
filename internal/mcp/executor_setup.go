@@ -107,9 +107,12 @@ func NewMCPCallExecutor(
 		)
 	}
 	executor := &CallExecutor{
-		servers:   servers,
-		timeout:   defaultCallTimeout,
-		toolCache: mcpToolListCache{entries: make(map[string]mcpToolListCacheEntry)},
+		servers: servers,
+		timeout: defaultCallTimeout,
+		toolCache: mcpToolListCache{
+			entries:          make(map[string]mcpToolListCacheEntry),
+			projectionStates: make(map[string]mcpToolProjectionState),
+		},
 	}
 	for _, opt := range opts {
 		if opt != nil {

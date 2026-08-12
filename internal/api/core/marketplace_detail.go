@@ -23,7 +23,7 @@ func (h *BaseHandlers) marketplaceEntry(
 		case contract.MarketplaceKindMCP:
 			return h.installedMCPMarketplaceEntryByName(ctx, installedName, scope)
 		case contract.MarketplaceKindExtension:
-			return h.installedExtensionMarketplaceEntryByName(ctx, installedName)
+			return h.installedExtensionMarketplaceEntryByName(ctx, installedName, scope)
 		case contract.MarketplaceKindSkill:
 			return h.installedSkillMarketplaceEntryByName(ctx, installedName, scope)
 		default:

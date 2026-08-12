@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -39,6 +40,14 @@ func (n *daemonNativeTools) marketplaceSearch(
 		return toolspkg.ToolResult{}, err
 	}
 	readScope, workspaceID := marketplaceToolScope(scope)
+	var actor *taskpkg.ActorContext
+	if workspaceID != "" {
+		resolvedActor, actorErr := nativeExtensionScopedActorContext(scope, req)
+		if actorErr != nil {
+			return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, actorErr)
+		}
+		actor = &resolvedActor
+	}
 	handlers := n.marketplaceHandlers()
 	if handlers == nil {
 		return toolspkg.ToolResult{}, marketplaceNativeError(
@@ -49,7 +58,7 @@ func (n *daemonNativeTools) marketplaceSearch(
 	if kind := strings.TrimSpace(input.Kind); kind != "" {
 		response, err := handlers.MarketplaceKind(ctx, core.MarketplaceKindRequest{
 			Kind: kind, Query: input.Query, Limit: input.Limit, Cursor: input.Cursor,
-			Scope: readScope, WorkspaceID: workspaceID,
+			Scope: readScope, WorkspaceID: workspaceID, Actor: actor,
 		})
 		if err != nil {
 			return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
@@ -63,7 +72,7 @@ func (n *daemonNativeTools) marketplaceSearch(
 		)
 	}
 	response, err := handlers.MarketplaceSearch(ctx, core.MarketplaceSearchRequest{
-		Query: input.Query, Limit: input.Limit, Scope: readScope, WorkspaceID: workspaceID,
+		Query: input.Query, Limit: input.Limit, Scope: readScope, WorkspaceID: workspaceID, Actor: actor,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, marketplaceNativeError(req.ToolID, err)
@@ -124,6 +133,14 @@ func marketplaceNativeError(id toolspkg.ToolID, err error) error {
 			id,
 			err.Error(),
 			fmt.Errorf("%w: %w", toolspkg.ErrToolUnavailable, err),
+		)
+	case errors.Is(err, taskpkg.ErrPermissionDenied):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolDenied, err),
+			toolspkg.ReasonSessionDenied,
 		)
 	default:
 		return err

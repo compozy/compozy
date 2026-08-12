@@ -22,7 +22,7 @@ export function marketplaceSearchOptions(options: MarketplaceSearchOptions = {})
   });
 }
 
-export function marketplaceKindOptions(options: MarketplaceKindOptions) {
+export function marketplaceKindOptions(options: MarketplaceKindOptions, enabled = true) {
   return infiniteQueryOptions({
     queryKey: marketplaceKeys.kind(options),
     queryFn: ({ pageParam, signal }) =>
@@ -30,6 +30,7 @@ export function marketplaceKindOptions(options: MarketplaceKindOptions) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.next_cursor || undefined,
     staleTime: MARKETPLACE_STALE_TIME,
+    enabled,
   });
 }
 

@@ -1,7 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { workspaceKeys } from "@/systems/workspace";
-
 import { createAgent, deleteAgent, duplicateAgent, updateAgent } from "../adapters/agent-api";
 import { agentCatalogOptions, agentsListOptions, agentDetailOptions } from "../lib/query-options";
 import { agentKeys } from "../lib/query-keys";
@@ -14,6 +12,7 @@ import type {
   DuplicateAgentParams,
   UpdateAgentParams,
 } from "../types";
+import { workspaceKeys } from "@/systems/workspace";
 
 interface UseAgentsOptions {
   enabled?: boolean;

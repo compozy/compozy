@@ -110,18 +110,27 @@ vi.mock("@/systems/os/hooks/use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userOpen: mocks.userOpen } }),
 }));
 
-vi.mock("@/systems/tasks", () => ({
-  DEFAULT_TASK_TEMPLATE_ID: "default",
+vi.mock("@/systems/tasks/components/public-api", () => ({
   TasksDashboardView: () => <div data-testid="tasks-dashboard-view" />,
   TasksEmptyState: () => <div data-testid="tasks-empty-state" />,
   TasksInboxView: () => <div data-testid="tasks-inbox-view" />,
   TasksKanbanBoard: () => <div data-testid="tasks-kanban-view" />,
   TasksListSurface: () => <div data-testid="tasks-list-surface" />,
   TasksListToolbar: () => <div data-testid="tasks-list-toolbar" />,
+}));
+
+vi.mock("@/systems/tasks/hooks/use-tasks-page", () => ({
+  useTasksPage: () => mocks.page,
+}));
+
+vi.mock("@/systems/tasks/lib/task-location-search", () => ({
   taskCatalogSearchFor: (mode: string) => ({ mode }),
   taskModeSearchFor: (mode: string) => ({ mode }),
-  useTasksPage: () => mocks.page,
   validateTasksSearch: <T,>(search: T) => search,
+}));
+
+vi.mock("@/systems/tasks/lib/task-templates", () => ({
+  DEFAULT_TASK_TEMPLATE_ID: "default",
 }));
 
 import { TasksCatalogLocation } from "../tasks-catalog-location";

@@ -73,7 +73,7 @@ export function useOsWinLayer(): OsWinLayerModel {
       window.removeEventListener("resize", refreshOrigin);
       window.removeEventListener("orientationchange", refreshOrigin);
     };
-  }, [manager, presentation, viewportState]);
+  }, [manager]);
 
   return {
     layerRef,

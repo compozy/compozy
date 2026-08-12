@@ -1,7 +1,5 @@
 import { useState } from "react";
 
-import type { SessionPayload } from "@/systems/session";
-
 import {
   useAgentHeartbeat,
   useAgentHeartbeatHistory,
@@ -22,6 +20,7 @@ import { formatPromptWordCount } from "../lib/agent-absent-value";
 import type { AgentInstructionFile } from "../lib/agent-detail-search";
 import type { AgentPayload } from "../types";
 import { buildAuthoredFileResourceKey } from "./use-agent-authored-file-editor";
+import type { SessionPayload } from "@/systems/session";
 
 export interface UseAgentInstructionsTabArgs {
   agent: AgentPayload;

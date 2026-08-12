@@ -2,12 +2,11 @@ import type { Dispatch, SetStateAction } from "react";
 
 import { cn } from "@compozy/ui";
 
-import type { WindowManagerConfig } from "@/systems/os";
-
 import { usePointerDrag } from "../../hooks/use-pointer-drag";
 import { useWindowManagerRatioTrack } from "../../hooks/use-window-manager-ratio-track";
 import { fractionLabel, nearestDetent } from "../../lib/window-manager-layout-detents";
 import { WINDOW_MANAGER_RANGES } from "../../lib/window-manager-snap-geometry";
+import type { WindowManagerConfig } from "@/systems/os";
 
 const EDGE_PAD = 10;
 const KEYBOARD_STEP = 0.01;

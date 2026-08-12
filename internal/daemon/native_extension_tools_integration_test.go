@@ -377,7 +377,28 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(extensions_logs) error = %v", err)
 		}
-		requireNativeStructuredContains(t, logsResult, []byte(`"logs":[]`))
+		var logsSnapshot contract.ExtensionLogsResponse
+		if err := json.Unmarshal(logsResult.Structured, &logsSnapshot); err != nil {
+			t.Fatalf("json.Unmarshal(extensions_logs) error = %v", err)
+		}
+		if strings.TrimSpace(logsSnapshot.StreamEpoch) == "" {
+			t.Fatal("extensions_logs stream_epoch is empty")
+		}
+		if len(logsSnapshot.Logs) != 0 {
+			t.Fatalf("extensions_logs entries = %#v, want empty", logsSnapshot.Logs)
+		}
+
+		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID:      toolspkg.ToolIDExtensionsLogs,
+			WorkspaceID: workspaceRegistrationID,
+			Input:       json.RawMessage(`{"name":"native-dev","after":1}`),
+		})
+		requireToolReason(
+			t,
+			err,
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonExtensionValidationFailed,
+		)
 		globalLogs, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDExtensionsLogs,
 			Input:  json.RawMessage(`{"name":"global-native"}`),
@@ -385,7 +406,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(global extensions_logs as operator) error = %v", err)
 		}
-		requireNativeStructuredContains(t, globalLogs, []byte(`"logs":[]`))
+		requireNativeStructuredContains(t, globalLogs, []byte(`"stream_epoch":"`))
 
 		_, err = registry.Call(t.Context(), toolspkg.Scope{
 			SessionID: "session-a",

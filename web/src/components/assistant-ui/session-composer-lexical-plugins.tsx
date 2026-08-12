@@ -12,7 +12,7 @@ import {
   KEY_ENTER_COMMAND,
   type RangeSelection,
 } from "lexical";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 export interface SessionComposerInputHandle {
   focus: () => void;
@@ -31,11 +31,12 @@ export function SessionComposerHandleBridge({
   editableAriaLabel: string;
 }) {
   const [editor] = useLexicalComposerContext();
+  const publishHandle = useEffectEvent(onHandle);
 
   useEffect(() => {
-    onHandle({ focus: () => editor.focus() });
-    return () => onHandle(null);
-  }, [editor, onHandle]);
+    publishHandle({ focus: () => editor.focus() });
+    return () => publishHandle(null);
+  }, [editor]);
 
   useEffect(() => {
     return editor.registerRootListener(rootElement => {
@@ -66,6 +67,8 @@ export function SessionBusyEnterPlugin({
 }) {
   const [editor] = useLexicalComposerContext();
   const pluginRegistry = INTERNAL.useComposerInputPluginRegistryOptional();
+  const queue = useEffectEvent(onQueue);
+  const steer = useEffectEvent(onSteer);
 
   useEffect(() => {
     if (!queueActive && !steerActive) return;
@@ -76,7 +79,7 @@ export function SessionBusyEnterPlugin({
         if (event.shiftKey && (event.ctrlKey || event.metaKey)) {
           if (!steerActive) return false;
           event.preventDefault();
-          onSteer();
+          steer();
           return true;
         }
         if (event.shiftKey || event.ctrlKey || event.metaKey) return false;
@@ -87,12 +90,12 @@ export function SessionBusyEnterPlugin({
           }
         }
         event.preventDefault();
-        onQueue();
+        queue();
         return true;
       },
       COMMAND_PRIORITY_CRITICAL
     );
-  }, [editor, queueActive, steerActive, onQueue, onSteer, pluginRegistry]);
+  }, [editor, pluginRegistry, queueActive, steerActive]);
 
   return null;
 }
@@ -209,6 +212,7 @@ export function SessionCommandScopePlugin({
   setScope: (scope: "inline" | "standalone") => void;
 }) {
   const [editor] = useLexicalComposerContext();
+  const updateScope = useEffectEvent(setScope);
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
@@ -218,12 +222,15 @@ export function SessionCommandScopePlugin({
         const snapshot = readCursorSnapshot(selection);
         if (!snapshot) return;
         const triggerOffset = detectSlashTriggerOffset(snapshot.text, snapshot.cursor);
-        if (triggerOffset === null) return;
+        if (triggerOffset === null) {
+          updateScope("inline");
+          return;
+        }
         const prefix = snapshot.text.slice(0, triggerOffset);
-        setScope(prefix.trim().length === 0 ? "standalone" : "inline");
+        updateScope(prefix.trim().length === 0 ? "standalone" : "inline");
       });
     });
-  }, [editor, setScope]);
+  }, [editor]);
 
   return null;
 }

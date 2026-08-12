@@ -1,9 +1,8 @@
 import { Button } from "@compozy/ui";
 
-import { RuntimeSelector } from "@/systems/runtime";
-
 import type { AgentPayload } from "../types";
 import { useAgentRuntimeEditor } from "../hooks/use-agent-runtime-editor";
+import { RuntimeSelector } from "@/systems/runtime";
 
 export interface AgentRuntimeControlProps {
   agent: AgentPayload;

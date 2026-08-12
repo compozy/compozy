@@ -4,19 +4,22 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/systems/session", () => ({ useSessions: vi.fn() }));
-vi.mock("@/systems/tasks", () => ({
+vi.mock("@/systems/session/hooks/use-sessions", () => ({ useSessions: vi.fn() }));
+vi.mock("@/systems/tasks/lib/workspace-scope", () => ({
   taskScopeForActiveWorkspace: vi.fn(),
+}));
+vi.mock("@/systems/tasks/hooks/use-task-dashboard", () => ({
   useTaskDashboard: vi.fn(),
+}));
+vi.mock("@/systems/tasks/hooks/use-tasks", () => ({
   useTasks: vi.fn(),
 }));
-vi.mock("@/systems/workspace", () => ({ useUserHomeDir: vi.fn() }));
+vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({ useUserHomeDir: vi.fn() }));
 
+import { useOsAttention } from "../use-os-attention";
 import { useSessions } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
 import { useUserHomeDir, type WorkspacePayload } from "@/systems/workspace";
-
-import { useOsAttention } from "../use-os-attention";
 
 const workspace: WorkspacePayload = {
   id: "ws_alpha",

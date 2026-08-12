@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { validateSandboxSearch } from "@/systems/sandbox";
-import { createOsRouteSync } from "@/systems/os";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadSandboxRoute } from "./-settings-preload";
+import { createOsRouteSync } from "@/systems/os";
+import { validateSandboxSearch } from "@/systems/sandbox";
 
 export const Route = createFileRoute("/_app/sandbox")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: "Sandbox", to: "/sandbox" } },
   }),
   validateSearch: validateSandboxSearch,
-  loader: ({ context }) => preloadSandboxRoute(context.queryClient),
+  loader: async ({ context }) =>
+    (await import("./-settings-preload")).preloadSandboxRoute(context.queryClient),
   component: createOsRouteSync("sandbox"),
 });

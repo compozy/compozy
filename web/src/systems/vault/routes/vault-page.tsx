@@ -13,7 +13,8 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 
-import { useVaultPage, type VaultLastAction, type VaultRouteSearch } from "../hooks/use-vault-page";
+import { useVaultPage, type VaultLastAction } from "../hooks/use-vault-page";
+import type { VaultRouteSearch } from "../lib/vault-route-search";
 import { VaultEditor } from "../components/vault-editor";
 import { VaultListFilters } from "../components/vault-list-filters";
 import { VaultSecretSheet } from "../components/vault-secret-sheet";

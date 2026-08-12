@@ -49,8 +49,8 @@ function fanoutBranchNodeIds(nodes: EditorNode[], edges: EditorEdge[]): Set<stri
   const inBranch = new Set<string>();
   const queue = fanOutIds.flatMap(id => adjacency.get(id) ?? []);
   const seen = new Set(queue);
-  while (queue.length > 0) {
-    const current = queue.shift()!;
+  for (let head = 0; head < queue.length; head += 1) {
+    const current = queue[head]!;
     inBranch.add(current);
     // A collect is the branch barrier: include nothing past it.
     if (collectIds.has(current)) continue;

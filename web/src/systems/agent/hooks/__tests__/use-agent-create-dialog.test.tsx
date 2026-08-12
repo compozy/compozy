@@ -64,22 +64,21 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/systems/settings", () => ({
+vi.mock("@/systems/settings/hooks/use-settings-collections", () => ({
   useSettingsProviders: () => mockSettingsProviders,
 }));
 
-vi.mock("@/systems/model-catalog", () => ({
-  providerNeedsAuth: () => false,
+vi.mock("@/systems/model-catalog/hooks/use-runtime-model-catalog", () => ({
   useRuntimeModelCatalog: () => ({ ...mockRuntimeCatalog, refresh: mockRefreshCatalog }),
 }));
 
-vi.mock("@/systems/workspace", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/workspace")>();
-  return {
-    ...actual,
-    useUserHomeDir: () => "/Users/test",
-  };
-});
+vi.mock("@/systems/model-catalog/lib/to-runtime-selector-options", () => ({
+  providerNeedsAuth: () => false,
+}));
+
+vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({
+  useUserHomeDir: () => "/Users/test",
+}));
 
 vi.mock("../use-agents", () => ({
   useCreateAgent: () => ({

@@ -1,8 +1,21 @@
 import { useState } from "react";
 
+import { useDebouncedInput } from "@/hooks/use-debounced-input";
+
 import {
-  knowledgeMemoryKey,
   DEFAULT_MEMORY_LIST_LIMIT,
+  type EditMemoryParams,
+  type KnowledgeAgentTier,
+  type KnowledgeListFilter,
+  type KnowledgeMemoryItem,
+  knowledgeMemoryKey,
+  type KnowledgeScope,
+  type KnowledgeSelector,
+  type MemoryDecision,
+  type MemoryEditRequest,
+  type MemoryHeader,
+  type MemoryType,
+  type MemoryWriteRequest,
   useDeleteMemory,
   useEditMemory,
   useMemories,
@@ -11,17 +24,6 @@ import {
   useMemorySearch,
   useRevertMemoryDecision,
   useWriteMemory,
-  type EditMemoryParams,
-  type KnowledgeAgentTier,
-  type KnowledgeListFilter,
-  type KnowledgeMemoryItem,
-  type KnowledgeScope,
-  type KnowledgeSelector,
-  type MemoryDecision,
-  type MemoryEditRequest,
-  type MemoryHeader,
-  type MemoryType,
-  type MemoryWriteRequest,
 } from "@/systems/knowledge";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -71,14 +73,18 @@ function useKnowledgePage() {
   const [activeScope, setActiveScope] = useState<KnowledgeScope>("global");
   const [agentName, setAgentName] = useState("");
   const [agentTier, setAgentTier] = useState<KnowledgeAgentTier>("workspace");
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchInput = useDebouncedInput({
+    externalValue: "",
+    onCommit: () => undefined,
+  });
+  const searchQuery = searchInput.draftValue;
   const [selectedMemoryKey, setSelectedMemoryKey] = useState<string | null>(null);
   const [actionTargetKey, setActionTargetKey] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [revertingDecisionId, setRevertingDecisionId] = useState<string | null>(null);
 
   const trimmedAgentName = agentName.trim();
-  const trimmedSearchQuery = searchQuery.trim();
+  const trimmedSearchQuery = searchInput.committedValue.trim();
 
   let selector: KnowledgeSelector | null = { scope: "global" };
   if (activeScope === "workspace") {
@@ -240,7 +246,7 @@ function useKnowledgePage() {
 
   const handleSetSearchQuery = (next: string) => {
     clearActionState();
-    setSearchQuery(next);
+    searchInput.setDraftValue(next);
   };
 
   const handleSetSelectedMemoryKey = (next: string | null) => {
@@ -277,7 +283,7 @@ function useKnowledgePage() {
     };
     const response = await writeMemoryMutate(body);
     const filename = response.decision.target_filename ?? response.decision.frontmatter.filename;
-    setSearchQuery("");
+    searchInput.clear();
     setSelectedMemoryKey(`${selector.scope}:${filename}`);
     setCreateOpen(false);
   };

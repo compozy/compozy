@@ -28,7 +28,7 @@ func (defaultInterrupter) InterruptProcess(ctx context.Context, record ProcessRe
 		)
 	}
 
-	if err := signalRecord(record, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
+	if err := classifySignalError(record, syscall.SIGTERM, signalRecord(record, syscall.SIGTERM)); err != nil {
 		return err
 	}
 	if waitForRecordExit(ctx, record, defaultInterruptGrace) {
@@ -37,7 +37,7 @@ func (defaultInterrupter) InterruptProcess(ctx context.Context, record ProcessRe
 	if record.ProcessGroupID <= 0 && !procutil.MatchesStartTime(record.PID, record.StartedAt) {
 		return nil
 	}
-	if err := signalRecord(record, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+	if err := classifySignalError(record, syscall.SIGKILL, signalRecord(record, syscall.SIGKILL)); err != nil {
 		return err
 	}
 	if waitForRecordExit(ctx, record, defaultKillGrace) {
@@ -58,9 +58,25 @@ func (defaultInterrupter) InterruptProcess(ctx context.Context, record ProcessRe
 
 func signalRecord(record ProcessRecord, sig syscall.Signal) error {
 	if record.ProcessGroupID > 0 {
-		return procutil.SignalProcessGroupID(record.ProcessGroupID, sig)
+		return procutil.SignalProcessGroupIDStrict(record.ProcessGroupID, sig)
 	}
 	return procutil.Signal(record.PID, sig)
+}
+
+func classifySignalError(record ProcessRecord, sig syscall.Signal, err error) error {
+	if err == nil {
+		return nil
+	}
+	if procutil.IsProcessMissingError(err) {
+		return fmt.Errorf(
+			"%w: process %q disappeared before %s delivery: %w",
+			ErrOwnershipValidationFailed,
+			record.ID,
+			sig.String(),
+			err,
+		)
+	}
+	return err
 }
 
 func waitForRecordExit(ctx context.Context, record ProcessRecord, timeout time.Duration) bool {

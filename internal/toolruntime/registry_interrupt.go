@@ -40,50 +40,6 @@ func (h *Handle) Complete(ctx context.Context, completion ProcessCompletion) err
 	return nil
 }
 
-// ReconcileBoot validates durable active records after daemon restart.
-func (r *Registry) ReconcileBoot(ctx context.Context) (BootReconcileReport, error) {
-	if r == nil {
-		return BootReconcileReport{}, errors.New("toolruntime: registry is required")
-	}
-	if ctx == nil {
-		return BootReconcileReport{}, errors.New("toolruntime: reconcile context is required")
-	}
-	if r.store == nil {
-		return BootReconcileReport{}, nil
-	}
-
-	records, err := r.store.ListProcessRecords(ctx, ProcessQuery{States: activeStates()})
-	if err != nil {
-		return BootReconcileReport{}, fmt.Errorf("toolruntime: list process records for reconciliation: %w", err)
-	}
-
-	var report BootReconcileReport
-	var errs []error
-	for _, record := range records {
-		report.Checked++
-		if r.validateRecovered(record) {
-			report.Recovered++
-			if updateErr := r.store.UpdateProcessRecordState(ctx, ProcessStateUpdate{
-				ID:        record.ID,
-				State:     ProcessStateRunning,
-				UpdatedAt: r.now().UTC(),
-			}); updateErr != nil {
-				errs = append(errs, updateErr)
-			}
-			continue
-		}
-		report.Stale++
-		if updateErr := r.markStale(
-			ctx,
-			record.ID,
-			"recovered process pid/start time did not validate",
-		); updateErr != nil {
-			errs = append(errs, updateErr)
-		}
-	}
-	return report, errors.Join(errs...)
-}
-
 // Interrupt signals only processes matching the supplied scope.
 func (r *Registry) Interrupt(ctx context.Context, scope InterruptScope) (InterruptReport, error) {
 	if r == nil {

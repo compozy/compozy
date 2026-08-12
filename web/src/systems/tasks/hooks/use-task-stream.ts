@@ -1,10 +1,11 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { buildTaskStreamUrl } from "../adapters/tasks-api";
-import { tasksKeys } from "../lib/query-keys";
+import { createTaskLiveRefreshStore } from "../lib/task-live-refresh-coordinator";
 import type { TaskStreamFilter, TaskStreamPayload } from "../types";
 
 interface TaskStreamEventSource {
@@ -42,39 +43,6 @@ function attachTaskStreamSource(
   };
 }
 
-type QueryClient = ReturnType<typeof useQueryClient>;
-
-function invalidateLiveTaskStreamQueries(queryClient: QueryClient, taskId: string) {
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(taskId) });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.timelineRoot() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.runsRoot() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.runDetails() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.agentContextsRoot() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.reviewsRoot() });
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.bridgeNotificationsRoot() });
-}
-
-function markTaskCatalogsStale(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({ queryKey: tasksKeys.lists(), refetchType: "none" });
-  void queryClient.invalidateQueries({
-    queryKey: tasksKeys.dashboardRoot(),
-    refetchType: "none",
-  });
-  void queryClient.invalidateQueries({
-    queryKey: tasksKeys.inboxRoot(),
-    refetchType: "none",
-  });
-}
-
-function reconcileActiveTaskCatalogs(queryClient: QueryClient) {
-  void queryClient.refetchQueries({ queryKey: tasksKeys.lists(), type: "active" });
-  void queryClient.refetchQueries({
-    queryKey: tasksKeys.dashboardRoot(),
-    type: "active",
-  });
-  void queryClient.refetchQueries({ queryKey: tasksKeys.inboxRoot(), type: "active" });
-}
-
 export function useTaskStream(
   taskId: string,
   {
@@ -88,7 +56,16 @@ export function useTaskStream(
 ) {
   const queryClient = useQueryClient();
   const trimmedId = taskId.trim();
-  const catalogsDirty = useRef(false);
+  const refreshBindingKey = { enabled, queryClient, taskId: trimmedId };
+  const { store: refreshStore } = useStoreBinding(
+    refreshBindingKey,
+    () => createTaskLiveRefreshStore(queryClient, trimmedId),
+    () => createTaskLiveRefreshStore(queryClient, trimmedId),
+    (current, next) =>
+      current.key.enabled !== next.enabled ||
+      current.key.queryClient !== next.queryClient ||
+      current.key.taskId !== next.taskId
+  );
   const notifyEvent = useEffectEvent((payload: TaskStreamPayload) => {
     onEvent?.(payload);
   });
@@ -101,17 +78,8 @@ export function useTaskStream(
   });
 
   useEffect(() => {
-    if (!enabled || trimmedId === "") {
-      return undefined;
-    }
-    return () => {
-      if (!catalogsDirty.current) {
-        return;
-      }
-      catalogsDirty.current = false;
-      reconcileActiveTaskCatalogs(queryClient);
-    };
-  }, [enabled, queryClient, trimmedId]);
+    return () => refreshStore.trigger.disposed();
+  }, [refreshStore]);
 
   useEffect(() => {
     if (
@@ -132,11 +100,7 @@ export function useTaskStream(
       }
       try {
         const payload = JSON.parse(event.data) as TaskStreamPayload;
-        invalidateLiveTaskStreamQueries(queryClient, trimmedId);
-        if (!catalogsDirty.current) {
-          catalogsDirty.current = true;
-          markTaskCatalogsStale(queryClient);
-        }
+        refreshStore.trigger.refreshRequested();
         notifyEvent(payload);
       } catch (error) {
         notifyError(error, "Failed to parse task stream payload");
@@ -148,7 +112,7 @@ export function useTaskStream(
     };
 
     return attachTaskStreamSource(source, handleMessage, handleError);
-  }, [customEventSourceFactory, enabled, filteredAfterSequence, queryClient, trimmedId]);
+  }, [customEventSourceFactory, enabled, filteredAfterSequence, refreshStore, trimmedId]);
 }
 
 export type { TaskStreamEventSource, TaskStreamEventSourceFactory, UseTaskStreamOptions };

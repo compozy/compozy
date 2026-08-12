@@ -13,12 +13,21 @@ import (
 )
 
 func agentProbeTargetSource(
-	cfg *compozyconfig.Config,
+	configState *agentProbeConfigState,
 	catalog core.AgentCatalog,
 	logger *slog.Logger,
 ) func(context.Context) ([]acp.ProbeTarget, error) {
+	diagnostics := &agentProbeDiagnostics{}
 	return func(ctx context.Context) ([]acp.ProbeTarget, error) {
-		return collectAgentProbeTargets(ctx, cfg, catalog, logger)
+		cfg, generation := configState.Snapshot()
+		return collectAgentProbeTargetsWithDiagnostics(
+			ctx,
+			&cfg,
+			catalog,
+			logger,
+			diagnostics,
+			generation,
+		)
 	}
 }
 
@@ -27,6 +36,17 @@ func collectAgentProbeTargets(
 	cfg *compozyconfig.Config,
 	catalog core.AgentCatalog,
 	logger *slog.Logger,
+) ([]acp.ProbeTarget, error) {
+	return collectAgentProbeTargetsWithDiagnostics(ctx, cfg, catalog, logger, nil, 0)
+}
+
+func collectAgentProbeTargetsWithDiagnostics(
+	ctx context.Context,
+	cfg *compozyconfig.Config,
+	catalog core.AgentCatalog,
+	logger *slog.Logger,
+	diagnostics *agentProbeDiagnostics,
+	generation uint64,
 ) ([]acp.ProbeTarget, error) {
 	if cfg == nil {
 		cfg = &compozyconfig.Config{}
@@ -44,7 +64,12 @@ func collectAgentProbeTargets(
 			agent := entry.Def
 			resolved, err := cfg.ResolveAgent(agent)
 			if err != nil {
-				if logger != nil {
+				if logger != nil && diagnostics.shouldLog(
+					generation,
+					"agent",
+					strings.TrimSpace(agent.Name),
+					err,
+				) {
 					logger.Warn(
 						"daemon: resolve agent for probe health failed",
 						"agent_name", strings.TrimSpace(agent.Name),
@@ -78,7 +103,7 @@ func collectAgentProbeTargets(
 		}
 		provider, err := cfg.ResolveProvider(name)
 		if err != nil {
-			if logger != nil {
+			if logger != nil && diagnostics.shouldLog(generation, "provider", name, err) {
 				logger.Warn("daemon: resolve provider for probe health failed", "provider", name, "error", err)
 			}
 			continue

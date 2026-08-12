@@ -79,6 +79,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                 <HomeWorkingNow
                   cards={workingNow.cards}
                   errorMessage={workingNow.errorMessage}
+                  liveEnabled={liveEnabled}
                   status={workingNow.status}
                   total={workingNow.total}
                 />

@@ -1,5 +1,4 @@
 import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
-import { fetchWindowManagerSnapshot, type WindowManagerConfig } from "@/systems/os";
 
 import {
   parseWindowManagerLayoutApply,
@@ -23,6 +22,7 @@ import type {
   WindowManagerLayoutValidation,
 } from "../lib/window-manager-layout-types";
 import { windowManagerSnapshotToLayoutState } from "../lib/window-manager-layout-projection";
+import { fetchWindowManagerSnapshot, type WindowManagerConfig } from "@/systems/os";
 
 export class WindowManagerLayoutsApiError extends Error {
   constructor(

@@ -4,8 +4,6 @@
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionNotFoundError } from "@/systems/session";
-
 const session = {
   id: "sess-1",
   agent_name: "qa-agent",
@@ -36,16 +34,19 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: () => queryState,
 }));
 
-vi.mock("@/systems/session", () => ({
+vi.mock("@/systems/session/adapters/session-api", () => ({
   SessionNotFoundError: class SessionNotFoundError extends Error {
     constructor(sessionId: string) {
       super(`Session not found: ${sessionId}`);
     }
   },
+}));
+
+vi.mock("@/systems/session/lib/query-options", () => ({
   sessionDetailOptions: () => ({}),
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws-1" }),
 }));
 
@@ -68,6 +69,7 @@ vi.mock("../session-window-view", () => ({
 }));
 
 import { SessionWindow } from "../session-window";
+import { SessionNotFoundError } from "@/systems/session";
 
 describe("SessionWindow", () => {
   beforeEach(() => {

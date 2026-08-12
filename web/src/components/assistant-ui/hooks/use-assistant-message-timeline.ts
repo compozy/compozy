@@ -1,16 +1,12 @@
 import { useAuiState } from "@assistant-ui/react";
-import { useState } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import {
-  computeStableSessionRows,
   deriveSessionRows,
-  EMPTY_STABLE_SESSION_ROWS,
   isStreamingState,
   type SessionRow,
   type SessionTimelinePart,
   type SessionTimelineWorkingPart,
-  type StableSessionRowsState,
 } from "../session-timeline.logic";
 import { isRecord, stringField, toTimelineParts } from "../timeline-message-parts";
 import { timelineRowLogic } from "./use-timeline-row-context";
@@ -151,19 +147,12 @@ export function useAssistantMessageTimeline() {
     timelineStore,
     state => state.context.expandedChangedFiles
   );
-  const [stableRows, setStableRows] = useState<StableSessionRowsState>(EMPTY_STABLE_SESSION_ROWS);
-
-  const derivedRows = deriveSessionRows(parts, {
+  const rows = deriveSessionRows(parts, {
     foldSettledTurns: true,
     interruptedTurnIds: interruptedTurns,
     expandedWorkGroupIds: expandedWorkGroups,
     expandedChangedFilesIds: expandedChangedFiles,
   });
-  const nextStableRows = computeStableSessionRows(derivedRows, stableRows);
-  if (nextStableRows !== stableRows) {
-    setStableRows(nextStableRows);
-  }
-  const rows = nextStableRows.result;
 
   return {
     rows,

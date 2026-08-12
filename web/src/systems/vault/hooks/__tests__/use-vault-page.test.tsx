@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
     error: null as Error | null,
     isFetching: false,
     isLoading: false,
+    isStale: false,
     isSuccess: true,
   },
   vaultFilter: vi.fn(),
@@ -50,8 +51,8 @@ vi.mock("@/systems/vault/hooks/use-vault-actions", () => ({
 }));
 
 vi.mock("@/systems/vault/hooks/use-vault", () => ({
-  useVaultSecrets: (filter: unknown) => {
-    mocks.vaultFilter(filter);
+  useVaultSecrets: (filter: unknown, options?: { enabled?: boolean }) => {
+    mocks.vaultFilter(filter, options);
     const isUnfiltered =
       typeof filter === "object" && filter !== null && Object.keys(filter).length === 0;
     return {
@@ -59,17 +60,16 @@ vi.mock("@/systems/vault/hooks/use-vault", () => ({
       error: isUnfiltered ? mocks.allSecretsState.error : null,
       isFetching: isUnfiltered ? mocks.allSecretsState.isFetching : false,
       isLoading: isUnfiltered ? mocks.allSecretsState.isLoading : false,
+      isStale: isUnfiltered ? mocks.allSecretsState.isStale : false,
       isSuccess: isUnfiltered ? mocks.allSecretsState.isSuccess : true,
       refetch: vi.fn(),
     };
   },
 }));
 
+import { useVaultPage } from "@/systems/vault/hooks/use-vault-page";
+import { normalizeVaultPrefixForNamespace } from "@/systems/vault/lib/vault-route-search";
 import type { VaultSecret } from "@/systems/vault";
-import {
-  normalizeVaultPrefixForNamespace,
-  useVaultPage,
-} from "@/systems/vault/hooks/use-vault-page";
 
 const providerSecret = {
   created_at: "2026-07-18T12:00:00Z",
@@ -101,6 +101,7 @@ describe("useVaultPage route state", () => {
     mocks.allSecretsState.error = null;
     mocks.allSecretsState.isFetching = false;
     mocks.allSecretsState.isLoading = false;
+    mocks.allSecretsState.isStale = false;
     mocks.allSecretsState.isSuccess = true;
   });
 
@@ -114,13 +115,14 @@ describe("useVaultPage route state", () => {
       view: "cards" as const,
     };
 
-    // Two reads are issued: the filtered listing, plus an unfiltered pass used
-    // only to detect ref collisions the active filter would otherwise hide.
-    expect(mocks.vaultFilter).toHaveBeenCalledWith({
-      namespace: "providers",
-      prefix: "vault:providers/",
-    });
-    expect(mocks.vaultFilter).toHaveBeenCalledWith({});
+    expect(mocks.vaultFilter).toHaveBeenCalledWith(
+      {
+        namespace: "providers",
+        prefix: "vault:providers/",
+      },
+      undefined
+    );
+    expect(mocks.vaultFilter).toHaveBeenCalledWith({}, { enabled: false });
 
     act(() => result.current.setPrefix("  vault:mcp/  "));
     expect(mocks.navigate.mock.lastCall?.[0].search(current)).toEqual({
@@ -280,6 +282,7 @@ describe("useVaultPage route state", () => {
     const { result, rerender } = renderHook(() => useVaultPage({ namespace: "providers" }));
 
     act(() => result.current.openCreate());
+    expect(mocks.vaultFilter).toHaveBeenLastCalledWith({}, { enabled: true });
     act(() =>
       result.current.updateDraft(draft => ({
         ...draft,
@@ -295,6 +298,32 @@ describe("useVaultPage route state", () => {
 
     mocks.allSecretsState.isLoading = false;
     mocks.allSecretsState.isSuccess = true;
+    rerender();
+
+    expect(result.current.editorIsValid).toBe(true);
+  });
+
+  it("Should keep collision protection while a stale inventory refreshes", () => {
+    mocks.allSecretsState.isFetching = true;
+    mocks.allSecretsState.isStale = true;
+    mocks.secrets = [providerSecret];
+    const { result, rerender } = renderHook(() => useVaultPage());
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.updateDraft(draft => ({
+        ...draft,
+        ref: "vault:providers/anthropic",
+        secretValue: "sk-live",
+      }))
+    );
+
+    expect(result.current.editorIsValid).toBe(false);
+    act(() => result.current.saveEditor());
+    expect(mocks.putMutateAsync).not.toHaveBeenCalled();
+
+    mocks.allSecretsState.isFetching = false;
+    mocks.allSecretsState.isStale = false;
     rerender();
 
     expect(result.current.editorIsValid).toBe(true);

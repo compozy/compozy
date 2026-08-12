@@ -6,9 +6,9 @@ import {
   setActiveWorkspaceId,
 } from "../stores/active-workspace-store";
 
-export function useActiveWorkspace() {
+export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   const selectedWorkspaceId = useSelectedWorkspaceId();
-  const query = useWorkspaces();
+  const query = useWorkspaces(options);
 
   const activeWorkspace = selectActiveWorkspace(query.data ?? [], selectedWorkspaceId);
 

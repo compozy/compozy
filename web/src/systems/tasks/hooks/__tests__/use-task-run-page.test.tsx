@@ -1,3 +1,7 @@
+// Suite: task run page hook
+// Invariant: run-detail reads remain scoped and issue no network work while their window is inactive.
+// Boundary IN: run query admission, polling, and composed page state.
+// Boundary OUT: HTTP contracts and visual rendering, owned by adapter and component suites.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -21,6 +25,7 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
 import {
   getTask,
   getTaskRun,
+  inspectRun,
   listTaskRunReviews,
   recoverTaskRun,
 } from "@/systems/tasks/adapters/tasks-api";
@@ -84,6 +89,19 @@ describe("useTaskRunPage", () => {
     expect(result.current.fatalError).toBeInstanceOf(Error);
     expect(getTaskRun).not.toHaveBeenCalled();
     expect(getTask).not.toHaveBeenCalled();
+  });
+
+  it("does not observe run data while the retained window is inactive", () => {
+    const { result } = renderHook(
+      () => useTaskRunPage("task_001", "run_001", { liveDataEnabled: false }),
+      { wrapper: createWrapper() }
+    );
+
+    expect(result.current.run).toBeNull();
+    expect(getTaskRun).not.toHaveBeenCalled();
+    expect(inspectRun).not.toHaveBeenCalled();
+    expect(getTask).not.toHaveBeenCalled();
+    expect(listTaskRunReviews).not.toHaveBeenCalled();
   });
 
   it("skips task detail query when disabled", async () => {

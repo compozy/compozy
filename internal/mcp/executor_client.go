@@ -30,7 +30,11 @@ type managedMCPClient struct {
 
 const maxAuthorizationChallengeDrainBytes = int64(64 << 10)
 
-func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) (*managedMCPClient, error) {
+func (e *CallExecutor) openClient(
+	ctx context.Context,
+	resolved ResolvedServer,
+	authorizationHeader string,
+) (*managedMCPClient, error) {
 	server := resolved.Server
 	transport := server.EffectiveTransport()
 	switch transport {
@@ -47,7 +51,7 @@ func (e *CallExecutor) openClient(ctx context.Context, resolved ResolvedServer) 
 	case compozyconfig.MCPServerTransportHTTP:
 		session, err := e.connectClient(ctx, &mcpsdk.StreamableClientTransport{
 			Endpoint:             strings.TrimSpace(server.URL),
-			HTTPClient:           e.httpClientWithAuthorization(resolved),
+			HTTPClient:           e.httpClientWithAuthorization(resolved, authorizationHeader),
 			DisableStandaloneSSE: true,
 			MaxRetries:           -1,
 		})
@@ -111,7 +115,10 @@ func joinMCPClientCleanup(err error, client *managedMCPClient) error {
 	return errors.Join(err, closeMCPClient(client))
 }
 
-func (e *CallExecutor) httpClientWithAuthorization(resolved ResolvedServer) *http.Client {
+func (e *CallExecutor) httpClientWithAuthorization(
+	resolved ResolvedServer,
+	authorizationHeader string,
+) *http.Client {
 	client := e.httpClientForServer(resolved)
 	if resolved.Server.Auth.Enabled() {
 		client.CheckRedirect = func(*http.Request, []*http.Request) error {
@@ -122,9 +129,7 @@ func (e *CallExecutor) httpClientWithAuthorization(resolved ResolvedServer) *htt
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
-	client.Transport = authorizationRoundTripper{next: transport, header: func(ctx context.Context) string {
-		return e.authorizationHeader(ctx, resolved)
-	}}
+	client.Transport = authorizationRoundTripper{next: transport, header: authorizationHeader}
 	return client
 }
 
@@ -137,13 +142,13 @@ func (e *CallExecutor) httpClientForServer(resolved ResolvedServer) *http.Client
 
 type authorizationRoundTripper struct {
 	next   http.RoundTripper
-	header func(context.Context) string
+	header string
 }
 
 func (t authorizationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	cloned := request.Clone(request.Context())
-	if header := t.header(request.Context()); header != "" {
-		cloned.Header.Set("Authorization", header)
+	if t.header != "" {
+		cloned.Header.Set("Authorization", t.header)
 	}
 	response, err := t.next.RoundTrip(cloned)
 	if err != nil {

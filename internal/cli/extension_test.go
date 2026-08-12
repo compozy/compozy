@@ -50,6 +50,155 @@ func TestExtensionInitHelpListsEveryScaffoldTemplate(t *testing.T) {
 	}
 }
 
+func TestExtensionLogsCursorRequiresItsStreamEpoch(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject a sequence cursor without its ring identity", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := executeRootCommand(
+			t,
+			commandDeps{},
+			"extension",
+			"logs",
+			"alpha",
+			"--global",
+			"--after",
+			"12",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--stream-epoch is required with --after") {
+			t.Fatalf("extension logs cursor error = %v, want paired stream epoch refusal", err)
+		}
+	})
+}
+
+func TestExtensionLogsForwardsThePairedCursor(t *testing.T) {
+	t.Parallel()
+	t.Run("Should forward the paired cursor to the daemon client", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		client := &stubClient{
+			extensionLogsFn: func(
+				_ context.Context,
+				workspaceRef string,
+				name string,
+				after int64,
+				streamEpoch string,
+			) (ExtensionLogsRecord, error) {
+				called = true
+				if workspaceRef != "" || name != "alpha" || after != 12 || streamEpoch != "epoch-alpha" {
+					t.Fatalf(
+						"ExtensionLogs() = workspace %q, name %q, after %d, epoch %q",
+						workspaceRef,
+						name,
+						after,
+						streamEpoch,
+					)
+				}
+				return ExtensionLogsRecord{Logs: []ExtensionLogRecord{}, StreamEpoch: "epoch-alpha"}, nil
+			},
+		}
+		deps, _ := newExtensionLocalDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"extension",
+			"logs",
+			"alpha",
+			"--global",
+			"--after",
+			"12",
+			"--stream-epoch",
+			"epoch-alpha",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("extension logs paired cursor error = %v", err)
+		}
+		if !called {
+			t.Fatal("ExtensionLogs() was not called")
+		}
+		var output ExtensionLogsRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(extension logs output) error = %v", err)
+		}
+		if output.StreamEpoch != "epoch-alpha" {
+			t.Fatalf("extension logs output epoch = %q, want epoch-alpha", output.StreamEpoch)
+		}
+	})
+}
+
+func TestExtensionLogsFollowEmitsAnEmptyResetRecord(t *testing.T) {
+	t.Parallel()
+	t.Run("Should emit an identified empty reset record while following", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			streamExtensionLogsFn: func(
+				_ context.Context,
+				workspaceRef string,
+				name string,
+				after int64,
+				streamEpoch string,
+				handler SSEHandler,
+			) error {
+				if workspaceRef != "" || name != "alpha" || after != 4 || streamEpoch != "epoch-old" {
+					t.Fatalf(
+						"StreamExtensionLogs() = workspace %q, name %q, after %d, epoch %q",
+						workspaceRef,
+						name,
+						after,
+						streamEpoch,
+					)
+				}
+				return handler(SSEEvent{
+					Event: "extension_log_reset",
+					Data: mustJSON(t, ExtensionLogsRecord{
+						Logs: []ExtensionLogRecord{}, StreamEpoch: "epoch-new",
+					}),
+				})
+			},
+		}
+		deps, _ := newExtensionLocalDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"extension",
+			"logs",
+			"alpha",
+			"--global",
+			"--follow",
+			"--after",
+			"4",
+			"--stream-epoch",
+			"epoch-old",
+			"-o",
+			"jsonl",
+		)
+		if err != nil {
+			t.Fatalf("extension logs --follow error = %v", err)
+		}
+		var reset extensionLogResetRecord
+		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &reset); err != nil {
+			t.Fatalf("json.Unmarshal(extension log reset) error = %v", err)
+		}
+		if reset.Event != "extension_log_reset" ||
+			reset.StreamEpoch != "epoch-new" ||
+			len(reset.Logs) != 0 {
+			t.Fatalf("extension log reset = %#v, want identified empty reset", reset)
+		}
+	})
+}
+
 func (w *extensionSecretTestWriter) Write(data []byte) (int, error) {
 	w.writes++
 	if w.writes > w.failAfter {

@@ -1,5 +1,4 @@
-import { useSessions } from "@/systems/session";
-import type { SessionPayload } from "@/systems/session";
+import { type SessionPayload, useSessions } from "@/systems/session";
 
 interface UseAgentSessionsOptions {
   enabled?: boolean;

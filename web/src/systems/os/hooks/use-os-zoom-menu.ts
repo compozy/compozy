@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import type { OsArrangePreset } from "../lib/os-types";
 import { arrangePeerWindows } from "../lib/window-manager-navigation";
@@ -8,11 +9,13 @@ import type { WindowPlacementCommand } from "../lib/window-manager-command-regis
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
+import {
+  OS_ZOOM_MENU_CLOSE_GRACE_MS,
+  OS_ZOOM_MENU_OPEN_DELAY_MS,
+  osZoomMenuLogic,
+} from "./os-zoom-menu-store";
 
-/** Hover intent before the zoom menu opens (macOS green-button posture). */
-export const OS_ZOOM_MENU_OPEN_DELAY_MS = 250;
-/** Grace period crossing from the button into the menu before it closes. */
-export const OS_ZOOM_MENU_CLOSE_GRACE_MS = 300;
+export { OS_ZOOM_MENU_CLOSE_GRACE_MS, OS_ZOOM_MENU_OPEN_DELAY_MS };
 
 export interface OsZoomMenuModel {
   open: boolean;
@@ -39,9 +42,9 @@ export interface OsZoomMenuModel {
  */
 export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
   const { manager } = useOsShell();
-  const [open, setOpen] = useState(false);
-  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const store = useStore(osZoomMenuLogic);
+  const phase = useSelector(store, snapshot => snapshot.context.phase);
+  const open = phase === "open" || phase === "closing";
   const floating = useDesktop(state => state.windows[windowId]?.placement === "floating");
   const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
   const placementEnabled = useDesktop(
@@ -53,22 +56,10 @@ export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
       arrangePeerWindows(state.windows, windowId).length > 0
   );
 
-  const clearTimers = () => {
-    if (openTimer.current !== null) {
-      clearTimeout(openTimer.current);
-      openTimer.current = null;
-    }
-    if (closeTimer.current !== null) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  };
-
-  useEffect(() => clearTimers, []);
+  useEffect(() => () => store.trigger.disposed(), [store]);
 
   const dispatch = (action: () => void) => {
-    clearTimers();
-    setOpen(false);
+    store.trigger.dismissed();
     action();
   };
 
@@ -78,38 +69,14 @@ export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
     placementEnabled,
     arrangeEnabled,
     onOpenChange: next => {
-      clearTimers();
-      setOpen(next);
+      store.trigger.openChanged({ open: next });
     },
     onHoverEnter: event => {
       if (event.pointerType !== "mouse") return;
-      if (closeTimer.current !== null) {
-        clearTimeout(closeTimer.current);
-        closeTimer.current = null;
-      }
-      if (open || openTimer.current !== null) return;
-      openTimer.current = setTimeout(() => {
-        openTimer.current = null;
-        setOpen(true);
-      }, OS_ZOOM_MENU_OPEN_DELAY_MS);
+      store.trigger.hoverEntered();
     },
-    onHoverLeave: () => {
-      if (openTimer.current !== null) {
-        clearTimeout(openTimer.current);
-        openTimer.current = null;
-      }
-      if (!open || closeTimer.current !== null) return;
-      closeTimer.current = setTimeout(() => {
-        closeTimer.current = null;
-        setOpen(false);
-      }, OS_ZOOM_MENU_CLOSE_GRACE_MS);
-    },
-    onContentEnter: () => {
-      if (closeTimer.current !== null) {
-        clearTimeout(closeTimer.current);
-        closeTimer.current = null;
-      }
-    },
+    onHoverLeave: () => store.trigger.hoverLeft(),
+    onContentEnter: () => store.trigger.contentEntered(),
     dispatchPlacement: command =>
       dispatch(() => {
         const state = manager.getState();

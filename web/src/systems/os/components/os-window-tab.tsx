@@ -3,12 +3,12 @@ import { X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
-import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 
 import { useWindowMemberSlot } from "../hooks/use-window-member-slot";
-import { getOsApp } from "../lib/app-registry";
+import { getOsAppDescriptor } from "../lib/app-catalog";
 import type { OsWindow } from "../lib/os-types";
 import { sessionTabState, type OsWindowTabState } from "./os-window-tab-state";
+import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 
 const TAB_STATE_LABELS: Record<Exclude<OsWindowTabState, null>, string> = {
   running: "Session running",
@@ -61,7 +61,7 @@ export function OsWindowTab({
   onCloseOthers,
   onTabPointerDown,
 }: OsWindowTabProps) {
-  const app = getOsApp(win.app);
+  const app = getOsAppDescriptor(win.app);
   const slot = useWindowMemberSlot(slotStore);
   const isSession = win.app === "session";
   const isNewTab = win.app === "new-tab";

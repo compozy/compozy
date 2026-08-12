@@ -89,6 +89,43 @@ func TestExtensionToolProviderAvailability(t *testing.T) {
 	}
 }
 
+func TestExtensionToolProviderProjectionGeneration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should change when runtime descriptors change", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-generation", true)
+		runtime := newFakeExtensionToolRuntime(
+			t,
+			env.registry,
+			fixture.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptor.RuntimeDescriptor},
+		)
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime {
+			return runtime
+		})
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+
+		first, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || first == "" {
+			t.Fatalf("ProjectionGeneration(first) = %q, %t, want authoritative token", first, known)
+		}
+		runtime.descriptors[0].Handler = "changed-handler"
+		second, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || second == first {
+			t.Fatalf(
+				"ProjectionGeneration(runtime changed) = %q, %t, want token different from %q",
+				second,
+				known,
+				first,
+			)
+		}
+	})
+}
+
 func TestExtensionToolProviderCatalog(t *testing.T) {
 	t.Parallel()
 

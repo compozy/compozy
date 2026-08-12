@@ -16,7 +16,7 @@ const { mockNavigate, mockSetActiveWorkspaceId, mockUseNetworkPage } = vi.hoiste
 let mockActiveWorkspaceId: string | null = "ws_alpha";
 let mockSelectedWorkspaceId: string | null = "ws_alpha";
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: mockActiveWorkspaceId,
     selectedWorkspaceId: mockSelectedWorkspaceId,

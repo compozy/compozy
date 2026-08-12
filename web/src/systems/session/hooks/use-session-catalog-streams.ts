@@ -3,7 +3,6 @@ import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
-import type { WorkspacePayload } from "@/systems/workspace";
 
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionCatalogEventPayload } from "../types";
@@ -11,6 +10,7 @@ import {
   sessionCatalogStreamsLogic,
   type SessionCatalogStreamStatus,
 } from "./session-catalog-streams-store";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 const SESSION_CATALOG_CHANGED_EVENT = "session_catalog_changed";
 

@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { type GoalControlAction, loopsKeys, useLoopStream } from "@/systems/loops";
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionGoalCommandResult, SessionGoalResponse } from "../types";
 import { useSendSessionPrompt } from "./use-session-actions";
 import { sessionStore } from "../stores/session-store";
 import { useSessionGoalFeedback } from "./use-session-store";
 import { useSessionGoal } from "./use-sessions";
+import { type GoalControlAction, loopsKeys, useLoopStream } from "@/systems/loops";
 
 function isGoalResult(value: unknown): value is SessionGoalCommandResult {
   return typeof value === "object" && value !== null && "outcome" in value;
@@ -36,18 +36,19 @@ export function useSessionGoalHeader(
      * and read the shared query cache.
      */
     stream?: boolean;
+    enabled?: boolean;
   } = {}
 ) {
-  const { onPrefillComposer, stream = true } = options;
+  const { enabled = true, onPrefillComposer, stream = true } = options;
   const queryClient = useQueryClient();
-  const query = useSessionGoal(workspaceId, sessionId);
+  const query = useSessionGoal(workspaceId, sessionId, enabled);
   const feedback = useSessionGoalFeedback(sessionId);
   const mutation = useSendSessionPrompt({ workspaceId });
   const [pendingAction, setPendingAction] = useState<GoalControlAction>();
   const snapshot = query.data?.goal ?? null;
 
   useLoopStream(workspaceId, snapshot?.run_id ?? "", {
-    enabled: snapshot?.live === true && stream,
+    enabled: enabled && snapshot?.live === true && stream,
     onEvent: frame => {
       if (frame.kind === "goal_turn_started") {
         const payload = frame.payload as Record<string, unknown> | undefined;

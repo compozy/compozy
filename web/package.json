@@ -2,6 +2,9 @@
     "name": "compozy-web",
     "private": true,
     "type": "module",
+    "sideEffects": [
+        "**/*.css"
+    ],
     "scripts": {
         "codegen": "bun run --cwd .. codegen",
         "codegen-check": "bun run --cwd .. codegen-check",
@@ -41,6 +44,7 @@
         "@tailwindcss/vite": "^4.3.3",
         "@tanstack/react-query": "^5.101.4",
         "@tanstack/react-router": "^1.170.18",
+        "@tanstack/react-virtual": "^3.14.9",
         "@xstate/store": "^4.2.2",
         "@xstate/store-react": "^2.0.0",
         "@xyflow/react": "^12.11.2",

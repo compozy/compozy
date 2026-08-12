@@ -134,15 +134,29 @@ describe("extensions MSW handlers", () => {
     };
     expect(scoped.extensions[0]).toMatchObject({ dev: true, name: "ops-dev-extension" });
 
+    const initialLogs = (await (
+      await fetch(`${API}/api/extensions/ops-dev-extension/logs?workspace=ws_northstar`)
+    ).json()) as { logs: Array<{ sequence: number }>; stream_epoch: string };
+    expect(initialLogs.stream_epoch).toBe("epoch-ops-dev");
+
+    const invalidCursor = await fetch(
+      `${API}/api/extensions/ops-dev-extension/logs?workspace=ws_northstar&after=2`
+    );
+    expect(invalidCursor.status).toBe(400);
+
     const logs = (await (
-      await fetch(`${API}/api/extensions/ops-dev-extension/logs?workspace=ws_northstar&after=2`)
-    ).json()) as { logs: Array<{ sequence: number }> };
+      await fetch(
+        `${API}/api/extensions/ops-dev-extension/logs?workspace=ws_northstar&after=2&stream_epoch=${initialLogs.stream_epoch}`
+      )
+    ).json()) as { logs: Array<{ sequence: number }>; stream_epoch: string };
     expect(logs.logs.map(entry => entry.sequence)).toEqual([3]);
+    expect(logs.stream_epoch).toBe(initialLogs.stream_epoch);
 
     const globalLogs = (await (
-      await fetch(`${API}/api/extensions/ops-dev-extension/logs?after=2`)
-    ).json()) as { logs: Array<{ sequence: number }> };
+      await fetch(`${API}/api/extensions/ops-dev-extension/logs`)
+    ).json()) as { logs: Array<{ sequence: number }>; stream_epoch: string };
     expect(globalLogs.logs).toEqual([]);
+    expect(globalLogs.stream_epoch).toBe("mock-global-ops-dev-extension");
 
     const unlink = await fetch(`${API}/api/extensions/ops-dev-extension?workspace=ws_northstar`, {
       method: "DELETE",
@@ -158,8 +172,9 @@ describe("extensions MSW handlers", () => {
 
     const logsAfterUnlink = (await (
       await fetch(`${API}/api/extensions/ops-dev-extension/logs?workspace=ws_northstar`)
-    ).json()) as { logs: Array<{ sequence: number }> };
+    ).json()) as { logs: Array<{ sequence: number }>; stream_epoch: string };
     expect(logsAfterUnlink.logs).toEqual([]);
+    expect(logsAfterUnlink.stream_epoch).not.toBe(initialLogs.stream_epoch);
 
     const blocked = await fetch(`${API}/api/extensions`, {
       body: JSON.stringify({ ref: "acme/hello", source: "github" }),

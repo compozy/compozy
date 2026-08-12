@@ -1,15 +1,19 @@
+import { lazy } from "react";
 import { AlertCircle } from "lucide-react";
 
 import { Spinner } from "@compozy/ui";
 
+import { loadSessionWindowContent } from "./session-window-module-loader";
 import {
   canPromptSession,
   SessionChatRuntimeProvider,
-  SessionPromptRuntimeProvider,
   type SessionPayload,
+  SessionPromptRuntimeProvider,
 } from "@/systems/session";
 
-import { SessionWindowContent } from "./session-window-content";
+const SessionWindowContent = lazy(() =>
+  loadSessionWindowContent().then(module => ({ default: module.SessionWindowContent }))
+);
 
 export function SessionWindowView({
   windowId,
@@ -57,6 +61,7 @@ export function SessionWindowView({
         liveTailEnabled={liveTailEnabled}
       >
         <SessionWindowContent
+          liveDataEnabled={liveTailEnabled}
           windowId={windowId}
           agentName={resolvedAgentName}
           sessionId={id}

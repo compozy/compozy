@@ -45,14 +45,12 @@ afterEach(() => {
 describe("useWindowManagerClient", () => {
   it("Should register once with the stable ID and no active desktop hint", async () => {
     vi.mocked(registerWindowManagerClient).mockResolvedValue(client());
-    const onClientChange = vi.fn();
-    const { rerender, unmount } = renderHook(
-      ({ workspaceId }: { workspaceId: string | null }) =>
-        useWindowManagerClient(workspaceId, onClientChange),
+    const { result, rerender, unmount } = renderHook(
+      ({ workspaceId }: { workspaceId: string | null }) => useWindowManagerClient(workspaceId),
       { initialProps: { workspaceId: "workspace:test" } }
     );
 
-    await waitFor(() => expect(onClientChange).toHaveBeenCalledWith(client()));
+    await waitFor(() => expect(result.current.client).toEqual(client()));
     rerender({ workspaceId: "workspace:test" });
     unmount();
 
@@ -71,8 +69,7 @@ describe("useWindowManagerClient", () => {
     vi.mocked(registerWindowManagerClient)
       .mockRejectedValueOnce(new Error("daemon restarting"))
       .mockResolvedValueOnce(client());
-    const onClientChange = vi.fn();
-    const { result } = renderHook(() => useWindowManagerClient("workspace:test", onClientChange));
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test"));
 
     await act(async () => {
       await Promise.resolve();
@@ -94,19 +91,49 @@ describe("useWindowManagerClient", () => {
     );
   });
 
+  it("Should pause failed-registration retries while the document is hidden", async () => {
+    vi.useFakeTimers();
+    let visibilityState: DocumentVisibilityState = "visible";
+    vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibilityState);
+    vi.mocked(registerWindowManagerClient)
+      .mockRejectedValueOnce(new Error("daemon restarting"))
+      .mockResolvedValueOnce(client());
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test"));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.status).toBe("error");
+
+    act(() => {
+      visibilityState = "hidden";
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await act(() => vi.advanceTimersByTimeAsync(8_000));
+    expect(registerWindowManagerClient).toHaveBeenCalledOnce();
+
+    act(() => {
+      visibilityState = "visible";
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(registerWindowManagerClient).toHaveBeenCalledTimes(2);
+    expect(result.current.status).toBe("registered");
+  });
+
   it("Should perform one stable-ID registration for one explicit recovery request", async () => {
     vi.mocked(registerWindowManagerClient)
       .mockResolvedValueOnce(client(1))
       .mockResolvedValueOnce(client(2));
-    const onClientChange = vi.fn();
-    const { result } = renderHook(() => useWindowManagerClient("workspace:test", onClientChange));
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test"));
 
     await waitFor(() => expect(result.current.status).toBe("registered"));
-    onClientChange.mockClear();
     act(() => result.current.reregister());
     expect(result.current.registrationEpoch).toBe(1);
     expect(result.current.client).toBeNull();
-    expect(onClientChange).toHaveBeenCalledWith(null);
     await waitFor(() => expect(result.current.client?.presentationRevision).toBe(2));
 
     expect(registerWindowManagerClient).toHaveBeenCalledTimes(2);
@@ -118,10 +145,8 @@ describe("useWindowManagerClient", () => {
     vi.mocked(registerWindowManagerClient)
       .mockResolvedValueOnce(client())
       .mockImplementationOnce(() => new Promise(resolve => (resolveNext = resolve)));
-    const onClientChange = vi.fn();
     const { result, rerender } = renderHook(
-      ({ workspaceId }: { workspaceId: string }) =>
-        useWindowManagerClient(workspaceId, onClientChange),
+      ({ workspaceId }: { workspaceId: string }) => useWindowManagerClient(workspaceId),
       { initialProps: { workspaceId: "workspace:test" } }
     );
 

@@ -9,11 +9,13 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 
-import { useSandboxPage, type SandboxRouteSearch } from "../hooks/use-sandbox-page";
+import { useSandboxPage } from "../hooks/use-sandbox-page";
+import type { SandboxRouteSearch } from "../lib/sandbox-route-search";
 import { SandboxListFilters, SandboxProfilesList, SandboxProfileSheet } from "../components";
 import { SandboxEditor } from "../components/sandbox-editor";
-import { SettingsRestartNotice } from "@/systems/settings";
+
 import { SandboxDeleteDialog, SandboxLastActionAlert } from "../components/sandbox-dialogs";
+import { SettingsRestartNotice } from "@/systems/settings";
 
 export function SandboxPage({ search = {} }: { search?: SandboxRouteSearch }) {
   const page = useSandboxPage(search);

@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 import { Button, Eyebrow, Pill, Sheet, SheetContent } from "@compozy/ui";
 
-import { SettingsSourceBadge, type SettingsSandboxEntry } from "@/systems/settings";
 import {
   sandboxBackendLabel,
   sandboxBackendTone,
@@ -11,6 +10,7 @@ import {
   sandboxOrDash,
   sandboxUsageLabel,
 } from "../lib/sandbox-labels";
+import { type SettingsSandboxEntry, SettingsSourceBadge } from "@/systems/settings";
 
 export interface SandboxProfileSheetProps {
   entry: SettingsSandboxEntry | null;

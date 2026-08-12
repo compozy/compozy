@@ -12,13 +12,12 @@ import {
   cn,
 } from "@compozy/ui";
 
-import type { WorkspacePayload } from "@/systems/workspace";
-
 import type {
   OsWorkspaceDetailModel,
   OsWorkspaceDetailsResult,
 } from "../hooks/use-workspace-details";
 import type { OsPresentation } from "../lib/os-types";
+import type { WorkspacePayload } from "@/systems/workspace";
 
 export interface OsWorkspacesOverviewProps {
   open: boolean;

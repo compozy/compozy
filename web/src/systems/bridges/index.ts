@@ -134,15 +134,19 @@ export {
   bridgeFiltersToChips,
   buildBridgeFilterFields,
   effectiveBridgeStatus,
-  parseBridgePlatformFilter,
-  parseBridgeScopeFilter,
-  parseBridgeStatusFilter,
   type BridgeFilterFieldKey,
   type BridgeFilterHandlers,
   type BridgeFilterState,
+} from "./lib/bridge-list-filters";
+export {
+  parseBridgePlatformFilter,
+  parseBridgeScopeFilter,
+  parseBridgeStatusFilter,
+  validateBridgesSearch,
   type BridgePlatformFilter,
   type BridgeStatusFilter,
-} from "./lib/bridge-list-filters";
+  type BridgesRouteSearch,
+} from "./lib/bridge-route-search";
 export { BridgeListFilters } from "./components/bridge-list-filters";
 export { bridgeKeys } from "./lib/query-keys";
 export {

@@ -2,17 +2,19 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
+import { automationUnavailableMessage } from "./use-automation-page-base";
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
+  automationMatchesActiveWorkspace,
+  type AutomationRun,
+  automationWorkspaceAccessError,
   useAutomationJob,
   useAutomationJobEditor,
   useAutomationJobRuns,
-  automationMatchesActiveWorkspace,
-  automationWorkspaceAccessError,
   useDeleteAutomationJob,
   useTriggerAutomationJob,
   useUpdateAutomationJob,
 } from "@/systems/automation";
-import type { AutomationRun } from "@/systems/automation";
 import { useSettingsAutomation } from "@/systems/settings";
 import {
   toWorkspaceCommandSelectOptions,
@@ -20,16 +22,17 @@ import {
   useUserHomeDir,
 } from "@/systems/workspace";
 
-import { automationUnavailableMessage } from "./use-automation-page-base";
-
 /** Detail view-model for a single automation job resolved from the route `jobId`. */
 export function useAutomationJobDetailPage(jobId: string) {
   const navigate = useNavigate();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const { activeWorkspaceId, isLoading: workspaceLoading, workspaces } = useActiveWorkspace();
   const userHomeDir = useUserHomeDir();
   const [queuedRun, setQueuedRun] = useState<AutomationRun | null>(null);
 
-  const jobDetailQuery = useAutomationJob(jobId, { enabled: Boolean(jobId) });
+  const jobDetailQuery = useAutomationJob(jobId, {
+    enabled: liveDataEnabled && Boolean(jobId),
+  });
   const loadedJob = jobDetailQuery.data;
   const canAccessJob =
     loadedJob !== undefined &&
@@ -38,7 +41,7 @@ export function useAutomationJobDetailPage(jobId: string) {
   const jobRunsQuery = useAutomationJobRuns(
     jobId,
     { limit: 10 },
-    { enabled: Boolean(jobId) && canAccessJob }
+    { enabled: liveDataEnabled && Boolean(jobId) && canAccessJob }
   );
   const settingsQuery = useSettingsAutomation();
   const runtimeUnavailableMessage = automationUnavailableMessage(

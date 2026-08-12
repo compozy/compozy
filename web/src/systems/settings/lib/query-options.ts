@@ -149,10 +149,11 @@ export function settingsHooksExtensionsOptions() {
   });
 }
 
-export function settingsProvidersListOptions() {
+export function settingsProvidersListOptions(enabled = true) {
   return queryOptions({
     queryKey: settingsKeys.providersList(),
     queryFn: ({ signal }) => listSettingsProviders(signal),
+    enabled,
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

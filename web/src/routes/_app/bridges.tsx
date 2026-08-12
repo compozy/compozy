@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { validateBridgesSearch } from "@/systems/os/apps/bridges/use-bridges-page";
-import { createOsRouteSync } from "@/systems/os";
+import { validateBridgesSearch } from "@/systems/bridges";
+
 import type { TopbarRouteContext } from "@/types/topbar";
-import { preloadBridgesRoute } from "./-bridges-preload";
+import { createOsRouteSync } from "@/systems/os";
 
 export const Route = createFileRoute("/_app/bridges")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_app/bridges")({
     scope: search.scope ?? "all",
     status: search.status,
   }),
-  loader: ({ context, deps }) => preloadBridgesRoute(context.queryClient, deps),
+  loader: async ({ context, deps }) =>
+    (await import("./-bridges-preload")).preloadBridgesRoute(context.queryClient, deps),
   component: createOsRouteSync("bridges"),
 });

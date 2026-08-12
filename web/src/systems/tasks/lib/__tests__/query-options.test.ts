@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { buildDetailFixture, buildTaskRunDetailFixture } from "../../mocks/fixtures";
+
 import {
   agentContextOptions,
   taskBridgeNotificationSubscriptionOptions,
@@ -55,6 +57,27 @@ describe("tasks list options", () => {
 });
 
 describe("tasks detail and run options", () => {
+  it("stops detail polling after the active run becomes terminal", () => {
+    const options = taskDetailOptions("task_1");
+    const refetchInterval = options.refetchInterval;
+    expect(typeof refetchInterval).toBe("function");
+    if (typeof refetchInterval !== "function") return;
+
+    const live = buildDetailFixture({
+      summary: {
+        active_run: { ...buildDetailFixture().summary.active_run!, status: "running" },
+      } as never,
+    });
+    const terminal = buildDetailFixture({
+      summary: {
+        active_run: { ...buildDetailFixture().summary.active_run!, status: "completed" },
+      } as never,
+    });
+
+    expect(refetchInterval({ state: { data: live } } as never)).toBe(30_000);
+    expect(refetchInterval({ state: { data: terminal } } as never)).toBe(false);
+  });
+
   it("disables detail queries for empty ids", () => {
     expect(taskDetailOptions("").enabled).toBe(false);
     expect(taskDetailOptions("task_1", false).enabled).toBe(false);
@@ -66,7 +89,20 @@ describe("tasks detail and run options", () => {
     expect(taskTimelineOptions("task_1").refetchInterval).toBe(15_000);
     expect(taskTimelineOptions("task_1").staleTime).toBe(5_000);
     expect(taskTreeOptions("task_1").refetchInterval).toBe(15_000);
-    expect(taskRunDetailOptions("run_1").refetchInterval).toBe(15_000);
+    const runInterval = taskRunDetailOptions("run_1").refetchInterval;
+    expect(typeof runInterval).toBe("function");
+    if (typeof runInterval === "function") {
+      expect(
+        runInterval({
+          state: { data: buildTaskRunDetailFixture({ run: { status: "running" } as never }) },
+        } as never)
+      ).toBe(15_000);
+      expect(
+        runInterval({
+          state: { data: buildTaskRunDetailFixture({ run: { status: "completed" } as never }) },
+        } as never)
+      ).toBe(false);
+    }
   });
 
   it("disables live queries when ids are missing", () => {

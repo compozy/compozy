@@ -40,14 +40,20 @@ const paletteMocks = vi.hoisted(() => ({
   workspaces: [{ id: "workspace:alpha", name: "Alpha" }],
 }));
 
-vi.mock("@/systems/session", () => ({
+vi.mock("@/systems/session/lib/session-display-title", () => ({
   getSessionDisplayTitle: (session: { id: string; name: string | null }) =>
     session.name ?? session.id,
+}));
+
+vi.mock("@/systems/session/hooks/use-session-create", () => ({
   useSessionCreateActions: () => ({ openForAgent: paletteMocks.openForAgent }),
+}));
+
+vi.mock("@/systems/session/hooks/use-sessions", () => ({
   useSessions: () => ({ data: paletteMocks.sessions }),
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: paletteMocks.activeWorkspaceId,
     setActiveWorkspaceId: vi.fn(),

@@ -1,19 +1,18 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { TasksRouteSearch } from "@/systems/tasks";
 
-import { statusOptions } from "@/systems/status";
+import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import { schedulerBacklogOptions, schedulerStatusOptions } from "@/systems/scheduler";
+import { statusOptions } from "@/systems/status";
 import {
   parseTasksSurfaceMode,
   taskDashboardOptions,
   taskInboxBadgeOptions,
   taskListFilterFromRouteSearch,
+  taskScopeForActiveWorkspace,
   tasksListOptions,
+  type TasksRouteSearch,
 } from "@/systems/tasks";
 import { workspacesListOptions } from "@/systems/workspace";
-import { taskScopeForActiveWorkspace } from "@/systems/tasks";
-
-import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 
 export async function preloadTasksRoute(
   queryClient: QueryClient,

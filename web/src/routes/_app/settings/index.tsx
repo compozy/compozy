@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { SETTINGS_SECTIONS, settingsSectionPath } from "@/systems/settings";
+import { DEFAULT_SETTINGS_SECTION_SLUG, settingsSectionPath } from "@/systems/settings";
 
 export const Route = createFileRoute("/_app/settings/")({
   beforeLoad: redirectToDefaultSettingsSection,
@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_app/settings/")({
 });
 
 function redirectToDefaultSettingsSection() {
-  throw redirect({ to: settingsSectionPath(SETTINGS_SECTIONS[0].slug) });
+  throw redirect({ to: settingsSectionPath(DEFAULT_SETTINGS_SECTION_SLUG) });
 }
 
 function SettingsIndexRedirect() {

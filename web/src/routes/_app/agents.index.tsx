@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { validateAgentsFleetSearch } from "@/systems/agent";
 import { createOsRouteSync } from "@/systems/os";
-import { preloadAgentsRoute } from "./-agents-preload";
 
 /**
  * The agents fleet is a leaf, not a layout (ADR-008): it alone gives meaning to the fleet search
@@ -18,6 +17,7 @@ export const Route = createFileRoute("/_app/agents/")({
     status: search.status,
     limit: 50,
   }),
-  loader: ({ context, deps }) => preloadAgentsRoute(context.queryClient, deps),
+  loader: async ({ context, deps }) =>
+    (await import("./-agents-preload")).preloadAgentsRoute(context.queryClient, deps),
   component: createOsRouteSync("agents"),
 });

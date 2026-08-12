@@ -226,29 +226,23 @@ func (m *Manager) UnlinkDevelopment(ctx context.Context, key InstanceKey) error 
 	return nil
 }
 
-// Logs returns retained redacted stderr entries newer than afterSequence.
-func (m *Manager) Logs(key InstanceKey, afterSequence int64) ([]ExtensionLogEntry, error) {
+// Logs returns retained redacted stderr entries after a cursor within the current ring identity.
+func (m *Manager) Logs(key InstanceKey, cursor ExtensionLogCursor) (ExtensionLogSnapshot, error) {
 	if m == nil {
-		return nil, ErrManagerRequired
+		return ExtensionLogSnapshot{}, ErrManagerRequired
 	}
 	key = key.Normalize()
 	if err := key.Validate(); err != nil {
-		return nil, err
+		return ExtensionLogSnapshot{}, err
 	}
 	if !key.IsGlobal() {
 		if _, err := m.registry.GetDevLink(key.Name, key.WorkspaceID); err != nil {
-			return nil, err
+			return ExtensionLogSnapshot{}, err
 		}
 	} else if _, err := m.registry.Get(key.Name); err != nil {
-		return nil, err
+		return ExtensionLogSnapshot{}, err
 	}
-	m.mu.RLock()
-	ring := m.devLogs[key]
-	m.mu.RUnlock()
-	if ring == nil {
-		return []ExtensionLogEntry{}, nil
-	}
-	return ring.snapshot(afterSequence), nil
+	return m.logRingFor(key).snapshot(cursor), nil
 }
 
 func (m *Manager) startDevLinkOnBoot(ctx context.Context, link DevLink) {

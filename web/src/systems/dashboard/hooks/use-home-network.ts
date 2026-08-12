@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { networkStatusOptions, useNetworkUsage } from "@/systems/network";
-
 import type { HomeNetworkRow } from "../lib/home-network";
+import { networkStatusOptions, useNetworkUsage } from "@/systems/network";
 
 export interface HomeNetworkModel {
   rows: HomeNetworkRow[];

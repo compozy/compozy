@@ -3,10 +3,10 @@ import { useSelector } from "@xstate/store-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
-import { findShortcutConflicts, windowManagerKeys, type WindowManagerConfig } from "@/systems/os";
 
 import { updateWindowManagerSettings } from "../adapters/window-manager-layouts-api";
 import { WINDOW_MANAGER_RANGES } from "../lib/window-manager-snap-geometry";
+import { findShortcutConflicts, type WindowManagerConfig, windowManagerKeys } from "@/systems/os";
 
 export type WindowManagerConfigEditorPhase =
   | "baseline"

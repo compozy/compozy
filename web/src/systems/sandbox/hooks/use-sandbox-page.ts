@@ -3,15 +3,7 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import type { ListingViewMode } from "@compozy/ui";
 
-import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
-import {
-  SettingsApiError,
-  useDeleteSettingsSandbox,
-  usePutSettingsSandbox,
-  useSettingsPage,
-  useSettingsSandboxes,
-  type SettingsSandboxEntry,
-} from "@/systems/settings";
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 
 import {
   parseSandboxBackendFilter,
@@ -19,6 +11,7 @@ import {
   type SandboxBackendFilter,
   type SandboxPersistenceFilter,
 } from "../lib/sandbox-list-filters";
+import type { SandboxRouteSearch } from "../lib/sandbox-route-search";
 import {
   emptySandboxDraft,
   sandboxEnvErrors,
@@ -28,24 +21,16 @@ import {
   type SandboxDraft,
 } from "../lib/sandbox-profile-draft";
 import { sandboxPageLogic } from "./sandbox-page-store";
+import {
+  SettingsApiError,
+  type SettingsSandboxEntry,
+  useDeleteSettingsSandbox,
+  usePutSettingsSandbox,
+  useSettingsPage,
+  useSettingsSandboxes,
+} from "@/systems/settings";
 
 export type { SandboxEditorState, SandboxLastAction } from "./sandbox-page-store";
-
-export interface SandboxRouteSearch {
-  q?: string;
-  backend?: string;
-  persistence?: string;
-  view?: ListingViewMode;
-}
-
-export function validateSandboxSearch(search: Record<string, unknown>): SandboxRouteSearch {
-  return {
-    q: normalizeListingSearchValue(search.q),
-    backend: parseSandboxBackendFilter(search.backend),
-    persistence: parseSandboxPersistenceFilter(search.persistence),
-    view: parseListingView(search.view),
-  };
-}
 
 function errorMessage(error: unknown): string | null {
   if (error instanceof SettingsApiError) return error.message;

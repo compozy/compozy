@@ -3,14 +3,13 @@ import { useState } from "react";
 
 import { cn } from "@compozy/ui";
 
-import {
-  resolveWindowManagerActions,
-  type ResolvedWindowManagerAction,
-  type WindowManagerActionId,
-} from "@/systems/os";
-
 import type { ShortcutRecorderModel } from "../../hooks/use-window-manager-shortcut-recorder";
 import { WindowManagerShortcutRow } from "./window-manager-shortcut-row";
+import {
+  type ResolvedWindowManagerAction,
+  resolveWindowManagerActions,
+  type WindowManagerActionId,
+} from "@/systems/os";
 
 const GROUPS: ReadonlyArray<{ title: string; ids: readonly WindowManagerActionId[] }> = [
   {

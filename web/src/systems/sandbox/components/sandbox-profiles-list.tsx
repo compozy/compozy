@@ -2,9 +2,9 @@ import { Boxes } from "lucide-react";
 
 import { Button, DataSurface, Empty, type ListingViewMode } from "@compozy/ui";
 
-import type { SettingsSandboxEntry } from "@/systems/settings";
 import { SandboxProfileCard } from "./sandbox-profile-card";
 import { SandboxProfileRow } from "./sandbox-profile-row";
+import type { SettingsSandboxEntry } from "@/systems/settings";
 
 export interface SandboxProfilesListProps {
   profiles: SettingsSandboxEntry[];

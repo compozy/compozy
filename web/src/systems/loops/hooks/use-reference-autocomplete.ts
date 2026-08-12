@@ -1,11 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, RefObject } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import {
   activeReferenceQuery,
   filterReferences,
   type LoopReferenceSuggestion,
 } from "../lib/loop-references";
+import { referenceAutocompleteLogic } from "./reference-autocomplete-store";
 
 const MAX_SUGGESTIONS = 8;
 
@@ -61,50 +63,44 @@ export function useReferenceAutocomplete(
   suggestions: readonly LoopReferenceSuggestion[],
   cel = false
 ): ReferenceAutocomplete {
-  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [query, setQuery] = useState<string | null>(null);
-  const [pendingCaret, setPendingCaret] = useState<number | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const store = useStore(referenceAutocompleteLogic);
+  const state = useSelector(store, snapshot => snapshot.context);
 
   const matches =
-    query === null ? [] : filterReferences(suggestions, query).slice(0, MAX_SUGGESTIONS);
+    state.query === null
+      ? []
+      : filterReferences(suggestions, state.query).slice(0, MAX_SUGGESTIONS);
 
-  // Clear the pending blur-dismiss timer on unmount (avoids a no-op setState after unmount).
-  useEffect(
-    () => () => {
-      if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
-    },
-    []
-  );
+  useEffect(() => () => store.trigger.disposed(), [store]);
 
   useLayoutEffect(() => {
-    if (pendingCaret !== null && fieldRef.current) {
+    if (state.pendingCaret !== null && fieldRef.current) {
       fieldRef.current.focus();
-      fieldRef.current.setSelectionRange(pendingCaret, pendingCaret);
-      setPendingCaret(null);
+      fieldRef.current.setSelectionRange(state.pendingCaret, state.pendingCaret);
+      store.trigger.caretApplied({ caret: state.pendingCaret });
     }
-  }, [fieldRef, pendingCaret]);
+  }, [fieldRef, state.pendingCaret, store]);
 
-  const visibleActiveIndex = matches.length === 0 ? 0 : Math.min(activeIndex, matches.length - 1);
+  const visibleActiveIndex =
+    matches.length === 0 ? 0 : Math.min(state.activeIndex, matches.length - 1);
 
   useEffect(() => {
-    if (query === null) return;
+    if (state.query === null) return;
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setQuery(null);
+      if (event.key === "Escape") store.trigger.dismissed();
     };
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);
-  }, [query]);
+  }, [state.query, store]);
 
   const refresh = (element: FieldElement) => {
-    setActiveIndex(0);
-    setQuery(
-      activeReferenceQuery(
+    store.trigger.refreshed({
+      query: activeReferenceQuery(
         element.value,
         element.selectionStart ?? element.value.length,
         cel ? "cel" : "template"
-      )
-    );
+      ),
+    });
   };
 
   const select = (path: string) => {
@@ -115,8 +111,7 @@ export function useReferenceAutocomplete(
       ? insertCelReference(element.value, caret, path)
       : insertTemplateReference(element.value, caret, path);
     onValueChange(next.value);
-    setPendingCaret(next.caret);
-    setQuery(null);
+    store.trigger.selected({ caret: next.caret });
   };
 
   return {
@@ -130,12 +125,14 @@ export function useReferenceAutocomplete(
       if (matches.length === 0) return;
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setActiveIndex((visibleActiveIndex + 1) % matches.length);
+        store.trigger.activeIndexChanged({ index: (visibleActiveIndex + 1) % matches.length });
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setActiveIndex((visibleActiveIndex - 1 + matches.length) % matches.length);
+        store.trigger.activeIndexChanged({
+          index: (visibleActiveIndex - 1 + matches.length) % matches.length,
+        });
         return;
       }
       if (event.key === "Enter") {
@@ -147,15 +144,13 @@ export function useReferenceAutocomplete(
       }
       if (event.key === "Escape") {
         event.preventDefault();
-        setQuery(null);
+        event.stopPropagation();
+        store.trigger.dismissed();
       }
     },
     onCaretMove: event => refresh(event.currentTarget),
-    onBlur: () => {
-      if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
-      blurTimerRef.current = setTimeout(() => setQuery(null), 120);
-    },
-    setActiveIndex,
+    onBlur: () => store.trigger.blurred(),
+    setActiveIndex: index => store.trigger.activeIndexChanged({ index }),
     select,
   };
 }

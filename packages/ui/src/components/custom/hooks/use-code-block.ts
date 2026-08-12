@@ -7,7 +7,7 @@ import {
   type CodeBlockResolvedTheme,
   type CodeBlockThemeMode,
 } from "../../../lib/code-theme";
-import { highlightCompozyCode, type HighlightedCodeLine } from "../../../lib/shiki-highlighter";
+import type { HighlightedCodeLine } from "../../../lib/shiki-highlighter";
 
 export type CodeBlockHighlightState = "plain" | "loading" | "highlighted" | "failed";
 
@@ -63,7 +63,10 @@ export function useCodeBlock({
     setHighlightState("loading");
     setHighlightedCode(null);
 
-    void highlightCompozyCode({ code, language: normalizedLanguage, theme: resolvedTheme })
+    void import("../../../lib/shiki-highlighter")
+      .then(({ highlightCompozyCode }) =>
+        highlightCompozyCode({ code, language: normalizedLanguage, theme: resolvedTheme })
+      )
       .then(result => {
         if (cancelled) return;
         if (!result) {

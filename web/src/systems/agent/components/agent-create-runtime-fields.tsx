@@ -11,14 +11,13 @@ import {
   Input,
 } from "@compozy/ui";
 
+import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 import {
-  RuntimeSelector,
   type RuntimeModelOption,
   type RuntimeProviderOption,
+  RuntimeSelector,
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
-
-import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 
 export interface AgentCreateRuntimeFieldsProps extends ComponentProps<"div"> {
   draft: AgentCreateDialogDraft;

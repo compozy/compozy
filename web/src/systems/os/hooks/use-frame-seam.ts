@@ -1,14 +1,9 @@
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type PointerEvent,
-} from "react";
+import { useEffect, useEffectEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
 import { frameSeamDeltaNormalized } from "../lib/frame-seams";
 import type { ProjectedFrameSeam } from "../lib/window-manager-types";
+import { createSeamDragLogic } from "./seam-drag-store";
 
 /** Matches the daemon's `weightTolerance` no-op band. */
 const FRAME_SEAM_EPSILON = 0.000001;
@@ -24,12 +19,7 @@ function resizeKeyStep(
   return null;
 }
 
-interface FrameSeamDrag {
-  pointerId: number;
-  coordinate: number;
-  /** Seam captured at pointer-down so the live preview never compounds itself. */
-  seam: ProjectedFrameSeam;
-}
+const frameSeamDragLogic = createSeamDragLogic<ProjectedFrameSeam>();
 
 export interface FrameSeamModel {
   dragging: boolean;
@@ -48,32 +38,17 @@ export function useFrameSeam(
   onFrameSeamPreview: (seam: ProjectedFrameSeam, deltaPx: number) => void,
   onSeamPreviewEnd: () => void
 ): FrameSeamModel {
-  const drag = useRef<FrameSeamDrag | null>(null);
-  const frame = useRef<number | null>(null);
-  const pendingDeltaPx = useRef(0);
-  const [dragging, setDragging] = useState(false);
+  const dragStore = useStore(frameSeamDragLogic);
+  const dragging = useSelector(dragStore, snapshot => snapshot.context.phase === "dragging");
   const vertical = seam.orientation === "vertical";
 
-  const cancelFrame = () => {
-    if (frame.current !== null) {
-      cancelAnimationFrame(frame.current);
-      frame.current = null;
-    }
-  };
-
   const cancelDrag = () => {
-    cancelFrame();
-    drag.current = null;
-    setDragging(false);
-    onSeamPreviewEnd();
+    dragStore.trigger.dragCancelled({ endPreview: onSeamPreviewEnd });
   };
 
   const handleEscapeKeyDown = useEffectEvent((event: globalThis.KeyboardEvent) => {
     if (event.key !== "Escape") return;
-    cancelFrame();
-    drag.current = null;
-    setDragging(false);
-    onSeamPreviewEnd();
+    dragStore.trigger.dragCancelled({ endPreview: onSeamPreviewEnd });
   });
 
   useEffect(() => {
@@ -83,10 +58,9 @@ export function useFrameSeam(
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [dragging]);
 
-  const cleanupActivePreview = useEffectEvent(() => {
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    if (drag.current !== null) onSeamPreviewEnd();
-  });
+  const cleanupActivePreview = useEffectEvent(() =>
+    dragStore.trigger.disposed({ endPreview: onSeamPreviewEnd })
+  );
 
   // A remote commit can unmount the seam mid-drag; never leave a stale preview.
   useEffect(() => {
@@ -100,31 +74,23 @@ export function useFrameSeam(
       // Suppresses the browser's native drag-select under the moving pointer.
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
-      drag.current = {
+      dragStore.trigger.dragStarted({
         pointerId: event.pointerId,
         coordinate: vertical ? event.clientX : event.clientY,
         seam,
-      };
-      pendingDeltaPx.current = 0;
-      setDragging(true);
+      });
     },
     handlePointerMove: event => {
-      const state = drag.current;
-      if (!state || state.pointerId !== event.pointerId) return;
-      pendingDeltaPx.current = (vertical ? event.clientX : event.clientY) - state.coordinate;
-      if (frame.current !== null) return;
-      frame.current = requestAnimationFrame(() => {
-        frame.current = null;
-        const active = drag.current;
-        if (active !== null) onFrameSeamPreview(active.seam, pendingDeltaPx.current);
+      dragStore.trigger.pointerMoved({
+        coordinate: vertical ? event.clientX : event.clientY,
+        pointerId: event.pointerId,
+        preview: (capturedSeam, deltaPx) => onFrameSeamPreview(capturedSeam, deltaPx),
       });
     },
     handlePointerUp: event => {
-      const state = drag.current;
-      if (!state || state.pointerId !== event.pointerId) return;
-      cancelFrame();
-      drag.current = null;
-      setDragging(false);
+      const state = dragStore.getSnapshot().context;
+      if (state.phase !== "dragging" || state.pointerId !== event.pointerId || !state.seam) return;
+      dragStore.trigger.dragEnded({ pointerId: event.pointerId });
       const deltaPixels = (vertical ? event.clientX : event.clientY) - state.coordinate;
       if (Math.abs(frameSeamDeltaNormalized(state.seam, deltaPixels)) > FRAME_SEAM_EPSILON) {
         // The shell clears the preview once the resize command reconciles, so
@@ -136,7 +102,7 @@ export function useFrameSeam(
     },
     handlePointerCancel: cancelDrag,
     handleLostPointerCapture: () => {
-      if (drag.current !== null) cancelDrag();
+      if (dragStore.getSnapshot().context.phase === "dragging") cancelDrag();
     },
     handleKeyDown: event => {
       const step = resizeKeyStep(event, seam.orientation);

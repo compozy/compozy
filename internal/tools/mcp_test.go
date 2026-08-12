@@ -79,6 +79,51 @@ func TestShouldCanonicalizeMCPToolIDs(t *testing.T) {
 	}
 }
 
+func TestMCPProviderProjectionGeneration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should change when source auth availability changes", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &projectionMCPExecutor{
+			fakeMCPExecutor: newFakeMCPExecutor(nil),
+			generation:      "tools-v1",
+			known:           true,
+		}
+		source := SourceRef{
+			Kind:          SourceMCP,
+			Owner:         "linear",
+			RawServerName: "linear",
+			Scope:         mcpSourceScopeGlobal,
+		}
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{source}, nil
+			}),
+			executor,
+			executor,
+		)
+		if err != nil {
+			t.Fatalf("NewMCPProvider() error = %v", err)
+		}
+
+		first, known := provider.ProjectionGeneration(t.Context(), Scope{})
+		if !known || first == "" {
+			t.Fatalf("ProjectionGeneration(first) = %q, %t, want authoritative token", first, known)
+		}
+		executor.setStatus(MCPAuthStatus{Status: mcpAuthStatusNeedsLogin})
+		second, known := provider.ProjectionGeneration(t.Context(), Scope{})
+		if !known || second == first {
+			t.Fatalf(
+				"ProjectionGeneration(auth changed) = %q, %t, want token different from %q",
+				second,
+				known,
+				first,
+			)
+		}
+	})
+}
+
 func TestShouldMapMCPAuthStatusToRegistryReasons(t *testing.T) {
 	t.Parallel()
 
@@ -794,6 +839,19 @@ type fakeMCPExecutor struct {
 	calls             []MCPToolCallRequest
 }
 
+type projectionMCPExecutor struct {
+	*fakeMCPExecutor
+	generation string
+	known      bool
+}
+
+func (e *projectionMCPExecutor) ProjectionGeneration(
+	context.Context,
+	[]SourceRef,
+) (string, bool) {
+	return e.generation, e.known
+}
+
 func newFakeMCPExecutor(tools []MCPToolDescriptor) *fakeMCPExecutor {
 	return &fakeMCPExecutor{
 		tools:  tools,
@@ -849,6 +907,12 @@ func (f *fakeMCPExecutor) Status(context.Context, SourceRef) (MCPAuthStatus, err
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.status, nil
+}
+
+func (f *fakeMCPExecutor) setStatus(status MCPAuthStatus) {
+	f.mu.Lock()
+	f.status = status
+	f.mu.Unlock()
 }
 
 func (f *fakeMCPExecutor) lastCall() MCPToolCallRequest {

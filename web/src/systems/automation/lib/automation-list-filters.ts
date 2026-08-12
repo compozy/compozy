@@ -103,20 +103,6 @@ export function applyAutomationFilterChips(
   handlers.onEventChange(lookup.get("event")?.trim() || null);
 }
 
-export function parseAutomationScope(value: unknown): AutomationScopeFilter | undefined {
-  return value === "all" || value === "global" || value === "workspace" ? value : undefined;
-}
-
-export function parseAutomationSource(value: unknown): AutomationSource | undefined {
-  return value === "config" || value === "package" || value === "dynamic" ? value : undefined;
-}
-
-export function parseAutomationEnabled(value: unknown): boolean | undefined {
-  if (value === true || value === "true") return true;
-  if (value === false || value === "false") return false;
-  return undefined;
-}
-
 function asAutomationScope(value: string | undefined): AutomationScopeFilter | null {
   return value === "global" || value === "workspace" ? value : null;
 }

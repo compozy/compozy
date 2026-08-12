@@ -2,28 +2,16 @@ import { useNavigate } from "@tanstack/react-router";
 
 import type { ListingViewMode } from "@compozy/ui";
 
-import { useLoops } from "@/systems/loops";
-import type {
-  LoopCatalogEntry,
-  LoopCatalogFilter,
-  LoopKindFilter,
-  LoopStatusFilter,
-} from "@/systems/loops";
+import type { LoopsRouteSearch } from "@/systems/loops";
+
+import { normalizeListingSearchValue } from "@/lib/listing-search";
 import {
-  parseLoopCategoryFilter,
-  parseLoopKindFilter,
-  parseLoopStatusFilter,
+  type LoopCatalogEntry,
+  type LoopCatalogFilter,
+  type LoopStatusFilter,
+  useLoops,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
-import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
-
-export interface LoopsRouteSearch {
-  q?: string;
-  view?: ListingViewMode;
-  kind?: Exclude<LoopKindFilter, "all">;
-  category?: string;
-  status?: LoopStatusFilter;
-}
 
 /** View-model for the Loops catalog route: URL state, data, bindings, and Run launch. */
 function useLoopsCatalog(search: LoopsRouteSearch = {}) {
@@ -121,14 +109,5 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
   };
 }
 
-export { parseLoopCategoryFilter, parseLoopKindFilter, parseLoopStatusFilter, useLoopsCatalog };
-
-export function validateLoopsSearch(search: Record<string, unknown>): LoopsRouteSearch {
-  return {
-    category: parseLoopCategoryFilter(search.category),
-    kind: parseLoopKindFilter(search.kind),
-    q: normalizeListingSearchValue(search.q),
-    status: parseLoopStatusFilter(search.status),
-    view: parseListingView(search.view),
-  };
-}
+export { useLoopsCatalog };
+export type { LoopsRouteSearch } from "@/systems/loops";

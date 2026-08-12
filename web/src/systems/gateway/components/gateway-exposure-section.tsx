@@ -3,11 +3,10 @@ import { ShieldCheck } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@compozy/ui";
 
-import { SettingsGroup } from "@/systems/settings";
-
 import type { GatewayExposureModel, GatewayExposureRow } from "../lib/gateway-exposure-model";
 import { GatewayExposureRowItem } from "./gateway-exposure-row";
 import { GatewayPublicConsentDialog } from "./gateway-public-consent-dialog";
+import { SettingsGroup } from "@/systems/settings";
 
 export interface GatewayExposureSectionProps {
   exposure: GatewayExposureModel;

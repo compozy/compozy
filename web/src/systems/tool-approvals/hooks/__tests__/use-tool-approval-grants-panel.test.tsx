@@ -5,8 +5,9 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch } from "@/test/msw-fetch";
-import { useToolApprovalGrantsPanel } from "@/systems/tool-approvals";
+
 import { toolApprovalGrantFixtures } from "@/systems/tool-approvals/mocks/fixtures";
+import { useToolApprovalGrantsPanel } from "@/systems/tool-approvals";
 
 const ACTIVE_WS = "ws_active";
 const OWNER_WS = "ws_owner";
@@ -17,7 +18,7 @@ const workspaceMock = vi.hoisted(() => ({
   value: { activeWorkspaceId: "ws_active" as string | null, hasHydrated: true, isLoading: false },
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => workspaceMock.value,
 }));
 

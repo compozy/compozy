@@ -1,5 +1,5 @@
-import { AutomationDetailPanel, AutomationEditorDialog } from "@/systems/automation";
 import { useAutomationJobDetailPage } from "../automation/use-automation-page";
+import { AutomationDetailPanel, AutomationEditorDialog } from "@/systems/automation";
 
 export function JobDetailLocation({ jobId }: { jobId: string }) {
   const page = useAutomationJobDetailPage(jobId);

@@ -1,13 +1,12 @@
+import { useOsSessionsModal } from "../../hooks/use-os-sessions-modal";
 import {
+  type SessionLifecycleActionHandlers,
+  type SessionPayload,
   useSessionCreateActions,
   useSessionLifecycleActions,
   useSessions,
   useSessionSidebarState,
-  type SessionLifecycleActionHandlers,
-  type SessionPayload,
 } from "@/systems/session";
-
-import { useOsSessionsModal } from "../../hooks/use-os-sessions-modal";
 
 export interface SessionWindowSidebarModel {
   open: boolean;

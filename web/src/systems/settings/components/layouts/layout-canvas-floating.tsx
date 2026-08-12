@@ -2,8 +2,6 @@ import type { RefObject } from "react";
 
 import { cn } from "@compozy/ui";
 
-import { clampFloatingRect } from "@/systems/os";
-
 import { usePointerDrag } from "../../hooks/use-pointer-drag";
 import { normalizedPercentStyle } from "../../lib/window-manager-layout-canvas";
 import { LAYOUT_CANVAS_REFERENCE } from "../../lib/window-manager-layout-reference";
@@ -12,6 +10,7 @@ import type {
   WindowManagerLayoutWindow,
   WindowManagerNormalizedRect,
 } from "../../lib/window-manager-layout-types";
+import { clampFloatingRect } from "@/systems/os";
 
 interface LayoutCanvasFloatingProps {
   window: WindowManagerLayoutWindow;

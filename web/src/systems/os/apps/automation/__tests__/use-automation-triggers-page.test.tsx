@@ -36,24 +36,23 @@ vi.mock("@/systems/os/apps/automation/use-automation-page-base", async importOri
   };
 });
 
-vi.mock("@/systems/automation", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/automation")>();
-  return {
-    ...actual,
-    useAutomationTriggers: () => ({
-      error: triggersState.error,
-      fetchNextPage: vi.fn(),
-      hasNextPage: false,
-      isFetchingNextPage: false,
-      isLoading: false,
-      total: triggersState.triggers.length,
-      triggers: triggersState.triggers,
-    }),
-    useCreateAutomationTrigger: () => ({ isPending: false, mutateAsync: vi.fn() }),
-    useDeleteAutomationTrigger: () => ({ isPending: false, mutateAsync: vi.fn() }),
-    useUpdateAutomationTrigger: () => ({ isPending: false, mutateAsync: vi.fn() }),
-  };
-});
+vi.mock("@/systems/automation/hooks/use-automation", () => ({
+  useAutomationTriggers: () => ({
+    error: triggersState.error,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    isLoading: false,
+    total: triggersState.triggers.length,
+    triggers: triggersState.triggers,
+  }),
+}));
+
+vi.mock("@/systems/automation/hooks/use-automation-actions", () => ({
+  useCreateAutomationTrigger: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useDeleteAutomationTrigger: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useUpdateAutomationTrigger: () => ({ isPending: false, mutateAsync: vi.fn() }),
+}));
 
 const { useAutomationTriggersPage } =
   await import("@/systems/os/apps/automation/use-automation-triggers-page");

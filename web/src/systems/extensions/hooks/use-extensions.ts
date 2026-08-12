@@ -1,13 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { useActiveWorkspace } from "@/systems/workspace";
-
 import {
   extensionInventoryOptions,
   extensionProvenanceOptions,
   extensionsListOptions,
 } from "../lib/query-options";
 import type { InstalledExtensionView } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 /**
  * The active workspace selects which daemon instance a name resolves to: the workspace dev overlay
@@ -18,9 +17,9 @@ export function useExtensionInstanceScope(): { workspaceId: string | null } {
   return { workspaceId: activeWorkspaceId ?? null };
 }
 
-export function useExtensionInventory() {
+export function useExtensionInventory(enabled = true) {
   const scope = useExtensionInstanceScope();
-  const local = useQuery(extensionsListOptions(scope));
+  const local = useQuery(extensionsListOptions(scope, enabled));
   const items: InstalledExtensionView[] = (local.data ?? []).map(extension => {
     const listing = extension.marketplace ?? null;
     return {

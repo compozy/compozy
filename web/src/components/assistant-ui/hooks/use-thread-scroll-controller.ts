@@ -1,9 +1,20 @@
-import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type VirtualItem, type Virtualizer, useVirtualizer } from "@tanstack/react-virtual";
+import { type RefObject, useEffect, useLayoutEffect } from "react";
+import { useSelector, useStore } from "@xstate/store-react";
 
-import { nextScrollMode, type TimelineScrollMode } from "../timeline-scroll-anchoring";
+import {
+  createVirtualizerMeasurementState,
+  getAnchoredTurnMetrics,
+} from "../timeline-scroll-anchoring";
+import { estimateMessageSize, VIRTUAL_MESSAGE_ESTIMATE } from "../timeline-row-estimates";
+import { threadScrollLogic } from "./thread-scroll-store";
 
 const AT_END_THRESHOLD = 96;
 const ANCHOR_OFFSET = 16;
+const LOAD_OLDER_CONTROL_ESTIMATE = 48;
+const VIRTUAL_OVERSCAN = 6;
+const INITIAL_VIEWPORT_RECT = { width: 1_024, height: 640 };
+const LOAD_OLDER_CONTROL_KEY = "session-load-older-control";
 
 interface ThreadScrollMessage {
   id?: string;
@@ -11,8 +22,13 @@ interface ThreadScrollMessage {
 }
 
 export interface ThreadScrollControllerResult {
+  captureHistoryAnchor: () => void;
+  leadingItemCount: number;
+  measureVirtualElement: (element: HTMLDivElement | null) => void;
   showScrollToBottom: boolean;
   scrollToEnd: () => void;
+  virtualItems: VirtualItem[];
+  virtualTotalSize: number;
 }
 
 function findLastUserIndex(messages: readonly ThreadScrollMessage[]): number {
@@ -22,34 +38,176 @@ function findLastUserIndex(messages: readonly ThreadScrollMessage[]): number {
   return -1;
 }
 
-function messageRow(viewport: HTMLElement, index: number): HTMLElement | null {
-  return viewport.querySelector<HTMLElement>(`[data-message-index="${index}"]`);
+function measureVirtualRow(
+  element: HTMLDivElement,
+  entry: ResizeObserverEntry | undefined,
+  virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>
+): number {
+  const observedSize = entry?.borderBoxSize?.[0]?.blockSize;
+  if (observedSize !== undefined && observedSize > 0) {
+    return Math.round(observedSize);
+  }
+
+  if (element.offsetHeight > 0) {
+    return element.offsetHeight;
+  }
+
+  return virtualizer.options.estimateSize(virtualizer.indexFromElement(element));
+}
+
+function observeViewportRect(
+  virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>,
+  publish: (rect: { width: number; height: number }) => void
+): (() => void) | undefined {
+  const viewport = virtualizer.scrollElement;
+  if (!viewport) return undefined;
+  const measure = () => {
+    publish({
+      width: viewport.clientWidth || INITIAL_VIEWPORT_RECT.width,
+      height: viewport.clientHeight || INITIAL_VIEWPORT_RECT.height,
+    });
+  };
+  measure();
+  const observer = new ResizeObserver(measure);
+  observer.observe(viewport);
+  return () => observer.disconnect();
 }
 
 export function useThreadScrollController(
   viewportRef: RefObject<HTMLDivElement | null>,
-  messages: readonly ThreadScrollMessage[]
+  contentRef: RefObject<HTMLDivElement | null>,
+  messages: readonly ThreadScrollMessage[],
+  includeLoadOlderControl: boolean
 ): ThreadScrollControllerResult {
-  const messageCount = messages.length;
-  const modeRef = useRef<TimelineScrollMode>("following-end");
-  const anchorIndexRef = useRef<number | null>(null);
-  const lastUserIdRef = useRef<string | null>(null);
-  const previousCountRef = useRef(0);
-  const programmaticScrollTopRef = useRef<number | null>(null);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  "use no memo";
 
-  const setProgrammaticScrollTop = (viewport: HTMLElement, scrollTop: number) => {
-    viewport.scrollTop = scrollTop;
-    programmaticScrollTopRef.current = viewport.scrollTop;
-  };
+  const messageCount = messages.length;
+  const leadingItemCount = includeLoadOlderControl ? 1 : 0;
+  const store = useStore(threadScrollLogic);
+  const historyAnchor = useSelector(store, snapshot => snapshot.context.historyAnchor);
+  const showScrollToBottom = useSelector(store, snapshot => snapshot.context.showScrollToBottom);
+  // react-doctor-disable-next-line react-hooks-js/incompatible-library -- TanStack Virtual owns imperative callbacks; this hook is an explicit React Compiler boundary.
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
+    count: messageCount + leadingItemCount,
+    getScrollElement: () => viewportRef.current,
+    observeElementRect: observeViewportRect,
+    estimateSize: virtualIndex => {
+      if (includeLoadOlderControl && virtualIndex === 0) {
+        return LOAD_OLDER_CONTROL_ESTIMATE;
+      }
+      return (
+        estimateMessageSize(messages[virtualIndex - leadingItemCount]) ?? VIRTUAL_MESSAGE_ESTIMATE
+      );
+    },
+    getItemKey: virtualIndex => {
+      if (includeLoadOlderControl && virtualIndex === 0) {
+        return LOAD_OLDER_CONTROL_KEY;
+      }
+      return messages[virtualIndex - leadingItemCount]?.id ?? virtualIndex;
+    },
+    measureElement: measureVirtualRow,
+    initialRect: INITIAL_VIEWPORT_RECT,
+    overscan: VIRTUAL_OVERSCAN,
+    // React 19 rejects TanStack Virtual's default flushSync notification while
+    // the virtualizer is already measuring from its layout effect.
+    useFlushSync: false,
+    anchorTo: "end",
+    followOnAppend: false,
+    scrollEndThreshold: AT_END_THRESHOLD,
+    scrollToFn: (offset, options, instance) => {
+      const viewport = instance.scrollElement;
+      if (!viewport) return;
+      const scrollState = store.getSnapshot().context;
+      if (
+        scrollState.mode === "free-scrolling" &&
+        scrollState.historyAnchor === null &&
+        options.adjustments == null
+      ) {
+        return;
+      }
+      const target = offset + (options.adjustments ?? 0);
+      const maxScroll = viewport.scrollHeight - viewport.clientHeight;
+      const pinnedAtEnd = maxScroll - viewport.scrollTop <= AT_END_THRESHOLD;
+      if (
+        store.getSnapshot().context.mode === "following-end" &&
+        pinnedAtEnd &&
+        target < maxScroll
+      ) {
+        return;
+      }
+      viewport.scrollTo({
+        top: target,
+        behavior: options.behavior === "smooth" ? "smooth" : "auto",
+      });
+    },
+  });
 
   const scrollToEnd = () => {
-    modeRef.current = nextScrollMode(modeRef.current, "scroll-to-end");
-    anchorIndexRef.current = null;
-    setShowScrollToBottom(false);
+    store.trigger.scrollToEndRequested();
     const viewport = viewportRef.current;
-    if (viewport) setProgrammaticScrollTop(viewport, viewport.scrollHeight);
+    if (viewport) {
+      virtualizer.scrollToEnd();
+      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+    }
   };
+
+  const captureHistoryAnchor = () => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const viewportTop = viewport.getBoundingClientRect().top;
+    const rows = [...viewport.querySelectorAll<HTMLElement>("[data-message-id]")];
+    const anchor = rows.find(row => row.getBoundingClientRect().bottom >= viewportTop) ?? rows[0];
+    const messageId = anchor?.dataset.messageId;
+    if (!anchor || !messageId) return;
+    store.trigger.historyPageRequested({
+      messageId,
+      offsetTop: anchor.getBoundingClientRect().top - viewportTop,
+      previousCount: messageCount,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!historyAnchor || messageCount <= historyAnchor.previousCount) return undefined;
+    const viewport = viewportRef.current;
+    const messageIndex = messages.findIndex(message => message.id === historyAnchor.messageId);
+    if (!viewport || messageIndex < 0) {
+      store.trigger.historyAnchorApplied();
+      return undefined;
+    }
+
+    let frame = 0;
+    let stableFrames = 0;
+    let animationFrame = 0;
+    const alignAnchor = () => {
+      frame += 1;
+      const anchorRow = [...viewport.querySelectorAll<HTMLElement>("[data-message-id]")].find(
+        row => row.dataset.messageId === historyAnchor.messageId
+      );
+      if (anchorRow) {
+        const currentOffset =
+          anchorRow.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+        const correction = currentOffset - historyAnchor.offsetTop;
+        if (Math.abs(correction) > 0.5) {
+          viewport.scrollTop += correction;
+          store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+          stableFrames = 0;
+        } else {
+          stableFrames += 1;
+        }
+      } else {
+        virtualizer.scrollToIndex(messageIndex + leadingItemCount, { align: "start" });
+        stableFrames = 0;
+      }
+
+      if (stableFrames >= 4 || frame >= 30) {
+        store.trigger.historyAnchorApplied();
+        return;
+      }
+      animationFrame = requestAnimationFrame(alignAnchor);
+    };
+    alignAnchor();
+    return () => cancelAnimationFrame(animationFrame);
+  }, [historyAnchor, leadingItemCount, messageCount, messages, store, viewportRef, virtualizer]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -57,30 +215,15 @@ export function useThreadScrollController(
     const distanceFromBottom = () =>
       viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
     const handleManualNavigation = () => {
-      modeRef.current = nextScrollMode(modeRef.current, "manual-navigation");
-      anchorIndexRef.current = null;
-      programmaticScrollTopRef.current = null;
-      setShowScrollToBottom(distanceFromBottom() > AT_END_THRESHOLD);
+      store.trigger.manualNavigationObserved({
+        awayFromEnd: distanceFromBottom() > AT_END_THRESHOLD,
+      });
     };
     const handleScroll = () => {
-      const programmaticScrollTop = programmaticScrollTopRef.current;
-      if (
-        programmaticScrollTop !== null &&
-        Math.abs(viewport.scrollTop - programmaticScrollTop) <= 1
-      ) {
-        programmaticScrollTopRef.current = null;
-        return;
-      }
-      programmaticScrollTopRef.current = null;
-      if (distanceFromBottom() <= AT_END_THRESHOLD) {
-        modeRef.current = nextScrollMode(modeRef.current, "reached-end");
-        anchorIndexRef.current = null;
-        setShowScrollToBottom(false);
-      } else {
-        modeRef.current = nextScrollMode(modeRef.current, "manual-navigation");
-        anchorIndexRef.current = null;
-        setShowScrollToBottom(true);
-      }
+      store.trigger.scrollObserved({
+        atEnd: distanceFromBottom() <= AT_END_THRESHOLD,
+        scrollTop: viewport.scrollTop,
+      });
     };
     viewport.addEventListener("wheel", handleManualNavigation, { passive: true });
     viewport.addEventListener("touchmove", handleManualNavigation, { passive: true });
@@ -92,48 +235,63 @@ export function useThreadScrollController(
       viewport.removeEventListener("pointerdown", handleManualNavigation);
       viewport.removeEventListener("scroll", handleScroll);
     };
-  }, [viewportRef]);
+  }, [store, viewportRef]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    if (!viewport || !content) return undefined;
+    const observer = new ResizeObserver(() => {
+      if (store.getSnapshot().context.mode !== "following-end") return;
+      viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [contentRef, store, viewportRef]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport || messageCount === 0) return;
     const lastUserIndex = findLastUserIndex(messages);
     const lastUserId = lastUserIndex >= 0 ? (messages[lastUserIndex]?.id ?? null) : null;
-    const grew = messageCount > previousCountRef.current;
-    if (
-      previousCountRef.current > 0 &&
-      grew &&
-      lastUserId &&
-      lastUserId !== lastUserIdRef.current
-    ) {
-      modeRef.current = nextScrollMode(modeRef.current, "new-turn");
-      anchorIndexRef.current = lastUserIndex;
-      setShowScrollToBottom(false);
-    }
-    lastUserIdRef.current = lastUserId;
-    previousCountRef.current = messageCount;
+    store.trigger.messagesCommitted({ count: messageCount, lastUserId, lastUserIndex });
+    const scrollState = store.getSnapshot().context;
 
-    const anchorIndex = anchorIndexRef.current;
-    if (modeRef.current === "anchoring-new-turn" && anchorIndex !== null) {
-      const anchor = messageRow(viewport, anchorIndex);
-      const last = messageRow(viewport, messageCount - 1);
-      if (!anchor || !last) return;
-      const anchorTop = anchor.offsetTop;
-      const turnBottom = last.offsetTop + last.offsetHeight;
-      const turnHeight = turnBottom - anchorTop;
-      setProgrammaticScrollTop(
-        viewport,
-        turnHeight > viewport.clientHeight
-          ? Math.max(anchorTop - ANCHOR_OFFSET, turnBottom - viewport.clientHeight)
-          : Math.max(0, anchorTop - ANCHOR_OFFSET)
+    const anchorIndex = scrollState.anchorIndex;
+    if (scrollState.mode === "anchoring-new-turn" && anchorIndex !== null) {
+      const viewportHeight = Math.max(
+        viewport.clientHeight,
+        virtualizer.scrollRect?.height ?? INITIAL_VIEWPORT_RECT.height
       );
+      const metrics = getAnchoredTurnMetrics({
+        state: createVirtualizerMeasurementState(virtualizer, viewportHeight),
+        anchorIndex: anchorIndex + leadingItemCount,
+        composerOverlayHeight: 0,
+        anchorOffset: ANCHOR_OFFSET,
+      });
+      if (!metrics) return;
+      const target = metrics.overflowsUsableViewport
+        ? Math.max(metrics.anchorTop - ANCHOR_OFFSET, metrics.targetScrollToRevealEnd)
+        : Math.max(0, metrics.anchorTop - ANCHOR_OFFSET);
+      virtualizer.scrollToOffset(target);
+      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
       return;
     }
 
-    if (modeRef.current === "following-end") {
-      setProgrammaticScrollTop(viewport, viewport.scrollHeight);
+    if (scrollState.mode === "following-end") {
+      virtualizer.scrollToEnd();
+      store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
     }
-  }, [messageCount, messages, viewportRef]);
+  }, [leadingItemCount, messageCount, messages, store, viewportRef, virtualizer]);
 
-  return { showScrollToBottom, scrollToEnd };
+  return {
+    captureHistoryAnchor,
+    leadingItemCount,
+    measureVirtualElement: virtualizer.measureElement,
+    showScrollToBottom,
+    scrollToEnd,
+    virtualItems: virtualizer.getVirtualItems(),
+    virtualTotalSize: virtualizer.getTotalSize(),
+  };
 }

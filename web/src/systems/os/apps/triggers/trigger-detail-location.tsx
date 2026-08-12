@@ -1,5 +1,5 @@
-import { AutomationDetailPanel, AutomationEditorDialog } from "@/systems/automation";
 import { useAutomationTriggerDetailPage } from "../automation/use-automation-page";
+import { AutomationDetailPanel, AutomationEditorDialog } from "@/systems/automation";
 
 export function TriggerDetailLocation({ triggerId }: { triggerId: string }) {
   const page = useAutomationTriggerDetailPage(triggerId);

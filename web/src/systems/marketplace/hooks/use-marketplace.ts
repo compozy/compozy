@@ -15,8 +15,8 @@ export function useMarketplaceSearch(options: MarketplaceSearchOptions = {}) {
   return useQuery(marketplaceSearchOptions(options));
 }
 
-export function useMarketplaceKind(options: MarketplaceKindOptions) {
-  return useInfiniteQuery(marketplaceKindOptions(options));
+export function useMarketplaceKind(options: MarketplaceKindOptions, enabled = true) {
+  return useInfiniteQuery(marketplaceKindOptions(options, enabled));
 }
 
 export function useMarketplaceEntry(options: MarketplaceEntryOptions) {

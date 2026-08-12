@@ -63,3 +63,26 @@ func TestJoinProcessGroupKillResult(t *testing.T) {
 		})
 	}
 }
+
+func TestSignalProcessGroupIDStrict(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report a process group that disappeared before signal delivery", func(t *testing.T) {
+		t.Parallel()
+
+		const missingProcessGroupID = 1 << 30
+		err := SignalProcessGroupIDStrict(missingProcessGroupID, syscall.SIGTERM)
+		if !errors.Is(err, syscall.ESRCH) {
+			t.Fatalf("SignalProcessGroupIDStrict() error = %v, want ESRCH", err)
+		}
+	})
+
+	t.Run("Should retain best-effort behavior for the general process-group helper", func(t *testing.T) {
+		t.Parallel()
+
+		const missingProcessGroupID = 1 << 30
+		if err := SignalProcessGroupID(missingProcessGroupID, syscall.SIGTERM); err != nil {
+			t.Fatalf("SignalProcessGroupID() error = %v, want nil", err)
+		}
+	})
+}

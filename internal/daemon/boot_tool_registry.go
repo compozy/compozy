@@ -20,6 +20,7 @@ func (d *Daemon) bootToolRegistry(
 	if state.mcpServerCatalog == nil {
 		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
 	}
+	bindToolProjectionCatalogInvalidation(state)
 	if err := d.bootToolArtifacts(ctx, state, cleanup); err != nil {
 		return err
 	}
@@ -64,6 +65,13 @@ func (d *Daemon) bootToolRegistry(
 			state.cfg.Tools.DefaultMaxResultBytes,
 			state.toolArtifacts,
 		)),
+	}
+	if state.toolProjectionEpoch != nil {
+		registryOptions = append(
+			registryOptions,
+			toolspkg.WithProjectionInvalidator(func() { state.toolProjectionEpoch.Advance() }),
+			toolspkg.WithProjectionGeneration(state.toolProjectionEpoch.Snapshot),
+		)
 	}
 	registryOptions = appendToolEventSinkOption(registryOptions, state.registry, d.now)
 	registry, err = toolspkg.NewRegistry(registryOptions...)

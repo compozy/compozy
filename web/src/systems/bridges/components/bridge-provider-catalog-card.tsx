@@ -10,9 +10,9 @@ import {
   type CatalogCardProps,
 } from "@compozy/ui";
 
-import { providerHealthTone, providerStateTone } from "@/systems/model-catalog";
 import { buildBridgeProviderKey, isBridgeProviderSelectable } from "../lib/bridge-formatters";
 import type { BridgeProvider } from "../types";
+import { providerHealthTone, providerStateTone } from "@/systems/model-catalog";
 
 type BridgeProviderCatalogCardProps = Omit<CatalogCardProps, "aria-disabled" | "children"> & {
   children?: ReactNode;

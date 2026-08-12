@@ -1,10 +1,4 @@
-import {
-  useSessions,
-  type SessionCatalogStreamStatus,
-  type SessionPayload,
-} from "@/systems/session";
-import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
-import { useUserHomeDir, type WorkspacePayload } from "@/systems/workspace";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 import {
   attentionCount,
@@ -13,6 +7,13 @@ import {
   type OsAttentionBadges,
   type OsAttentionRow,
 } from "../lib/attention-model";
+import {
+  type SessionCatalogStreamStatus,
+  type SessionPayload,
+  useSessions,
+} from "@/systems/session";
+import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
+import { useUserHomeDir, type WorkspacePayload } from "@/systems/workspace";
 
 const ATTENTION_REFETCH_INTERVAL_MS = 5_000;
 
@@ -33,6 +34,7 @@ export function useOsAttention(
   sessionCatalogStreamStatus: SessionCatalogStreamStatus
 ): OsAttentionModel {
   const userHomeDir = useUserHomeDir();
+  const documentVisible = useDocumentVisible();
   const workspaceId = activeWorkspace?.id ?? null;
   const sessionsEnabled = workspaceId !== null;
   const taskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
@@ -47,7 +49,7 @@ export function useOsAttention(
   });
   const dashboardQuery = useTaskDashboard(taskScope ?? {}, {
     enabled: tasksEnabled,
-    refetchIntervalMs: ATTENTION_REFETCH_INTERVAL_MS,
+    refetchIntervalMs: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
   });
   const tasksQuery = useTasks(
     {
@@ -56,7 +58,10 @@ export function useOsAttention(
       limit: 100,
       sort: "recent",
     },
-    { enabled: tasksEnabled, refetchIntervalMs: ATTENTION_REFETCH_INTERVAL_MS }
+    {
+      enabled: tasksEnabled,
+      refetchIntervalMs: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
+    }
   );
 
   const sessions = sessionsQuery.data ?? [];

@@ -18,6 +18,7 @@ const DECISION_KEYS: Record<string, PermissionDecision> = {
 const PASSIVE_TOUCH_LISTENER = { capture: false, passive: true } as const;
 
 export interface UsePermissionDockOptions {
+  enabled?: boolean;
   permission: PermissionRequest;
   sessionId: string;
   workspaceId: string;
@@ -33,6 +34,7 @@ export interface UsePermissionDockOptions {
  * outside-press dismissal.
  */
 export function usePermissionDock({
+  enabled = true,
   permission,
   sessionId,
   workspaceId,
@@ -60,9 +62,10 @@ export function usePermissionDock({
   });
 
   useEffect(() => {
+    if (!enabled) return undefined;
     document.addEventListener("keydown", handleDecisionKey);
     return () => document.removeEventListener("keydown", handleDecisionKey);
-  }, []);
+  }, [enabled]);
 
   const handleOutsidePress = useEffectEvent((event: Event) => {
     if (rejectSplitElement?.contains(event.target as Node)) return;
@@ -76,7 +79,7 @@ export function usePermissionDock({
   });
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!enabled || !menuOpen) return;
     document.addEventListener("mousedown", handleOutsidePress);
     document.addEventListener("touchstart", handleOutsidePress, PASSIVE_TOUCH_LISTENER);
     document.addEventListener("keydown", handleMenuKeyDown, true);
@@ -85,7 +88,7 @@ export function usePermissionDock({
       document.removeEventListener("touchstart", handleOutsidePress, PASSIVE_TOUCH_LISTENER);
       document.removeEventListener("keydown", handleMenuKeyDown, true);
     };
-  }, [menuOpen]);
+  }, [enabled, menuOpen]);
 
   return {
     decide,

@@ -15,6 +15,7 @@ export interface TaskNowStripProps extends ComponentPropsWithoutRef<"div"> {
   runs: readonly TaskRun[];
   handlers: TaskNowStripHandlers;
   pending?: TaskNowPendingState;
+  activeRunElapsed?: string;
 }
 
 const EMPTY_PENDING_STATE: TaskNowPendingState = {};
@@ -30,6 +31,7 @@ export function TaskNowStrip({
   runs,
   handlers,
   pending = EMPTY_PENDING_STATE,
+  activeRunElapsed,
   className,
   ...props
 }: TaskNowStripProps) {
@@ -65,6 +67,7 @@ export function TaskNowStrip({
       />
       {activeRun && !needsAttention ? (
         <TaskNowActiveRun
+          elapsed={activeRunElapsed}
           maxAttempts={record.max_attempts}
           onOpenRun={handlers.onOpenRun}
           run={activeRun}

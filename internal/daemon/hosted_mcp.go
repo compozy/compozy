@@ -57,6 +57,14 @@ func (d *Daemon) buildHostedMCPService(state *bootState) (*mcppkg.HostedService,
 			}
 			return state.toolRegistry
 		},
+		ProjectionGeneration: func(ctx context.Context, scope toolspkg.Scope) (string, bool) {
+			registry := state.toolRegistry
+			generation, ok := registry.(toolspkg.ProjectionGenerationProvider)
+			if !ok {
+				return "", false
+			}
+			return generation.ProjectionGeneration(ctx, scope)
+		},
 	})
 }
 

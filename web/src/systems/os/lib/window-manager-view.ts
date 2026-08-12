@@ -1,4 +1,9 @@
-import { getOsApp, getOsAppMinimum, OS_APPS, OS_WINDOW_CONSERVATIVE_MINIMUM } from "./app-registry";
+import {
+  getOsAppDescriptor,
+  getOsAppMinimum,
+  OS_APP_DESCRIPTORS,
+  OS_WINDOW_CONSERVATIVE_MINIMUM,
+} from "./app-catalog";
 import { applyFrameSeamPreviewToDesktop } from "./frame-seams";
 import { buildDesktopFrames, type OsWindowFrameModel } from "./group-projection";
 import { projectLayout } from "./layout-projection";
@@ -65,7 +70,7 @@ export function snapTargetConfigFromConfig(
 }
 
 export function defaultOsWindowRoute(app: OsAppId): OsWindowRoute {
-  return { pathname: getOsApp(app).paths[0] ?? "/", search: {} };
+  return { pathname: getOsAppDescriptor(app).paths[0] ?? "/", search: {} };
 }
 
 export function pixelRectToNormalized(rect: OsRect, area: PixelRect): NormalizedRect {
@@ -165,7 +170,7 @@ function normalizedRectToPixels(rect: NormalizedRect, area: PixelRect): OsRect {
 }
 
 function osAppId(value: string): OsAppId | null {
-  return Object.hasOwn(OS_APPS, value) ? (value as OsAppId) : null;
+  return Object.hasOwn(OS_APP_DESCRIPTORS, value) ? (value as OsAppId) : null;
 }
 
 export interface OsDesktopRuntimeViewInput {

@@ -150,8 +150,11 @@ compozy extension logs my-ext --follow
   `.git`, `dist`, and `node_modules`. The watcher is client-side; the daemon never watches author
   directories.
 - `logs` reads a bounded 256 KiB per-instance ring fed from subprocess stderr, redacted at ingestion
-  so no transport ever sees a configured secret. Page with `--after <sequence>`; `--follow` consumes
-  the named `extension_log` SSE event. The ring is live retention, not durable history.
+  so no transport ever sees a configured secret. Each read returns an opaque `stream_epoch`; resume
+  with both `--after <sequence>` and `--stream-epoch <epoch>`. `--follow` consumes `extension_log`
+  deltas and atomically replaces the snapshot on `extension_log_reset`. The ring is live retention,
+  not durable history. In JSONL follow output, reset is an explicit record with
+  `event: "extension_log_reset"`, `stream_epoch`, and the replacement `logs` array, even when empty.
 
 ### Instances
 

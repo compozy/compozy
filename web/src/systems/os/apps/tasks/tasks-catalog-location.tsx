@@ -3,24 +3,24 @@ import { AlertCircle, ListChecks, Plus } from "lucide-react";
 
 import { BlockLoading, Button, Empty, RouteNav, useTopbarSlot } from "@compozy/ui";
 
+import { useOsShell } from "../../hooks/use-os-shell";
+import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
   DEFAULT_TASK_TEMPLATE_ID,
+  taskCatalogSearchFor,
+  taskModeSearchFor,
   TasksDashboardView,
   TasksEmptyState,
   TasksInboxView,
   TasksKanbanBoard,
   TasksListSurface,
   TasksListToolbar,
-  taskCatalogSearchFor,
-  taskModeSearchFor,
+  type TasksRouteSearch,
+  type TaskTemplateId,
+  type TaskViewMode,
   useTasksPage,
   validateTasksSearch,
-  type TaskTemplateId,
-  type TasksRouteSearch,
-  type TaskViewMode,
 } from "@/systems/tasks";
-
-import { useOsShell } from "../../hooks/use-os-shell";
 
 const TASK_MODE_ITEMS: ReadonlyArray<{
   value: TaskViewMode;
@@ -35,9 +35,11 @@ const TASK_MODE_ITEMS: ReadonlyArray<{
 
 export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
   const { coordinator } = useOsShell();
+  const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const routeNavigate = useNavigate();
   const mode: TaskViewMode = search.mode ?? "list";
   const page = useTasksPage({
+    liveDataEnabled,
     search,
     onSearchChange: update => {
       void routeNavigate({
@@ -232,7 +234,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           onRetryLoad={page.retryTasks}
           searchQuery={page.searchQuery}
           statusCounts={page.statusCounts}
-          tasks={page.visibleTasks}
+          taskTree={page.taskTree}
         />
       )}
     </div>

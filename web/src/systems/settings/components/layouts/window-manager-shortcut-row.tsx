@@ -2,9 +2,8 @@ import { RotateCcw } from "lucide-react";
 
 import { Button, Kbd, KbdGroup, cn } from "@compozy/ui";
 
-import type { ResolvedWindowManagerAction, WindowPlacementId } from "@/systems/os";
-
 import { WindowTilingDiagram } from "./window-manager-tiling-diagrams";
+import type { ResolvedWindowManagerAction, WindowPlacementId } from "@/systems/os";
 
 interface WindowManagerShortcutRowProps {
   action: ResolvedWindowManagerAction;

@@ -2,14 +2,13 @@ import { useRef, type Dispatch, type SetStateAction } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger, cn } from "@compozy/ui";
 
-import type { WindowManagerConfig } from "@/systems/os";
-
 import { dragValueAria, useDragValue } from "../../hooks/use-drag-value";
 import {
   WINDOW_MANAGER_RANGES,
   snapMapPercent,
   snapMapScale,
 } from "../../lib/window-manager-snap-geometry";
+import type { WindowManagerConfig } from "@/systems/os";
 
 type BindingKey = keyof WindowManagerConfig["bindings"];
 type BindingValue = WindowManagerConfig["bindings"][BindingKey];

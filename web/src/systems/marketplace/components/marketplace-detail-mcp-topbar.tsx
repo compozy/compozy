@@ -3,6 +3,9 @@ import { useEffect, type ReactNode } from "react";
 
 import { Button, Pill } from "@compozy/ui";
 
+import { useMarketplaceDetailMCPServer } from "../hooks/use-marketplace-detail-mcp-server";
+import type { MarketplaceEntryResponse, MarketplaceListing } from "../types";
+import { MarketplaceEntryAction, MarketplaceEntryStatus } from "./marketplace-entry-actions";
 import {
   composeMCPRowStatus,
   deriveMCPAuthFilter,
@@ -13,16 +16,13 @@ import {
   useSettingsMCPServers,
 } from "@/systems/settings";
 
-import { useMarketplaceDetailMCPServer } from "../hooks/use-marketplace-detail-mcp-server";
-import type { MarketplaceEntryResponse, MarketplaceListing } from "../types";
-import { MarketplaceEntryAction, MarketplaceEntryStatus } from "./marketplace-entry-actions";
-
 interface MarketplaceMCPDetailTopbarActionsProps {
   entry: MarketplaceEntryResponse["entry"];
   scope?: "global" | "workspace";
   workspaceId?: string;
   onAction: (entry: MarketplaceListing) => void;
   pending: boolean;
+  liveDataEnabled?: boolean;
 }
 
 /**
@@ -37,17 +37,19 @@ function MarketplaceMCPDetailTopbarActions({
   workspaceId,
   onAction,
   pending,
+  liveDataEnabled = true,
 }: MarketplaceMCPDetailTopbarActionsProps) {
   const { server, queryEnabled, queryFilter } = useMarketplaceDetailMCPServer(
     entry,
     scope,
-    workspaceId
+    workspaceId,
+    liveDataEnabled
   );
   const authorize = useMCPAuthorize();
   const { acknowledgeStatus } = authorize;
   const awaitingAuthorization = isMCPAuthorizeAwaiting(authorize.phase);
   const authPollQuery = useSettingsMCPServers(queryFilter, {
-    enabled: queryEnabled && awaitingAuthorization,
+    enabled: queryEnabled && awaitingAuthorization && liveDataEnabled,
     refetchInterval: SETTINGS_QUERY_INTERVALS.mcpAuthStatusPollInterval,
   });
   const polledServer =

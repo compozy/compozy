@@ -13,6 +13,7 @@ import (
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
 
@@ -36,6 +37,7 @@ var marketplaceKindOrder = []contract.MarketplaceKind{
 type marketplaceReadScope struct {
 	scope       settingspkg.ScopeKind
 	workspaceID string
+	actor       *taskpkg.ActorContext
 }
 
 // MarketplaceSearchRequest captures transport-independent marketplace discovery filters.
@@ -44,6 +46,7 @@ type MarketplaceSearchRequest struct {
 	Limit       int
 	Scope       string
 	WorkspaceID string
+	Actor       *taskpkg.ActorContext
 }
 
 // MarketplaceKindRequest captures transport-independent single-kind discovery filters.
@@ -54,6 +57,7 @@ type MarketplaceKindRequest struct {
 	Limit       int
 	Scope       string
 	WorkspaceID string
+	Actor       *taskpkg.ActorContext
 }
 
 // MarketplaceEntryRequest captures transport-independent marketplace detail identity and scope.
@@ -63,6 +67,7 @@ type MarketplaceEntryRequest struct {
 	InstalledName string
 	Scope         string
 	WorkspaceID   string
+	Actor         *taskpkg.ActorContext
 }
 
 // SearchMarketplace returns fixed-order grouped marketplace discovery results.
@@ -72,11 +77,16 @@ func (h *BaseHandlers) SearchMarketplace(c *gin.Context) {
 		h.respondMarketplaceError(c, err)
 		return
 	}
+	actor, ok := h.marketplaceReadActorContext(c, "search")
+	if !ok {
+		return
+	}
 	response, err := h.MarketplaceSearch(c.Request.Context(), MarketplaceSearchRequest{
 		Query:       c.Query("q"),
 		Limit:       limit,
 		Scope:       c.Query("scope"),
 		WorkspaceID: c.Query("workspace_id"),
+		Actor:       actor,
 	})
 	if err != nil {
 		h.respondMarketplaceError(c, err)
@@ -98,6 +108,7 @@ func (h *BaseHandlers) MarketplaceSearch(
 	if err != nil {
 		return contract.MarketplaceSearchResponse{}, err
 	}
+	scope.actor = request.Actor
 	query := strings.TrimSpace(request.Query)
 	results := make([]contract.MarketplaceKindResult, 0, len(marketplaceKindOrder))
 	unavailableKinds := 0
@@ -133,6 +144,10 @@ func (h *BaseHandlers) BrowseMarketplaceKind(c *gin.Context) {
 		h.respondMarketplaceError(c, err)
 		return
 	}
+	actor, ok := h.marketplaceReadActorContext(c, "browse")
+	if !ok {
+		return
+	}
 	response, err := h.MarketplaceKind(c.Request.Context(), MarketplaceKindRequest{
 		Kind:        c.Param("kind"),
 		Query:       c.Query("q"),
@@ -140,6 +155,7 @@ func (h *BaseHandlers) BrowseMarketplaceKind(c *gin.Context) {
 		Limit:       limit,
 		Scope:       c.Query("scope"),
 		WorkspaceID: c.Query("workspace_id"),
+		Actor:       actor,
 	})
 	if err != nil {
 		h.respondMarketplaceError(c, err)
@@ -165,6 +181,7 @@ func (h *BaseHandlers) MarketplaceKind(
 	if err != nil {
 		return contract.MarketplaceKindResponse{}, err
 	}
+	scope.actor = request.Actor
 	query := strings.TrimSpace(request.Query)
 	offset, cursorFence, err := marketplaceCursorOffset(request.Cursor, string(kind), query, scope)
 	if err != nil {
@@ -193,12 +210,17 @@ func (h *BaseHandlers) MarketplaceKind(
 
 // GetMarketplaceEntry returns one exact marketplace detail by stable entry_id.
 func (h *BaseHandlers) GetMarketplaceEntry(c *gin.Context) {
+	actor, ok := h.marketplaceReadActorContext(c, "entry")
+	if !ok {
+		return
+	}
 	response, err := h.MarketplaceEntry(c.Request.Context(), MarketplaceEntryRequest{
 		Kind:          c.Param("kind"),
 		EntryID:       c.Param("entry_id"),
 		InstalledName: c.Query("installed_name"),
 		Scope:         c.Query("scope"),
 		WorkspaceID:   c.Query("workspace_id"),
+		Actor:         actor,
 	})
 	if err != nil {
 		h.respondMarketplaceError(c, err)
@@ -224,6 +246,7 @@ func (h *BaseHandlers) MarketplaceEntry(
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}
+	scope.actor = request.Actor
 	return h.marketplaceEntry(ctx, kind, entryID, strings.TrimSpace(request.InstalledName), scope)
 }
 
@@ -357,6 +380,8 @@ func (h *BaseHandlers) respondMarketplaceError(c *gin.Context, err error) {
 		status = http.StatusNotFound
 	case errors.Is(err, ErrMarketplaceUnavailable):
 		status = http.StatusServiceUnavailable
+	case errors.Is(err, taskpkg.ErrPermissionDenied):
+		status = StatusForTaskError(err)
 	}
 	h.respondError(c, status, err)
 }

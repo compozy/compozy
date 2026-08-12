@@ -3,7 +3,6 @@ import { useSelector } from "@xstate/store-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
-import { windowManagerKeys } from "@/systems/os";
 
 import { applyWindowManagerLayout } from "../adapters/window-manager-layouts-api";
 import { parseWindowManagerLayoutDocument } from "../lib/window-manager-layout-schema";
@@ -18,6 +17,7 @@ import type {
   WindowManagerLayoutState,
   WindowManagerNormalizedRect,
 } from "../lib/window-manager-layout-types";
+import { windowManagerKeys } from "@/systems/os";
 
 interface ReviewedLayout {
   fingerprint: string;

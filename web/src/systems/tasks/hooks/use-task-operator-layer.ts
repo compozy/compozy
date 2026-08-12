@@ -1,12 +1,9 @@
-import { useState } from "react";
-
 import {
   useCreateTaskBridgeNotificationSubscription,
   useDeleteTaskBridgeNotificationSubscription,
   useTaskBridgeNotificationSubscriptions,
 } from "./use-task-notifications";
 import { useDeleteTaskExecutionProfile, useSetTaskExecutionProfile } from "./use-task-profile";
-import { useTaskStream } from "./use-task-stream";
 import { submitTaskMutation } from "../lib/task-mutation";
 import type { TaskStreamState } from "../lib/task-stream-state";
 import type {
@@ -15,9 +12,11 @@ import type {
 } from "../types";
 
 interface UseTaskOperatorLayerOptions {
-  /** Gate the bridge-subscription query + status stream to the open drawer. */
+  /** Gate bridge-subscription reads and stream diagnostics to the open drawer. */
   enabled?: boolean;
-  latestEventSeq?: number | null;
+  streamErrorMessage?: string | null;
+  streamSeedSequence?: number;
+  streamState?: TaskStreamState;
 }
 
 /**
@@ -30,9 +29,6 @@ interface UseTaskOperatorLayerOptions {
 function useTaskOperatorLayer(taskId: string, options: UseTaskOperatorLayerOptions = {}) {
   const enabled = options.enabled ?? true;
   const hasTaskId = taskId.trim() !== "";
-  const hasLatestEventSeq =
-    typeof options.latestEventSeq === "number" && Number.isFinite(options.latestEventSeq);
-  const seedSequence = hasLatestEventSeq ? Math.max(0, options.latestEventSeq ?? 0) : 0;
   const layerEnabled = enabled && hasTaskId;
 
   const subscriptionsQuery = useTaskBridgeNotificationSubscriptions(
@@ -45,38 +41,6 @@ function useTaskOperatorLayer(taskId: string, options: UseTaskOperatorLayerOptio
   const deleteProfileMutation = useDeleteTaskExecutionProfile();
   const createSubscriptionMutation = useCreateTaskBridgeNotificationSubscription();
   const deleteSubscriptionMutation = useDeleteTaskBridgeNotificationSubscription();
-
-  const streamKey = layerEnabled ? `${taskId}:${seedSequence}` : "disabled";
-  const [streamStatus, setStreamStatus] = useState<{
-    error: string | null;
-    key: string;
-    state: TaskStreamState;
-  }>(() => ({ error: null, key: streamKey, state: layerEnabled ? "idle" : "disabled" }));
-  const currentStreamStatus =
-    streamStatus.key === streamKey
-      ? streamStatus
-      : {
-          error: null,
-          key: streamKey,
-          state: layerEnabled ? ("idle" as const) : ("disabled" as const),
-        };
-
-  useTaskStream(taskId, {
-    enabled: layerEnabled && hasLatestEventSeq,
-    afterSequence: seedSequence,
-    onEvent: () => setStreamStatus({ error: null, key: streamKey, state: "receiving" }),
-    onError: error =>
-      setStreamStatus({
-        error:
-          error instanceof Error
-            ? error.message
-            : typeof error === "string"
-              ? error
-              : "Stream connection failed",
-        key: streamKey,
-        state: "error",
-      }),
-  });
 
   const handleSetProfile = async (data: TaskExecutionProfileSetRequest) => {
     await submitTaskMutation(
@@ -121,9 +85,9 @@ function useTaskOperatorLayer(taskId: string, options: UseTaskOperatorLayerOptio
     isDeleteProfilePending: deleteProfileMutation.isPending,
     isDeleteSubscriptionPending: deleteSubscriptionMutation.isPending,
     isSetProfilePending: setProfileMutation.isPending,
-    streamErrorMessage: currentStreamStatus.error,
-    streamSeedSequence: seedSequence,
-    streamState: currentStreamStatus.state,
+    streamErrorMessage: layerEnabled ? (options.streamErrorMessage ?? null) : null,
+    streamSeedSequence: options.streamSeedSequence ?? 0,
+    streamState: layerEnabled ? (options.streamState ?? "idle") : "disabled",
     subscriptions: subscriptionsQuery.data ?? [],
     subscriptionsError: subscriptionsQuery.error ?? null,
     subscriptionsLoading: subscriptionsQuery.isLoading && !subscriptionsQuery.data,

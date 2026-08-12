@@ -1,7 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import { windowManagerSnapshotOptions } from "@/systems/os";
-
 import {
   listWindowManagerLayoutProfiles,
   previewWindowManagerLayout,
@@ -15,6 +13,7 @@ import type {
   WindowManagerLayoutPreview,
   WindowManagerLayoutValidation,
 } from "./window-manager-layout-types";
+import { windowManagerSnapshotOptions } from "@/systems/os";
 
 export interface WindowManagerLayoutReview {
   fingerprint: string;

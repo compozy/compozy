@@ -1,13 +1,12 @@
 import { Pill } from "@compozy/ui";
 
-import type { LayoutProjection, LayoutProjectionDiagnostic } from "@/systems/os";
-
 import { LAYOUT_CANVAS_REFERENCE } from "../../lib/window-manager-layout-reference";
 import { layoutWindowFace } from "../../lib/window-manager-layout-window-face";
 import type {
   WindowManagerLayoutDesktop,
   WindowManagerLayoutDocument,
 } from "../../lib/window-manager-layout-types";
+import type { LayoutProjection, LayoutProjectionDiagnostic } from "@/systems/os";
 
 interface LayoutCanvasBoardBarProps {
   document: WindowManagerLayoutDocument;

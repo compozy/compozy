@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { extensionsListOptions } from "@/systems/extensions";
-
 import {
   buildGatewayProviderModel,
   providerGeneration,
@@ -10,6 +8,7 @@ import {
 } from "../lib/gateway-provider-model";
 import type { GatewayStatus, GatewayTier } from "../types";
 import { useDisableGatewayProvider, useEnableGatewayProvider } from "./use-gateway-mutations";
+import { extensionsListOptions } from "@/systems/extensions";
 
 export interface GatewayProvidersViewModel {
   isLoading: boolean;

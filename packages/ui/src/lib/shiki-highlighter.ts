@@ -1,21 +1,11 @@
-import css from "@shikijs/langs/css";
-import diff from "@shikijs/langs/diff";
-import go from "@shikijs/langs/go";
-import html from "@shikijs/langs/html";
-import javascript from "@shikijs/langs/javascript";
-import json from "@shikijs/langs/json";
-import jsx from "@shikijs/langs/jsx";
-import markdown from "@shikijs/langs/markdown";
-import python from "@shikijs/langs/python";
-import sh from "@shikijs/langs/sh";
-import sql from "@shikijs/langs/sql";
-import toml from "@shikijs/langs/toml";
-import tsx from "@shikijs/langs/tsx";
-import typescript from "@shikijs/langs/typescript";
-import yaml from "@shikijs/langs/yaml";
 import vitesseDark from "@shikijs/themes/vitesse-dark";
 import vitesseLight from "@shikijs/themes/vitesse-light";
-import { createHighlighterCore, type ThemedToken } from "shiki/core";
+import {
+  createHighlighterCore,
+  type HighlighterCore,
+  type LanguageRegistration,
+  type ThemedToken,
+} from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
 import {
@@ -30,6 +20,30 @@ const FONT_STYLE_ITALIC = 1;
 const FONT_STYLE_BOLD = 2;
 const FONT_STYLE_UNDERLINE = 4;
 const FONT_STYLE_STRIKETHROUGH = 8;
+
+type LanguageModule = { default: LanguageRegistration[] };
+type LanguageLoader = () => Promise<LanguageModule>;
+
+const languageLoaders: Record<CompozyCodeLanguage, LanguageLoader> = {
+  bash: () => import("@shikijs/langs/sh"),
+  css: () => import("@shikijs/langs/css"),
+  diff: () => import("@shikijs/langs/diff"),
+  go: () => import("@shikijs/langs/go"),
+  html: () => import("@shikijs/langs/html"),
+  javascript: () => import("@shikijs/langs/javascript"),
+  json: () => import("@shikijs/langs/json"),
+  jsx: () => import("@shikijs/langs/jsx"),
+  markdown: () => import("@shikijs/langs/markdown"),
+  python: () => import("@shikijs/langs/python"),
+  sql: () => import("@shikijs/langs/sql"),
+  toml: () => import("@shikijs/langs/toml"),
+  tsx: () => import("@shikijs/langs/tsx"),
+  typescript: () => import("@shikijs/langs/typescript"),
+  yaml: () => import("@shikijs/langs/yaml"),
+};
+
+const loadedLanguages = new Set<CompozyCodeLanguage>();
+const languageLoads = new Map<CompozyCodeLanguage, Promise<void>>();
 
 export interface HighlightedCodeToken {
   color?: string;
@@ -59,23 +73,7 @@ export interface HighlightCompozyCodeOptions {
 const highlighterPromise = createHighlighterCore({
   engine: createJavaScriptRegexEngine(),
   themes: [vitesseLight, vitesseDark],
-  langs: [
-    sh,
-    css,
-    diff,
-    go,
-    html,
-    javascript,
-    json,
-    jsx,
-    markdown,
-    python,
-    sql,
-    toml,
-    tsx,
-    typescript,
-    yaml,
-  ],
+  langs: [],
   warnings: false,
 });
 
@@ -88,6 +86,7 @@ export async function highlightCompozyCode({
   if (!normalizedLanguage) return null;
 
   const highlighter = await highlighterPromise;
+  await ensureLanguage(highlighter, normalizedLanguage);
   const themeName = resolveCompozyCodeThemeName(theme);
   const result = highlighter.codeToTokens(code, {
     lang: normalizedLanguage,
@@ -104,6 +103,27 @@ export async function highlightCompozyCode({
       tokens: tokens.map(toHighlightedCodeToken),
     })),
   };
+}
+
+async function ensureLanguage(
+  highlighter: HighlighterCore,
+  language: CompozyCodeLanguage
+): Promise<void> {
+  if (loadedLanguages.has(language)) return;
+
+  const activeLoad = languageLoads.get(language);
+  if (activeLoad) return activeLoad;
+
+  const load = languageLoaders[language]()
+    .then(module => highlighter.loadLanguage(module.default))
+    .then(() => {
+      loadedLanguages.add(language);
+    })
+    .finally(() => {
+      languageLoads.delete(language);
+    });
+  languageLoads.set(language, load);
+  return load;
 }
 
 function toHighlightedCodeToken(token: ThemedToken): HighlightedCodeToken {

@@ -1,9 +1,8 @@
 import { useState } from "react";
 
-import { deriveMCPManagementFilter } from "@/systems/settings";
-
 import type { MarketplaceInstalledItem } from "../hooks/use-marketplace-kind-page";
 import type { MarketplaceListing } from "../types";
+import { deriveMCPManagementFilter } from "@/systems/settings";
 
 function entryKey(entry: MarketplaceListing): string {
   return `${entry.kind}:${entry.entry_id}`;

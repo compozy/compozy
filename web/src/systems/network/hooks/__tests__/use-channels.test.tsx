@@ -12,7 +12,7 @@ import {
 } from "../pinned-channels-store";
 import { useNetworkChannels } from "../use-channels";
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "w1" }),
 }));
 

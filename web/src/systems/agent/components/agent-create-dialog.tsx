@@ -15,9 +15,6 @@ import {
   type EntityMode,
 } from "@compozy/ui";
 
-import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
-import { WorkspaceCommandSelect, type WorkspaceCommandSelectOption } from "@/systems/workspace";
-
 import { updateAgentCreateScope, type AgentCreateDialogDraft } from "../lib/agent-create-draft";
 import { useAgentCreateDialogViewState } from "../hooks/use-agent-create-dialog-view-state";
 import { AgentCreateDefinitionSection } from "./agent-create-definition-section";
@@ -25,6 +22,8 @@ import { AgentCreatePermissionsSection } from "./agent-create-permissions-sectio
 import { AgentCreateRuntimeDetailsSection } from "./agent-create-runtime-details-section";
 import { AgentCreateRuntimeFields } from "./agent-create-runtime-fields";
 import { AgentCreateToolsSection } from "./agent-create-tools-section";
+import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
+import { WorkspaceCommandSelect, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 interface AgentCreateDialogProps {
   open: boolean;

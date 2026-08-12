@@ -1,7 +1,7 @@
 import { useDesktop } from "../../hooks/use-desktop";
 import { BridgeDetailLocation } from "./bridge-detail-location";
 import { BridgesCatalogLocation } from "./bridges-catalog-location";
-import { validateBridgesSearch } from "./use-bridges-page";
+import { validateBridgesSearch } from "@/systems/bridges";
 
 const DEFAULT_BRIDGES_ROUTE = { pathname: "/bridges", search: {} } as const;
 
