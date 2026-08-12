@@ -28,9 +28,10 @@ func (h *Handlers) redeemGatewayPairing(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("Referrer-Policy", "no-referrer")
 	if actorKind == gateway.ActorKindOperatorDevice {
+		// #nosec G124 -- HTTP mode needs a non-Secure cookie; HTTPS remains Secure.
 		http.SetCookie(c.Writer, &http.Cookie{
 			Name: gatewayDeviceCookieName, Value: payload.Credential, Path: "/",
-			Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode,
+			Secure: c.Request.TLS != nil, HttpOnly: true, SameSite: http.SameSiteLaxMode,
 		})
 		payload.Credential = ""
 	}

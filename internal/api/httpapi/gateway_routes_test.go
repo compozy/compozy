@@ -547,7 +547,7 @@ func TestGatewayTierAuthentication(t *testing.T) {
 			t.Fatalf("cookies = %#v, want one device credential cookie", cookies)
 		}
 		cookie := cookies[0]
-		if cookie.Name != gatewayDeviceCookieName || cookie.Value != credential || !cookie.Secure ||
+		if cookie.Name != gatewayDeviceCookieName || cookie.Value != credential || cookie.Secure ||
 			!cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/" {
 			t.Fatalf("device credential cookie = %#v", cookie)
 		}
@@ -637,7 +637,7 @@ func TestGatewayTierAuthentication(t *testing.T) {
 			t.Fatalf("local browser response body leaked raw credential: %s", response.Body.String())
 		}
 		cookies := response.Result().Cookies()
-		if len(cookies) != 1 || cookies[0].Value != credential || !cookies[0].Secure || !cookies[0].HttpOnly {
+		if len(cookies) != 1 || cookies[0].Value != credential || cookies[0].Secure || !cookies[0].HttpOnly {
 			t.Fatalf("local browser credential cookie = %#v", cookies)
 		}
 	})

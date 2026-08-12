@@ -192,7 +192,7 @@ func exerciseGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
 			if bytes.Contains(outcome.body, []byte("cpz_gwd_")) {
 				t.Fatalf("successful browser response leaked a raw credential: %s", outcome.body)
 			}
-			if len(outcome.cookies) != 1 || !outcome.cookies[0].HttpOnly || !outcome.cookies[0].Secure ||
+			if len(outcome.cookies) != 1 || !outcome.cookies[0].HttpOnly || outcome.cookies[0].Secure ||
 				outcome.cookies[0].SameSite != http.SameSiteLaxMode {
 				t.Fatalf("browser credential cookie = %#v", outcome.cookies)
 			}
