@@ -6,7 +6,7 @@
 .cache/
 .turbo/
 .tanstack/
-bin/
+/bin/
 dist/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
