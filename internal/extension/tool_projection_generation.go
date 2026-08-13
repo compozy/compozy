@@ -1,7 +1,10 @@
 package extensionpkg
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"slices"
 	"strconv"
@@ -20,7 +23,7 @@ func (p *ExtensionToolProvider) ProjectionGeneration(
 	if err := extensionProviderContextErr(ctx); err != nil {
 		return "", false
 	}
-	manifestTools, err := p.manifestTools(scope)
+	manifestTools, manifestFingerprint, err := p.manifestToolsWithFingerprint(ctx, scope)
 	if err != nil {
 		return "", false
 	}
@@ -28,7 +31,7 @@ func (p *ExtensionToolProvider) ProjectionGeneration(
 	if !known {
 		return "", false
 	}
-	return p.updateProjectionGeneration(runtimeFingerprint), true
+	return extensionProjectionGenerationToken(manifestFingerprint, runtimeFingerprint), true
 }
 
 func (p *ExtensionToolProvider) runtimeProjectionFingerprint(
@@ -63,7 +66,11 @@ func (p *ExtensionToolProvider) runtimeProjectionFingerprint(
 		if err != nil {
 			return "", false
 		}
-		encoded, err := json.Marshal(descriptors)
+		canonicalDescriptors, err := canonicalProjectionRuntimeDescriptors(descriptors)
+		if err != nil {
+			return "", false
+		}
+		encoded, err := json.Marshal(canonicalDescriptors)
 		if err != nil {
 			return "", false
 		}
@@ -71,6 +78,66 @@ func (p *ExtensionToolProvider) runtimeProjectionFingerprint(
 		fingerprint.WriteByte(0)
 	}
 	return fingerprint.String(), true
+}
+
+func canonicalProjectionRuntimeDescriptors(
+	src []toolspkg.ExtensionToolRuntimeDescriptor,
+) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
+	descriptors := cloneRuntimeToolDescriptors(src)
+	keyed := make([]canonicalProjectionRuntimeDescriptor, len(descriptors))
+	for i := range descriptors {
+		descriptors[i].Capabilities = canonicalProjectionCapabilities(descriptors[i].Capabilities)
+		inputSchema, err := canonicalProjectionSchema(descriptors[i].InputSchema)
+		if err != nil {
+			return nil, err
+		}
+		descriptors[i].InputSchema = inputSchema
+		outputSchema, err := canonicalProjectionSchema(descriptors[i].OutputSchema)
+		if err != nil {
+			return nil, err
+		}
+		descriptors[i].OutputSchema = outputSchema
+		key, err := json.Marshal(descriptors[i])
+		if err != nil {
+			return nil, err
+		}
+		keyed[i] = canonicalProjectionRuntimeDescriptor{
+			descriptor: descriptors[i],
+			key:        key,
+		}
+	}
+	slices.SortFunc(keyed, func(left, right canonicalProjectionRuntimeDescriptor) int {
+		return bytes.Compare(left.key, right.key)
+	})
+	for i := range keyed {
+		descriptors[i] = keyed[i].descriptor
+	}
+	return descriptors, nil
+}
+
+type canonicalProjectionRuntimeDescriptor struct {
+	descriptor toolspkg.ExtensionToolRuntimeDescriptor
+	key        []byte
+}
+
+func canonicalProjectionCapabilities(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	canonical := slices.Clone(values)
+	slices.Sort(canonical)
+	return slices.Compact(canonical)
+}
+
+func canonicalProjectionSchema(raw json.RawMessage) (json.RawMessage, error) {
+	if len(raw) == 0 {
+		return raw, nil
+	}
+	canonical, err := toolspkg.CanonicalJSON(raw)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(canonical), nil
 }
 
 func extensionProjectionRuntimeDescriptors(
@@ -107,7 +174,9 @@ func appendExtensionProjectionFingerprint(
 		Healthy: snapshot.Status.Healthy,
 	}
 	if snapshot.InitializeResult != nil {
-		state.Capabilities = slices.Clone(snapshot.InitializeResult.AcceptedCapabilities.Provides)
+		state.Capabilities = canonicalProjectionCapabilities(
+			snapshot.InitializeResult.AcceptedCapabilities.Provides,
+		)
 	}
 	encoded, err := json.Marshal(state)
 	if err != nil {
@@ -118,15 +187,9 @@ func appendExtensionProjectionFingerprint(
 	dst.WriteByte(0)
 }
 
-func (p *ExtensionToolProvider) updateProjectionGeneration(runtimeFingerprint string) string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cache.runtimeFingerprint != runtimeFingerprint {
-		p.cache.runtimeFingerprint = runtimeFingerprint
-		p.cache.generation++
-	}
-	if p.cache.generation == 0 {
-		p.cache.generation = 1
-	}
-	return strconv.FormatUint(p.cache.generation, 10)
+func extensionProjectionGenerationToken(manifestFingerprint, runtimeFingerprint string) string {
+	payload := strconv.Itoa(len(manifestFingerprint)) + ":" + manifestFingerprint +
+		strconv.Itoa(len(runtimeFingerprint)) + ":" + runtimeFingerprint
+	digest := sha256.Sum256([]byte(payload))
+	return "sha256:" + hex.EncodeToString(digest[:])
 }

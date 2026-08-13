@@ -21,8 +21,10 @@ import (
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
@@ -84,6 +86,11 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	consumer := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath: binaryPath,
 		ConfigSeed: configSeed,
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "hosted_native_tools_fixture.json"),
+			FixtureAgent: "hosted-native",
+			AgentName:    "mock-installed-extension",
+		}},
 	})
 	var installed compozycontract.ExtensionPayload
 	runExtensionAuthoringCLI(
@@ -114,6 +121,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	}
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", true, "daily", true)
 	assertDistributionExtensionInvocation(t, ctx, consumer, "published-v1:alpha")
+	assertDistributionHostedExtensionInvocation(t, ctx, consumer, "published-v1:alpha")
 
 	writeExtensionKitE2EAutomation(t, sourceDir, "hourly")
 	rewriteExtensionAuthoringGeneration(t, sourceDir, "published-v1:", "published-v2:", "published-v2")
@@ -193,6 +201,68 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		t.Fatal("GetExtension(after remove) error = nil, want not found")
 	}
 	githubServer.requireReleaseCount(t, 2)
+}
+
+func assertDistributionHostedExtensionInvocation(
+	t *testing.T,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	want string,
+) {
+	t.Helper()
+	registration, ok := harness.MockAgentRegistration("mock-installed-extension")
+	if !ok {
+		t.Fatal("MockAgentRegistration(mock-installed-extension) = missing")
+	}
+	active := createBoundFixtureBackedSession(
+		t,
+		ctx,
+		harness,
+		"mock-installed-extension",
+		"installed-extension-hosted-mcp",
+	)
+	diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(mock-installed-extension) error = %v", err)
+	}
+	sessionDiagnostics := acpmock.DiagnosticsForCompozySession(diagnostics, active.ID)
+	client := startHostedMCPClient(
+		t,
+		ctx,
+		requireHostedMCPStdioServer(t, sessionDiagnostics, hostedMCPServerLatest),
+	)
+	defer func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("Close(installed extension hosted MCP client) error = %v", err)
+		}
+	}()
+
+	toolID, err := toolspkg.CanonicalToolID("ext", "hello", "search")
+	if err != nil {
+		t.Fatalf("CanonicalToolID(hello search) error = %v", err)
+	}
+	listed, err := client.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListTools(installed extension hosted MCP) error = %v", err)
+	}
+	if !sdkToolListContains(listed.Tools, toolID.String()) {
+		t.Fatalf("hosted MCP tools = %#v, want installed extension tool %s", sdkToolNames(listed.Tools), toolID)
+	}
+
+	result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{
+		Name:      toolID.String(),
+		Arguments: map[string]any{"query": "alpha"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(%s) error = %v", toolID, err)
+	}
+	if result == nil || result.IsError || len(result.Content) != 1 {
+		t.Fatalf("CallTool(%s) result = %#v, want one successful text result", toolID, result)
+	}
+	textContent, ok := result.Content[0].(*sdkmcp.TextContent)
+	if !ok || textContent.Text != want {
+		t.Fatalf("CallTool(%s) content = %#v, want %q", toolID, result.Content, want)
+	}
 }
 
 func assertDistributionExtensionInvocation(

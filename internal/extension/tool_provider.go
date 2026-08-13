@@ -3,9 +3,9 @@ package extensionpkg
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -38,14 +38,29 @@ type ExtensionToolProviderOption func(*ExtensionToolProvider)
 // ExtensionToolProvider lists manifest-authored extension tools and resolves
 // executable handles through the live subprocess runtime.
 type ExtensionToolProvider struct {
-	mu       sync.RWMutex
-	registry *Registry
-	runtime  ExtensionToolRuntimeResolver
-	source   toolspkg.SourceRef
-	cache    extensionToolProviderCache
+	mu sync.RWMutex
+	// manifestRefresh serializes manifest observation through cache publication.
+	// The cache mutex stays unheld while this boundary performs filesystem I/O.
+	manifestRefresh  chan struct{}
+	manifestReadFile extensionManifestReadFile
+	registry         *Registry
+	runtime          ExtensionToolRuntimeResolver
+	logger           *slog.Logger
+	source           toolspkg.SourceRef
+	cache            extensionToolProviderCache
 }
 
 var _ toolspkg.Provider = (*ExtensionToolProvider)(nil)
+
+// WithToolProviderLogger injects the logger used when one invalid extension is
+// isolated from the aggregate tool catalog.
+func WithToolProviderLogger(logger *slog.Logger) ExtensionToolProviderOption {
+	return func(provider *ExtensionToolProvider) {
+		if logger != nil {
+			provider.logger = logger
+		}
+	}
+}
 
 // NewExtensionToolProvider creates the extension_host provider for the central
 // tool registry.
@@ -62,8 +77,11 @@ func NewExtensionToolProvider(
 		)
 	}
 	provider := &ExtensionToolProvider{
-		registry: registry,
-		runtime:  runtime,
+		manifestRefresh:  make(chan struct{}, 1),
+		manifestReadFile: os.ReadFile,
+		registry:         registry,
+		runtime:          runtime,
+		logger:           slog.Default(),
 		source: toolspkg.SourceRef{
 			Kind:  toolspkg.SourceExtension,
 			Owner: extensionToolProviderOwner,
@@ -91,7 +109,7 @@ func (p *ExtensionToolProvider) List(ctx context.Context, scope toolspkg.Scope) 
 	if err := extensionProviderContextErr(ctx); err != nil {
 		return nil, err
 	}
-	manifestTools, err := p.manifestTools(scope)
+	manifestTools, err := p.manifestTools(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +133,7 @@ func (p *ExtensionToolProvider) Resolve(
 	if err := id.Validate(); err != nil {
 		return nil, false, err
 	}
-	manifestTool, found, err := p.manifestTool(scope, id)
+	manifestTool, found, err := p.manifestTool(ctx, scope, id)
 	if err != nil || !found {
 		return nil, found, err
 	}
@@ -124,19 +142,6 @@ func (p *ExtensionToolProvider) Resolve(
 		runtime:  p.runtime,
 		scope:    scope,
 	}, true, nil
-}
-
-type extensionManifestTool struct {
-	info       ExtensionInfo
-	key        InstanceKey
-	descriptor ManifestToolDescriptor
-}
-
-type extensionToolProviderCache struct {
-	fingerprint        string
-	runtimeFingerprint string
-	generation         uint64
-	tools              []extensionManifestTool
 }
 
 type extensionToolHandle struct {
@@ -277,148 +282,11 @@ func (h *extensionToolHandle) provideTools(
 	return runtime.ProvideTools(ctx, h.extensionID())
 }
 
-func (p *ExtensionToolProvider) manifestTool(
-	scope toolspkg.Scope,
-	id toolspkg.ToolID,
-) (extensionManifestTool, bool, error) {
-	manifestTools, err := p.manifestTools(scope)
-	if err != nil {
-		return extensionManifestTool{}, false, err
-	}
-	for i := range manifestTools {
-		if manifestTools[i].descriptor.Tool.ID == id {
-			return manifestTools[i], true, nil
-		}
-	}
-	return extensionManifestTool{}, false, nil
-}
-
-func (p *ExtensionToolProvider) manifestTools(scope toolspkg.Scope) ([]extensionManifestTool, error) {
-	if p == nil || p.registry == nil {
-		return nil, toolspkg.NewValidationError(
-			"provider",
-			toolspkg.ReasonDependencyMissing,
-			"extension tool provider is required",
-		)
-	}
-	workspaceID := strings.TrimSpace(scope.WorkspaceID)
-	var infos []ExtensionInfo
-	if runtime := p.runtimeInstance(); runtime != nil {
-		if scoped, ok := runtime.(extensionScopedToolRuntime); ok {
-			infos = scoped.ListForWorkspace(workspaceID)
-		}
-	}
-	if infos == nil {
-		var err error
-		infos, err = p.registry.List()
-		if err != nil {
-			return nil, fmt.Errorf("extension: list tool manifests: %w", err)
-		}
-	}
-	fingerprint, err := extensionToolManifestFingerprint(workspaceID, infos)
-	if err != nil {
-		return nil, err
-	}
-	if tools, ok := p.cachedManifestTools(fingerprint); ok {
-		return tools, nil
-	}
-
-	manifestTools := make([]extensionManifestTool, 0)
-	for _, info := range infos {
-		if !info.Enabled {
-			continue
-		}
-		key := GlobalInstanceKey(info.Name)
-		if workspaceID != "" {
-			if link, linkErr := p.registry.GetDevLink(info.Name, workspaceID); linkErr == nil &&
-				strings.TrimSpace(link.BundleGeneration) == strings.TrimSpace(info.Checksum) {
-				key.WorkspaceID = workspaceID
-			}
-		}
-		manifest, err := loadManifestAtPath(info.ManifestPath)
-		if err != nil {
-			return nil, fmt.Errorf("extension: load tool manifest %q: %w", info.Name, err)
-		}
-		descriptors, err := ResolveManifestToolDescriptors(manifest)
-		if err != nil {
-			return nil, fmt.Errorf("extension: resolve tool manifest %q: %w", info.Name, err)
-		}
-		for i := range descriptors {
-			if descriptors[i].Tool.Backend.Kind != toolspkg.BackendExtensionHost {
-				continue
-			}
-			manifestTools = append(manifestTools, extensionManifestTool{
-				info:       cloneExtensionInfo(info),
-				key:        key,
-				descriptor: cloneManifestToolDescriptor(&descriptors[i]),
-			})
-		}
-	}
-	slices.SortFunc(manifestTools, func(left, right extensionManifestTool) int {
-		return strings.Compare(left.descriptor.Tool.ID.String(), right.descriptor.Tool.ID.String())
-	})
-	p.storeManifestTools(fingerprint, manifestTools)
-	return cloneExtensionManifestTools(manifestTools), nil
-}
-
 func (p *ExtensionToolProvider) runtimeInstance() ExtensionToolRuntime {
 	if p == nil || p.runtime == nil {
 		return nil
 	}
 	return p.runtime()
-}
-
-func (p *ExtensionToolProvider) cachedManifestTools(fingerprint string) ([]extensionManifestTool, bool) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.cache.fingerprint != fingerprint {
-		return nil, false
-	}
-	return cloneExtensionManifestTools(p.cache.tools), true
-}
-
-func (p *ExtensionToolProvider) storeManifestTools(fingerprint string, tools []extensionManifestTool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cache.fingerprint != fingerprint {
-		p.cache.generation++
-	}
-	p.cache.fingerprint = fingerprint
-	p.cache.tools = cloneExtensionManifestTools(tools)
-}
-
-func extensionToolManifestFingerprint(workspaceID string, infos []ExtensionInfo) (string, error) {
-	var builder strings.Builder
-	builder.WriteString(strings.TrimSpace(workspaceID))
-	builder.WriteByte(0)
-	for i := range infos {
-		info := infos[i]
-		builder.WriteString(info.Name)
-		builder.WriteByte(0)
-		builder.WriteString(info.Version)
-		builder.WriteByte(0)
-		builder.WriteString(info.Source.String())
-		builder.WriteByte(0)
-		if info.Enabled {
-			builder.WriteByte('1')
-		} else {
-			builder.WriteByte('0')
-		}
-		builder.WriteByte(0)
-		builder.WriteString(info.ManifestPath)
-		builder.WriteByte(0)
-		builder.WriteString(info.Checksum)
-		builder.WriteByte(0)
-		stat, err := os.Stat(info.ManifestPath)
-		if err != nil {
-			return "", fmt.Errorf("extension: stat tool manifest %q: %w", info.Name, err)
-		}
-		builder.WriteString(strconv.FormatInt(stat.Size(), 10))
-		builder.WriteByte(':')
-		builder.WriteString(strconv.FormatInt(stat.ModTime().UnixNano(), 10))
-		builder.WriteByte(0)
-	}
-	return builder.String(), nil
 }
 
 func runtimeDescriptorForTool(
@@ -439,26 +307,6 @@ func runtimeDescriptorForTool(
 		found = &descriptor
 	}
 	return found, false
-}
-
-func cloneManifestToolDescriptor(src *ManifestToolDescriptor) ManifestToolDescriptor {
-	cloned := *src
-	cloned.Tool = src.Tool.Descriptor().Tool()
-	cloned.RuntimeDescriptor.Capabilities = slices.Clone(src.RuntimeDescriptor.Capabilities)
-	cloned.RuntimeDescriptor.Command = cloneExtensionCommandSpec(src.RuntimeDescriptor.Command)
-	return cloned
-}
-
-func cloneExtensionManifestTools(src []extensionManifestTool) []extensionManifestTool {
-	cloned := make([]extensionManifestTool, len(src))
-	for i := range src {
-		cloned[i] = extensionManifestTool{
-			info:       cloneExtensionInfo(src[i].info),
-			key:        src[i].key,
-			descriptor: cloneManifestToolDescriptor(&src[i].descriptor),
-		}
-	}
-	return cloned
 }
 
 func extensionProviderContextErr(ctx context.Context) error {
