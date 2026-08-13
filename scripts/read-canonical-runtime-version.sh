@@ -7,8 +7,7 @@ trap 'rm -rf -- "${work_dir}"' EXIT
 
 curl --fail --silent --show-error "${manifest_url}" --output "${work_dir}/runtime.json"
 go run ./cmd/compozy-desktop-release canonicalize-json \
-  --input "${work_dir}/runtime.json" \
-  --output "${work_dir}/canonical.json"
+  --input "${work_dir}/runtime.json" >"${work_dir}/canonical.json"
 if ! cmp -s "${work_dir}/runtime.json" "${work_dir}/canonical.json"; then
   echo "desktop release: live runtime manifest is not canonical JSON" >&2
   exit 1

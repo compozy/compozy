@@ -100,8 +100,7 @@ for manifest in latest runtime; do
     exit 1
   fi
   go run ./cmd/compozy-desktop-release canonicalize-json \
-    --input "${work_dir}/live-${manifest}.json" \
-    --output "${work_dir}/${manifest}.json"
+    --input "${work_dir}/live-${manifest}.json" >"${work_dir}/${manifest}.json"
   jq -e --slurp '.[0] == .[1]' \
     "${work_dir}/live-${manifest}.json" "${work_dir}/${manifest}.json" >/dev/null
 done

@@ -475,7 +475,7 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"release_previous_tag:",
 		"release_git_range:",
 		"release_initial:",
-		"github.com/compozy/releasepr@v0.0.26",
+		"github.com/compozy/releasepr@v0.0.27",
 		"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}",
 		"go run \"${PR_RELEASE_MODULE}\" plan",
 		"if [[ \"${GITHUB_EVENT_NAME}\" == \"workflow_dispatch\" ]]",
@@ -722,7 +722,12 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		assertContainsText(t, "isolated npm preparation", workflow, "name: Prepare npm CLI package without publication")
 		assertContainsText(t, "isolated npm preparation", workflow, "--dist=.release-dist/npm")
 		assertContainsText(t, "isolated npm artifact", workflow, ".release-dist/npm/npm/@compozy/cli/*")
-		assertContainsText(t, "isolated GitHub preparation", workflow, "name: Prepare GitHub artifacts without npm publisher")
+		assertContainsText(
+			t,
+			"isolated GitHub preparation",
+			workflow,
+			"name: Prepare GitHub artifacts without npm publisher",
+		)
 		assertContainsText(t, "isolated GitHub preparation", workflow, "--dist=.release-dist/github")
 		assertContainsText(t, "GoReleaser staged publication", workflow, "args: publish --dist=.release-dist/github")
 		assertNotContainsText(t, "GoReleaser staged publication", workflow, "publish --config")
@@ -1546,6 +1551,21 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 
 	t.Run("Should run the same preflight before dry-run and tag publication", func(t *testing.T) {
 		t.Parallel()
+		releasePRTrigger := "startsWith(github.event.pull_request.title, 'release: release ')"
+		if got := strings.Count(workflow, releasePRTrigger); got != 4 {
+			t.Fatalf("semantic release PR trigger count = %d, want 4", got)
+		}
+		ciReleasePRTrigger := "startsWith(github.event.pull_request.title, 'ci(release): release ')"
+		if got := strings.Count(workflow, ciReleasePRTrigger); got != 4 {
+			t.Fatalf("semantic ci(release) PR trigger count = %d, want 4", got)
+		}
+		assertContainsText(
+			t,
+			"semantic release merge trigger",
+			workflow,
+			"startsWith(github.event.head_commit.message, 'release: release ')",
+		)
+		assertNotContainsText(t, "non-semantic release title", workflow, "release: Release ")
 
 		preflightDefinition := strings.Index(workflow, "- &run-release-preflight")
 		if preflightDefinition == -1 {

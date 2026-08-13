@@ -54,7 +54,6 @@ func run(ctx context.Context, args []string) error {
 func runCanonicalizeJSON(args []string) error {
 	flags := flag.NewFlagSet("canonicalize-json", flag.ContinueOnError)
 	input := flags.String("input", "", "input JSON path")
-	output := flags.String("output", "", "canonical JSON output path")
 	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
@@ -66,8 +65,8 @@ func runCanonicalizeJSON(args []string) error {
 	if err != nil {
 		return fmt.Errorf("canonicalize json input: %w", err)
 	}
-	if err := os.WriteFile(*output, canonical, 0o600); err != nil {
-		return fmt.Errorf("write canonical json output: %w", err)
+	if _, err := os.Stdout.Write(canonical); err != nil {
+		return fmt.Errorf("write canonical json: %w", err)
 	}
 	return nil
 }
