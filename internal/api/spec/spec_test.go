@@ -2645,6 +2645,9 @@ func TestWriteFileAndEnumHelpers(t *testing.T) {
 		if got := toolSourceValues(); len(got) == 0 {
 			t.Fatal("toolSourceValues() returned no values")
 		}
+		if got := toolReasonCodeValues(); !slices.Contains(got, string(tools.ReasonConfigPathNotFound)) {
+			t.Fatalf("toolReasonCodeValues() = %v, want %q", got, tools.ReasonConfigPathNotFound)
+		}
 		if got := hostAPIMethodValues(); len(got) == 0 || !slices.IsSorted(got) {
 			t.Fatalf("hostAPIMethodValues() = %v, want non-empty sorted values", got)
 		}

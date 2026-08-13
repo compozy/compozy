@@ -11,11 +11,17 @@ bug_ids: BUG-20260805-hosted-mcp-cold-start-nonce-expiry
 fix_status: fixed
 retest_status: pass
 fix_commits: PR #323 remediation commit
-evidence: /Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/verification-report.md;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/cli-guard-evidence.json;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/qa-audit-report.json;/Users/pedronauck/dev/qa-labs/compozy-managed-skill-cli-guard-20260806-021127-858332-lab/qa-artifacts/qa/teardown.json;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/operator-kickoff.jsonl;/Users/pedronauck/dev/qa-labs/compozy-loop-agent-ownership-r2-20260806-040706-936266-lab/qa-artifacts/qa/evidence/growth-pm-hosted-tools-session.png
-last_report: docs/qa/reports/2026-08-06-loop-agent-ownership.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/hosted-skill-summary.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/provider-hosted-skill-walk.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/qa-audit-report.md
+last_report: docs/qa/reports/2026-08-13-pr372-extension-agent-session-skills-native-cli.md
 overlaps: ET-003
 ---
 
 The current targeted run re-walked all twelve managed CLI verbs and the adjacent operator read/list
 canary against the rebuilt binary. The unchanged delayed provider and native-tool legs retain their
 full-walk evidence in the prior report.
+
+QA impact 2026-08-13: reset because extension-published agents now fall back to their concrete session definition after authored lookup reports `agent not found`. Re-walk prompt catalog injection and `skill_list/search/view` through hosted MCP.
+
+QA evidence correction 2026-08-13: the prior pass is not valid evidence for PR #372 because its build predates this PR head. It is historical only and does not set this scenario status.
+
+QA verdict 2026-08-13 (fresh native-CLI lab): passed. A real operator-home Codex `reviewer` session exposed the exact ten-name catalog (`compozy` plus the nine `dev-cycle` skills) in prompt, command, hosted `skill_list`, empty `skill_search`, and all ten `skill_view` calls; the provenance-filtered extension subset was exactly the nine `dev-cycle` names. This is a substantive persona-walk verdict only: the QA report remains blocked on C14 until a successful final gate exists.

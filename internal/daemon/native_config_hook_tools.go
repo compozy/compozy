@@ -115,7 +115,7 @@ func (n *daemonNativeTools) configGet(
 			req.ToolID,
 			fmt.Sprintf("config path %q not found", strings.TrimSpace(input.Path)),
 			toolspkg.ErrToolNotFound,
-			toolspkg.ReasonToolUnknown,
+			toolspkg.ReasonConfigPathNotFound,
 		)
 	}
 	return structuredResult(map[string]any{

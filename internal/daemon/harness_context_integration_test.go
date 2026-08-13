@@ -87,7 +87,7 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		defaultPromptInputAugmenterDescriptors(
 			situation.WorkspaceKnowledgeAugmenter,
 			memory.NewRecallAugmenter(daemonInstance.memoryStore),
-			newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
+			newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, nil, func() promptSkillsWorkspaceResolver {
 				return workspaceResolver
 			}),
 			daemonInstance.situationContext.Augment,

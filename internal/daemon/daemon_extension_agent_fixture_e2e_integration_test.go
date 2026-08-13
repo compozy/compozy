@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +20,8 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type extensionAgentFixtureConfig struct {
@@ -24,7 +29,21 @@ type extensionAgentFixtureConfig struct {
 	FixturePath        string
 	FixtureAgentName   string
 	ExtensionAgentName string
+	DiagnosticsPath    string
 }
+
+type hostedSourceQualifiedSkillViewPayload struct {
+	Name   string            `json:"name"`
+	Source commandpkg.Source `json:"source"`
+}
+
+var (
+	extensionCurrentPromptCatalogPattern = regexp.MustCompile(
+		`(?s)<current-available-skills>(.*?)</current-available-skills>`,
+	)
+	extensionPromptSkillNamePattern = regexp.MustCompile(`<skill name="([^"]+)">`)
+	reviewerSkillNames              = append([]string{"compozy"}, devCycleIntegrationSkillNames...)
+)
 
 func TestDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) {
 	t.Run(
@@ -52,11 +71,13 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 	defer cancel()
 
 	requireDevCycleExtensionEnabled(t, ctx, harness)
+	diagnosticsPath := filepath.Join(harness.HomePaths.LogsDir, "extension-reviewer.jsonl")
 	configureExtensionAgentFixture(t, ctx, harness, extensionAgentFixtureConfig{
 		DriverPath:         driverPath,
 		FixturePath:        fixturePath,
 		FixtureAgentName:   "review_and_fix_invalid_reviewer",
 		ExtensionAgentName: "reviewer",
+		DiagnosticsPath:    diagnosticsPath,
 	})
 
 	created, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
@@ -84,16 +105,11 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 	if strings.TrimSpace(catalog.Revision) == "" {
 		t.Fatal("HTTP extension session commands revision is empty")
 	}
-	var extensionCommand *compozycontract.SessionCommandPayload
-	for index := range catalog.Commands {
-		command := &catalog.Commands[index]
-		if command.Lane == "skill" && command.Source.Kind == "extension" && command.Source.ID == devcycle.Name {
-			extensionCommand = command
-			break
-		}
-	}
-	if extensionCommand == nil {
-		t.Fatalf("HTTP extension session commands = %+v, want a dev-cycle skill", catalog.Commands)
+	reviewerCommands := reviewerSkillCommands(t, catalog.Commands)
+	extensionCommands := extensionSkillCommands(t, reviewerCommands)
+	extensionCommand, ok := extensionCommands["cy-review-round"]
+	if !ok {
+		t.Fatalf("HTTP extension session commands = %+v, want cy-review-round", catalog.Commands)
 	}
 	if strings.TrimSpace(extensionCommand.CanonicalToken) == "" {
 		t.Fatalf("dev-cycle command = %+v, want canonical token", extensionCommand)
@@ -105,6 +121,8 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 	}
 	assertSuccessfulExtensionPromptStream(t, plainStream, "plain")
 	waitForExtensionSessionIdle(t, ctx, harness, active.ID)
+	assertExtensionPromptCatalog(t, diagnosticsPath)
+	assertExtensionHostedMCPTools(t, ctx, harness, diagnosticsPath, reviewerCommands)
 
 	skillMessage := extensionCommand.CanonicalToken + " verify the current change"
 	skillStream, err := harness.PromptSessionHTTP(ctx, active.ID, skillMessage)
@@ -112,7 +130,301 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 		t.Fatalf("PromptSessionHTTP(skill) error = %v", err)
 	}
 	assertSuccessfulExtensionPromptStream(t, skillStream, "skill")
-	assertPersistedExtensionSkillInvocation(t, ctx, harness, active.ID, *extensionCommand)
+	assertPersistedExtensionSkillInvocation(t, ctx, harness, active.ID, extensionCommand)
+}
+
+func assertExtensionPromptCatalog(t testing.TB, diagnosticsPath string) {
+	t.Helper()
+	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(extension reviewer) error = %v", err)
+	}
+	for _, record := range acpmock.PromptDiagnostics(records) {
+		if strings.Contains(record.Prompt, "<current-available-skills>") {
+			assertSkillNames(
+				t,
+				"extension prompt catalog",
+				extensionPromptSkillNames(record.Prompt),
+				reviewerSkillNames,
+			)
+			return
+		}
+	}
+	t.Fatalf("extension prompt diagnostics = %#v, want current complete dev-cycle catalog", records)
+}
+
+func assertExtensionHostedMCPTools(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	diagnosticsPath string,
+	commands map[string]compozycontract.SessionCommandPayload,
+) {
+	t.Helper()
+	records, err := acpmock.ReadDiagnostics(diagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(extension hosted MCP) error = %v", err)
+	}
+	client := startHostedMCPClient(t, ctx, requireHostedMCPStdioServer(t, records, hostedMCPServerEarliest))
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			t.Errorf("Close(extension hosted MCP client) error = %v", closeErr)
+		}
+	}()
+
+	availableTools, err := client.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListTools(extension hosted MCP) error = %v", err)
+	}
+	for _, toolID := range []toolspkg.ToolID{
+		toolspkg.ToolIDSkillList,
+		toolspkg.ToolIDSkillSearch,
+		toolspkg.ToolIDSkillView,
+		toolspkg.ToolIDConfigGet,
+	} {
+		if !sdkToolListContains(availableTools.Tools, toolID.String()) {
+			t.Fatalf("extension hosted MCP tools = %#v, want %s", sdkToolNames(availableTools.Tools), toolID)
+		}
+	}
+
+	var listed struct {
+		Skills []compozycontract.SkillPayload `json:"skills"`
+	}
+	callHostedMCPToolJSON(t, ctx, client, toolspkg.ToolIDSkillList.String(), map[string]any{}, &listed)
+	assertHostedSkillCatalog(t, "extension hosted skill_list", listed.Skills)
+
+	var searched struct {
+		Skills []compozycontract.SkillPayload `json:"skills"`
+	}
+	callHostedMCPToolJSON(
+		t,
+		ctx,
+		client,
+		toolspkg.ToolIDSkillSearch.String(),
+		map[string]any{"query": ""},
+		&searched,
+	)
+	assertHostedSkillCatalog(t, "extension hosted skill_search", searched.Skills)
+
+	viewedSkills := make([]hostedSourceQualifiedSkillViewPayload, 0, len(commands))
+	for name, command := range commands {
+		var viewed struct {
+			CommandID string                                `json:"command_id"`
+			Skill     hostedSourceQualifiedSkillViewPayload `json:"skill"`
+			Content   string                                `json:"content"`
+		}
+		callHostedMCPToolJSON(
+			t,
+			ctx,
+			client,
+			toolspkg.ToolIDSkillView.String(),
+			map[string]any{"command_id": command.ID},
+			&viewed,
+		)
+		if viewed.CommandID != command.ID {
+			t.Fatalf("extension hosted skill_view(%q) command ID = %q, want %q", name, viewed.CommandID, command.ID)
+		}
+		if viewed.Skill.Name != name {
+			t.Fatalf("extension hosted skill_view(%q) skill name = %q, want %q", name, viewed.Skill.Name, name)
+		}
+		wantSource := commandpkg.Source{
+			Kind:  command.Source.Kind,
+			ID:    command.Source.ID,
+			Key:   command.Source.Key,
+			Scope: command.Source.Scope,
+		}
+		if viewed.Skill.Source != wantSource {
+			t.Fatalf("extension hosted skill_view(%q) source = %+v, want %+v", name, viewed.Skill.Source, wantSource)
+		}
+		if strings.TrimSpace(viewed.Content) == "" {
+			t.Fatalf("extension hosted skill_view(%q) content is empty", name)
+		}
+		viewedSkills = append(viewedSkills, viewed.Skill)
+	}
+	assertHostedSkillViewCatalog(t, "extension hosted skill_view", viewedSkills)
+
+	command, ok := commands["cy-review-round"]
+	if !ok {
+		t.Fatal("extension commands missing cy-review-round after exact-set assertion")
+	}
+	assertExtensionHostedToolReason(
+		t,
+		ctx,
+		client,
+		toolspkg.ToolIDConfigGet,
+		map[string]any{
+			"path":      "loops.inputs.batuta-deliver.auto_commit",
+			"workspace": harness.WorkspaceRoot,
+		},
+		toolspkg.ReasonConfigPathNotFound,
+	)
+
+	var foreign compozycontract.WorkspaceResponse
+	if err := harness.UDSJSON(
+		ctx,
+		http.MethodPost,
+		"/api/workspaces",
+		compozycontract.CreateWorkspaceRequest{RootDir: t.TempDir(), Name: "extension-foreign"},
+		&foreign,
+	); err != nil {
+		t.Fatalf("UDS create foreign extension workspace error = %v", err)
+	}
+	assertExtensionHostedToolReason(
+		t,
+		ctx,
+		client,
+		toolspkg.ToolIDSkillView,
+		map[string]any{"command_id": command.ID, "workspace": foreign.Workspace.ID},
+		toolspkg.ReasonWorkspaceAccessDenied,
+	)
+}
+
+func reviewerSkillCommands(
+	t testing.TB,
+	commands []compozycontract.SessionCommandPayload,
+) map[string]compozycontract.SessionCommandPayload {
+	t.Helper()
+
+	byName := make(map[string]compozycontract.SessionCommandPayload)
+	for _, command := range commands {
+		if command.Lane != "skill" {
+			continue
+		}
+		name := strings.TrimPrefix(command.DisplayName, "/")
+		if _, exists := byName[name]; exists {
+			t.Fatalf("HTTP reviewer session commands duplicate skill %q: %+v", name, commands)
+		}
+		byName[name] = command
+	}
+	assertReviewerSkillNames(t, "HTTP reviewer session commands", extensionSkillCommandNames(byName))
+	return byName
+}
+
+func extensionSkillCommands(
+	t testing.TB,
+	commands map[string]compozycontract.SessionCommandPayload,
+) map[string]compozycontract.SessionCommandPayload {
+	t.Helper()
+
+	byName := make(map[string]compozycontract.SessionCommandPayload)
+	for name, command := range commands {
+		if command.Source.Kind == "extension" && command.Source.ID == devcycle.Name {
+			byName[name] = command
+		}
+	}
+	assertExtensionSkillNames(t, "HTTP reviewer extension commands", extensionSkillCommandNames(byName))
+	return byName
+}
+
+func extensionPromptSkillNames(prompt string) []string {
+	catalog := extensionCurrentPromptCatalogPattern.FindStringSubmatch(prompt)
+	if len(catalog) != 2 {
+		return nil
+	}
+	matches := extensionPromptSkillNamePattern.FindAllStringSubmatch(catalog[1], -1)
+	names := make([]string, 0, len(matches))
+	for _, match := range matches {
+		names = append(names, match[1])
+	}
+	return names
+}
+
+func assertHostedSkillCatalog(
+	t testing.TB,
+	surface string,
+	skills []compozycontract.SkillPayload,
+) {
+	t.Helper()
+
+	names := make([]string, 0, len(skills))
+	for _, skill := range skills {
+		names = append(names, skill.Name)
+	}
+	assertReviewerSkillNames(t, surface, names)
+
+	extensionNames := make([]string, 0, len(skills))
+	for _, skill := range skills {
+		if skill.Provenance != nil && skill.Provenance.InstalledFromExtension == devcycle.Name {
+			extensionNames = append(extensionNames, skill.Name)
+		}
+	}
+	assertExtensionSkillNames(t, surface+" dev-cycle provenance", extensionNames)
+}
+
+func assertHostedSkillViewCatalog(
+	t testing.TB,
+	surface string,
+	skills []hostedSourceQualifiedSkillViewPayload,
+) {
+	t.Helper()
+
+	names := make([]string, 0, len(skills))
+	extensionNames := make([]string, 0, len(skills))
+	for _, skill := range skills {
+		names = append(names, skill.Name)
+		if skill.Source.Kind == "extension" && skill.Source.ID == devcycle.Name {
+			extensionNames = append(extensionNames, skill.Name)
+		}
+	}
+	assertReviewerSkillNames(t, surface, names)
+	assertExtensionSkillNames(t, surface+" dev-cycle source", extensionNames)
+}
+
+func extensionSkillCommandNames(commands map[string]compozycontract.SessionCommandPayload) []string {
+	names := make([]string, 0, len(commands))
+	for name := range commands {
+		names = append(names, name)
+	}
+	return names
+}
+
+func assertExtensionSkillNames(t testing.TB, surface string, got []string) {
+	t.Helper()
+
+	assertSkillNames(t, surface, got, devCycleIntegrationSkillNames)
+}
+
+func assertReviewerSkillNames(t testing.TB, surface string, got []string) {
+	t.Helper()
+
+	assertSkillNames(t, surface, got, reviewerSkillNames)
+}
+
+func assertSkillNames(t testing.TB, surface string, got, want []string) {
+	t.Helper()
+
+	want = slices.Clone(want)
+	got = slices.Clone(got)
+	slices.Sort(want)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Fatalf("%s skill names = %#v, want exactly %#v", surface, got, want)
+	}
+}
+
+func assertExtensionHostedToolReason(
+	t testing.TB,
+	ctx context.Context,
+	client *sdkmcp.ClientSession,
+	toolID toolspkg.ToolID,
+	arguments map[string]any,
+	want toolspkg.ReasonCode,
+) {
+	t.Helper()
+	result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: toolID.String(), Arguments: arguments})
+	if err != nil {
+		t.Fatalf("CallTool(%s) error = %v", toolID, err)
+	}
+	if result == nil || !result.IsError {
+		t.Fatalf("CallTool(%s) result = %#v, want error reason %q", toolID, result, want)
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Marshal(CallTool(%s) error result) error = %v", toolID, err)
+	}
+	if !strings.Contains(string(payload), string(want)) {
+		t.Fatalf("CallTool(%s) error result = %s, want reason %q", toolID, payload, want)
+	}
 }
 
 func assertPersistedExtensionSkillInvocation(
@@ -253,7 +565,7 @@ func configureExtensionAgentFixture(
 				config.DriverPath,
 				config.FixturePath,
 				config.FixtureAgentName,
-				"",
+				config.DiagnosticsPath,
 			),
 			Model:           strings.TrimSpace(fixtureAgent.Model),
 			ReasoningEffort: compozycontract.ReasoningEffort(strings.TrimSpace(fixtureAgent.ReasoningEffort)),

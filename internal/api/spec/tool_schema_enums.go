@@ -57,6 +57,7 @@ func toolReasonCodeValues() []string {
 		string(tools.ReasonToolsetUnknown),
 		string(tools.ReasonToolsetCycle),
 		string(tools.ReasonToolUnknown),
+		string(tools.ReasonConfigPathNotFound),
 	}
 	sort.Strings(values)
 	return values

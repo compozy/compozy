@@ -39,6 +39,7 @@ type promptSkillsWorkspaceResolver interface {
 
 type skillsCatalogAugmenter struct {
 	registry          promptSkillsRegistry
+	agentResolver     func() session.AgentResolver
 	workspaceResolver func() promptSkillsWorkspaceResolver
 	sequence          atomic.Uint64
 
@@ -54,6 +55,7 @@ type skillsCatalogSessionState struct {
 
 func newSkillsCatalogAugmenter(
 	registry promptSkillsRegistry,
+	agentResolver func() session.AgentResolver,
 	workspaceResolver func() promptSkillsWorkspaceResolver,
 ) session.PromptInputAugmenter {
 	if registry == nil {
@@ -62,6 +64,7 @@ func newSkillsCatalogAugmenter(
 
 	augmenter := &skillsCatalogAugmenter{
 		registry:          registry,
+		agentResolver:     agentResolver,
 		workspaceResolver: workspaceResolver,
 		states:            make(map[string]skillsCatalogSessionState),
 	}
@@ -114,10 +117,18 @@ func (a *skillsCatalogAugmenter) skillsForSessionAgent(
 	agent compozyconfig.AgentDef,
 	sessionID string,
 ) ([]*skillspkg.Skill, error) {
-	if strings.TrimSpace(agent.SourcePath) == "" {
-		return a.registry.ForAgentDefSession(ctx, workspace, agent, sessionID)
-	}
-	return a.registry.ForAgentSession(ctx, workspace, agent.Name, sessionID)
+	return resolveSessionAgentProjection(sessionAgentProjection[[]*skillspkg.Skill]{
+		agent:                 agent,
+		hasConcreteDefinition: true,
+		workspace:             workspace,
+		agentResolver:         a.agentResolver,
+		byName: func(agentName string) ([]*skillspkg.Skill, error) {
+			return a.registry.ForAgentSession(ctx, workspace, agentName, sessionID)
+		},
+		byDefinition: func(resolvedAgent compozyconfig.AgentDef) ([]*skillspkg.Skill, error) {
+			return a.registry.ForAgentDefSession(ctx, workspace, resolvedAgent, sessionID)
+		},
+	})
 }
 
 func (a *skillsCatalogAugmenter) catalogUnchanged(info *session.Info, catalog string) bool {

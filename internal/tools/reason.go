@@ -144,6 +144,8 @@ const (
 	ReasonToolsetCycle ReasonCode = "toolset_cycle"
 	// ReasonToolUnknown reports a policy reference to an unknown tool.
 	ReasonToolUnknown ReasonCode = "tool_unknown"
+	// ReasonConfigPathNotFound reports an absent config entry.
+	ReasonConfigPathNotFound ReasonCode = "config_path_not_found"
 	// ReasonConfigPathForbidden reports an agent-immutable config path.
 	ReasonConfigPathForbidden ReasonCode = "config_path_forbidden"
 	// ReasonConfigSecretPathForbidden reports a secret-bearing config path.
@@ -248,6 +250,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonToolsetUnknown:                 {},
 	ReasonToolsetCycle:                   {},
 	ReasonToolUnknown:                    {},
+	ReasonConfigPathNotFound:             {},
 	ReasonConfigPathForbidden:            {},
 	ReasonConfigSecretPathForbidden:      {},
 	ReasonConfigTrustRootForbidden:       {},
