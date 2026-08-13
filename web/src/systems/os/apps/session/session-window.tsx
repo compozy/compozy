@@ -41,7 +41,8 @@ function returnToAgent(
  */
 export function SessionWindow({ windowId }: { windowId: string }) {
   const { coordinator } = useOsShell();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const activeWorkspace = useActiveWorkspace();
+  const runtimeWorkspaceId = activeWorkspace.runtimeWorkspaceId?.trim() || null;
   const { liveTailEnabled, pathname } = useSessionWindowDesktopState(windowId);
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);

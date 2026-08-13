@@ -68,7 +68,7 @@ export function LoopRunDetailLocation({ runId }: { runId: string }) {
       runId={runId}
       liveDataEnabled={liveDataEnabled}
       topbarIdentity={topbarIdentity}
-      workspaceName={activeWorkspace?.name}
+      workspaceName={activeWorkspace?.id === runtimeWorkspaceId ? activeWorkspace.name : undefined}
     />
   );
 }
