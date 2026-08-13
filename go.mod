@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/coder/acp-go-sdk v0.13.5
-	github.com/compozy/compozy-web-assets v0.0.85
+	github.com/compozy/compozy-web-assets v0.0.97
 	github.com/compozy/compozy/sdk/go v0.0.0
 	github.com/creativeprojects/go-selfupdate v1.5.2
 	github.com/dave/jennifer v1.7.1
