@@ -83,6 +83,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Align update artifacts with release policy (#363)
 - Canonicalize desktop runtime manifests (#364)
 - Validate desktop bundles before release
+- Make release publication atomic
+- Defer npm publication safely
+- Harden release recovery
+- Isolate release publishers
+- Make release artifacts reproducible
+- Align release automation contracts
+- Reject invalid agent names (#367)
+- Resolve extension agent skills and missing config paths (#372)
+- Include extension tools in hosted MCP bootstrap (#373)
+- Use conventional release triggers
+- Resolve main lint regressions
+- Parse nanosecond daemon timestamps
+- Validate release workflow tools by type
 
 ### 🧪 Testing
 
