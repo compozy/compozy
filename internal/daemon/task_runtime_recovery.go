@@ -50,6 +50,11 @@ func (r *taskRuntime) shutdown(ctx context.Context) error {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}
+	if r.claimHandoff != nil {
+		if err := r.claimHandoff.shutdown(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
+	}
 	if r.wakeBridge != nil {
 		if err := r.wakeBridge.shutdown(ctx); err != nil {
 			shutdownErr = errors.Join(shutdownErr, err)

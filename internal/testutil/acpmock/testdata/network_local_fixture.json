@@ -8,6 +8,19 @@
             "prompt": "You are a deterministic Local execution probe.",
             "turns": [
                 {
+                    "name": "bootstrap",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "noop"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "noop"
+                        }
+                    ]
+                },
+                {
                     "name": "local-session-probe",
                     "match": {
                         "turn_source": "user",
@@ -50,6 +63,18 @@
                         {
                             "kind": "assistant",
                             "text": "Worktree exit marker written."
+                        }
+                    ]
+                },
+                {
+                    "name": "task-claim-handoff",
+                    "match": {
+                        "turn_source": "synthetic"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "task handoff accepted"
                         }
                     ]
                 }

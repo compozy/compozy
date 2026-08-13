@@ -131,7 +131,7 @@ Use this guidance only inside a worker session with an active task claim or whil
 1. Inspect the agent context bundle before changing files.
 2. Confirm task id, run id, objective, acceptance criteria, lease status, and available task tools.
 3. Use the hosted task read tools when lease or run health is ambiguous.
-4. Claim the assigned run with `compozy__task_run_claim_next`, passing the runtime-provided `run_id` and any required capabilities. Do not use the CLI for session-bound lease operations.
+4. Claim the assigned run with `compozy__task_run_claim_next`, passing the runtime-provided `run_id` and any required capabilities. The tool also starts worker execution. If its returned `session_id` differs from this session, the run was transferred to a dedicated session; end this turn without doing task work. Do not use the CLI for session-bound lease operations.
 5. Keep the lease current with `compozy__task_run_heartbeat`.
 6. Complete, fail, or release only through `compozy__task_run_complete`, `compozy__task_run_fail`, or `compozy__task_run_release` from the same session.
 7. Include changed files, verification commands, and residual risks in the run summary.

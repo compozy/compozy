@@ -386,7 +386,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 					},
 					Catalog: integrationRuntimeCatalog{},
 				},
-				Environment: loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot}, GoalSegmentEpoch: 1,
+				Environment: &loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot}, GoalSegmentEpoch: 1,
 				GoalContextNudgeRatio: new(fixture.run.GoalContextNudgeRatio),
 			})
 			if executeErr != nil {
@@ -1075,7 +1075,7 @@ func (f loopGoalManagedRuntimeFixture) bindingRequest(suffix string) looppkg.Act
 	return looppkg.ActionSessionBindRequest{
 		WorkspaceID: f.run.WorkspaceID, LoopRunID: f.run.ID, Generation: 1,
 		NodeID: "converge", ItemIndex: 0, Agent: f.agentName,
-		Environment: loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot},
+		Environment: &loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot},
 		Handle:      "goal:managed:" + suffix, Mode: "continuous",
 		TargetBindingEpoch: 1, ExpectedControlEpoch: 1,
 		ExpectedCheckpointPhase: "idle", ExpectedTaskRunID: f.taskRunID,

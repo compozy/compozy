@@ -73,6 +73,10 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	if err != nil {
 		return fmt.Errorf("daemon: create detached harness bridge: %w", err)
 	}
+	claimHandoff, err := newTaskClaimHandoffRuntime(ctx, state.sessions, state.logger)
+	if err != nil {
+		return fmt.Errorf("daemon: create task claim handoff: %w", err)
+	}
 
 	installTaskRuntime(
 		state,
@@ -81,6 +85,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		detached,
 		reentry,
 		wakeBridge,
+		claimHandoff,
 		bridgeNotifications,
 		taskStatusProjection,
 		loopActions,
@@ -244,6 +249,7 @@ func installTaskRuntime(
 	detached *harnessDetachedWorkBridge,
 	reentry *harnessReentryBridge,
 	wakeBridge *taskWakeBridge,
+	claimHandoff *taskClaimHandoffRuntime,
 	bridgeNotifications *bridgeTerminalTaskNotificationObserver,
 	taskStatusProjection *taskStatusProjectionObserver,
 	loopActions *loopActionRuntime,
@@ -257,6 +263,7 @@ func installTaskRuntime(
 		detached:             detached,
 		reentry:              reentry,
 		wakeBridge:           wakeBridge,
+		claimHandoff:         claimHandoff,
 		bridgeNotifications:  bridgeNotifications,
 		taskStatusProjection: taskStatusProjection,
 		loopActions:          loopActions,

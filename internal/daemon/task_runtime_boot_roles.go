@@ -102,6 +102,7 @@ func (d *Daemon) bootTaskRoles(ctx context.Context, state *bootState) error {
 	if state == nil || state.tasks == nil || state.tasks.store == nil || state.sessions == nil {
 		return nil
 	}
+	registerTaskClaimHandoffTurnEnd(state.sessions, state.tasks.claimHandoff)
 	runtime, err := newTaskRoleRuntime(
 		state.tasks.store,
 		state.sessions,

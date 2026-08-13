@@ -33,6 +33,7 @@ func (d *Daemon) nativeToolsDeps(
 		NetworkStore:               state.registry,
 		NetworkUsage:               state.registry,
 		Tasks:                      state.deps.Tasks,
+		TaskClaimHandoff:           taskClaimHandoffForState(state),
 		MemoryStore:                state.memoryStore,
 		MemoryToolWrites:           state.memoryExtractor,
 		DreamTrigger:               state.deps.DreamTrigger,

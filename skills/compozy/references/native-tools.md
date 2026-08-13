@@ -235,7 +235,7 @@ its `subscription_id`, and a bridge acknowledgment must echo the exact `delivery
 
 Session-bound autonomy tools: `compozy__task_run_claim_next`, `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, `compozy__task_run_release`, `compozy__task_run_review_submit`.
 
-Autonomy tools are bound to the caller session. Do not substitute general task mutation tools for session-bound lease operations. Read references/tasks-and-orchestration.md before claiming, heartbeating, completing, failing, releasing, or submitting review verdicts.
+Autonomy tools are bound to the caller session. `compozy__task_run_claim_next` claims and starts a worker run; a different returned `session_id` means execution moved to that dedicated session and the caller must end its turn. Do not substitute general task mutation tools for session-bound lease operations. Read references/tasks-and-orchestration.md before claiming, heartbeating, completing, failing, releasing, or submitting review verdicts.
 
 ## Loop Tools
 

@@ -27,6 +27,7 @@ import (
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/worktree"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/sys/execabs"
 )
 
@@ -242,7 +243,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	t.Cleanup(cancel)
 
-	claimer := createFixtureBackedSession(t, ctx, harness, "local-default", "per-run-claimer")
+	claimer := createBoundFixtureBackedSession(t, ctx, harness, "local-default", "per-run-claimer")
 	taskRecord := createTaskViaUDS(t, ctx, harness, "Per-run task worktree journey")
 
 	var cliProfile compozycontract.TaskExecutionProfilePayload
@@ -267,7 +268,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 	assertTaskWorktreeProfileParity(t, ctx, harness, taskRecord.ID, cliProfile)
 
 	run := enqueueTaskRunViaUDS(t, ctx, harness, taskRecord.ID, "")
-	if run.ResolvedWorktreeMode != taskpkg.WorktreeModePerRun || run.WorktreeID != "" {
+	if run.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModePerRun || run.WorktreeID != "" {
 		t.Fatalf("queued run worktree snapshot = %#v, want unresolved per_run", run)
 	}
 
@@ -288,20 +289,37 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 		t.Fatalf("post-enqueue task profile set-worktree(none) error = %v", err)
 	}
 
-	if _, err := harness.ClaimExactTaskRunForSession(ctx, run.ID, claimer); err != nil {
-		t.Fatalf("ClaimExactTaskRunForSession(%s) error = %v", run.ID, err)
+	registration, ok := harness.MockAgentRegistration("local-default")
+	if !ok {
+		t.Fatal("MockAgentRegistration(local-default) = missing, want present")
 	}
-	started, err := harness.StartClaimedTaskRunForSession(
+	diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(per-run claimer) error = %v", err)
+	}
+	claimerDiagnostics := acpmock.DiagnosticsForCompozySession(diagnostics, claimer.ID)
+	client := startHostedMCPClient(
+		t,
 		ctx,
-		run.ID,
-		claimer,
-		compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + run.ID},
+		requireHostedMCPStdioServer(t, claimerDiagnostics, hostedMCPServerEarliest),
 	)
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			t.Fatalf("Close(hosted MCP client) error = %v", closeErr)
+		}
+	}()
+	claimCall := &sdkmcp.CallToolParams{
+		Name: toolspkg.ToolIDTaskRunClaimNext.String(),
+		Arguments: map[string]any{
+			"run_id": run.ID,
+		},
+	}
+	claimResult, err := client.CallTool(ctx, claimCall)
 	if err != nil {
 		storedRuns, listErr := harness.ListTaskRuns(ctx, taskRecord.ID, nil)
 		daemonLog, logErr := os.ReadFile(filepath.Join(harness.Artifacts.RootDir(), "daemon-process.log"))
 		t.Fatalf(
-			"StartTaskRun(%s) error = %v; runs=%#v list_error=%v log_error=%v daemon_log=%s",
+			"CallTool(task_run_claim_next %s) error = %v; runs=%#v list_error=%v log_error=%v daemon_log=%s",
 			run.ID,
 			err,
 			storedRuns,
@@ -310,7 +328,25 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 			daemonLog,
 		)
 	}
-	if started.ResolvedWorktreeMode != taskpkg.WorktreeModePerRun || started.WorktreeID == "" {
+	if claimResult == nil || claimResult.IsError {
+		t.Fatalf("CallTool(task_run_claim_next) result = %#v, want success", claimResult)
+	}
+	structuredClaim, err := json.Marshal(claimResult.StructuredContent)
+	if err != nil {
+		t.Fatalf("json.Marshal(task_run_claim_next structured content) error = %v", err)
+	}
+	var claimEnvelope struct {
+		Claimed bool                                  `json:"claimed"`
+		Claim   compozycontract.AgentTaskClaimPayload `json:"claim"`
+	}
+	if err := json.Unmarshal(structuredClaim, &claimEnvelope); err != nil {
+		t.Fatalf("json.Unmarshal(task_run_claim_next structured content) error = %v; content=%s", err, structuredClaim)
+	}
+	started := claimEnvelope.Claim.Run
+	if !claimEnvelope.Claimed || started.Status.Normalize() != taskpkg.TaskRunStatusRunning {
+		t.Fatalf("native claim = %#v, want claimed running run", claimEnvelope)
+	}
+	if started.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModePerRun || started.WorktreeID == "" {
 		t.Fatalf("started run worktree = %#v, want frozen per_run materialization", started)
 	}
 	taskSession, err := harness.GetSession(ctx, started.SessionID)
@@ -320,6 +356,10 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 	if taskSession.WorktreeID != started.WorktreeID {
 		t.Fatalf("session worktree_id = %q, want run worktree_id %q", taskSession.WorktreeID, started.WorktreeID)
 	}
+	if _, err := harness.PromptSession(ctx, claimer.ID, "local session probe"); err != nil {
+		t.Fatalf("PromptSession(bootstrap turn end) error = %v", err)
+	}
+	waitForWorktreeE2ESessionState(t, ctx, harness, claimer.ID, sessionpkg.StateStopped)
 
 	inspection := waitForWorktreeE2EState(
 		t,
@@ -360,7 +400,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 		t.Fatalf("ListTaskRuns(%s) error = %v", taskRecord.ID, err)
 	}
 	if len(runs) != 1 || runs[0].WorktreeID != started.WorktreeID ||
-		runs[0].ResolvedWorktreeMode != taskpkg.WorktreeModePerRun {
+		runs[0].ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModePerRun {
 		t.Fatalf("terminal run history = %#v, want durable worktree binding", runs)
 	}
 	waitForWorktreeE2EState(t, ctx, harness, harness.WorkspaceID, started.WorktreeID, worktree.StateReady)
@@ -368,7 +408,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 	secondClaimer := createFixtureBackedSession(t, ctx, harness, "local-default", "root-claimer")
 	rootTask := createTaskViaUDS(t, ctx, harness, "Root snapshot authority")
 	rootRun := enqueueTaskRunViaUDS(t, ctx, harness, rootTask.ID, "")
-	if rootRun.ResolvedWorktreeMode != taskpkg.WorktreeModeNone {
+	if rootRun.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModeNone {
 		t.Fatalf("root queued run worktree mode = %q, want none", rootRun.ResolvedWorktreeMode)
 	}
 	if err := harness.CLI.RunJSONInDir(
@@ -398,7 +438,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTaskRun(root %s) error = %v", rootRun.ID, err)
 	}
-	if rootStarted.ResolvedWorktreeMode != taskpkg.WorktreeModeNone || rootStarted.WorktreeID != "" {
+	if rootStarted.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModeNone || rootStarted.WorktreeID != "" {
 		t.Fatalf("started root run worktree = %#v, want frozen root execution", rootStarted)
 	}
 }
@@ -455,7 +495,7 @@ func TestDaemonTaskFanOutPerRunIsolationIT029IT031(t *testing.T) {
 	paths := make(map[string]string, len(fanOut.Runs))
 	startedRuns := make([]compozycontract.TaskRunPayload, 0, len(fanOut.Runs))
 	for index, queued := range fanOut.Runs {
-		if queued.ResolvedWorktreeMode != taskpkg.WorktreeModePerRun ||
+		if queued.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModePerRun ||
 			queued.DesignationGroupID != fanOut.DesignationGroupID {
 			t.Fatalf("queued fan-out run[%d] = %#v, want grouped per_run snapshot", index, queued)
 		}
@@ -478,7 +518,7 @@ func TestDaemonTaskFanOutPerRunIsolationIT029IT031(t *testing.T) {
 		if err != nil {
 			t.Fatalf("StartTaskRun(%s) error = %v", queued.ID, err)
 		}
-		if started.WorktreeID == "" || started.ResolvedWorktreeMode != taskpkg.WorktreeModePerRun {
+		if started.WorktreeID == "" || started.ResolvedWorktreeMode != compozycontract.ResolvedWorktreeModePerRun {
 			t.Fatalf("started fan-out run[%d] = %#v, want per-run worktree", index, started)
 		}
 		inspection := waitForWorktreeE2EState(

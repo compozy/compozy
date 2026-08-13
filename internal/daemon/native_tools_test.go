@@ -4170,6 +4170,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Run: taskpkg.Run{
 					ID:             "run-1",
 					TaskID:         "task-1",
+					RunKind:        taskpkg.RunKindWorker,
 					Status:         taskpkg.TaskRunStatusClaimed,
 					SessionID:      "sess-agent",
 					ClaimTokenHash: hash,
@@ -4213,15 +4214,26 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredExcludes(t, claimResult, []byte(rawToken))
 		requireNativeStructuredExcludes(t, claimResult, []byte(`"claim_token"`))
 		if tasks.claimNextCalls != 1 ||
+			tasks.startCalls != 1 ||
 			tasks.lastClaimCriteria.RunID != "run-1" ||
 			tasks.lastClaimCriteria.ClaimerSessionID != "sess-agent" ||
 			tasks.lastClaimCriteria.WorkspaceID != "ws-1" ||
 			tasks.lastClaimActor.Actor.Ref != "sess-agent" {
 			t.Fatalf(
-				"claim next calls/criteria/actor = %d/%#v/%#v, want caller session/workspace",
+				"claim/start calls/criteria/actor = %d/%d/%#v/%#v, want caller session/workspace",
 				tasks.claimNextCalls,
+				tasks.startCalls,
 				tasks.lastClaimCriteria,
 				tasks.lastClaimActor,
+			)
+		}
+		if tasks.lastStartRunID != "run-1" ||
+			tasks.lastStart.ClaimToken != rawToken ||
+			tasks.lastStart.IdempotencyKey != "native-start:run-1" {
+			t.Fatalf(
+				"StartRun id/request = %q/%#v, want claimed run and internal lease token",
+				tasks.lastStartRunID,
+				tasks.lastStart,
 			)
 		}
 
@@ -4354,6 +4366,62 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if tasks.claimNextCalls != 1 {
 			t.Fatalf("ClaimNextRun() calls = %d, want 1", tasks.claimNextCalls)
+		}
+	})
+
+	t.Run("Should start and hand off per-run worker claims to the bound session", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_HANDOFF123"
+		tasks := &nativeTaskManager{
+			claimResult: &taskpkg.ClaimResult{
+				Task: &taskpkg.Task{ID: "task-1", Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-1"},
+				Run: taskpkg.Run{
+					ID:        "run-1",
+					TaskID:    "task-1",
+					RunKind:   taskpkg.RunKindWorker,
+					Status:    taskpkg.TaskRunStatusClaimed,
+					SessionID: "sess-bootstrap",
+				},
+				ClaimToken: rawToken,
+			},
+			startResult: &taskpkg.Run{
+				ID:        "run-1",
+				TaskID:    "task-1",
+				RunKind:   taskpkg.RunKindWorker,
+				Status:    taskpkg.TaskRunStatusRunning,
+				SessionID: "sess-bound",
+				RunWorktreeState: &taskpkg.RunWorktreeState{
+					WorktreeID: "wt-run-1",
+				},
+			},
+		}
+		handoff := &nativeTaskClaimHandoffStub{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:         nativeNetworkTestSessionManager("ws-1"),
+			Tasks:            tasks,
+			TaskClaimHandoff: handoff,
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-bootstrap", WorkspaceID: "ws-1", AgentName: "coder"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDTaskRunClaimNext, Input: json.RawMessage(`{}`)},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_run_claim_next) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"status":"running"`))
+		requireNativeStructuredContains(t, result, []byte(`"session_id":"sess-bound"`))
+		requireNativeStructuredContains(t, result, []byte(`"worktree_id":"wt-run-1"`))
+		requireNativeStructuredExcludes(t, result, []byte(rawToken))
+		if handoff.bootstrapSessionID != "sess-bootstrap" ||
+			handoff.run.SessionID != "sess-bound" ||
+			handoff.run.WorktreeIDValue() != "wt-run-1" {
+			t.Fatalf("handoff = %#v, want bootstrap to bound worktree session", handoff)
+		}
+		if tasks.lastStart.ClaimToken != rawToken || tasks.lastStart.IdempotencyKey != "native-start:run-1" {
+			t.Fatalf("StartRun request = %#v, want internal token and deterministic identity", tasks.lastStart)
 		}
 	})
 
@@ -11295,6 +11363,12 @@ type nativeTaskManager struct {
 	lastClaimActor          taskpkg.ActorContext
 	claimResult             *taskpkg.ClaimResult
 	claimErr                error
+	startCalls              int
+	lastStartRunID          string
+	lastStart               taskpkg.StartRun
+	lastStartActor          taskpkg.ActorContext
+	startResult             *taskpkg.Run
+	startErr                error
 	lookupCalls             int
 	lastLookupSessionID     string
 	lastLookupRunID         string
@@ -11343,6 +11417,38 @@ type nativeTaskManager struct {
 	lastDeleteProfileTaskID string
 	executionProfile        taskpkg.ExecutionProfile
 	profileErr              error
+}
+
+type nativeTaskClaimHandoffStub struct {
+	pending            bool
+	bootstrapSessionID string
+	run                taskpkg.Run
+	err                error
+}
+
+func (s *nativeTaskClaimHandoffStub) HasPending(string) bool {
+	return s.pending
+}
+
+func (s *nativeTaskClaimHandoffStub) ScheduleBootstrapStop(
+	bootstrapSessionID string,
+	runID string,
+	targetSessionID string,
+) error {
+	s.bootstrapSessionID = bootstrapSessionID
+	s.run.ID = runID
+	s.run.SessionID = targetSessionID
+	return s.err
+}
+
+func (s *nativeTaskClaimHandoffStub) Activate(
+	_ context.Context,
+	bootstrapSessionID string,
+	run taskpkg.Run,
+) error {
+	s.bootstrapSessionID = bootstrapSessionID
+	s.run = run
+	return s.err
 }
 
 func (m *nativeTaskManager) CreateTask(
@@ -11632,6 +11738,31 @@ func (m *nativeTaskManager) ClaimNextRun(
 		return &result, nil
 	}
 	return nil, taskpkg.ErrNoClaimableRun
+}
+
+func (m *nativeTaskManager) StartRun(
+	_ context.Context,
+	runID string,
+	req taskpkg.StartRun,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	m.startCalls++
+	m.lastStartRunID = runID
+	m.lastStart = req
+	m.lastStartActor = actor
+	if m.startErr != nil {
+		return nil, m.startErr
+	}
+	if m.startResult != nil {
+		run := *m.startResult
+		return &run, nil
+	}
+	if m.claimResult != nil {
+		run := m.claimResult.Run
+		run.Status = taskpkg.TaskRunStatusRunning
+		return &run, nil
+	}
+	return nil, errUnexpectedNativeTaskCall
 }
 
 func (m *nativeTaskManager) LookupActiveRunForSession(

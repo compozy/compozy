@@ -54,6 +54,7 @@ type daemonNativeToolsDeps struct {
 	NetworkStore               core.NetworkStore
 	NetworkUsage               store.NetworkUsageStore
 	Tasks                      taskpkg.Manager
+	TaskClaimHandoff           taskClaimHandoffCoordinator
 	MemoryStore                *memorypkg.Store
 	MemoryToolWrites           memoryToolWriteRecorder
 	DreamTrigger               core.DreamTrigger

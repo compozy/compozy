@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/session"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -27,6 +28,15 @@ func (n *daemonNativeTools) autonomyClaimNext(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if n.deps.TaskClaimHandoff != nil && n.deps.TaskClaimHandoff.HasPending(sessionID) {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeConflict,
+			req.ToolID,
+			"task execution already transferred; end this turn",
+			toolspkg.ErrToolConflict,
+			toolspkg.ReasonAutonomyLeaseAlreadyHeld,
+		)
+	}
 	criteria, err := input.criteria(scope, sessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
@@ -41,11 +51,136 @@ func (n *daemonNativeTools) autonomyClaimNext(
 	if result == nil {
 		return toolspkg.ToolResult{}, errors.New("daemon: task-run claim returned an empty result")
 	}
+	if nativeClaimStartsWorker(result.Run) {
+		started, startErr := n.deps.Tasks.StartRun(ctx, result.Run.ID, taskpkg.StartRun{
+			IdempotencyKey: "native-start:" + strings.TrimSpace(result.Run.ID),
+			ClaimToken:     result.ClaimToken,
+		}, actor)
+		if startErr != nil {
+			failErr := redactTaskClaimCleanupError(n.failNativeTaskClaim(
+				ctx,
+				result,
+				actor,
+				"task execution start failed",
+			))
+			bootstrapErr := n.scheduleTaskClaimBootstrapStop(sessionID, result.Run.ID, "")
+			return toolspkg.ToolResult{}, nativeAutonomyToolError(
+				req.ToolID,
+				errors.Join(startErr, failErr, bootstrapErr),
+			)
+		}
+		if started == nil {
+			emptyErr := errors.New("daemon: task-run start returned an empty result")
+			failErr := redactTaskClaimCleanupError(n.failNativeTaskClaim(
+				ctx,
+				result,
+				actor,
+				"task execution start failed",
+			))
+			bootstrapErr := n.scheduleTaskClaimBootstrapStop(sessionID, result.Run.ID, "")
+			return toolspkg.ToolResult{}, nativeAutonomyToolError(
+				req.ToolID,
+				errors.Join(emptyErr, failErr, bootstrapErr),
+			)
+		}
+		result.Run = *started
+		if strings.TrimSpace(started.SessionID) != sessionID {
+			if n.deps.TaskClaimHandoff == nil {
+				handoffErr := errors.New("daemon: task claim handoff is unavailable")
+				abortErr := redactTaskClaimCleanupError(n.abortTaskClaimHandoff(ctx, result, actor))
+				return toolspkg.ToolResult{}, nativeAutonomyToolError(
+					req.ToolID,
+					errors.Join(handoffErr, abortErr),
+				)
+			}
+			if handoffErr := n.deps.TaskClaimHandoff.Activate(ctx, sessionID, *started); handoffErr != nil {
+				abortErr := redactTaskClaimCleanupError(n.abortTaskClaimHandoff(ctx, result, actor))
+				bootstrapErr := n.scheduleTaskClaimBootstrapStop(sessionID, result.Run.ID, "")
+				return toolspkg.ToolResult{}, nativeAutonomyToolError(
+					req.ToolID,
+					errors.Join(handoffErr, abortErr, bootstrapErr),
+				)
+			}
+		}
+	}
 	payload := core.AgentTaskClaimPayloadFromResult(result)
+	summary := fmt.Sprintf("claimed and started %s", payload.Lease.RunID)
+	if strings.TrimSpace(result.Run.SessionID) != sessionID {
+		summary = fmt.Sprintf(
+			"started %s in session %s; execution transferred, end this turn without doing task work",
+			payload.Lease.RunID,
+			strings.TrimSpace(result.Run.SessionID),
+		)
+	}
 	return structuredResult(
 		map[string]any{nativeToolsClaimedKey: true, "claim": payload},
-		fmt.Sprintf("claimed %s", payload.Lease.RunID),
+		summary,
 	)
+}
+
+func (n *daemonNativeTools) scheduleTaskClaimBootstrapStop(
+	bootstrapSessionID string,
+	runID string,
+	targetSessionID string,
+) error {
+	if n == nil || n.deps == nil || n.deps.TaskClaimHandoff == nil {
+		return nil
+	}
+	return n.deps.TaskClaimHandoff.ScheduleBootstrapStop(bootstrapSessionID, runID, targetSessionID)
+}
+
+func redactTaskClaimCleanupError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return errors.New(taskpkg.RedactClaimTokens(err.Error()))
+}
+
+func nativeClaimStartsWorker(run taskpkg.Run) bool {
+	kind := run.RunKind.Normalize()
+	return kind == taskpkg.RunKindUnknown || kind == taskpkg.RunKindWorker
+}
+
+func (n *daemonNativeTools) abortTaskClaimHandoff(
+	ctx context.Context,
+	result *taskpkg.ClaimResult,
+	actor taskpkg.ActorContext,
+) error {
+	if n == nil || n.deps == nil || result == nil {
+		return nil
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
+	defer cancel()
+	failErr := n.failNativeTaskClaim(cleanupCtx, result, actor, "task execution handoff failed")
+	var stopErr error
+	if n.deps.Sessions != nil {
+		stopErr = n.deps.Sessions.StopWithCause(
+			cleanupCtx,
+			result.Run.SessionID,
+			session.CauseFailed,
+			"task execution handoff failed",
+		)
+	}
+	return errors.Join(failErr, stopErr)
+}
+
+func (n *daemonNativeTools) failNativeTaskClaim(
+	ctx context.Context,
+	result *taskpkg.ClaimResult,
+	actor taskpkg.ActorContext,
+	reason string,
+) error {
+	if n == nil || n.deps == nil || result == nil {
+		return nil
+	}
+	_, err := n.deps.Tasks.FailRunLease(ctx, taskpkg.LeaseFailure{
+		RunID:      result.Run.ID,
+		ClaimToken: result.ClaimToken,
+		Failure: taskpkg.RunFailure{
+			Error: strings.TrimSpace(reason),
+		},
+	}, actor)
+	return err
 }
 
 func (n *daemonNativeTools) autonomyHeartbeat(

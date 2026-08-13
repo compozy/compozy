@@ -108,7 +108,7 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 			ItemIndex:   itemIndex,
 			Agent:       "task-worker",
 			Handle:      "review",
-			Environment: environment,
+			Environment: &environment,
 		}); err != nil {
 			t.Fatalf("BindActionSession(%#v, item=%d) error = %v", environment, itemIndex, err)
 		}
