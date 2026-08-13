@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"text/template"
 
 	"gopkg.in/yaml.v3"
 )
@@ -184,6 +185,8 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 	})
 
 	t.Run("Should configure public NPM package target", func(t *testing.T) {
+		t.Parallel()
+
 		npms := sliceAt(t, cfg, "npms")
 		if len(npms) != 1 {
 			t.Fatalf("npms len = %d, want 1", len(npms))
@@ -203,12 +206,53 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		)
 		assertEqualString(t, "npms[0].homepage", stringAt(t, npm, "homepage"), "https://compozy.com")
 		assertEqualString(t, "npms[0].tag", stringAt(t, npm, "tag"), "{{ .Env.NPM_TAG }}")
+		disableTemplate := stringAt(t, npm, "disable")
 		assertEqualString(
 			t,
 			"npms[0].disable",
-			stringAt(t, npm, "disable"),
-			`{{ eq .Env.GORELEASER_PUBLISH_NPM "false" }}`,
+			disableTemplate,
+			`{{ eq (index .Env "GORELEASER_PUBLISH_NPM") "false" }}`,
 		)
+
+		cases := []struct {
+			name string
+			env  map[string]string
+			want string
+		}{
+			{
+				name: "Should keep package generation enabled when the publish control is absent",
+				env:  map[string]string{},
+				want: "false",
+			},
+			{
+				name: "Should disable the NPM publisher when publication is deferred",
+				env:  map[string]string{"GORELEASER_PUBLISH_NPM": "false"},
+				want: "true",
+			},
+			{
+				name: "Should keep the NPM publisher enabled when publication is allowed",
+				env:  map[string]string{"GORELEASER_PUBLISH_NPM": "true"},
+				want: "false",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				tmpl, err := template.New("npm-disable").Option("missingkey=error").Parse(disableTemplate)
+				if err != nil {
+					t.Fatalf("template.Parse(npms[0].disable) error = %v", err)
+				}
+
+				var rendered strings.Builder
+				if err := tmpl.Execute(&rendered, map[string]any{"Env": tc.env}); err != nil {
+					t.Fatalf("template.Execute(npms[0].disable) error = %v", err)
+				}
+				if got := rendered.String(); got != tc.want {
+					t.Fatalf("rendered npms[0].disable = %q, want %q", got, tc.want)
+				}
+			})
+		}
 	})
 
 	t.Run("Should use supported publication policy without an AUR target", func(t *testing.T) {
