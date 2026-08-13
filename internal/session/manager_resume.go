@@ -128,6 +128,9 @@ func resumeTarget(id string) (string, error) {
 
 // rejectDeadSessionAttachment keeps terminal process failures out of runtime attachment paths.
 func (m *Manager) rejectDeadSessionAttachment(ctx context.Context, target string, meta store.SessionMeta) error {
+	if isUnboundLogicalResume(meta) {
+		return nil
+	}
 	if meta.Failure == nil || meta.Failure.Kind != store.FailureProcess {
 		return nil
 	}
