@@ -3,7 +3,9 @@ package desktoprelease
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -24,10 +26,22 @@ func canonicalJSON(value any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	return CanonicalizeJSON(encoded)
+}
+
+// CanonicalizeJSON returns one JSON document with recursively sorted object keys.
+func CanonicalizeJSON(contents []byte) ([]byte, error) {
+	decoder := json.NewDecoder(bytes.NewReader(contents))
 	decoder.UseNumber()
 	var document any
 	if err := decoder.Decode(&document); err != nil {
+		return nil, err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, fmt.Errorf("multiple json documents")
+		}
 		return nil, err
 	}
 	return json.Marshal(document)

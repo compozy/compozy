@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly PR_RELEASE_MODULE="${1:-github.com/compozy/releasepr@v0.0.25}"
+readonly PR_RELEASE_MODULE="${1:-github.com/compozy/releasepr@v0.0.26}"
 readonly CONTRACT_VERSION="0.3.0-beta.1"
 readonly CONTRACT_TAG="v${CONTRACT_VERSION}"
+readonly RECOVERY_VERSION="0.3.0-beta.2"
+readonly RECOVERY_TAG="v${RECOVERY_VERSION}"
 export PR_RELEASE_LOG_LEVEL=error
 
 fail() {
@@ -41,8 +43,13 @@ assert_plan() {
   local homebrew_skip_upload="$7"
   local previous_tag="$8"
   local initial_release="$9"
+  local allow_existing_tag="${10:-false}"
+  local plan_args=(--ref "$ref" --version "$version" --channel "$channel")
+  if [[ "$allow_existing_tag" == "true" ]]; then
+    plan_args+=(--allow-existing-tag)
+  fi
   local output
-  output="$(run_plan --ref "$ref" --version "$version" --channel "$channel")"
+  output="$(run_plan "${plan_args[@]}")"
 
   local commit
   commit="$(git rev-parse HEAD)"
@@ -112,6 +119,8 @@ expect_failure "does not match HEAD" \
 git tag "$CONTRACT_TAG"
 expect_failure "release tag \"${CONTRACT_TAG}\" already exists" \
   run_plan --ref HEAD --version "$CONTRACT_VERSION" --channel beta
+expect_failure "release tag \"${CONTRACT_TAG}\" exists but is not annotated" \
+  run_plan --ref HEAD --version "$CONTRACT_VERSION" --channel beta --allow-existing-tag
 git tag --delete "$CONTRACT_TAG" >/dev/null
 
 git tag "$CONTRACT_TAG"
@@ -119,13 +128,20 @@ git push origin "refs/tags/${CONTRACT_TAG}" >/dev/null
 git tag --delete "$CONTRACT_TAG" >/dev/null
 expect_failure "release tag \"${CONTRACT_TAG}\" already exists" \
   run_plan --ref HEAD --version "$CONTRACT_VERSION" --channel beta
+expect_failure "release tag \"${CONTRACT_TAG}\" exists but is not annotated" \
+  run_plan --ref HEAD --version "$CONTRACT_VERSION" --channel beta --allow-existing-tag
 
 git fetch origin "refs/tags/${CONTRACT_TAG}:refs/tags/${CONTRACT_TAG}" >/dev/null
 printf 'third\n' >> contract.txt
 git add contract.txt
 git commit -m "test: advance the next release candidate" >/dev/null
 git push origin main >/dev/null
-assert_plan HEAD 0.3.0-beta.2 beta true false beta true "$CONTRACT_TAG" false
+assert_plan HEAD "$RECOVERY_VERSION" beta true false beta true "$CONTRACT_TAG" false
+git tag -a "$RECOVERY_TAG" -m "Release ${RECOVERY_TAG}"
+git push origin "refs/tags/${RECOVERY_TAG}" >/dev/null
+expect_failure "release tag \"${RECOVERY_TAG}\" already exists" \
+  run_plan --ref HEAD --version "$RECOVERY_VERSION" --channel beta
+assert_plan HEAD "$RECOVERY_VERSION" beta true false beta true "$CONTRACT_TAG" false true
 git tag --delete "$CONTRACT_TAG" >/dev/null
 
 assert_plan HEAD 9.9.9 stable false true latest false v0.2.15 false

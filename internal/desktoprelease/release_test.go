@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -114,6 +115,34 @@ func TestManifestValidation(t *testing.T) {
 
 func TestBuildFeeds(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should canonicalize an existing feed without changing its values", func(t *testing.T) {
+		t.Parallel()
+
+		legacy := []byte(
+			`{"schema_version":1,"version":"0.3.0-beta.13","platforms":{"linux":{"size":1,"url":"https://example.com/runtime","sha256":"abc"}},"schema_heads":{"session":6,"global":57}}`,
+		)
+		canonical, err := CanonicalizeJSON(legacy)
+		if err != nil {
+			t.Fatalf("CanonicalizeJSON() error = %v", err)
+		}
+		want := `{"platforms":{"linux":{"sha256":"abc","size":1,"url":"https://example.com/runtime"}},"schema_heads":{"global":57,"session":6},"schema_version":1,"version":"0.3.0-beta.13"}`
+		if got := string(canonical); got != want {
+			t.Fatalf("CanonicalizeJSON() = %s, want %s", got, want)
+		}
+
+		var legacyValue any
+		if err := json.Unmarshal(legacy, &legacyValue); err != nil {
+			t.Fatalf("json.Unmarshal(legacy) error = %v", err)
+		}
+		var canonicalValue any
+		if err := json.Unmarshal(canonical, &canonicalValue); err != nil {
+			t.Fatalf("json.Unmarshal(canonical) error = %v", err)
+		}
+		if !reflect.DeepEqual(canonicalValue, legacyValue) {
+			t.Fatalf("canonical document changed values: got %#v, want %#v", canonicalValue, legacyValue)
+		}
+	})
 
 	t.Run("Should reject a distribution base that is not an origin", func(t *testing.T) {
 		t.Parallel()

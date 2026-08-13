@@ -1,0 +1,65 @@
+name: Repair Desktop Feed
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: Exact live beta version to repair
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26.4"
+
+concurrency:
+  group: desktop-feed-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Repair Signed Beta Feed
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Desktop feed repair must run from main"
+          exit 1
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-dependencies: "false"
+          install-playwright: "false"
+
+      - name: Install feed verification tools
+        run: sudo apt-get update && sudo apt-get install -y minisign
+
+      - name: Canonicalize, re-sign, publish, and verify the live feed
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          R2_BUCKET: ${{ secrets.R2_RELEASES_BUCKET }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT_URL }}
+          COMPOZY_FEED_REPAIR_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          COMPOZY_FEED_VERIFY_ATTEMPTS: "30"
+          COMPOZY_FEED_VERIFY_INTERVAL_SECONDS: "2"
+        run: |
+          scripts/repair-desktop-feed.sh \
+            beta \
+            "${{ inputs.expected_version }}" \
+            "${R2_BUCKET}" \
+            "${R2_ENDPOINT}"

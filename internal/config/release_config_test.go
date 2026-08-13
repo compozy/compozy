@@ -453,9 +453,12 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"release_previous_tag:",
 		"release_git_range:",
 		"release_initial:",
-		"github.com/compozy/releasepr@v0.0.25",
+		"github.com/compozy/releasepr@v0.0.26",
 		"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}",
 		"go run \"${PR_RELEASE_MODULE}\" plan",
+		"if [[ \"${GITHUB_EVENT_NAME}\" == \"workflow_dispatch\" ]]",
+		"allow_existing_tag_args+=(--allow-existing-tag)",
+		"\"${allow_existing_tag_args[@]}\"",
 		"render-and-validate-release-body.sh",
 		"scripts/resolve-auto-beta-version.sh",
 		"validate-release-body.sh",
@@ -503,6 +506,9 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 	if got := strings.Count(workflow, `go run "${PR_RELEASE_MODULE}" plan`); got != 2 {
 		t.Fatalf("release workflow plan invocation count = %d, want dry-run and production plans", got)
 	}
+	if got := strings.Count(workflow, "--allow-existing-tag"); got != 1 {
+		t.Fatalf("release recovery flag count = %d, want production manual recovery only", got)
+	}
 	if got := strings.Count(workflow, "\n            validate-release-body.sh\n"); got != 1 {
 		t.Fatalf("release body validator staging count = %d, want 1", got)
 	}
@@ -510,10 +516,27 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		t.Fatalf("release body render/validation reference count = %d, want staging plus two invocations", got)
 	}
 
-	t.Run("Should derive the next beta from the greatest numeric tag", func(t *testing.T) {
+	t.Run("Should derive the next beta from immutable Git and npm versions", func(t *testing.T) {
 		t.Parallel()
 
 		repo := t.TempDir()
+		binDir := t.TempDir()
+		npmStub := `#!/bin/sh
+case "$2" in
+  @compozy/cli)
+    printf '%s\n' '["0.3.0-beta.12","0.3.0-beta.14","0.3.0-preview.1"]'
+    ;;
+  @compozy/extension-sdk)
+    printf '%s\n' '["0.3.0-beta.13","0.3.0-beta.15"]'
+    ;;
+  *)
+    exit 9
+    ;;
+esac
+`
+		if err := os.WriteFile(filepath.Join(binDir, "npm"), []byte(npmStub), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(npm stub) error = %v", err)
+		}
 		manifest := filepath.Join(repo, "package.json")
 		if err := os.WriteFile(manifest, []byte("{\"version\":\"0.3.0\"}\n"), 0o600); err != nil {
 			t.Fatalf("os.WriteFile(package.json) error = %v", err)
@@ -538,11 +561,15 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 
 		cmd := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "resolve-auto-beta-version.sh"))
 		cmd.Dir = repo
+		cmd.Env = append(
+			os.Environ(),
+			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("resolve-auto-beta-version.sh error = %v, output = %s", err, output)
 		}
-		if got, want := strings.TrimSpace(string(output)), "0.3.0-beta.15"; got != want {
+		if got, want := strings.TrimSpace(string(output)), "0.3.0-beta.16"; got != want {
 			t.Fatalf("resolved beta version = %q, want %q", got, want)
 		}
 	})
@@ -631,6 +658,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 
 	root := findRepoRootForReleaseConfigTest(t)
 	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+	repairWorkflow := readTextFile(t, root, filepath.Join(".github", "workflows", "desktop-feed-repair.yml"))
 	cargoManifest := readTextFile(t, root, filepath.Join("desktop", "src-tauri", "Cargo.toml"))
 	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
 	release := mapAt(t, goreleaser, "release")
@@ -657,6 +685,8 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		}
 		assertContainsText(t, "GoReleaser npm custody", workflow, `GORELEASER_PUBLISH_NPM: "false"`)
 		assertContainsText(t, "public CLI installation", workflow, "smoke-public-cli-package.sh")
+		assertContainsText(t, "GoReleaser staged publication", workflow, "args: publish")
+		assertNotContainsText(t, "GoReleaser staged publication", workflow, "publish --config")
 
 		finalizer := workflow[publishDraft:verifyPublished]
 		for _, required := range []string{
@@ -750,11 +780,31 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		for _, required := range []string{
 			"needs: desktop-dry-run",
 			"actions/download-artifact@v8",
+			"scripts/read-canonical-runtime-version.sh",
 			"scripts/smoke-desktop-release-artifact.sh",
 			"desktop-dry-run-smoke-${{ matrix.id }}-diagnostics",
 		} {
 			assertContainsText(t, "desktop dry-run smoke", smoke, required)
 		}
+	})
+
+	t.Run("Should repair only the exact signed beta feed from main", func(t *testing.T) {
+		t.Parallel()
+
+		for _, required := range []string{
+			"workflow_dispatch:",
+			"expected_version:",
+			"if: github.ref != 'refs/heads/main'",
+			"R2_ACCESS_KEY_ID",
+			"R2_SECRET_ACCESS_KEY",
+			"TAURI_SIGNING_PRIVATE_KEY",
+			"TAURI_SIGNING_PUBLIC_KEY",
+			"COMPOZY_FEED_REPAIR_ID",
+			"scripts/repair-desktop-feed.sh",
+		} {
+			assertContainsText(t, "desktop feed repair workflow", repairWorkflow, required)
+		}
+		assertNotContainsText(t, "desktop feed repair workflow", repairWorkflow, "stable")
 	})
 
 	t.Run("Should assert signing material before bundling with current platform APIs", func(t *testing.T) {
@@ -819,6 +869,43 @@ func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
 
 	root := findRepoRootForReleaseConfigTest(t)
 
+	t.Run("Should reject a noncanonical live runtime feed before desktop startup", func(t *testing.T) {
+		t.Parallel()
+
+		manifest := filepath.Join(t.TempDir(), "runtime.json")
+		legacy := `{"schema_version":1,"version":"0.3.0-beta.13","platforms":{},"schema_heads":{}}`
+		if err := os.WriteFile(manifest, []byte(legacy), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(legacy runtime manifest) error = %v", err)
+		}
+		run := func() ([]byte, error) {
+			cmd := exec.CommandContext(
+				t.Context(),
+				"bash",
+				filepath.Join(root, "scripts", "read-canonical-runtime-version.sh"),
+				"file://"+manifest,
+			)
+			cmd.Dir = root
+			return cmd.CombinedOutput()
+		}
+		output, err := run()
+		if err == nil {
+			t.Fatalf("noncanonical runtime manifest unexpectedly passed: %s", output)
+		}
+		assertContainsText(t, "runtime manifest preflight", string(output), "is not canonical JSON")
+
+		canonical := `{"platforms":{},"schema_heads":{},"schema_version":1,"version":"0.3.0-beta.13"}`
+		if err := os.WriteFile(manifest, []byte(canonical), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(canonical runtime manifest) error = %v", err)
+		}
+		output, err = run()
+		if err != nil {
+			t.Fatalf("canonical runtime manifest error = %v, output = %s", err, output)
+		}
+		if got, want := strings.TrimSpace(string(output)), "0.3.0-beta.13"; got != want {
+			t.Fatalf("runtime version = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should restore the AppImage executable bit after artifact transfer", func(t *testing.T) {
 		t.Parallel()
 
@@ -880,6 +967,165 @@ func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
 			t.Fatalf("stable desktop publication unexpectedly succeeded: %s", output)
 		}
 		assertContainsText(t, "stable guard", string(output), "stable remains reserved")
+	})
+
+	t.Run("Should refuse stable feed repair before touching credentials", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "repair-desktop-feed.sh"),
+			"stable", "0.3.0", "bucket", "https://example.r2.cloudflarestorage.com",
+		)
+		cmd.Dir = root
+		cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("stable desktop feed repair unexpectedly succeeded: %s", output)
+		}
+		assertContainsText(t, "stable feed repair guard", string(output), "stable remains reserved")
+	})
+
+	t.Run("Should reject an unsafe feed recovery id before touching credentials", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "repair-desktop-feed.sh"),
+			"beta", "0.3.0-beta.13", "bucket", "https://example.r2.cloudflarestorage.com",
+		)
+		cmd.Dir = root
+		cmd.Env = []string{
+			"PATH=" + os.Getenv("PATH"),
+			"COMPOZY_FEED_REPAIR_ID=../../unsafe",
+		}
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("unsafe desktop feed recovery id unexpectedly succeeded: %s", output)
+		}
+		assertContainsText(t, "feed recovery id guard", string(output), "recovery id contains unsafe characters")
+	})
+
+	t.Run("Should restore the live feed when a repair upload fails", func(t *testing.T) {
+		t.Parallel()
+
+		fixtureRoot := t.TempDir()
+		stateDir := filepath.Join(fixtureRoot, "r2")
+		liveDir := filepath.Join(stateDir, "desktop", "beta")
+		binDir := filepath.Join(fixtureRoot, "bin")
+		if err := os.MkdirAll(liveDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(live feed) error = %v", err)
+		}
+		if err := os.MkdirAll(binDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(bin) error = %v", err)
+		}
+		originals := map[string]string{
+			"latest.json":          `{"version":"0.3.0-beta.13","platforms":{}}`,
+			"runtime.json":         `{"schema_version":1,"version":"0.3.0-beta.13","platforms":{},"schema_heads":{}}`,
+			"runtime.json.minisig": "fixture-signature",
+		}
+		for name, contents := range originals {
+			if err := os.WriteFile(filepath.Join(liveDir, name), []byte(contents), 0o600); err != nil {
+				t.Fatalf("os.WriteFile(%s) error = %v", name, err)
+			}
+		}
+
+		curlStub := `#!/usr/bin/env bash
+set -euo pipefail
+output=
+url=
+while (($#)); do
+  case "$1" in
+    --output) output="$2"; shift 2 ;;
+    http*) url="$1"; shift ;;
+    *) shift ;;
+  esac
+done
+cp "${FAKE_R2_STATE}/desktop/beta/${url##*/}" "${output}"
+`
+		awsStub := `#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == "s3" && "$2" == "cp" ]]
+source_path="$3"
+destination="$4"
+map_path() {
+  local value="$1"
+  if [[ "${value}" == s3://fixture-bucket/* ]]; then
+    printf '%s/%s\n' "${FAKE_R2_STATE}" "${value#s3://fixture-bucket/}"
+    return
+  fi
+  printf '%s\n' "${value}"
+}
+mapped_source="$(map_path "${source_path}")"
+mapped_destination="$(map_path "${destination}")"
+if [[ "${destination}" == "s3://fixture-bucket/desktop/beta/runtime.json.minisig" \
+  && ! -f "${FAKE_AWS_FAILURE_MARKER}" ]]; then
+  : >"${FAKE_AWS_FAILURE_MARKER}"
+  exit 42
+fi
+mkdir -p "$(dirname "${mapped_destination}")"
+cp "${mapped_source}" "${mapped_destination}"
+`
+		bunxStub := `#!/usr/bin/env bash
+set -euo pipefail
+manifest="${!#}"
+printf 'Zml4dHVyZS1zaWduYXR1cmU=' >"${manifest}.sig"
+`
+		for _, nameAndContents := range []struct {
+			name     string
+			contents string
+		}{
+			{name: "curl", contents: curlStub},
+			{name: "aws", contents: awsStub},
+			{name: "bunx", contents: bunxStub},
+			{name: "minisign", contents: "#!/bin/sh\nexit 0\n"},
+		} {
+			if err := os.WriteFile(
+				filepath.Join(binDir, nameAndContents.name),
+				[]byte(nameAndContents.contents),
+				0o755,
+			); err != nil {
+				t.Fatalf("os.WriteFile(%s stub) error = %v", nameAndContents.name, err)
+			}
+		}
+
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "repair-desktop-feed.sh"),
+			"beta",
+			"0.3.0-beta.13",
+			"fixture-bucket",
+			"https://fixture.r2.cloudflarestorage.com",
+		)
+		cmd.Dir = root
+		cmd.Env = append(
+			os.Environ(),
+			"AWS_ACCESS_KEY_ID=fixture",
+			"AWS_SECRET_ACCESS_KEY=fixture",
+			"TAURI_SIGNING_PRIVATE_KEY=fixture",
+			"TAURI_SIGNING_PRIVATE_KEY_PASSWORD=fixture",
+			"TAURI_SIGNING_PUBLIC_KEY=Zml4dHVyZQ==",
+			"FAKE_R2_STATE="+stateDir,
+			"FAKE_AWS_FAILURE_MARKER="+filepath.Join(fixtureRoot, "aws-failed"),
+			"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		)
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("partial repair unexpectedly succeeded: %s", output)
+		}
+		assertContainsText(t, "feed repair rollback", string(output), "restored the original live feed")
+		for name, want := range originals {
+			contents, readErr := os.ReadFile(filepath.Join(liveDir, name))
+			if readErr != nil {
+				t.Fatalf("os.ReadFile(restored %s) error = %v", name, readErr)
+			}
+			if got := string(contents); got != want {
+				t.Fatalf("restored %s = %q, want %q", name, got, want)
+			}
+		}
 	})
 
 	t.Run("Should refuse update key generation in CI", func(t *testing.T) {

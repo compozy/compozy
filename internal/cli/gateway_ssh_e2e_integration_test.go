@@ -786,11 +786,46 @@ func assertRemoteDaemonStoppedForSSHGatewayE2E(
 	t.Helper()
 	command := []string{
 		"sh", "-c",
-		`if kill -0 "$1" 2>/dev/null; then exit 1; fi; test ! -S "$2"`,
+		`pid="$1"
+socket="$2"
+if kill -0 "$pid" 2>/dev/null; then
+  if state="$(ps -o stat= -p "$pid" 2>/dev/null)"; then
+    set -- $state
+    state="${1:-}"
+    case "$state" in
+      Z*) ;;
+      *) printf 'process %s is still active (state=%s)\n' "$pid" "$state"; exit 1 ;;
+    esac
+  fi
+fi
+if test -S "$socket"; then
+  printf 'socket still exists: %s\n' "$socket"
+  exit 1
+fi`,
 		"compozy-ssh-stopped", strconv.Itoa(expected.PID), socketPath,
 	}
-	if output, err := executor.Run(t.Context(), target, command); err != nil {
-		t.Fatalf("remote daemon still reachable after owned cleanup: %v; output: %s", err, output)
+	deadline := time.Now().Add(sshE2EReadyTimeout)
+	var lastOutput []byte
+	var lastErr error
+	for {
+		lastOutput, lastErr = executor.Run(t.Context(), target, command)
+		if lastErr == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf(
+				"remote daemon cleanup did not converge before deadline: %v; output: %s",
+				lastErr,
+				lastOutput,
+			)
+		}
+		timer := time.NewTimer(sshE2EPollInterval)
+		select {
+		case <-t.Context().Done():
+			timer.Stop()
+			t.Fatalf("wait for remote daemon cleanup canceled: %v", t.Context().Err())
+		case <-timer.C:
+		}
 	}
 }
 

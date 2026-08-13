@@ -6,7 +6,7 @@ persona: Lea
 journey: J-desktop-first-run
 expected: A machine with no runtime goes installer → guided provisioning with visible phases → download, verify, install, and self-start → full product UI; relaunch lands directly in the product with exactly one daemon and `compozy status` healthy. A startup failure keeps the boot window available for redacted diagnostics, local copy, and explicit local export.
 entry_points: CompozyOS installer (macOS dmg, Linux package); app first launch
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent; BUG-20260810-boot-controls-unavailable
 fix_status: fixed
 retest_status: pending
@@ -34,3 +34,8 @@ because installer trust and packaged provisioning must be re-walked with signed 
 and Linux packages. No signed candidate exists for this branch, so both package walks remain
 blocked; the dated report preserves the exact verification steps and prior reports retain their
 historical evidence.
+
+QA impact 2026-08-13: the live beta.13 runtime manifest predates canonical feed generation and is
+rejected by the packaged app before first-run provisioning. The signed feed repair preserves every
+manifest value, canonicalizes and re-signs the exact live version, then verifies the published
+bytes. Reset to `untested` for the repaired live-feed macOS and Linux package walks.

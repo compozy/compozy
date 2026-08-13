@@ -30,12 +30,14 @@ func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf(
 			"usage: compozy-desktop-release " +
-				"<build-feed|channel-config|assert-inventory|assert-version|assert-comparator>",
+				"<build-feed|canonicalize-json|channel-config|assert-inventory|assert-version|assert-comparator>",
 		)
 	}
 	switch args[0] {
 	case "build-feed":
 		return runBuildFeed(ctx, args[1:])
+	case "canonicalize-json":
+		return runCanonicalizeJSON(args[1:])
 	case "channel-config":
 		return runChannelConfig(args[1:])
 	case "assert-inventory":
@@ -47,6 +49,27 @@ func run(ctx context.Context, args []string) error {
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
+}
+
+func runCanonicalizeJSON(args []string) error {
+	flags := flag.NewFlagSet("canonicalize-json", flag.ContinueOnError)
+	input := flags.String("input", "", "input JSON path")
+	output := flags.String("output", "", "canonical JSON output path")
+	if err := parseFlags(flags, args); err != nil {
+		return err
+	}
+	contents, err := os.ReadFile(*input)
+	if err != nil {
+		return fmt.Errorf("read json input: %w", err)
+	}
+	canonical, err := desktoprelease.CanonicalizeJSON(contents)
+	if err != nil {
+		return fmt.Errorf("canonicalize json input: %w", err)
+	}
+	if err := os.WriteFile(*output, canonical, 0o600); err != nil {
+		return fmt.Errorf("write canonical json output: %w", err)
+	}
+	return nil
 }
 
 func runBuildFeed(ctx context.Context, args []string) error {
