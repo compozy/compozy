@@ -64,6 +64,9 @@ func validateJobResourceSpec(_ context.Context, scope resources.ResourceScope, s
 	if err := next.Validate("job"); err != nil {
 		return Job{}, fmt.Errorf("automation: validate job resource spec: %w", err)
 	}
+	if err := ValidateJobAgentName(next, "job"); err != nil {
+		return Job{}, fmt.Errorf("automation: validate job resource spec: %w", err)
+	}
 	return next, nil
 }
 
@@ -81,6 +84,9 @@ func validateTriggerResourceSpec(_ context.Context, scope resources.ResourceScop
 		return Trigger{}, fmt.Errorf("automation: bind trigger resource scope: %w", err)
 	}
 	if err := next.Validate("trigger"); err != nil {
+		return Trigger{}, fmt.Errorf("automation: validate trigger resource spec: %w", err)
+	}
+	if err := ValidateTriggerAgentName(next, "trigger"); err != nil {
 		return Trigger{}, fmt.Errorf("automation: validate trigger resource spec: %w", err)
 	}
 	return next, nil

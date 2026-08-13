@@ -9,7 +9,7 @@ import {
 } from "../fixtures/runtime";
 import { openAppWindow, sessionWindow, windowTitle } from "../fixtures/os-navigation";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const automationTaskFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -53,7 +53,7 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
     agentName: automationAgentName,
   });
 
-  await useGlobalWorkspaceIfPrompted(automationUI);
+  await completeOnboardingIfPrompted(automationUI);
 
   await expect(automationUI.osDesktop).toBeVisible();
   const jobsWin = await openAppWindow(appPage, "Jobs", "jobs");
@@ -205,7 +205,7 @@ test("operator can accept and dismiss workspace suggestions through the real dae
 }) => {
   const automationUI = automationOperatorSelectors(appPage);
 
-  await useGlobalWorkspaceIfPrompted(automationUI);
+  await completeOnboardingIfPrompted(automationUI);
   const workspaces = await runtime.requestJSON<{
     workspaces: Array<{ id: string }>;
   }>("/api/workspaces");

@@ -1,4 +1,4 @@
-import { Home } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -10,17 +10,17 @@ import { OptionCard } from "../option-card";
 function renderCard(action?: React.ReactNode) {
   return render(
     <OptionCard size="comfortable" data-testid="option-card-root">
-      <OptionCard.Header eyebrow="Global" right={<Pill tone="accent">HOME</Pill>} />
+      <OptionCard.Header eyebrow="Folder" right={<Pill tone="accent">PATH</Pill>} />
       <OptionCard.Body>
         <OptionCard.Icon tone="accent" data-testid="option-card-icon">
-          <Home className="size-4" />
+          <FolderPlus className="size-4" />
         </OptionCard.Icon>
         <OptionCard.Content>
-          <OptionCard.Title>Use global workspace</OptionCard.Title>
+          <OptionCard.Title>Add a project folder</OptionCard.Title>
           <OptionCard.Description data-testid="option-card-description">
-            Resolve the daemon's home workspace.
+            Pick an absolute path CompozyOS can open.
           </OptionCard.Description>
-          <OptionCard.Meta data-testid="option-card-meta">/Users/pedro</OptionCard.Meta>
+          <OptionCard.Meta data-testid="option-card-meta">/Users/pedro/Dev</OptionCard.Meta>
         </OptionCard.Content>
       </OptionCard.Body>
       <OptionCard.Action data-testid="option-card-action">{action}</OptionCard.Action>
@@ -34,8 +34,8 @@ describe("OptionCard", () => {
 
     const root = screen.getByTestId("option-card-root");
     expect(root.dataset.size).toBe("comfortable");
-    expect(screen.getByText("Global")).toBeInTheDocument();
-    expect(screen.getByText("HOME")).toBeInTheDocument();
+    expect(screen.getByText("Folder")).toBeInTheDocument();
+    expect(screen.getByText("PATH")).toBeInTheDocument();
   });
 
   it("Should apply the compact size padding when size=compact", () => {
@@ -64,16 +64,16 @@ describe("OptionCard", () => {
     const onClick = vi.fn();
     const user = userEvent.setup();
 
-    renderCard(<Button onClick={onClick}>Use this workspace</Button>);
+    renderCard(<Button onClick={onClick}>Use this folder</Button>);
 
-    await user.click(screen.getByRole("button", { name: "Use this workspace" }));
+    await user.click(screen.getByRole("button", { name: "Use this folder" }));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
   it("Should render the meta paragraph when provided", () => {
     renderCard();
 
-    expect(screen.getByTestId("option-card-meta").textContent).toBe("/Users/pedro");
+    expect(screen.getByTestId("option-card-meta").textContent).toBe("/Users/pedro/Dev");
   });
 
   it("Should throw when slots are rendered outside the OptionCard root", () => {

@@ -122,7 +122,7 @@ Operator access is not cross-workspace access — operators are not governed by 
 
 ### AGENT.md (frontmatter format)
 
-Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The frontmatter `name` is trimmed and must match `^[a-z][a-z0-9_-]*$`; filesystem-loaded definitions must also match their directory name. The current runtime portability unit is the CompozyOS agent directory rooted at `$COMPOZY_HOME/agents/<name>/` for global scope and `.compozy/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.
+Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The frontmatter `name` is trimmed and must match `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters); filesystem-loaded definitions must also match their directory name. The current runtime portability unit is the CompozyOS agent directory rooted at `$COMPOZY_HOME/agents/<name>/` for global scope and `.compozy/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.
 
 **Status:** Partially shipped from RFC 001. The runtime now parses `AGENT.md` frontmatter,
 including agent-local `skills/` overlays and `skills.disabled`. Draft fields such as
@@ -386,7 +386,7 @@ The bottom strip of app launchers. It mirrors the app inventory and carries runn
 
 ### Menubar
 
-The top bar across the desktop: workspace trigger, app menus, the approvals bell, the ⌘K palette, and Settings.
+The top bar across the desktop: CompozyOS mark, Global scope globe, workspace trigger, app menus, the approvals bell, the ⌘K palette, and Settings. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. The chip reads the project name when scoped down, or **Global** (`~`) when Global scope is on.
 
 ### Window manager
 

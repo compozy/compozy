@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-08-11
+## 0.3.0 - 2026-08-13
 
 ### ♻️ Refactoring
 
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace bundles with extension kits (#291)
 - Modernize Go runtime packages (#293)
 - Use geist instead of inter (#334)
+- Add global workspace toggle (#368)
 
 ### 🎉 Features
 
@@ -71,6 +72,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adjust project copy
 - Publish staged GitHub release drafts
 - Repair release integration contracts
+- Harden desktop startup and diagnostics (#343)
+- Resolve desktop and session usability issues (#351)
+- Recover canceled Loop coordinators on restart (#353)
+- Resolve extension-published agents for session command catalogs (#350)
+- Eliminate persistent performance bottlenecks (#354)
+- Reject automation trigger events no producer emits (#358)
+- Read loop watch-events with a stream-global cursor (#356)
+- Prevent session timeline render loops (#361)
+- Align update artifacts with release policy (#363)
+- Canonicalize desktop runtime manifests (#364)
+- Validate desktop bundles before release
 
 ### 🧪 Testing
 

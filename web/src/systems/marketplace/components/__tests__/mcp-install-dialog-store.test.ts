@@ -4,28 +4,36 @@ import { mcpInstallDialogLogic } from "../mcp-install-dialog-store";
 
 describe("MCP install dialog store", () => {
   it("Should execute a typed install request when installation begins", async () => {
-    const store = mcpInstallDialogLogic.createStore({ scope: "global", bindings: {} });
+    const store = mcpInstallDialogLogic.createStore({ bindings: {} });
     const install = vi.fn().mockResolvedValue(undefined);
 
-    store.trigger.installationRequested({ install });
+    store.trigger.installationRequested({ scope: "global", install });
 
     expect(install).toHaveBeenCalledWith({}, "global");
     await vi.waitFor(() => expect(store.getSnapshot().context.phase).toBe("editing"));
   });
 
   it("Should ignore an obsolete installation completion after a newer request", () => {
-    const store = mcpInstallDialogLogic.createStore({ scope: "global", bindings: {} });
+    const store = mcpInstallDialogLogic.createStore({ bindings: {} });
     const install = vi.fn(() => new Promise<void>(() => undefined));
     let snapshot = store.getInitialSnapshot();
 
-    [snapshot] = store.transition(snapshot, { type: "installationRequested", install });
+    [snapshot] = store.transition(snapshot, {
+      type: "installationRequested",
+      scope: "global",
+      install,
+    });
     const firstRequestId = snapshot.context.requestId;
     [snapshot] = store.transition(snapshot, {
       type: "installationFailed",
       requestId: firstRequestId,
       error: "offline",
     });
-    [snapshot] = store.transition(snapshot, { type: "installationRequested", install });
+    [snapshot] = store.transition(snapshot, {
+      type: "installationRequested",
+      scope: "global",
+      install,
+    });
     [snapshot] = store.transition(snapshot, {
       type: "installationSucceeded",
       requestId: firstRequestId,
@@ -36,7 +44,6 @@ describe("MCP install dialog store", () => {
 
   it("Should execute the Vault request with its result fence", async () => {
     const store = mcpInstallDialogLogic.createStore({
-      scope: "workspace",
       bindings: {
         API_TOKEN: {
           createError: undefined,
@@ -77,7 +84,6 @@ describe("MCP install dialog store", () => {
       vaultRef: "",
     };
     const store = mcpInstallDialogLogic.createStore({
-      scope: "workspace",
       bindings: { API_TOKEN: binding, REGION: binding },
     });
 

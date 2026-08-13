@@ -42,9 +42,9 @@ export function useChannelMembers(
   channel: string | null | undefined,
   options?: { enabled?: boolean; workspaceId?: string | null }
 ): UseChannelMembersResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useNetworkLiveDataEnabled();
-  const workspaceId = options?.workspaceId ?? activeWorkspaceId ?? "";
+  const workspaceId = options?.workspaceId ?? runtimeWorkspaceId ?? "";
   const enabled =
     liveDataEnabled && (options?.enabled ?? true) && Boolean(channel) && workspaceId !== "";
   const query = useQuery(networkPeersOptions(workspaceId, channel ?? undefined, enabled));

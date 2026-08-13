@@ -27,6 +27,7 @@ let mockWritePending = false;
 let mockWriteError: Error | null = null;
 let mockRevertPending = false;
 let mockRevertError: Error | null = null;
+let createdWorkspaceMemoryVisible = false;
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
@@ -39,6 +40,11 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
       updated_at: "2026-04-25T12:00:00Z",
     },
     activeWorkspaceId: "ws_signalforge",
+    homeWorkspace: undefined,
+    pending: false,
+    runtimeWorkspaceId: "ws_signalforge",
+    scope: "workspace",
+    userHomeDir: "/Users/operator",
   }),
 }));
 
@@ -103,6 +109,12 @@ const WORKSPACE_MEMORY: MemoryHeader = {
   system_managed: false,
 };
 
+const CREATED_WORKSPACE_MEMORY: MemoryHeader = {
+  ...WORKSPACE_MEMORY,
+  filename: "launch-memory.md",
+  name: "Launch Memory",
+};
+
 const AGENT_MEMORY: MemoryHeader = {
   filename: "cto-tone.md",
   mod_time: "2026-04-25T21:02:00Z",
@@ -141,6 +153,7 @@ describe("useKnowledgePage", () => {
     mockWriteError = null;
     mockRevertPending = false;
     mockRevertError = null;
+    createdWorkspaceMemoryVisible = false;
     fetchNextPage.mockResolvedValue(undefined);
     refetchMemories.mockResolvedValue(undefined);
     mockMemoriesFetchNextPageError = false;
@@ -153,7 +166,13 @@ describe("useKnowledgePage", () => {
         return catalogResult([GLOBAL_MEMORY], 17, true);
       }
       if (selector.scope === "workspace") {
-        return catalogResult([WORKSPACE_MEMORY], 1, false);
+        return catalogResult(
+          createdWorkspaceMemoryVisible
+            ? [CREATED_WORKSPACE_MEMORY, WORKSPACE_MEMORY]
+            : [WORKSPACE_MEMORY],
+          createdWorkspaceMemoryVisible ? 2 : 1,
+          false
+        );
       }
       if (selector.scope === "agent") {
         return catalogResult([AGENT_MEMORY], 1, false);
@@ -185,24 +204,27 @@ describe("useKnowledgePage", () => {
     });
     deleteMutateAsync.mockResolvedValue(undefined);
     editMutateAsync.mockResolvedValue(undefined);
-    writeMutateAsync.mockResolvedValue({
-      applied: true,
-      decision: {
-        id: "dec_write",
-        candidate_hash: "h",
-        op: "add",
-        scope: "workspace",
-        source: "rule",
-        confidence: 1,
-        decided_at: "2026-04-25T21:05:00Z",
-        target_filename: "launch-memory.md",
-        frontmatter: {
-          filename: "launch-memory.md",
-          mod_time: "2026-04-25T21:05:00Z",
-          name: "Launch Memory",
-          type: "project",
+    writeMutateAsync.mockImplementation(async () => {
+      createdWorkspaceMemoryVisible = true;
+      return {
+        applied: true,
+        decision: {
+          id: "dec_write",
+          candidate_hash: "h",
+          op: "add",
+          scope: "workspace",
+          source: "rule",
+          confidence: 1,
+          decided_at: "2026-04-25T21:05:00Z",
+          target_filename: "launch-memory.md",
+          frontmatter: {
+            filename: "launch-memory.md",
+            mod_time: "2026-04-25T21:05:00Z",
+            name: "Launch Memory",
+            type: "project",
+          },
         },
-      },
+      };
     });
     revertMutateAsync.mockResolvedValue(undefined);
   });
@@ -414,12 +436,8 @@ describe("useKnowledgePage", () => {
     expect(params?.body).not.toHaveProperty("type");
   });
 
-  it("Should write a new memory using the active selector and select the created filename", async () => {
+  it("Should show a workspace memory created while browsing Global in its destination scope", async () => {
     const { result } = renderHook(() => useKnowledgePage());
-
-    act(() => {
-      result.current.setActiveScope("workspace");
-    });
 
     await act(async () => {
       await result.current.handleCreate({
@@ -441,6 +459,9 @@ describe("useKnowledgePage", () => {
       content: "Use the launch playbook.",
     });
     expect(result.current.createOpen).toBe(false);
+    expect(result.current.activeScope).toBe("workspace");
+    expect(result.current.effectiveSelectedMemoryKey).toBe("workspace:launch-memory.md");
+    expect(result.current.selectedMemory?.filename).toBe("launch-memory.md");
   });
 
   it("Should request controller decisions for the selected memory before the server limit", async () => {

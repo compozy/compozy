@@ -10,6 +10,7 @@ function renderDialog(props: Partial<React.ComponentProps<typeof KnowledgeCreate
     open: true,
     onOpenChange: vi.fn(),
     scope: "workspace",
+    destinationLabel: "alpha",
     defaultType: "project",
     isPending: false,
     onConfirm: vi.fn(),

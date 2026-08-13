@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "triggers/trigger-vocabulary.html",
+  "entry": "triggers/trigger-vocabulary.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-13T03:19:30.884Z",
+  "updatedAt": "2026-08-13T03:19:30.884Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

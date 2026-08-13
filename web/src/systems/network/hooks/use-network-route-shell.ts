@@ -40,17 +40,24 @@ export function useNetworkRouteShell({
   location,
   navigation,
 }: UseNetworkRouteShellArgs): NetworkRouteShellResult {
-  const { activeWorkspaceId, selectedWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspaceId, runtimeWorkspaceId, selectedWorkspaceId, setActiveWorkspaceId } =
+    useActiveWorkspace();
   const parsed = parseNetworkWindowLocation(location);
-  const routeWorkspaceId = parsed.workspaceId ?? activeWorkspaceId;
+  const routeWorkspaceId = parsed.workspaceId ?? runtimeWorkspaceId;
   const routeWorkspaceAllowed =
     parsed.workspaceId == null ||
+    parsed.workspaceId === runtimeWorkspaceId ||
     selectedWorkspaceId == null ||
     selectedWorkspaceId === parsed.workspaceId;
   const page = useNetworkPage(routeWorkspaceId, { enabled: routeWorkspaceAllowed });
 
   useEffect(() => {
-    if (!active || !parsed.workspaceId || parsed.workspaceId === activeWorkspaceId) {
+    if (
+      !active ||
+      !parsed.workspaceId ||
+      parsed.workspaceId === activeWorkspaceId ||
+      parsed.workspaceId === runtimeWorkspaceId
+    ) {
       return;
     }
     if (selectedWorkspaceId !== null && selectedWorkspaceId !== parsed.workspaceId) {
@@ -63,6 +70,7 @@ export function useNetworkRouteShell({
     activeWorkspaceId,
     navigation,
     parsed.workspaceId,
+    runtimeWorkspaceId,
     selectedWorkspaceId,
     setActiveWorkspaceId,
   ]);

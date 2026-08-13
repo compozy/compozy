@@ -58,15 +58,15 @@ export interface UseAgentSettingsPageOptions {
 
 export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOptions) {
   const navigate = useNavigate();
-  const { activeWorkspaceId, activeWorkspace } = useActiveWorkspace();
-  const agentQuery = useAgent(name, activeWorkspaceId);
+  const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
+  const agentQuery = useAgent(name, runtimeWorkspaceId);
   const updateAgent = useUpdateAgent();
   const settingsProviders = useSettingsProviders();
-  const workspaceDetail = useWorkspace(activeWorkspaceId ?? "", {
-    enabled: activeWorkspaceId !== null,
+  const workspaceDetail = useWorkspace(runtimeWorkspaceId ?? "", {
+    enabled: runtimeWorkspaceId !== null,
   });
 
-  const resourceKey = JSON.stringify([activeWorkspaceId, name]);
+  const resourceKey = JSON.stringify([runtimeWorkspaceId, name]);
   const { store } = useStoreBinding(
     resourceKey,
     () =>
@@ -95,14 +95,17 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const fieldErrorCount = validation ? Object.values(validation.fields).filter(Boolean).length : 0;
 
   const guard = useUnsavedGuard({ dirty, entityName: name });
-  const deleteFlow = useAgentDeleteFlow({ agent: agentQuery.data, workspaceId: activeWorkspaceId });
+  const deleteFlow = useAgentDeleteFlow({
+    agent: agentQuery.data,
+    workspaceId: runtimeWorkspaceId,
+  });
 
   const useWorkspaceProviders = agentQuery.data?.origin === "workspace";
   const globalProviders = settingsProviders.data?.providers.map(settingsProviderToOption) ?? [];
   const workspaceProviders = (workspaceDetail.data?.providers ?? []).map(workspaceProviderToOption);
   const providerOptions = useWorkspaceProviders ? workspaceProviders : globalProviders;
   const providersLoading = useWorkspaceProviders
-    ? activeWorkspaceId !== null && workspaceDetail.isLoading
+    ? runtimeWorkspaceId !== null && workspaceDetail.isLoading
     : settingsProviders.isLoading || settingsProviders.isFetching;
 
   const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
@@ -142,7 +145,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
       store.trigger.saveRequested({
         name,
         save: updateAgent.mutateAsync,
-        workspaceId: activeWorkspaceId,
+        workspaceId: runtimeWorkspaceId,
       }),
     onDiscard: () => store.trigger.discardRequested(),
     onReloadAndRetry: () =>

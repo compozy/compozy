@@ -33,9 +33,9 @@ export function useNetworkDirects(
   channel: string | null | undefined,
   options: UseNetworkDirectsOptions = {}
 ): UseNetworkDirectsResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useNetworkLiveDataEnabled();
-  const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
+  const selectedWorkspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
   const enabled =
     liveDataEnabled &&
@@ -83,9 +83,9 @@ export function useNetworkDirectDetail(
   directId: string | null | undefined,
   options: { enabled?: boolean; workspaceId?: string | null } = {}
 ): UseNetworkDirectDetailResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useNetworkLiveDataEnabled();
-  const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
+  const selectedWorkspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
   const enabled =
     liveDataEnabled &&

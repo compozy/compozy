@@ -263,11 +263,10 @@ func (p DaytonaProfile) Resolve() sandbox.DaytonaConfig {
 	return resolved
 }
 
-// Validate ensures the default agent setting is present.
+// Validate ensures a configured default agent name is valid.
 func (c DefaultsConfig) Validate() error {
 	if strings.TrimSpace(c.Agent) == "" {
-		return ValidationError{Path: configDefaultsAgentPath, Message: "is required"}
+		return nil
 	}
-
-	return nil
+	return validateAgentNameAtPath(c.Agent, configDefaultsAgentPath)
 }

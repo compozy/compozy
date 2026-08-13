@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Drop &amp; paste · Attachments · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="attach.css">
+<!--
+  attach-drop-paste · S3 final — drag-over overlay, clipboard paste, mixed drop.
+  Spec: GitHub composy/compozy#366 AC: paste screenshot; drag and drop; files PDF/MD/TXT.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="att-drop-head">
+    <a class="w2-back" href="index.html" aria-label="Back to attachment set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Attachments</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Drop &amp; paste</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="attach-composer.html">← Composer</a>
+      <a class="btn" href="attach-picker.html">Picker →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="sec-dragover">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Drag over</h2>
+        <span class="lab-sec__gist">accent-dim border · overlay copy is the target</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Live target</b>Drag a file onto the field below. Overlay mounts only while <code>dragover</code> has files. This is the one extra accent use on the screen (send disc is the other).</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" id="drop-live" data-od-id="composer-dragover">
+            <div class="att-drop"><b>Drop files</b><span>Images, PDF, Markdown, or text</span></div>
+            <textarea rows="2" placeholder="Send a message…">The permission dock is chasing the scroll.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-multi">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Mixed drop</h2>
+        <span class="lab-sec__gist">images and basic files land · ZIP refuses in place</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Five files</b>User dropped two screenshots, <code>notes.md</code>, <code>flatten-spec.pdf</code>, and <code>archive.zip</code>. Markdown and PDF are ready tiles. ZIP is rejected — it never silently skips and never becomes a chip. Send stays disabled while any tile is rejected.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-multi">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="ready" role="listitem">
+                <span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span>
+                <span class="att-meta"><span class="att-name">goal-chip.png</span><span class="att-size">240 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove goal-chip.png"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="ready" role="listitem">
+                <span class="att-thumb"><img src="assets/permission-dock.png" alt=""></span>
+                <span class="att-meta"><span class="att-name">permission-dock.png</span><span class="att-size">96 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove permission-dock.png"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="ready" data-kind="file" role="listitem" data-od-id="tile-notes">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+                <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove notes.md"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+                <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">186 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove flatten-spec.pdf"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="rejected" data-kind="file" role="listitem" data-od-id="tile-zip">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">ZIP</span></span>
+                <span class="att-meta"><span class="att-name">archive.zip</span><span class="att-size">Not a supported file</span></span>
+                <button class="att-x" type="button" aria-label="Remove archive.zip"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="Remove files that are not supported"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-many-drop">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Many-image drop</h2>
+        <span class="lab-sec__gist">six PNGs from Finder · one row · end fade</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Folder of screenshots</b>Same one-row rail as the idle composer. Persist starts per file; Send waits on the last one.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-many-drop">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span><span class="att-meta"><span class="att-name">goal-chip.png</span><span class="att-size">240 KB</span></span><button class="att-x" type="button" aria-label="Remove goal-chip.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/permission-dock.png" alt=""></span><span class="att-meta"><span class="att-name">permission-dock.png</span><span class="att-size">96 KB</span></span><button class="att-x" type="button" aria-label="Remove permission-dock.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/screenshot-paste.png" alt=""></span><span class="att-meta"><span class="att-name">Screenshot 2026-08-13 at 10.28.png</span><span class="att-size">188 KB</span></span><button class="att-x" type="button" aria-label="Remove Screenshot 2026-08-13 at 10.28.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/agents-list.png" alt=""></span><span class="att-meta"><span class="att-name">agents-list.png</span><span class="att-size">312 KB</span></span><button class="att-x" type="button" aria-label="Remove agents-list.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/markers-gallery.png" alt=""></span><span class="att-meta"><span class="att-name">markers-gallery.png</span><span class="att-size">268 KB</span></span><button class="att-x" type="button" aria-label="Remove markers-gallery.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="uploading" role="listitem"><span class="att-thumb"><img src="assets/empty-session.png" alt=""><span class="att-spin" aria-hidden="true"><svg data-lucide="loader-circle"></svg></span></span><span class="att-meta"><span class="att-name">empty-session.png</span><span class="att-size">Saving…</span></span><button class="att-x" type="button" aria-label="Remove empty-session.png"><svg data-lucide="x"></svg></button></div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…">All six.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="Saving empty-session.png"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-paste">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Clipboard paste</h2>
+        <span class="lab-sec__gist">Cmd+V · OS screenshot name · text still pastes as text</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Paste into the field</b>When the clipboard holds an image, paste appends a tile and does not insert a binary blob into the textarea. Markdown on the clipboard pastes as text, not as a file — dropping <code>notes.md</code> from Finder is the file path.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-paste">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="uploading" role="listitem">
+                <span class="att-thumb">
+                  <img src="assets/screenshot-paste.png" alt="">
+                  <span class="att-spin" aria-hidden="true"><svg data-lucide="loader-circle"></svg></span>
+                </span>
+                <span class="att-meta">
+                  <span class="att-name">Screenshot 2026-08-13 at 10.28.png</span>
+                  <span class="att-size">Saving…</span>
+                </span>
+                <button class="att-x" type="button" aria-label="Remove Screenshot 2026-08-13 at 10.28.png"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…">error on MarkerProps.tone</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="Saving image"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="attach.js"></script>
+<script>
+lucide.createIcons();
+const live=document.getElementById("drop-live");
+if(live){
+  const on=()=>live.setAttribute("data-drop","true");
+  const off=()=>live.removeAttribute("data-drop");
+  live.addEventListener("dragenter",(e)=>{e.preventDefault();on();});
+  live.addEventListener("dragover",(e)=>{e.preventDefault();on();});
+  live.addEventListener("dragleave",(e)=>{if(!live.contains(e.relatedTarget)) off();});
+  live.addEventListener("drop",(e)=>{e.preventDefault();off();});
+}
+</script>
+</body>
+</html>

@@ -45,7 +45,6 @@ function JobEditorHarness({
   return (
     <AutomationEditorDialog
       activeWorkspaceId="ws_test"
-      userHomeDir={undefined}
       agents={agentFixtures}
       editor={{
         draft,
@@ -77,7 +76,6 @@ function TriggerEditorHarness({
   return (
     <AutomationEditorDialog
       activeWorkspaceId="ws_test"
-      userHomeDir={undefined}
       agents={agentFixtures}
       editor={{
         draft,
@@ -126,7 +124,6 @@ function DetachedTriggerHarness() {
       </button>
       <AutomationEditorDialog
         activeWorkspaceId="ws_test"
-        userHomeDir={undefined}
         editor={editor}
         handle={handle}
         workspaces={WORKSPACES}
@@ -157,7 +154,10 @@ describe("AutomationEditorDialog", () => {
     expect(within(header as HTMLElement).getByText("Automation · Job")).toBeInTheDocument();
     expect(within(header as HTMLElement).getByText("Create job")).toBeInTheDocument();
     expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("test-workspace");
+    // Scope is menubar-owned; the editor states the landing read-only.
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
+      "Creates in test-workspace"
+    );
     expect(screen.queryByTestId("automation-trigger-form")).not.toBeInTheDocument();
   });
 
@@ -209,7 +209,6 @@ describe("AutomationEditorDialog", () => {
     render(
       <AutomationEditorDialog
         activeWorkspaceId="ws_test"
-        userHomeDir={undefined}
         agents={[]}
         agentsLoading
         editor={{
@@ -236,7 +235,6 @@ describe("AutomationEditorDialog", () => {
     render(
       <AutomationEditorDialog
         activeWorkspaceId="ws_test"
-        userHomeDir={undefined}
         agents={[]}
         agentsError="Agent catalog is unavailable."
         editor={{
@@ -314,13 +312,13 @@ describe("AutomationEditorDialog", () => {
     // Base UI Dialog closes on escape; even if the JSDOM path is brittle, we also
     // cover the explicit close by unmounting via editor=null + remount, which is
     // the real exit path in useAutomationPage.
-    rerender(<AutomationEditorDialog editor={null} userHomeDir={undefined} />);
+    rerender(<AutomationEditorDialog editor={null} />);
 
     expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
   });
 
   it("Should not render the dialog content when editor is null", () => {
-    render(<AutomationEditorDialog editor={null} userHomeDir={undefined} />);
+    render(<AutomationEditorDialog editor={null} />);
 
     expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
     expect(screen.queryByTestId("automation-job-form")).not.toBeInTheDocument();

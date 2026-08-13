@@ -3,12 +3,16 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/identifier"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -66,6 +70,179 @@ func TestSessionNetworkLifecycleHandling(t *testing.T) {
 		if got := h.notifier.createdCount(); got != 0 {
 			t.Fatalf("created notifications after failed Create() = %d, want 0", got)
 		}
+	})
+
+	t.Run("Should join Network Live with the maximum generated peer ID", func(t *testing.T) {
+		t.Parallel()
+
+		agentName := strings.Repeat("a", compozyconfig.AgentNameMaxLength)
+		sessionID, err := newID("sess")
+		if err != nil {
+			t.Fatalf("newID(sess) error = %v", err)
+		}
+		if got, want := len(sessionID), len("sess-")+16; got != want {
+			t.Fatalf("generated session id length = %d, want %d", got, want)
+		}
+		h := newHarness(t, WithSessionIDGenerator(func() (string, error) {
+			return sessionID, nil
+		}))
+		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		resolved.Agents = append(resolved.Agents, compozyconfig.AgentDef{
+			Name:     agentName,
+			Provider: "claude",
+			Prompt:   "You are a coding assistant.",
+		})
+		h.resolver.upsert(&resolved)
+		lifecycle := &recordingNetworkPeerLifecycle{}
+		h.manager.SetNetworkPeerLifecycle(lifecycle)
+
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:                    agentName,
+			Workspace:                    h.workspaceID,
+			ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		reportSessionStop(t, h, created.ID)
+
+		if got, want := lifecycle.joinCount(), 1; got != want {
+			t.Fatalf("JoinChannel() calls = %d, want %d", got, want)
+		}
+		peerID := lifecycle.joins[0].peerID
+		if err := identifier.ValidatePeerID(peerID); err != nil {
+			t.Fatalf("generated peer id validation error = %v", err)
+		}
+		if got, want := len(peerID), identifier.PeerIDMaxLength; got != want {
+			t.Fatalf("generated peer id length = %d, want %d", got, want)
+		}
+	})
+
+	for _, tc := range []struct {
+		name      string
+		sessionID string
+	}{
+		{name: "Should reject a live peer with an invalid preallocated session ID", sessionID: "sess~manual"},
+		{name: "Should reject a live peer with an overlong preallocated session ID", sessionID: strings.Repeat("s", identifier.PeerIDMaxLength)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			lifecycle := &recordingNetworkPeerLifecycle{}
+			h.manager.SetNetworkPeerLifecycle(lifecycle)
+			peerID := networkPeerID("coder", tc.sessionID)
+
+			_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName:                    "coder",
+				DesiredSessionID:             tc.sessionID,
+				Workspace:                    h.workspaceID,
+				ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
+			})
+			if err == nil {
+				t.Fatal("Create() error = nil, want validation failure")
+			}
+			if !errors.Is(err, ErrValidation) {
+				t.Fatalf("Create() error = %v, want errors.Is(err, ErrValidation)", err)
+			}
+			if !errors.Is(err, identifier.ErrInvalidField) {
+				t.Fatalf("Create() error = %v, want errors.Is(err, identifier.ErrInvalidField)", err)
+			}
+			wantErr := fmt.Sprintf(
+				"session: validation failed: live network peer id %q: network: invalid field: peer_id=%q",
+				peerID,
+				peerID,
+			)
+			if got := err.Error(); got != wantErr {
+				t.Fatalf("Create() error = %q, want %q", got, wantErr)
+			}
+			if got := len(h.driver.startCalls); got != 0 {
+				t.Fatalf("driver Start() calls = %d, want 0", got)
+			}
+			if got := len(h.manager.List()); got != 0 {
+				t.Fatalf("active sessions = %d, want 0", got)
+			}
+			if got := lifecycle.joinCount(); got != 0 {
+				t.Fatalf("JoinChannel() calls = %d, want 0", got)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name      string
+		sessionID string
+	}{
+		{name: "ShouldKeepInvalidNetworkAlphabetForLocalPreallocatedSession", sessionID: "sess~manual"},
+		{name: "ShouldKeepMaximumLengthForLocalPreallocatedSession", sessionID: strings.Repeat("s", identifier.PeerIDMaxLength)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName:                    "coder",
+				DesiredSessionID:             tc.sessionID,
+				Workspace:                    h.workspaceID,
+				ResolvedNetworkParticipation: testLocalParticipationPtr(),
+			})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			reportSessionStop(t, h, created.ID)
+			if got, want := created.ID, tc.sessionID; got != want {
+				t.Fatalf("created session id = %q, want %q", got, want)
+			}
+		})
+	}
+
+	t.Run("Should reject an invalid live peer at the shared bind boundary", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:                    "coder",
+			DesiredSessionID:             "sess~manual",
+			Workspace:                    h.workspaceID,
+			ResolvedNetworkParticipation: testLocalParticipationPtr(),
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		lifecycle := &recordingNetworkPeerLifecycle{}
+		h.manager.SetNetworkPeerLifecycle(lifecycle)
+		startsBeforeBind := len(h.driver.startCalls)
+		peerID := networkPeerID("coder", created.ID)
+
+		err = h.manager.BindNetworkPeer(
+			testutil.Context(t),
+			created.ID,
+			testLiveParticipation(h.workspaceID, "builders"),
+			"task-run-1",
+		)
+		if err == nil {
+			t.Fatal("BindNetworkPeer() error = nil, want validation failure")
+		}
+		if !errors.Is(err, ErrValidation) || !errors.Is(err, identifier.ErrInvalidField) {
+			t.Fatalf("BindNetworkPeer() error = %v, want session and network validation identities", err)
+		}
+		wantErr := fmt.Sprintf(
+			"session: validation failed: live network peer id %q: network: invalid field: peer_id=%q",
+			peerID,
+			peerID,
+		)
+		if got := err.Error(); got != wantErr {
+			t.Fatalf("BindNetworkPeer() error = %q, want %q", got, wantErr)
+		}
+		if got, want := lifecycle.joinCount(), 0; got != want {
+			t.Fatalf("JoinChannel() calls = %d, want %d", got, want)
+		}
+		if got, want := len(h.driver.startCalls), startsBeforeBind; got != want {
+			t.Fatalf("driver Start() calls = %d, want unchanged %d", got, want)
+		}
+		reportSessionStop(t, h, created.ID)
 	})
 
 	t.Run("ShouldRestoreStoppedMetadataWhenResumeJoinFails", func(t *testing.T) {

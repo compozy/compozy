@@ -1,21 +1,7 @@
 export const WORKSPACE_SETUP_COPY = {
-  onboarding: {
-    eyebrow: "Workspace setup",
-    title: "Register a workspace to start.",
-    description:
-      "Register your global workspace to anchor CompozyOS immediately, or point it at a specific project root if this machine already has a working directory in play.",
-  },
   dialog: {
     title: "Add workspace",
-    description:
-      "Choose the fastest way to bring a workspace into CompozyOS without leaving the shell.",
-  },
-  global: {
-    title: "Use global workspace",
-    badge: "HOME",
-    description:
-      "Register your OS home directory as the default CompozyOS workspace and start with one click.",
-    action: "Use global workspace",
+    description: "Choose the folder sessions run in.",
   },
   manual: {
     title: "Register workspace",

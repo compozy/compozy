@@ -5,14 +5,14 @@ import { LoopEditor } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export function LoopEditorLocation({ name }: { name: string }) {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const navigate = useNavigate();
   const openLoops = () => void navigate({ to: "/loops" });
   const openLoop = () => void navigate({ to: "/loops/$name", params: { name } });
   return (
     <LoopEditor
-      workspaceId={activeWorkspaceId ?? ""}
+      workspaceId={runtimeWorkspaceId ?? ""}
       name={name}
       liveDataEnabled={liveDataEnabled}
       topbarIdentity={{

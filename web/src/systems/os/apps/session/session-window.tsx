@@ -41,23 +41,24 @@ function returnToAgent(
  */
 export function SessionWindow({ windowId }: { windowId: string }) {
   const { coordinator } = useOsShell();
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const activeWorkspace = useActiveWorkspace();
+  const runtimeWorkspaceId = activeWorkspace.runtimeWorkspaceId?.trim() || null;
   const { liveTailEnabled, pathname } = useSessionWindowDesktopState(windowId);
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
   const agentName = agentMatch ? decodeURIComponent(agentMatch[1]) : null;
 
-  const detailQueryOptions = sessionDetailOptions(activeWorkspaceId ?? "", sessionId ?? "");
+  const detailQueryOptions = sessionDetailOptions(runtimeWorkspaceId ?? "", sessionId ?? "");
   const sessionQuery = useQuery({
     ...detailQueryOptions,
-    enabled: activeWorkspaceId !== null && sessionId !== null,
+    enabled: runtimeWorkspaceId !== null && sessionId !== null,
     refetchInterval: liveTailEnabled ? detailQueryOptions.refetchInterval : false,
   });
   const sessionWorkspaceId = sessionQuery.data?.workspace_id?.trim();
   const crossesWorkspace =
     sessionWorkspaceId !== undefined &&
-    activeWorkspaceId !== null &&
-    sessionWorkspaceId !== activeWorkspaceId;
+    runtimeWorkspaceId !== null &&
+    sessionWorkspaceId !== runtimeWorkspaceId;
 
   useEffect(() => {
     if (
@@ -73,7 +74,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
   if (sessionId === null || agentName === null) {
     return <SessionWindowNotice message="This window does not point at a session." />;
   }
-  if (activeWorkspaceId === null || crossesWorkspace) {
+  if (runtimeWorkspaceId === null || crossesWorkspace) {
     return (
       <SessionWindowNotice
         message={sessionQuery.error?.message ?? "Session workspace unavailable"}
@@ -87,7 +88,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         windowId={windowId}
         name={agentName}
         id={sessionId}
-        workspaceId={activeWorkspaceId}
+        workspaceId={runtimeWorkspaceId}
         session={sessionQuery.data}
         liveTailEnabled={liveTailEnabled}
         isLoading={sessionQuery.isLoading}

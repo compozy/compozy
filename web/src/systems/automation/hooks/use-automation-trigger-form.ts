@@ -7,7 +7,6 @@ import {
 
 import {
   automationTargetMode,
-  bindLoopTargetWorkspace,
   retryDraftForStrategy,
   setTriggerTargetMode,
   loopTargetWorkspaceId,
@@ -29,7 +28,6 @@ import { buildVariableChips } from "../lib/trigger-template";
 import type {
   AutomationFireLimit,
   AutomationRetry,
-  AutomationScope,
   AutomationTriggerFilter,
   CreateAutomationTriggerRequest,
 } from "../types";
@@ -154,21 +152,6 @@ export function useAutomationTriggerForm({
     patch({ loop_target: { ...next, workspace_id: loopWorkspaceId } });
   };
 
-  const handleScopeChange = (scope: AutomationScope) => {
-    if (scope === "global") {
-      patch({ scope: "global", workspace_id: undefined });
-      return;
-    }
-    const fallback = draft.workspace_id ?? activeWorkspaceId ?? resolvedWorkspaces[0]?.id;
-    const workspaceId = fallback ?? "";
-    onChange(
-      bindLoopTargetWorkspace(
-        { ...draft, scope: "workspace", workspace_id: workspaceId || undefined },
-        workspaceId
-      )
-    );
-  };
-
   const handleSelectEvent = (catalogId: string) => {
     if (disabledCatalogIds?.has(catalogId)) return;
     const nextDef = getEventDef(catalogId);
@@ -239,9 +222,6 @@ export function useAutomationTriggerForm({
     reliabilityDefaultOpen:
       mode === "edit" || retry.strategy === "backoff" || draft.enabled === false,
     onName: (name: string) => patch({ name }),
-    onScopeChange: handleScopeChange,
-    onWorkspaceChange: (workspace_id: string) =>
-      onChange(bindLoopTargetWorkspace({ ...draft, workspace_id }, workspace_id)),
     onSelectEvent: handleSelectEvent,
     onSubConfigChange: handleSubConfigChange,
     onFilterChange: (filter: AutomationTriggerFilter) => patch({ filter }),

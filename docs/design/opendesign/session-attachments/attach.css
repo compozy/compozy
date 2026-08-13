@@ -1,0 +1,369 @@
+/* ============================================================
+   SESSION ATTACHMENTS — attach.css
+   Companion to design-system/ds-core.css (lab/index) or
+   _done/session/session.css (window-framed finals). Link this
+   file SECOND. Do not redefine :root.
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css + session-composer.tsx / session-user-message.tsx
+     2. _done/session/session.css §11 composer · §13 qstrip · §07 dock · §02 messages
+     3. This file — draft tiles, file wells, drop overlay, transcript frames
+        per issue #366 (images) + basic files (PDF / MD / TXT)
+
+   Semantic mapping:
+     success  = persist ok (implied by ready — no chip)
+     warning  = model cannot take images
+     danger   = persist fail / too large / unsupported type
+     accent   = send disc + drop-over border (the one accent moment)
+     ready    = calm default
+   ============================================================ */
+
+html{
+  --chat-fill-user:color-mix(in srgb,var(--fg) 4.5%,transparent);
+  --chat-fill-code:color-mix(in srgb,var(--fg) 3%,transparent);
+}
+
+/* ============ WINDOW SCAFFOLD (worktree.css / loops grammar) ============ */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2-back svg{width:14px;height:14px}
+.w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2-flex{flex:1;min-width:8px}
+.w2-actions{position:relative;display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:880px;margin:0 auto;padding:24px 24px 80px}
+.page--narrow{max-width:672px}
+
+/* ============ LAB SCAFFOLD ============ */
+.lab-sec{margin:0 0 40px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto}
+.spec{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11px;line-height:1.55;color:var(--subtle)}
+.spec__note b{display:block;font-size:11.5px;font-weight:600;color:var(--fg);margin-bottom:2px}
+.spec__note code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+@media (max-width:760px){.spec{grid-template-columns:1fr}.lab-sec__gist{display:none}}
+
+/* ============ COMPOSER (transcribed from session.css §11, for lab pages) ============ */
+.composer-wrap{max-width:560px}
+.composer{position:relative;display:flex;flex-direction:column;gap:7px;
+  --att-fade-bg:var(--elevated);
+  border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:var(--elevated);padding:11px 10px 9px 14px;box-shadow:var(--highlight);
+  transition:border-color var(--dur) var(--ease)}
+.composer:hover{border-color:var(--line-strong)}
+.composer:focus-within{border-color:var(--accent-dim)}
+.composer--docked,.dock+.qstrip+.composer,.qstrip+.composer,.dock+.composer{
+  border-top-left-radius:0;border-top-right-radius:0}
+.composer textarea{border:0;background:none;outline:none;resize:none;font-family:var(--font-sans);
+  font-size:13px;line-height:1.55;color:var(--fg);min-height:21px;max-height:180px;width:100%}
+.composer textarea::placeholder{color:var(--faint)}
+.composer textarea:focus{outline:none;box-shadow:none}
+.composer__bar{display:flex;align-items:center;gap:8px;min-height:28px;flex-wrap:wrap}
+.composer__hint{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--faint)}
+.composer__hint kbd{border:1px solid var(--line);border-radius:var(--radius-xxs);padding:1px 4px;
+  background:var(--canvas-soft);font-size:9px;color:var(--subtle)}
+.composer__bar .spacer{flex:1}
+.composer__send{width:28px;height:28px;border-radius:var(--radius-pill);display:grid;place-items:center;
+  background:var(--accent);color:var(--accent-ink);box-shadow:var(--highlight);
+  transition:background var(--dur) var(--ease),transform var(--dur) var(--ease),color var(--dur) var(--ease)}
+.composer__send:hover{background:var(--accent-hover);color:var(--accent-ink)}
+.composer__send:active{transform:translateY(1px)}
+.composer__send:disabled,.composer__send:disabled:hover{background:var(--btn-fill);color:var(--faint);box-shadow:none;cursor:default;transform:none}
+.composer__send svg{width:13px;height:13px}
+.composer__stop{width:28px;height:28px;border-radius:var(--radius-pill);display:grid;place-items:center;
+  background:transparent;border:1px solid var(--line);color:var(--muted);
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+.composer__stop:hover{background:var(--danger-tint);border-color:transparent;color:var(--danger)}
+.composer__stop svg{width:11px;height:11px}
+
+.rt-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--btn-fill);
+  font-size:11.5px;font-weight:500;color:var(--muted);white-space:nowrap;
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+.rt-chip svg{width:12px;height:12px;color:var(--subtle)}
+.rt-chip:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg)}
+.rt-chip .mono{font-size:10px;color:var(--subtle)}
+
+/* ============ ATTACH BUTTON (bar, after runtimeControl) ============ */
+.att-btn{display:grid;place-items:center;width:26px;height:26px;flex:none;
+  border-radius:var(--radius-md);color:var(--muted);
+  transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.att-btn:hover{background:var(--row-hover);color:var(--fg-strong)}
+.att-btn:focus-visible{box-shadow:var(--focus-ring)}
+.att-btn svg{width:14px;height:14px}
+.att-btn[aria-expanded="true"],.att-btn[data-on]{background:var(--row-selected);color:var(--fg-strong)}
+
+/* ============ DRAFT STRIP (inside .composer, above textarea) ============
+   ONE ROW — never wrap. Overflow is a horizontal track + edge fades.
+   Anatomy from workspaces (.wsov-strip / .wsov-edge): pinned edges, hidden
+   scrollbar. Color is NOT copied — workspaces dissolve into glass
+   (--shell-glass-pop) plus a black veil over wallpaper. Here the host is a
+   solid fill, so --att-fade-bg is the painted background (composer sets it
+   to --elevated; transcript sets it to --canvas) and the gradient keeps
+   that RGB while alpha falls. No rgba(0,0,0) overlay: that reads as a
+   black strip on charcoal.
+   No grab-drag: the composer still has to accept file drops. */
+.att-strip,
+.msg-user__atts{
+  --att-fade:56px;
+  --att-fade-bg:var(--elevated);
+  position:relative;
+  display:flex;flex-wrap:nowrap;align-items:flex-start;gap:8px;
+  min-width:0;isolation:isolate;
+  overflow-x:auto;overflow-y:hidden;
+  scrollbar-width:none;-ms-overflow-style:none;
+  -webkit-overflow-scrolling:touch;
+}
+.att-strip::-webkit-scrollbar,
+.msg-user__atts::-webkit-scrollbar,
+.att-rail__track::-webkit-scrollbar{display:none;width:0;height:0}
+.att-strip:empty,.att-strip[hidden],.att-strip:not(:has(.att-tile)){display:none}
+
+/* hydrated: outer clips, track scrolls, fades pin to the edges */
+.att-strip:has(> .att-rail__track),
+.msg-user__atts:has(> .att-rail__track){
+  display:block;overflow:hidden;gap:0;
+}
+
+.att-rail__track{
+  display:flex;flex-wrap:nowrap;align-items:flex-start;gap:8px;
+  overflow-x:auto;overflow-y:hidden;
+  scrollbar-width:none;-ms-overflow-style:none;
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  scroll-padding-inline:var(--att-fade);
+  padding:2px 0;
+  touch-action:pan-x;
+}
+
+.att-rail__edge{
+  position:absolute;top:0;bottom:0;width:var(--att-fade);
+  z-index:2;pointer-events:none;opacity:0;
+  transition:opacity var(--dur-slow) var(--ease);
+}
+.att-rail__edge--start{
+  left:0;
+  background:linear-gradient(90deg,
+    rgb(from var(--att-fade-bg) r g b / 1) 0%,
+    rgb(from var(--att-fade-bg) r g b / .7) 32%,
+    rgb(from var(--att-fade-bg) r g b / 0) 100%);
+}
+.att-rail__edge--end{
+  right:0;
+  background:linear-gradient(270deg,
+    rgb(from var(--att-fade-bg) r g b / 1) 0%,
+    rgb(from var(--att-fade-bg) r g b / .7) 32%,
+    rgb(from var(--att-fade-bg) r g b / 0) 100%);
+}
+.att-strip[data-overflow~="start"] .att-rail__edge--start,
+.att-strip[data-overflow~="end"] .att-rail__edge--end,
+.msg-user__atts[data-overflow~="start"] .att-rail__edge--start,
+.msg-user__atts[data-overflow~="end"] .att-rail__edge--end{opacity:1}
+
+.att-tile{display:flex;align-items:center;gap:8px;flex:none;max-width:240px;
+  min-height:36px;padding:0;border-radius:var(--radius-md);
+  transition:background var(--dur) var(--ease)}
+.att-tile:hover{background:var(--row-hover)}
+.att-tile:focus-within{background:var(--row-hover)}
+
+.att-thumb{position:relative;width:36px;height:36px;flex:none;overflow:hidden;
+  border-radius:var(--radius-md);border:1px solid var(--line);background:var(--canvas-soft)}
+.att-thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.att-thumb svg{width:14px;height:14px;color:var(--subtle);margin:auto;position:absolute;inset:0}
+.att-thumb--sm{width:16px;height:16px;border-radius:var(--radius-xs)}
+.att-thumb--sm img{object-fit:cover}
+
+/* file well — extension mark, never a fake document preview */
+.att-thumb--file{display:grid;place-items:center}
+.att-ext{font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.06em;
+  line-height:1;color:var(--subtle)}
+.att-thumb--sm.att-thumb--file .att-ext{font-size:6px;letter-spacing:.04em}
+
+.att-meta{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.att-name{font-size:12px;font-weight:500;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.att-size{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+
+.att-x{display:grid;place-items:center;width:22px;height:22px;flex:none;border-radius:var(--radius-sm);
+  color:var(--faint);transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.att-x:hover{background:var(--danger-tint);color:var(--danger)}
+.att-x:focus-visible{box-shadow:var(--focus-ring)}
+.att-x svg{width:11.5px;height:11.5px}
+
+.att-retry{height:22px;padding:0 7px;border-radius:var(--radius-sm);flex:none;
+  font-size:11px;font-weight:500;color:var(--muted);
+  transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.att-retry:hover{background:var(--row-hover);color:var(--fg-strong)}
+.att-retry:focus-visible{box-shadow:var(--focus-ring)}
+
+/* tile states — color AND structure carry meaning */
+.att-tile[data-state="uploading"] .att-thumb img,
+.att-tile[data-state="uploading"] .att-ext{opacity:.45}
+.att-tile[data-state="uploading"] .att-size{color:var(--subtle)}
+.att-spin{position:absolute;inset:0;display:grid;place-items:center;color:var(--fg)}
+.att-spin svg{width:12px;height:12px;margin:0;position:static;animation:att-spin .8s linear infinite}
+@keyframes att-spin{to{transform:rotate(360deg)}}
+
+.att-tile[data-state="error"] .att-size,
+.att-tile[data-state="rejected"] .att-size{color:var(--danger)}
+.att-tile[data-state="rejected"] .att-thumb{display:grid;place-items:center}
+.att-tile[data-state="rejected"] .att-thumb svg{color:var(--danger);position:static;margin:0}
+.att-tile[data-state="rejected"] .att-ext{color:var(--danger)}
+
+.att-gate{display:flex;align-items:center;gap:8px;width:100%;min-height:28px;flex-wrap:wrap;
+  font-size:12px;color:var(--warning)}
+.att-gate svg{width:13px;height:13px;flex:none;color:var(--warning)}
+.att-gate b{font-weight:500;color:var(--warning)}
+.att-gate .btn{margin-left:auto}
+
+@media (prefers-reduced-motion:reduce){
+  .att-spin svg,.att-thumb[data-state]{animation:none}
+  .composer,.att-btn,.att-x,.att-tile,.rt-chip,.composer__send,.att-rail__edge{transition:none}
+  .att-strip,.msg-user__atts,.att-rail__track{scroll-behavior:auto}
+}
+
+/* ============ DROP OVERLAY (composer root) ============ */
+.composer[data-drop="true"]{border-color:var(--accent-dim)}
+.att-drop{display:none;position:absolute;inset:0;z-index:2;border-radius:inherit;
+  background:color-mix(in oklch,var(--elevated) 88%,transparent);
+  box-shadow:inset 0 0 0 1px var(--accent-dim);
+  place-items:center;text-align:center;pointer-events:none;padding:16px}
+.composer[data-drop="true"] .att-drop{display:grid}
+.att-drop b{display:block;font-size:13px;font-weight:560;color:var(--fg-strong)}
+.att-drop span{display:block;margin-top:3px;font-size:11px;color:var(--subtle)}
+
+/* ============ TRANSCRIPT FRAMES (outside the text clamp) ============
+   Same one-row + edge-fade contract as the draft strip. Frames keep
+   their 280px size — density is scroll, not a smaller wrap.
+   Fade dissolves into --canvas (chat column), not the composer fill. */
+.msg-user__atts{
+  --att-fade:64px;
+  --att-fade-bg:var(--canvas);
+  justify-content:flex-end;gap:6px;
+  max-width:80%;margin-bottom:4px;align-self:flex-end;
+}
+.msg-user__atts:has(> .att-rail__track){
+  width:max-content;max-width:80%;
+}
+.msg-user__atts:has(> .att-rail__track)[data-overflow]:not([data-overflow="none"]){width:80%}
+.msg-user__atts .att-rail__track{gap:6px}
+.att-frame{position:relative;display:block;flex:none;max-width:280px;overflow:hidden;
+  border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--elevated);
+  transition:border-color var(--dur) var(--ease)}
+.att-frame:hover{border-color:var(--line-strong)}
+.att-frame:focus-visible{box-shadow:var(--focus-ring)}
+.att-frame img{display:block;max-width:280px;max-height:168px;width:auto;height:auto;object-fit:cover}
+.att-frame__cap{position:absolute;left:8px;bottom:8px;right:auto;
+  max-width:calc(100% - 16px);padding:3px 7px;
+  border-radius:var(--radius-xs);
+  background:color-mix(in oklch,var(--canvas) 88%,transparent);
+  font-family:var(--font-mono);font-size:10px;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  opacity:0;pointer-events:none;
+  transition:opacity var(--dur) var(--ease)}
+.att-frame:hover .att-frame__cap,
+.att-frame:focus-visible .att-frame__cap{opacity:1}
+
+/* sent file card — same 36×36 well, no ×, not a changed-files row */
+.att-file{display:flex;align-items:center;gap:8px;flex:none;max-width:240px;min-height:36px;
+  padding-right:10px;border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--elevated);color:inherit;text-align:left;
+  transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.att-file:hover{border-color:var(--line-strong);background:var(--row-hover)}
+.att-file:focus-visible{box-shadow:var(--focus-ring)}
+.att-file .att-thumb{border-radius:var(--radius-md) 0 0 var(--radius-md);border-width:0 1px 0 0}
+.att-file .att-meta{padding:4px 0}
+
+/* queued row companion — 16px thumb, still bookkeeping */
+.qrow .att-thumb--sm{flex:none}
+.qrow__n{flex:none;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+/* ============ DEMO WINDOW (OS chrome waiver 14px — content stays 10px) ============ */
+.demo-win{display:flex;flex-direction:column;overflow:hidden;
+  background:var(--canvas);border:1px solid var(--line-strong);
+  border-radius:14px;box-shadow:var(--shadow-overlay)}
+.demo-win__head{display:flex;align-items:center;gap:10px;flex:none;height:44px;
+  padding:0 12px 0 14px;border-bottom:1px solid var(--line)}
+.demo-win__dots{display:flex;gap:7px;flex:none}
+.demo-win__dots i{width:11px;height:11px;border-radius:50%;background:var(--elevated);border:1px solid var(--line-strong)}
+.demo-win__title{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:500;color:var(--fg)}
+.demo-win__title .d{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none}
+.demo-win__sub{font-size:11px;font-weight:400;color:var(--subtle)}
+.demo-win__body{display:flex;flex-direction:column;min-height:0}
+.demo-win .chat-scroll{flex:1;min-height:180px;max-height:320px;overflow-y:auto}
+.demo-win .composer-zone{padding:8px 0 14px}
+
+/* ============ DOCK + QSTRIP (session.css §07 / §13, for fused-stack labs) ============ */
+.dock{
+  border:1px solid var(--line-strong);border-bottom:0;
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+  background:var(--canvas-soft);padding:11px 14px 12px}
+.dock__head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dock__eyebrow{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--subtle)}
+.dock__title{font-size:12.5px;font-weight:500;color:var(--fg)}
+.dock__count{font-family:var(--font-mono);font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
+.dock__body{margin-top:8px}
+.dock__pre{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--chat-fill-code,rgba(255,255,255,.03));
+  padding:8px 10px;font-family:var(--font-mono);font-size:11px;line-height:1.6;color:var(--fg);
+  max-height:130px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.dock__meta{margin-top:5px;font-size:11px;color:var(--subtle)}
+.dock__meta code{font-size:10.5px;color:var(--muted)}
+.dock__actions{display:flex;align-items:center;gap:7px;margin-top:10px}
+.dock__actions .spacer{flex:1}
+.dock__actions kbd{margin-left:3px;font-size:9px;color:inherit;opacity:.6}
+
+.qstrip{border:1px solid var(--line);border-bottom:0;border-radius:var(--radius-lg) var(--radius-lg) 0 0;background:var(--elevated)}
+.dock+.qstrip{border-radius:0}
+.qrow{display:flex;align-items:center;gap:8px;min-height:32px;padding:3px 7px 3px 13px}
+.qrow+.qrow{border-top:1px solid var(--line-soft)}
+.qrow>svg{width:13px;height:13px;flex:none;color:var(--faint)}
+.qrow__text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--muted)}
+.qrow__acts{display:flex;align-items:center;gap:1px;flex:none}
+.qrow__steer{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:var(--radius-sm);
+  font-size:11px;font-weight:500;color:var(--muted);
+  transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.qrow__steer:hover{background:var(--row-hover);color:var(--fg-strong)}
+.qrow__steer svg{width:11px;height:11px}
+.qrow__ib{display:grid;place-items:center;width:22px;height:22px;border-radius:var(--radius-sm);color:var(--faint);
+  transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.qrow__ib:hover{background:var(--row-hover);color:var(--fg)}
+.qrow__ib svg{width:11.5px;height:11.5px}
+
+/* user message (session.css §02) — for transcript boards that don't load session.css */
+.msg-user{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.msg-user__bubble{max-width:80%;width:max-content;min-width:0;padding:7px 12px;border-radius:var(--radius-lg);
+  background:var(--chat-fill-user,rgba(255,255,255,.045));font-size:13.5px;line-height:1.6;color:var(--fg);overflow-wrap:anywhere}
+.msg-meta{display:flex;align-items:center;gap:8px;margin-top:3px;font-size:11px;color:var(--subtle);
+  font-variant-numeric:tabular-nums;opacity:0;pointer-events:none;transition:opacity var(--dur-slow) var(--ease)}
+.msg-user .msg-meta{justify-content:flex-end;padding-right:2px}
+.t-msg:hover .msg-meta,.t-msg:focus-within .msg-meta{opacity:1;pointer-events:auto}
+.msg-meta button{display:inline-flex;align-items:center;gap:4px;color:var(--subtle);border-radius:var(--radius-xs);padding:1px 3px}
+.msg-meta button:hover{color:var(--fg)}
+.msg-meta svg{width:11px;height:11px}
+.msg-assistant{min-width:0;font-size:13.5px;line-height:1.62;color:var(--fg)}
+.chat-col{width:100%;max-width:46rem;margin-inline:auto;min-width:0;padding-inline:20px}
+
+/* command-menu row (picker alternative — documented as not chosen) */
+.cmd-pop{width:100%;max-width:560px;padding:5px;background:var(--elevated);border:1px solid var(--line-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay)}
+.cmd-item{display:flex;width:100%;align-items:center;gap:8px;min-height:30px;padding:5px 8px;
+  border-radius:var(--radius-md);text-align:left;transition:background var(--dur) var(--ease)}
+.cmd-item:hover,.cmd-item[data-highlighted]{background:var(--row-hover)}
+.cmd-item svg{width:14px;height:14px;flex:none;color:var(--muted)}
+.cmd-item__title{flex:none;font-size:12.5px;font-weight:500;color:var(--fg)}
+.cmd-item__desc{min-width:0;font-size:11px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmd-item__trail{margin-left:auto;flex:none;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.cmd-item[data-off]{opacity:.55}
+.cmd-item[data-off] .cmd-item__trail{color:var(--faint)}

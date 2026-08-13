@@ -5,7 +5,6 @@ import {
   automationJobUpdateFromDraft,
   automationTargetMode,
   automationTriggerToDraft,
-  bindLoopTargetWorkspace,
   automationTriggerUpdateFromDraft,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
@@ -273,16 +272,5 @@ describe("automation target mode helpers", () => {
     expect(loopTargetWorkspaceId({ ...globalDraft, loop_target: undefined }, "ws_fallback")).toBe(
       "ws_fallback"
     );
-  });
-
-  it("Should bind only an existing Loop target branch", () => {
-    const agentJob = createAutomationJobDraft("ws_alpha");
-    expect(bindLoopTargetWorkspace(agentJob, "ws_beta")).toBe(agentJob);
-
-    const loopJob = setJobTargetMode(agentJob, "loop");
-    expect(bindLoopTargetWorkspace(loopJob, "ws_beta")).toMatchObject({
-      workspace_id: "ws_alpha",
-      loop_target: { workspace_id: "ws_beta" },
-    });
   });
 });

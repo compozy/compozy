@@ -6,7 +6,7 @@
 .cache/
 .turbo/
 .tanstack/
-bin/
+/bin/
 dist/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
@@ -28,6 +28,7 @@ node_modules/
 coverage/
 .claude/skills
 .compozy/runs
+.compozy/memory
 .compoz/runs
 $COMPOZY_HOME
 COMPOZY_HOME

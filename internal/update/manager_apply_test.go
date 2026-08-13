@@ -89,6 +89,46 @@ func TestManagerApplyRelease(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a binary outside the configured artifact policy before applying it", func(t *testing.T) {
+		t.Parallel()
+
+		verifier := &stubBundleVerifier{}
+		applier := &recordingBinaryApplier{}
+		manager, _ := newManagerWithExecutable(t, Config{
+			RuntimeOS:      runtimeOSLinux,
+			RuntimeArch:    runtimeArchAMD64,
+			BundleVerifier: verifier,
+			BinaryApplier:  applier,
+			ArtifactPolicy: ArtifactPolicy{
+				MaxArchiveBytes: 1 << 20,
+				MaxBinaryBytes:  8,
+			},
+		})
+
+		archiveBody := createTarGzBinary(t, "compozy", []byte("123456789"), 0o755)
+		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
+			archiveBody: archiveBody,
+			bundleBody:  []byte(`{}`),
+		})
+		defer server.Close()
+		manager.httpClient = server.Client()
+
+		_, err := manager.ApplyRelease(t.Context(), release)
+		var sizeErr *ArtifactSizeError
+		if !errors.As(err, &sizeErr) {
+			t.Fatalf("ApplyRelease() error = %v, want ArtifactSizeError", err)
+		}
+		if sizeErr.Kind != ArtifactKindBinary || sizeErr.Size != 9 || sizeErr.Limit != 8 {
+			t.Fatalf("ArtifactSizeError = %#v, want binary size 9 limit 8", sizeErr)
+		}
+		if verifier.calls != 1 {
+			t.Fatalf("VerifyChecksums() calls = %d, want 1 before archive inspection", verifier.calls)
+		}
+		if applier.applyCalls != 0 {
+			t.Fatalf("ApplyBinary() calls = %d, want 0 after artifact policy failure", applier.applyCalls)
+		}
+	})
+
 	t.Run("Should reject oversized archive download before verification", func(t *testing.T) {
 		t.Parallel()
 
@@ -103,18 +143,19 @@ func TestManagerApplyRelease(t *testing.T) {
 
 		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
 			archiveBody:          []byte("unused"),
-			archiveContentLength: fmt.Sprintf("%d", maxArchiveDownloadBytes+1),
+			archiveContentLength: fmt.Sprintf("%d", DefaultArtifactPolicy().MaxArchiveBytes+1),
 			bundleBody:           []byte("{}"),
 		})
 		defer server.Close()
 		manager.httpClient = server.Client()
 
 		_, err := manager.ApplyRelease(context.Background(), release)
-		if err == nil {
-			t.Fatal("ApplyRelease() error = nil, want oversized archive failure")
+		var sizeErr *ArtifactSizeError
+		if !errors.As(err, &sizeErr) {
+			t.Fatalf("ApplyRelease() error = %v, want ArtifactSizeError", err)
 		}
-		if !strings.Contains(err.Error(), "exceeds limit") {
-			t.Fatalf("ApplyRelease() error = %v, want download limit failure", err)
+		if sizeErr.Kind != ArtifactKindArchive || sizeErr.Limit != DefaultArtifactPolicy().MaxArchiveBytes {
+			t.Fatalf("ArtifactSizeError = %#v, want archive policy failure", sizeErr)
 		}
 		if verifier.calls != 0 {
 			t.Fatalf("VerifyChecksums() calls = %d, want 0 after oversized archive", verifier.calls)

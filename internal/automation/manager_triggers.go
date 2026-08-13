@@ -71,6 +71,9 @@ func (m *Manager) CreateTrigger(
 	if err := next.Validate("trigger"); err != nil {
 		return Trigger{}, err
 	}
+	if err := ValidateTriggerAgentName(next, "trigger"); err != nil {
+		return Trigger{}, err
+	}
 	if err := m.validateTriggerLoopTarget(ctx, next); err != nil {
 		return Trigger{}, err
 	}
@@ -184,6 +187,9 @@ func (m *Manager) validateTriggerUpdate(ctx context.Context, current Trigger, ne
 		return err
 	}
 	if err := next.Validate("trigger"); err != nil {
+		return err
+	}
+	if err := ValidateTriggerAgentName(next, "trigger"); err != nil {
 		return err
 	}
 	return m.validateTriggerLoopTarget(ctx, next)

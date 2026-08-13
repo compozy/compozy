@@ -54,7 +54,6 @@ type SessionCreateStoreEvents = {
   };
   sessionCreated: { attempt: number; session: SessionPayload };
   validationFailed: { message: string };
-  workspaceSelected: { workspaceId: string };
 };
 
 export const sessionCreateStoreLogic = createStoreLogic<
@@ -97,16 +96,6 @@ export const sessionCreateStoreLogic = createStoreLogic<
       ...context,
       mode: event.mode,
       draft: event.mode === "advanced" ? context.draft : { ...context.draft, ...ADVANCED_DEFAULTS },
-      submitError: null,
-    }),
-    workspaceSelected: (context, event) => ({
-      ...context,
-      draft: {
-        ...context.draft,
-        workspaceId: event.workspaceId,
-        agentName: "",
-        ...ADVANCED_DEFAULTS,
-      },
       submitError: null,
     }),
     agentSelected: (context, event) => ({

@@ -1,4 +1,4 @@
-import { FolderPlus, Home } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Button, Pill } from "@compozy/ui";
@@ -40,21 +40,21 @@ export const Comfortable: Story = {
   args: {},
   render: () => (
     <OptionCard size="comfortable" data-testid="option-card-comfortable">
-      <OptionCard.Header eyebrow="Global" right={<Pill tone="accent">HOME</Pill>} />
+      <OptionCard.Header eyebrow="Folder" right={<Pill tone="accent">PATH</Pill>} />
       <OptionCard.Body>
         <OptionCard.Icon tone="accent">
-          <Home className="size-4" />
+          <FolderPlus className="size-4" />
         </OptionCard.Icon>
         <OptionCard.Content>
-          <OptionCard.Title>Use global workspace</OptionCard.Title>
+          <OptionCard.Title>Add a project folder</OptionCard.Title>
           <OptionCard.Description>
-            Resolve the daemon's $HOME workspace and skip a per-project path.
+            Pick an absolute path CompozyOS can open, read and write inside.
           </OptionCard.Description>
-          <OptionCard.Meta>/Users/pedro</OptionCard.Meta>
+          <OptionCard.Meta>/Users/pedro/Dev/checkout-platform</OptionCard.Meta>
         </OptionCard.Content>
       </OptionCard.Body>
       <OptionCard.Action>
-        <Button className="w-full justify-between text-accent-ink">Use this workspace</Button>
+        <Button className="w-full justify-between text-accent-ink">Use this folder</Button>
       </OptionCard.Action>
     </OptionCard>
   ),

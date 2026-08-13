@@ -1,8 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
+import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
 import { schedulerBacklogOptions, schedulerStatusOptions } from "@/systems/scheduler";
-import { statusOptions } from "@/systems/status";
 import {
   parseTasksSurfaceMode,
   taskDashboardOptions,
@@ -12,20 +11,14 @@ import {
   tasksListOptions,
   type TasksRouteSearch,
 } from "@/systems/tasks";
-import { workspacesListOptions } from "@/systems/workspace";
 
 export async function preloadTasksRoute(
   queryClient: QueryClient,
   search: TasksRouteSearch
 ): Promise<void> {
   const mode = parseTasksSurfaceMode(search);
-  const [workspaceId, statusResult, workspacesResult] = await Promise.all([
-    resolveActiveWorkspaceId(queryClient),
-    queryClient.ensureQueryData(statusOptions()).catch(() => null),
-    queryClient.ensureQueryData(workspacesListOptions()).catch(() => []),
-  ]);
-  const activeWorkspace = workspacesResult.find(workspace => workspace.id === workspaceId);
-  const scope = taskScopeForActiveWorkspace(activeWorkspace, statusResult?.daemon.user_home_dir);
+  const resolution = await resolveActiveWorkspaceSelection(queryClient);
+  const scope = taskScopeForActiveWorkspace(resolution.scope, resolution.activeWorkspaceId);
   if (!scope) {
     return;
   }

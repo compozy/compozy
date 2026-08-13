@@ -30,9 +30,15 @@ func LoadGlobalConfig(homePaths HomePaths) (Config, error) {
 // ResolveAgentName resolves an explicit session agent name or falls back to config defaults.
 func ResolveAgentName(name string, defaults DefaultsConfig) (string, error) {
 	if resolved := strings.TrimSpace(name); resolved != "" {
+		if err := ValidateAgentName(resolved); err != nil {
+			return "", err
+		}
 		return resolved, nil
 	}
 	if resolved := strings.TrimSpace(defaults.Agent); resolved != "" {
+		if err := ValidateAgentName(resolved); err != nil {
+			return "", err
+		}
 		return resolved, nil
 	}
 	return "", errors.New("agent name is required; run `compozy install` or set defaults.agent")

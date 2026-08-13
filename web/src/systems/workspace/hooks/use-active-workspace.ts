@@ -1,26 +1,48 @@
-import { useSelectedWorkspaceId } from "./use-active-workspace-store";
+import {
+  isActiveWorkspaceStoreHydrated,
+  useSelectedWorkspaceId,
+  useWorkspaceScopeMode,
+} from "./use-active-workspace-store";
 import { useWorkspaces } from "./use-workspaces";
-import { selectActiveWorkspace } from "../lib/active-workspace";
+import { resolveActiveWorkspace } from "../lib/active-workspace";
 import {
   clearActiveWorkspaceSelection,
+  disableGlobalScope,
+  enableGlobalScope,
   setActiveWorkspaceId,
+  toggleGlobalScope,
 } from "../stores/active-workspace-store";
+import { useDaemonStatus } from "@/systems/status";
 
 export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   const selectedWorkspaceId = useSelectedWorkspaceId();
+  const requestedScope = useWorkspaceScopeMode();
   const query = useWorkspaces(options);
-
-  const activeWorkspace = selectActiveWorkspace(query.data ?? [], selectedWorkspaceId);
+  const status = useDaemonStatus(options);
+  const userHomeDir = status.data?.user_home_dir ?? undefined;
+  const resolution = resolveActiveWorkspace({
+    workspaces: query.data ?? [],
+    userHomeDir,
+    scope: requestedScope,
+    selectedWorkspaceId,
+    // Until both sources have data, "deleted" and "still loading" are indistinguishable.
+    pending: query.data === undefined || userHomeDir === undefined,
+  });
 
   return {
     ...query,
-    workspaces: query.data ?? [],
-    hasWorkspaces: (query.data?.length ?? 0) > 0,
-    hasHydrated: true,
+    ...resolution,
+    workspaces: resolution.projectWorkspaces,
+    hasWorkspaces: resolution.projectWorkspaces.length > 0,
+    hasHydrated: isActiveWorkspaceStoreHydrated(),
     selectedWorkspaceId,
-    activeWorkspace,
-    activeWorkspaceId: activeWorkspace?.id ?? null,
+    requestedScope,
+    userHomeDir,
     setActiveWorkspaceId,
+    enableGlobalScope,
+    disableGlobalScope,
+    toggleGlobalScope: () =>
+      toggleGlobalScope({ scope: resolution.scope, canDisable: resolution.canDisableGlobal }),
     clearActiveWorkspaceSelection,
   };
 }

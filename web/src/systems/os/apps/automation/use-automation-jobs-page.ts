@@ -37,7 +37,6 @@ export function useAutomationJobsPage(
 
   const editor = useAutomationJobEditor({
     activeWorkspaceId: page.activeWorkspaceId,
-    userHomeDir: page.userHomeDir,
     workspaces: page.workspaces,
     onSaved: job => void navigate({ to: "/jobs/$jobId", params: { jobId: job.id } }),
   });

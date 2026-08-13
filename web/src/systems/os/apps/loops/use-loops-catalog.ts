@@ -15,8 +15,8 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 /** View-model for the Loops catalog route: URL state, data, bindings, and Run launch. */
 function useLoopsCatalog(search: LoopsRouteSearch = {}) {
-  const { activeWorkspaceId, activeWorkspace } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+  const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = runtimeWorkspaceId ?? "";
   const navigate = useNavigate({ from: "/loops" });
 
   const searchQuery = search.q ?? "";

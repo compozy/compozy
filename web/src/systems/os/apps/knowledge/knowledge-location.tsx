@@ -211,7 +211,8 @@ export function KnowledgeLocation() {
         onConfirm={page.handleCreate}
         onOpenChange={page.setCreateOpen}
         open={page.createOpen}
-        scope={page.activeScope}
+        scope={page.createScope}
+        destinationLabel={page.createDestinationLabel}
       />
     </div>
   );

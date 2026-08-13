@@ -1,7 +1,5 @@
 import { type ActiveTaskScopeFilter, taskScopeForActiveWorkspace } from "@/systems/tasks";
 
-type ActiveWorkspaceScopeCandidate = Parameters<typeof taskScopeForActiveWorkspace>[0];
-
 export interface HomeScope {
   /** Empty selects the global home scope (whole-system aggregates). */
   workspaceParam: string;
@@ -9,19 +7,19 @@ export interface HomeScope {
 }
 
 /**
- * Maps the home workspace to global scope and project workspaces to their id.
- * Returns `null` until both the active workspace and daemon home are known.
+ * Maps menubar-owned scope onto dashboard query params.
+ * Returns `null` until the destination is known.
  */
 export function homeScopeForActiveWorkspace(
-  activeWorkspace: ActiveWorkspaceScopeCandidate | null | undefined,
-  userHomeDir: string | undefined
+  scope: "global" | "workspace" | null | undefined,
+  workspaceId?: string | null
 ): HomeScope | null {
-  const scope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
-  if (!scope) {
+  const taskScope = taskScopeForActiveWorkspace(scope, workspaceId);
+  if (!taskScope) {
     return null;
   }
-  if (scope.scope === "global") {
+  if (taskScope.scope === "global") {
     return { workspaceParam: "", taskScope: { scope: "global" } };
   }
-  return { workspaceParam: scope.workspace, taskScope: scope };
+  return { workspaceParam: taskScope.workspace, taskScope };
 }

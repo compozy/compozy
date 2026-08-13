@@ -103,5 +103,8 @@ func (m *Manager) validateJobDefinition(ctx context.Context, job Job) error {
 	if err := job.Validate("job"); err != nil {
 		return err
 	}
+	if err := ValidateJobAgentName(job, "job"); err != nil {
+		return err
+	}
 	return m.validateJobLoopTarget(ctx, job)
 }

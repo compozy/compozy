@@ -58,7 +58,7 @@ permissions:
   attestations: write
 
 jobs:
-  # Job 1: Create or update Release PR
+  # Create or update the release PR.
   release-pr:
     name: Create/Update Release PR
     if: |
@@ -111,7 +111,7 @@ jobs:
         run: |
           go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 
-  # Job 2: GoReleaser dry-run on every Release PR.
+  # Run the GoReleaser dry-run on every release PR.
   dry-run:
     name: Dry-Run Build Validation
     if: |
@@ -137,8 +137,13 @@ jobs:
         run: |
           set -euo pipefail
           workflow_tools=(
+            render-and-validate-release-body.sh
             release-publication-state.sh
             release-preflight.sh
+            prepare-desktop-smoke-artifact.sh
+            smoke-desktop-release-artifact.sh
+            smoke-public-cli-package.sh
+            validate-release-body.sh
           )
           for workflow_tool in "${workflow_tools[@]}"; do
             target="${RUNNER_TEMP}/${workflow_tool}"
@@ -148,6 +153,10 @@ jobs:
               >"${target}"
             bash -n "${target}"
           done
+          gh api \
+            -H "Accept: application/vnd.github.raw+json" \
+            "repos/${GITHUB_REPOSITORY}/contents/.goreleaser.yml?ref=${WORKFLOW_COMMIT}" \
+            >"${RUNNER_TEMP}/.goreleaser.yml"
 
       - name: Prepare Go temporary directory
         env:
@@ -190,6 +199,46 @@ jobs:
           setup-qemu: false
           cosign-version: ${{ env.COSIGN_VERSION }}
 
+      - name: Validate prospective beta release body
+        env:
+          PR_RELEASE_LOG_LEVEL: error
+        run: |
+          set -euo pipefail
+          release_version="$(scripts/resolve-auto-beta-version.sh)"
+          plan_output="${RUNNER_TEMP}/prospective-release-plan"
+          go run "${PR_RELEASE_MODULE}" plan \
+            --ref HEAD \
+            --version "${release_version}" \
+            --channel beta \
+            --format github >"${plan_output}"
+
+          expected_keys=(
+            release_ref release_commit release_version release_tag release_previous_tag
+            release_git_range release_initial release_channel
+            github_prerelease github_make_latest npm_tag homebrew_skip_upload
+          )
+          for key in "${expected_keys[@]}"; do
+            if [[ "$(grep -c "^${key}=" "${plan_output}")" != "1" ]]; then
+              echo "::error::Prospective planner output must contain exactly one ${key} entry"
+              exit 1
+            fi
+          done
+          if [[ "$(wc -l <"${plan_output}" | tr -d ' ')" != "12" ]]; then
+            echo "::error::Prospective planner output must contain exactly twelve authoritative entries"
+            exit 1
+          fi
+
+          release_tag="$(sed -n 's/^release_tag=//p' "${plan_output}")"
+          release_git_range="$(sed -n 's/^release_git_range=//p' "${plan_output}")"
+          release_initial="$(sed -n 's/^release_initial=//p' "${plan_output}")"
+          bash "${RUNNER_TEMP}/render-and-validate-release-body.sh" \
+            "${PR_RELEASE_MODULE}" \
+            "${release_tag}" \
+            "${release_git_range}" \
+            "${release_initial}" \
+            "${RUNNER_TEMP}/PROSPECTIVE_RELEASE_BODY.md"
+          head -1 "${RUNNER_TEMP}/PROSPECTIVE_RELEASE_BODY.md"
+
       - &run-release-preflight
         name: Run release preflight
         run: bash "${RUNNER_TEMP}/release-preflight.sh"
@@ -208,7 +257,194 @@ jobs:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
 
-  # Job 3: Credentialed nightly E2E gate on a fresh runner.
+  # Validate Tauri bundles on every shipping platform without publication.
+  desktop-dry-run:
+    name: Dry-Run Desktop ${{ matrix.name }}
+    if: |
+      github.event_name == 'pull_request' &&
+      (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
+       startsWith(github.event.pull_request.title, 'release: Release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    strategy:
+      fail-fast: false
+      matrix: &desktop-release-matrix
+        include:
+          - name: macOS universal
+            id: macos
+            runner: macos-15
+            platform: macos
+            target: universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundles: app,dmg
+          # Windows is paused until the Azure Trusted Signing account is
+          # restored (SignerSign fails server-side).
+          - name: Linux x86_64
+            id: linux
+            runner: ubuntu-22.04
+            platform: linux
+            target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install Linux desktop dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - name: Assert updater signing material before dry-run build
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD TAURI_SIGNING_PUBLIC_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "desktop dry-run: required signing value ${name} is missing" >&2
+              exit 1
+            fi
+          done
+
+      - name: Generate dry-run release channel configuration
+        shell: bash
+        env:
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          TAURI_SIGNING_PUBLIC_KEY_PREVIOUS: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY_PREVIOUS }}
+        run: |
+          go run ./cmd/compozy-desktop-release channel-config \
+            --version 0.0.0-beta.0 \
+            --channel beta \
+            --public-key "${TAURI_SIGNING_PUBLIC_KEY}" \
+            --previous-public-key "${TAURI_SIGNING_PUBLIC_KEY_PREVIOUS:-}" \
+            --output desktop/src-tauri/tauri.channel.conf.json
+
+      - name: Build desktop bundle without publishing
+        uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: desktop
+          uploadUpdaterJson: false
+          uploadWorkflowArtifacts: false
+          args: >-
+            --target ${{ matrix.target }}
+            --bundles ${{ matrix.bundles }}
+            --config src-tauri/tauri.channel.conf.json
+        env:
+          COMPOZY_RELEASE_CHANNEL: beta
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Normalize dry-run desktop artifacts
+        shell: bash
+        run: |
+          scripts/normalize-desktop-artifacts.sh \
+            "${{ matrix.platform }}" \
+            0.0.0-beta.0 \
+            desktop/src-tauri/target \
+            ".artifacts/desktop/${{ matrix.id }}"
+
+      - name: Upload dry-run desktop artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-dry-run-${{ matrix.id }}
+          path: .artifacts/desktop/${{ matrix.id }}/*
+          if-no-files-found: error
+          retention-days: 7
+
+  desktop-dry-run-smoke:
+    name: Dry-Run Smoke ${{ matrix.name }}
+    needs: desktop-dry-run
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS DMG
+            id: macos
+            runner: macos-15
+            platform: macos
+            artifact: CompozyOS_0.0.0-beta.0_universal.dmg
+          - name: Linux AppImage
+            id: linux
+            runner: ubuntu-22.04
+            platform: linux
+            artifact: CompozyOS_0.0.0-beta.0_amd64.AppImage
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux desktop smoke dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils \
+            xvfb
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: desktop-dry-run-${{ matrix.id }}
+          path: .artifacts/desktop
+
+      - name: Read current beta runtime identity
+        id: runtime
+        run: |
+          runtime_version="$(
+            curl --fail --silent --show-error \
+              https://releases.compozy.com/desktop/beta/runtime.json \
+              | jq -er '.version | strings | select(length > 0)'
+          )"
+          printf 'version=%s\n' "${runtime_version}" >>"${GITHUB_OUTPUT}"
+
+      - name: Provision from the transferred package
+        env:
+          RELEASE_CHANNEL: beta
+        run: |
+          bash scripts/smoke-desktop-release-artifact.sh \
+            "${{ matrix.platform }}" \
+            ".artifacts/desktop/${{ matrix.artifact }}" \
+            0.0.0-beta.0 \
+            "${{ steps.runtime.outputs.version }}"
+
+      - name: Upload smoke diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-dry-run-smoke-${{ matrix.id }}-diagnostics
+          path: ${{ runner.temp }}/compozyqa-desktop-smoke.*/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Run the credentialed nightly E2E gate on a fresh runner.
   e2e-nightly:
     name: E2E Nightly Lane
     if: |
@@ -263,7 +499,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Job 4: Full integration suite on a fresh runner.
+  # Run the full integration suite on a fresh runner.
   integration:
     name: Full Integration Suite
     if: |
@@ -313,7 +549,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Job 5: Resolve the explicit release identity exactly once.
+  # Resolve the explicit release identity exactly once.
   release-plan:
     name: Explicit Release Plan
     # Auto-beta triggers ONLY on release PR merge subjects. Two real-world
@@ -374,32 +610,9 @@ jobs:
             } >>"${GITHUB_OUTPUT}"
             exit 0
           fi
-          # Auto-beta consumes the stable base committed by the release PR.
-          # Existing prerelease tags select the next beta.N, and `pr-release
-          # plan` below remains the identity authority for HEAD, tag absence,
-          # channel policy, and version shape.
-          base="$(node --input-type=module -e '
-            import { readFileSync } from "node:fs";
-            const manifest = JSON.parse(readFileSync("package.json", "utf8"));
-            if (typeof manifest.version !== "string") {
-              throw new Error("package.json version must be a string");
-            }
-            process.stdout.write(manifest.version);
-          ')"
-          if [[ ! "${base}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::release PR package version '${base}' is not plain SemVer; cannot derive the beta version"
-            exit 1
-          fi
-          last=0
-          for tag in $(git tag --list "v${base}-beta.*"); do
-            n="${tag#v"${base}"-beta.}"
-            if [[ "${n}" =~ ^[0-9]+$ ]] && (( n > last )); then
-              last="${n}"
-            fi
-          done
           {
             echo "ref=${GITHUB_SHA}"
-            echo "version=${base}-beta.$((last + 1))"
+            echo "version=$(scripts/resolve-auto-beta-version.sh)"
             echo "channel=beta"
           } >>"${GITHUB_OUTPUT}"
 
@@ -436,7 +649,7 @@ jobs:
           fi
           cat "${plan_output}" >>"${GITHUB_OUTPUT}"
 
-  # Job 6: Publish only from an explicit, validated plan.
+  # Publish only from an explicit, validated plan.
   release:
     name: Stage Production Release
     needs: release-plan
@@ -444,7 +657,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:
-      already_published: ${{ steps.publication.outputs.already_published }}
+      publication_state: ${{ steps.publication.outputs.publication_state }}
+      release_state: ${{ steps.publication.outputs.release_state }}
+      cli_state: ${{ steps.publication.outputs.cli_state }}
+      extension_sdk_state: ${{ steps.publication.outputs.extension_sdk_state }}
+      stage_release: ${{ steps.publication.outputs.stage_release }}
+      desktop_required: ${{ steps.publication.outputs.desktop_required }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -489,7 +707,9 @@ jobs:
         run: bash "${RUNNER_TEMP}/release-publication-state.sh"
 
       - name: Setup Release Tools
-        if: steps.publication.outputs.already_published != 'true'
+        if: |
+          steps.publication.outputs.stage_release == 'true' ||
+          steps.publication.outputs.cli_state == 'missing'
         uses: ./.github/actions/setup-release
         with:
           goreleaser-distribution: goreleaser-pro
@@ -502,41 +722,35 @@ jobs:
       - *run-release-preflight
 
       - name: Render canonical release body
-        if: steps.publication.outputs.already_published != 'true'
+        if: steps.publication.outputs.stage_release == 'true'
         env:
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
           RELEASE_GIT_RANGE: ${{ needs.release-plan.outputs.release_git_range }}
           RELEASE_INITIAL: ${{ needs.release-plan.outputs.release_initial }}
           PR_RELEASE_LOG_LEVEL: error
         run: |
-          set -euo pipefail
-          release_body_args=(release-body --tag "${RELEASE_TAG}")
-          case "${RELEASE_INITIAL}" in
-            true)
-              if [[ -n "${RELEASE_GIT_RANGE}" ]]; then
-                echo "::error::Initial release plan cannot include a Git range"
-                exit 1
-              fi
-              release_body_args+=(--initial)
-              ;;
-            false)
-              if [[ -z "${RELEASE_GIT_RANGE}" ]]; then
-                echo "::error::Non-initial release plan must include a Git range"
-                exit 1
-              fi
-              release_body_args+=(--range "${RELEASE_GIT_RANGE}")
-              ;;
-            *)
-              echo "::error::Release plan emitted invalid initial-release intent"
-              exit 1
-              ;;
-          esac
-          go run "${PR_RELEASE_MODULE}" "${release_body_args[@]}" >"${RUNNER_TEMP}/RELEASE_BODY.md"
-          test -s "${RUNNER_TEMP}/RELEASE_BODY.md"
+          bash "${RUNNER_TEMP}/render-and-validate-release-body.sh" \
+            "${PR_RELEASE_MODULE}" \
+            "${RELEASE_TAG}" \
+            "${RELEASE_GIT_RANGE}" \
+            "${RELEASE_INITIAL}" \
+            "${RUNNER_TEMP}/RELEASE_BODY.md"
           head -1 "${RUNNER_TEMP}/RELEASE_BODY.md"
 
+      - name: Reuse existing release body for package-only recovery
+        if: |
+          steps.publication.outputs.stage_release != 'true' &&
+          steps.publication.outputs.cli_state == 'missing'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_ID: ${{ steps.publication.outputs.release_id }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+            --jq '.body' >"${RUNNER_TEMP}/RELEASE_BODY.md"
+          test -s "${RUNNER_TEMP}/RELEASE_BODY.md"
+
       - name: Validate extension SDK release assets
-        if: steps.publication.outputs.already_published != 'true'
+        if: steps.publication.outputs.extension_sdk_state == 'missing'
         run: |
           if ! grep -q '"name": "@compozy/extension-sdk"' sdk/typescript/package.json; then
             echo "::error::Missing @compozy/extension-sdk package metadata"
@@ -550,6 +764,7 @@ jobs:
           scripts/publish-extension-sdk.sh --dry-run "${{ needs.release-plan.outputs.release_version }}" "${{ needs.release-plan.outputs.npm_tag }}"
 
       - name: Create and push annotated release tag
+        if: steps.publication.outputs.stage_release == 'true'
         env:
           RELEASE_COMMIT: ${{ needs.release-plan.outputs.release_commit }}
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
@@ -586,12 +801,16 @@ jobs:
           git push origin "refs/tags/${RELEASE_TAG}" "refs/tags/${sdk_go_tag}"
 
       - uses: goreleaser/goreleaser-action@v7
-        if: steps.publication.outputs.already_published != 'true'
+        name: Prepare release artifacts without publication
+        if: |
+          steps.publication.outputs.stage_release == 'true' ||
+          steps.publication.outputs.cli_state == 'missing'
         with:
           distribution: goreleaser-pro
           version: v2.17.1
           args: >-
-            release --clean
+            release --clean --prepare
+            --config=${{ runner.temp }}/.goreleaser.yml
             --release-notes=${{ runner.temp }}/RELEASE_BODY.md
             --release-header-tmpl=.goreleaser.release-header.md.tmpl
             --release-footer-tmpl=.goreleaser.release-footer.md.tmpl
@@ -607,90 +826,43 @@ jobs:
           NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
           HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}
 
-      - name: Publish TypeScript extension SDK
+      - uses: goreleaser/goreleaser-action@v7
+        name: Stage GitHub draft without publishing npm
+        if: steps.publication.outputs.stage_release == 'true'
+        with:
+          distribution: goreleaser-pro
+          version: v2.17.1
+          args: publish --config=${{ runner.temp }}/.goreleaser.yml
         env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
           NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
-        run: scripts/publish-extension-sdk.sh "${RELEASE_VERSION}" "${NPM_TAG}"
+          HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}
+          GORELEASER_PUBLISH_NPM: "false"
 
-      - name: Checkout canonical formula renderer
-        if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
-        uses: actions/checkout@v7
+      - name: Upload prepared npm CLI package
+        if: steps.publication.outputs.cli_state == 'missing'
+        uses: actions/upload-artifact@v7
         with:
-          ref: main
-          path: .release-tools
-          sparse-checkout: scripts/render-homebrew-formula.sh
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
-
-      - name: Checkout Homebrew tap
-        if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
-        uses: actions/checkout@v7
-        with:
-          repository: compozy/homebrew-compozy
-          ref: main
-          token: ${{ secrets.RELEASE_TOKEN }}
-          path: .release-homebrew
-
-      - name: Publish Homebrew formula
-        if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
-          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
-        run: |
-          set -euo pipefail
-          checksum_dir="${RUNNER_TEMP}/homebrew-release"
-          mkdir -p "${checksum_dir}"
-          gh release download "${RELEASE_TAG}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --pattern checksums.txt \
-            --dir "${checksum_dir}"
-          .release-tools/scripts/render-homebrew-formula.sh \
-            --release-repo "${GITHUB_REPOSITORY}" \
-            --release-version "${RELEASE_VERSION}" \
-            --release-tag "${RELEASE_TAG}" \
-            --checksums "${checksum_dir}/checksums.txt" \
-            --output .release-homebrew/Formula/compozy.rb
-
-          git -C .release-homebrew config user.name "github-actions[bot]"
-          git -C .release-homebrew config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C .release-homebrew add Formula/compozy.rb
-          if git -C .release-homebrew diff --cached --quiet; then
-            echo "Homebrew formula already matches ${RELEASE_TAG}"
-            exit 0
-          fi
-          git -C .release-homebrew commit -m "compozy ${RELEASE_TAG}"
-          git -C .release-homebrew push origin HEAD:main
+          name: npm-cli-${{ needs.release-plan.outputs.release_version }}
+          path: dist/npm/@compozy/cli/*
+          if-no-files-found: error
+          retention-days: 14
 
   desktop-build:
     name: Desktop ${{ matrix.name }}
     needs: [release-plan, release]
-    # Runs for fresh staging AND for staged-draft recovery (orphaned_* states).
-    # The release job hard-fails when the GitHub Release is no longer a draft,
-    # so release.result == 'success' alone proves a draft awaits desktop assets.
-    if: needs.release.result == 'success'
+    if: |
+      needs.release.result == 'success' &&
+      needs.release.outputs.desktop_required == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: macOS universal
-            id: macos
-            runner: macos-15
-            platform: macos
-            target: universal-apple-darwin
-            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
-            bundles: app,dmg
-          # Windows is paused until the Azure Trusted Signing account is
-          # restored (SignerSign fails server-side); reintroduce the matrix
-          # entry together with the signing preflight steps from git history.
-          - name: Linux x86_64
-            id: linux
-            runner: ubuntu-22.04
-            platform: linux
-            target: x86_64-unknown-linux-gnu
-            rust_targets: x86_64-unknown-linux-gnu
-            bundles: appimage,deb
+      matrix: *desktop-release-matrix
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     steps:
@@ -853,6 +1025,7 @@ jobs:
     needs: [release-plan, release, desktop-build, desktop-smoke]
     if: |
       needs.release.result == 'success' &&
+      needs.release.outputs.desktop_required == 'true' &&
       needs.desktop-build.result == 'success' &&
       needs.desktop-smoke.result == 'success'
     runs-on: macos-15
@@ -875,6 +1048,12 @@ jobs:
       - uses: ./.github/actions/setup-bun
         with:
           install-playwright: "false"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
 
       - name: Install verification tools
         run: brew install minisign awscli
@@ -904,6 +1083,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           set -euo pipefail
@@ -914,6 +1094,16 @@ jobs:
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             .artifacts/feed
           scripts/sign-runtime-manifest.sh .artifacts/feed/runtime.json
+          cargo run --locked \
+            --manifest-path desktop/src-tauri/Cargo.toml \
+            --features runtime-manifest-check \
+            --bin compozy-runtime-manifest-check -- \
+            .artifacts/feed/runtime.json \
+            .artifacts/feed/runtime.json.minisig \
+            "${RELEASE_VERSION}" \
+            darwin-aarch64 \
+            darwin-x86_64 \
+            linux-x86_64
 
       - name: Revalidate stapling and bundle version
         env:
@@ -962,6 +1152,7 @@ jobs:
     needs: [release-plan, release, desktop-build]
     if: |
       needs.release.result == 'success' &&
+      needs.release.outputs.desktop_required == 'true' &&
       needs.desktop-build.result == 'success'
     strategy:
       fail-fast: false
@@ -1020,19 +1211,30 @@ jobs:
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
-          bash scripts/smoke-desktop-release-artifact.sh \
+          bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh" \
             "${{ matrix.platform }}" \
             ".artifacts/desktop/${{ matrix.artifact }}" \
             "${RELEASE_VERSION}" \
             "${{ steps.runtime.outputs.version }}"
 
+      - name: Upload smoke diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-release-smoke-${{ matrix.id }}-diagnostics
+          path: ${{ runner.temp }}/compozyqa-desktop-smoke.*/
+          if-no-files-found: ignore
+          retention-days: 14
+
   desktop-finalize:
-    name: Finalize Desktop Release
+    name: Publish GitHub Release
     needs: [release-plan, release, desktop-publish, desktop-smoke]
     if: |
+      always() &&
       needs.release.result == 'success' &&
-      needs.desktop-publish.result == 'success' &&
-      needs.desktop-smoke.result == 'success'
+      (needs.release.outputs.desktop_required != 'true' ||
+       (needs.desktop-publish.result == 'success' &&
+        needs.desktop-smoke.result == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -1044,7 +1246,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Publish GitHub draft last
+      - name: Publish GitHub release before downstream package managers
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
@@ -1116,6 +1318,149 @@ jobs:
             echo "::error::Prerelease unexpectedly became the latest GitHub release"
             exit 1
           fi
+
+  cli-public-install-smoke:
+    name: Install Public CLI Assets ${{ matrix.name }}
+    needs: [release-plan, release, desktop-finalize]
+    if: needs.desktop-finalize.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS arm64
+            runner: macos-15
+          - name: Linux x86_64
+            runner: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-plan.outputs.release_ref }}
+
+      - *load-release-workflow-tools
+
+      - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download unpublished CLI package
+        if: needs.release.outputs.cli_state == 'missing'
+        uses: actions/download-artifact@v8
+        with:
+          name: npm-cli-${{ needs.release-plan.outputs.release_version }}
+          path: .artifacts/npm-cli
+
+      - name: Install package against the public GitHub release
+        env:
+          CLI_STATE: ${{ needs.release.outputs.cli_state }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          package_spec=".artifacts/npm-cli"
+          if [[ "${CLI_STATE}" == "published" ]]; then
+            package_spec="@compozy/cli@${RELEASE_VERSION}"
+          fi
+          bash "${RUNNER_TEMP}/smoke-public-cli-package.sh" \
+            "${package_spec}" \
+            "${RELEASE_VERSION}"
+
+  npm-publish:
+    name: Publish Package Manager Artifacts
+    needs: [release-plan, release, cli-public-install-smoke]
+    if: needs.cli-public-install-smoke.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-plan.outputs.release_ref }}
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Download verified CLI package
+        if: needs.release.outputs.cli_state == 'missing'
+        uses: actions/download-artifact@v8
+        with:
+          name: npm-cli-${{ needs.release-plan.outputs.release_version }}
+          path: .artifacts/npm-cli
+
+      - name: Publish verified CLI package
+        if: needs.release.outputs.cli_state == 'missing'
+        env:
+          NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
+        run: npm publish .artifacts/npm-cli --tag "${NPM_TAG}" --access public --provenance
+
+      - name: Publish TypeScript extension SDK
+        if: needs.release.outputs.extension_sdk_state == 'missing'
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
+        run: scripts/publish-extension-sdk.sh "${RELEASE_VERSION}" "${NPM_TAG}"
+
+      - name: Checkout canonical formula renderer
+        if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: .release-tools
+          sparse-checkout: scripts/render-homebrew-formula.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Checkout Homebrew tap
+        if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
+        uses: actions/checkout@v7
+        with:
+          repository: compozy/homebrew-compozy
+          ref: main
+          token: ${{ secrets.RELEASE_TOKEN }}
+          path: .release-homebrew
+
+      - name: Publish Homebrew formula after the GitHub release
+        if: needs.release-plan.outputs.homebrew_skip_upload == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          checksum_dir="${RUNNER_TEMP}/homebrew-release"
+          mkdir -p "${checksum_dir}"
+          gh release download "${RELEASE_TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern checksums.txt \
+            --dir "${checksum_dir}"
+          .release-tools/scripts/render-homebrew-formula.sh \
+            --release-repo "${GITHUB_REPOSITORY}" \
+            --release-version "${RELEASE_VERSION}" \
+            --release-tag "${RELEASE_TAG}" \
+            --checksums "${checksum_dir}/checksums.txt" \
+            --output .release-homebrew/Formula/compozy.rb
+          git -C .release-homebrew config user.name "github-actions[bot]"
+          git -C .release-homebrew config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C .release-homebrew add Formula/compozy.rb
+          if git -C .release-homebrew diff --cached --quiet; then
+            echo "Homebrew formula already matches ${RELEASE_TAG}"
+            exit 0
+          fi
+          git -C .release-homebrew commit -m "compozy ${RELEASE_TAG}"
+          git -C .release-homebrew push origin HEAD:main
+
+      - name: Verify npm publication and channel tags
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
+        run: |
           scripts/release-npm-readiness.sh \
             "${RELEASE_VERSION}" \
             "${NPM_TAG}" \

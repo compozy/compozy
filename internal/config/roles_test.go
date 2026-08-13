@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -200,6 +201,25 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "roles.memory_extractor.reasoning_effort") ||
 			!strings.Contains(err.Error(), "extreme") {
 			t.Fatalf("Validate() error = %v, want reasoning enum error", err)
+		}
+	})
+
+	t.Run("Should reject an invalid optional agent reference when configured", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultRolesConfig()
+		cfg.Dream.Agent = "audio designer"
+		err := cfg.Validate("roles", &Config{})
+		var validationErr ValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("RolesConfig.Validate() error = %T, want ValidationError", err)
+		}
+		if got, want := validationErr.Path, "roles.dream.agent"; got != want {
+			t.Fatalf("RolesConfig.Validate() path = %q, want %q", got, want)
+		}
+		const wantMessage = `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`
+		if got := validationErr.Message; got != wantMessage {
+			t.Fatalf("RolesConfig.Validate() message = %q, want %q", got, wantMessage)
 		}
 	})
 

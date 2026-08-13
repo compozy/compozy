@@ -9,7 +9,7 @@ import type {
   RunLoopResult,
 } from "@/systems/loops";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const loopLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -446,7 +446,7 @@ test("CompozyOS migration E2E-015: run page lifecycle controls and node inventor
     throw new Error("Loop lifecycle browser test requires launch-mode runtime paths");
   }
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
@@ -569,7 +569,7 @@ test("CompozyOS migration E2E-016: author retry + on_error in the editor, publis
     throw new Error("Loop authoring browser test requires launch-mode runtime paths");
   }
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
@@ -651,7 +651,7 @@ test("CompozyOS migration E2E-004: loop run renders API runtime provenance witho
   }
 
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
 
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
@@ -767,7 +767,7 @@ test("Parked watch-events run renders its durable cursor from the real daemon", 
   }
 
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
@@ -843,7 +843,7 @@ test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, a
   }
 
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",

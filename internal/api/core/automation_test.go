@@ -271,6 +271,138 @@ func TestCreateAutomationTriggerRejectsInvalidWebhookID(t *testing.T) {
 	}
 }
 
+func TestAutomationHandlersRejectInvalidAgentReferencesBeforeMutation(t *testing.T) {
+	t.Parallel()
+
+	const invalidAgentName = "audio designer"
+	invalidAgentMessage := `agent name "` + invalidAgentName + `" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`
+
+	job := automationpkg.Job{
+		ID:        "job-invalid-agent",
+		Scope:     automationpkg.AutomationScopeGlobal,
+		Name:      "invalid-agent-job",
+		AgentName: invalidAgentName,
+		Prompt:    "review",
+		Schedule: &automationpkg.ScheduleSpec{
+			Mode:     automationpkg.ScheduleModeEvery,
+			Interval: "1h",
+		},
+		Enabled:   true,
+		Retry:     automationpkg.DefaultRetryConfig(),
+		FireLimit: automationpkg.DefaultFireLimitConfig(),
+		Source:    automationpkg.JobSourceDynamic,
+	}
+	trigger := automationpkg.Trigger{
+		ID:        "trigger-invalid-agent",
+		Scope:     automationpkg.AutomationScopeGlobal,
+		Name:      "invalid-agent-trigger",
+		AgentName: invalidAgentName,
+		Prompt:    "review",
+		Event:     "session.stopped",
+		Enabled:   true,
+		Retry:     automationpkg.DefaultRetryConfig(),
+		FireLimit: automationpkg.DefaultFireLimitConfig(),
+		Source:    automationpkg.JobSourceDynamic,
+	}
+
+	router := newAutomationCoreTestRouter(t, stubAutomationManager{
+		GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
+			return job, nil
+		},
+		CreateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
+			t.Fatal("CreateJob() should not be called for an invalid agent reference")
+			return automationpkg.Job{}, nil
+		},
+		UpdateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
+			t.Fatal("UpdateJob() should not be called for an invalid agent reference")
+			return automationpkg.Job{}, nil
+		},
+		GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {
+			return trigger, nil
+		},
+		CreateTriggerFn: func(
+			context.Context,
+			automationpkg.Trigger,
+			automationpkg.WebhookSecretWrite,
+		) (automationpkg.Trigger, error) {
+			t.Fatal("CreateTrigger() should not be called for an invalid agent reference")
+			return automationpkg.Trigger{}, nil
+		},
+		UpdateTriggerFn: func(
+			context.Context,
+			automationpkg.Trigger,
+			*automationpkg.WebhookSecretWrite,
+		) (automationpkg.Trigger, error) {
+			t.Fatal("UpdateTrigger() should not be called for an invalid agent reference")
+			return automationpkg.Trigger{}, nil
+		},
+	})
+
+	for _, testCase := range []struct {
+		name      string
+		method    string
+		path      string
+		body      string
+		wantError string
+	}{
+		{
+			name:      "Should reject an invalid job reference on create",
+			method:    http.MethodPost,
+			path:      "/automation/jobs",
+			body:      `{"scope":"global","name":"invalid-agent-job","agent_name":"audio designer","prompt":"review","schedule":{"mode":"every","interval":"1h"}}`,
+			wantError: "automation validation error: job.agent_name " + invalidAgentMessage,
+		},
+		{
+			name:      "Should reject an invalid job reference on update",
+			method:    http.MethodPatch,
+			path:      "/automation/jobs/" + job.ID,
+			body:      `{"prompt":"updated"}`,
+			wantError: "automation validation error: job.agent_name " + invalidAgentMessage,
+		},
+		{
+			name:      "Should reject an invalid trigger reference on create",
+			method:    http.MethodPost,
+			path:      "/automation/triggers",
+			body:      `{"scope":"global","name":"invalid-agent-trigger","agent_name":"audio designer","prompt":"review","event":"session.stopped"}`,
+			wantError: "automation validation error: trigger.agent_name " + invalidAgentMessage,
+		},
+		{
+			name:      "Should reject an invalid trigger reference on update",
+			method:    http.MethodPatch,
+			path:      "/automation/triggers/" + trigger.ID,
+			body:      `{"prompt":"updated"}`,
+			wantError: "automation validation error: trigger.agent_name " + invalidAgentMessage,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			response := performAutomationCoreRequest(
+				t,
+				router,
+				testCase.method,
+				testCase.path,
+				[]byte(testCase.body),
+				nil,
+			)
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf(
+					"status = %d, want %d; body=%s",
+					response.Code,
+					http.StatusBadRequest,
+					response.Body.String(),
+				)
+			}
+
+			var payload contract.ErrorPayload
+			decodeAutomationCoreJSON(t, response, &payload)
+			if payload.Error != testCase.wantError {
+				t.Fatalf("error = %q, want %q", payload.Error, testCase.wantError)
+			}
+		})
+	}
+}
+
 func TestAutomationTriggerHandlersRejectPaddedEvents(t *testing.T) {
 	t.Parallel()
 

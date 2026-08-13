@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Workspaces overview · states · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="workspaces.css">
+<!--
+  workspaces-overview-states · LAB — edge cases for the Command-Tab switcher.
+  Spec: DESIGN-NOTES.md.
+  Provenance:
+    production            — 264px card anatomy from os-workspaces-overview.tsx:155-208
+    authorized delta      — compact tiles; Current = check; empty uses one primary
+    spec global-workspace — no Home card; global-on hides Current
+-->
+<style>
+  a{color:inherit;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="states-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Workspaces</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Overview states</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="workspaces-overview.html">Final overlay →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="st-legacy">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Production — 264px dossier</h2>
+        <span class="lab-sec__gist">anti-reference · accent border · members · Enter</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>What we leave</b>Production <code>os-workspaces-overview.tsx</code> wraps 264px cards with a members stack and an Enter row. Current uses an accent border — banned as card wash (GUIDE R1). This section is the before; it is not the proposal.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short">
+            <div class="legacy-row">
+              <div class="legacy-card" data-current>
+                <div class="legacy-top"><span class="legacy-mono">CO</span><span class="legacy-name">compozy</span><span class="pill">Current</span></div>
+                <div class="legacy-meta">3 agents · 5 sessions</div>
+                <div class="legacy-members"><span class="eyebrow">Members</span>
+                  <span class="legacy-avatars"><span class="agent-chip">CL</span><span class="agent-chip">WG</span><span class="agent-chip">IN</span></span>
+                </div>
+                <div class="legacy-foot"><span>~/dev/compozy</span><span class="legacy-enter">Enter <svg data-lucide="arrow-right"></svg></span></div>
+              </div>
+              <div class="legacy-card">
+                <div class="legacy-top"><span class="legacy-mono">B</span><span class="legacy-name">branas-site</span></div>
+                <div class="legacy-meta">1 agent · 2 sessions</div>
+                <div class="legacy-members"><span class="eyebrow">Members</span>
+                  <span class="legacy-avatars"><span class="agent-chip">CL</span></span>
+                </div>
+                <div class="legacy-foot"><span>~/dev/branas/site</span><span class="legacy-enter">Enter <svg data-lucide="arrow-right"></svg></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="st-default">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Proposed — three project tiles</h2>
+        <span class="lab-sec__gist">check = current · plate = focus · dashed = new</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Happy path</b>Same three workspaces, compact tiles. Focus is a frosted glass plate behind the whole tile — macOS Command-Tab, not a ring, no border. Caption under the strip carries agents · sessions and the path — once, for the focused tile. Zero accent on this screen.</div>
+        <div class="spec__demo">
+          <div class="stage">
+            <div class="overlay wsov" style="position:absolute" data-od-id="demo-default">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">3 workspaces · 5 agents</p>
+                <div class="wsov-strip">
+                  <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+                  <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+                  <div class="wsov-track">
+                  <div class="wsov-row" role="listbox" aria-label="Workspaces">
+                    <button class="wsov-tile is-on" data-current aria-selected="true">
+                      <span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span>
+                      <span class="wsov-name">compozy</span>
+                    </button>
+                    <button class="wsov-tile" aria-selected="false">
+                      <span class="wsov-well"><span class="wsov-mono">B</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span>
+                      <span class="wsov-name">branas-site</span>
+                    </button>
+                    <button class="wsov-tile" aria-selected="false">
+                      <span class="wsov-well"><span class="wsov-mono">N</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span>
+                      <span class="wsov-name">notes</span>
+                    </button>
+                  <button class="wsov-tile wsov-tile--add">
+                    <span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span>
+                    <span class="wsov-name">New</span>
+                  </button>
+                  </div>
+                  </div>
+                </div>
+                <div class="wsov-caption"><b>compozy</b><span class="meta">3 agents · 5 sessions</span><span class="path">~/dev/compozy</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="st-focus">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Focus on a non-current tile</h2>
+        <span class="lab-sec__gist">check stays on composy · plate moves</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Two states</b>Current (where you are) and focused (where Enter will land) are not the same. Arrowing to branas-site moves the plate and the caption; the check stays on composy until you confirm.</div>
+        <div class="spec__demo">
+          <div class="stage">
+            <div class="overlay wsov" style="position:absolute" data-od-id="demo-focus">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">3 workspaces · 5 agents</p>
+                <div class="wsov-strip">
+                  <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+                  <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+                  <div class="wsov-track">
+                  <div class="wsov-row">
+                    <button class="wsov-tile" data-current>
+                      <span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span>
+                      <span class="wsov-name">compozy</span>
+                    </button>
+                    <button class="wsov-tile is-on">
+                      <span class="wsov-well"><span class="wsov-mono">B</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span>
+                      <span class="wsov-name">branas-site</span>
+                    </button>
+                    <button class="wsov-tile">
+                      <span class="wsov-well"><span class="wsov-mono">N</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span>
+                      <span class="wsov-name">notes</span>
+                    </button>
+                  <button class="wsov-tile wsov-tile--add">
+                    <span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span>
+                    <span class="wsov-name">New</span>
+                  </button>
+                  </div>
+                  </div>
+                </div>
+                <div class="wsov-caption"><b>branas-site</b><span class="meta">1 agent · 2 sessions</span><span class="path">~/dev/branas/site</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="st-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Zero project workspaces</h2>
+        <span class="lab-sec__gist">the one primary on this screen</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Empty</b>Global is on and locked. No “No workspace” chip. The strip holds a short line and <b>New workspace</b> as <code>.btn--primary</code> — the only accent fill in the set, because there is nothing to switch to.</div>
+        <div class="spec__demo">
+          <div class="stage">
+            <div class="overlay wsov" style="position:absolute" data-scope="global" data-od-id="demo-empty">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">0 workspaces</p>
+                <div class="wsov-strip">
+                  <div class="wsov-empty">
+                    <p>No project folders yet. Sessions run in Global until you add one.</p>
+                    <button class="btn btn--primary" data-od-id="empty-new"><svg data-lucide="plus"></svg>New workspace</button>
+                  </div>
+                </div>
+                <div class="wsov-caption" data-empty><b>Global</b><span class="meta">visible to every workspace</span><span class="path">~</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="st-one">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">One workspace</h2>
+        <span class="lab-sec__gist">strip shrinks · add still trails</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Single</b>The glass panel hugs the tiles — it does not stretch to a three-card width. Add stays a dashed well, not a header button.</div>
+        <div class="spec__demo">
+          <div class="stage">
+            <div class="overlay wsov" style="position:absolute" data-od-id="demo-one">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">1 workspace · 3 agents</p>
+                <div class="wsov-strip">
+                  <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+                  <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+                  <div class="wsov-track">
+                  <div class="wsov-row">
+                    <button class="wsov-tile is-on" data-current>
+                      <span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span>
+                      <span class="wsov-name">compozy</span>
+                    </button>
+                  <button class="wsov-tile wsov-tile--add">
+                    <span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span>
+                    <span class="wsov-name">New</span>
+                  </button>
+                  </div>
+                  </div>
+                </div>
+                <div class="wsov-caption"><b>compozy</b><span class="meta">3 agents · 5 sessions</span><span class="path">~/dev/compozy</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="st-many">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Many workspaces</h2>
+        <span class="lab-sec__gist">one row · edge fades · never wrap</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Single row</b>Twelve project folders stay on one line. The glass grows to the stage, then the track scrolls. A fade + inner shadow on the overflowing edge is the only “there is more” cue — no scrollbar, no second row. Drag, trackpad, or arrows. Zero session counts omit the sessions clause (sandbox, cli).</div>
+        <div class="spec__demo">
+          <div class="stage">
+            <div class="overlay wsov" style="position:absolute" data-od-id="demo-many">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">12 workspaces · 18 agents</p>
+                <div class="wsov-strip" data-overflow="end">
+                  <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+                  <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+                  <div class="wsov-track">
+                  <div class="wsov-row">
+                    <button class="wsov-tile" data-current><span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">compozy</span></button>
+                    <button class="wsov-tile is-on"><span class="wsov-well"><span class="wsov-mono">B</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">branas-site</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">N</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">notes</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">AG</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">agh-docs</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">PA</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">payments</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">IN</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">infra</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">DS</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">design-system</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">SA</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">sandbox</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">IA</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">branas-ia</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">CE</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">compozy-ext</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">SI</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">site</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">CL</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">cli</span></button>
+                    <button class="wsov-tile wsov-tile--add"><span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span><span class="wsov-name">New</span></button>
+                  </div>
+                  </div>
+                </div>
+                <div class="wsov-caption"><b>branas-site</b><span class="meta">1 agent · 2 sessions</span><span class="path">~/dev/branas/site</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="st-global">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Global scope on</h2>
+        <span class="lab-sec__gist">no Current check · notice · pick exits</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Mode, not a row</b>No Home card. No tile is Current — the menubar chip already reads <b>~ Global</b>. The notice is the one line from the global-workspace contract. Enter on a tile turns global off and switches in one gesture.</div>
+        <div class="spec__demo">
+          <div class="stage">
+            <div class="overlay wsov" style="position:absolute" data-scope="global" data-od-id="demo-global">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">3 workspaces · 5 agents</p>
+                <p class="wsov-notice">Global scope is on — picking a workspace turns it off.</p>
+                <div class="wsov-strip">
+                  <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+                  <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+                  <div class="wsov-track">
+                  <div class="wsov-row">
+                    <button class="wsov-tile is-on"><span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">compozy</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">B</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">branas-site</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">N</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">notes</span></button>
+                    <button class="wsov-tile wsov-tile--add"><span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span><span class="wsov-name">New</span></button>
+                  </div>
+                  </div>
+                </div>
+                <div class="wsov-caption"><b>compozy</b><span class="meta">3 agents · 5 sessions</span><span class="path">~/dev/compozy</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="st-add">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Add tile focused</h2>
+        <span class="lab-sec__gist">dashed well · caption names the picker</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Secondary</b>New workspace is never a solid header button on a populated strip. Focused, the caption says what Enter does. The well stays dashed — not accent-filled.</div>
+        <div class="spec__demo">
+          <div class="stage">
+            <div class="overlay wsov" style="position:absolute" data-od-id="demo-add">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">3 workspaces · 5 agents</p>
+                <div class="wsov-strip">
+                  <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+                  <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+                  <div class="wsov-track">
+                  <div class="wsov-row">
+                    <button class="wsov-tile" data-current><span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">compozy</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">B</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">branas-site</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">N</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">notes</span></button>
+                    <button class="wsov-tile wsov-tile--add is-on">
+                    <span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span>
+                    <span class="wsov-name">New</span>
+                  </button>
+                  </div>
+                  </div>
+                </div>
+                <div class="wsov-caption"><b>New workspace</b><span class="meta">Register a project folder</span><span class="path">directory picker</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
+      Interactive overlay: <a href="workspaces-overview.html" style="color:var(--subtle)">workspaces-overview.html</a>.
+      Contract: <span class="mono">DESIGN-NOTES.md</span>. Spaces (window arrangements) stay in <span class="mono">os/</span> — this set is identity switching only.
+    </p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+lucide.createIcons();
+document.querySelectorAll(".wsov-track").forEach((track) => {
+  const strip = track.closest(".wsov-strip");
+  if (!strip) return;
+  const paint = () => {
+    const max = track.scrollWidth - track.clientWidth;
+    if (max <= 2) { strip.dataset.overflow = "none"; return; }
+    const bits = [];
+    if (track.scrollLeft > 2) bits.push("start");
+    if (track.scrollLeft < max - 2) bits.push("end");
+    strip.dataset.overflow = bits.length ? bits.join(" ") : "none";
+  };
+  track.addEventListener("scroll", paint, { passive: true });
+  paint();
+});
+</script>
+</body>
+</html>

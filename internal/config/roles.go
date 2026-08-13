@@ -218,6 +218,11 @@ func (c CoordinatorRoleConfig) validate(path string, resolver providerResolver) 
 }
 
 func (c RoleConfig) validate(path string, resolver providerResolver) error {
+	if strings.TrimSpace(c.Agent) != "" {
+		if err := validateAgentNameAtPath(c.Agent, path+".agent"); err != nil {
+			return err
+		}
+	}
 	if err := validateRoleReasoningEffort(path+".reasoning_effort", c.ReasoningEffort); err != nil {
 		return err
 	}

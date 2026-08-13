@@ -16,18 +16,13 @@ import {
   useUpdateAutomationJob,
 } from "@/systems/automation";
 import { useSettingsAutomation } from "@/systems/settings";
-import {
-  toWorkspaceCommandSelectOptions,
-  useActiveWorkspace,
-  useUserHomeDir,
-} from "@/systems/workspace";
+import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
 
 /** Detail view-model for a single automation job resolved from the route `jobId`. */
 export function useAutomationJobDetailPage(jobId: string) {
   const navigate = useNavigate();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const { activeWorkspaceId, isLoading: workspaceLoading, workspaces } = useActiveWorkspace();
-  const userHomeDir = useUserHomeDir();
   const [queuedRun, setQueuedRun] = useState<AutomationRun | null>(null);
 
   const jobDetailQuery = useAutomationJob(jobId, {
@@ -69,7 +64,6 @@ export function useAutomationJobDetailPage(jobId: string) {
 
   const editor = useAutomationJobEditor({
     activeWorkspaceId,
-    userHomeDir,
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
 

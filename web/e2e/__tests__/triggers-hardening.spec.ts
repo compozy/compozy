@@ -13,7 +13,7 @@ import { appWindow, sessionWindow, windowTitle } from "../fixtures/os-navigation
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const automationFixture = path.resolve(
@@ -166,7 +166,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   const triggerStatus = triggersWin.locator('[data-slot="topbar-status"]');
   await ensureGlobalWorkspace(runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
 
   await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
   await expect(ui.triggersShell).toBeVisible();
@@ -188,7 +188,6 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   await ui.triggerEventOption("webhook").click();
   await expect(ui.triggerEndpointSlugInput).toBeVisible();
   await ui.triggerPromptInput.fill(prompt);
-  await ui.triggerScopeGlobal.click();
   await addWebhookBranchFilter(ui);
   await ui.triggerEndpointSlugInput.fill(initialEndpointSlug);
   await ui.triggerWebhookIDInput.fill(webhookID);
@@ -439,7 +438,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
 
   await ensureGlobalWorkspace(runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
   await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
   await expect(ui.triggersShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
@@ -527,7 +526,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
 
   await ensureGlobalWorkspace(runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
   await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
   await expect(ui.triggersShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });

@@ -22,8 +22,11 @@ const desktop = {
   },
 };
 const sessionWindowViewSpy = vi.fn((_props: Record<string, unknown>) => null);
+const sessionWindowNoticeSpy = vi.fn((_props: Record<string, unknown>) => null);
+const queryOptionsSpy = vi.fn((_options: Record<string, unknown>) => undefined);
 const userClose = vi.fn(() => Promise.resolve(true));
 const userOpen = vi.fn(() => Promise.resolve(null));
+const workspace = { runtimeWorkspaceId: "ws-1" as string | null };
 const queryState: {
   data: typeof session | undefined;
   error: Error | null;
@@ -31,7 +34,10 @@ const queryState: {
 } = { data: session, error: null, isLoading: false };
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => queryState,
+  useQuery: (options: Record<string, unknown>) => {
+    queryOptionsSpy(options);
+    return queryState;
+  },
 }));
 
 vi.mock("@/systems/session/adapters/session-api", () => ({
@@ -47,7 +53,7 @@ vi.mock("@/systems/session/lib/query-options", () => ({
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "ws-1" }),
+  useActiveWorkspace: () => ({ activeWorkspaceId: "ws-1", ...workspace }),
 }));
 
 vi.mock("../../../hooks/use-desktop", () => ({
@@ -64,7 +70,7 @@ vi.mock("../../../hooks/use-os-shell", () => ({
 }));
 
 vi.mock("../session-window-view", () => ({
-  SessionWindowNotice: () => null,
+  SessionWindowNotice: (props: Record<string, unknown>) => sessionWindowNoticeSpy(props),
   SessionWindowView: (props: Record<string, unknown>) => sessionWindowViewSpy(props),
 }));
 
@@ -81,7 +87,10 @@ describe("SessionWindow", () => {
     queryState.data = session;
     queryState.error = null;
     queryState.isLoading = false;
+    workspace.runtimeWorkspaceId = "ws-1";
     sessionWindowViewSpy.mockClear();
+    sessionWindowNoticeSpy.mockClear();
+    queryOptionsSpy.mockClear();
     userClose.mockClear();
     userOpen.mockClear();
   });
@@ -128,6 +137,18 @@ describe("SessionWindow", () => {
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ liveTailEnabled: true })
     );
+  });
+
+  it("Should treat an empty runtime workspace as unavailable without querying or rendering", () => {
+    workspace.runtimeWorkspaceId = "";
+
+    render(<SessionWindow windowId="session:sess-1" />);
+
+    expect(queryOptionsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
+    expect(sessionWindowNoticeSpy).toHaveBeenLastCalledWith({
+      message: "Session workspace unavailable",
+    });
+    expect(sessionWindowViewSpy).not.toHaveBeenCalled();
   });
 
   it("Should show the truthful gone notice and return a restored missing session to its agent list (UT-087)", async () => {

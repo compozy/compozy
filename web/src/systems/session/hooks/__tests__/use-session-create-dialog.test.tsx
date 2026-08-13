@@ -111,6 +111,7 @@ function createWrapper() {
 function useSessionCreateDialog(context: {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
+  scope?: "workspace" | "global";
 }): SessionCreateDialogApi & { openDialog: (agentName: string) => void } {
   const controller = useSessionCreateDialogController();
   const dialog = useSessionCreateDialogViewModel(context, controller.store);
@@ -219,24 +220,16 @@ describe("useSessionCreateDialog", () => {
     await waitFor(() => expect(result.current.restoreFocusOnClose).toBe(false));
   });
 
-  it("Should activate a selected workspace before navigating to its created session", async () => {
+  it("Should activate the created session workspace before navigating", async () => {
     const otherWorkspace: WorkspacePayload = { ...activeWorkspace, id: "ws_beta", name: "beta" };
-    const betaAgent: AgentPayload = {
-      ...agents[0],
-      name: "beta-agent",
-      workspace_id: otherWorkspace.id,
-    };
     const sessionInOtherWorkspace: SessionPayload = {
       ...createdSession,
-      agent_name: betaAgent.name,
+      agent_name: "claude-agent",
       id: "sess-beta",
       workspace_id: otherWorkspace.id,
       workspace_path: otherWorkspace.root_dir,
     };
     mockWorkspaceListRef.current = [activeWorkspace, otherWorkspace];
-    mockUseAgents.mockImplementation((workspaceId: string) => ({
-      data: workspaceId === otherWorkspace.id ? [betaAgent] : agents,
-    }));
     mockMutateAsync.mockResolvedValue(sessionInOtherWorkspace);
 
     const { wrapper } = createWrapper();
@@ -245,20 +238,39 @@ describe("useSessionCreateDialog", () => {
     });
 
     act(() => result.current.openDialog("claude-agent"));
-    act(() => result.current.onWorkspaceChange(otherWorkspace.id));
-    act(() => result.current.onAgentChange(betaAgent.name));
     await act(async () => result.current.submit());
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith({
         to: "/agents/$name/sessions/$id",
-        params: { name: betaAgent.name, id: sessionInOtherWorkspace.id },
+        params: { name: "claude-agent", id: sessionInOtherWorkspace.id },
       });
     });
     expect(mockSetActiveWorkspaceId).toHaveBeenCalledWith(otherWorkspace.id);
     expect(mockSetActiveWorkspaceId.mock.invocationCallOrder[0]).toBeLessThan(
       mockNavigate.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
     );
+  });
+
+  it("Should not activate a workspace after a Global session create", async () => {
+    mockUserHomeDir.current = "/Users/operator";
+    mockMutateAsync.mockResolvedValue({
+      ...createdSession,
+      workspace_id: "ws_home",
+      workspace_path: "/Users/operator",
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useSessionCreateDialog({ agents, activeWorkspace, scope: "global" }),
+      { wrapper }
+    );
+
+    act(() => result.current.openDialog("codex-agent"));
+    await act(async () => result.current.submit());
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    expect(mockSetActiveWorkspaceId).not.toHaveBeenCalled();
   });
 
   it("Should report validation when the selected agent is empty", async () => {

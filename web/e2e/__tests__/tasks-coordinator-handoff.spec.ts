@@ -18,7 +18,7 @@ import {
 } from "../fixtures/os-navigation";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 /**
  * (manual operator control) and (task-run coordination
@@ -82,7 +82,7 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
 }) => {
   await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
 
   const tasksWin = appWindow(appPage, "tasks");
   const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
@@ -145,17 +145,15 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
 
   await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
   await switchWorkspace(appPage, workspace.id, workspace.name);
   await ensureAppWindow(appPage, "Tasks", "tasks");
 
   await tasksUI.openCreate.click();
   await selectRecurringTaskTemplate(tasksUI);
-  await expect(tasksUI.createScopeWorkspace).toHaveAttribute("aria-pressed", "true");
-  await expect(tasksUI.createWorkspaceSelect).toHaveAttribute(
-    "aria-label",
-    `Workspace: ${workspace.name}`
+  await expect(tasksWin.getByTestId("workspace-scope-statement")).toContainText(
+    `Creates in ${workspace.name}`
   );
   await expect(tasksUI.createSaveDraft).toContainText("Save draft");
   await tasksUI.createPriority("high").click();
@@ -242,7 +240,7 @@ test("approving an agent-created approval task is the coordinator-handoff bounda
     sessionAgentName: handoffAgentName,
   });
 
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
 
   const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
   const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
@@ -297,7 +295,7 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
 
   await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
 
   await expect(sessionUI.osDesktop).toBeVisible();
 

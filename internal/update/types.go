@@ -40,12 +40,10 @@ const (
 )
 
 const (
-	cacheTTL                = 24 * time.Hour
-	defaultHTTPTimeout      = 30 * time.Second
-	maxArchiveDownloadBytes = int64(128 << 20)
-	maxChecksumsBytes       = int64(1 << 20)
-	maxSigstoreBundleBytes  = int64(8 << 20)
-	maxExtractedBinaryBytes = int64(128 << 20)
+	cacheTTL               = 24 * time.Hour
+	defaultHTTPTimeout     = 30 * time.Second
+	maxChecksumsBytes      = int64(1 << 20)
+	maxSigstoreBundleBytes = int64(8 << 20)
 )
 
 var ErrNoCachedRelease = errors.New("update: cached release info not found")
@@ -150,6 +148,7 @@ type Config struct {
 	RunCommand      func(context.Context, string, ...string) (string, error)
 	BundleVerifier  BundleVerifier
 	BinaryApplier   BinaryApplier
+	ArtifactPolicy  ArtifactPolicy
 }
 
 type cacheEntry struct {
@@ -179,6 +178,7 @@ type Manager struct {
 	runCommand     func(context.Context, string, ...string) (string, error)
 	bundleVerifier BundleVerifier
 	binaryApplier  BinaryApplier
+	artifactPolicy ArtifactPolicy
 	releaseTrack   releaseTrack
 	installMu      sync.Mutex
 	installFlight  chan struct{}

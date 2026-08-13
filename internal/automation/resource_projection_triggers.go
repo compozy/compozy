@@ -42,6 +42,9 @@ func (m *Manager) createTriggerResource(
 	if err := next.Validate("trigger"); err != nil {
 		return Trigger{}, err
 	}
+	if err := ValidateTriggerAgentName(next, "trigger"); err != nil {
+		return Trigger{}, err
+	}
 	if err := m.validateTriggerLoopTarget(ctx, next); err != nil {
 		return Trigger{}, err
 	}
@@ -180,6 +183,9 @@ func (m *Manager) nextUpdatedTriggerSpec(
 		return Trigger{}, err
 	}
 	if err := next.Validate("trigger"); err != nil {
+		return Trigger{}, err
+	}
+	if err := ValidateTriggerAgentName(next, "trigger"); err != nil {
 		return Trigger{}, err
 	}
 	if err := m.validateTriggerLoopTarget(ctx, next); err != nil {

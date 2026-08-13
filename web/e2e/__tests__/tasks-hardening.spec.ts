@@ -15,7 +15,7 @@ import {
   type BrowserRuntime,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleFixture = path.resolve(
@@ -61,7 +61,7 @@ test("operator cancels a running task run and sees matching HTTP, UDS, CLI, and 
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
     sessionAgentName: tasksSessionAgentName,
   });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
 
   const runPath = `/tasks/${encodeURIComponent(seeded.runningTask.id)}/runs/${encodeURIComponent(seeded.runningRun.id)}`;
   await appPage.goto(runtime.url(runPath), { waitUntil: "domcontentloaded" });
@@ -116,7 +116,7 @@ test("operator rejects a manual approval task without creating hidden work", asy
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
     sessionAgentName: tasksSessionAgentName,
   });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
 
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await ui.modeInbox.click();
@@ -195,7 +195,7 @@ test("operator retries failed work and sees an auditable run review gate", async
     seeded.session.workspace_id
   );
   await waitForSeedSessionActive(runtime, workerSession.id);
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
 
   const task = await createTask(runtime, {
     description: "Browser hardening coverage for retry and review gate behavior.",
@@ -371,7 +371,7 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
   await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(parent.id)}`), {
     waitUntil: "domcontentloaded",
   });
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
   await expect(ui.detailContent).toBeVisible();
   await expect(ui.detailChildItem(child.id)).toBeVisible();
   await expect(ui.detailChildLink(child.id)).toHaveAttribute(
@@ -546,7 +546,7 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
   const seeded = await seedBrowserTasksOperatorFlow(runtime, {
     sessionAgentName: tasksSessionAgentName,
   });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
 
   for (const viewport of [
     { height: 820, name: "mobile", width: 375 },
@@ -638,7 +638,7 @@ test("task detail renders blocked_reasons bands for dependency, approval, and bl
   await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(targetTask.id)}`), {
     waitUntil: "domcontentloaded",
   });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
   await expect(ui.detailContent).toBeVisible();
 
   await expect(appPage.getByTestId("tasks-detail-now-approval")).toBeVisible();
@@ -672,7 +672,7 @@ test("task detail exposes the needs_attention badge and a Recover action that cl
 
   const detailPath = `/tasks/${encodeURIComponent(task.id)}`;
   await appPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
   await expect(ui.detailContent).toBeVisible();
 
   const badge = appPage.getByTestId("tasks-detail-now-stuck");
@@ -695,7 +695,7 @@ test("task detail exposes the needs_attention badge and a Recover action that cl
       );
     });
     await observerPage.goto(runtime.url(detailPath), { waitUntil: "domcontentloaded" });
-    await useGlobalWorkspaceIfPrompted(observerPage);
+    await completeOnboardingIfPrompted(observerPage);
     const observerBadge = observerPage.getByTestId("tasks-detail-now-stuck");
     await expect(observerBadge).toBeVisible();
     await observerStreamReady;
@@ -761,7 +761,7 @@ test("task detail reflects the wake_creator opt-out on agent-created tasks", asy
   await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(wakeOffTask.id)}`), {
     waitUntil: "domcontentloaded",
   });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
   await expect(ui.detailContent).toBeVisible();
   const wakeOffPill = appPage.getByTestId("tasks-detail-pill-wake");
   await expect(wakeOffPill).toBeVisible();
@@ -796,7 +796,7 @@ test("tasks list and kanban surface needs_attention as a distinct status", async
   expect((await getTask(runtime, task.id)).task.status).toBe("needs_attention");
 
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
   if ((await ui.modeList.getAttribute("aria-current")) !== "page") {
     await ui.modeList.click();
   }

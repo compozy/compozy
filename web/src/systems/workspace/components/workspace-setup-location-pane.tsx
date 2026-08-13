@@ -1,7 +1,4 @@
-import { Home, Sparkles } from "lucide-react";
-
 import {
-  Button,
   Eyebrow,
   Field,
   FieldContent,
@@ -10,71 +7,25 @@ import {
   FormSection,
   ImmutableIdentity,
   Input,
-  Pill,
-  Spinner,
 } from "@compozy/ui";
 
-import { WORKSPACE_SETUP_COPY } from "../lib/workspace-setup-copy";
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
-import { OptionCard } from "./option-card";
 import { DirectoryBrowser } from "@/systems/onboarding";
 
 interface WorkspaceSetupLocationPaneProps {
   setup: WorkspaceSetupContent;
-  size: "comfortable" | "compact";
 }
 
 /**
- * Left pane of the split shell: the global-default shortcut, the filesystem
- * browser that chooses the root, and the display name.
+ * Left pane of the split shell: the filesystem browser that chooses the root,
+ * and the display name.
  *
  * The root is picked in the browser — a plain path input is forbidden for root
  * selection (`MODAL-STANDARD.md` § Component grammar).
  */
-export function WorkspaceSetupLocationPane({ setup, size }: WorkspaceSetupLocationPaneProps) {
-  const globalMeta = setup.userHomeDir || setup.globalUnavailableReason;
-  const isGlobalDisabled = Boolean(setup.globalUnavailableReason) || setup.submissionMode !== null;
-  const isGlobalPending = setup.submissionMode === "global";
-
+export function WorkspaceSetupLocationPane({ setup }: WorkspaceSetupLocationPaneProps) {
   return (
     <div className="flex min-h-0 flex-col gap-4">
-      {/* Production-authorized addition the design does not cover: the one-click
-          global-default shortcut stays above Location (`_techspec.md` §4.3). */}
-      <OptionCard data-testid="workspace-setup-global-card" size={size}>
-        <OptionCard.Header
-          eyebrow="Global"
-          right={<Pill tone="success">{WORKSPACE_SETUP_COPY.global.badge}</Pill>}
-        />
-        <OptionCard.Body>
-          <OptionCard.Icon tone="neutral">
-            <Home className="size-4" />
-          </OptionCard.Icon>
-          <OptionCard.Content>
-            <OptionCard.Title>{WORKSPACE_SETUP_COPY.global.title}</OptionCard.Title>
-            <OptionCard.Description>
-              {WORKSPACE_SETUP_COPY.global.description}
-            </OptionCard.Description>
-            {globalMeta ? (
-              <OptionCard.Meta data-testid="workspace-global-meta">{globalMeta}</OptionCard.Meta>
-            ) : null}
-          </OptionCard.Content>
-        </OptionCard.Body>
-        <OptionCard.Action>
-          {/* Outline, not accent: the footer "Add workspace" is the single accent
-              target on this surface, and a solid shortcut here would compete with it. */}
-          <Button
-            className="w-full justify-between"
-            data-testid="workspace-use-global"
-            disabled={isGlobalDisabled}
-            onClick={() => void setup.handleUseGlobalWorkspace()}
-            variant="outline"
-          >
-            <span>{WORKSPACE_SETUP_COPY.global.action}</span>
-            {isGlobalPending ? <Spinner /> : <Sparkles />}
-          </Button>
-        </OptionCard.Action>
-      </OptionCard>
-
       <FormSection
         className="flex min-h-0 flex-col"
         description="Browse the daemon's filesystem and pick the folder sessions run in."

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Workspaces overview · Command-Tab switcher · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<!--
+  workspaces-index · set map — Command-Tab workspace overview.
+  Contract: DESIGN-NOTES.md · shared story: ws composy.
+  Provenance:
+    redesign proposal — map page only; tokens from ds-core
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:66ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="ws-index">
+  <h1>Workspaces overview · Command-Tab</h1>
+  <p class="lede">The workspace switcher leaves the left-edge menu and the 264px dossier cards. It becomes a full-screen overlay in the grammar of macOS Command-Tab: a centered glass strip of compact tiles, a caption for the focused project, keyboard arrows to move. <b>Spaces</b> (window arrangements, <code>⇧⌘S</code>) stays in <code>os/</code> — this set is identity switching only. Contract in <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="grp" data-od-id="ws-index-finals">
+    <div class="grp__t">Proposal</div>
+    <div class="cards">
+      <a class="card" href="workspaces-overview.html" data-od-id="card-overview">
+        <span class="card__top"><span class="card__name">Switcher overlay</span><span class="tag tag--final">final</span><span class="card__file">workspaces-overview.html</span></span>
+        <span class="card__sub">Lived-in desktop. Twelve tiles in one row — edge fades, trackpad / drag / arrows. Enter, Esc, Global, dashed New.</span>
+      </a>
+      <a class="card" href="workspaces-overview-states.html" data-od-id="card-states">
+        <span class="card__top"><span class="card__name">States &amp; edges</span><span class="tag">lab</span><span class="card__file">workspaces-overview-states.html</span></span>
+        <span class="card__sub">Production 264px anti-reference, focus vs current, empty, one, many (single-row fades), global-on, add focused.</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span>. Shell transcribed from <span class="mono">os/compozy-os-v2.html</span>. Global-scope rules from <span class="mono">global-workspace/DESIGN-NOTES.md</span>. Content illustrative; runtime truth owns final values.</p>
+</div>
+</body>
+</html>

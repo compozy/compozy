@@ -310,7 +310,7 @@ const automationJobHistoryInputSchema = `{
 	"additionalProperties":false
 }`
 
-const automationJobCreateInputSchema = `{
+var automationJobCreateInputSchema = `{
 	"type":"object",
 	"required":["scope","name","agent_name","prompt","schedule"],
 	"properties":` + automationJobProperties + `,
@@ -357,7 +357,7 @@ const automationTriggerHistoryInputSchema = `{
 	"additionalProperties":false
 }`
 
-const automationTriggerCreateInputSchema = `{
+var automationTriggerCreateInputSchema = `{
 	"type":"object",
 	"required":["scope","name","agent_name","prompt","event"],
 	"properties":` + automationTriggerProperties + `,
@@ -387,10 +387,10 @@ const automationRunIDInputSchema = `{
 	"additionalProperties":false
 }`
 
-const automationJobProperties = `{
+var automationJobProperties = `{
 	"scope":{"type":"string"},
 	"name":{"type":"string"},
-	"agent_name":{"type":"string"},
+	"agent_name":` + optionalAgentNameInputSchema + `,
 	"workspace":{"type":"string"},
 	"prompt":{"type":"string"},
 	"schedule":` + automationScheduleInputSchema + `,
@@ -412,10 +412,10 @@ const automationJobPatchProperties = `{
 	"fire_limit":{"type":"object"}
 }`
 
-const automationTriggerProperties = `{
+var automationTriggerProperties = `{
 	"scope":{"type":"string"},
 	"name":{"type":"string"},
-	"agent_name":{"type":"string"},
+	"agent_name":` + optionalAgentNameInputSchema + `,
 	"workspace":{"type":"string"},
 	"prompt":{"type":"string"},
 	"event":{"type":"string"},

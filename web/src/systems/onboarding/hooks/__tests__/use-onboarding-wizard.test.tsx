@@ -11,6 +11,8 @@ import { ONBOARDING_STEP_COUNT, useOnboardingWizard } from "../use-onboarding-wi
 const mocks = vi.hoisted(() => ({
   commitDefaultModel: vi.fn(),
   completeOnboarding: vi.fn(),
+  isRemoving: false,
+  isResolving: false,
 }));
 
 vi.mock("../use-onboarding-default-model", () => ({
@@ -24,6 +26,8 @@ vi.mock("../use-onboarding-default-model", () => ({
 vi.mock("../use-onboarding-workspaces", () => ({
   useOnboardingWorkspaces: () => ({
     workspaces: [{ path: "/workspace", name: "workspace", workspaceId: "ws_main" }],
+    isRemoving: mocks.isRemoving,
+    isResolving: mocks.isResolving,
   }),
 }));
 
@@ -39,6 +43,8 @@ describe("useOnboardingWizard", () => {
     vi.clearAllMocks();
     mocks.commitDefaultModel.mockResolvedValue(undefined);
     mocks.completeOnboarding.mockResolvedValue(undefined);
+    mocks.isRemoving = false;
+    mocks.isResolving = false;
     onboardingDraftStore.trigger.draftCleared();
   });
 
@@ -71,4 +77,21 @@ describe("useOnboardingWizard", () => {
     expect(result.current.step).toBe(2);
     expect(result.current.maxStep).toBe(2);
   });
+
+  it.each(["isResolving", "isRemoving"] as const)(
+    "Should block completion while a workspace operation reports %s",
+    async busyFlag => {
+      onboardingDraftStore.trigger.stepVisited({ step: 2 });
+      mocks[busyFlag] = true;
+      const { result } = renderHook(() => useOnboardingWizard(vi.fn()));
+
+      expect(result.current.canContinue).toBe(false);
+      expect(result.current.isBusy).toBe(true);
+      await act(async () => {
+        await result.current.next();
+      });
+
+      expect(mocks.completeOnboarding).not.toHaveBeenCalled();
+    }
+  );
 });

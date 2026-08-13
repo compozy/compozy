@@ -53,8 +53,8 @@ export interface RenameSessionParams {
 
 export function useRenameSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
   const request = useAbortableMutationRequest();
 
   return useMutation({
@@ -74,9 +74,9 @@ export function useRenameSession(options: UseSessionWorkspaceOptions = {}) {
 
 function resolveWorkspaceId(
   workspaceId: string | null | undefined,
-  activeWorkspaceId: string | null | undefined
+  runtimeWorkspaceId: string | null | undefined
 ): string | null {
-  return workspaceId ?? activeWorkspaceId ?? null;
+  return workspaceId ?? runtimeWorkspaceId ?? null;
 }
 
 function useAbortableMutationRequest() {
@@ -115,8 +115,8 @@ export function useCreateSession() {
 
 export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation({
     mutationFn: (id: string) => stopSession(requireWorkspace(workspaceId), id),
@@ -128,8 +128,8 @@ export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
 
 export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation({
     mutationFn: (id: string) => deleteSession(requireWorkspace(workspaceId), id),
@@ -145,8 +145,8 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
 
 export function useArchiveSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
   const request = useAbortableMutationRequest();
 
   return useMutation({
@@ -160,8 +160,8 @@ export function useArchiveSession(options: UseSessionWorkspaceOptions = {}) {
 
 export function useUnarchiveSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
   const request = useAbortableMutationRequest();
 
   return useMutation({
@@ -175,8 +175,8 @@ export function useUnarchiveSession(options: UseSessionWorkspaceOptions = {}) {
 
 export function useResumeSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation({
     mutationFn: (id: string) => resumeSession(requireWorkspace(workspaceId), id),
@@ -192,8 +192,8 @@ export interface RepairSessionParams extends SessionRepairQuery {
 
 export function useRepairSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation({
     mutationFn: ({ id, ...query }: RepairSessionParams) =>
@@ -214,8 +214,8 @@ interface ClearConversationSnapshot {
 
 export function useClearSessionConversation(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation({
     mutationKey: sessionKeys.clearConversation(workspaceId ?? ""),
@@ -364,8 +364,8 @@ function promptRequestFromAction(
 
 export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SendSessionPromptParams>({
     mutationFn: params =>
@@ -382,8 +382,8 @@ export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
 
 export function useQueueSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
     mutationFn: params =>
@@ -400,8 +400,8 @@ export function useQueueSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
 
 export function useInterruptSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation<SessionPromptResult, Error, SessionPromptActionParams>({
     mutationFn: params => {
@@ -420,8 +420,8 @@ export function useInterruptSessionPrompt(options: UseSessionWorkspaceOptions = 
 
 export function useSteerSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
     mutationFn: params => {
@@ -442,8 +442,8 @@ export function useSteerSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
 
 export function useCancelQueuedSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
 
   return useMutation<SessionPromptPayload, Error, CancelQueuedSessionPromptParams>({
     mutationFn: ({ id, queueEntryId }) =>

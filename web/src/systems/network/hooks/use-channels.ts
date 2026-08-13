@@ -38,9 +38,9 @@ export function useNetworkChannels({
   workspaceId: requestedWorkspaceId,
   recentLimit = NETWORK_DEFAULT_RECENTS_LIMIT,
 }: UseNetworkChannelsOptions = {}): UseNetworkChannelsResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useNetworkLiveDataEnabled();
-  const selectedWorkspaceId = requestedWorkspaceId ?? activeWorkspaceId;
+  const selectedWorkspaceId = requestedWorkspaceId ?? runtimeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
   const enabled = enabledOption && liveDataEnabled && Boolean(selectedWorkspaceId);
   const query = useQuery(

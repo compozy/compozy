@@ -31,7 +31,6 @@ function makeDraft(overrides: Partial<BridgeCreateDraft> = {}): BridgeCreateDraf
       include_peer: true,
       include_thread: true,
     },
-    scope: "workspace",
     selectedProviderKey: "ext-telegram::telegram",
     ...overrides,
   };
@@ -39,31 +38,27 @@ function makeDraft(overrides: Partial<BridgeCreateDraft> = {}): BridgeCreateDraf
 
 describe("createBridgeCreateDraft", () => {
   it("seeds the expanded bridge draft with provider config and dm policy defaults", () => {
-    const draft = createBridgeCreateDraft(
-      [
-        {
-          display_name: "Telegram",
-          enabled: true,
-          extension_name: "ext-telegram",
-          health: "healthy",
-          platform: "telegram",
-          state: "active",
-        },
-      ],
-      "ws_test"
-    );
+    const draft = createBridgeCreateDraft([
+      {
+        display_name: "Telegram",
+        enabled: true,
+        extension_name: "ext-telegram",
+        health: "healthy",
+        platform: "telegram",
+        state: "active",
+      },
+    ]);
 
     expect(draft).toMatchObject({
       deliveryDefaults: {},
       dmPolicy: "",
       displayName: "Telegram",
       providerConfigText: "",
-      scope: "workspace",
     });
   });
 
   it("seeds creation disabled so credentials can be bound before the bridge runs", () => {
-    const draft = createBridgeCreateDraft([], "ws_test");
+    const draft = createBridgeCreateDraft([]);
 
     expect(draft.enabled).toBe(false);
     expect(draft.secretSlotValues).toEqual({});

@@ -124,6 +124,8 @@ func statusForWorkspaceError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions),
 		errors.Is(err, workspacepkg.ErrWorkspaceHasActiveSessions):
 		return http.StatusConflict
+	case errors.Is(err, workspacepkg.ErrWorkspaceValidation):
+		return http.StatusBadRequest
 	case errors.Is(err, compozyconfig.ErrSandboxProfileNotFound):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):

@@ -73,7 +73,7 @@ interface AgentDetailContentProps {
 export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps) {
   const page = useAgentDetail(name, rawSearch);
   const search = page.search;
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
 
   const metricsReady = !page.metricsLoading && !page.metricsUnavailable;
   const tabItems: LaneTabsItem<AgentDetailTab>[] = [
@@ -204,7 +204,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                   <AgentRuntimeControl
                     agent={page.agent}
                     labelledBy="agent-overview-model-label"
-                    workspaceId={activeWorkspaceId}
+                    workspaceId={runtimeWorkspaceId}
                   />
                 }
                 onEditRuntime={() => page.onEditSettings("runtime")}
@@ -218,7 +218,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                 file={search.file}
                 onFileChange={page.setFile}
                 onEditAgentPrompt={() => page.onEditSettings("instructions")}
-                workspaceId={activeWorkspaceId}
+                workspaceId={runtimeWorkspaceId}
                 sessions={page.sessions}
                 onNewSession={page.onNewSession}
               />

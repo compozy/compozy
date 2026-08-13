@@ -76,10 +76,6 @@ vi.mock("@/systems/model-catalog/lib/to-runtime-selector-options", () => ({
   providerNeedsAuth: () => false,
 }));
 
-vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({
-  useUserHomeDir: () => "/Users/test",
-}));
-
 vi.mock("../use-agents", () => ({
   useCreateAgent: () => ({
     mutateAsync: mockCreateAgent,
@@ -121,7 +117,7 @@ function renderAgentCreateDialog(
 ) {
   return renderHook(() =>
     useAgentCreateDialog({
-      activeWorkspace: overrides.activeWorkspace ?? activeWorkspace,
+      activeWorkspace: "activeWorkspace" in overrides ? overrides.activeWorkspace : activeWorkspace,
       workspaceProviders: overrides.workspaceProviders ?? workspaceProviders,
       workspaceProvidersError: overrides.workspaceProvidersError ?? null,
       workspaceProvidersLoading: overrides.workspaceProvidersLoading ?? false,
@@ -183,15 +179,15 @@ describe("useAgentCreateDialog", () => {
     // Identity is the provider id; name now surfaces the workspace display name.
     expect(result.current.providerOptions.map(option => option.id)).toEqual(["codex"]);
     expect(result.current.providerOptions[0]?.name).toBe("Codex");
-    expect(result.current.userHomeDir).toBe("/Users/test");
   });
 
-  it("uses global settings-backed providers after switching scope", () => {
-    const { result } = renderAgentCreateDialog();
+  it("uses global settings-backed providers while the menubar scope is Global", () => {
+    // Scope is menubar-owned: Global means no active workspace is bound.
+    const { result } = renderAgentCreateDialog({ activeWorkspace: undefined });
 
     act(() => {
       result.current.openDialog();
-      result.current.onDraftChange({ ...result.current.draft, scope: "global", provider: "" });
+      result.current.onDraftChange({ ...result.current.draft, provider: "" });
     });
 
     // The runtime provider option surfaces the settings display name (display_name → name).
@@ -337,13 +333,12 @@ describe("useAgentCreateDialog", () => {
   it("blocks global submit when global providers fail to load", () => {
     mockSettingsProviders.data = undefined;
     mockSettingsProviders.error = new Error("Unable to load global provider settings.");
-    const { result } = renderAgentCreateDialog();
+    const { result } = renderAgentCreateDialog({ activeWorkspace: undefined });
 
     act(() => {
       result.current.openDialog();
       result.current.onDraftChange({
         ...result.current.draft,
-        scope: "global",
         name: "global-reviewer",
         provider: "claude",
         prompt: "Review global work.",
@@ -356,31 +351,6 @@ describe("useAgentCreateDialog", () => {
 
     expect(mockCreateAgent).not.toHaveBeenCalled();
     expect(result.current.submitError).toBe("Unable to load global provider settings.");
-  });
-
-  it("does not submit workspace-scoped agents when no active workspace is available", () => {
-    const { result } = renderAgentCreateDialog({
-      activeWorkspace: undefined,
-      workspaceProviders: [],
-    });
-
-    act(() => {
-      result.current.openDialog();
-      result.current.onDraftChange({
-        ...result.current.draft,
-        scope: "workspace",
-        name: "release-captain",
-        provider: "claude",
-        prompt: "Own release readiness.",
-      });
-    });
-
-    act(() => {
-      result.current.onSubmit();
-    });
-
-    expect(mockCreateAgent).not.toHaveBeenCalled();
-    expect(result.current.submitError).toBe("No providers are configured for this scope.");
   });
 
   it("Should openForDuplicate with prefilled draft and hard-reset on openDialog", () => {

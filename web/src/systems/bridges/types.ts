@@ -69,7 +69,6 @@ export interface BridgeCreateDraft {
   secretSlotValues: Record<string, string>;
   providerConfigText: string;
   routingPolicy: BridgeRoutingPolicy;
-  scope: BridgeScope;
   selectedProviderKey: string;
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/network/identifier"
 	"github.com/compozy/compozy/internal/network/rules"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -18,7 +19,7 @@ var (
 	// ErrMissingField reports a required protocol field is absent.
 	ErrMissingField = errors.New("network: missing field")
 	// ErrInvalidField reports a present field violates protocol rules.
-	ErrInvalidField = errors.New("network: invalid field")
+	ErrInvalidField = identifier.ErrInvalidField
 	// ErrInvalidKind reports an unknown or unsupported message kind.
 	ErrInvalidKind = errors.New("network: invalid kind")
 	// ErrInvalidBody reports a malformed or invalid kind-specific body.

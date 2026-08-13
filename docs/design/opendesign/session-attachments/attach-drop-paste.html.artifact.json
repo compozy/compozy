@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "session-attachments/attach-drop-paste.html",
+  "entry": "session-attachments/attach-drop-paste.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-13T13:42:31.962Z",
+  "updatedAt": "2026-08-13T13:42:31.962Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

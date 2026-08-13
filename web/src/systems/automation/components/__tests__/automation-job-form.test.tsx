@@ -4,7 +4,6 @@
 // Boundary OUT: HTTP submission and persisted reads, owned by route and detail suites.
 import { agentFixtures } from "@/systems/agent/mocks";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -80,7 +79,6 @@ function renderJobForm({
           setCurrentDraft(nextDraft);
         }}
         onSubmit={onSubmit}
-        userHomeDir={undefined}
         workspaces={workspaces}
       />
     );
@@ -117,34 +115,22 @@ describe("AutomationJobForm", () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ name: "nightly-docs" }));
   });
 
-  it("Should switch scope to global and clear workspace_id", () => {
-    const { onChange } = renderJobForm();
+  it("Should show a Global destination statement for a global draft", () => {
+    renderJobForm({ activeWorkspaceId: null, draft: createAutomationJobDraft(null) });
 
-    fireEvent.click(screen.getByTestId("job-scope-global"));
-
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: "global", workspace_id: undefined })
-    );
-    expect(screen.getByTestId("job-scope-global")).toHaveAttribute("aria-pressed", "true");
-    // The picker withdrawing *is* the statement that a global job has no
-    // workspace — the prose that used to say so pointed at a field it removes.
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in Global");
+    expect(screen.queryByTestId("job-scope-global")).toBeNull();
     expect(screen.queryByTestId("job-workspace-select")).toBeNull();
   });
 
-  it("Should choose a workspace from the command selector", async () => {
-    const user = userEvent.setup();
-    const { onChange } = renderJobForm();
+  it("Should show a workspace destination statement for a workspace draft", () => {
+    renderJobForm();
 
-    await user.click(screen.getByTestId("job-workspace-select"));
-    await user.click(screen.getByTestId("job-workspace-item-ws_beta"));
-
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: "workspace", workspace_id: "ws_beta" })
-    );
-    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("beta");
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in alpha");
+    expect(screen.queryByTestId("job-workspace-select")).toBeNull();
   });
 
-  it("Should keep scope immutable and omit it from the Job edit preview", () => {
+  it("Should keep destination immutable and omit scope from the Job edit preview", () => {
     const { onChange } = renderJobForm({
       draft: {
         ...createAutomationJobDraft(WORKSPACE_ID),
@@ -153,10 +139,12 @@ describe("AutomationJobForm", () => {
       mode: "edit",
     });
 
-    expect(screen.getByTestId("job-scope-global")).toBeDisabled();
-    expect(screen.getByTestId("job-scope-workspace")).toBeDisabled();
-    expect(screen.getByTestId("job-workspace-select")).toBeDisabled();
-    fireEvent.click(screen.getByTestId("job-scope-global"));
+    const statement = screen.getByTestId("workspace-scope-statement");
+    expect(statement).toHaveTextContent("Lives in alpha");
+    expect(screen.queryByTestId("job-scope-global")).toBeNull();
+    expect(screen.queryByTestId("job-scope-workspace")).toBeNull();
+    expect(screen.queryByTestId("job-workspace-select")).toBeNull();
+    fireEvent.click(statement);
     expect(onChange).not.toHaveBeenCalled();
 
     showPreview();
@@ -305,10 +293,9 @@ describe("AutomationJobForm", () => {
     expect(select).not.toHaveTextContent("review-and-fix");
   });
 
-  it("Should preserve the explicit Loop workspace when a Job becomes global", () => {
-    const { onChange } = renderJobForm();
+  it("Should preserve the explicit Loop workspace when a Job is global", () => {
+    const { onChange } = renderJobForm({ draft: createAutomationJobDraft(null) });
 
-    fireEvent.click(screen.getByTestId("job-scope-global"));
     fireEvent.click(screen.getByTestId("job-target-loop"));
     fireEvent.change(screen.getByTestId("loop-target-select"), {
       target: { value: "implement-tasks" },
@@ -331,13 +318,13 @@ describe("AutomationJobForm", () => {
     );
   });
 
-  it("Should atomically rebind a workspace Job and its Loop target", async () => {
-    const user = userEvent.setup();
-    const { onChange } = renderJobForm();
+  it("Should bind a workspace Job and its Loop target to the active workspace", () => {
+    const { onChange } = renderJobForm({
+      activeWorkspaceId: "ws_beta",
+      draft: createAutomationJobDraft("ws_beta"),
+    });
 
     fireEvent.click(screen.getByTestId("job-target-loop"));
-    await user.click(screen.getByTestId("job-workspace-select"));
-    await user.click(screen.getByTestId("job-workspace-item-ws_beta"));
 
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({

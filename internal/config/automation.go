@@ -195,24 +195,6 @@ func (j AutomationJob) validateTarget(path string) (automationpkg.TargetKind, er
 	return targetKind, j.validateLoopTarget(path)
 }
 
-func (j AutomationJob) validateAgentTarget(path string) error {
-	if j.LoopTarget != nil {
-		return fmt.Errorf(
-			"%s.loop_target requires %s to be %q",
-			path,
-			path+".target_kind",
-			automationpkg.TargetKindLoop,
-		)
-	}
-	if j.Task == nil && strings.TrimSpace(j.AgentName) == "" {
-		return errors.New(path + ".agent is required")
-	}
-	if j.Task == nil && strings.TrimSpace(j.Prompt) == "" {
-		return errors.New(path + ".prompt is required")
-	}
-	return nil
-}
-
 func (j AutomationJob) validateLoopTarget(path string) error {
 	if j.LoopTarget == nil {
 		return errors.New(path + ".loop_target is required when target_kind is \"loop\"")
@@ -281,24 +263,6 @@ func (t AutomationTrigger) validateTarget(path string) (automationpkg.TargetKind
 		return targetKind, t.validateAgentTarget(path)
 	}
 	return targetKind, t.validateLoopTarget(path)
-}
-
-func (t AutomationTrigger) validateAgentTarget(path string) error {
-	if t.LoopTarget != nil {
-		return fmt.Errorf(
-			"%s.loop_target requires %s to be %q",
-			path,
-			path+".target_kind",
-			automationpkg.TargetKindLoop,
-		)
-	}
-	if strings.TrimSpace(t.AgentName) == "" {
-		return errors.New(path + ".agent is required")
-	}
-	if strings.TrimSpace(t.Prompt) == "" {
-		return errors.New(path + ".prompt is required")
-	}
-	return nil
 }
 
 func (t AutomationTrigger) validateLoopTarget(path string) error {

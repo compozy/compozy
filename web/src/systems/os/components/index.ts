@@ -20,6 +20,7 @@ export { OsWallpaper, type OsWallpaperProps, type OsWallpaperKind } from "./os-w
 export { OsWindowFrame, type OsWindowFrameProps } from "./os-window-frame";
 export { DesktopShell } from "./desktop-shell";
 export { DesktopMenubar, type DesktopMenubarProps } from "./desktop-menubar";
+export { GlobalScopeToggle, type GlobalScopeToggleProps } from "./global-scope-toggle";
 export { DesktopDock, type DesktopDockProps } from "./desktop-dock";
 export { DesktopGate } from "./desktop-gate";
 export { OsCommandPalette, type OsCommandPaletteProps } from "./os-command-palette";

@@ -7,9 +7,9 @@ marketplace install sheets. Selecting the home row inside a ScopeSelector silent
 to global without firing `onChange` (`workspace-command-select.tsx:74-82`) — the canonical
 confusion this set removes.
 
-Redesign: **one control owns scope** — a small toggle in the OS menubar, next to the workspace
-chip. ON → global scope (the user's `~`). OFF → the selected workspace. Every other surface
-*derives* the target and states it; none re-selects it.
+Redesign: **one control owns scope** — a small toggle between the CompozyOS mark and the
+workspace chip. ON → global scope (the user's `~`). OFF → the selected workspace. Every
+other surface *derives* the target and states it; none re-selects it.
 
 Every file links `../design-system/ds-core.css` → `ds-shell.css` → `global-workspace.css`
 (this folder). Page-local styles stay inline and small. Lucide via CDN + `createIcons()`.
@@ -25,9 +25,12 @@ Marketplace entry for install demos: **github** MCP server. Automation demos: jo
 ## Locked decisions (apply everywhere)
 
 - **One owner.** Scope = `{workspace_id}` or `{global}` is a single runtime state owned by the
-  menubar toggle (`.gw-toggle`, 28px, house icon, directly after `.ws-trigger`). No other
-  surface renders a scope *control* — pill-groups, radios, selects and option cards for
-  global-vs-workspace are deleted, not restyled.
+  menubar toggle (`.gw-toggle`, production Toggle 28px + Lucide Globe 16px, between the mark
+  and the workspace chip). A toggle is a mode, so it sits outside `role="menubar"`; the house
+  glyph is still retired (it read as Home / Dashboard). Globe is the mode control (authorized
+  2026-08-13) — destination identity stays on the chip. No other surface renders a scope
+  *control* — pill-groups, radios, selects and option cards for global-vs-workspace are
+  deleted, not restyled.
 - **State contract.** `active-workspace-store` gains `scope: "workspace" | "global"` beside
   `selectedWorkspaceId` (persisted, `compozy:active-workspace:v2` → `v3`). The workspace id is
   *remembered* while global is on — toggle-off returns to it. `taskScopeForActiveWorkspace` /
@@ -37,9 +40,9 @@ Marketplace entry for install demos: **github** MCP server. Automation demos: jo
   `Home`-icon avatar branch. `splitHomeWorkspace` / `isHomeWorkspace` are delete targets, not
   render branches. Lists show project workspaces only.
 - **Chip truth.** Toggle OFF → chip = monogram + workspace name (production verbatim). Toggle
-  ON → chip = house glyph + **Global**. The chip never shows a scope that is not active; the
-  remembered workspace resurfaces only on toggle-off. Accent lives on the pressed toggle only —
-  the chip stays neutral (accent is a state indicator, and the toggle *is* the state).
+  ON → chip = path mark `~` + **Global**. The chip never shows a scope that is not active; the
+  remembered workspace resurfaces only on toggle-off. Accent inks the pressed globe —
+  the chip stays neutral (accent is a state indicator, and the globe *is* the state).
 - **Menu interplay.** The workspace menu never lists global. While global is on: no row is
   checked, one info-tone notice explains it ("Global scope is on — picking a workspace turns it
   off."), and selecting any workspace turns global off and switches in one gesture.
@@ -50,8 +53,9 @@ Marketplace entry for install demos: **github** MCP server. Automation demos: jo
 - **Copy register (locked).** Control name **Global scope**; chip label **Global**; global
   descriptor "visible to every workspace" (installs: "available in every workspace"). Retired
   forever: "Home workspace", "operator home", "Use global workspace", "Home" badge, the
-  Globe icon (global's icon is the **house** — it ties the mode to `~`), and every
-  Global|Workspace pill/radio/select.
+  house glyph as the menubar control (it read as Home / Dashboard), and every
+  Global|Workspace pill/radio/select. The menubar control is a Globe toggle (pressed fill +
+  accent when on). Chip identity for global is the path mark `~`.
 - **Zero-workspace truth.** With no registered workspaces, global is on and the toggle is
   locked-on (tooltip names the reason: "Add a workspace to scope down"). The "No workspace"
   chip state and the arbitrary `workspaces[0]` fallback are deleted — the fallback is global.
@@ -63,9 +67,9 @@ Marketplace entry for install demos: **github** MCP server. Automation demos: jo
   after create: edit surfaces echo the entity's own scope and ignore the toggle. Read-side
   *filters* (jobs/triggers/bridges list Scope filter) survive — they describe queries, not
   targets. Settings→Skills Global|Agent is a different axis — untouched.
-- **Keyboard.** `⇧⌘G` toggles global scope; the toggle is `role="button"` +
-  `aria-pressed`; the ⌘K palette carries "Turn on/off Global scope" and workspace switches
-  (switching notes "turns Global scope off" while it is on).
+- **Keyboard.** `⇧⌘G` toggles global scope; the toggle is `aria-pressed`;
+  Space and Enter flip it. The ⌘K palette carries "Turn on/off Global scope"
+  and workspace switches (switching notes "turns Global scope off" while it is on).
 - **Gating comments:** every distinct control per artboard cites its production source or store
   field at least once (`gating:` prefix). Spec scaffolding (file paths, delete targets) lives
   in `.spec__note` columns and HTML comments only — never inside a mock's fidelity boundary.
@@ -75,7 +79,7 @@ Marketplace entry for install demos: **github** MCP server. Automation demos: jo
 
 | Surface | File | Fate |
 | --- | --- | --- |
-| Menubar chip | `os-menubar.tsx:134-144` | + `.gw-toggle` after chip; chip gains global identity state |
+| Menubar chip | `os-menubar.tsx` | + `.gw-toggle` Globe Toggle between the mark and the workspace chip; chip gains `~` + Global identity |
 | Workspace menu | `os/components/menubar/workspace-menu.tsx:32-59` | home row removed; global-on notice + uncheck state |
 | Workspace command-select | `workspace/components/workspace-command-select.tsx:74-82,186-196` | home branch, badge, scope-context handoff deleted |
 | ScopeSelector + contexts | `workspace/components/scope-selector.tsx` (+2 context files) | **deleted** — call sites derive from store |

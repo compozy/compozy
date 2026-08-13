@@ -9,10 +9,10 @@ entry_points: CompozyOS installer (macOS dmg, Linux package); app first launch
 qa_status: blocked-verify
 bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent; BUG-20260810-boot-controls-unavailable
 fix_status: fixed
-retest_status: blocked-verify
+retest_status: pending
 fix_commits: 01a45c49; b415f24b; b3aa3d27; bd610cfa; 02b55a46; f081a1e; working tree
-evidence: /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/boot-retry-blocked.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/boot-diagnostics-fixed.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/boot-retry-fixed.jpeg; /Users/pedronauck/dev/qa-labs/compozy-coderabbit-desktop-remediation-20260810-153824-470714-lab/qa-artifacts/qa/platform-capability-blockers.txt; /Users/pedronauck/dev/qa-labs/compozy-desktop-startup-diagnostics-20260811-200336-439901-lab/qa-artifacts/qa/runtime-cli-walk.md
-last_report: docs/qa/reports/2026-08-11-desktop-startup-diagnostics.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-362-runtime-manifest-20260813-004336-922826-lab/qa-artifacts/qa/candidate-preconditions.md; /Users/pedronauck/dev/qa-labs/compozy-issue-362-runtime-manifest-20260813-004336-922826-lab/qa-artifacts/qa/qa-audit-report.md
+last_report: docs/qa/reports/2026-08-12-runtime-manifest-verification.md
 overlaps:
 ---
 
@@ -28,8 +28,9 @@ tauri-driver script + package install/reinstall transcript. All OSes: process-ta
 proving exactly one daemon, and the offline-first-run retry walk (E2E-002) on at least one OS
 with the branch recorded.
 
-QA impact 2026-08-11: first-run now self-starts the verified app-owned runtime and keeps the boot
-window available after failure for a redacted report, local copy, and explicit local export.
-Historical evidence above is preserved. The working-tree macOS runtime path passed, but a signed
-candidate DMG and Linux AppImage were unavailable, so installer trust, packaged provisioning, and
-the boot-window recovery controls remain blocked for the mandatory pre-publish artifact smoke.
+QA impact 2026-08-12: release publication now requires the signed candidate runtime manifest to
+pass the desktop's exact verifier for every shipping target before upload. The scenario is reset
+because installer trust and packaged provisioning must be re-walked with signed candidate macOS
+and Linux packages. No signed candidate exists for this branch, so both package walks remain
+blocked; the dated report preserves the exact verification steps and prior reports retain their
+historical evidence.

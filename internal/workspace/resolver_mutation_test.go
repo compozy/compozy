@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -208,6 +209,88 @@ func TestResolverCRUDFlow(t *testing.T) {
 	}
 	if _, err := resolver.Get(ctx, registered.ID); !errors.Is(err, ErrWorkspaceNotFound) {
 		t.Fatalf("Get(after unregister) error = %v, want %v", err, ErrWorkspaceNotFound)
+	}
+}
+
+func TestWorkspaceMutationsRejectInvalidDefaultAgentBeforePersistence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an invalid default agent when registering", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		store := newMockWorkspaceStore()
+		resolver := newTestResolver(
+			t,
+			store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+
+		_, err := resolver.Register(t.Context(), RegisterOptions{
+			RootDir:      t.TempDir(),
+			Name:         "invalid-default-agent",
+			DefaultAgent: "audio designer",
+		})
+		assertInvalidWorkspaceDefaultAgent(t, err, "audio designer")
+		if got := len(store.insertCalls); got != 0 {
+			t.Fatalf("InsertWorkspace() calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject an overlength default agent when updating", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		rootDir := t.TempDir()
+		existing := Workspace{
+			ID:           "ws_invalid_default_agent",
+			RootDir:      rootDir,
+			Name:         "existing",
+			DefaultAgent: "coder",
+		}
+		store := newMockWorkspaceStore(existing)
+		resolver := newTestResolver(
+			t,
+			store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+		)
+		invalid := strings.Repeat("a", compozyconfig.AgentNameMaxLength+1)
+
+		err := resolver.Update(t.Context(), existing.ID, UpdateOptions{DefaultAgent: &invalid})
+		assertInvalidWorkspaceDefaultAgent(t, err, invalid)
+		if got := len(store.updateCalls); got != 0 {
+			t.Fatalf("UpdateWorkspace() calls = %d, want 0", got)
+		}
+		if got := store.mustWorkspace(existing.ID).DefaultAgent; got != existing.DefaultAgent {
+			t.Fatalf("persisted DefaultAgent = %q, want %q", got, existing.DefaultAgent)
+		}
+	})
+}
+
+func assertInvalidWorkspaceDefaultAgent(t *testing.T, err error, value string) {
+	t.Helper()
+
+	if !errors.Is(err, ErrWorkspaceValidation) {
+		t.Fatalf("error = %v, want ErrWorkspaceValidation", err)
+	}
+	var validationErr compozyconfig.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("error = %v, want config.ValidationError", err)
+	}
+	wantMessage := `agent name "` + value + `" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most ` + strconv.Itoa(compozyconfig.AgentNameMaxLength) + " characters"
+	if validationErr.Path != "workspace.default_agent" || validationErr.Message != wantMessage {
+		t.Fatalf(
+			"ValidationError = %#v, want path %q and message %q",
+			validationErr,
+			"workspace.default_agent",
+			wantMessage,
+		)
+	}
+	wantError := "workspace validation failed: workspace.default_agent " + wantMessage
+	if err.Error() != wantError {
+		t.Fatalf("error = %q, want %q", err.Error(), wantError)
 	}
 }
 

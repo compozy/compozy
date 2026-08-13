@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -17,7 +18,7 @@ import type {
 
 import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { bridgeOperatorSelectors } from "../fixtures/selectors";
-import { openAppWindow, windowTitle } from "../fixtures/os-navigation";
+import { openAppWindow, switchWorkspace, windowTitle } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import {
   browserBridgeOperatorFlowScenario,
@@ -25,7 +26,7 @@ import {
   triggerBrowserBridgeIngress,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const bridgeIngressFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -99,9 +100,11 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   runtime,
 }) => {
   const shellUI = bridgeOperatorSelectors(appPage);
-  const seeded = await seedBrowserBridgeOperatorFlow(runtime);
+  const workspaceRootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-bridges-"));
+  const seeded = await seedBrowserBridgeOperatorFlow(runtime, { workspaceRootDir });
 
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
+  await activateBridgeWorkspace(appPage, runtime, seeded.bridge.workspace_id);
 
   await expect(shellUI.osDesktop).toBeVisible();
   const bridgesWin = await openAppWindow(appPage, "Bridges", "bridges");
@@ -274,13 +277,16 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   runtime,
 }) => {
   const shellUI = bridgeOperatorSelectors(appPage);
+  const workspaceRootDir = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-bridges-"));
   const seeded = await seedBrowserBridgeOperatorFlow(runtime, {
     displayName: "Telegram Seed Provider Anchor",
+    workspaceRootDir,
   });
   const providerKey = `${seeded.provider.extension_name}::${seeded.provider.platform}`;
   const createdName = "Telegram Browser Lifecycle";
 
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
+  await activateBridgeWorkspace(appPage, runtime, seeded.bridge.workspace_id);
   const bridgesWin = await openAppWindow(appPage, "Bridges", "bridges");
   const bridgeUI = bridgeOperatorSelectors(bridgesWin);
   const bridgeStatus = bridgesWin.locator('[data-slot="topbar-status"]');
@@ -309,8 +315,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
     )
   );
   await bridgeUI.createDisplayNameInput.fill(createdName);
-  await bridgeUI.createScopeWorkspace.click();
-  await expect(bridgeUI.createScopeWorkspace).toHaveAttribute("aria-pressed", "true");
+  await expect(appPage.getByTestId("workspace-scope-statement")).toBeVisible();
   await bridgeUI.createDeliveryModeSelect.selectOption("direct-send");
   await bridgeUI.createDeliveryPeerInput.fill("telegram-peer-lifecycle");
   await bridgeUI.createDeliveryThreadInput.fill("777");
@@ -642,6 +647,24 @@ async function requestOperatorJSONOrThrow<T>(
     throw new Error("bridge UDS parity checks require requestOperatorJSON");
   }
   return await runtime.requestOperatorJSON<T>(pathname, init);
+}
+
+async function activateBridgeWorkspace(
+  page: Page,
+  runtime: BrowserRuntime,
+  workspaceId?: string
+): Promise<void> {
+  if (!workspaceId) {
+    throw new Error("workspace bridge E2E requires a workspace-owned bridge");
+  }
+  const payload = await runtime.requestJSON<{
+    workspaces: Array<{ id: string; name: string }>;
+  }>("/api/workspaces");
+  const workspace = payload.workspaces.find(candidate => candidate.id === workspaceId);
+  if (!workspace) {
+    throw new Error(`workspace bridge E2E could not resolve workspace ${workspaceId}`);
+  }
+  await switchWorkspace(page, workspace.id, workspace.name);
 }
 
 async function assertBridgeDetailResponsive(

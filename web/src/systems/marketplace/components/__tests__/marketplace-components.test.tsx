@@ -9,7 +9,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
 import { MarketplaceApiError } from "../../adapters/marketplace-api-error";
-import type { MarketplaceEntryResponse, MarketplaceListing, MCPInstallResponse } from "../../types";
+import type {
+  MarketplaceEntryResponse,
+  MarketplaceListing,
+  MCPInstallRequest,
+  MCPInstallResponse,
+} from "../../types";
 import { marketplaceDetails, marketplaceKindFixture, marketplaceListings } from "../../mocks";
 import { MarketplaceCard } from "../marketplace-card";
 import { MarketplaceDetailLede } from "../marketplace-detail-lede";
@@ -17,9 +22,11 @@ import { MarketplaceEntryAction, MarketplaceEntryStatus } from "../marketplace-e
 import { MarketplaceGrid, MarketplaceGridSkeleton } from "../marketplace-grid";
 import { MarketplaceInstalledCard } from "../marketplace-installed-card";
 import { MarketplaceKindPage } from "../marketplace-kind-page";
+import { MarketplaceActionDialogs } from "../marketplace-action-dialogs";
 import { MCPInstallDialog } from "../mcp-install-dialog";
 import { buildMCPInstallRequest } from "../mcp-install-model";
 import type { SkillPayload } from "@/systems/skill";
+import { useMCPAuthorize } from "@/systems/settings";
 
 const mocks = vi.hoisted(() => {
   const state = {
@@ -145,12 +152,24 @@ vi.mock("@tanstack/react-router", async () => {
   };
 });
 
-vi.mock("@/systems/workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
+function mockActiveWorkspace() {
+  return {
+    activeWorkspace: mocks.activeWorkspaceId
+      ? { id: mocks.activeWorkspaceId, name: "launch-hq" }
+      : undefined,
+    activeWorkspaceId: mocks.activeWorkspaceId,
+    pending: false,
+    scope: mocks.activeWorkspaceId ? ("workspace" as const) : ("global" as const),
+  };
+}
+
+vi.mock("@/systems/workspace", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace")>()),
+  useActiveWorkspace: mockActiveWorkspace,
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
+  useActiveWorkspace: mockActiveWorkspace,
 }));
 
 vi.mock("@/systems/vault", async () => {
@@ -279,7 +298,6 @@ vi.mock("../use-marketplace-action-controller", () => ({
 function renderKindPage(
   kind: "skill" | "mcp" | "extension" = "skill",
   search: {
-    config_scope?: "global" | "workspace";
     tab?: "market";
     q?: string;
   } = {},
@@ -295,6 +313,39 @@ function renderKindPage(
   );
   const view = renderWithTopbar(page());
   return { ...view, rerenderKindPage: () => view.rerender(page()) };
+}
+
+interface MarketplaceDialogsHarnessProps {
+  data: MarketplaceEntryResponse;
+  onInstall: (request: MCPInstallRequest) => Promise<MCPInstallResponse>;
+  scope: "global" | "workspace";
+  workspaceId: string | null;
+}
+
+function MarketplaceDialogsHarness({
+  data,
+  onInstall,
+  scope,
+  workspaceId,
+}: MarketplaceDialogsHarnessProps) {
+  const authorize = useMCPAuthorize();
+  return (
+    <MarketplaceActionDialogs
+      authorize={authorize}
+      authScope={scope}
+      authServer={null}
+      mcpDetail={data}
+      onConfirmTrust={() => undefined}
+      onInstallMCP={onInstall}
+      onMCPClose={() => undefined}
+      onTrustClose={() => undefined}
+      scope={scope}
+      trustEntry={null}
+      trustError={null}
+      trustPending={false}
+      workspaceId={workspaceId}
+    />
+  );
 }
 
 describe("MarketplaceKindPage", () => {
@@ -1268,6 +1319,42 @@ describe("MarketplaceKindPage", () => {
 });
 
 describe("MCP guided install", () => {
+  it("Should reset destination-bound inputs when an open install moves to Global", async () => {
+    const user = userEvent.setup();
+    const onInstall = vi.fn().mockResolvedValue({} as MCPInstallResponse);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const renderDialogs = (scope: "global" | "workspace", workspaceId: string | null) => (
+      <QueryClientProvider client={client}>
+        <MarketplaceDialogsHarness
+          data={marketplaceDetails["mcp:github"]!}
+          onInstall={onInstall}
+          scope={scope}
+          workspaceId={workspaceId}
+        />
+      </QueryClientProvider>
+    );
+    const view = render(renderDialogs("workspace", "ws-story"));
+    const input = screen.getByLabelText(/^github_personal_access_token\*?$/);
+    await user.type(input, "workspace-secret");
+
+    view.rerender(renderDialogs("global", null));
+
+    const resetInput = screen.getByLabelText(/^github_personal_access_token\*?$/);
+    expect(resetInput).toHaveValue("");
+    await user.type(resetInput, "global-secret");
+    await user.click(screen.getByTestId("mcp-install-confirm"));
+    await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
+    expect(onInstall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: "global",
+        values: { inputs: { github_personal_access_token: { value: "global-secret" } } },
+        workspace_id: undefined,
+      })
+    );
+  });
+
   it("Should serialize a required typed value into the workspace install request", async () => {
     const user = userEvent.setup();
     const onInstall = vi.fn().mockResolvedValue({} as MCPInstallResponse);

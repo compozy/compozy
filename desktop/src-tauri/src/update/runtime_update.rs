@@ -10,7 +10,6 @@ use thiserror::Error;
 use url::Url;
 
 use crate::home::CompozyHome;
-use crate::runtime::artifacts::current_target;
 use crate::runtime::discovery::ProcessTable;
 use crate::runtime::mutation::{
     JournalPhase, MutationError, RecoveryAction, UpdateJournal, UpdateLock, classify_recovery,
@@ -18,11 +17,13 @@ use crate::runtime::mutation::{
     write_journal,
 };
 use crate::runtime::provenance::{self, ProvenanceRecord};
-use crate::runtime::provision::{ProvisionError, StagedRuntime, stage_update};
+use crate::runtime::provision::{ProvisionError, StagedRuntime};
 use crate::runtime::quiesce::{QuiesceError, QuiesceGuard, QuiesceTransport};
 
 const QUIESCE_ATTEMPTS: usize = 60;
 const QUIESCE_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
+pub use super::manifest_runtime_stager::ManifestRuntimeStager;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 pub struct RuntimeUpdateStatus {
@@ -107,42 +108,6 @@ pub trait RuntimeLifecycle: Send + Sync {
 
 pub trait RuntimeStager: Send + Sync {
     fn stage(&self, installed: &Version) -> Result<Option<StagedRuntime>, ProvisionError>;
-}
-
-pub struct ManifestRuntimeStager {
-    home: CompozyHome,
-    manifest_url: Url,
-    public_key: String,
-    target: String,
-}
-
-impl ManifestRuntimeStager {
-    pub fn new(
-        home: CompozyHome,
-        manifest_url: Url,
-        public_key: impl Into<String>,
-    ) -> Result<Self, RuntimeUpdaterError> {
-        Ok(Self {
-            home,
-            manifest_url,
-            public_key: public_key.into(),
-            target: current_target()
-                .map_err(|_| RuntimeUpdaterError::Version)?
-                .to_owned(),
-        })
-    }
-}
-
-impl RuntimeStager for ManifestRuntimeStager {
-    fn stage(&self, installed: &Version) -> Result<Option<StagedRuntime>, ProvisionError> {
-        stage_update(
-            &self.home,
-            &self.manifest_url,
-            &self.public_key,
-            &self.target,
-            installed,
-        )
-    }
 }
 
 pub struct RuntimeUpdater {

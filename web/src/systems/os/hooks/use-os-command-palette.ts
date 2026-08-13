@@ -77,6 +77,10 @@ export interface OsCommandPaletteModel {
   openDesktops(): void;
   openAppearance(): void;
   switchWorkspace(workspaceId: string): void;
+  toggleGlobalScope(): void;
+  globalScopeOn: boolean;
+  canDisableGlobal: boolean;
+  scopeToggleLocked: boolean;
   commandsAvailable: boolean;
 }
 
@@ -93,9 +97,20 @@ export function useOsCommandPalette(
 ): OsCommandPaletteModel {
   const { manager, coordinator } = useOsShell();
   const { openForAgent } = useSessionCreateActions();
-  const { workspaces, activeWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
-  const sessions = useSessions(activeWorkspaceId, {
-    enabled: open && activeWorkspaceId !== null,
+  const {
+    workspaces,
+    activeWorkspaceId,
+    runtimeWorkspaceId,
+    scope,
+    pending,
+    toggleLocked,
+    canDisableGlobal,
+    setActiveWorkspaceId,
+    toggleGlobalScope,
+  } = useActiveWorkspace();
+  // Session labels follow the daemon binding — in Global scope that is the home row.
+  const sessions = useSessions(runtimeWorkspaceId, {
+    enabled: open && runtimeWorkspaceId !== null,
   });
   const windowCommands = useOsWindowCommands();
   const { commandsAvailable } = windowCommands;
@@ -281,5 +296,9 @@ export function useOsCommandPalette(
         });
       }),
     switchWorkspace: workspaceId => run(() => setActiveWorkspaceId(workspaceId)),
+    toggleGlobalScope: () => run(() => toggleGlobalScope()),
+    globalScopeOn: scope === "global",
+    canDisableGlobal,
+    scopeToggleLocked: pending || toggleLocked,
   };
 }

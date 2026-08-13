@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Refusals &amp; gates · Attachments · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="attach.css">
+<!--
+  attach-refusals · S8 final — unsupported type / size / persist / text-only model.
+  Spec: GitHub composy/compozy#366 AC: invalid MIME, oversized, corrupted;
+        PDF/MD/TXT are allowed; SVG ZIP Office are not.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="att-refusals-head">
+    <a class="w2-back" href="index.html" aria-label="Back to attachment set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Attachments</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Refusals &amp; gates</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="attach-transcript.html">← Transcript</a>
+      <a class="btn" href="attach-busy.html">Busy →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="sec-not-supported">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Not a supported file</h2>
+        <span class="lab-sec__gist">SVG, ZIP, Office · Markdown is allowed</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Type check</b>Signature, not extension. <code>diagram.svg</code> is rejected even if the name looks visual. <code>notes.md</code> is not in this list — it is a ready file tile. Send stays disabled while any tile is rejected. Reason is the size line.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-unsupported">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="rejected" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">SVG</span></span>
+                <span class="att-meta"><span class="att-name">diagram.svg</span><span class="att-size">Not a supported file</span></span>
+                <button class="att-x" type="button" aria-label="Remove diagram.svg"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="rejected" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">ZIP</span></span>
+                <span class="att-meta"><span class="att-name">archive.zip</span><span class="att-size">Not a supported file</span></span>
+                <button class="att-x" type="button" aria-label="Remove archive.zip"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="rejected" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PPT</span></span>
+                <span class="att-meta"><span class="att-name">deck.pptx</span><span class="att-size">Not a supported file</span></span>
+                <button class="att-x" type="button" aria-label="Remove deck.pptx"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="Remove files that are not supported"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-too-large">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Too large</h2>
+        <span class="lab-sec__gist">keeps the well · names the cap</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Size cap</b>Issue asks for configurable MIME + size limits. Prototype uses 10 MB as a labelled placeholder — not a shipped default. Applies to images and PDFs. Retry is absent here; the file cannot pass. Remove is the recovery.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-large">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="error" role="listitem">
+                <span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span>
+                <span class="att-meta"><span class="att-name">mockup-4k.png</span><span class="att-size">18.2 MB · over 10 MB</span></span>
+                <button class="att-x" type="button" aria-label="Remove mockup-4k.png"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="error" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+                <span class="att-meta"><span class="att-name">audit-pack.pdf</span><span class="att-size">14.1 MB · over 10 MB</span></span>
+                <button class="att-x" type="button" aria-label="Remove audit-pack.pdf"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="A file is over 10 MB"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-persist">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Persist failed</h2>
+        <span class="lab-sec__gist">draft kept · Retry on the tile</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Recoverable</b>The file never left the composer. Retry re-runs persist. Send stays disabled until the tile is ready. No toast.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-persist">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="error" role="listitem">
+                <span class="att-thumb"><img src="assets/permission-dock.png" alt=""></span>
+                <span class="att-meta"><span class="att-name">scan-desk.jpg</span><span class="att-size">Couldn’t save</span></span>
+                <button class="att-retry" type="button" data-od-id="retry-persist">Retry</button>
+                <button class="att-x" type="button" aria-label="Remove scan-desk.jpg"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…">Desk photo for the scan quality check.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="Couldn’t save scan-desk.jpg"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-text-only">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Model does not accept images</h2>
+        <span class="lab-sec__gist">pre-dispatch · never silent omit · files stay</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Capability gate</b><code>acp_caps</code> has no image flag today — this row is <code>new · prompt-images</code>. Files are not in this gate: MD/TXT can still ride as prompt text. Recovery is Remove on the row, or pick another runtime. Send is disabled while images remain. No banner above the transcript.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-gate">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-gate" role="status" data-od-id="att-gate">
+                <svg data-lucide="triangle-alert"></svg>
+                <span><b>This model does not accept images.</b> Remove them or pick another model.</span>
+                <button class="btn btn--ghost btn--sm" type="button">Remove</button>
+              </div>
+              <div class="att-tile" data-state="ready" role="listitem">
+                <span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span>
+                <span class="att-meta"><span class="att-name">goal-chip.png</span><span class="att-size">240 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove goal-chip.png"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+                <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove notes.md"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…">Flatten this Goal card.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">haiku</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="This model does not accept images"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="attach.js"></script>
+<script>
+lucide.createIcons();
+const retry=document.querySelector("[data-od-id=retry-persist]");
+if(retry){
+  retry.addEventListener("click",()=>{
+    const tile=retry.closest(".att-tile");
+    if(!tile) return;
+    tile.setAttribute("data-state","uploading");
+    const size=tile.querySelector(".att-size");
+    if(size) size.textContent="Saving…";
+    retry.remove();
+  });
+}
+</script>
+</body>
+</html>

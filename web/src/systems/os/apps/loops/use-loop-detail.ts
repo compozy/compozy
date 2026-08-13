@@ -19,8 +19,8 @@ const RECENT_RUNS_LIMIT = 5;
 
 /** View-model for the Loop detail route: definition, 30d aggregate, recent runs, bindings, nav. */
 export function useLoopDetail(name: string) {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = runtimeWorkspaceId ?? "";
   const navigate = useNavigate();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const active = workspaceId !== "" && liveDataEnabled;

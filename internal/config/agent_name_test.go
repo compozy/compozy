@@ -19,12 +19,14 @@ func TestAgentNameValidation(t *testing.T) {
 		{name: "Should accept underscores", input: "audio_designer"},
 		{name: "Should normalize outer whitespace", input: "  audio_designer  "},
 		{name: "Should reject an empty name", input: "", wantErr: "agent name is required"},
-		{name: "Should reject internal whitespace", input: "audio designer", wantErr: "must match"},
-		{name: "Should reject uppercase letters", input: "AudioDesigner", wantErr: "must match"},
-		{name: "Should reject a leading number", input: "2designer", wantErr: "must match"},
-		{name: "Should reject dots", input: "audio.designer", wantErr: "must match"},
-		{name: "Should reject path separators", input: "audio/designer", wantErr: "must match"},
-		{name: "Should reject non-ASCII letters", input: "áudio_designer", wantErr: "must match"},
+		{name: "Should accept the maximum length", input: "a" + repeatAgentNameCharacter(105)},
+		{name: "Should reject internal whitespace", input: "audio designer", wantErr: `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
+		{name: "Should reject uppercase letters", input: "AudioDesigner", wantErr: `agent name "AudioDesigner" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
+		{name: "Should reject a leading number", input: "2designer", wantErr: `agent name "2designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
+		{name: "Should reject dots", input: "audio.designer", wantErr: `agent name "audio.designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
+		{name: "Should reject path separators", input: "audio/designer", wantErr: `agent name "audio/designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
+		{name: "Should reject non-ASCII letters", input: "áudio_designer", wantErr: `agent name "áudio_designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
+		{name: "Should reject a name above the maximum length", input: "a" + repeatAgentNameCharacter(106), wantErr: `agent name "` + "a" + repeatAgentNameCharacter(106) + `" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
 	}
 
 	for _, tt := range tests {
@@ -38,7 +40,7 @@ func TestAgentNameValidation(t *testing.T) {
 				}
 				return
 			}
-			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+			if err == nil || err.Error() != tt.wantErr {
 				t.Fatalf("ValidateAgentName(%q) error = %v, want %q", tt.input, err, tt.wantErr)
 			}
 		})
@@ -53,8 +55,13 @@ provider: claude
 ---
 
 prompt`))
-		if err == nil || !strings.Contains(err.Error(), "must match") {
-			t.Fatalf("ParseAgentDef() error = %v, want name grammar error", err)
+		wantErr := `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`
+		if err == nil || err.Error() != wantErr {
+			t.Fatalf("ParseAgentDef() error = %v, want %q", err, wantErr)
 		}
 	})
+}
+
+func repeatAgentNameCharacter(count int) string {
+	return strings.Repeat("a", count)
 }

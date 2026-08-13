@@ -16,6 +16,7 @@ export interface OsShortcutHandlers {
   onNewSession: () => void;
   onDesktops: () => void;
   onEscape: () => void;
+  onToggleGlobalScope: () => void;
 }
 
 export interface OsShortcutOptions {
@@ -81,6 +82,17 @@ export function useOsShortcuts(
     const config = state.windowManagerConfig;
     const editableTarget = isEditableTarget(event.target);
     const primaryModifier = primaryShortcutModifier(navigator.platform);
+    if (
+      !editableTarget &&
+      isPrimaryModifierPressed(event, primaryModifier) &&
+      event.shiftKey &&
+      !event.altKey &&
+      event.key.toLowerCase() === "g"
+    ) {
+      event.preventDefault();
+      handlers.onToggleGlobalScope();
+      return;
+    }
     if (config !== null && windowManagerCommandsAvailable(state)) {
       const action = resolveWindowManagerActions(config.shortcuts).find(
         candidate => candidate.chord && shortcutMatches(event, candidate.chord, primaryModifier)

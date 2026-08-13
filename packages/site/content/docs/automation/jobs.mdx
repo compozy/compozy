@@ -50,20 +50,20 @@ that created it; restart from the first page when any filter changes. See the ge
 
 ## Job fields
 
-| Field                        | Required                     | Meaning                                                                                                                |
-| ---------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `name`                       | Yes                          | Human-readable job name.                                                                                               |
-| `scope`                      | Yes                          | `global` or `workspace`.                                                                                               |
-| `workspace` / `workspace_id` | Workspace jobs only          | TOML uses `workspace`; API payloads and stored jobs use `workspace_id`. Global jobs must leave it empty.               |
-| `target_kind`                | No                           | `agent` or `loop`. Omitted targets default to `agent` unless a `loop_target` is present.                               |
-| `agent` / `agent_name`       | Agent targets without `task` | TOML uses `agent`; API payloads use `agent_name`. Must be empty for Loop targets.                                      |
-| `prompt`                     | Agent targets without `task` | Prompt submitted to the agent when the job fires. Must be empty for Loop targets.                                      |
-| `task`                       | No                           | Materializes Task-backed work for an Agent target. Must be empty for Loop targets.                                     |
-| `loop_target`                | Loop targets                 | Selects `workspace_id`, `loop_name`, and static `inputs`. Scheduled jobs reject `input_mapping`.                       |
-| `schedule`                   | Yes                          | One of `cron`, `every`, or `at`; recurring schedules may set catch-up policy and misfire grace.                        |
-| `enabled`                    | No                           | Defaults to `true` for parsed config definitions. Disabled jobs stay stored but are not registered with the scheduler. |
-| `retry`                      | No                           | Defaults to `{ strategy = "none" }`.                                                                                   |
-| `fire_limit`                 | No                           | Defaults to `max = 12`, `window = "1h"` unless the automation default is changed.                                      |
+| Field                        | Required                     | Meaning                                                                                                                                                                                     |
+| ---------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                       | Yes                          | Human-readable job name.                                                                                                                                                                    |
+| `scope`                      | Yes                          | `global` or `workspace`.                                                                                                                                                                    |
+| `workspace` / `workspace_id` | Workspace jobs only          | TOML uses `workspace`; API payloads and stored jobs use `workspace_id`. Global jobs must leave it empty.                                                                                    |
+| `target_kind`                | No                           | `agent` or `loop`. Omitted targets default to `agent` unless a `loop_target` is present.                                                                                                    |
+| `agent` / `agent_name`       | Agent targets without `task` | TOML uses `agent`; API payloads use `agent_name`. For an Agent target, after trimming it must match `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters). It must be empty for Loop targets. |
+| `prompt`                     | Agent targets without `task` | Prompt submitted to the agent when the job fires. Must be empty for Loop targets.                                                                                                           |
+| `task`                       | No                           | Materializes Task-backed work for an Agent target. Must be empty for Loop targets.                                                                                                          |
+| `loop_target`                | Loop targets                 | Selects `workspace_id`, `loop_name`, and static `inputs`. Scheduled jobs reject `input_mapping`.                                                                                            |
+| `schedule`                   | Yes                          | One of `cron`, `every`, or `at`; recurring schedules may set catch-up policy and misfire grace.                                                                                             |
+| `enabled`                    | No                           | Defaults to `true` for parsed config definitions. Disabled jobs stay stored but are not registered with the scheduler.                                                                      |
+| `retry`                      | No                           | Defaults to `{ strategy = "none" }`.                                                                                                                                                        |
+| `fire_limit`                 | No                           | Defaults to `max = 12`, `window = "1h"` unless the automation default is changed.                                                                                                           |
 
 ## Target an Agent or a Loop
 

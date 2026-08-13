@@ -6,18 +6,15 @@ artifact=${2:?release artifact is required}
 release_version=${3:?release version is required}
 runtime_version=${4:?current channel runtime version is required}
 
-[[ -f "${artifact}" ]] || {
-  echo "desktop release smoke: artifact does not exist: ${artifact}" >&2
-  exit 1
-}
-
 smoke_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 smoke_root=$(mktemp -d "${smoke_parent}/compozyqa-desktop-smoke.XXXXXX")
 smoke_home="${smoke_root}/home/runtime"
 qa_output="${smoke_root}/qa-artifacts"
 qa_root="${qa_output}/qa"
 manifest_path="${qa_root}/bootstrap-manifest.json"
-repo_root=$(git -C "$(dirname "${BASH_SOURCE[0]}")/.." rev-parse --show-toplevel)
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+repo_root=$(git -C "${GITHUB_WORKSPACE:-$(pwd)}" rev-parse --show-toplevel)
+bash "${script_dir}/prepare-desktop-smoke-artifact.sh" "${platform}" "${artifact}"
 mkdir -p "${smoke_home}" "${qa_root}/pids"
 jq -n \
   --arg qa_output "${qa_output}" \
@@ -38,6 +35,19 @@ teardown_command=(
 mount_path=
 app_pid=
 app_signal_target=
+
+emit_desktop_diagnostics() {
+  echo "desktop release smoke: diagnostics root ${smoke_root}" >&2
+  for diagnostic_file in \
+    "${smoke_home}/app.json" \
+    "${smoke_home}/logs/desktop.log" \
+    "${smoke_home}/desktop.log"; do
+    if [[ -f "${diagnostic_file}" ]]; then
+      echo "desktop release smoke: ${diagnostic_file}" >&2
+      sed -n '1,240p' "${diagnostic_file}" >&2
+    fi
+  done
+}
 
 stop_desktop_child() {
   [[ -n "${app_pid}" ]] || return 0
@@ -231,12 +241,19 @@ while ((SECONDS < deadline)); do
   if ! kill -0 "${app_pid}" 2>/dev/null; then
     wait "${app_pid}" || true
     echo "desktop release smoke: packaged app exited before provisioning completed" >&2
-    sed -n '1,200p' "${smoke_home}/desktop.log" >&2 || true
+    emit_desktop_diagnostics
+    exit 1
+  fi
+  if [[ -s "${smoke_home}/app.json" ]] \
+    && jq -e '.state == "error" or .diagnostic_report.boot_phase == "error"' \
+      "${smoke_home}/app.json" >/dev/null 2>&1; then
+    echo "desktop release smoke: packaged app reported a terminal startup error" >&2
+    emit_desktop_diagnostics
     exit 1
   fi
   sleep 1
 done
 
 echo "desktop release smoke: timed out waiting for the packaged app to provision and start its runtime" >&2
-sed -n '1,200p' "${smoke_home}/desktop.log" >&2 || true
+emit_desktop_diagnostics
 exit 1

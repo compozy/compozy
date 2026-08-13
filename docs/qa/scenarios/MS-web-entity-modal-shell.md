@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: NB-participation-controls-serialize; MS-030; ET-web-vault-opendesign-listing; TA-task-template-preserves-draft; MS-provider-detail-modal; MS-web-session-simple-advanced-launch; MS-web-workspace-add-directory-browser; MS-web-knowledge-edit-immutable-identity; NB-web-channel-fanout-policy; ET-web-vault-overwrite-confirmation; MS-web-task-editor-window-modal
 ---
 
-story: As a person running agent work I configure runtime entities through modals that look and behave the same everywhere, so I can predict where the title, the disclosure toggle, the scope control, and the one primary action will be.
+story: As a person running agent work I configure runtime entities through modals that look and behave the same everywhere, so I can predict where the title, the disclosure toggle, the derived destination statement, and the one primary action will be.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §2 F1-F7), task_01, implemented 2026-07-25. The shared primitives are `EntityDialogHeader`, `EntityDialogFooter`, `EntityDialogBody` (including the `split` variant), `EntityModeToolbar`, `SecretField`, `ImmutableIdentity`, and the `dialogShellClass` host helper, all exported from `@compozy/ui`.
 
@@ -29,3 +29,7 @@ The remaining surfaces migrate in tasks 03-04; this scenario should be re-scoped
 src: packages/ui/src/components/custom/entity-dialog-header.tsx; packages/ui/src/components/custom/entity-dialog-footer.tsx; packages/ui/src/components/custom/entity-dialog-body.tsx; packages/ui/src/components/custom/entity-mode-toolbar.tsx; packages/ui/src/components/custom/secret-field.tsx; packages/ui/src/components/custom/immutable-identity.tsx; packages/ui/src/lib/dialog-shell.ts
 
 inventory: Needs QA
+
+2026-08-12 qa-impact: create/install destination pills were deleted. The shared shell now carries a derived `workspace-scope-statement` (toolbar chip or footer note) from the menubar Global switch, not a scope picker. Reset to untested.
+
+2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.

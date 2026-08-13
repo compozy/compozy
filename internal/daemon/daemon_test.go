@@ -825,14 +825,12 @@ func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
 		if err := os.MkdirAll(operatorHome, 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(%q) error = %v", operatorHome, err)
 		}
-		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(operatorHome, compozyconfig.DirName))
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		homePaths.DaemonSocket = shortSocketPath(t)
-		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
-			t.Fatalf("EnsureHomeLayout() error = %v", err)
-		}
+		writeDaemonFile(
+			t,
+			filepath.Join(operatorHome, compozyconfig.DirName, compozyconfig.ConfigName),
+			"[gateway]\nenabled = true\n",
+		)
+		homePaths := testHomePaths(t)
 		cfg := testConfig(t, homePaths)
 		cfg.Network.Enabled = false
 

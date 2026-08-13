@@ -1411,6 +1411,57 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return default agent validation as a bad request", func(t *testing.T) {
+		t.Parallel()
+
+		rootDir := t.TempDir()
+		validationMessage := `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`
+		validationErr := fmt.Errorf(
+			"%w: %w",
+			workspacepkg.ErrWorkspaceValidation,
+			compozyconfig.ValidationError{
+				Path:    "workspace.default_agent",
+				Message: validationMessage,
+			},
+		)
+		registerCalled := false
+		workspaces := testutil.StubWorkspaceService{
+			RegisterFn: func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
+				registerCalled = true
+				return workspacepkg.Workspace{}, validationErr
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			workspaces,
+			nil,
+			nil,
+		)
+
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces",
+			[]byte(`{"root_dir":"`+rootDir+`","name":"invalid-default-agent","default_agent":"audio designer"}`),
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+		}
+		if !registerCalled {
+			t.Fatal("Register() was not called")
+		}
+
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, response, &payload)
+		wantError := "workspace validation failed: workspace.default_agent " + validationMessage
+		if payload.Error != wantError {
+			t.Fatalf("error = %q, want %q", payload.Error, wantError)
+		}
+	})
+
 	t.Run("Should list workspaces", func(t *testing.T) {
 		t.Parallel()
 

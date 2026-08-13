@@ -4,9 +4,16 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/compozy/compozy/internal/network/identifier"
 )
 
 const (
+	// PeerIDMaxLength is the maximum length accepted for a Network peer id.
+	PeerIDMaxLength = identifier.PeerIDMaxLength
+	// PeerIDPattern is the Network peer identifier grammar.
+	PeerIDPattern = identifier.PeerIDPattern
+
 	validateDirectIDKey = "direct_id"
 	validateThreadIDKey = "thread_id"
 )
@@ -19,17 +26,13 @@ const (
 )
 
 var (
-	peerIDPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
 	threadIDPattern = regexp.MustCompile(ThreadIDPattern)
 	directIDPattern = regexp.MustCompile(DirectIDPattern)
 )
 
 // ValidatePeerID reports whether the peer identifier matches the RFC grammar.
 func ValidatePeerID(peerID string) error {
-	if !peerIDPattern.MatchString(peerID) {
-		return fmt.Errorf("%w: peer_id=%q", ErrInvalidField, peerID)
-	}
-	return nil
+	return identifier.ValidatePeerID(peerID)
 }
 
 // ValidateConversationID reports whether a container identifier matches its field grammar.

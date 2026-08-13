@@ -233,6 +233,7 @@ export interface BrowserBridgeOperatorFlowSeed {
     markers: BridgeAdapterMarkerPaths;
   }>;
   timeoutMs?: number;
+  workspaceRootDir?: string;
 }
 
 export interface BrowserBridgeOperatorFlowResult {
@@ -1329,7 +1330,7 @@ export async function seedBrowserBridgeOperatorFlow(
     timeoutMs
   );
 
-  const workspace = await resolveBrowserBridgeWorkspace(runtime, timeoutMs);
+  const workspace = await resolveBrowserBridgeWorkspace(runtime, seed.workspaceRootDir, timeoutMs);
 
   const createResponse = await runtime.requestJSON<BridgeDetailResponse>("/api/bridges", {
     method: "POST",
@@ -1811,8 +1812,16 @@ async function ignoreNotFound<T>(operation: Promise<T>): Promise<T | undefined> 
 
 async function resolveBrowserBridgeWorkspace(
   runtime: BrowserBridgeOperatorSeedRuntime,
+  workspaceRootDir: string | undefined,
   timeoutMs: number
 ): Promise<WorkspacePayload> {
+  const requestedRoot = workspaceRootDir?.trim();
+  if (requestedRoot) {
+    if (!runtime.resolveWorkspace) {
+      throw new Error("browser bridge workspace seed requires resolveWorkspace support");
+    }
+    return await runtime.resolveWorkspace(requestedRoot);
+  }
   const seededWorkspace = runtime.seeded?.workspace;
   if (seededWorkspace) {
     return seededWorkspace;

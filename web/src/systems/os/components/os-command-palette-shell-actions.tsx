@@ -1,9 +1,10 @@
-import { Palette, PanelsTopLeft, Plus, RefreshCcw } from "lucide-react";
+import { Palette, PanelsTopLeft, Plus, RefreshCcw, ToggleRight } from "lucide-react";
 
 import { CommandGroup, CommandItem, CommandShortcut } from "@compozy/ui";
 
 import type { OsCommandPaletteModel } from "../hooks/use-os-command-palette";
 import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
+import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
 
 interface OsCommandPaletteShellActionsProps {
   destination: boolean;
@@ -37,6 +38,18 @@ export function OsCommandPaletteShellActions({
         <CommandShortcut>⌘N</CommandShortcut>
       </CommandItem>
       <CommandItem
+        disabled={model.scopeToggleLocked || (model.globalScopeOn && !model.canDisableGlobal)}
+        value="toggle global scope"
+        data-testid="os-palette-toggle-global-scope"
+        onSelect={model.toggleGlobalScope}
+      >
+        <ToggleRight className="size-3.5 text-muted" />
+        {model.globalScopeOn
+          ? GLOBAL_SCOPE_COPY.paletteToggleOff
+          : GLOBAL_SCOPE_COPY.paletteToggleOn}
+        <CommandShortcut>⇧⌘G</CommandShortcut>
+      </CommandItem>
+      <CommandItem
         value="desktops overview"
         data-testid="os-palette-desktops-overview"
         onSelect={model.openDesktops}
@@ -68,6 +81,11 @@ export function OsCommandPaletteShellActions({
               >
                 <RefreshCcw className="size-3.5 text-muted" />
                 Switch to {workspace.name}
+                {model.globalScopeOn ? (
+                  <span className="ml-auto text-micro text-faint">
+                    {GLOBAL_SCOPE_COPY.paletteSwitchTurnsOff}
+                  </span>
+                ) : null}
               </CommandItem>,
             ]
       )}

@@ -15,7 +15,7 @@ const OWNER_WS = "ws_owner";
 const grant = { ...toolApprovalGrantFixtures[0]!, workspace_id: OWNER_WS };
 
 const workspaceMock = vi.hoisted(() => ({
-  value: { activeWorkspaceId: "ws_active" as string | null, hasHydrated: true, isLoading: false },
+  value: { runtimeWorkspaceId: "ws_active" as string | null, hasHydrated: true, isLoading: false },
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
@@ -23,15 +23,20 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
 }));
 
 let deleteRequests: URL[] = [];
+let getRequests: URL[] = [];
 let putRequests: Array<{ body: unknown; url: URL }> = [];
 
 function stubFetch() {
   deleteRequests = [];
+  getRequests = [];
   putRequests = [];
   vi.stubGlobal(
     "fetch",
     createMswFetch(() => [
-      http.get("/api/tool-approval-grants", () => HttpResponse.json({ grants: [], total: 0 })),
+      http.get("/api/tool-approval-grants", ({ request }) => {
+        getRequests.push(new URL(request.url));
+        return HttpResponse.json({ grants: [], total: 0 });
+      }),
       http.put("/api/tool-approval-grants", async ({ request }) => {
         putRequests.push({ body: await request.json(), url: new URL(request.url) });
         return HttpResponse.json({ grant });
@@ -54,8 +59,22 @@ function setup() {
 
 describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
   beforeEach(() => {
-    workspaceMock.value = { activeWorkspaceId: ACTIVE_WS, hasHydrated: true, isLoading: false };
+    workspaceMock.value = { runtimeWorkspaceId: ACTIVE_WS, hasHydrated: true, isLoading: false };
     stubFetch();
+  });
+
+  it("Should read Global grants from the hidden home runtime workspace", async () => {
+    workspaceMock.value = {
+      runtimeWorkspaceId: "ws_home",
+      hasHydrated: true,
+      isLoading: false,
+    };
+    const { wrapper } = setup();
+
+    renderHook(() => useToolApprovalGrantsPanel(), { wrapper });
+
+    await waitFor(() => expect(getRequests).toHaveLength(1));
+    expect(getRequests[0]!.searchParams.get("workspace_id")).toBe("ws_home");
   });
 
   afterEach(() => {
@@ -132,7 +151,7 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
       });
     });
     workspaceMock.value = {
-      activeWorkspaceId: OWNER_WS,
+      runtimeWorkspaceId: OWNER_WS,
       hasHydrated: true,
       isLoading: false,
     };

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "session-attachments/attach-files.html",
+  "entry": "session-attachments/attach-files.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-13T15:26:19.159Z",
+  "updatedAt": "2026-08-13T15:26:19.159Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

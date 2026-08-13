@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "session-attachments/attach-refusals.html",
+  "entry": "session-attachments/attach-refusals.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-13T13:44:24.002Z",
+  "updatedAt": "2026-08-13T13:44:24.002Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

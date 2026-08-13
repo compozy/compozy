@@ -14,7 +14,7 @@ import {
   type WorkspacePayload,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const networkCollaborationFixture = path.resolve(
@@ -70,7 +70,7 @@ test.describe("network disabled state", () => {
     await ensureGlobalWorkspace(runtime);
 
     await appPage.goto(runtime.url("/network"), { waitUntil: "domcontentloaded" });
-    await useGlobalWorkspaceIfPrompted(appPage);
+    await completeOnboardingIfPrompted(appPage);
     const networkWin = await ensureAppWindow(appPage, "Network", "network");
     const ui = networkOperatorSelectors(networkWin);
     await expect(ui.disabledState).toBeVisible();
@@ -398,7 +398,7 @@ async function prepareNetworkRuntime(
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
   const ui = networkOperatorSelectors(page);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
   return workspace;
 }
 

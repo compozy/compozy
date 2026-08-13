@@ -263,12 +263,12 @@ const sessionListInputSchema = `{
 	"additionalProperties":false
 }`
 
-const sessionCreateInputSchema = `{
+var sessionCreateInputSchema = `{
 	"type":"object",
 	"required":["agent"],
 	"properties":{
 		"workspace":{"type":"string"},
-		"agent":{"type":"string","minLength":1},
+		"agent":` + agentNameInputSchema + `,
 		"name":{"type":"string"},
 		"network_participation":` + networkParticipationRequestSchema + `
 	},

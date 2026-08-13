@@ -13,8 +13,8 @@ import { useActiveWorkspace } from "@/systems/workspace";
  */
 export function useLoopRunFormPage(name: string) {
   const navigate = useNavigate();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = runtimeWorkspaceId ?? "";
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const enabled = workspaceId !== "" && liveDataEnabled;
   const loopQuery = useLoop(workspaceId, name, enabled);

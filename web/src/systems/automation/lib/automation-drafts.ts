@@ -202,30 +202,6 @@ export function loopTargetWorkspaceId(
   return draft.loop_target?.workspace_id || fallbackWorkspaceId || "";
 }
 
-/** Keeps a Trigger's nested Loop target binding synchronized without creating a target branch. */
-export function bindLoopTargetWorkspace(
-  draft: CreateAutomationTriggerRequest,
-  workspaceId: string
-): CreateAutomationTriggerRequest;
-/** Keeps a Job's nested Loop target binding synchronized without creating a target branch. */
-export function bindLoopTargetWorkspace(
-  draft: CreateAutomationJobRequest,
-  workspaceId: string
-): CreateAutomationJobRequest;
-export function bindLoopTargetWorkspace(
-  draft: CreateAutomationTriggerRequest | CreateAutomationJobRequest,
-  workspaceId: string
-): CreateAutomationTriggerRequest | CreateAutomationJobRequest {
-  if (automationTargetMode(draft) !== "loop" || !draft.loop_target) {
-    return draft;
-  }
-
-  return {
-    ...draft,
-    loop_target: { ...draft.loop_target, workspace_id: workspaceId },
-  };
-}
-
 function applyTargetMode(
   draft: CreateAutomationTriggerRequest,
   mode: AutomationTargetMode,

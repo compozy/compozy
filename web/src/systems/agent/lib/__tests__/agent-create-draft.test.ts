@@ -35,7 +35,7 @@ function baseDraft(reasoningEffort: string): AgentCreateDialogDraft {
 }
 
 describe("agent-create-draft name validation", () => {
-  it.each(["designer", "designer2", "audio-designer", "audio_designer"])(
+  it.each(["designer", "designer2", "audio-designer", "audio_designer", "a".repeat(106)])(
     "Should accept the canonical agent name %s",
     name => {
       const validation = validateAgentCreateDraft({ ...baseDraft(""), name }, context);
@@ -46,20 +46,24 @@ describe("agent-create-draft name validation", () => {
     }
   );
 
-  it.each(["audio designer", "AudioDesigner", "2designer", "audio.designer", "áudio_designer"])(
-    "Should reject the noncanonical agent name %s",
-    name => {
-      const draft = { ...baseDraft(""), name };
-      const validation = validateAgentCreateDraft(draft, context);
+  it.each([
+    "audio designer",
+    "AudioDesigner",
+    "2designer",
+    "audio.designer",
+    "áudio_designer",
+    "a".repeat(107),
+  ])("Should reject the noncanonical agent name %s", name => {
+    const draft = { ...baseDraft(""), name };
+    const validation = validateAgentCreateDraft(draft, context);
 
-      expect(validation.fields.name).toBe(
-        "Start with a lowercase letter and use only lowercase letters, numbers, hyphens, or underscores."
-      );
-      expect(validation.simpleValid).toBe(false);
-      expect(validation.canSubmit).toBe(false);
-      expect(buildCreateAgentParams(draft, null, context)).toBeNull();
-    }
-  );
+    expect(validation.fields.name).toBe(
+      "Start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and use at most 106 characters."
+    );
+    expect(validation.simpleValid).toBe(false);
+    expect(validation.canSubmit).toBe(false);
+    expect(buildCreateAgentParams(draft, null, context)).toBeNull();
+  });
 });
 
 describe("agent-create-draft reasoning effort validation", () => {

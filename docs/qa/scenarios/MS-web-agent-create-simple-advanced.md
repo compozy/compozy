@@ -4,15 +4,15 @@ area: MS
 title: Create agent replaces the four-step wizard with one Simple/Advanced surface
 persona: Dora
 journey: J-31
-expected: Opening Create agent shows one surface, never a stepper — no "Step N of 4", no Back/Continue. Simple carries the definition (agent name, instructions) and, side by side, the runtime selector with live catalog state and the category path — the two decisions a person makes while naming the agent. Advanced adds the permission policy cards, launch overrides (runtime command), and the tool/skill allowlists, without hiding any Simple field. Explanatory prose sits behind `(?)` help tips; catalog state ("Project runtime defaults will be used.", catalog errors) stays visible because it reports what the daemon will do. An agent name such as `audio designer` remains visible but fails Simple with an inline format error and a disabled Create button; no create request is sent. An invalid category path such as `operations//incident` also fails Simple and shows its error in place, without switching tiers; submitting with an invalid advanced-only field (a blank tool entry) still reveals Advanced instead of leaving a disabled primary with no visible cause. Submit errors render as a danger Alert at the top of the body. Leaving Advanced preserves every authored value. There is no MCP servers control anywhere in the dialog, and the created request never carries `mcp_servers`. The category path is sent as `category_path` segments split on `/`. Scope sits in the toolbar as a borderless picker level with the scope pills, and reports the workspace the definition lands in; global scope omits `workspace`.
+expected: Opening Create agent shows one surface, never a stepper — no "Step N of 4", no Back/Continue. Simple carries the definition (agent name, instructions) and, side by side, the runtime selector with live catalog state and the category path — the two decisions a person makes while naming the agent. Advanced adds the permission policy cards, launch overrides (runtime command), and the tool/skill allowlists, without hiding any Simple field. Explanatory prose sits behind `(?)` help tips; catalog state ("Project runtime defaults will be used.", catalog errors) stays visible because it reports what the daemon will do. An agent name such as `audio designer` remains visible but fails Simple with an inline format error and a disabled Create button; no create request is sent. An invalid category path such as `operations//incident` now fails Simple and shows its error in place, without switching tiers; submitting with an invalid advanced-only field (a blank tool entry) still reveals Advanced instead of leaving a disabled primary with no visible cause. Submit errors render as a danger Alert at the top of the body. Leaving Advanced preserves every authored value. There is no MCP servers control anywhere in the dialog, and the created request never carries `mcp_servers`. The category path is sent as `category_path` segments split on `/`. Destination is derived from the menubar Global switch: the footer shows a `workspace-scope-statement` note ("Creates in Global — visible to every workspace." or "Creates in {workspace}."), never scope pills; Global omits `workspace` on the request.
 entry_points: web desktop shell → New agent (menubar, command palette, agent catalog, agent detail duplicate)
 qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
-fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-11; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/040-agent-create-authored-files
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+fix_commits: 7e5d6b8
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-11; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/040-agent-create-authored-files; /Users/pedronauck/dev/qa-labs/compozy-pr-368-global-runtime-binding-20260813-091321-434791-lab/qa-artifacts/qa/notes/global-agent-session-e2e.md; docs/qa/reports/2026-08-13-pr-367-agent-name-validation-rewalk.md
+last_report: docs/qa/reports/2026-08-13-pr-367-agent-name-validation-rewalk.md
 overlaps: MS-web-entity-modal-shell
 ---
 
@@ -30,8 +30,34 @@ QA 2026-07-29: The real desktop entry point rendered one Simple/Advanced surface
 Invalid Simple and Advanced fields surfaced in their owning tier without losing authored values; no
 MCP server control or request field existed. The created `operations/incident` definition matched
 fresh HTTP/UDS detail reads and was removed through the public delete route with no residue.
-
 Manual QA 2026-08-12: The user confirmed that `audio designer` remained visible with the inline
 format error, Create stayed disabled, and no create request was sent. Replacing it with a canonical
 name allowed creation, and a network with six canonical agents was created successfully without
 peer ID or `backend_unhealthy` errors.
+
+2026-08-12 qa-impact: destination pills were deleted. Create agent reads the menubar Global switch and shows a derived footer statement. Reset to untested.
+
+2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.
+
+2026-08-13 re-walk: pass. The daemon-served browser journey opened the Global agent catalog, submitted the create dialog, and observed a successful create request with `scope: "global"` and no `workspace` field. The same production bundle kept runtime-backed catalog and session reads bound to the hidden operator-home workspace.
+
+2026-08-13 qa-impact: canonical agent-name validation now also rejects names beyond the Network Live-safe maximum. Reset to untested pending a fresh merged-worktree public walk.
+
+2026-08-13 re-walk: fail. In the fresh merged-worktree lab, `audio designer` stayed visible with
+the inline error, Create was disabled, and no create request was emitted. A 106-character canonical
+name enabled Create, but the public `POST /api/agents` returned HTTP 400 before creation:
+`agent runtime cannot be resolved in the target scope: agent provider is required; run \`compozy install\` or set agent.provider/defaults.provider`.
+The full captured request and response are recorded in
+`docs/qa/reports/2026-08-13-pr-367-agent-name-validation-failed-lab.md`. This lab is retired; a
+fresh bootstrap is required after the remaining boundary regression is fixed.
+
+2026-08-13 re-walk: pass. A new isolated lab completed onboarding through the native Codex CLI,
+opened the real desktop Global Agents entry point, and preserved the derived Global footer. The
+107-character value remained visible with the inline error, disabled Create, and emitted no
+`/api/agents` request. A 106-character canonical name returned HTTP 201 through the UI; fresh
+HTTP and UDS reads returned the same global definition. The CLI rejected `audio designer` before
+create dispatch, and an HTTP/UDS overlength create returned 400. A public Network channel create
+then started the boundary-valid agent in Live mode: its generated peer ID measured 128 characters,
+the session reached `active`, and Network reported one local peer and one channel with no
+`backend_unhealthy` state. Evidence and teardown are recorded in
+`docs/qa/reports/2026-08-13-pr-367-agent-name-validation-rewalk.md`.

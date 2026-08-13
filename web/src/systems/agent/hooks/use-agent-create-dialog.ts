@@ -21,11 +21,7 @@ import {
 } from "@/systems/model-catalog";
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import { type SettingsProviderEntry, useSettingsProviders } from "@/systems/settings";
-import {
-  type SessionProviderOption,
-  useUserHomeDir,
-  type WorkspacePayload,
-} from "@/systems/workspace";
+import { type SessionProviderOption, type WorkspacePayload } from "@/systems/workspace";
 
 interface AgentCreateDialogContext {
   activeWorkspace: WorkspacePayload | undefined;
@@ -49,7 +45,6 @@ export interface AgentCreateDialogState {
   hasActiveWorkspace: boolean;
   workspaceId: string | null;
   workspaceName: string | null;
-  userHomeDir: string | undefined;
   mode: "create" | "duplicate";
   duplicateSourceName: string | null;
 }
@@ -103,7 +98,6 @@ export function useAgentCreateDialog({
   workspaceProvidersLoading,
 }: AgentCreateDialogContext): AgentCreateDialogApi {
   const navigate = useNavigate();
-  const userHomeDir = useUserHomeDir();
   const createAgent = useCreateAgent();
   const duplicateAgent = useDuplicateAgent();
   const settingsProviders = useSettingsProviders();
@@ -120,10 +114,11 @@ export function useAgentCreateDialog({
   const workspaceProviderOptions: RuntimeProviderOption[] =
     workspaceProviders.map(workspaceProviderToOption);
 
-  const scopedDraft: AgentCreateDialogDraft =
-    storedDraft.scope === "workspace" && !activeWorkspace
-      ? updateAgentCreateScope(storedDraft, "global")
-      : storedDraft;
+  // The menubar owns scope: the draft never freezes it, both flip directions included.
+  const scopedDraft: AgentCreateDialogDraft = updateAgentCreateScope(
+    storedDraft,
+    activeWorkspace ? "workspace" : "global"
+  );
   const sourceProviders =
     scopedDraft.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
   const draft: AgentCreateDialogDraft =
@@ -273,7 +268,6 @@ export function useAgentCreateDialog({
     hasActiveWorkspace: Boolean(activeWorkspace),
     workspaceId: activeWorkspace?.id ?? null,
     workspaceName: activeWorkspace?.name ?? null,
-    userHomeDir,
     mode: flow.status === "closed" ? "create" : flow.kind,
     duplicateSourceName:
       flow.status !== "closed" && flow.kind === "duplicate" ? flow.source.name : null,

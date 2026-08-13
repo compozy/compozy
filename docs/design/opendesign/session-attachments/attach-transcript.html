@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Transcript · Attachments · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="attach.css">
+<!--
+  attach-transcript · S7 final — sent user turns with images and files outside the text clamp.
+  Spec: GitHub composy/compozy#366 AC: render after reload; many images; file cards.
+-->
+<style>
+  .demo-pad{padding:16px 0 8px}
+  .liferule{display:flex;justify-content:center;margin:8px 0 16px}
+  .liferule span{font-size:10.5px;color:var(--faint);letter-spacing:.04em}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="att-transcript-head">
+    <a class="w2-back" href="index.html" aria-label="Back to attachment set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Attachments</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Transcript</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="attach-files.html">← Files</a>
+      <a class="btn" href="attach-refusals.html">Refusals →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="sec-image-and-text">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Two images + text</h2>
+        <span class="lab-sec__gist">gallery above the 4.5% bubble · clamp never eats the image</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Right-aligned turn</b>Images are the payload; the bubble stays text. Hover the frame for the filename. Copy still copies the text.</div>
+        <div class="spec__demo">
+          <div class="demo-win" data-od-id="win-image-text">
+            <div class="demo-win__head">
+              <div class="demo-win__dots"><i></i><i></i><i></i></div>
+              <div class="demo-win__title"><span class="d d--run d--pulse"></span>Calm transcript migration<span class="demo-win__sub">claude-code · composy</span></div>
+            </div>
+            <div class="demo-win__body">
+              <div class="chat-scroll">
+                <div class="chat-col demo-pad">
+                  <div class="liferule"><span>session resumed · 10:28</span></div>
+                  <div class="t-msg msg-user" data-od-id="msg-user-with-images">
+                    <div class="msg-user__atts">
+                      <a class="att-frame" href="assets/goal-chip.png">
+                        <img src="assets/goal-chip.png" alt="Screenshot of the Goal status card">
+                        <span class="att-frame__cap">goal-chip.png</span>
+                      </a>
+                      <a class="att-frame" href="assets/permission-dock.png">
+                        <img src="assets/permission-dock.png" alt="Screenshot of the permission dock">
+                        <span class="att-frame__cap">permission-dock.png</span>
+                      </a>
+                    </div>
+                    <div class="msg-user__bubble">The Goal card and the permission dock — flatten both. No colored cards.</div>
+                    <div class="msg-meta"><span>10:28</span><button type="button"><svg data-lucide="copy"></svg>Copy</button></div>
+                  </div>
+                  <div class="msg-assistant t-row" style="padding-top:14px">I’ll treat the screenshots as the source of truth for the loud bits — icon tile, pills, meter grid, sticky permission — and map each to a text line.</div>
+                </div>
+              </div>
+              <div class="composer-zone">
+                <div class="chat-col">
+                  <div class="composer" data-od-id="composer-after-send">
+                    <textarea rows="1" placeholder="Send a message…"></textarea>
+                    <div class="composer__bar">
+                      <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+                      <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+                      <span class="composer__hint"><kbd>⏎</kbd>send</span>
+                      <span class="spacer"></span>
+                      <button class="composer__send" type="button" aria-label="Send" disabled><svg data-lucide="arrow-up"></svg></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-many-images">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Six images</h2>
+        <span class="lab-sec__gist">one row · 280px frames · edge fades</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>After a multi-drop send</b>Frames keep their size. The gallery is a single scrolling row; the overflowing edge dissolves into the chat fill (<code>--canvas</code>), not the composer field. Captions stay inset. No lightbox in v1 — click opens the artifact URL.</div>
+        <div class="spec__demo">
+          <div class="t-msg msg-user" data-od-id="msg-user-many" style="max-width:640px;margin-left:auto">
+            <div class="msg-user__atts" data-scroll="mid">
+              <a class="att-frame" href="assets/goal-chip.png"><img src="assets/goal-chip.png" alt="Goal card"><span class="att-frame__cap">goal-chip.png</span></a>
+              <a class="att-frame" href="assets/permission-dock.png"><img src="assets/permission-dock.png" alt="Permission dock"><span class="att-frame__cap">permission-dock.png</span></a>
+              <a class="att-frame" href="assets/screenshot-paste.png"><img src="assets/screenshot-paste.png" alt="TypeScript error screenshot"><span class="att-frame__cap">Screenshot 2026-08-13 at 10.28.png</span></a>
+              <a class="att-frame" href="assets/agents-list.png"><img src="assets/agents-list.png" alt="Agents list"><span class="att-frame__cap">agents-list.png</span></a>
+              <a class="att-frame" href="assets/markers-gallery.png"><img src="assets/markers-gallery.png" alt="Markers gallery"><span class="att-frame__cap">markers-gallery.png</span></a>
+              <a class="att-frame" href="assets/empty-session.png"><img src="assets/empty-session.png" alt="Empty session"><span class="att-frame__cap">empty-session.png</span></a>
+            </div>
+            <div class="msg-user__bubble">All six of these are the loud UI — flatten the lot.</div>
+            <div class="msg-meta"><span>10:36</span><button type="button"><svg data-lucide="copy"></svg>Copy</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-mixed-turn">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Mixed turn</h2>
+        <span class="lab-sec__gist">frames and file cards in one gallery</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Insert order</b>Images keep frames; files keep cards. Same <code>msg-user__atts</code> rail. Do not put files inside the bubble as markdown links.</div>
+        <div class="spec__demo">
+          <div class="t-msg msg-user" data-od-id="msg-user-mixed" style="max-width:560px;margin-left:auto">
+            <div class="msg-user__atts">
+              <a class="att-frame" href="assets/goal-chip.png">
+                <img src="assets/goal-chip.png" alt="Goal card">
+                <span class="att-frame__cap">goal-chip.png</span>
+              </a>
+              <a class="att-frame" href="assets/agents-list.png">
+                <img src="assets/agents-list.png" alt="Agents list">
+                <span class="att-frame__cap">agents-list.png</span>
+              </a>
+              <a class="att-file" href="#file-notes">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+                <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+              </a>
+              <a class="att-file" href="#file-spec">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+                <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">186 KB</span></span>
+              </a>
+            </div>
+            <div class="msg-user__bubble">Screenshots plus the spec — flatten to match the notes.</div>
+            <div class="msg-meta"><span>10:39</span><button type="button"><svg data-lucide="copy"></svg>Copy</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-image-only-turn">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Image-only turn</h2>
+        <span class="lab-sec__gist">no empty bubble</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Skip the wash</b>If the user sent no text, do not render an empty 4.5% block. The gallery is the message.</div>
+        <div class="spec__demo">
+          <div class="t-msg msg-user" data-od-id="msg-user-image-only" style="max-width:560px;margin-left:auto">
+            <div class="msg-user__atts">
+              <a class="att-frame" href="assets/screenshot-paste.png">
+                <img src="assets/screenshot-paste.png" alt="Screenshot of the TypeScript error on MarkerProps.tone">
+                <span class="att-frame__cap">Screenshot 2026-08-13 at 10.28.png</span>
+              </a>
+            </div>
+            <div class="msg-meta"><span>10:31</span><button type="button"><svg data-lucide="copy"></svg>Copy</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-reload">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">After reload</h2>
+        <span class="lab-sec__gist">same frames · artifact URL, not a data: blob</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Durable</b><code>SafeImage</code> already rejects external https and <code>data:</code> URLs. Transcript frames and file cards must point at a workspace-scoped artifact path after persist. Tagged <code>new · prompt-images</code> / <code>new · prompt-files</code>.</div>
+        <div class="spec__demo">
+          <div class="msg-assistant" style="font-size:12.5px;color:var(--subtle)">
+            Relative artifact: <code class="mono" style="font-size:11px;color:var(--muted)">/api/workspaces/compozy/sessions/…/attachments/att_01/bytes</code>
+            <span class="dotsep"></span>
+            External URL would render as <em>[image: goal-chip.png]</em> — that is a bug, not a fallback.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="attach.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

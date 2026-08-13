@@ -18,14 +18,13 @@ import {
   useBridgeProviders,
   useBridges,
 } from "@/systems/bridges";
-import { useActiveWorkspace, useUserHomeDir } from "@/systems/workspace";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 function useBridgesPage(search: BridgesRouteSearch = {}) {
   const navigate = useNavigate({ from: "/bridges" });
 
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const userHomeDir = useUserHomeDir();
 
   const routeSearchQuery = search.q ?? "";
   const view: ListingViewMode = search.view ?? "rows";
@@ -151,7 +150,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     bridges,
     canCreateBridge: createFlow.canCreateBridge,
     clearFilters,
-    createDialogProps: { ...createFlow.createDialogProps, userHomeDir },
+    createDialogProps: createFlow.createDialogProps,
     fatalError,
     hasActiveFilters,
     hasNextPage: bridgesQuery.hasNextPage,

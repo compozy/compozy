@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>PDF · Markdown · text · Attachments · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="attach.css">
+<!--
+  attach-files · S6 final — basic files on the session composer.
+  Spec: user expansion of #366 — PDF, Markdown, plain text (not ZIP/Office/SVG).
+  Provenance:
+    production            — no session-composer file path; ACP has resource/blob, unused
+    authorized delta      — same 36×36 tile; extension mark; transcript .att-file card
+-->
+<style>
+  .demo-pad{padding:16px 0 8px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="att-files-head">
+    <a class="w2-back" href="index.html" aria-label="Back to attachment set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Attachments</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">PDF · Markdown · text</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="attach-stack.html">← Stack</a>
+      <a class="btn" href="attach-transcript.html">Transcript →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="sec-kinds">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Allowed kinds</h2>
+        <span class="lab-sec__gist">three marks · no tinted file icons</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>v1 files</b>Plain text, Markdown, PDF. Signature, not extension — <code>notes.md</code> with a zip body is rejected. MD/TXT may flatten into prompt text on the wire; the UI still shows a tile so the operator knows what left. PDF is a blob. All three are <code>new · prompt-files</code>.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-kinds">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+                <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove notes.md"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+                <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">186 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove flatten-spec.pdf"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">TXT</span></span>
+                <span class="att-meta"><span class="att-name">error-log.txt</span><span class="att-size">12 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove error-log.txt"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…">Use the spec and the log. Ignore the screenshots for this turn.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-file-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">File states</h2>
+        <span class="lab-sec__gist">same four states as images</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Persist is shared</b>Uploading covers the mark with the same spinner. Size failures keep the well. ZIP is rejected in place — it never becomes a chip.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-file-states">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="uploading" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file">
+                  <span class="att-ext">PDF</span>
+                  <span class="att-spin" aria-hidden="true"><svg data-lucide="loader-circle"></svg></span>
+                </span>
+                <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">Saving…</span></span>
+                <button class="att-x" type="button" aria-label="Remove flatten-spec.pdf"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="error" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+                <span class="att-meta"><span class="att-name">audit-pack.pdf</span><span class="att-size">14.1 MB · over 10 MB</span></span>
+                <button class="att-x" type="button" aria-label="Remove audit-pack.pdf"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="rejected" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">ZIP</span></span>
+                <span class="att-meta"><span class="att-name">archive.zip</span><span class="att-size">Not a supported file</span></span>
+                <button class="att-x" type="button" aria-label="Remove archive.zip"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="Remove or wait on files that are not ready"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-file-only">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">File-only send</h2>
+        <span class="lab-sec__gist">empty textarea is valid once a file is ready</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No caption required</b>Same contract as image-only. Today’s API still requires <code>message</code> text — tagged <code>new · prompt-files</code>.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-file-only">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+                <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove notes.md"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-file-transcript">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">In the transcript</h2>
+        <span class="lab-sec__gist">file cards above the bubble · not inspector Files</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Sent files</b>Gallery above the 4.5% bubble. File cards are the well + name + size, no ×. Inspector Files lists paths the agent Read — a different surface. Click opens the persisted artifact.</div>
+        <div class="spec__demo">
+          <div class="demo-win" data-od-id="win-files">
+            <div class="demo-win__head">
+              <div class="demo-win__dots"><i></i><i></i><i></i></div>
+              <div class="demo-win__title"><span class="d d--run d--pulse"></span>Calm transcript migration<span class="demo-win__sub">claude-code · composy</span></div>
+            </div>
+            <div class="demo-win__body">
+              <div class="chat-scroll">
+                <div class="chat-col demo-pad">
+                  <div class="t-msg msg-user" data-od-id="msg-user-files">
+                    <div class="msg-user__atts">
+                      <a class="att-file" href="#file-notes">
+                        <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+                        <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+                      </a>
+                      <a class="att-file" href="#file-spec">
+                        <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+                        <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">186 KB</span></span>
+                      </a>
+                      <a class="att-file" href="#file-log">
+                        <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">TXT</span></span>
+                        <span class="att-meta"><span class="att-name">error-log.txt</span><span class="att-size">12 KB</span></span>
+                      </a>
+                    </div>
+                    <div class="msg-user__bubble">Spec, notes, and the TS error log — use these, not the screenshots.</div>
+                    <div class="msg-meta"><span>10:41</span><button type="button"><svg data-lucide="copy"></svg>Copy</button></div>
+                  </div>
+                  <div class="msg-assistant t-row" style="padding-top:14px">I’ll treat <code>flatten-spec.pdf</code> as the contract and <code>notes.md</code> as the exceptions. The log is evidence, not the design.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-file-only-turn">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">File-only turn</h2>
+        <span class="lab-sec__gist">no empty bubble</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Skip the wash</b>If the user sent no text, the file cards are the message. Same rule as image-only.</div>
+        <div class="spec__demo">
+          <div class="t-msg msg-user" data-od-id="msg-user-file-only" style="max-width:560px;margin-left:auto">
+            <div class="msg-user__atts">
+              <a class="att-file" href="#file-notes-only">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+                <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+              </a>
+            </div>
+            <div class="msg-meta"><span>10:44</span><button type="button"><svg data-lucide="copy"></svg>Copy</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="attach.js"></script>
+<script>
+lucide.createIcons();
+</script>
+</body>
+</html>

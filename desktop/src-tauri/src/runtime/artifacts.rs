@@ -75,25 +75,22 @@ pub fn verify_manifest(
     target: &str,
     installed: Option<&Version>,
 ) -> Result<Option<VerifiedArtifact>, ArtifactError> {
+    verify_manifest_with_keys(bytes, minisig, &[public_key], target, installed)
+}
+
+pub fn verify_manifest_with_keys(
+    bytes: &[u8],
+    minisig: &str,
+    public_keys: &[&str],
+    target: &str,
+    installed: Option<&Version>,
+) -> Result<Option<VerifiedArtifact>, ArtifactError> {
     if bytes.is_empty() || bytes.len() > MAX_MANIFEST_BYTES || minisig.trim().is_empty() {
         return Err(ArtifactError::Signature);
     }
-    let key_file = BASE64.decode(public_key.trim()).map_err(|error| {
-        diagnostic("decode runtime public key", error, ArtifactError::Signature)
-    })?;
-    let key_file = std::str::from_utf8(&key_file)
-        .map_err(|error| diagnostic("read runtime public key", error, ArtifactError::Signature))?;
-    let key = PublicKey::decode(key_file)
-        .map_err(|error| diagnostic("parse runtime public key", error, ArtifactError::Signature))?;
     let signature = Signature::decode(minisig)
         .map_err(|error| diagnostic("parse runtime signature", error, ArtifactError::Signature))?;
-    key.verify(bytes, &signature, false).map_err(|error| {
-        diagnostic(
-            "verify runtime manifest signature",
-            error,
-            ArtifactError::Signature,
-        )
-    })?;
+    verify_signature_with_keys(bytes, &signature, public_keys)?;
 
     let value: Value = serde_json::from_slice(bytes)
         .map_err(|error| diagnostic("decode runtime manifest", error, ArtifactError::Malformed))?;
@@ -124,6 +121,39 @@ pub fn verify_manifest(
         artifact,
         schema_heads: manifest.schema_heads,
     }))
+}
+
+fn verify_signature_with_keys(
+    bytes: &[u8],
+    signature: &Signature,
+    public_keys: &[&str],
+) -> Result<(), ArtifactError> {
+    let mut failures = Vec::with_capacity(public_keys.len());
+    for public_key in public_keys {
+        let result = BASE64
+            .decode(public_key.trim())
+            .map_err(|error| format!("decode key: {error}"))
+            .and_then(|key_file| {
+                String::from_utf8(key_file).map_err(|error| format!("read key: {error}"))
+            })
+            .and_then(|key_file| {
+                PublicKey::decode(&key_file).map_err(|error| format!("parse key: {error}"))
+            })
+            .and_then(|key| {
+                key.verify(bytes, signature, false)
+                    .map_err(|error| format!("verify signature: {error}"))
+            });
+        match result {
+            Ok(()) => return Ok(()),
+            Err(error) => failures.push(error),
+        }
+    }
+    crate::logging::error(format!(
+        "verify runtime manifest signature with {} configured key(s): {}",
+        public_keys.len(),
+        failures.join("; ")
+    ));
+    Err(ArtifactError::Signature)
 }
 
 pub fn fetch_signed_manifest(
@@ -343,20 +373,7 @@ mod tests {
         public_key: String,
     }
 
-    fn signed_manifest(version: &str, schema_heads: Value) -> SignedManifest {
-        let value = json!({
-            "schema_version": 1,
-            "version": version,
-            "platforms": {
-                "darwin-aarch64": {
-                    "url": "http://127.0.0.1:43119/runtime.tar.gz",
-                    "sha256": "a".repeat(64),
-                    "size": 3
-                }
-            },
-            "schema_heads": schema_heads
-        });
-        let bytes = canonical_json(&value).expect("manifest canonicalizes");
+    fn sign_manifest_bytes(bytes: Vec<u8>) -> SignedManifest {
         let pair = KeyPair::generate_unencrypted_keypair().expect("test key generates");
         let signature = sign(
             Some(&pair.pk),
@@ -372,6 +389,27 @@ mod tests {
             signature,
             public_key: BASE64.encode(pair.pk.to_box().expect("public key boxes").to_string()),
         }
+    }
+
+    fn manifest_value(version: &str, schema_heads: Value) -> Value {
+        json!({
+            "schema_version": 1,
+            "version": version,
+            "platforms": {
+                "darwin-aarch64": {
+                    "url": "http://127.0.0.1:43119/runtime.tar.gz",
+                    "sha256": "a".repeat(64),
+                    "size": 3
+                }
+            },
+            "schema_heads": schema_heads
+        })
+    }
+
+    fn signed_manifest(version: &str, schema_heads: Value) -> SignedManifest {
+        let value = manifest_value(version, schema_heads);
+        let bytes = canonical_json(&value).expect("manifest canonicalizes");
+        sign_manifest_bytes(bytes)
     }
 
     #[test]
@@ -425,6 +463,58 @@ mod tests {
                 None,
             ),
             Err(ArtifactError::Signature)
+        ));
+    }
+
+    #[test]
+    fn should_accept_previous_manifest_key_during_signing_key_rotation() {
+        let signed = signed_manifest("0.4.0", json!({"global": 12}));
+        let current = KeyPair::generate_unencrypted_keypair().expect("current key generates");
+        let current_public_key = BASE64.encode(
+            current
+                .pk
+                .to_box()
+                .expect("current public key boxes")
+                .to_string(),
+        );
+
+        let verified = verify_manifest_with_keys(
+            &signed.bytes,
+            &signed.signature,
+            &[current_public_key.as_str(), signed.public_key.as_str()],
+            "darwin-aarch64",
+            None,
+        )
+        .expect("previous signing key remains valid during rotation")
+        .expect("artifact is selected");
+
+        assert_eq!(
+            verified.version,
+            Version::parse("0.4.0").expect("version parses")
+        );
+    }
+
+    #[test]
+    fn should_refuse_signed_manifest_when_json_is_not_canonical() {
+        let value = manifest_value("0.4.0", json!({"global": 12}));
+        let bytes = serde_json::to_vec(&RuntimeManifest {
+            schema_version: 1,
+            version: Version::parse("0.4.0").expect("version parses"),
+            platforms: serde_json::from_value(value["platforms"].clone()).expect("platforms parse"),
+            schema_heads: BTreeMap::from([("global".to_owned(), 12)]),
+        })
+        .expect("noncanonical manifest serializes");
+        let signed = sign_manifest_bytes(bytes);
+
+        assert!(matches!(
+            verify_manifest(
+                &signed.bytes,
+                &signed.signature,
+                &signed.public_key,
+                "darwin-aarch64",
+                None,
+            ),
+            Err(ArtifactError::NonCanonical)
         ));
     }
 

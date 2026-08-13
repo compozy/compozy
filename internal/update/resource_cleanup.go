@@ -49,7 +49,7 @@ func writeDownloadTarget(targetPath string, target io.WriteCloser, source io.Rea
 		return fmt.Errorf("update: write download %q: %w", targetPath, copyErr)
 	}
 	if written > maxBytes {
-		return fmt.Errorf("update: download %q exceeds limit %d", targetPath, maxBytes)
+		return &downloadSizeError{Path: targetPath, Size: written, Limit: maxBytes}
 	}
 	return closeTarget()
 }

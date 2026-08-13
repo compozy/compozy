@@ -19,9 +19,9 @@ import { useActiveWorkspace } from "@/systems/workspace";
 const SEARCH_DEBOUNCE_MS = 200;
 
 function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const workspaceId = activeWorkspaceId ?? "";
+  const workspaceId = runtimeWorkspaceId ?? "";
   const navigate = useNavigate({ from: "/agents" });
   const { openDialog } = useAgentCreateHost();
   const { openForAgent } = useSessionCreateActions();

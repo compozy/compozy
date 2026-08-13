@@ -352,6 +352,7 @@ impl ShellCoordinator {
             home: &self.home,
             manifest_url: &release.runtime_manifest,
             public_key: &release.current_public_key,
+            previous_public_key: release.previous_public_key.as_deref(),
             target,
             installed: None,
             app_version: &self.app_version,
@@ -458,6 +459,7 @@ impl ShellCoordinator {
             self.home.clone(),
             release.runtime_manifest.clone(),
             release.current_public_key.clone(),
+            release.previous_public_key.clone(),
         ) {
             Ok(stager) => stager,
             Err(error) => {

@@ -13,7 +13,7 @@ import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { sessionWindow } from "../fixtures/os-navigation";
 import { sessionClarifySelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 // Reuse the proven holding-turn fixture: `hold native approval` reports readiness then blocks until
 // cancelled, keeping the session live while a hosted-MCP tool call surfaces its interaction. Clarify
@@ -102,7 +102,7 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
   assertLaunchRuntime(runtime);
   const clarifyUI = sessionClarifySelectors(appPage);
 
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
 
   const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {

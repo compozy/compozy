@@ -10,7 +10,6 @@ import {
 
 import {
   automationTargetMode,
-  bindLoopTargetWorkspace,
   jobOutputMode,
   loopTargetWorkspaceId,
   retryDraftForStrategy,
@@ -36,7 +35,6 @@ import type {
   AutomationFireLimit,
   AutomationRetry,
   AutomationScheduleMode,
-  AutomationScope,
   CreateAutomationJobRequest,
 } from "../types";
 import type { AgentPayload } from "@/systems/agent";
@@ -230,21 +228,6 @@ export function useAutomationJobForm({
     patchSchedule({ mode: "cron", expr: compiled ?? scheduleExpr(draft) });
   };
 
-  const handleScopeChange = (scope: AutomationScope) => {
-    if (scope === "global") {
-      patch({ scope: "global", workspace_id: undefined });
-      return;
-    }
-    const fallback = draft.workspace_id ?? activeWorkspaceId ?? resolvedWorkspaces[0]?.id;
-    const workspaceId = fallback ?? "";
-    onChange(
-      bindLoopTargetWorkspace(
-        { ...draft, scope: "workspace", workspace_id: workspaceId || undefined },
-        workspaceId
-      )
-    );
-  };
-
   const handleTargetChange = (next: JobTargetMode) => {
     if (next === "loop") {
       // Loop mode owns the target; a durable task cannot co-exist with a loop target.
@@ -351,11 +334,7 @@ export function useAutomationJobForm({
       draft.enabled === false ||
       output === "task",
 
-    // identity & scope
     onName: (name: string) => patch({ name }),
-    onScopeChange: handleScopeChange,
-    onWorkspaceChange: (workspace_id: string) =>
-      onChange(bindLoopTargetWorkspace({ ...draft, workspace_id }, workspace_id)),
 
     // output / agent / task / loop
     onTargetChange: handleTargetChange,

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
@@ -6,21 +5,20 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorySurface } from "@/storybook/story-layout";
-import { statusFixture } from "@/systems/status/mocks";
 import { primaryWorkspaceFixture } from "@/systems/workspace/mocks/fixtures";
 
 import { useWorkspaceSetupContent } from "../../hooks/use-workspace-setup-content";
 import type { WorkspaceSetupDefaultsModel } from "../../lib/workspace-setup-defaults";
-import { WorkspaceOnboarding, WorkspaceSetupDialog } from "../workspace-setup";
+import { WorkspaceSetupDialog } from "../workspace-setup";
 
 const storyDefaults: WorkspaceSetupDefaultsModel = {
   agents: { state: "ready", entries: [] },
   sandboxes: { state: "ready", entries: [] },
 };
 
-const meta: Meta<typeof WorkspaceOnboarding> = {
+const meta: Meta<typeof WorkspaceSetupDialog> = {
   title: "systems/workspace/components/WorkspaceSetup",
-  component: WorkspaceOnboarding,
+  component: WorkspaceSetupDialog,
   parameters: {
     layout: "fullscreen",
   },
@@ -28,17 +26,6 @@ const meta: Meta<typeof WorkspaceOnboarding> = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-type DialogStory = StoryObj<typeof WorkspaceSetupDialog>;
-
-function WorkspaceOnboardingHarness({
-  onWorkspaceResolved,
-}: {
-  onWorkspaceResolved: (workspaceId: string) => void;
-}) {
-  const setup = useWorkspaceSetupContent({ onWorkspaceResolved });
-  return <WorkspaceOnboarding model={{ defaults: storyDefaults, setup }} />;
-}
 
 function WorkspaceSetupDialogHarness({
   onOpenChange,
@@ -67,14 +54,6 @@ function dialogHarness(padding: string) {
         onOpenChange={() => undefined}
         onWorkspaceResolved={() => undefined}
       />
-    </StorySurface>
-  );
-}
-
-function onboardingHarness() {
-  return (
-    <StorySurface className="p-0">
-      <WorkspaceOnboardingHarness onWorkspaceResolved={() => undefined} />
     </StorySurface>
   );
 }
@@ -116,36 +95,14 @@ const browseError = storybookMswParameters({
   ],
 });
 
-export const OnboardingDefault: Story = {
-  args: {},
-  render: onboardingHarness,
-};
-
-export const OnboardingGlobalUnavailable: Story = {
-  args: {},
-  parameters: {
-    ...storybookMswParameters({
-      daemon: [
-        compozyApiMock.get("/api/status", () =>
-          HttpResponse.json({
-            ...statusFixture,
-            daemon: { ...statusFixture.daemon, user_home_dir: "" },
-          })
-        ),
-      ],
-    }),
-  },
-  render: onboardingHarness,
-};
-
 /** VC-03 capture target: the xl split shell at desktop width. */
-export const SetupDialogOpen: DialogStory = {
+export const SetupDialogOpen: Story = {
   args: {},
   render: () => dialogHarness("p-10"),
 };
 
 /** Below 980px the split body collapses and session defaults stack underneath. */
-export const SetupDialogStacked: DialogStory = {
+export const SetupDialogStacked: Story = {
   args: {},
   parameters: {
     viewport: { defaultViewport: "ipad" },
@@ -160,7 +117,7 @@ export const SetupDialogStacked: DialogStory = {
 };
 
 /** A root chosen in the browser, ready for the single create on submit. */
-export const SetupDialogRootSelected: DialogStory = {
+export const SetupDialogRootSelected: Story = {
   args: {},
   tags: ["play-fn"],
   render: () => dialogHarness("p-10"),
@@ -175,67 +132,26 @@ export const SetupDialogRootSelected: DialogStory = {
   },
 };
 
-export const SetupDialogBrowserLoading: DialogStory = {
+export const SetupDialogBrowserLoading: Story = {
   args: {},
   parameters: browseLoading,
   render: () => dialogHarness("p-10"),
 };
 
-export const SetupDialogBrowserEmpty: DialogStory = {
+export const SetupDialogBrowserEmpty: Story = {
   args: {},
   parameters: browseEmpty,
   render: () => dialogHarness("p-10"),
 };
 
-export const SetupDialogBrowserError: DialogStory = {
+export const SetupDialogBrowserError: Story = {
   args: {},
   parameters: browseError,
   render: () => dialogHarness("p-10"),
 };
 
-export const OnboardingMobile: Story = {
-  args: {},
-  parameters: {
-    viewport: { defaultViewport: "iphone14" },
-    docs: {
-      description: {
-        story:
-          "Below `lg` breakpoint the two-column hero collapses to a single rail so onboarding remains tappable on mobile.",
-      },
-    },
-  },
-  render: onboardingHarness,
-};
-
-export const OnboardingLoadingGlobal: Story = {
-  args: {},
-  tags: ["play-fn"],
-  parameters: {
-    ...storybookMswParameters({
-      workspace: [
-        compozyApiMock.post("/api/workspaces/resolve", async () => {
-          await delay("infinite");
-          return HttpResponse.json({ workspace: primaryWorkspaceFixture });
-        }),
-      ],
-    }),
-    docs: {
-      description: {
-        story:
-          "Drives the global-default CTA into its loading state by stalling the resolve call indefinitely.",
-      },
-    },
-  },
-  render: onboardingHarness,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("workspace-use-global"));
-    await expect(canvas.getByTestId("workspace-use-global")).toBeDisabled();
-  },
-};
-
 /** Registration spinner: stall `POST /api/workspaces` after picking a root. */
-export const OnboardingLoadingCreate: Story = {
+export const SetupDialogLoadingCreate: Story = {
   args: {},
   tags: ["play-fn"],
   parameters: {
@@ -248,17 +164,19 @@ export const OnboardingLoadingCreate: Story = {
       ],
     }),
   },
-  render: onboardingHarness,
+  render: () => dialogHarness("p-10"),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("workspace-setup-browser-use-current"));
-    await userEvent.click(canvas.getByTestId("workspace-setup-onboarding-submit"));
-    await expect(canvas.getByTestId("workspace-setup-onboarding-submit")).toBeDisabled();
+    const canvas = within(canvasElement.ownerDocument.body);
+    const useCurrent = await canvas.findByTestId("workspace-setup-browser-use-current");
+    await waitFor(() => expect(useCurrent).toBeEnabled());
+    await userEvent.click(useCurrent);
+    await userEvent.click(canvas.getByTestId("workspace-setup-submit"));
+    await expect(canvas.getByTestId("workspace-setup-submit")).toBeDisabled();
   },
 };
 
 /** Registration failure keeps the draft and reports inline. */
-export const OnboardingCreateError: Story = {
+export const SetupDialogCreateError: Story = {
   args: {},
   tags: ["play-fn"],
   parameters: {
@@ -270,35 +188,13 @@ export const OnboardingCreateError: Story = {
       ],
     }),
   },
-  render: onboardingHarness,
+  render: () => dialogHarness("p-10"),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("workspace-setup-browser-use-current"));
-    await userEvent.click(canvas.getByTestId("workspace-setup-onboarding-submit"));
+    const canvas = within(canvasElement.ownerDocument.body);
+    const useCurrent = await canvas.findByTestId("workspace-setup-browser-use-current");
+    await waitFor(() => expect(useCurrent).toBeEnabled());
+    await userEvent.click(useCurrent);
+    await userEvent.click(canvas.getByTestId("workspace-setup-submit"));
     await expect(await canvas.findByTestId("workspace-setup-error")).toBeVisible();
-  },
-};
-
-export const UseGlobalWorkspace: Story = {
-  args: {},
-  tags: ["play-fn"],
-  render: () => {
-    function Harness() {
-      const [status, setStatus] = useState("");
-      return (
-        <StorySurface className="p-0">
-          <WorkspaceOnboardingHarness onWorkspaceResolved={id => setStatus(`resolved:${id}`)} />
-          <div data-testid="resolve-status" className="sr-only">
-            {status}
-          </div>
-        </StorySurface>
-      );
-    }
-
-    return <Harness />;
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("workspace-use-global"));
   },
 };

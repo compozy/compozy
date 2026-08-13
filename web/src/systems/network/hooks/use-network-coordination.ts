@@ -59,8 +59,8 @@ export function useNetworkCoordination(workspaceId: string, ref: NetworkCoordina
 }
 
 export function useNetworkUsage(filters: NetworkUsageFilters = {}) {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = runtimeWorkspaceId ?? "";
   return useInfiniteQuery(networkUsageOptions(workspaceId, filters, Boolean(workspaceId)));
 }
 

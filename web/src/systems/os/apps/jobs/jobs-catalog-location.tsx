@@ -28,7 +28,7 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
     search.create === "loop" && search.loop ? { loop: search.loop } : {},
     search
   );
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
 
   useTopbarSlot({
     glyph: <Clock3 />,
@@ -101,8 +101,8 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
         }
         data-testid="jobs-shell"
       >
-        {!page.isLoading && activeWorkspaceId && search.scope !== "global" ? (
-          <AutomationSuggestionsPanel key={activeWorkspaceId} workspaceID={activeWorkspaceId} />
+        {!page.isLoading && runtimeWorkspaceId && search.scope !== "global" ? (
+          <AutomationSuggestionsPanel key={runtimeWorkspaceId} workspaceID={runtimeWorkspaceId} />
         ) : null}
         <AutomationJobsCatalog
           errorMessage={page.errorMessage}

@@ -14,6 +14,9 @@ func (r *Resolver) Register(ctx context.Context, opts RegisterOptions) (Workspac
 	if err := checkContext(ctx); err != nil {
 		return Workspace{}, err
 	}
+	if err := validateOptionalDefaultAgent(opts.DefaultAgent); err != nil {
+		return Workspace{}, err
+	}
 
 	r.registrationMu.Lock()
 	ws, err := r.createWorkspaceRegistration(ctx, opts)
@@ -158,6 +161,9 @@ func (r *Resolver) Update(ctx context.Context, id string, opts UpdateOptions) er
 	}
 
 	if opts.DefaultAgent != nil {
+		if err := validateOptionalDefaultAgent(*opts.DefaultAgent); err != nil {
+			return err
+		}
 		ws.DefaultAgent = strings.TrimSpace(*opts.DefaultAgent)
 	}
 	if opts.SandboxRef != nil {

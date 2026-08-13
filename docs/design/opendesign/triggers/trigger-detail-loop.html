@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>rerun-delivery · Triggers · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="triggers.css">
+<!--
+  trigger-detail-loop · final — Then is a Loop, not an agent prompt.
+  Shared story: workspace checkout-api · trigger rerun-delivery · loop software-delivery · run r-8f3a2b.
+  Provenance:
+    production        — target_kind=loop; loop_name, loop_workspace_id, inputs, input_mapping
+                        (internal/automation/model/types.go; automation-target-details.tsx).
+                        Run status delegated + loop_run_id (target_validate.go).
+    authorized delta  — When/If/Then instead of Hook+Target; no LOOP accent pill (enums as text+icon).
+                        Mapping as labeled rows, not a JSON dump.
+-->
+</head>
+<body class="tr-stage" data-target-kind="loop" data-target-name="software-delivery">
+<section class="win is-focused" id="win" data-od-id="trigger-loop-window" aria-label="Triggers window">
+  <header class="win-head" data-od-id="trigger-loop-head">
+    <div class="win-controls">
+      <button class="wc wc-close" type="button" aria-label="Close"></button>
+      <button class="wc wc-min" type="button" aria-label="Minimize"></button>
+      <button class="wc wc-zoom" type="button" aria-label="Zoom"></button>
+    </div>
+    <a class="w2-back" href="../empty-states/triggers-empty-suggestions.html" aria-label="Back to Triggers">
+      <i data-lucide="chevron-left"></i>
+    </a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="../empty-states/triggers-empty-suggestions.html">Triggers</a>
+      <span class="w2-sep" aria-hidden="true">/</span>
+      <span class="w2-title" data-od-id="trigger-title">rerun-delivery</span>
+    </nav>
+    <span class="w2-flex" aria-hidden="true"></span>
+    <div class="w2-actions" data-od-id="trigger-actions">
+      <!-- production: Edit is overflow, dynamic source only. authorized delta: ghost in head. No Run now. -->
+      <a class="btn" data-od-id="action-edit" href="../_done/modals/create-trigger-redesign.html"><i data-lucide="pencil"></i>Edit</a>
+      <button class="btn btn--icon" id="moreBtn" type="button" aria-label="More" aria-haspopup="menu" aria-expanded="false">
+        <i data-lucide="ellipsis"></i>
+      </button>
+      <div class="menu" id="moreMenu" role="menu">
+        <button class="menu__item" type="button" role="menuitem" data-copy="rerun-delivery" data-od-id="action-copy-id">
+          <i data-lucide="copy"></i>
+          Copy trigger id
+        </button>
+        <button class="menu__item" type="button" role="menuitem" id="menuToggle" data-od-id="action-disable">
+          <i data-lucide="power"></i>
+          <span id="menuToggleLabel">Disable</span>
+        </button>
+        <div class="menu__sep"></div>
+        <button class="menu__item" type="button" role="menuitem" data-tone="danger" id="menuDelete" data-od-id="action-delete">
+          <i data-lucide="trash-2"></i>
+          Delete trigger…
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="win-body">
+    <div class="page">
+      <div class="lede" data-od-id="trigger-lede">
+        <div class="lede__row">
+          <div class="lede__copy">
+            <h1 class="lede__s" id="ledeSentence">When a session stops in <em>checkout-api</em>, if the stop reason is error, start <em>software-delivery</em>.</h1>
+            <p class="lede__pause" id="ledePause">Matching events will not start the loop until this trigger is enabled.</p>
+          </div>
+          <!-- production: PATCH /api/automation/triggers/{id} { enabled } -->
+          <button class="lede-enable" id="enableSwitch" type="button" role="switch" aria-checked="true" aria-label="Enable trigger" data-od-id="trigger-enable">
+            <span class="lede-enable__lab" id="enableLab" aria-hidden="true">Enabled</span>
+            <span class="switch is-on" id="enableTrack" aria-hidden="true"><span class="knob"></span></span>
+          </button>
+        </div>
+        <div class="subhead" data-od-id="trigger-subhead">
+          <span class="pill" data-tone="info" data-od-id="trigger-event-pill">Session stopped</span>
+          <span>Workspace <b>checkout-api</b></span><span class="dotsep"></span>
+          <span>Last ran <time datetime="2026-08-12T22:04:00-03:00" title="12 Aug 2026, 22:04">1h ago</time></span><span class="dotsep"></span>
+          <span>Updated <time datetime="2026-08-10T09:12:00-03:00" title="10 Aug 2026, 09:12">3d ago</time></span>
+        </div>
+      </div>
+
+      <div class="layout">
+        <main data-od-id="trigger-main">
+          <details class="sec" open data-od-id="section-rule">
+            <summary>
+              <i class="si" data-lucide="zap"></i>
+              <span class="st">Rule</span>
+              <span class="ssum">session.stopped → software-delivery</span>
+              <span class="spacer"></span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="wit">
+              <div class="wit__row" data-od-id="rule-when">
+                <span class="wit__k">When</span>
+                <span class="wit__v">
+                  <span class="wit__event"><i data-lucide="circle-dot"></i><b>A session stops</b><span class="pill" data-mono="true">session.stopped</span></span>
+                  <span class="sub">In workspace checkout-api</span>
+                </span>
+              </div>
+              <div class="wit__row" data-od-id="rule-if">
+                <span class="wit__k">If</span>
+                <span class="wit__v">
+                  <span class="wit__if"><i data-lucide="filter"></i><span>Stop reason is <span class="bindbadge">error</span></span></span>
+                  <span class="sub">Exact match on <span class="mono" style="font-size:11px;color:var(--faint)">data.stop_reason</span></span>
+                </span>
+              </div>
+              <div class="wit__row" data-od-id="rule-then">
+                <span class="wit__k">Then</span>
+                <span class="wit__v">
+                  <!-- production: loop identity is immutable after create (target_identity.go). No prompt. -->
+                  <span class="agent-id">
+                    <span class="agent-chip" aria-hidden="true"><i data-lucide="workflow"></i></span>
+                    <b><a href="../loops/loop-detail.html">software-delivery</a></b>
+                    <span class="tag">Built-in</span>
+                  </span>
+                  <span class="sub">Starts a loop run in workspace checkout-api. Event fields fill declared inputs; the rest are static.</span>
+                  <div class="map" data-od-id="loop-mapping">
+                    <!-- production: loop_target.input_mapping — key = declared input, value = event path -->
+                    <div class="map__row">
+                      <span class="map__k">slug</span><span class="map__op" aria-hidden="true">←</span>
+                      <span class="bindbadge">data.session_name</span>
+                      <span class="map__kind">from event</span>
+                    </div>
+                    <!-- production: loop_target.inputs — static, not mapped -->
+                    <div class="map__row">
+                      <span class="map__k">implementer</span><span class="map__op" aria-hidden="true">=</span>
+                      <span class="bindbadge">code_implementer</span>
+                      <span class="map__kind">static</span>
+                    </div>
+                    <div class="map__row">
+                      <span class="map__k">target_branch</span><span class="map__op" aria-hidden="true">=</span>
+                      <span class="bindbadge">main</span>
+                      <span class="map__kind">static</span>
+                    </div>
+                  </div>
+                </span>
+              </div>
+            </div>
+          </details>
+
+          <details class="sec" open data-od-id="section-runs">
+            <!-- production: GET /api/automation/triggers/{id}/runs?limit=10 · delegated requires loop_run_id -->
+            <summary>
+              <i class="si" data-lucide="history"></i>
+              <span class="st">Recent runs</span>
+              <span class="count">2</span>
+              <span class="ssum">last 10 from the daemon</span>
+              <span class="spacer"></span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="panelbox">
+              <button class="runrow" type="button" data-od-id="run-loop-1" aria-expanded="false" aria-controls="draw-l1">
+                <span class="pill" data-tone="info"><span class="dot"></span>Delegated</span>
+                <span class="rmeta"><i data-lucide="workflow"></i><span>Loop run <span class="mono">r-8f3a2b</span></span></span>
+                <span class="rcell">—</span>
+                <span class="rchev" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+              </button>
+              <div class="rundraw" id="draw-l1">
+                <p>Handed to software-delivery. The loop owns the rest of the run.</p>
+                <div class="actrow">
+                  <a class="btn btn--sm" href="../loops/loop-run-detail.html"><i data-lucide="arrow-right"></i>Open loop run</a>
+                </div>
+              </div>
+
+              <button class="runrow" type="button" data-od-id="run-loop-2" aria-expanded="false" aria-controls="draw-l2">
+                <span class="pill" data-tone="success"><span class="dot"></span>Completed</span>
+                <span class="rmeta"><i data-lucide="workflow"></i><span>Loop run <span class="mono">r-6b9e10</span></span></span>
+                <span class="rcell">14m</span>
+                <span class="rchev" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+              </button>
+              <div class="rundraw" id="draw-l2">
+                <p>software-delivery finished. Open the loop run for the attempt ledger.</p>
+                <div class="actrow">
+                  <a class="btn btn--sm" href="../loops/loop-run-detail.html"><i data-lucide="arrow-right"></i>Open loop run</a>
+                </div>
+              </div>
+            </div>
+          </details>
+        </main>
+
+        <aside data-od-id="trigger-rail">
+          <details class="rsec" open>
+            <summary>
+              <i class="si" data-lucide="info"></i>
+              <span class="rt">Properties</span>
+              <span class="rsum">This workspace · Loop</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body">
+              <div class="prow"><span class="prow__k">Scope</span><span class="prow__v">This workspace</span></div>
+              <div class="prow"><span class="prow__k">Event</span><span class="prow__v">Session stopped</span></div>
+              <div class="prow"><span class="prow__k">Target</span><span class="prow__v">Loop · software-delivery</span></div>
+              <div class="prow"><span class="prow__k">Loop workspace</span><span class="prow__v">checkout-api</span></div>
+              <div class="prow"><span class="prow__k">Source</span><span class="prow__v">You created this</span></div>
+            </div>
+          </details>
+          <details class="rsec">
+            <summary>
+              <i class="si" data-lucide="gauge"></i>
+              <span class="rt">Reliability</span>
+              <span class="rsum">Backoff · 4 / hour</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body">
+              <div class="prow"><span class="prow__k">Retry</span><span class="prow__v">Backoff · 2 times</span></div>
+              <div class="prow"><span class="prow__k">At most</span><span class="prow__v">4 times / hour</span></div>
+            </div>
+          </details>
+          <details class="rsec">
+            <summary>
+              <i class="si" data-lucide="hash"></i>
+              <span class="rt">Identity</span>
+              <span class="rsum">3d ago</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body">
+              <div class="prow"><span class="prow__k">Created</span><span class="prow__v"><time datetime="2026-08-10T09:12:00-03:00">3d ago</time></span></div>
+              <div class="prow">
+                <span class="prow__k">Trigger id</span>
+                <span class="prow__v mono">
+                  <span>rerun-delivery</span>
+                  <button class="copybtn" type="button" data-copy="rerun-delivery" aria-label="Copy trigger id">
+                    <i data-lucide="copy"></i>
+                  </button>
+                </span>
+              </div>
+            </div>
+          </details>
+          <div class="rail-foot">
+            <button class="act" type="button" id="openInspect" data-od-id="rail-inspect">
+              <i data-lucide="search"></i>
+              Inspect
+            </button>
+            <span class="cli">compozy automation triggers get</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="inspectSheet" role="dialog" aria-modal="true" aria-labelledby="inspectTitle" data-od-id="inspect-drawer">
+  <header class="sheet__head">
+    <span class="sheet__well" aria-hidden="true"><i data-lucide="search"></i></span>
+    <div>
+      <div class="eyebrow">Operator</div>
+      <div class="sheet__title" id="inspectTitle">Inspect</div>
+      <div class="sheet__desc">Runtime fields. Target kind is immutable after create.</div>
+    </div>
+    <button class="sheet__close" type="button" data-close aria-label="Close"><i data-lucide="x"></i></button>
+  </header>
+  <nav class="lane-tabs" role="tablist" aria-label="Inspect views" style="padding:0 20px">
+    <button class="lane-tab is-on" type="button" role="tab" id="tab-diag" aria-selected="true" aria-controls="insp-diag" data-insp="diag">Diagnostics</button>
+    <button class="lane-tab" type="button" role="tab" id="tab-env" aria-selected="false" aria-controls="insp-env" data-insp="env">Envelope</button>
+  </nav>
+  <div class="sheet__body">
+    <div class="inspane" id="insp-diag" role="tabpanel" aria-labelledby="tab-diag">
+      <div class="tiles">
+        <div class="tile"><div class="tile__l">Id</div><div class="tile__v"><span class="mono">rerun-delivery</span></div></div>
+        <div class="tile"><div class="tile__l">Source</div><div class="tile__v"><span class="mono">DYNAMIC</span></div></div>
+        <div class="tile"><div class="tile__l">Scope</div><div class="tile__v"><span class="mono">WORKSPACE</span></div></div>
+        <div class="tile"><div class="tile__l">Kind</div><div class="tile__v"><span class="mono">session.stopped</span></div></div>
+        <div class="tile"><div class="tile__l">Target</div><div class="tile__v"><span class="mono">loop · software-delivery</span></div></div>
+        <div class="tile"><div class="tile__l">Retry</div><div class="tile__v"><span class="mono">backoff · 2 · 5s</span></div></div>
+      </div>
+      <p class="app-note" style="margin-top:8px">Filter <span class="mono">data.stop_reason = error</span>. Mapping <span class="mono">slug ← data.session_name</span>. Fire limit <span class="mono">4 / 1h</span>.</p>
+    </div>
+    <div class="inspane" id="insp-env" role="tabpanel" aria-labelledby="tab-env" hidden>
+      <div class="code-block">{
+  "kind": "session.stopped",
+  "scope": "workspace",
+  "workspace_id": "ws_checkout_api",
+  "data": {
+    "session_id": "sess_9f2a1c",
+    "session_name": "fix-checkout-timeout",
+    "agent_name": "reviewer",
+    "stop_reason": "error"
+  }
+}</div>
+    </div>
+  </div>
+</aside>
+
+<div class="dlg-scrim" id="deleteScrim" role="presentation">
+  <div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="delTitle" aria-describedby="delDesc" data-od-id="delete-dialog">
+    <h2 id="delTitle">Delete rerun-delivery?</h2>
+    <p id="delDesc">This removes the trigger. Matching events will stop starting software-delivery. Run history stays in the log.</p>
+    <div class="dlg__foot">
+      <button class="btn" type="button" id="delCancel">Cancel</button>
+      <button class="btn btn--destructive" type="button" id="delConfirm" data-href="../empty-states/triggers-empty-suggestions.html" data-od-id="delete-confirm">Delete trigger</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<span class="sr-only" id="live" aria-live="polite"></span>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="triggers.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

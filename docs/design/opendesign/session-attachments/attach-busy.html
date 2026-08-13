@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Busy session · Attachments · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="attach.css">
+<!--
+  attach-busy · S8 final — draft images while a turn runs; queued row may carry a thumb.
+  Spec: GitHub composy/compozy#366 + busy-session inputs (#304).
+  Provenance:
+    production            — queued prompts are {id, text} only (queued-prompt.ts);
+                            busy Enter queues text (session-composer.tsx:105-111)
+    spec issue-366        — persist before the prompt is accepted
+    authorized delta      — queue payload includes attachments (new · prompt-images);
+                            16px thumb on the qrow, still bookkeeping
+-->
+<style>
+  .stack-wrap{max-width:560px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="att-busy-head">
+    <a class="w2-back" href="index.html" aria-label="Back to attachment set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Attachments</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Busy session</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="attach-refusals.html">← Refusals</a>
+      <a class="btn" href="index.html">Index</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="sec-draft-during-run">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Draft stays in the field</h2>
+        <span class="lab-sec__gist">images are not auto-queued</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>While the turn runs</b>Enter queues the current draft, attachments included. Until then they sit in the field. The qstrip above is an earlier text-only follow-up. Stop replaces send.</div>
+        <div class="spec__demo stack-wrap">
+          <div>
+            <div class="qstrip">
+              <div class="qrow">
+                <svg data-lucide="list-plus"></svg>
+                <span class="qrow__text">Also retone the marker components</span>
+                <div class="qrow__acts">
+                  <button class="qrow__steer" type="button"><svg data-lucide="corner-down-right"></svg>Steer</button>
+                  <button class="qrow__ib" type="button" aria-label="Remove queued prompt"><svg data-lucide="trash-2"></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="composer composer--docked" data-od-id="composer-busy-draft">
+              <div class="att-strip" role="list" aria-label="Attachments">
+                <div class="att-tile" data-state="ready" role="listitem">
+                  <span class="att-thumb"><img src="assets/screenshot-paste.png" alt=""></span>
+                  <span class="att-meta"><span class="att-name">Screenshot 2026-08-13 at 10.28.png</span><span class="att-size">188 KB</span></span>
+                  <button class="att-x" type="button" aria-label="Remove Screenshot 2026-08-13 at 10.28.png"><svg data-lucide="x"></svg></button>
+                </div>
+                <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                  <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">TXT</span></span>
+                  <span class="att-meta"><span class="att-name">error-log.txt</span><span class="att-size">12 KB</span></span>
+                  <button class="att-x" type="button" aria-label="Remove error-log.txt"><svg data-lucide="x"></svg></button>
+                </div>
+              </div>
+              <textarea rows="1" placeholder="Send a message…">This is the TS error on MarkerProps.</textarea>
+              <div class="composer__bar">
+                <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+                <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+                <span class="composer__hint"><kbd>⏎</kbd>queue</span>
+                <span class="spacer"></span>
+                <button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="list-plus"></svg>Queue</button>
+                <button class="composer__stop" type="button" aria-label="Stop turn"><svg data-lucide="square"></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-queued-with-image">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Queued with attachments</h2>
+        <span class="lab-sec__gist">16px well · still bookkeeping</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>After ⏎ queue</b>Today’s queue row is <code>{id, text}</code>. This row is <code>new · prompt-images</code> / <code>new · prompt-files</code>: one 16px well, truncated text, <code>· 2 images · 1 file</code> in mono. No accent. Steer/edit/remove unchanged. Edit moves text *and* attachments back into the field.</div>
+        <div class="spec__demo stack-wrap">
+          <!-- gating: new · prompt-images / prompt-files — QueuedPrompt.text has no attachments field today -->
+          <div>
+            <div class="qstrip" data-od-id="qstrip-with-images">
+              <div class="qrow">
+                <span class="att-thumb att-thumb--sm"><img src="assets/goal-chip.png" alt=""></span>
+                <span class="qrow__text">Here is the Goal card and the permission dock.</span>
+                <span class="qrow__n">· 2 images · 1 file</span>
+                <div class="qrow__acts">
+                  <button class="qrow__steer" type="button"><svg data-lucide="corner-down-right"></svg>Steer</button>
+                  <button class="qrow__ib" type="button" aria-label="Edit queued prompt"><svg data-lucide="pencil"></svg></button>
+                  <button class="qrow__ib" type="button" aria-label="Remove queued prompt"><svg data-lucide="trash-2"></svg></button>
+                </div>
+              </div>
+              <div class="qrow">
+                <span class="att-thumb att-thumb--sm att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+                <span class="qrow__text">Spec only — skip the screenshots.</span>
+                <span class="qrow__n">· 1 file</span>
+                <div class="qrow__acts">
+                  <button class="qrow__steer" type="button"><svg data-lucide="corner-down-right"></svg>Steer</button>
+                  <button class="qrow__ib" type="button" aria-label="Remove queued prompt"><svg data-lucide="trash-2"></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="composer composer--docked" data-od-id="composer-after-queue">
+              <textarea rows="1" placeholder="Send a message…"></textarea>
+              <div class="composer__bar">
+                <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+                <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+                <span class="composer__hint"><kbd>⏎</kbd>queue</span>
+                <span class="spacer"></span>
+                <button class="composer__stop" type="button" aria-label="Stop turn"><svg data-lucide="square"></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-steer">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Steer</h2>
+        <span class="lab-sec__gist">text-only today · attachments stay on the draft</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Honest split</b>Steer injects the *textarea* into the running turn. It does not take draft attachments with it unless the steer contract grows. If the draft has files or images, Steer is available for the text; the tiles remain. Do not imply they were steered.</div>
+        <div class="spec__demo stack-wrap">
+          <div class="composer" data-od-id="composer-steer">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="ready" role="listitem">
+                <span class="att-thumb"><img src="assets/permission-dock.png" alt=""></span>
+                <span class="att-meta"><span class="att-name">permission-dock.png</span><span class="att-size">96 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove permission-dock.png"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+                <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">186 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove flatten-spec.pdf"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…">Stop — look at the dock screenshot first.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>queue</span>
+              <span class="spacer"></span>
+              <button class="btn btn--ghost btn--sm" type="button" title="Steers the text; attachments stay in the draft"><svg data-lucide="scissors"></svg>Steer</button>
+              <button class="composer__stop" type="button" aria-label="Stop turn"><svg data-lucide="square"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="attach.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

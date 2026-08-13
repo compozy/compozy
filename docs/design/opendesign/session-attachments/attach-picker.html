@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Picker &amp; bar button · Attachments · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="attach.css">
+<!--
+  attach-picker · S4 final — paperclip after runtimeControl, hidden file input.
+  Spec: GitHub composy/compozy#366 AC: choose with a file picker; mixed accept.
+  Provenance:
+    production            — runtimeControl is first in the 28px bar
+    authorized delta      — lucide paperclip (images + PDF/MD/TXT); no /image slash command
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="att-picker-head">
+    <a class="w2-back" href="index.html" aria-label="Back to attachment set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Attachments</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Picker &amp; bar button</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="attach-drop-paste.html">← Drop</a>
+      <a class="btn" href="attach-stack.html">Stack →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="sec-bar">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Bar placement</h2>
+        <span class="lab-sec__gist">runtime · paperclip · ⏎ · spacer · send</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>After runtime</b>The attach button is a sibling of the runtime chip, not a second primary. Click opens the OS picker via a hidden <code>input[type=file]</code>. <code>multiple</code> is on. Accept is images plus PDF, Markdown, and text. Network <code>/attach</code> is a different product.</div>
+        <div class="spec__demo composer-wrap">
+          <!-- gating: accept=image/png,image/jpeg,image/webp,application/pdf,text/markdown,text/plain,.md,.txt,.pdf multiple -->
+          <div class="composer" data-od-id="composer-picker">
+            <textarea rows="1" placeholder="Send a message…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" id="pickBtn" aria-label="Attach" data-od-id="att-btn-pick"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled><svg data-lucide="arrow-up"></svg></button>
+            </div>
+            <input id="pickInput" type="file" accept="image/png,image/jpeg,image/webp,application/pdf,text/markdown,text/plain,.md,.txt,.pdf" multiple hidden>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-after-pick">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">After pick · one</h2>
+        <span class="lab-sec__gist">original filename · persist starts immediately</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Landing</b>The OS dialog is not drawn. What the user sees next is the uploading tile, then ready. Send waits on persist.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-after-pick">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="uploading" role="listitem">
+                <span class="att-thumb">
+                  <img src="assets/goal-chip.png" alt="">
+                  <span class="att-spin" aria-hidden="true"><svg data-lucide="loader-circle"></svg></span>
+                </span>
+                <span class="att-meta"><span class="att-name">goal-chip.png</span><span class="att-size">Saving…</span></span>
+                <button class="att-x" type="button" aria-label="Remove goal-chip.png"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="Saving image"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-after-multi">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">After pick · many</h2>
+        <span class="lab-sec__gist">multi-select lands as one scrolling row</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Four at once</b>Two screenshots, the spec, and the notes. Persist is per file — the PDF is still saving. This is the picker equivalent of the six-image composer, not a second grammar.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="composer-after-multi">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="ready" role="listitem">
+                <span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span>
+                <span class="att-meta"><span class="att-name">goal-chip.png</span><span class="att-size">240 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove goal-chip.png"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="ready" role="listitem">
+                <span class="att-thumb"><img src="assets/markers-gallery.png" alt=""></span>
+                <span class="att-meta"><span class="att-name">markers-gallery.png</span><span class="att-size">268 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove markers-gallery.png"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+                <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+                <button class="att-x" type="button" aria-label="Remove notes.md"><svg data-lucide="x"></svg></button>
+              </div>
+              <div class="att-tile" data-state="uploading" data-kind="file" role="listitem">
+                <span class="att-thumb att-thumb--file">
+                  <span class="att-ext">PDF</span>
+                  <span class="att-spin" aria-hidden="true"><svg data-lucide="loader-circle"></svg></span>
+                </span>
+                <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">Saving…</span></span>
+                <button class="att-x" type="button" aria-label="Remove flatten-spec.pdf"><svg data-lucide="x"></svg></button>
+              </div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…">Screenshots plus spec and notes.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled title="Saving flatten-spec.pdf"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-not-slash">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Not a slash command</h2>
+        <span class="lab-sec__gist"><code>/</code> stays skills</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Rejected path</b><code>/image</code> and <code>/attach</code> would collide with the skill catalog. Network’s <code>/attach</code> is post-MVP and means “file, URL, capability ref” — a different product. Documented so it is not reintroduced.</div>
+        <div class="spec__demo">
+          <div class="cmd-pop" data-od-id="cmd-not-image">
+            <button class="cmd-item" type="button" data-highlighted>
+              <svg data-lucide="blocks"></svg>
+              <span class="cmd-item__title">/goal</span>
+              <span class="cmd-item__desc">Set or replace this session’s goal</span>
+              <span class="cmd-item__trail">skill</span>
+            </button>
+            <button class="cmd-item" type="button" data-off disabled>
+              <svg data-lucide="paperclip"></svg>
+              <span class="cmd-item__title">/attach</span>
+              <span class="cmd-item__desc">Not a command — use the bar button, paste, or drop</span>
+              <span class="cmd-item__trail">rejected</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="attach.js"></script>
+<script>
+lucide.createIcons();
+const btn=document.getElementById("pickBtn");
+const input=document.getElementById("pickInput");
+if(btn && input){
+  btn.addEventListener("click",()=>{
+    btn.setAttribute("data-on","");
+    btn.setAttribute("aria-expanded","true");
+    input.click();
+  });
+  input.addEventListener("change",()=>{
+    btn.removeAttribute("data-on");
+    btn.setAttribute("aria-expanded","false");
+  });
+  input.addEventListener("cancel",()=>{
+    btn.removeAttribute("data-on");
+    btn.setAttribute("aria-expanded","false");
+  });
+}
+</script>
+</body>
+</html>

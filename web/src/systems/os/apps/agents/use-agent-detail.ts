@@ -69,9 +69,9 @@ export interface UseAgentDetailResult {
 
 export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseAgentDetailResult {
   const navigate = useNavigate();
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const { openForAgent } = useSessionCreateActions();
-  const hasActiveWorkspace = activeWorkspaceId !== null;
+  const hasRuntimeWorkspace = runtimeWorkspaceId !== null;
   const isCreating = useSessionCreateIsCreating();
   const pendingAgentName = useSessionCreatePendingAgentName();
   const createHost = useAgentCreateHost();
@@ -80,8 +80,8 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     data: agent,
     isLoading: agentLoading,
     error: agentError,
-  } = useAgent(name, activeWorkspaceId);
-  const metrics = useAgentCatalogMetrics(activeWorkspaceId, name);
+  } = useAgent(name, runtimeWorkspaceId);
+  const metrics = useAgentCatalogMetrics(runtimeWorkspaceId, name);
   const {
     sessions,
     archivedSessions,
@@ -94,12 +94,12 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     loadMoreArchived: onLoadMoreArchivedSessions,
     isLoading: sessionsLoading,
     isError: sessionsError,
-  } = useAgentSessions(activeWorkspaceId, name);
-  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: activeWorkspaceId });
+  } = useAgentSessions(runtimeWorkspaceId, name);
+  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: runtimeWorkspaceId });
 
   const deleteFlow = useAgentDeleteFlow({
     agent,
-    workspaceId: activeWorkspaceId,
+    workspaceId: runtimeWorkspaceId,
   });
 
   const setTab = (tab: AgentDetailTab) => {
@@ -178,7 +178,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     setFile,
     setFilter,
     isCreatingForAgent: isCreating && pendingAgentName === name,
-    newSessionDisabled: !hasActiveWorkspace,
+    newSessionDisabled: !hasRuntimeWorkspace,
     onNewSession,
     onEditSettings,
     onDuplicate,

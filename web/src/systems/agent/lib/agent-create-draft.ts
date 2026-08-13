@@ -4,9 +4,9 @@ import { joinAgentCategorySegments } from "./agent-category";
 import type { AgentPayload, CreateAgentParams, DuplicateAgentParams } from "../types";
 import type { RuntimeProviderOption } from "@/systems/runtime";
 
-const agentNamePattern = /^[a-z][a-z0-9_-]*$/;
-const invalidAgentNameMessage =
-  "Start with a lowercase letter and use only lowercase letters, numbers, hyphens, or underscores.";
+const agentNameMaxLength = 106;
+const agentNamePattern = /^[a-z][a-z0-9_-]{0,105}$/;
+const invalidAgentNameMessage = `Start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and use at most ${agentNameMaxLength} characters.`;
 
 export type AgentCreateScope = CreateAgentParams["scope"];
 export type AgentCreatePermission = NonNullable<CreateAgentParams["agent"]["permissions"]>;
@@ -58,7 +58,6 @@ export const AGENT_CREATE_ADVANCED_FIELDS: readonly AgentCreateFieldKey[] = [
 
 export type AgentCreateFieldKey =
   | "name"
-  | "scope"
   | "categoryPath"
   | "provider"
   | "reasoningEffort"
@@ -173,10 +172,6 @@ export function validateAgentCreateDraft(
     fields.name = "Enter an agent name.";
   } else if (!agentNamePattern.test(name)) {
     fields.name = invalidAgentNameMessage;
-  }
-
-  if (draft.scope === "workspace" && !context.hasActiveWorkspace) {
-    fields.scope = "Select an active workspace or switch scope to global.";
   }
 
   const category = parseAgentCreateCategoryPath(draft.categoryPath);

@@ -10,8 +10,10 @@ import { setActiveWorkspaceId } from "@/systems/workspace";
  */
 export function activateCreatedSessionWorkspace(
   session: SessionPayload,
-  currentWorkspaceId: string | null
+  currentWorkspaceId: string | null,
+  options: { skip?: boolean } = {}
 ): void {
+  if (options.skip) return;
   const workspaceId = session.workspace_id?.trim();
   if (!workspaceId) {
     throw new Error("Created session requires a non-empty workspace_id");

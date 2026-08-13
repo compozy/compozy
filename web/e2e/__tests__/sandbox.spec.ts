@@ -17,7 +17,7 @@ import {
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { seedBrowserSandboxProfiles } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const sandboxFixture = path.resolve(
@@ -124,7 +124,7 @@ test("operator manages a local sandbox profile and binds it to real session exec
   test.setTimeout(180_000);
 
   await assertLaunchRuntime(runtime);
-  await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
+  await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
 
   await appPage.goto(runtime.url("/sandbox"), { waitUntil: "domcontentloaded" });
   const sandboxWin = appWindow(appPage, "sandbox");
@@ -286,10 +286,11 @@ test("operator sees blocked sandbox diagnostics without leaking secrets or writi
   await setWorkspaceSandbox(runtime, workspace.id, sandboxProfileName);
   const session = await createSession(runtime, blockedAgent, workspace.id);
 
+  await completeOnboardingIfPrompted(appPage);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
   await appPage.goto(runtime.url(sessionPath(blockedAgent, session.id)), {
     waitUntil: "domcontentloaded",
   });
-  await useGlobalWorkspaceIfPrompted(appPage);
   const blockedSessionWin = sessionWindow(appPage, session.id);
   const sessionUI = sessionWindowSelectors(blockedSessionWin);
   await expect(blockedSessionWin).toBeVisible();

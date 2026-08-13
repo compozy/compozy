@@ -9,17 +9,17 @@ import { useActiveWorkspace } from "@/systems/workspace";
 /** Warms the canonical app queries for restored and unfocused windows. */
 export function useOsAppPreload(windowId: string): void {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const appId = useDesktop(state => state.windows[windowId]?.app);
   const enabled = useWindowLiveDataEnabled(windowId);
 
   useEffect(() => {
-    if (!enabled || !appId || !activeWorkspaceId) return;
+    if (!enabled || !appId || !runtimeWorkspaceId) return;
     const preload = getOsApp(appId).preload;
     if (!preload) return;
 
     // Route preloaders settle their owned queries, so restored background
     // windows warm the same cache without creating a second error surface.
-    void preload(queryClient, { workspaceId: activeWorkspaceId });
-  }, [activeWorkspaceId, appId, enabled, queryClient]);
+    void preload(queryClient, { workspaceId: runtimeWorkspaceId });
+  }, [appId, enabled, queryClient, runtimeWorkspaceId]);
 }

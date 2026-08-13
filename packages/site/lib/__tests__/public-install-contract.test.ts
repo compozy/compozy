@@ -571,11 +571,13 @@ describe("public install contract", () => {
     { label: "compatible v3", version: "v3.1.3", versionStatus: 0, bootstraps: false },
     { label: "incompatible v2", version: "v2.6.2", versionStatus: 0, bootstraps: true },
     { label: "unreadable version", version: "", versionStatus: 1, bootstraps: true },
-  ])("selects the trusted verifier for a $label local cosign", async testCase => {
-    const root = mkdtempSync(resolve(tmpdir(), "compozy-install-local-cosign-"));
-    try {
-      const localArgsPath = join(root, "local-cosign-args.txt");
-      const localCosignBody = `#!/bin/sh
+  ])(
+    "selects the trusted verifier for a $label local cosign",
+    async testCase => {
+      const root = mkdtempSync(resolve(tmpdir(), "compozy-install-local-cosign-"));
+      try {
+        const localArgsPath = join(root, "local-cosign-args.txt");
+        const localCosignBody = `#!/bin/sh
 if [ "\${1:-}" = "version" ]; then
   printf 'GitVersion: ${testCase.version}\\n'
   exit ${testCase.versionStatus}
@@ -583,23 +585,26 @@ fi
 printf '%s\\n' "$@" > "${localArgsPath}"
 exit 0
 `;
-      const { downloadedArgsPath, result } = await runFixtureInstallWithLocalCosign(
-        root,
-        localCosignBody
-      );
+        const { downloadedArgsPath, result } = await runFixtureInstallWithLocalCosign(
+          root,
+          localCosignBody
+        );
 
-      expect(result.status, result.stderr || result.stdout).toBe(0);
-      expect(existsSync(localArgsPath)).toBe(!testCase.bootstraps);
-      expect(existsSync(downloadedArgsPath)).toBe(testCase.bootstraps);
-      if (testCase.bootstraps) {
-        expect(result.stdout).toContain("downloading pinned cosign verifier " + cosignVersion);
-      } else {
-        expect(result.stdout).toContain("using compatible local cosign v3");
+        expect(result.status, result.stderr || result.stdout).toBe(0);
+        expect(existsSync(localArgsPath)).toBe(!testCase.bootstraps);
+        expect(existsSync(downloadedArgsPath)).toBe(testCase.bootstraps);
+        if (testCase.bootstraps) {
+          expect(result.stdout).toContain("downloading pinned cosign verifier " + cosignVersion);
+        } else {
+          expect(result.stdout).toContain("using compatible local cosign v3");
+        }
+      } finally {
+        rmSync(root, { recursive: true, force: true });
       }
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
+      // Spawns real cosign fixture processes — the default 5s trips under full-verify load.
+    },
+    20_000
+  );
 
   it("fails provenance verification without falling back from compatible local cosign v3", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "compozy-install-cosign-rejection-"));

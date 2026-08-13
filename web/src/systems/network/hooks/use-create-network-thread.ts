@@ -62,8 +62,8 @@ export function useCreateNetworkThread(
   options: UseCreateNetworkThreadOptions = {}
 ): UseCreateNetworkThreadResult {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = options.workspaceId ?? activeWorkspaceId;
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const mutation = useMutation<
     CreateNetworkThreadResult,
     Error,
