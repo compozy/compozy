@@ -60,8 +60,9 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
   const workspaces = useOnboardingWorkspaces();
   const complete = useCompleteOnboarding();
   const [commitError, setCommitError] = useState<string | null>(null);
+  const workspaceBusy = workspaces.isResolving || workspaces.isRemoving;
 
-  const canContinue = step === 1 ? defaultModel.isValid : true;
+  const canContinue = step === 1 ? defaultModel.isValid : !workspaceBusy;
 
   const goToStep = (next: number) => {
     if (next < 1 || next > ONBOARDING_STEP_COUNT || next > maxStep) return;
@@ -89,6 +90,7 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
 
   const next = async () => {
     setCommitError(null);
+    if (workspaceBusy) return;
     if (step === 1) {
       try {
         await defaultModel.commit();
@@ -116,7 +118,7 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     workspaces,
     canContinue,
     isLastStep: step === ONBOARDING_STEP_COUNT,
-    isBusy: defaultModel.isCommitting || complete.isPending,
+    isBusy: defaultModel.isCommitting || workspaceBusy || complete.isPending,
     commitError,
     goToStep,
     back,

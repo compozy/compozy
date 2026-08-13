@@ -33,6 +33,7 @@ export function TaskCreateDialog({
   return (
     <TaskEditorModal
       canSubmit={
+        !page.isScopeResolving &&
         page.draft.title.trim().length > 0 &&
         (page.draft.scope === "global" || Boolean(page.draft.workspaceId))
       }

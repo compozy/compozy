@@ -31,6 +31,15 @@ interface TaskCreateLocation {
   search: Record<string, unknown>;
 }
 
+function createTaskDraftForScope(
+  templateId: TaskTemplateId,
+  scope: "global" | "workspace",
+  workspaceId: string | null
+): TaskEditorDraft {
+  const draft = createTaskEditorDraft(templateId, workspaceId);
+  return scope === "workspace" && workspaceId === null ? { ...draft, scope: "workspace" } : draft;
+}
+
 export function useTaskCreateState(
   search: TaskCreateSearch,
   onNavigate: (location: TaskCreateLocation) => void,
@@ -47,15 +56,18 @@ export function useTaskCreateState(
 
   const templateId = search.template ?? DEFAULT_TASK_TEMPLATE_ID;
   const activeTaskScope = taskScopeForActiveWorkspace(scope, activeWorkspaceId);
+  const isScopeResolving = scope === "workspace" && activeTaskScope === null;
   const createDraftWorkspaceId =
     activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
-  const workspaceKey = createDraftWorkspaceId ?? "global";
+  const workspaceKey = isScopeResolving
+    ? "workspace:pending"
+    : (createDraftWorkspaceId ?? "global");
   const bindingKey = `${workspaceKey}\u0000${templateId}`;
   const { store } = useStoreBinding(
     bindingKey,
     () =>
       taskEditorDraftLogic.createStore({
-        draft: createTaskEditorDraft(templateId, createDraftWorkspaceId),
+        draft: createTaskDraftForScope(templateId, scope, createDraftWorkspaceId ?? null),
         scopeKey: workspaceKey,
       }),
     previous => {
@@ -64,7 +76,7 @@ export function useTaskCreateState(
         draft:
           previousState.scopeKey === workspaceKey
             ? applyTaskTemplateToEditorDraft(previousState.draft, templateId)
-            : createTaskEditorDraft(templateId, createDraftWorkspaceId),
+            : createTaskDraftForScope(templateId, scope, createDraftWorkspaceId ?? null),
         scopeKey: workspaceKey,
       });
     }
@@ -87,8 +99,9 @@ export function useTaskCreateState(
     });
   };
 
-  const handleSubmit = (nextDraft: TaskEditorDraft, asDraft: boolean) =>
-    requestTaskEditorSubmission(
+  const handleSubmit = (nextDraft: TaskEditorDraft, asDraft: boolean) => {
+    if (isScopeResolving) return Promise.resolve(null);
+    return requestTaskEditorSubmission(
       submissionStore,
       async () => {
         const trimmedTitle = nextDraft.title.trim();
@@ -148,11 +161,13 @@ export function useTaskCreateState(
       },
       error => toast.error(error instanceof Error ? error.message : "Failed to create task")
     );
+  };
 
   return {
     draft,
     handleSubmit,
     handleTemplateChange,
+    isScopeResolving,
     isSubmitting:
       submissionPhase === "submitting" ||
       createMutation.isPending ||

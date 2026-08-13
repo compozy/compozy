@@ -55,7 +55,12 @@ import {
   useSettingsUpdate,
 } from "@/systems/settings";
 import { useVaultSecrets, vaultSecretsListOptions } from "@/systems/vault";
-import { setActiveWorkspaceId, useWorkspace, useWorkspaces } from "@/systems/workspace";
+import {
+  setActiveWorkspaceId,
+  useWorkspace,
+  useWorkspaces,
+  workspacesListOptions,
+} from "@/systems/workspace";
 import { routeLoader } from "@/test/route-options";
 
 const adapterMocks = vi.hoisted(() => ({
@@ -1024,14 +1029,25 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
-  it("Should reject Home navigation when its required scope status fails", async () => {
+  it.each([
+    {
+      name: "status",
+      reject: () => adapterMocks.fetchStatus.mockRejectedValue(new Error("status unavailable")),
+      queryKey: statusOptions().queryKey,
+    },
+    {
+      name: "workspace catalog",
+      reject: () =>
+        adapterMocks.fetchWorkspaces.mockRejectedValue(new Error("workspaces unavailable")),
+      queryKey: workspacesListOptions().queryKey,
+    },
+  ])("Should preserve a failed Home $name query without rejecting navigation", async testCase => {
     const queryClient = createQueryClient();
-    const failure = new Error("daemon status unavailable");
-    adapterMocks.fetchStatus.mockRejectedValue(failure);
+    testCase.reject();
 
-    await expect(invokeLoader(HomeRoute, context(queryClient))).rejects.toBe(failure);
+    await expect(invokeLoader(HomeRoute, context(queryClient))).resolves.toBeUndefined();
 
-    expect(queryClient.getQueryState(statusOptions().queryKey)?.error).toBe(failure);
+    expect(queryClient.getQueryState(testCase.queryKey)?.status).toBe("error");
     queryClient.clear();
   });
 

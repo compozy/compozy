@@ -80,6 +80,7 @@ export interface OsCommandPaletteModel {
   toggleGlobalScope(): void;
   globalScopeOn: boolean;
   canDisableGlobal: boolean;
+  scopeToggleLocked: boolean;
   commandsAvailable: boolean;
 }
 
@@ -101,6 +102,8 @@ export function useOsCommandPalette(
     activeWorkspaceId,
     runtimeWorkspaceId,
     scope,
+    pending,
+    toggleLocked,
     canDisableGlobal,
     setActiveWorkspaceId,
     toggleGlobalScope,
@@ -296,5 +299,6 @@ export function useOsCommandPalette(
     toggleGlobalScope: () => run(() => toggleGlobalScope()),
     globalScopeOn: scope === "global",
     canDisableGlobal,
+    scopeToggleLocked: pending || toggleLocked,
   };
 }

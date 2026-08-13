@@ -24,13 +24,13 @@ export function SessionWorkspaceSwitchRouteDecision({
   onDecline,
 }: SessionWorkspaceSwitchRouteDecisionProps) {
   const { coordinator } = useOsShell();
-  const { homeWorkspace } = useActiveWorkspace();
+  const { homeWorkspace, pending } = useActiveWorkspace();
   const location = useLocation();
   const pathname = location.pathname;
   const search = location.search as Record<string, unknown>;
   // A session owned by the operator-home row is a Global session, not a
   // foreign workspace — confirming turns Global scope on instead of selecting it.
-  const ownerIsGlobal = owner.workspaceId === homeWorkspace?.id;
+  const ownerIsGlobal = pending ? null : owner.workspaceId === homeWorkspace?.id;
 
   useLayoutEffect(() => {
     coordinator.holdRoute({ pathname, search });
@@ -39,10 +39,13 @@ export function SessionWorkspaceSwitchRouteDecision({
 
   return (
     <SessionWorkspaceSwitchDialog
-      open={open}
-      isGlobal={ownerIsGlobal}
+      open={open && ownerIsGlobal !== null}
+      isGlobal={ownerIsGlobal === true}
       workspaceName={ownerIsGlobal ? GLOBAL_SCOPE_COPY.chipLabel : owner.workspaceName}
-      onConfirm={() => confirmSessionWorkspaceSwitch(owner, { isGlobal: ownerIsGlobal }, onReenter)}
+      onConfirm={() => {
+        if (ownerIsGlobal === null) return;
+        confirmSessionWorkspaceSwitch(owner, { isGlobal: ownerIsGlobal }, onReenter);
+      }}
       onCancel={onDecline}
     />
   );

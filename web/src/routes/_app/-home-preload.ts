@@ -17,7 +17,15 @@ export async function preloadHomeRoute(queryClient: QueryClient): Promise<void> 
 
 export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<void> {
   const usageWindow = homePrefsStore.getSnapshot().context.usageWindow;
-  const resolution = await resolveActiveWorkspaceSelection(queryClient);
+  let resolution: Awaited<ReturnType<typeof resolveActiveWorkspaceSelection>>;
+  try {
+    resolution = await resolveActiveWorkspaceSelection(queryClient);
+  } catch {
+    // The query cache owns the failure state rendered by the page. Route
+    // preloading is opportunistic and must not turn that failure into a
+    // navigation error.
+    return;
+  }
   const scope = homeScopeForActiveWorkspace(resolution.scope, resolution.activeWorkspaceId);
   if (!scope) return;
   const agentWorkspaceId = resolution.runtimeWorkspaceId;

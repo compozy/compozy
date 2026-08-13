@@ -106,7 +106,6 @@ function SessionCreateDialog({
         unframed
       >
         <EntityDialogHeader
-          description="Start a durable session. Choose its runtime when you send the first message."
           eyebrow="Operate · Session"
           icon={Play}
           onClose={isSubmitting ? undefined : () => handleOpenChange(false)}

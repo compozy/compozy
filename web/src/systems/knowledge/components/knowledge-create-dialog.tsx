@@ -129,7 +129,6 @@ function KnowledgeCreateDialog({
         unframed
       >
         <EntityDialogHeader
-          description="The entry is recorded as a decision and becomes available to matching future recall."
           eyebrow="Catalog · Knowledge"
           icon={BookOpen}
           onClose={() => updateDialogOpen(false)}

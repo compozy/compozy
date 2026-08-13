@@ -294,6 +294,9 @@ function useKnowledgePage() {
     const response = await writeMemoryMutate(body);
     const filename = response.decision.target_filename ?? response.decision.frontmatter.filename;
     searchInput.clear();
+    if (activeScope !== "agent") {
+      setActiveScope(createSelector.scope);
+    }
     setSelectedMemoryKey(`${createSelector.scope}:${filename}`);
     setCreateOpen(false);
   };

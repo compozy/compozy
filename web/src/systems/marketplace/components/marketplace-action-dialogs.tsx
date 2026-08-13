@@ -47,7 +47,7 @@ function MarketplaceActionDialogs({
       {mcpDetail ? (
         <MCPInstallDialog
           data={mcpDetail}
-          key={mcpDetail.entry.entry_id}
+          key={`${mcpDetail.entry.entry_id}:${scope ?? "derived"}:${workspaceId ?? "none"}`}
           onInstall={onInstallMCP}
           onOpenChange={open => {
             if (!open) onMCPClose();

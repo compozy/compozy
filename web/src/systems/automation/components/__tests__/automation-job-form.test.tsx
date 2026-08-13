@@ -116,7 +116,7 @@ describe("AutomationJobForm", () => {
   });
 
   it("Should show a Global destination statement for a global draft", () => {
-    renderJobForm({ draft: createAutomationJobDraft(null) });
+    renderJobForm({ activeWorkspaceId: null, draft: createAutomationJobDraft(null) });
 
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in Global");
     expect(screen.queryByTestId("job-scope-global")).toBeNull();

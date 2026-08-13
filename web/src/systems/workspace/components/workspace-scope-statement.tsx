@@ -5,14 +5,13 @@ import type { WorkspaceScopeMode } from "../lib/workspace-scope-mode";
 export type WorkspaceScopeStatementVariant = "chip" | "note";
 export type WorkspaceScopeStatementKind = "create" | "install" | "session" | "edit" | "subscribe";
 
-export interface WorkspaceScopeStatementProps {
+export interface WorkspaceScopeStatementProps extends React.ComponentProps<"span"> {
   variant: WorkspaceScopeStatementVariant;
   scope: WorkspaceScopeMode;
   destination: string;
   kind: WorkspaceScopeStatementKind;
   /** Session root or operator-home path. */
   root?: string;
-  className?: string;
 }
 
 function statementParts(
@@ -57,6 +56,8 @@ export function WorkspaceScopeStatement({
   kind,
   root,
   className,
+  ref,
+  ...props
 }: WorkspaceScopeStatementProps) {
   const { prefix, suffix } = statementParts(kind, scope === "global", root);
   const chip = variant === "chip";
@@ -70,6 +71,8 @@ export function WorkspaceScopeStatement({
 
   return (
     <span
+      {...props}
+      ref={ref}
       className={cn(
         chip
           ? "inline-flex h-7 max-w-full items-center truncate rounded-md border border-line bg-canvas-tint px-2.5 text-form-hint text-muted"

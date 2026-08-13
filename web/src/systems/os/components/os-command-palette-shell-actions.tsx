@@ -38,7 +38,7 @@ export function OsCommandPaletteShellActions({
         <CommandShortcut>⌘N</CommandShortcut>
       </CommandItem>
       <CommandItem
-        disabled={model.globalScopeOn && !model.canDisableGlobal}
+        disabled={model.scopeToggleLocked || (model.globalScopeOn && !model.canDisableGlobal)}
         value="toggle global scope"
         data-testid="os-palette-toggle-global-scope"
         onSelect={model.toggleGlobalScope}

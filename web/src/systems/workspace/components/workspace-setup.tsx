@@ -43,7 +43,7 @@ function WorkspaceSetupDialog({ open, onOpenChange, model }: WorkspaceSetupDialo
         unframed
       >
         <EntityDialogHeader
-          description="Register a local directory as a workspace. The root becomes immutable — defaults stay editable afterwards."
+          description={WORKSPACE_SETUP_COPY.dialog.description}
           eyebrow="Workspace"
           icon={Layers}
           onClose={isSubmitting ? undefined : () => onOpenChange(false)}
