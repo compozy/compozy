@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "session-attachments/attach-vocabulary.html",
+  "entry": "session-attachments/attach-vocabulary.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-13T13:41:13.482Z",
+  "updatedAt": "2026-08-13T13:41:13.482Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

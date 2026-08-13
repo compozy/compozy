@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Fused stack · Attachments · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="attach.css">
+<!--
+  attach-stack · S5 final — permission dock + queued strip + draft images + field.
+  Spec: GitHub composy/compozy#366 + SESSION-REDESIGN-SPEC fused composer stack.
+  Provenance:
+    production            — session-composer.tsx:143-171 stack order (dock → qstrip → Root);
+                            session.css §07 dock, §13 qstrip, §11 composer--docked
+    spec issue-366        — preview lives with the draft, not in the queue
+    authorized delta      — images inside the field so they do not look daemon-owned
+-->
+<style>
+  .stack-wrap{max-width:560px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="att-stack-head">
+    <a class="w2-back" href="index.html" aria-label="Back to attachment set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Attachments</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Fused stack</span>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="attach-picker.html">← Picker</a>
+      <a class="btn" href="attach-files.html">Files →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="sec-full-stack">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Dock · queue · drafts · field</h2>
+        <span class="lab-sec__gist">one shape · squared corners · drafts sit in the field</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Busy turn</b>Permission is daemon-owned. The queued row is a text follow-up the daemon already accepted. Draft images and files sit *in* the field — they have not been queued yet. ⏎ reads queue. Stop disc replaces send.</div>
+        <div class="spec__demo stack-wrap">
+          <div data-od-id="fused-stack">
+            <div class="dock" data-od-id="permission-dock">
+              <div class="dock__head"><span class="dock__eyebrow">Permission</span><span class="dock__title">Run a command</span><span class="dock__count">1/1</span></div>
+              <div class="dock__body">
+                <pre class="dock__pre">bunx turbo run lint typecheck test --filter=./web</pre>
+                <div class="dock__meta">Bash · workspace <code>compozy</code></div>
+              </div>
+              <div class="dock__actions">
+                <button class="btn btn--primary btn--sm" type="button">Allow once<kbd>1</kbd></button>
+                <button class="btn btn--sm" type="button">Always allow<kbd>2</kbd></button>
+                <span class="spacer"></span>
+                <button class="btn btn--ghost btn--sm" type="button" style="color:var(--muted)">Reject<kbd>3</kbd></button>
+              </div>
+            </div>
+            <div class="qstrip" data-od-id="queued-prompts">
+              <div class="qrow">
+                <svg data-lucide="list-plus"></svg>
+                <span class="qrow__text">Convert the states gallery to the marker vocabulary too</span>
+                <div class="qrow__acts">
+                  <button class="qrow__steer" type="button"><svg data-lucide="corner-down-right"></svg>Steer</button>
+                  <button class="qrow__ib" type="button" aria-label="Edit queued prompt"><svg data-lucide="pencil"></svg></button>
+                  <button class="qrow__ib" type="button" aria-label="Remove queued prompt"><svg data-lucide="trash-2"></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="composer composer--docked" data-od-id="composer-stacked">
+              <div class="att-strip" role="list" aria-label="Attachments">
+                <div class="att-tile" data-state="ready" role="listitem">
+                  <span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span>
+                  <span class="att-meta"><span class="att-name">goal-chip.png</span><span class="att-size">240 KB</span></span>
+                  <button class="att-x" type="button" aria-label="Remove goal-chip.png"><svg data-lucide="x"></svg></button>
+                </div>
+                <div class="att-tile" data-state="ready" role="listitem">
+                  <span class="att-thumb"><img src="assets/agents-list.png" alt=""></span>
+                  <span class="att-meta"><span class="att-name">agents-list.png</span><span class="att-size">312 KB</span></span>
+                  <button class="att-x" type="button" aria-label="Remove agents-list.png"><svg data-lucide="x"></svg></button>
+                </div>
+                <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                  <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+                  <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+                  <button class="att-x" type="button" aria-label="Remove notes.md"><svg data-lucide="x"></svg></button>
+                </div>
+              </div>
+              <textarea rows="1" placeholder="Send a message…">And the Goal card — flatten this too.</textarea>
+              <div class="composer__bar">
+                <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+                <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+                <span class="composer__hint"><kbd>⏎</kbd>queue</span>
+                <span class="spacer"></span>
+                <button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="list-plus"></svg>Queue</button>
+                <button class="btn btn--ghost btn--sm" type="button"><svg data-lucide="scissors"></svg>Steer</button>
+                <button class="composer__stop" type="button" aria-label="Stop turn"><svg data-lucide="square"></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sec-queue-only">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Queue without dock</h2>
+        <span class="lab-sec__gist">qstrip still squares the field · images stay inside</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No permission</b>The strip is the only thing above the field. Attachments never migrate into the qstrip until the user queues this draft.</div>
+        <div class="spec__demo stack-wrap">
+          <div>
+            <div class="qstrip">
+              <div class="qrow">
+                <svg data-lucide="list-plus"></svg>
+                <span class="qrow__text">Also retone the marker components</span>
+                <div class="qrow__acts">
+                  <button class="qrow__steer" type="button"><svg data-lucide="corner-down-right"></svg>Steer</button>
+                  <button class="qrow__ib" type="button" aria-label="Remove queued prompt"><svg data-lucide="trash-2"></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="composer composer--docked" data-od-id="composer-q-only">
+              <div class="att-strip" role="list" aria-label="Attachments">
+                <div class="att-tile" data-state="ready" role="listitem">
+                  <span class="att-thumb"><img src="assets/permission-dock.png" alt=""></span>
+                  <span class="att-meta"><span class="att-name">permission-dock.png</span><span class="att-size">96 KB</span></span>
+                  <button class="att-x" type="button" aria-label="Remove permission-dock.png"><svg data-lucide="x"></svg></button>
+                </div>
+                <div class="att-tile" data-state="ready" data-kind="file" role="listitem">
+                  <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+                  <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">186 KB</span></span>
+                  <button class="att-x" type="button" aria-label="Remove flatten-spec.pdf"><svg data-lucide="x"></svg></button>
+                </div>
+              </div>
+              <textarea rows="1" placeholder="Send a message…"></textarea>
+              <div class="composer__bar">
+                <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+                <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+                <span class="composer__hint"><kbd>⏎</kbd>queue</span>
+                <span class="spacer"></span>
+                <button class="composer__stop" type="button" aria-label="Stop turn"><svg data-lucide="square"></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="attach.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

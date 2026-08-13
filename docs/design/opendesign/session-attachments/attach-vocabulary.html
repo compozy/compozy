@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Attachment tile &amp; state vocabulary · Lab · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="attach.css">
+<!--
+  attach-vocabulary · S1 vocabulary sheet — the anchor every other attachment surface reuses.
+  Spec: GitHub composy/compozy#366 + basic files PDF/MD/TXT.
+  Provenance:
+    production            — composer field from session-composer.tsx (10px radius, 28px bar)
+    spec issue-366        — thumbnail + name + MIME/size + remove
+    authorized delta      — 36×36 well; files use a mono extension mark, not a chip
+-->
+<style>
+  .chip-grid{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+  .callouts{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px}
+  .co{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:var(--subtle)}
+  .co i{font-family:var(--font-mono);font-style:normal;font-size:8.5px;font-weight:600;color:var(--faint);
+    border:1px solid var(--line-strong);border-radius:var(--radius-xxs);padding:0 4px}
+  .anat{position:relative;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:10px 12px}
+  .dead{opacity:.45;filter:grayscale(.4)}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="att-lab-head">
+    <a class="w2-back" href="index.html" aria-label="Back to attachment set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Attachments</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Tile &amp; state vocabulary</span>
+    </nav>
+    <span class="tag" style="font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle)">lab</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn" href="attach-composer.html">Composer →</a></div>
+  </header>
+
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="lab-anatomy">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Image tile</h2>
+        <span class="lab-sec__gist">36×36 photo · filename · mono size · ×</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The ready image</b>Name is the original filename. Size is mono. Dimensions live in <code>title</code>. The well is a crop of the screenshot — that is the payload the agent will see.</div>
+        <div class="spec__demo">
+          <div class="anat">
+            <div class="att-tile" data-state="ready" data-od-id="tile-anatomy">
+              <span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span>
+              <span class="att-meta">
+                <span class="att-name" title="goal-chip.png · 1840×920">goal-chip.png</span>
+                <span class="att-size">240 KB</span>
+              </span>
+              <button class="att-x" type="button" aria-label="Remove goal-chip.png"><svg data-lucide="x"></svg></button>
+            </div>
+          </div>
+          <div class="callouts">
+            <span class="co"><i>A</i> 36×36 · radius-md · hairline</span>
+            <span class="co"><i>B</i> 12px name, truncate</span>
+            <span class="co"><i>C</i> 10.5px mono size</span>
+            <span class="co"><i>D</i> 22px ×, danger on hover</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-file-anatomy">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">File well</h2>
+        <span class="lab-sec__gist">same tile · extension mark instead of a photo</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>PDF · MD · TXT</b>Same 36×36 well, same ×. Type is the three-letter mark in mono — not a Lucide glyph and not a tinted icon. No fake first-page preview. v1 allows these three plus images; everything else is a rejected tile.</div>
+        <div class="spec__demo chip-grid">
+          <div class="att-tile" data-state="ready" data-kind="file" data-od-id="tile-pdf">
+            <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+            <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">186 KB</span></span>
+            <button class="att-x" type="button" aria-label="Remove flatten-spec.pdf"><svg data-lucide="x"></svg></button>
+          </div>
+          <div class="att-tile" data-state="ready" data-kind="file" data-od-id="tile-md">
+            <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">MD</span></span>
+            <span class="att-meta"><span class="att-name">notes.md</span><span class="att-size">4 KB</span></span>
+            <button class="att-x" type="button" aria-label="Remove notes.md"><svg data-lucide="x"></svg></button>
+          </div>
+          <div class="att-tile" data-state="ready" data-kind="file" data-od-id="tile-txt">
+            <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">TXT</span></span>
+            <span class="att-meta"><span class="att-name">error-log.txt</span><span class="att-size">12 KB</span></span>
+            <button class="att-x" type="button" aria-label="Remove error-log.txt"><svg data-lucide="x"></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-states">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Tile states</h2>
+        <span class="lab-sec__gist">color AND structure · ready stays calm</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The four states</b><code>ready</code> is the default — no chip. <code>uploading</code> is persist-before-send. <code>error</code> is a recoverable persist/size failure. <code>rejected</code> is a type the composer will not keep (ZIP, SVG, Office) — not Markdown.</div>
+        <div class="spec__demo chip-grid">
+          <div class="att-tile" data-state="ready" data-od-id="tile-ready">
+            <span class="att-thumb"><img src="assets/permission-dock.png" alt=""></span>
+            <span class="att-meta"><span class="att-name">permission-dock.png</span><span class="att-size">96 KB</span></span>
+            <button class="att-x" type="button" aria-label="Remove permission-dock.png"><svg data-lucide="x"></svg></button>
+          </div>
+          <div class="att-tile" data-state="uploading" data-od-id="tile-uploading">
+            <span class="att-thumb">
+              <img src="assets/screenshot-paste.png" alt="">
+              <span class="att-spin" aria-hidden="true"><svg data-lucide="loader-circle"></svg></span>
+            </span>
+            <span class="att-meta"><span class="att-name">Screenshot 2026-08-13 at 10.28.png</span><span class="att-size">Saving…</span></span>
+            <button class="att-x" type="button" aria-label="Remove Screenshot 2026-08-13 at 10.28.png"><svg data-lucide="x"></svg></button>
+          </div>
+          <div class="att-tile" data-state="uploading" data-kind="file" data-od-id="tile-file-uploading">
+            <span class="att-thumb att-thumb--file">
+              <span class="att-ext">PDF</span>
+              <span class="att-spin" aria-hidden="true"><svg data-lucide="loader-circle"></svg></span>
+            </span>
+            <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">Saving…</span></span>
+            <button class="att-x" type="button" aria-label="Remove flatten-spec.pdf"><svg data-lucide="x"></svg></button>
+          </div>
+          <div class="att-tile" data-state="error" data-od-id="tile-error">
+            <span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span>
+            <span class="att-meta"><span class="att-name">mockup-4k.png</span><span class="att-size">18.2 MB · over 10 MB</span></span>
+            <button class="att-retry" type="button">Retry</button>
+            <button class="att-x" type="button" aria-label="Remove mockup-4k.png"><svg data-lucide="x"></svg></button>
+          </div>
+          <div class="att-tile" data-state="rejected" data-kind="file" data-od-id="tile-rejected">
+            <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">ZIP</span></span>
+            <span class="att-meta"><span class="att-name">archive.zip</span><span class="att-size">Not a supported file</span></span>
+            <button class="att-x" type="button" aria-label="Remove archive.zip"><svg data-lucide="x"></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-many">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Many items, one row</h2>
+        <span class="lab-sec__gist">horizontal track · edge fades · never wrap</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Rest — more to the right</b>The field does not grow. Six tiles stay on one line; the overflowing edge dissolves into the field fill (<code>--elevated</code>). Same pinned-edge anatomy as workspaces, but not the black glass veil — that fill is charcoal, not frosted glass. No scrollbar, no <code>+N</code>. Each tile keeps its name so one screenshot can come out.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="vocab-many">
+            <div class="att-strip" role="list" aria-label="Attachments">
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span><span class="att-meta"><span class="att-name">goal-chip.png</span><span class="att-size">240 KB</span></span><button class="att-x" type="button" aria-label="Remove goal-chip.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/permission-dock.png" alt=""></span><span class="att-meta"><span class="att-name">permission-dock.png</span><span class="att-size">96 KB</span></span><button class="att-x" type="button" aria-label="Remove permission-dock.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/screenshot-paste.png" alt=""></span><span class="att-meta"><span class="att-name">Screenshot 2026-08-13 at 10.28.png</span><span class="att-size">188 KB</span></span><button class="att-x" type="button" aria-label="Remove Screenshot 2026-08-13 at 10.28.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/agents-list.png" alt=""></span><span class="att-meta"><span class="att-name">agents-list.png</span><span class="att-size">312 KB</span></span><button class="att-x" type="button" aria-label="Remove agents-list.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/markers-gallery.png" alt=""></span><span class="att-meta"><span class="att-name">markers-gallery.png</span><span class="att-size">268 KB</span></span><button class="att-x" type="button" aria-label="Remove markers-gallery.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/empty-session.png" alt=""></span><span class="att-meta"><span class="att-name">empty-session.png</span><span class="att-size">194 KB</span></span><button class="att-x" type="button" aria-label="Remove empty-session.png"><svg data-lucide="x"></svg></button></div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…">All six of these are the loud UI — flatten the lot.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Scrolled — both fades</b><code>data-scroll="mid"</code> for the lab. Both edges dissolve into the field fill so the operator can see there is more in either direction. Trackpad, wheel, or Tab onto a × (the tile scrolls clear of the fade). No grab-drag — drop still lands on the field.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-od-id="vocab-many-mid">
+            <div class="att-strip" role="list" aria-label="Attachments" data-scroll="mid">
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/goal-chip.png" alt=""></span><span class="att-meta"><span class="att-name">goal-chip.png</span><span class="att-size">240 KB</span></span><button class="att-x" type="button" aria-label="Remove goal-chip.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/permission-dock.png" alt=""></span><span class="att-meta"><span class="att-name">permission-dock.png</span><span class="att-size">96 KB</span></span><button class="att-x" type="button" aria-label="Remove permission-dock.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/screenshot-paste.png" alt=""></span><span class="att-meta"><span class="att-name">Screenshot 2026-08-13 at 10.28.png</span><span class="att-size">188 KB</span></span><button class="att-x" type="button" aria-label="Remove Screenshot 2026-08-13 at 10.28.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/agents-list.png" alt=""></span><span class="att-meta"><span class="att-name">agents-list.png</span><span class="att-size">312 KB</span></span><button class="att-x" type="button" aria-label="Remove agents-list.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/markers-gallery.png" alt=""></span><span class="att-meta"><span class="att-name">markers-gallery.png</span><span class="att-size">268 KB</span></span><button class="att-x" type="button" aria-label="Remove markers-gallery.png"><svg data-lucide="x"></svg></button></div>
+              <div class="att-tile" data-state="ready" role="listitem"><span class="att-thumb"><img src="assets/empty-session.png" alt=""></span><span class="att-meta"><span class="att-name">empty-session.png</span><span class="att-size">194 KB</span></span><button class="att-x" type="button" aria-label="Remove empty-session.png"><svg data-lucide="x"></svg></button></div>
+            </div>
+            <textarea rows="1" placeholder="Send a message…">Scroll the strip — both edges should fade into the field.</textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-rejected-alts">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Rejected alternatives</h2>
+        <span class="lab-sec__gist">same grammar · these are not the tile</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>22px filename chip</b>ds-core <code>.chip</code> has no well. A screenshot without a thumb is a filename the agent cannot see. A PDF without an extension mark is a chip you cannot scan. Never for attachments.</div>
+        <div class="spec__demo dead">
+          <span class="chip">goal-chip.png<button class="chip__x" type="button" aria-label="Remove"><svg data-lucide="x"></svg></button></span>
+          <span class="chip">flatten-spec.pdf<button class="chip__x" type="button" aria-label="Remove"><svg data-lucide="x"></svg></button></span>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Second dock</b>Docks are permission/clarification — daemon-owned. Draft attachments are composer-local and must vanish with send.</div>
+        <div class="spec__demo dead">
+          <div class="dock" style="max-width:360px">
+            <div class="dock__head"><span class="dock__eyebrow">Attachments</span><span class="dock__title">6 files</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-drop">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Drop overlay</h2>
+        <span class="lab-sec__gist">covers the composer root · no modal</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>While dragging</b>The field takes <code>accent-dim</code> as its one extra accent use. Idle composer never shows this hint.</div>
+        <div class="spec__demo composer-wrap">
+          <div class="composer" data-drop="true" data-od-id="drop-demo">
+            <div class="att-drop"><b>Drop files</b><span>Images, PDF, Markdown, or text</span></div>
+            <textarea rows="1" placeholder="Send a message…"></textarea>
+            <div class="composer__bar">
+              <button class="rt-chip" type="button"><svg data-lucide="cpu"></svg>claude<span class="mono">sonnet</span></button>
+              <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+              <span class="composer__hint"><kbd>⏎</kbd>send</span>
+              <span class="spacer"></span>
+              <button class="composer__send" type="button" aria-label="Send" disabled><svg data-lucide="arrow-up"></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-frame">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Transcript</h2>
+        <span class="lab-sec__gist">frames for images · file cards for PDF/MD/TXT</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Sent image</b>Hairline, <code>radius-lg</code>, caption inset 8px on hover/focus. <code>UserMessage</code> already switches on <code>part.type === "image"</code>; this is the missing visual.</div>
+        <div class="spec__demo">
+          <div class="msg-user t-msg" style="align-items:flex-start">
+            <div class="msg-user__atts" style="justify-content:flex-start;max-width:100%">
+              <a class="att-frame" href="assets/goal-chip.png" data-od-id="frame-goal">
+                <img src="assets/goal-chip.png" alt="Screenshot of the Goal status card">
+                <span class="att-frame__cap">goal-chip.png</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Sent file</b>Same well as the draft tile, no ×. Not the inspector Files row (those are paths the agent Read). Tagged <code>new · prompt-files</code>.</div>
+        <div class="spec__demo">
+          <a class="att-file" href="#file-flatten-spec" data-od-id="file-card-demo">
+            <span class="att-thumb att-thumb--file" aria-hidden="true"><span class="att-ext">PDF</span></span>
+            <span class="att-meta"><span class="att-name">flatten-spec.pdf</span><span class="att-size">186 KB</span></span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-bar">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Bar button</h2>
+        <span class="lab-sec__gist">26px ghost · paperclip · after runtime · never a second send</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Attach</b>Lucide <code>paperclip</code> now that the picker takes images and files. Network’s unwired paperclip is a different product (<code>/attach</code> = URL / capability ref). Hit target 26×26. <code>aria-label="Attach"</code>.</div>
+        <div class="spec__demo" style="display:flex;gap:12px;align-items:center">
+          <button class="att-btn" type="button" aria-label="Attach"><svg data-lucide="paperclip"></svg></button>
+          <button class="att-btn" type="button" data-on aria-label="Attach" aria-expanded="true"><svg data-lucide="paperclip"></svg></button>
+          <span style="font-size:11px;color:var(--subtle)">default · pressed (picker open)</span>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="attach.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

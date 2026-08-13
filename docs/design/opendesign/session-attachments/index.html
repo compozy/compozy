@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Attachments · Session composer · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<!--
+  session-attachments-index · set map S1–S9 for session attachments.
+  Spec: GitHub composy/compozy#366 (images) + basic files PDF/MD/TXT.
+  Provenance:
+    spec issue-366        — paste / drop / picker, persist-before-send, transcript reload
+    authorized delta      — map page only; tokens from ds-core
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  .card:focus-visible{box-shadow:var(--focus-ring)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:66ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="attach-index">
+  <h1>Attachments · design references</h1>
+  <p class="lede">Visual contracts for <code>#366</code> — paste, drop, and picker on the session composer. Images (PNG/JPEG/WebP) plus basic files (PDF, Markdown, text). One shared story: session <b>Calm transcript migration</b>. Start at the <b>vocabulary sheet</b>. Prompt POST is text-only today — boards that send attachments are tagged <code>new · prompt-images</code> or <code>new · prompt-files</code>.</p>
+
+  <div class="grp" data-od-id="attach-index-anchor">
+    <div class="grp__t">Anchor · shared vocabulary</div>
+    <div class="cards">
+      <a class="card" href="attach-vocabulary.html" data-od-id="card-vocabulary">
+        <span class="card__top"><span class="card__name">Tile &amp; state vocabulary</span><span class="tag">lab</span><span class="card__file">attach-vocabulary.html</span></span>
+        <span class="card__sub">S1 — 36×36 image thumb and file well (PDF/MD/TXT), ready·uploading·error·rejected, one-row rail + edge fades, why not a chip.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="attach-index-compose">
+    <div class="grp__t">Composer</div>
+    <div class="cards">
+      <a class="card" href="attach-composer.html" data-od-id="card-composer">
+        <span class="card__top"><span class="card__name">Idle composer</span><span class="tag tag--final">final</span><span class="card__file">attach-composer.html</span></span>
+        <span class="card__sub">S2 — strip above the textarea: 0, 1, 2, six images in one scrolling row, files, mixed. Remove ×. Bar uses paperclip.</span>
+      </a>
+      <a class="card" href="attach-drop-paste.html" data-od-id="card-drop">
+        <span class="card__top"><span class="card__name">Drop &amp; paste</span><span class="tag tag--final">final</span><span class="card__file">attach-drop-paste.html</span></span>
+        <span class="card__sub">S3 — drag-over overlay, clipboard paste, mixed drop of images + notes.md + flatten-spec.pdf, in-place reject of archive.zip.</span>
+      </a>
+      <a class="card" href="attach-picker.html" data-od-id="card-picker">
+        <span class="card__top"><span class="card__name">Picker &amp; bar button</span><span class="tag tag--final">final</span><span class="card__file">attach-picker.html</span></span>
+        <span class="card__sub">S4 — 26px paperclip after runtime, hidden file input with mixed accept, multi-select landing, why <code>/image</code> is not a command.</span>
+      </a>
+      <a class="card" href="attach-stack.html" data-od-id="card-stack">
+        <span class="card__top"><span class="card__name">Fused stack</span><span class="tag tag--final">final</span><span class="card__file">attach-stack.html</span></span>
+        <span class="card__sub">S5 — permission dock + queued strip + draft images and files + field. One shape, squared corners.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="attach-index-files">
+    <div class="grp__t">Files</div>
+    <div class="cards">
+      <a class="card" href="attach-files.html" data-od-id="card-files">
+        <span class="card__top"><span class="card__name">PDF · Markdown · text</span><span class="tag tag--final">final</span><span class="card__file">attach-files.html</span></span>
+        <span class="card__sub">S6 — file-well anatomy, MD/PDF/TXT states, files-only send, mixed with images, file cards in the transcript.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="attach-index-after">
+    <div class="grp__t">After send · refusals · busy</div>
+    <div class="cards">
+      <a class="card" href="attach-transcript.html" data-od-id="card-transcript">
+        <span class="card__top"><span class="card__name">Transcript</span><span class="tag tag--final">final</span><span class="card__file">attach-transcript.html</span></span>
+        <span class="card__sub">S7 — frames above the bubble; six-image one-row gallery with edge fades; file cards; mixed turn; image-only / file-only skip the empty bubble.</span>
+      </a>
+      <a class="card" href="attach-refusals.html" data-od-id="card-refusals">
+        <span class="card__top"><span class="card__name">Refusals &amp; gates</span><span class="tag tag--final">final</span><span class="card__file">attach-refusals.html</span></span>
+        <span class="card__sub">S8 — SVG/ZIP/Office refused, too large, persist failed, model without images. MD/PDF/TXT are allowed.</span>
+      </a>
+      <a class="card" href="attach-busy.html" data-od-id="card-busy">
+        <span class="card__top"><span class="card__name">Busy session</span><span class="tag tag--final">final</span><span class="card__file">attach-busy.html</span></span>
+        <span class="card__sub">S9 — draft stays in the field; queued row carries a 16px well + <code>· N images · N files</code>.</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">design-system/ds-core.css</span>; composer/dock/qstrip transcribed from <span class="mono">_done/session/session.css</span>. Shared story + locked decisions: <a href="DESIGN-NOTES.md" style="color:var(--muted);text-decoration:underline"><span class="mono">DESIGN-NOTES.md</span></a>. Issue <span class="mono">#366</span>. Content is illustrative; runtime truth owns final values.</p>
+</div>
+</body>
+</html>
