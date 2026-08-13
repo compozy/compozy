@@ -334,6 +334,7 @@ func (p *ExtensionToolProvider) manifestTools(scope toolspkg.Scope) ([]extension
 	}
 
 	manifestTools := make([]extensionManifestTool, 0)
+	cacheComplete := true
 	for _, info := range infos {
 		if !info.Enabled {
 			continue
@@ -348,11 +349,13 @@ func (p *ExtensionToolProvider) manifestTools(scope toolspkg.Scope) ([]extension
 		manifest, err := loadManifestAtPath(info.ManifestPath)
 		if err != nil {
 			p.logInvalidToolManifest(info.Name, err)
+			cacheComplete = false
 			continue
 		}
 		descriptors, err := ResolveManifestToolDescriptors(manifest)
 		if err != nil {
 			p.logInvalidToolManifest(info.Name, err)
+			cacheComplete = false
 			continue
 		}
 		for i := range descriptors {
@@ -369,7 +372,9 @@ func (p *ExtensionToolProvider) manifestTools(scope toolspkg.Scope) ([]extension
 	slices.SortFunc(manifestTools, func(left, right extensionManifestTool) int {
 		return strings.Compare(left.descriptor.Tool.ID.String(), right.descriptor.Tool.ID.String())
 	})
-	p.storeManifestTools(fingerprint, manifestTools)
+	if cacheComplete {
+		p.storeManifestTools(fingerprint, manifestTools)
+	}
 	return cloneExtensionManifestTools(manifestTools), nil
 }
 

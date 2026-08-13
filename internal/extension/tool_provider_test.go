@@ -266,6 +266,58 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should rediscover a repaired manifest with unchanged file metadata", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		fixture := createExtensionToolTestExtension(t, "repaired-tool", "fake-extension", nil, nil, true)
+		installManagerFixture(t, env.registry, fixture, SourceUser, true)
+		info, err := env.registry.Get(fixture.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", fixture.manifest.Name, err)
+		}
+		original, err := os.ReadFile(info.ManifestPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", info.ManifestPath, err)
+		}
+		stat, err := os.Stat(info.ManifestPath)
+		if err != nil {
+			t.Fatalf("os.Stat(%q) error = %v", info.ManifestPath, err)
+		}
+		malformed := bytes.Repeat([]byte{' '}, len(original))
+		malformed[0] = '{'
+		if err := os.WriteFile(info.ManifestPath, malformed, stat.Mode()); err != nil {
+			t.Fatalf("os.WriteFile(malformed) error = %v", err)
+		}
+		if err := os.Chtimes(info.ManifestPath, stat.ModTime(), stat.ModTime()); err != nil {
+			t.Fatalf("os.Chtimes(malformed) error = %v", err)
+		}
+
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return nil })
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+		first, err := provider.List(testutil.Context(t), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Provider.List(malformed) error = %v", err)
+		}
+		if len(first) != 0 {
+			t.Fatalf("Provider.List(malformed) = %#v, want invalid extension isolated", first)
+		}
+
+		if err := os.WriteFile(info.ManifestPath, original, stat.Mode()); err != nil {
+			t.Fatalf("os.WriteFile(repaired) error = %v", err)
+		}
+		if err := os.Chtimes(info.ManifestPath, stat.ModTime(), stat.ModTime()); err != nil {
+			t.Fatalf("os.Chtimes(repaired) error = %v", err)
+		}
+		repaired, err := provider.List(testutil.Context(t), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Provider.List(repaired) error = %v", err)
+		}
+		if len(repaired) != 1 {
+			t.Fatalf("Provider.List(repaired) = %#v, want repaired extension tool", repaired)
+		}
+	})
 }
 
 func TestExtensionToolProviderDispatch(t *testing.T) {
