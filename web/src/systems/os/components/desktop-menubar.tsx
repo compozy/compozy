@@ -68,7 +68,7 @@ export function DesktopMenubar({
   toggleLocked = false,
   canDisableGlobal = Boolean(activeWorkspace),
   deletionNotice = null,
-  rememberedWorkspaceName = activeWorkspace?.name ?? null,
+  rememberedWorkspaceName,
   onToggleGlobalScope,
   onSelectWorkspace,
   onAddWorkspace,
@@ -85,6 +85,9 @@ export function DesktopMenubar({
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
   const globalOn = scope === "global";
+  if (rememberedWorkspaceName === undefined) {
+    rememberedWorkspaceName = activeWorkspace ? activeWorkspace.name : null;
+  }
   const workspaceSlot =
     chip ??
     (activeWorkspace
