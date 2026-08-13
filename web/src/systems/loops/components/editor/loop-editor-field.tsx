@@ -16,6 +16,7 @@ import type { LoopReferenceSuggestion } from "../../lib/loop-references";
 import { LoopEditorCriteria } from "./loop-editor-criteria";
 import { LoopEditorEffectsField } from "./loop-editor-field-effects";
 import { LoopEditorJsonField } from "./loop-editor-json-field";
+import { LoopEditorEnvironmentField } from "./loop-editor-environment-field";
 import { LoopEditorWaitMode } from "./loop-editor-wait-mode";
 import { LoopEditorWatchEvents } from "./loop-editor-watch-events";
 import { LoopReferenceInput } from "./loop-reference-input";
@@ -293,6 +294,16 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
   if (field.type === "wait-mode") {
     return (
       <LoopEditorWaitMode
+        field={field}
+        raw={raw as RawLoopNode}
+        disabled={disabled}
+        onChangeFields={props.onChangeFields}
+      />
+    );
+  }
+  if (field.type === "environment") {
+    return (
+      <LoopEditorEnvironmentField
         field={field}
         raw={raw as RawLoopNode}
         disabled={disabled}

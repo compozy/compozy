@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { isSessionRunning, useSessions } from "@/systems/session";
 import {
@@ -6,6 +6,9 @@ import {
   selectWorktreeForScope,
   useAdoptWorktree,
   useDismissWorktree,
+  useWorktreeDetailContext,
+  WorktreeDetailDialog,
+  WorktreeExitProgressSurface,
   useRemoveWorktree,
   useWorktreeCreateDialog,
   WorktreeAdoptDialog,
@@ -111,6 +114,41 @@ export function WorktreeRemoveDialogBoundary({
 }
 
 /** Missing resolution: dismiss the record, or restore it through adoption. */
+/**
+ * The worktree context: status, the daemon's exit ladder, and its dialogs. It is
+ * the only mount point for the exit control — the session header carries the
+ * binding chip alone.
+ */
+export function WorktreeContextDialogBoundary({
+  workspaceId,
+  worktree,
+  onClose,
+  onCleanUp,
+}: {
+  workspaceId: string;
+  worktree: WorktreePayload;
+  onClose: () => void;
+  onCleanUp: () => void;
+}) {
+  const model = useWorktreeDetailContext({
+    workspaceId,
+    worktreeId: worktree.id,
+    onCleanUp,
+  });
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    if (!open && !model.isRunning && !model.progress) onClose();
+  }, [model.isRunning, model.progress, onClose, open]);
+
+  return (
+    <>
+      <WorktreeDetailDialog model={model} onOpenChange={setOpen} open={open} />
+      <WorktreeExitProgressSurface model={model} />
+    </>
+  );
+}
+
 export function WorktreeMissingDialogBoundary({
   workspaceId,
   worktree,

@@ -1,4 +1,4 @@
-import type { LoopEffectiveConfig, RunLoopRequest } from "../types";
+import type { LoopEffectiveConfig, LoopEnvironmentSpec, RunLoopRequest } from "../types";
 import { resolveLoopEffectiveConfig } from "./loop-effective-config";
 import { LOOP_CEILINGS } from "./loop-limits";
 
@@ -99,6 +99,8 @@ export function buildOverrideFields(effectiveConfig: LoopEffectiveConfig): LoopO
 export interface LoopOverrideDraft {
   values: Partial<Record<LoopOverrideKey, number>>;
   budgetOnExceeded: LoopBudgetPolicy;
+  /** `null` follows the Loop default; a value overrides only this run. */
+  environment: LoopEnvironmentSpec | null;
 }
 
 /** Seeds an empty draft with the contract's own budget policy so "no override" is truthful. */
@@ -107,7 +109,34 @@ export function initialOverrideDraft(effectiveConfig: LoopEffectiveConfig): Loop
   return {
     values: {},
     budgetOnExceeded: effective.budget_on_exceeded === "escalate" ? "escalate" : "halt",
+    environment: null,
   };
+}
+
+function environmentsEqual(
+  left: LoopEnvironmentSpec | null | undefined,
+  right: LoopEnvironmentSpec | null | undefined
+): boolean {
+  if (!left || !right) return left === right;
+  return (
+    left.mode === right.mode &&
+    left.worktree_ref === right.worktree_ref &&
+    left.directory === right.directory
+  );
+}
+
+/** Empty companion values never form a runnable per-run override. */
+export function isLoopEnvironmentOverrideValid(
+  environment: LoopEnvironmentSpec | null,
+  gitBacked: boolean
+): boolean {
+  if (!environment) return true;
+  if ((environment.mode === "worktree" || environment.mode === "per_run") && !gitBacked) {
+    return false;
+  }
+  if (environment.mode === "worktree") return Boolean(environment.worktree_ref?.trim());
+  if (environment.mode === "directory") return Boolean(environment.directory?.trim());
+  return true;
 }
 
 /** Clamps a typed override to `[0, ceiling]`; non-finite input clears the override. */
@@ -136,6 +165,12 @@ export function hasActiveOverrides(
   draft: LoopOverrideDraft,
   effectiveConfig: LoopEffectiveConfig
 ): boolean {
+  if (
+    draft.environment &&
+    !environmentsEqual(draft.environment, effectiveConfig.environment ?? null)
+  ) {
+    return true;
+  }
   const fields = buildOverrideFields(effectiveConfig);
   for (const field of fields) {
     const value = draft.values[field.key];
@@ -192,6 +227,12 @@ export function buildConfigOverrides(
   const effective = resolveLoopEffectiveConfig(effectiveConfig);
   if (draft.budgetOnExceeded !== effective.budget_on_exceeded) {
     overrides.budget_on_exceeded = draft.budgetOnExceeded;
+  }
+  if (
+    draft.environment &&
+    !environmentsEqual(draft.environment, effectiveConfig.environment ?? null)
+  ) {
+    overrides.environment = draft.environment;
   }
   return overrides;
 }

@@ -16,9 +16,11 @@ import {
   useSessionLedger,
   useSessionPromptRuntimeContext,
   useSessionTopbarSlot,
+  useSessionWorktreeBinding,
   useSessionUsage,
 } from "@/systems/session";
 import { useSessionVaultSecrets } from "@/systems/vault";
+import type { WorktreePayload } from "@/systems/workspace";
 
 export function useSessionWindowController(input: {
   windowId: string;
@@ -27,8 +29,19 @@ export function useSessionWindowController(input: {
   session: SessionPayload;
   onDeleteSuccess: () => void;
   liveDataEnabled: boolean;
+  onOpenWorktreeContext?: (workspaceId: string, worktree: WorktreePayload) => void;
+  onResolveMissingWorktree?: (workspaceId: string, worktree: WorktreePayload) => void;
 }) {
-  const { windowId, sessionId, workspaceId, session, onDeleteSuccess, liveDataEnabled } = input;
+  const {
+    windowId,
+    sessionId,
+    workspaceId,
+    session,
+    onDeleteSuccess,
+    liveDataEnabled,
+    onOpenWorktreeContext,
+    onResolveMissingWorktree,
+  } = input;
   const promptRuntime = useSessionPromptRuntimeContext();
   const controls = useSessionPageControls(sessionId, session, {
     getRuntimeSnapshot: () => getSessionPromptRuntimeSnapshot(promptRuntime),
@@ -49,7 +62,7 @@ export function useSessionWindowController(input: {
   const sessionUsage = useSessionUsage(sessionId, session.workspace_id, session.state, {
     enabled: inspectorEnabled,
   });
-  const sessionCommands = useSessionCommands(workspaceId, sessionId);
+  const sessionCommands = useSessionCommands(workspaceId, sessionId, { enabled: liveDataEnabled });
   const usage = sessionUsage.data;
   const inspectorUsage: InspectorUsage | null = usage
     ? {
@@ -74,8 +87,29 @@ export function useSessionWindowController(input: {
     stream: false,
   });
 
+  const worktreeBinding = useSessionWorktreeBinding({
+    workspaceId,
+    worktreeId: session.worktree_id,
+    commandCatalog: sessionCommands.catalog,
+    enabled: liveDataEnabled,
+  });
+
   useSessionTopbarSlot({
     session,
+    worktreeBinding: worktreeBinding.bound
+      ? {
+          worktreeId: worktreeBinding.worktreeId,
+          worktree: worktreeBinding.worktree,
+          onOpenContext:
+            worktreeBinding.worktree && onOpenWorktreeContext
+              ? () => onOpenWorktreeContext(workspaceId, worktreeBinding.worktree!)
+              : undefined,
+          onResolve:
+            worktreeBinding.worktree && onResolveMissingWorktree
+              ? () => onResolveMissingWorktree(workspaceId, worktreeBinding.worktree!)
+              : undefined,
+        }
+      : undefined,
     isDeleting: controls.isDeleting,
     isRenaming: controls.isRenaming,
     isStopping: controls.isStopping,
@@ -120,5 +154,6 @@ export function useSessionWindowController(input: {
     refreshCommandCatalog: () => {
       void sessionCommands.refetch();
     },
+    worktreeBinding,
   };
 }

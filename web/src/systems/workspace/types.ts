@@ -1,4 +1,4 @@
-import type { OperationResponse } from "@/lib/api-contract";
+import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type WorkspacesResponse = OperationResponse<"listWorkspaces", 200>;
 export type WorkspacePayload = WorkspacesResponse["workspaces"][number];
@@ -14,6 +14,24 @@ export type DiscoveredWorktreePayload = WorktreesResponse["discovered"][number];
 export type WorktreeRepoState = WorktreesResponse["repo"];
 export type WorktreeStatusPayload = OperationResponse<"getWorktreeStatus", 200>;
 export type WorktreeCatalogEventPayload = OperationResponse<"streamWorktreeCatalog", 200>;
+
+export type WorktreeInspectionPayload = OperationResponse<"inspectWorktree", 200>;
+/** Git facts for one worktree. Every numeric field is nullable — unknown is never zero. */
+export type WorktreeGitStatus = WorktreeStatusPayload["status"];
+export type WorktreeForgeStatus = NonNullable<WorktreeStatusPayload["forge"]>;
+
+/**
+ * The daemon-computed exit ladder. The web renders it verbatim: labels, blocked
+ * reasons, and the primary position are payload literals, never re-derived.
+ */
+export type WorktreeExitPlanPayload = OperationResponse<"getWorktreeExitPlan", 200>;
+export type WorktreeExitActionPlan = WorktreeExitPlanPayload["actions"][number];
+export type WorktreeExitAction = WorktreeExitActionPlan["action"];
+export type WorktreeExitCommitScope = WorktreeExitPlanPayload["commit_scope"];
+export type WorktreeExitCleanupEvidence = WorktreeExitPlanPayload["cleanup"];
+/** Provider vocabulary + affordance capability. Absent ⇒ forge affordances are absent. */
+export type WorktreeForgeCapabilities = NonNullable<WorktreeExitPlanPayload["forge"]>;
+export type RunWorktreeExitActionParams = OperationRequestBody<"runWorktreeExitAction">;
 
 /**
  * Presentational state vocabulary. `discovered` is derived (no record exists) and

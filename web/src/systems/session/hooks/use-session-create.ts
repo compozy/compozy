@@ -25,7 +25,23 @@ export function useSessionCreateActions() {
     store.trigger.dialogOpened({ agentName, workspaceId: runtimeWorkspaceId });
   };
 
-  return { openForAgent };
+  /**
+   * Starts session creation already pointed at one worktree, so the operator is
+   * never asked to re-pick the environment they just came from.
+   */
+  const openForWorktree = (workspaceId: string, worktreeId: string) => {
+    if (workspaceId.trim() === "") {
+      toast.error("Choose a workspace before starting a session.");
+      return;
+    }
+    store.trigger.dialogOpened({
+      agentName: "",
+      workspaceId,
+      environment: { kind: "worktree", worktreeId },
+    });
+  };
+
+  return { openForAgent, openForWorktree };
 }
 
 export function useSessionCreateHasActiveWorkspace(): boolean {

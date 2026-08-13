@@ -108,6 +108,36 @@ describe("buildLoopConfigRequest", () => {
     expect(config.budget_wall_sec).toBe(7_200);
   });
 
+  /**
+   * `PUT /config` replaces the stored block wholesale, so an environment default
+   * the operator never touched must still ride every save — omitting it would
+   * silently unpin the loop's environment on an unrelated edit.
+   */
+  it("Should round-trip the loop environment default through a save", () => {
+    const stored: LoopConfig = {
+      ...loopConfigFixture,
+      environment: { mode: "worktree", worktree_ref: "payments-retry" },
+    };
+    const draft = initialConfigDraft(descriptors, stored, loopEffectiveConfigFixture);
+    expect(draft.environment).toEqual({ mode: "worktree", worktree_ref: "payments-retry" });
+
+    const { config } = buildLoopConfigRequest(draft, descriptors);
+    expect(config.environment).toEqual({ mode: "worktree", worktree_ref: "payments-retry" });
+  });
+
+  it("Should drop the companion key a switched environment mode forbids", () => {
+    const draft = initialConfigDraft(descriptors, null, loopEffectiveConfigFixture);
+    draft.environment = { mode: "per_run", worktree_ref: "stale", directory: "packages/api" };
+    const { config } = buildLoopConfigRequest(draft, descriptors);
+    expect(config.environment).toEqual({ mode: "per_run" });
+  });
+
+  it("Should send a null environment when the loop pins no default", () => {
+    const draft = resetConfigDraft(descriptors, loopEffectiveConfigFixture);
+    const { config } = buildLoopConfigRequest(draft, descriptors);
+    expect(config.environment).toBeNull();
+  });
+
   it("Should NEVER emit a cost field (cost is display-only)", () => {
     const draft = initialConfigDraft(descriptors, loopConfigFixture, loopEffectiveConfigFixture);
     const { config } = buildLoopConfigRequest(draft, descriptors);

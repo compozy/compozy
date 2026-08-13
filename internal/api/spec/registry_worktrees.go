@@ -112,6 +112,7 @@ func worktreeExitPlanOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorktreeExitPlanResponse{}},
 			{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Worktree exit plan is unavailable", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Worktree service is unavailable", Body: contract.ErrorPayload{}},
 		},

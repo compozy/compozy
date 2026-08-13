@@ -75,6 +75,12 @@ function openWorktreeCatalogStream(
     // Frames for workspaces this client does not hold are dropped before any
     // cache write, so a catalog frame can never leak across workspaces.
     if (!payload || !authorizedWorkspaceIds.has(payload.workspace_id)) return;
+    if (payload.kind === "failed") {
+      queryClient.setQueryData(
+        workspaceKeys.worktreeMaterializationFailure(payload.workspace_id, payload.worktree_id),
+        payload.error || "Worktree creation failed and was rolled back."
+      );
+    }
     void queryClient.invalidateQueries({
       queryKey: workspaceKeys.worktrees(payload.workspace_id),
     });

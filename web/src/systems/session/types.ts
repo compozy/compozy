@@ -93,6 +93,7 @@ export type SessionLedgerMeta = SessionLedgerResponse["meta"];
 export type SessionLedgerEvent = SessionLedgerResponse["events"][number];
 
 export type CreateSessionParams = OperationRequestBody<"createSession">;
+export type ForkSessionToWorktreeParams = OperationRequestBody<"forkSessionToWorktree">;
 export type SessionApprovalResponse = OperationResponse<"approveSession", 200>;
 export type ApproveSessionParams = OperationRequestBody<"approveSession">;
 export type PermissionDecision = ApproveSessionParams["decision"];

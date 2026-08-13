@@ -55,6 +55,7 @@ func (h *BaseHandlers) StreamWorktreeCatalog(c *gin.Context) {
 				Name: worktreeCatalogChangedEvent,
 				Data: contract.WorktreeCatalogEventPayload{
 					Kind: string(event.Kind), WorkspaceID: event.WorkspaceID, WorktreeID: event.WorktreeID,
+					Error: event.Error,
 				},
 			}); err != nil {
 				h.logSSEWriteFailure(worktreeCatalogChangedEvent, err)

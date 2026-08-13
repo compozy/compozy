@@ -208,6 +208,48 @@ func TestExitActions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stream redacted commit hook output before the terminal step", func(t *testing.T) {
+		t.Parallel()
+		runner := &streamingRecordingGitRunner{
+			recordingGitRunner: &recordingGitRunner{responses: []gitResponse{
+				{}, {stdout: []byte("new.txt\x00")}, {stdout: []byte("committed\n")}, {stdout: []byte("deadbeef\n")},
+			}},
+			chunks: []GitOutput{
+				{Stream: GitOutputStdout, Chunk: []byte("hook started\n")},
+				{Stream: GitOutputStderr, Chunk: []byte("claim_token=compozy_claim_hook_secret\n")},
+			},
+		}
+		events := &recordingEventSink{}
+		service := NewService(newMemoryWorktreeStore(), runner, WithEvents(events))
+		steps, err := service.runExitSequence(
+			context.Background(),
+			ExitOperation{ID: "op-hook-output", WorkspaceID: "ws-hook", WorktreeID: "wt-hook"},
+			Worktree{Path: "/repo", Branch: "feature/exit"},
+			&ExitPlan{CommitScope: ExitCommitScope{ChangedFiles: 1}},
+			ExitActionRequest{Action: ExitActionCommit, Message: "Run hooks"},
+		)
+		if err != nil || len(steps) != 1 || steps[0].State != "completed" {
+			t.Fatalf("runExitSequence() = %#v, %v", steps, err)
+		}
+		stdout := exitEventPayloadForStream(t, events, GitOutputStdout)
+		if stdout.OperationID != "op-hook-output" || stdout.Action != ExitActionCommit ||
+			stdout.Phase != ExitPhaseCommit || stdout.Stream != string(GitOutputStdout) ||
+			stdout.Chunk != "hook started\n" {
+			t.Fatalf("first hook output payload = %#v", stdout)
+		}
+		encoded, marshalErr := json.Marshal(events.events)
+		if marshalErr != nil {
+			t.Fatalf("marshal events: %v", marshalErr)
+		}
+		if strings.Contains(string(encoded), "compozy_claim_hook_secret") ||
+			!strings.Contains(string(encoded), "compozy_claim_[REDACTED]") {
+			t.Fatalf("hook output events leaked raw token: %s", encoded)
+		}
+		if outputIndex, terminalIndex := exitEventIndex(events, EventExitHookOutput), exitLastEventIndex(events, EventExitActionStep); outputIndex < 0 || terminalIndex < 0 || outputIndex >= terminalIndex {
+			t.Fatalf("event order output=%d terminal-step=%d, want output first", outputIndex, terminalIndex)
+		}
+	})
+
 	t.Run("Should keep a completed commit when the following push fails", func(t *testing.T) {
 		t.Parallel()
 		runner := &recordingGitRunner{responses: []gitResponse{
@@ -232,7 +274,10 @@ func TestExitActions(t *testing.T) {
 		t.Parallel()
 		runner := &recordingGitRunner{responses: []gitResponse{{}, {}}}
 		service := NewService(newMemoryWorktreeStore(), runner)
-		step, err := service.runExitCommit(context.Background(), Worktree{Path: "/repo"}, ExitCommitScope{}, "")
+		step, err := service.runExitCommit(
+			context.Background(), ExitOperation{}, ExitActionCommit,
+			Worktree{Path: "/repo"}, ExitCommitScope{}, "",
+		)
 		if err != nil || step.State != "skipped" || step.Reason != "nothing to commit" ||
 			containsCommandPrefix(invocationCommands(runner.invocations()), "commit") {
 			t.Fatalf("runExitCommit() = %#v, %v; calls=%#v", step, err, runner.invocations())
@@ -245,7 +290,10 @@ func TestExitActions(t *testing.T) {
 			{}, {stdout: []byte(" \x00")}, {stdout: []byte("committed\n")}, {stdout: []byte("deadbeef\n")},
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
-		step, err := service.runExitCommit(context.Background(), Worktree{Path: "/repo"}, ExitCommitScope{}, "")
+		step, err := service.runExitCommit(
+			context.Background(), ExitOperation{}, ExitActionCommit,
+			Worktree{Path: "/repo"}, ExitCommitScope{}, "",
+		)
 		if err != nil || step.State != "completed" || step.SHA != "deadbeef" ||
 			countCommand(invocationCommands(runner.invocations()), "commit -m Update 1 files") != 1 {
 			t.Fatalf("runExitCommit(whitespace filename) = %#v, %v; calls=%#v", step, err, runner.invocations())
@@ -263,34 +311,87 @@ func TestExitActions(t *testing.T) {
 			t.Fatalf("seed PR worktree: %v", err)
 		}
 		provider := &recordingExitForge{create: &ForgePRResult{
-			Status: "opened_existing", Number: 51, URL: "https://github.com/acme/repo/pull/51",
+			Status: "opened_existing", Number: 51,
+			URL: "https://secret@github.com/acme/repo/pull/51?token=bad#fragment",
 		}}
 		service := NewService(store, &recordingGitRunner{}, WithForge(provider), WithClock(statusTestClock))
 		step, err := service.runExitPR(context.Background(), item, &ExitPlan{
 			Base: "main", RemoteURLs: []string{"https://github.com/acme/repo.git"},
 			Forge: &ForgeCapabilities{Provider: "github"},
 		}, ExitActionRequest{Action: ExitActionOpenPR, Title: "Exit", Body: "Ready", Draft: true})
-		if err != nil || step.PRStatus != "opened_existing" || step.PRNumber != 51 || provider.createCalls != 1 ||
+		cached, cacheErr := store.GetForgeStatus(context.Background(), item.WorkspaceID, item.ID)
+		if err != nil || cacheErr != nil || step.PRStatus != "opened_existing" || step.PRNumber != 51 ||
+			step.URL != "https://github.com/acme/repo/pull/51" || cached == nil || cached.PRURL != step.URL || provider.createCalls != 1 ||
 			!provider.lastCreate.Draft || provider.lastCreate.Title != "Exit" || provider.lastCreate.Body != "Ready" ||
 			provider.lastCreate.Base != "main" {
 			t.Fatalf("runExitPR() = %#v, %v; request=%#v calls=%d", step, err, provider.lastCreate, provider.createCalls)
 		}
 	})
+
+	t.Run("Should reuse the planned PR defaults when the request keeps the resolved base", func(t *testing.T) {
+		t.Parallel()
+		item := Worktree{
+			ID: "wt-pr", WorkspaceID: "ws-pr", Path: "/repo", Branch: "feature/pr", State: StateReady,
+			CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
+		}
+		store := newMemoryWorktreeStore()
+		if err := store.Insert(context.Background(), item); err != nil {
+			t.Fatalf("seed worktree: %v", err)
+		}
+		provider := &recordingExitForge{create: &ForgePRResult{
+			Status: "opened", Number: 52, URL: "https://github.com/acme/repo/pull/52",
+		}}
+		runner := &recordingGitRunner{}
+		service := NewService(store, runner, WithForge(provider), WithClock(statusTestClock))
+		step, err := service.runExitPR(
+			context.Background(),
+			item,
+			&ExitPlan{
+				Base: "main", RemoteURLs: []string{"https://github.com/acme/repo.git"},
+				Forge:     &ForgeCapabilities{Provider: "github"},
+				PRPrefill: &ExitPRPrefill{Title: "feature/pr", Body: "## Summary\nPlanned body."},
+			},
+			ExitActionRequest{Action: ExitActionOpenPR},
+		)
+		if err != nil || step.PRStatus != "opened" || provider.lastCreate.Title != "feature/pr" ||
+			provider.lastCreate.Body != "## Summary\nPlanned body." || len(runner.invocations()) != 0 {
+			t.Fatalf("runExitPR() = %#v, %v; request=%#v", step, err, provider.lastCreate)
+		}
+	})
 }
 
 type recordingExitForge struct {
-	status      *ForgeStatus
-	statusErr   error
-	statusCalls int
-	lastStatus  ForgeStatusRequest
-	create      *ForgePRResult
-	createErr   error
-	createCalls int
-	lastCreate  ForgePRRequest
+	capabilities *ForgeCapabilities
+	status       *ForgeStatus
+	statusErr    error
+	statusCalls  int
+	lastStatus   ForgeStatusRequest
+	create       *ForgePRResult
+	createErr    error
+	createCalls  int
+	lastCreate   ForgePRRequest
 }
 
-func (*recordingExitForge) Capabilities(context.Context, []string) (*ForgeCapabilities, error) {
-	return nil, nil
+func (f *recordingExitForge) Capabilities(context.Context, []string) (*ForgeCapabilities, error) {
+	return f.capabilities, nil
+}
+
+type streamingRecordingGitRunner struct {
+	*recordingGitRunner
+	chunks []GitOutput
+}
+
+func (r *streamingRecordingGitRunner) RunStreaming(
+	ctx context.Context,
+	dir string,
+	onOutput GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
+	stdout, stderr, err := r.Run(ctx, dir, args...)
+	for _, chunk := range r.chunks {
+		onOutput(chunk)
+	}
+	return stdout, stderr, err
 }
 
 func (f *recordingExitForge) Status(_ context.Context, request ForgeStatusRequest) (*ForgeStatus, error) {
@@ -492,6 +593,52 @@ func exitEventPayload(t *testing.T, events *recordingEventSink, name string) Exi
 		return payload
 	}
 	t.Fatalf("event %q not found", name)
+	return ExitEventPayload{}
+}
+
+func exitEventIndex(events *recordingEventSink, name string) int {
+	events.mu.Lock()
+	defer events.mu.Unlock()
+	for index, event := range events.events {
+		if event.Name == name {
+			return index
+		}
+	}
+	return -1
+}
+
+func exitLastEventIndex(events *recordingEventSink, name string) int {
+	events.mu.Lock()
+	defer events.mu.Unlock()
+	for index := len(events.events) - 1; index >= 0; index-- {
+		if events.events[index].Name == name {
+			return index
+		}
+	}
+	return -1
+}
+
+func exitEventPayloadForStream(
+	t *testing.T,
+	events *recordingEventSink,
+	stream GitOutputStream,
+) ExitEventPayload {
+	t.Helper()
+	events.mu.Lock()
+	defer events.mu.Unlock()
+	for _, event := range events.events {
+		if event.Name != EventExitHookOutput {
+			continue
+		}
+		var payload ExitEventPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("decode %s payload: %v", EventExitHookOutput, err)
+		}
+		if payload.Stream == string(stream) {
+			return payload
+		}
+	}
+	t.Fatalf("hook output stream %q not found", stream)
 	return ExitEventPayload{}
 }
 

@@ -316990,6 +316990,9 @@
                         "source": {
                           "type": "string"
                         },
+                        "stale": {
+                          "type": "boolean"
+                        },
                         "summary": {
                           "type": "string"
                         }
@@ -317114,6 +317117,18 @@
                     "global_pause_cause": {
                       "type": "string"
                     },
+                    "pr_prefill": {
+                      "nullable": true,
+                      "properties": {
+                        "body": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "primary": {
                       "type": "string"
                     },
@@ -317205,6 +317220,79 @@
               }
             },
             "description": "Worktree or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Worktree exit plan is unavailable"
           },
           "500": {
             "content": {
@@ -319358,6 +319446,9 @@
               "text/event-stream": {
                 "schema": {
                   "properties": {
+                    "error": {
+                      "type": "string"
+                    },
                     "kind": {
                       "type": "string"
                     },

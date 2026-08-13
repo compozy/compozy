@@ -2,7 +2,10 @@ import type { ReactNode } from "react";
 
 import { Pill, PillGroup, PropertyRow, Section, type PillGroupItem } from "@compozy/ui";
 
+import type { WorktreePayload } from "@/systems/workspace";
+
 import type { TaskExecutionProfile } from "../types";
+import { TaskWorktreePolicyReadRow } from "./task-worktree-policy-read-row";
 
 function SetupGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -74,8 +77,19 @@ const WORKER_MODE_ITEMS: ReadonlyArray<PillGroupItem<"inherit" | "select">> = [
   { value: "select", label: "Select", disabled: true },
 ];
 
+interface TaskSetupProfileViewProps {
+  profile: TaskExecutionProfile;
+  worktrees?: readonly WorktreePayload[];
+  /** False when the workspace is not git-backed — there is no policy to read back. */
+  showWorktree?: boolean;
+}
+
 /** Read-only, lossless projection of the daemon execution-profile contract. */
-export function TaskSetupProfileView({ profile }: { profile: TaskExecutionProfile }) {
+export function TaskSetupProfileView({
+  profile,
+  worktrees,
+  showWorktree = false,
+}: TaskSetupProfileViewProps) {
   const worker = profile.worker;
   const coordinator = profile.coordinator;
   const sandbox = profile.sandbox;
@@ -160,7 +174,7 @@ export function TaskSetupProfileView({ profile }: { profile: TaskExecutionProfil
         )}
       </SetupGroup>
 
-      <SetupGroup label="Sandbox & participants">
+      <SetupGroup label="Environment">
         <SetupRow label="Sandbox">
           {sandbox.mode === "ref" && sandbox.sandbox_ref ? (
             <Pill tone="neutral">{sandbox.sandbox_ref}</Pill>
@@ -168,6 +182,9 @@ export function TaskSetupProfileView({ profile }: { profile: TaskExecutionProfil
             <span className="capitalize text-muted">{sandbox.mode}</span>
           )}
         </SetupRow>
+        {showWorktree ? (
+          <TaskWorktreePolicyReadRow value={profile.worktree} worktrees={worktrees} />
+        ) : null}
         <SetupRow label="Runtime evidence">
           <span className="capitalize text-muted">{profile.runtime.mode}</span>
         </SetupRow>

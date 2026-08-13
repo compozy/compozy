@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,6 +12,41 @@ import (
 // Canonical suite: daemon-owned exit ladder, refusal copy, scope, and cleanup evidence.
 func TestExitPlan(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should return a blocked plan when Git status is unreadable", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryWorktreeStore()
+		item := Worktree{
+			ID: "wt-unreadable", WorkspaceID: "ws-a", Name: "unreadable",
+			Branch: "feature/unreadable", Path: "/repo/unreadable", State: StateReady,
+		}
+		if err := store.Insert(context.Background(), item); err != nil {
+			t.Fatalf("seed worktree: %v", err)
+		}
+		runner := &recordingGitRunner{responses: []gitResponse{{
+			stderr: []byte("fatal: cannot read index"), err: errors.New("git status failed"),
+		}}}
+		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
+
+		plan, err := service.ExitPlan(context.Background(), item.WorkspaceID, item.ID)
+		if err != nil {
+			t.Fatalf("ExitPlan() error = %v", err)
+		}
+		if plan.GlobalPauseCause != reasonStatusUnreadable || plan.Cleanup.Blocker != reasonStatusUnreadable {
+			t.Fatalf("blocked plan = %#v, want unreadable status reason", plan)
+		}
+		if len(plan.Actions) == 0 {
+			t.Fatal("blocked plan actions = empty, want disabled ladder")
+		}
+		for _, action := range plan.Actions {
+			if action.Enabled || action.BlockedReason != reasonStatusUnreadable {
+				t.Fatalf("action = %#v, want globally blocked", action)
+			}
+		}
+		if got := len(runner.invocations()); got != 1 {
+			t.Fatalf("Git calls = %d, want only the failed status read", got)
+		}
+	})
 
 	forge := &ForgeCapabilities{Provider: "github", OpenActionLabel: "Open PR", ViewActionLabel: "View PR"}
 	openState, prNumber := "open", 42
@@ -108,6 +144,34 @@ func TestExitPlan(t *testing.T) {
 		})
 	}
 
+	t.Run("Should expose only commit when origin is absent", func(t *testing.T) {
+		t.Parallel()
+		status := exitStatus(1, false, 0, 0)
+		rows := buildExitActions(&status, forge, nil, 1, false, "", "")
+		if len(rows) != 1 || rows[0].Action != ExitActionCommit || !rows[0].Enabled {
+			t.Fatalf("no-remote rows = %#v, want enabled commit only", rows)
+		}
+	})
+
+	t.Run("Should distinguish an absent origin from an unreadable remote configuration", func(t *testing.T) {
+		t.Parallel()
+		absent := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: []gitResponse{{
+			err: gitExitCodeError(2),
+		}}})
+		urls, err := absent.readOriginRemoteURLs(context.Background(), "/repo")
+		if err != nil || len(urls) != 0 {
+			t.Fatalf("absent origin = %#v, %v, want empty success", urls, err)
+		}
+
+		unreadable := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: []gitResponse{{
+			stderr: []byte("credential=secret"), err: gitExitCodeError(128),
+		}}})
+		_, err = unreadable.readOriginRemoteURLs(context.Background(), "/repo")
+		if err == nil || strings.Contains(err.Error(), "secret") {
+			t.Fatalf("unreadable origin error = %v, want redacted failure", err)
+		}
+	})
+
 	t.Run("Should bound named untracked scope without counting ignored entries", func(t *testing.T) {
 		t.Parallel()
 		var fixture strings.Builder
@@ -178,7 +242,8 @@ func TestExitPlan(t *testing.T) {
 					{stdout: []byte("2026-08-12T13:00:00Z\n")}, {stdout: []byte("1\n")}, {},
 				},
 				want: ExitCleanupEvidence{
-					ForgeState: "merged", Source: "local", Blocker: "1 commits exist nowhere else.",
+					ForgeState: "merged", Stale: true, Source: "local",
+					Blocker: "1 commits exist nowhere else.",
 				},
 			},
 			{
@@ -194,7 +259,8 @@ func TestExitPlan(t *testing.T) {
 				forge:     &ForgeStatus{Provider: "github", PRState: &merged},
 				responses: []gitResponse{{stdout: []byte("1\n")}, {}},
 				want: ExitCleanupEvidence{
-					ForgeState: "merged", Source: "local", Blocker: "1 commits exist nowhere else.",
+					ForgeState: "merged", Stale: true, Source: "local",
+					Blocker: "1 commits exist nowhere else.",
 				},
 			},
 			{
@@ -202,7 +268,8 @@ func TestExitPlan(t *testing.T) {
 				forge:     &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
 				responses: []gitResponse{{err: context.Canceled}, {stdout: []byte("1\n")}, {}},
 				want: ExitCleanupEvidence{
-					ForgeState: "merged", Source: "local", Blocker: "1 commits exist nowhere else.",
+					ForgeState: "merged", Stale: true, Source: "local",
+					Blocker: "1 commits exist nowhere else.",
 				},
 			},
 			{
@@ -210,13 +277,18 @@ func TestExitPlan(t *testing.T) {
 				forge:     &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
 				responses: []gitResponse{{stdout: []byte("not-a-time\n")}, {stdout: []byte("1\n")}, {}},
 				want: ExitCleanupEvidence{
-					ForgeState: "merged", Source: "local", Blocker: "1 commits exist nowhere else.",
+					ForgeState: "merged", Stale: true, Source: "local",
+					Blocker: "1 commits exist nowhere else.",
 				},
 			},
 		} {
 			t.Run("Should prefer "+testCase.name, func(t *testing.T) {
 				t.Parallel()
-				service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: testCase.responses})
+				service := NewService(
+					newMemoryWorktreeStore(),
+					&recordingGitRunner{responses: testCase.responses},
+					WithClock(func() time.Time { return fetchedAt.Add(29 * time.Second) }),
+				)
 				got := service.exitCleanupEvidence(
 					context.Background(), Worktree{Path: "/repo", Branch: "feature"}, testCase.forge,
 				)
@@ -224,6 +296,29 @@ func TestExitPlan(t *testing.T) {
 					t.Fatalf("cleanup = %#v, want %#v", got, testCase.want)
 				}
 			})
+		}
+	})
+
+	t.Run("Should downgrade stale forge evidence to current local evidence", func(t *testing.T) {
+		t.Parallel()
+		fetchedAt := time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC)
+		merged := "merged"
+		service := NewService(
+			newMemoryWorktreeStore(),
+			&recordingGitRunner{responses: []gitResponse{{stdout: []byte("1\n")}, {}}},
+			WithClock(func() time.Time { return fetchedAt.Add(exitForgeFreshness) }),
+		)
+		got := service.exitCleanupEvidence(
+			context.Background(),
+			Worktree{Path: "/repo", Branch: "feature"},
+			&ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
+		)
+		want := ExitCleanupEvidence{
+			ForgeState: "merged", Stale: true, Source: "local",
+			Blocker: "1 commits exist nowhere else.",
+		}
+		if got != want {
+			t.Fatalf("cleanup = %#v, want %#v", got, want)
 		}
 	})
 
@@ -263,7 +358,79 @@ func TestExitPlan(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("Should expose forge PR defaults and omit them without a forge", func(t *testing.T) {
+		t.Parallel()
+		item := Worktree{
+			ID: "wt-prefill", WorkspaceID: "ws-prefill", Path: "/repo", Name: "prefill",
+			Branch: "feature/prefill", BaseRef: "main", State: StateReady,
+			CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
+		}
+		newRunner := func() *recordingGitRunner {
+			return &recordingGitRunner{run: func(call gitInvocation) gitResponse {
+				command := strings.Join(call.args, " ")
+				switch command {
+				case "status --porcelain=v2 --branch -z":
+					return gitResponse{stdout: []byte("# branch.oid abc\x00# branch.head feature/prefill\x00" +
+						"# branch.upstream origin/feature/prefill\x00# branch.ab +0 -0\x00")}
+				case "diff --numstat -z", "diff --cached --numstat -z", "status --porcelain=v2 -z --untracked-files=all":
+					return gitResponse{}
+				case "remote get-url --all origin":
+					return gitResponse{stdout: []byte("git@github.com:acme/repo.git\n")}
+				case "config --get branch.feature/prefill.gh-merge-base":
+					return gitResponse{stdout: []byte("main\n")}
+				case "rev-list --count main..HEAD", "rev-list --count HEAD --not --remotes --exclude=refs/heads/feature/prefill --branches":
+					return gitResponse{stdout: []byte("1\n")}
+				case "branch -r --list */feature/prefill":
+					return gitResponse{}
+				case "ls-tree -r -z main":
+					return gitResponse{stdout: []byte("100644 blob abc\t.github/pull_request_template.md\x00")}
+				case "show main:.github/pull_request_template.md":
+					return gitResponse{stdout: []byte("## Summary\nDescribe the change.\n")}
+				default:
+					return gitResponse{err: fmt.Errorf("unexpected Git call: %s", command)}
+				}
+			}}
+		}
+		newStore := func() *memoryWorktreeStore {
+			store := newMemoryWorktreeStore()
+			if err := store.Insert(context.Background(), item); err != nil {
+				t.Fatalf("seed worktree: %v", err)
+			}
+			return store
+		}
+		capabilities := &ForgeCapabilities{
+			Provider: "github", OpenActionLabel: "Open PR", ViewActionLabel: "View PR",
+			TemplatePaths: []string{".github/pull_request_template.md"},
+		}
+		withForge := NewService(
+			newStore(), newRunner(), WithCapabilityGate(readyCapabilityGate()),
+			WithForge(&recordingExitForge{capabilities: capabilities}),
+		)
+		plan, err := withForge.ExitPlan(context.Background(), item.WorkspaceID, item.ID)
+		if err != nil {
+			t.Fatalf("ExitPlan() error = %v", err)
+		}
+		if plan.PRPrefill == nil || plan.PRPrefill.Title != item.Branch ||
+			plan.PRPrefill.Body != "## Summary\nDescribe the change." {
+			t.Fatalf("PR prefill = %#v, want branch title and base template", plan.PRPrefill)
+		}
+
+		withoutForge := NewService(newStore(), newRunner(), WithCapabilityGate(readyCapabilityGate()))
+		plan, err = withoutForge.ExitPlan(context.Background(), item.WorkspaceID, item.ID)
+		if err != nil {
+			t.Fatalf("ExitPlan(without forge) error = %v", err)
+		}
+		if plan.PRPrefill != nil {
+			t.Fatalf("PR prefill without forge = %#v, want nil", plan.PRPrefill)
+		}
+	})
 }
+
+type gitExitCodeError int
+
+func (e gitExitCodeError) Error() string { return fmt.Sprintf("git exited with status %d", e) }
+func (e gitExitCodeError) ExitCode() int { return int(e) }
 
 func exitStatus(dirty int, upstream bool, ahead, behind int) Status {
 	detached := false

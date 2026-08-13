@@ -28,6 +28,19 @@ func TestExitBrowserURL(t *testing.T) {
 		}
 	})
 
+	t.Run("Should sanitize forge URLs before persistence or events", func(t *testing.T) {
+		t.Parallel()
+		got, err := sanitizeForgeWebURL(
+			"https://secret@github.com/acme/repo/pull/42?access_token=other#fragment",
+		)
+		if err != nil || got != "https://github.com/acme/repo/pull/42" {
+			t.Fatalf("sanitizeForgeWebURL() = %q, %v", got, err)
+		}
+		if _, err := sanitizeForgeWebURL("javascript:alert(1)"); err == nil {
+			t.Fatal("sanitizeForgeWebURL(javascript) error = nil")
+		}
+	})
+
 	t.Run("Should use the neutral remote root for an unknown host", func(t *testing.T) {
 		t.Parallel()
 		got := browserCompareURL([]string{"ssh://git@example.test/acme/repo.git"}, "main", "feature", nil)

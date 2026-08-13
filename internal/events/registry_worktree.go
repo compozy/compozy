@@ -12,6 +12,7 @@ var worktreeRegistryEntries = []Metadata{
 	global(success(WorktreeBranchReclaimed, "worktree", ComponentWorktree)),
 	global(info(WorktreeExitActionStarted, "worktree.exit", ComponentWorktree)),
 	global(info(WorktreeExitActionStep, "worktree.exit", ComponentWorktree)),
+	global(info(WorktreeExitHookOutput, "worktree.exit", ComponentWorktree)),
 	global(success(WorktreeExitActionCompleted, "worktree.exit", ComponentWorktree)),
 	global(failure(WorktreeExitActionFailed, "worktree.exit", ComponentWorktree)),
 	global(info(WorktreeExitActionCanceled, "worktree.exit", ComponentWorktree)),

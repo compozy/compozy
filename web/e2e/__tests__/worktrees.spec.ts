@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import process from "node:process";
 
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -11,6 +12,12 @@ import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktr
  * through the UI, because that is the contract this task ships.
  */
 let repo: WorktreeRepoFixture;
+
+// The daemon already gets an isolated HOME; clearing ambient token bindings
+// makes the zero-credential browser fallback deterministic as well.
+test.use({
+  runtimeOptions: { env: { ...process.env, GH_TOKEN: "", GITHUB_TOKEN: "" } },
+});
 
 test.beforeEach(async () => {
   repo = await createWorktreeRepo();
@@ -63,6 +70,11 @@ async function seedReadyWorktree(
 async function openWorkspaceMenu(page: Page) {
   await page.locator('[data-slot="os-menubar-workspace"]').click();
   await expect(page.getByTestId("os-workspace-menu")).toBeVisible();
+}
+
+async function selectWorkspace(page: Page, workspaceId: string) {
+  await openWorkspaceMenu(page);
+  await page.getByTestId(`os-workspace-option-${workspaceId}`).click();
 }
 
 async function openOverviewNest(page: Page, workspaceId: string) {
@@ -379,4 +391,275 @@ test("operator restores a missing worktree when its checkout comes back", async 
     .toBe("ready");
   const listing = await listWorktrees(runtime, workspace.id);
   expect(listing.worktrees.filter(entry => entry.name === "hotfix-cors")).toHaveLength(1);
+});
+
+// E2E-008: the session-create environment control — root default, ready
+// worktrees only, "New worktree…", absence on a non-git workspace, and a reset
+// when the workspace changes.
+test("operator picks a session environment under Workspace", async ({ appPage, runtime }) => {
+  await completeOnboardingIfPrompted(appPage);
+  const workspace = await runtime.resolveWorkspace(repo.rootDir);
+  const nonGitWorkspace = await runtime.resolveWorkspace(repo.nonGitDir);
+  const ready = await seedReadyWorktree(runtime, workspace.id, "payments-retry");
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await selectWorkspace(appPage, workspace.id);
+
+  await appPage.getByTestId("session-create-open").click();
+  await appPage.getByTestId("session-create-mode-advanced").click();
+
+  const environment = appPage.getByTestId("session-create-environment");
+  await expect(environment).toBeVisible();
+  await expect(environment).toContainText("Workspace root");
+
+  await environment.click();
+  await expect(appPage.getByRole("option", { name: new RegExp(ready.name) })).toBeVisible();
+  await expect(appPage.getByRole("option", { name: "New worktree…" })).toBeVisible();
+  await appPage.getByRole("option", { name: new RegExp(ready.name) }).click();
+  await expect(environment).toContainText(ready.name);
+
+  // A non-git workspace has no environment control at all.
+  await appPage.getByTestId("session-create-workspace-select").click();
+  await appPage.getByTestId(`workspace-command-item-${nonGitWorkspace.id}`).click();
+  await expect(environment).toHaveCount(0);
+
+  // Worktrees belong to one workspace, so switching back discards the choice.
+  await appPage.getByTestId("session-create-workspace-select").click();
+  await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
+  await expect(environment).toBeVisible();
+  await expect(environment).toContainText("Workspace root");
+});
+
+// E2E-009 (US-004 AC-2): sending the typed first message is what materializes a
+// newly chosen environment — the session is created inside it and the message is
+// then sent by that session, not carried into an empty composer.
+test("operator sends a first message that materializes and binds its environment", async ({
+  appPage,
+  runtime,
+}) => {
+  await completeOnboardingIfPrompted(appPage);
+  const workspace = await runtime.resolveWorkspace(repo.rootDir);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await selectWorkspace(appPage, workspace.id);
+  await appPage.getByTestId("session-create-open").click();
+
+  const firstMessage = appPage.getByTestId("session-create-composer");
+  await firstMessage.fill("Investigate the checkout latency regression");
+  await appPage.getByTestId("session-create-mode-advanced").click();
+  await appPage.getByTestId("session-create-environment").click();
+  await appPage.getByRole("option", { name: "New worktree…" }).click();
+
+  // Choosing is not creating: an abandoned dialog must leave no checkout behind,
+  // and switching the target must not cost the operator what they typed.
+  await expect(appPage.locator('[data-slot="session-environment-phase"]')).toHaveCount(0);
+  expect((await listWorktrees(runtime, workspace.id, true)).worktrees).toHaveLength(0);
+  await expect(firstMessage).toHaveValue("Investigate the checkout latency regression");
+
+  await appPage.getByRole("button", { name: /start session/i }).click();
+
+  await expect(appPage.getByTestId("session-create-environment-status")).toBeVisible();
+  await expect(firstMessage).toHaveValue("Investigate the checkout latency regression");
+
+  const created = await pollForBoundSession(runtime, workspace.id);
+  const chip = appPage.locator('[data-slot="session-environment-chip"]');
+  await expect(chip).toBeVisible();
+  await expect(chip).toHaveAttribute("data-locked", "");
+  await expect(chip).toHaveAttribute("data-binding", "worktree");
+
+  // The session sends the message itself, so it lands in the durable transcript
+  // rather than sitting in a composer waiting for a second click.
+  await expect
+    .poll(async () => {
+      const transcript = await runtime.requestJSON<{
+        entries: Array<{
+          message: { role: string; parts: Array<{ type: string; text?: string }> };
+        }>;
+      }>(`/api/workspaces/${workspace.id}/sessions/${created.id}/transcript`);
+      return transcript.entries.filter(
+        entry =>
+          entry.message.role === "user" &&
+          entry.message.parts.some(
+            part =>
+              part.type === "text" &&
+              part.text?.includes("Investigate the checkout latency regression")
+          )
+      ).length;
+    })
+    .toBe(1);
+});
+
+/** The session created by the first send, once the daemon reports it bound. */
+async function pollForBoundSession(runtime: BrowserRuntime, workspaceId: string) {
+  let bound: { id: string; worktree_id?: string } | undefined;
+  await expect
+    .poll(async () => {
+      const sessions = await runtime.requestJSON<{
+        sessions: Array<{ id: string; worktree_id?: string }>;
+      }>(`/api/sessions?workspace=${workspaceId}`);
+      bound = sessions.sessions.find(session => Boolean(session.worktree_id));
+      return bound?.worktree_id;
+    })
+    .not.toBeUndefined();
+  if (!bound) throw new Error("Expected a session bound to a worktree.");
+  return bound;
+}
+
+// E2E-010: /worktree on a live session — the three facts, one new session per
+// confirmation, the original untouched, and the daemon's refusal mid-turn.
+test("operator forks a live session into a worktree", async ({ appPage, runtime }) => {
+  await completeOnboardingIfPrompted(appPage);
+  const workspace = await runtime.resolveWorkspace(repo.rootDir);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  const target = await seedReadyWorktree(runtime, workspace.id, "payments-retry");
+  await selectWorkspace(appPage, workspace.id);
+
+  await appPage.getByTestId("session-create-open").click();
+  await appPage.getByRole("button", { name: /start session/i }).click();
+
+  const sessionsBefore = await runtime.requestJSON<{
+    sessions: Array<{ id: string; worktree_id?: string }>;
+  }>(`/api/sessions?workspace=${workspace.id}`);
+  expect(sessionsBefore.sessions).toHaveLength(1);
+  const originSession = sessionsBefore.sessions[0];
+
+  const chip = appPage.locator('[data-slot="session-environment-chip"]');
+  await expect(chip).toBeVisible();
+
+  await appPage.locator('[data-testid="composer-input"] [contenteditable="true"]').fill("/");
+  const command = appPage
+    .getByTestId("composer-command-item")
+    .filter({ hasText: "Worktree" })
+    .first();
+  await expect(command).toBeVisible();
+  await expect(command).not.toHaveAttribute("data-unavailable", "");
+
+  await command.click();
+  const facts = appPage.locator('[data-slot="session-fork-facts"]');
+  await expect(facts.locator('[data-fact="new-session"]')).toBeVisible();
+  await expect(facts.locator('[data-fact="untouched"]')).toBeVisible();
+  await expect(facts.locator('[data-fact="changes-stay"]')).toBeVisible();
+
+  await appPage.getByTestId("session-fork-target").click();
+  await appPage.getByRole("option", { name: new RegExp(target.name) }).click();
+  await appPage.getByRole("button", { name: /fork session/i }).click();
+
+  await expect
+    .poll(async () => {
+      const sessions = await runtime.requestJSON<{
+        sessions: Array<{ id: string; worktree_id?: string }>;
+      }>(`/api/sessions?workspace=${workspace.id}`);
+      return {
+        originWorktree: sessions.sessions.find(session => session.id === originSession.id)
+          ?.worktree_id,
+        total: sessions.sessions.length,
+        target: sessions.sessions.filter(session => session.worktree_id === target.id).length,
+      };
+    })
+    .toEqual({ originWorktree: undefined, total: sessionsBefore.sessions.length + 1, target: 1 });
+});
+
+// E2E-014: the worktree context — truthful strip, a daemon-rendered ladder, the
+// commit dialog's scope and honest placeholder, and streamed progress phases.
+test("operator runs the assisted exit from the worktree context", async ({ appPage, runtime }) => {
+  await completeOnboardingIfPrompted(appPage);
+  const workspace = await runtime.resolveWorkspace(repo.rootDir);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  const worktree = await seedReadyWorktree(runtime, workspace.id, "payments-retry");
+  await repo.dirtyWorktree(worktree.path);
+
+  await openOverviewNest(appPage, workspace.id);
+  await appPage.getByTestId(`os-workspace-nest-${workspace.id}-context-${worktree.id}`).click();
+
+  const strip = appPage.locator('[data-slot="worktree-status-strip"]');
+  await expect(strip).toBeVisible();
+  await expect(strip.locator('[data-field="branch"]')).toContainText(worktree.branch);
+  await expect(strip.locator('[data-field="dirty"]')).toHaveAttribute("data-tone", "warning");
+
+  const control = appPage.locator('[data-slot="worktree-exit-control"]');
+  await expect(control).toBeVisible();
+  const primary = control.locator('[data-slot="split-button-action"]');
+  await expect(primary).toBeEnabled();
+
+  await primary.click();
+  const commit = appPage.locator('[data-slot="worktree-commit-dialog"]');
+  await expect(commit).toBeVisible();
+  await expect(commit.locator('[data-slot="worktree-scope-block"]')).toContainText("files");
+  await expect(appPage.getByPlaceholder("Leave blank to use a default message.")).toBeVisible();
+
+  await commit.locator('[data-slot="split-button-action"]').click();
+  const progressSurface = appPage.locator('[data-slot="worktree-exit-progress-surface"]');
+  await expect(progressSurface).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(appPage.locator('[data-slot="worktree-detail-dialog"]')).toBeHidden();
+  await expect(progressSurface).toBeVisible();
+  await expect(progressSurface.locator('[data-slot="worktree-exit-progress"]')).toHaveAttribute(
+    "data-status",
+    "completed",
+    { timeout: 30_000 }
+  );
+  await expect(progressSurface.getByRole("button", { name: "Remove worktree" })).toHaveCount(1);
+});
+
+// E2E-015: merged / safe-to-clean evidence leads into the standard removal flow.
+test("operator reads cleanup evidence before removing a finished worktree", async ({
+  appPage,
+  runtime,
+}) => {
+  await completeOnboardingIfPrompted(appPage);
+  const workspace = await runtime.resolveWorkspace(repo.rootDir);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  const worktree = await seedReadyWorktree(runtime, workspace.id, "fix-flaky-e2e");
+
+  await openOverviewNest(appPage, workspace.id);
+  await appPage.getByTestId(`os-workspace-nest-${workspace.id}-context-${worktree.id}`).click();
+
+  const evidence = appPage.locator('[data-slot="worktree-merged-evidence"]');
+  await expect(evidence).toBeVisible();
+  await expect(evidence).toHaveAttribute("data-safe", "");
+  const cleanUp = evidence.getByRole("button", { name: "Clean up" });
+  await expect(cleanUp).toBeVisible();
+  await cleanUp.click();
+
+  const removal = appPage.getByTestId("worktree-remove-dialog");
+  await expect(removal).toBeVisible();
+  await appPage.getByTestId("worktree-remove-submit").click();
+  await expect
+    .poll(
+      async () => {
+        const listing = await listWorktrees(runtime, workspace.id, true);
+        return listing.worktrees.some(entry => entry.id === worktree.id);
+      },
+      { timeout: 30_000 }
+    )
+    .toBe(false);
+});
+
+// E2E-017: zero-credential remote — PR affordances are absent, not disabled,
+// and the browser compare path is the whole PR step.
+test("operator sees no PR affordances without a credential", async ({ appPage, runtime }) => {
+  await completeOnboardingIfPrompted(appPage);
+  await repo.setCredentiallessGitHubOrigin();
+  const workspace = await runtime.resolveWorkspace(repo.rootDir);
+  const worktree = await seedReadyWorktree(runtime, workspace.id, "auth-refresh");
+  await repo.publishWorktreeForBrowser(worktree.path);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+
+  await openOverviewNest(appPage, workspace.id);
+  await appPage.getByTestId(`os-workspace-nest-${workspace.id}-context-${worktree.id}`).click();
+
+  const strip = appPage.locator('[data-slot="worktree-status-strip"]');
+  await expect(strip).toBeVisible();
+  await expect(strip.locator('[data-field="pr"]')).toHaveCount(0);
+
+  const control = appPage.locator('[data-slot="worktree-exit-control"]');
+  await expect(control).toHaveAttribute("data-forge", "absent");
+  const browserStep = control.locator('[data-slot="split-button-action"]');
+  await expect(browserStep).toContainText("Open in browser");
+  await browserStep.click();
+  const prDialog = appPage.locator('[data-slot="worktree-pr-dialog"]');
+  await expect(prDialog).toHaveAttribute("data-mode", "browser-only");
+  await expect(
+    prDialog.locator('[data-slot="worktree-pr-action"][data-action="browser"]')
+  ).toBeVisible();
+  await expect(prDialog.getByLabel("Title")).toHaveCount(0);
+  await expect(prDialog.getByLabel("Description")).toHaveCount(0);
 });

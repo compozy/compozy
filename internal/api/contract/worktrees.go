@@ -125,4 +125,5 @@ type WorktreeCatalogEventPayload struct {
 	Kind        string `json:"kind"`
 	WorkspaceID string `json:"workspace_id"`
 	WorktreeID  string `json:"worktree_id"`
+	Error       string `json:"error,omitempty"`
 }

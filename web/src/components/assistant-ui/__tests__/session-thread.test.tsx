@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
+import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -103,6 +104,50 @@ function createQueryClient() {
         retry: false,
       },
     },
+  });
+}
+
+/** A completed prompt stream, so a delivered turn settles instead of hanging. */
+function sseResponse(frames: string[]) {
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        for (const frame of frames) {
+          controller.enqueue(encoder.encode(frame));
+        }
+        controller.close();
+      },
+    }),
+    {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "x-vercel-ai-ui-message-stream": "v1",
+      },
+    }
+  );
+}
+
+/** Records every prompt POST body so a duplicated turn is visible, not inferred. */
+function createPromptRecordingFetchMock(promptCalls: string[]) {
+  const base = createFetchMock();
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const pathname = getPathname(input);
+    // A prompt POST streams, so the client identifies the listener first; a local
+    // tier needs no ticket, which is the ordinary same-origin case.
+    if (pathname === "/api/status") {
+      return new Response(JSON.stringify({}), {
+        headers: {
+          "Content-Type": "application/json",
+          "X-Compozy-Gateway-Tier": "local",
+        },
+      });
+    }
+    if (pathname.endsWith("/prompt")) {
+      promptCalls.push(String(init?.body ?? ""));
+      return sseResponse([]);
+    }
+    return base(input);
   });
 }
 
@@ -1732,12 +1777,16 @@ describe("SessionThread composer running semantics", () => {
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.warning).mockClear();
     sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+    sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    // The listener tier latches in module scope once a stream authorizes.
+    resetGatewayStreamAuth();
     act(() => {
       sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+      sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
     });
   });
 
@@ -1827,6 +1876,40 @@ describe("SessionThread composer running semantics", () => {
     // Selecting a command closes the menu; the token survives only as an inline chip.
     expect(screen.queryByTestId("composer-command-menu")).not.toBeInTheDocument();
     expect(screen.queryByText("Frontend QA")).not.toBeInTheDocument();
+  });
+
+  it("Should execute the worktree command without leaving it in the prompt", async () => {
+    const user = userEvent.setup();
+    const onCommandAction = vi.fn((token: string) => token === "/worktree");
+    renderComposer({
+      onCommandAction,
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [
+              {
+                id: "worktree",
+                token: "/worktree",
+                label: "Worktree",
+                lane: "builtin" as const,
+              },
+            ],
+          },
+        ],
+        inlineSkills: [],
+      },
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("/ keep this draft");
+    await placeComposerCursor(1);
+    const menu = await screen.findByTestId("composer-command-menu");
+    await user.click(within(menu).getByRole("option", { name: /Worktree/i }));
+
+    expect(onCommandAction).toHaveBeenCalledWith("/worktree");
+    await waitFor(() => expect(composerText()).toBe(" keep this draft"));
   });
 
   it("Should preserve hook order when the command menu closes and reopens", async () => {
@@ -2298,6 +2381,55 @@ describe("SessionThread composer running semantics", () => {
     expect(within(row).getByTestId("composer-queued-steer")).toBeDisabled();
     expect(within(row).getByTestId("composer-queued-edit")).toBeDisabled();
     expect(within(row).getByTestId("composer-queued-remove")).toBeDisabled();
+  });
+
+  // US-004 AC-2: the message typed in session-create is sent by the session
+  // itself, once. `renderComposer` mounts under StrictMode, so the effect is
+  // deliberately invoked twice — a second POST here would be a real duplicate
+  // turn charged to the operator.
+  it("Should send a queued first prompt exactly once", async () => {
+    const promptCalls: string[] = [];
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    act(() => {
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Investigate the regression",
+      });
+    });
+
+    renderComposer({ isSessionRunning: false });
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toContain("Investigate the regression");
+    await waitFor(() =>
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined()
+    );
+    // Settle any trailing effect pass before asserting no second delivery.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(promptCalls).toHaveLength(1);
+  });
+
+  it("Should hold a queued first prompt while the session cannot be prompted", async () => {
+    const promptCalls: string[] = [];
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    act(() => {
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Not yet",
+      });
+    });
+
+    renderComposer({ canPrompt: false, isSessionRunning: false });
+
+    await screen.findByTestId("composer-input");
+    expect(promptCalls).toHaveLength(0);
+    expect(sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]?.text).toBe(
+      "Not yet"
+    );
   });
 });
 

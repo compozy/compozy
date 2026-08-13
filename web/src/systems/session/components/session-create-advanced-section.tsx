@@ -4,12 +4,16 @@ import type { NetworkParticipationDraft } from "@/lib/network-participation";
 
 import { NetworkParticipationFields } from "@/systems/network";
 
+import { SessionEnvironmentField } from "./session-environment-field";
+
 interface SessionCreateAdvancedSectionProps {
   networkParticipation: NetworkParticipationDraft;
   sessionName: string;
   onSessionNameChange: (next: string) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
   isSubmitting: boolean;
+  /** Absent when the selected workspace is not git-backed — there is nothing to choose. */
+  environment?: React.ComponentProps<typeof SessionEnvironmentField>;
 }
 
 function SessionCreateAdvancedSection({
@@ -18,9 +22,12 @@ function SessionCreateAdvancedSection({
   onSessionNameChange,
   onNetworkParticipationChange,
   isSubmitting,
+  environment,
 }: SessionCreateAdvancedSectionProps) {
   return (
     <>
+      {environment ? <SessionEnvironmentField {...environment} /> : null}
+
       <Field>
         <FieldContent>
           <FieldLabel htmlFor="session-create-name">Session name</FieldLabel>

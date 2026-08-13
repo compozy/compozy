@@ -329,8 +329,9 @@ func TestRegistryMetadata(t *testing.T) {
 			WorktreeDismissed: OutcomeInfo, WorktreeCreationCanceled: OutcomeInfo,
 			WorktreeSetupFailed: OutcomeWarning, WorktreeStatusRefreshed: OutcomeInfo,
 			WorktreeBranchReclaimed: OutcomeSuccess, WorktreeExitActionStarted: OutcomeInfo,
-			WorktreeExitActionStep: OutcomeInfo, WorktreeExitActionCompleted: OutcomeSuccess,
-			WorktreeExitActionFailed: OutcomeFailure, WorktreeExitActionCanceled: OutcomeInfo,
+			WorktreeExitActionStep: OutcomeInfo, WorktreeExitHookOutput: OutcomeInfo,
+			WorktreeExitActionCompleted: OutcomeSuccess,
+			WorktreeExitActionFailed:    OutcomeFailure, WorktreeExitActionCanceled: OutcomeInfo,
 		}
 		for name, outcome := range expected {
 			metadata, ok := Lookup(name)

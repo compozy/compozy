@@ -16,14 +16,23 @@ import {
 } from "@compozy/ui";
 
 import { useTaskFanOutDialog } from "../hooks/use-task-fan-out-dialog";
-import type { FanOutTaskRunsRequest } from "../types";
+import { useTaskFanOutRunResults } from "../hooks/use-task-fan-out-run-results";
+import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
+import type { WorktreePayload } from "@/systems/workspace";
 import { NetworkParticipationFields } from "@/systems/network";
 
+import { TaskFanOutIsolationRow } from "./task-fan-out-isolation-row";
+import { TaskFanOutRunResults } from "./task-fan-out-run-results";
+
 export interface TaskFanOutDialogProps {
+  taskId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isPending?: boolean;
-  onFanOut: (data: FanOutTaskRunsRequest) => Promise<void>;
+  onFanOut: (data: FanOutTaskRunsRequest) => Promise<FanOutTaskRunsResponse | void>;
+  /** Per-run isolation needs a git-backed workspace; the row is absent otherwise. */
+  gitBacked?: boolean;
+  worktrees?: readonly WorktreePayload[];
 }
 
 /**
@@ -31,12 +40,16 @@ export interface TaskFanOutDialogProps {
  * from the head overflow and accepts one assignment brief per line.
  */
 export function TaskFanOutDialog({
+  taskId,
   open,
   onOpenChange,
   isPending = false,
   onFanOut,
+  gitBacked = false,
+  worktrees,
 }: TaskFanOutDialogProps) {
   const state = useTaskFanOutDialog({ onOpenChange, onFanOut });
+  const liveRuns = useTaskFanOutRunResults(taskId, state.result?.runs ?? []);
 
   return (
     <Dialog onOpenChange={state.handleOpenChange} open={open}>
@@ -75,6 +88,23 @@ export function TaskFanOutDialog({
               />
             </Field>
 
+            {gitBacked ? (
+              <TaskFanOutIsolationRow
+                checked={state.worktreePerRun}
+                designationCount={state.designationCount}
+                disabled={isPending}
+                onCheckedChange={state.setWorktreePerRun}
+              />
+            ) : null}
+
+            {state.result ? (
+              <TaskFanOutRunResults
+                liveRuns={liveRuns}
+                runs={state.result.runs}
+                worktrees={worktrees}
+              />
+            ) : null}
+
             <NetworkParticipationFields
               allowedStrategies={state.networkStrategies}
               onChange={state.setNetworkParticipation}
@@ -85,13 +115,23 @@ export function TaskFanOutDialog({
 
           <DialogFooter className="border-t border-line bg-canvas-soft px-5 py-3">
             <Button onClick={() => state.handleOpenChange(false)} type="button" variant="outline">
-              Cancel
+              {state.result ? "Done" : "Cancel"}
             </Button>
-            <Button data-testid="tasks-fan-out-runs-submit" disabled={isPending} type="submit">
-              {isPending ? <Spinner aria-hidden="true" className="size-4" /> : null}
-              Create runs
-            </Button>
+            {state.result ? null : (
+              <Button data-testid="tasks-fan-out-runs-submit" disabled={isPending} type="submit">
+                {isPending ? <Spinner aria-hidden="true" className="size-4" /> : null}
+                Create runs
+              </Button>
+            )}
           </DialogFooter>
+          {gitBacked && state.worktreePerRun ? (
+            <p
+              className="border-t border-line bg-canvas-soft px-5 pb-3 text-badge text-muted"
+              data-slot="task-fan-out-isolation-note"
+            >
+              Branches land in the run/ namespace.
+            </p>
+          ) : null}
         </form>
       </DialogContent>
     </Dialog>

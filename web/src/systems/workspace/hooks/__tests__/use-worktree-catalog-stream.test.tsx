@@ -63,7 +63,7 @@ function setup(workspaces: Array<{ id: string }>) {
     () => useWorktreeCatalogStream(workspaces, { eventSourceFactory: () => source }),
     { wrapper }
   );
-  return { source, invalidate, view };
+  return { source, invalidate, queryClient, view };
 }
 
 describe("useWorktreeCatalogStream", () => {
@@ -97,6 +97,23 @@ describe("useWorktreeCatalogStream", () => {
     expect(invalidate).not.toHaveBeenCalledWith({
       queryKey: workspaceKeys.worktrees("ws_alpha"),
     });
+  });
+
+  it("Should retain the daemon failure reason after the accepted row rolls back", () => {
+    const { source, queryClient } = setup([{ id: "ws_alpha" }]);
+
+    act(() => {
+      source.emit("worktree_catalog_changed", {
+        kind: "failed",
+        workspace_id: "ws_alpha",
+        worktree_id: "wt_one",
+        error: "checkout failed",
+      });
+    });
+
+    expect(
+      queryClient.getQueryData(workspaceKeys.worktreeMaterializationFailure("ws_alpha", "wt_one"))
+    ).toBe("checkout failed");
   });
 
   it("Should drop a frame for a workspace this client does not hold", () => {

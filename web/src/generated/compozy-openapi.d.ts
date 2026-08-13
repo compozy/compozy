@@ -126111,6 +126111,7 @@ export interface operations {
               forge_state?: string;
               safe: boolean;
               source?: string;
+              stale?: boolean;
               summary?: string;
             };
             commit_scope: {
@@ -126142,6 +126143,10 @@ export interface operations {
               provider: string;
             } | null;
             global_pause_cause?: string;
+            pr_prefill?: {
+              body?: string;
+              title?: string;
+            } | null;
             primary?: string;
             worktree_id: string;
           };
@@ -126149,6 +126154,35 @@ export interface operations {
       };
       /** @description Worktree or workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree exit plan is unavailable */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -127048,6 +127082,7 @@ export interface operations {
         };
         content: {
           "text/event-stream": {
+            error?: string;
             kind: string;
             workspace_id: string;
             worktree_id: string;

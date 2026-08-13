@@ -17,6 +17,8 @@ import {
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
 
+import { TaskWorktreePolicyFields } from "./task-worktree-policy-fields";
+
 export interface TaskSetupFormProps {
   value: TaskExecutionProfileSetRequest;
   onChange: (value: TaskExecutionProfileSetRequest) => void;
@@ -29,6 +31,12 @@ export interface TaskSetupFormProps {
     errorMessage?: string | null;
     onRefreshCatalog: () => void;
   };
+  /**
+   * The worktree policy is patched through its own route, so it is passed in
+   * whole rather than shared with this form's replace draft. Absent when the
+   * workspace is not git-backed.
+   */
+  worktreePolicy?: React.ComponentProps<typeof TaskWorktreePolicyFields>;
 }
 
 function listValue(values?: string[]): string {
@@ -47,7 +55,7 @@ function runtimeValue(provider?: string, model?: string): RuntimeSelectorValue {
   return { provider: provider ?? "", model: model ?? "", reasoning_effort: "" };
 }
 
-export function TaskSetupForm({ value, onChange, runtime }: TaskSetupFormProps) {
+export function TaskSetupForm({ value, onChange, runtime, worktreePolicy }: TaskSetupFormProps) {
   const update = <Key extends keyof TaskExecutionProfileSetRequest>(
     key: Key,
     next: TaskExecutionProfileSetRequest[Key]
@@ -217,7 +225,7 @@ export function TaskSetupForm({ value, onChange, runtime }: TaskSetupFormProps) 
       </fieldset>
 
       <fieldset className="grid gap-3 border-t border-line-soft pt-5 sm:grid-cols-2">
-        <legend className="eyebrow mb-1 text-subtle">Sandbox and participants</legend>
+        <legend className="eyebrow mb-1 text-subtle">Environment</legend>
         <Field>
           <FieldLabel htmlFor="tasks-setup-sandbox-mode">Sandbox</FieldLabel>
           <NativeSelect
@@ -275,6 +283,11 @@ export function TaskSetupForm({ value, onChange, runtime }: TaskSetupFormProps) 
             }
           />
         </Field>
+        {worktreePolicy ? (
+          <div className="sm:col-span-2">
+            <TaskWorktreePolicyFields {...worktreePolicy} />
+          </div>
+        ) : null}
       </fieldset>
     </FieldGroup>
   );

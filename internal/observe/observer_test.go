@@ -218,6 +218,35 @@ func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
 	})
 }
 
+func TestObserverQueryEventsKeepsWorktreeScopedEventsNarrow(t *testing.T) {
+	t.Run("Should not merge unsequenced memory events into a worktree replay", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		source := &stubMemoryEventSource{events: []store.EventSummary{{
+			ID: "memevt-worktree-01", Type: "memory.write.committed", Sequence: 0,
+			Summary: "workspace write committed", Timestamp: h.now.Add(time.Minute),
+		}}}
+		h.observer.mu.Lock()
+		h.observer.memoryEventSource = source
+		h.observer.mu.Unlock()
+
+		events, err := h.observer.QueryEvents(
+			testutil.Context(t),
+			store.EventSummaryQuery{WorkspaceID: h.workspaceID, WorktreeID: "wt-a", Limit: 500},
+		)
+		if err != nil {
+			t.Fatalf("QueryEvents(worktree) error = %v", err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("worktree events = %#v, want no memory source fan-in", events)
+		}
+		if len(source.workspaces) != 0 {
+			t.Fatalf("memory source workspaces = %#v, want source not queried for worktree scope", source.workspaces)
+		}
+	})
+}
+
 func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 	t.Parallel()
 

@@ -18,7 +18,14 @@ func (s *Service) refreshAfterExit(ctx context.Context, item Worktree) {
 	if s.forge == nil {
 		return
 	}
-	remoteURLs := s.readOriginRemoteURLs(ctx, item.Path)
+	remoteURLs, err := s.readOriginRemoteURLs(ctx, item.Path)
+	if err != nil {
+		s.logger.WarnContext(
+			ctx, "worktree remote refresh after exit failed", "worktree_id", item.ID,
+			"error", diagnostics.RedactAndBound(err.Error(), 2048),
+		)
+		return
+	}
 	if len(remoteURLs) == 0 {
 		return
 	}
@@ -36,6 +43,15 @@ func (s *Service) refreshAfterExit(ctx context.Context, item Worktree) {
 			"error", diagnostics.RedactAndBound(message, 2048),
 		)
 		return
+	}
+	if status.PRURL != "" {
+		status.PRURL, err = sanitizeForgeWebURL(status.PRURL)
+		if err != nil {
+			s.logger.WarnContext(
+				ctx, "worktree forge refresh returned invalid pull request URL", "worktree_id", item.ID,
+			)
+			return
+		}
 	}
 	if err := s.store.SaveForgeStatus(ctx, item.WorkspaceID, item.ID, *status); err != nil {
 		s.logger.WarnContext(

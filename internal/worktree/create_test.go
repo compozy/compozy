@@ -120,6 +120,56 @@ func worktreeListFixture(root, branch string) []byte {
 func TestServiceCreate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should publish a redacted failure after an accepted creation rolls back", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		fixture.failWorktreeAdd.Store(true)
+		events, cancel, err := fixture.service.SubscribeWorktreeCatalogEvents(context.Background())
+		if err != nil {
+			t.Fatalf("SubscribeWorktreeCatalogEvents() error = %v", err)
+		}
+		defer cancel()
+
+		item, err := fixture.service.CreateAccepted(
+			context.Background(),
+			fixture.workspace.ID,
+			CreateOptions{Name: "Async Failure"},
+		)
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		operation := fixture.service.getCreateOperation(fixture.workspace.ID, item.ID)
+		if operation == nil {
+			t.Fatal("accepted creation operation = nil")
+		}
+		select {
+		case <-operation.done:
+		case <-time.After(time.Second):
+			t.Fatal("accepted creation did not finish")
+		}
+
+		var received []CatalogEvent
+		var failed CatalogEvent
+		for failed.Kind != CatalogEventFailed {
+			select {
+			case event := <-events:
+				received = append(received, event)
+				failed = event
+			case <-time.After(time.Second):
+				t.Fatalf("catalog events = %#v, want scoped accepted failure", received)
+			}
+		}
+		if failed.WorkspaceID != fixture.workspace.ID || failed.WorktreeID != item.ID ||
+			!strings.Contains(failed.Error, "checkout failed") {
+			t.Fatalf("catalog failure = %#v, want scoped accepted failure", failed)
+		}
+		if _, getErr := fixture.store.Get(
+			context.Background(), fixture.workspace.ID, item.ID,
+		); !errors.Is(getErr, ErrNotFound) {
+			t.Fatalf("Get(rolled back) error = %v, want ErrNotFound", getErr)
+		}
+	})
+
 	t.Run("Should materialize a per-run worktree with readable names and recorded namespace", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())

@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/redact"
 )
+
+const exitHookOutputLimit = 4096
 
 const (
 	EventPreCreate           = "worktree.pre_create"
@@ -24,6 +27,7 @@ const (
 	EventBranchReclaimed     = "worktree.branch_reclaimed"
 	EventExitActionStarted   = "worktree.exit_action_started"
 	EventExitActionStep      = "worktree.exit_action_step"
+	EventExitHookOutput      = "worktree.exit_hook_output"
 	EventExitActionCompleted = "worktree.exit_action_completed"
 	EventExitActionFailed    = "worktree.exit_action_failed"
 	EventExitActionCanceled  = "worktree.exit_action_canceled"
@@ -79,6 +83,8 @@ type ExitEventPayload struct {
 	Result      *ExitActionResult `json:"result,omitempty"`
 	Message     string            `json:"message,omitempty"`
 	Cause       string            `json:"cause,omitempty"`
+	Stream      string            `json:"stream,omitempty"`
+	Chunk       string            `json:"chunk,omitempty"`
 }
 
 type HookWorktree struct {
@@ -166,6 +172,7 @@ func (s *Service) emitExit(ctx context.Context, name string, operation ExitOpera
 
 func exitLifecycleEvent(name string, operation ExitOperation, value ExitEventPayload) (LifecycleEvent, error) {
 	value.Message = redact.String(value.Message)
+	value.Chunk = redactExitHookChunk(value.Chunk)
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return LifecycleEvent{}, fmt.Errorf("worktree: marshal exit event payload: %w", err)
@@ -174,4 +181,16 @@ func exitLifecycleEvent(name string, operation ExitOperation, value ExitEventPay
 		Name: name, WorkspaceID: operation.WorkspaceID, WorktreeID: operation.WorktreeID,
 		Payload: payload,
 	}, nil
+}
+
+func redactExitHookChunk(value string) string {
+	redacted := redact.String(value)
+	if len(redacted) <= exitHookOutputLimit {
+		return redacted
+	}
+	redacted = redacted[:exitHookOutputLimit]
+	for !utf8.ValidString(redacted) {
+		redacted = redacted[:len(redacted)-1]
+	}
+	return redacted
 }

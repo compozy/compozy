@@ -45,6 +45,7 @@ export interface OsWorkspacesOverviewProps {
   onCreateWorktree?: (workspaceId: string) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onResolveMissing?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onOpenWorktreeContext?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
 
 const MEMBER_AVATAR_MAX = 5;
@@ -121,6 +122,7 @@ export function OsWorkspacesOverview({
   onCreateWorktree,
   onRemoveWorktree,
   onResolveMissing,
+  onOpenWorktreeContext,
 }: OsWorkspacesOverviewProps) {
   const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<ReadonlySet<string>>(new Set());
   const selectWorkspace = (workspaceId: string) => {
@@ -312,6 +314,11 @@ export function OsWorkspacesOverview({
                         onResolveMissing={
                           onResolveMissing
                             ? entry => onResolveMissing(workspace.id, entry)
+                            : undefined
+                        }
+                        onOpenContext={
+                          onOpenWorktreeContext
+                            ? entry => onOpenWorktreeContext(workspace.id, entry)
                             : undefined
                         }
                       />

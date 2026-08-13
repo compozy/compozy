@@ -172,6 +172,41 @@ describe("ticketed event source", () => {
     vi.useRealTimers();
   });
 
+  it("Should resume an opted-in durable stream from its last named event", async () => {
+    vi.useFakeTimers();
+    let issued = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((input: RequestInfo | URL) => {
+        if (requestPath(input) === "/api/status") {
+          return Promise.resolve(listenerResponse("private"));
+        }
+        issued += 1;
+        return Promise.resolve(ticketResponse(`tkt_${issued}`));
+      })
+    );
+
+    const source = createStreamEventSource("/api/worktrees/wt_1/stream", {
+      resumeWithLastEventId: true,
+    });
+    const listener: EventListener = vi.fn();
+    source.addEventListener("worktree.exit_action_step", listener);
+    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    const frame = new MessageEvent("worktree.exit_action_step", { data: "{}" });
+    Object.defineProperty(frame, "lastEventId", { value: "41" });
+    FakeEventSource.instances[0].emit("worktree.exit_action_step", frame);
+    FakeEventSource.instances[0].onerror?.(new Event("error"));
+
+    await vi.advanceTimersByTimeAsync(600);
+    await vi.waitFor(() => expect(FakeEventSource.instances).toHaveLength(2));
+    expect(FakeEventSource.instances[1].url).toBe(
+      "/api/worktrees/wt_1/stream?after_sequence=41&ticket=tkt_2"
+    );
+
+    source.close();
+    vi.useRealTimers();
+  });
+
   it("Should preserve reconnect backoff across short-lived open connections", async () => {
     vi.useFakeTimers();
     let issued = 0;

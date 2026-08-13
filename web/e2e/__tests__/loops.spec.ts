@@ -8,6 +8,7 @@ import type {
   LoopRunGenerationOutput,
   RunLoopResult,
 } from "@/systems/loops";
+import { openAppWindow } from "../fixtures/os-navigation";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
@@ -897,4 +898,41 @@ test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, a
   const bestLink = appPage.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
   await expect(bestLink).toHaveAttribute("href", "#loop-generation-1");
   await browserArtifacts.captureScreenshot("loop-run-best-on-exhaustion", appPage);
+});
+
+// E2E-013: one Environment control per agent-executing node, a loop-level
+// default that survives an unrelated save, and no second directory field.
+test("operator declares loop and node environments in the builder", async ({
+  appPage,
+  runtime,
+}) => {
+  await completeOnboardingIfPrompted(appPage);
+  const workspace = await runtime.resolveWorkspace(process.cwd());
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await openAppWindow(appPage, "Loops", "loops");
+
+  await appPage.getByTestId("loops-configure-open").first().click();
+  const section = appPage.locator('[data-slot="loop-worktree-section"]');
+  await expect(section).toBeVisible();
+  await expect(section).toHaveAttribute("data-mode", "inherit");
+
+  await section.locator('[data-slot="pill-group-item"]').filter({ hasText: "Per-run" }).click();
+  await expect(section).toHaveAttribute("data-mode", "per_run");
+  await appPage.getByTestId("loop-configure-save").click();
+
+  await expect
+    .poll(async () => {
+      const config = await runtime.requestJSON<{ config: { environment?: { mode: string } } }>(
+        `/api/workspaces/${workspace.id}/loops/${encodeURIComponent("software-delivery")}/config`
+      );
+      return config.config.environment?.mode;
+    })
+    .toBe("per_run");
+
+  // The node inspector carries exactly one environment control and no retired
+  // working-directory field anywhere.
+  await appPage.getByTestId("loops-editor-open").first().click();
+  await appPage.getByTestId("loop-editor-node").first().click();
+  await expect(appPage.locator('[data-slot="loop-node-environment-field"]')).toHaveCount(1);
+  await expect(appPage.getByTestId("loop-field-cwd")).toHaveCount(0);
 });

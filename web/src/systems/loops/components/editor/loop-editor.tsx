@@ -5,7 +5,8 @@ import { Empty, Skeleton, useTopbarSlot, type TopbarSlotValue } from "@compozy/u
 
 import { useLoopEditor, type UseLoopEditorResult } from "../../hooks/use-loop-editor";
 import { useLoopFork } from "../../hooks/use-loop-fork";
-import type { LoopDefinition, LoopDetail } from "../../types";
+import { useLoopConfig } from "../../hooks/use-loops";
+import type { LoopDefinition, LoopDetail, LoopEnvironmentSpec } from "../../types";
 import { LoopEditorCanvas } from "./loop-editor-canvas";
 import { LoopEditorDslView } from "./loop-editor-dsl-view";
 import { LoopEditorPalette } from "./loop-editor-palette";
@@ -45,6 +46,7 @@ export function LoopEditor({
   liveDataEnabled = true,
 }: LoopEditorProps) {
   const editor = useLoopEditor(workspaceId, name, onPublished, liveDataEnabled);
+  const config = useLoopConfig(workspaceId, name, Boolean(workspaceId) && liveDataEnabled);
   const forkState = useLoopFork(workspaceId, name);
   const readyEditor: ReadyEditor | null =
     editor.status === "ready" && editor.loop && editor.definition
@@ -95,15 +97,23 @@ export function LoopEditor({
     );
   }
 
-  return <LoopEditorReady editor={readyEditor} fork={forkState} />;
+  return (
+    <LoopEditorReady
+      editor={readyEditor}
+      fork={forkState}
+      loopDefaultEnvironment={config.data?.environment ?? undefined}
+    />
+  );
 }
 
 function LoopEditorReady({
   editor,
   fork,
+  loopDefaultEnvironment,
 }: {
   editor: ReadyEditor;
   fork: { fork: () => void; forking: boolean };
+  loopDefaultEnvironment?: LoopEnvironmentSpec;
 }) {
   const definition = editor.definition;
   const readOnly = !editor.definitionEditable;
@@ -144,6 +154,7 @@ function LoopEditorReady({
                   onConnect={editor.onConnect}
                   onSelectNode={editor.selectNode}
                   readOnly={readOnly}
+                  loopDefaultEnvironment={loopDefaultEnvironment}
                 />
               </div>
             ) : (

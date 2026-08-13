@@ -83,12 +83,16 @@ describe("loop-overrides model", () => {
       budget_wall_sec: 0,
       iteration_cap: 3,
     };
-    const zeroTokens = { values: { budget_tokens: 0 }, budgetOnExceeded: "halt" as const };
+    const zeroTokens = {
+      values: { budget_tokens: 0 },
+      budgetOnExceeded: "halt" as const,
+      environment: null,
+    };
     expect(hasActiveOverrides(zeroTokens, budgetlessEffectiveConfig)).toBe(false);
     expect(buildConfigOverrides(zeroTokens, budgetlessEffectiveConfig)).toBeNull();
     expect(
       hasActiveOverrides(
-        { values: { budget_tokens: 100 }, budgetOnExceeded: "halt" },
+        { values: { budget_tokens: 100 }, budgetOnExceeded: "halt", environment: null },
         budgetlessEffectiveConfig
       )
     ).toBe(true);
@@ -98,7 +102,11 @@ describe("loop-overrides model", () => {
     const draft = initialOverrideDraft(effectiveConfig);
     expect(buildConfigOverrides(draft, effectiveConfig)).toBeNull();
     const overrides = buildConfigOverrides(
-      { values: { iteration_cap: 80, budget_wall_sec: 120 }, budgetOnExceeded: "escalate" },
+      {
+        values: { iteration_cap: 80, budget_wall_sec: 120 },
+        budgetOnExceeded: "escalate",
+        environment: null,
+      },
       effectiveConfig
     );
     expect(overrides).toEqual({
@@ -106,6 +114,17 @@ describe("loop-overrides model", () => {
       budget_wall_sec: 7_200,
       budget_on_exceeded: "escalate",
     });
+  });
+
+  it("Should project an explicit environment into this run only", () => {
+    const draft = initialOverrideDraft(effectiveConfig);
+    expect(
+      buildConfigOverrides(
+        { ...draft, environment: { mode: "worktree", worktree_ref: "payments-retry" } },
+        effectiveConfig
+      )
+    ).toEqual({ environment: { mode: "worktree", worktree_ref: "payments-retry" } });
+    expect(effectiveConfig.environment).toEqual(loopEffectiveConfigFixture.environment);
   });
 
   it("Should distinguish saved Loop defaults from explicit per-run overrides", () => {

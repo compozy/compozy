@@ -1,4 +1,5 @@
 import type { RawLoopNode } from "./codec";
+import { environmentFields } from "./loop-node-environment-fields";
 import type { FieldSpec } from "./loop-node-schema-types";
 
 function nodeID(value: unknown): string {
@@ -56,6 +57,7 @@ export function goalFields(raw: RawLoopNode): FieldSpec[] {
       options: ["continuous"],
       hint: "Goal turns reuse one durable continuous session binding.",
     },
+    ...environmentFields(raw, "Inherit"),
     {
       type: "fold",
       key: "retry",

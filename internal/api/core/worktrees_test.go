@@ -645,6 +645,7 @@ func TestWorktreeExitHandlers(t *testing.T) {
 						Provider: "github", RequestNoun: "PR", OpenActionLabel: "Open PR",
 						ViewActionLabel: "View PR", SupportsDraft: true, CredentialSource: "binding",
 					},
+					PRPrefill:  &worktree.ExitPRPrefill{Title: "feature/exit", Body: "## Summary\nReady."},
 					Cleanup:    worktree.ExitCleanupEvidence{ForgeState: "open", Safe: true, Source: "forge"},
 					RemoteURLs: []string{"https://token@github.com/acme/repo.git"},
 				}, nil
@@ -685,7 +686,9 @@ func TestWorktreeExitHandlers(t *testing.T) {
 		}
 		if response.Code != http.StatusOK || payload.WorktreeID != "wt-a" || payload.Primary != "commit_push" ||
 			len(payload.Actions) != 1 || payload.CommitScope.UntrackedTotal != 1 || payload.Forge == nil ||
-			payload.Forge.Provider != "github" || !payload.Cleanup.Safe || strings.Contains(response.Body.String(), "token@") {
+			payload.Forge.Provider != "github" || payload.PRPrefill == nil || payload.PRPrefill.Title != "feature/exit" ||
+			payload.PRPrefill.Body != "## Summary\nReady." || !payload.Cleanup.Safe ||
+			strings.Contains(response.Body.String(), "token@") {
 			t.Fatalf("exit plan status/body = %d/%s", response.Code, response.Body.String())
 		}
 	})

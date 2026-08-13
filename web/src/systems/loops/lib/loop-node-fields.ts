@@ -1,5 +1,6 @@
 import type { RawLoopNode } from "./codec";
 import { LOOP_CEILINGS } from "./loop-limits";
+import { environmentFields } from "./loop-node-environment-fields";
 import type { FieldSpec, TextFieldSpec } from "./loop-node-schema-types";
 
 /**
@@ -321,17 +322,7 @@ export function runAgentFields(raw: RawLoopNode): FieldSpec[] {
         { type: "number", key: "max_turns", label: "max_turns", path: ["params", "max_turns"] },
       ],
     },
-    {
-      type: "text",
-      key: "cwd",
-      label: "Working dir",
-      path: ["params", "cwd"],
-      mono: true,
-      reference: true,
-      optionalLabel: "optional",
-      placeholder: "session default",
-      hint: "Optional; part of the session binding key (ADR-021).",
-    },
+    ...environmentFields(raw, "Inherit"),
     {
       type: "switch",
       key: "isolated",

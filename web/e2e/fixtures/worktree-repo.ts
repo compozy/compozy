@@ -14,6 +14,8 @@ const run = promisify(execFile);
 export interface WorktreeRepoFixture {
   /** Repository root, registered as the workspace. */
   rootDir: string;
+  /** Plain directory used to prove git-only controls stay absent. */
+  nonGitDir: string;
   /** Creates an external checkout the daemon should discover but not own. */
   addExternalWorktree(name: string, branch: string): Promise<string>;
   /** Leaves uncommitted changes so removal refuses with real counts. */
@@ -28,6 +30,10 @@ export interface WorktreeRepoFixture {
   replaceDirectoryWithSymlink(target: string, destination: string): Promise<void>;
   /** Resolves symlinks for an untouched-directory assertion. */
   realPath(target: string): Promise<string>;
+  /** Adds a GitHub-shaped origin while keeping all git traffic local. */
+  setCredentiallessGitHubOrigin(): Promise<void>;
+  /** Gives a worktree a published branch without contacting the fake remote URL. */
+  publishWorktreeForBrowser(worktreePath: string): Promise<void>;
   cleanup(): Promise<void>;
 }
 
@@ -75,8 +81,10 @@ export async function expectDaemonStatus(
 export async function createWorktreeRepo(): Promise<WorktreeRepoFixture> {
   const baseDir = await mkdtemp(path.join(os.tmpdir(), "compozy-e2e-worktree-"));
   const rootDir = path.join(baseDir, "repo");
+  const nonGitDir = path.join(baseDir, "plain-workspace");
 
   await run("mkdir", ["-p", rootDir]);
+  await mkdir(nonGitDir, { recursive: true });
   await git(rootDir, "init", "--initial-branch=main");
   await writeFile(path.join(rootDir, "README.md"), "# worktree e2e fixture\n", "utf8");
   await git(rootDir, "add", "README.md");
@@ -85,6 +93,7 @@ export async function createWorktreeRepo(): Promise<WorktreeRepoFixture> {
 
   return {
     rootDir,
+    nonGitDir,
     async addExternalWorktree(name, branch) {
       const externalPath = path.join(baseDir, name);
       await git(rootDir, "worktree", "add", "-b", branch, externalPath);
@@ -117,6 +126,27 @@ export async function createWorktreeRepo(): Promise<WorktreeRepoFixture> {
     },
     async realPath(target) {
       return realpath(target);
+    },
+    async setCredentiallessGitHubOrigin() {
+      const remoteDir = path.join(baseDir, "origin.git");
+      await git(baseDir, "init", "--bare", remoteDir);
+      await git(rootDir, "remote", "add", "origin", remoteDir);
+      await git(rootDir, "push", "-u", "origin", "main");
+      await git(
+        rootDir,
+        "remote",
+        "set-url",
+        "origin",
+        "https://github.com/compozy/e2e-fixture.git"
+      );
+    },
+    async publishWorktreeForBrowser(worktreePath) {
+      await writeFile(path.join(worktreePath, "published.txt"), "published change\n", "utf8");
+      await git(worktreePath, "add", "published.txt");
+      await git(worktreePath, "commit", "-m", "publish browser comparison fixture");
+      const branch = (await git(worktreePath, "branch", "--show-current")).trim();
+      await git(worktreePath, "update-ref", `refs/remotes/origin/${branch}`, "HEAD");
+      await git(worktreePath, "branch", "--set-upstream-to", `origin/${branch}`);
     },
     async cleanup() {
       await rm(baseDir, { recursive: true, force: true });

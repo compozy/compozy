@@ -3,12 +3,14 @@ import { Outlet } from "@tanstack/react-router";
 import { cn } from "@compozy/ui";
 
 import { OsShellContext } from "../contexts/os-shell-context";
+import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-desktop-shell-model";
 import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import {
   WorktreeAdoptDialogBoundary,
+  WorktreeContextDialogBoundary,
   WorktreeCreateDialogBoundary,
   WorktreeMissingDialogBoundary,
   WorktreeRemoveDialogBoundary,
@@ -68,6 +70,7 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
   const chrome = useDesktopChrome(model.runtimeWorkspaceId);
   const agentsQuery = useAgents();
   const sandboxesQuery = useSettingsSandboxes();
+  const worktreeDialogs = useWorktreeDialogTargets();
   const workspaceSetupDefaults: WorkspaceSetupDefaultsModel = {
     agents: workspaceSetupCollection(
       agentsQuery.data,
@@ -90,28 +93,31 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
   // project workspace and must not replace the shell with setup.
 
   return (
-    <OsShellContext.Provider value={chrome.shell}>
-      <SessionCreateProvider store={model.sessionCreate.store}>
-        <AgentCreateHostProvider
-          openDialog={model.agentCreate.openDialog}
-          openForDuplicate={model.agentCreate.openForDuplicate}
-        >
-          <DesktopShellBody
-            firstRun={firstRun}
-            model={model}
-            workspaceSetupDefaults={workspaceSetupDefaults}
-          />
-          <SessionCreateDialogHost
-            activeWorkspace={model.runtimeWorkspace}
-            agents={model.workspaceAgents}
-            homeWorkspaceId={model.homeWorkspace?.id}
-            projectWorkspaceId={model.activeWorkspaceId}
-            scope={model.scope}
-            store={model.sessionCreate.store}
-          />
-        </AgentCreateHostProvider>
-      </SessionCreateProvider>
-    </OsShellContext.Provider>
+    <WorktreeDialogActionsContext.Provider value={worktreeDialogs}>
+      <OsShellContext.Provider value={chrome.shell}>
+        <SessionCreateProvider store={model.sessionCreate.store}>
+          <AgentCreateHostProvider
+            openDialog={model.agentCreate.openDialog}
+            openForDuplicate={model.agentCreate.openForDuplicate}
+          >
+            <DesktopShellBody
+              firstRun={firstRun}
+              model={model}
+              worktreeDialogs={worktreeDialogs}
+              workspaceSetupDefaults={workspaceSetupDefaults}
+            />
+            <SessionCreateDialogHost
+              activeWorkspace={model.runtimeWorkspace}
+              agents={model.workspaceAgents}
+              homeWorkspaceId={model.homeWorkspace?.id}
+              projectWorkspaceId={model.activeWorkspaceId}
+              scope={model.scope}
+              store={model.sessionCreate.store}
+            />
+          </AgentCreateHostProvider>
+        </SessionCreateProvider>
+      </OsShellContext.Provider>
+    </WorktreeDialogActionsContext.Provider>
   );
 }
 
@@ -119,10 +125,12 @@ function DesktopShellBody({
   model,
   firstRun,
   workspaceSetupDefaults,
+  worktreeDialogs,
 }: {
   model: DesktopShellModel;
   firstRun: boolean;
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
+  worktreeDialogs: ReturnType<typeof useWorktreeDialogTargets>;
 }) {
   const sessionCreate = useSessionCreateActions();
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
@@ -153,8 +161,6 @@ function DesktopShellBody({
     firstRun,
     onNewSession: openNewSession,
   });
-  const worktreeDialogs = useWorktreeDialogTargets();
-
   return (
     <div
       ref={desktopRef}
@@ -328,6 +334,7 @@ function DesktopShellBody({
         onCreateWorktree={model.openWorktreeCreate}
         onRemoveWorktree={worktreeDialogs.requestRemove}
         onResolveMissing={worktreeDialogs.requestResolveMissing}
+        onOpenWorktreeContext={worktreeDialogs.requestContext}
       />
       <WorkspaceSetupDialogBoundary
         defaults={workspaceSetupDefaults}
@@ -369,6 +376,14 @@ function DesktopShellBody({
           workspaceId={worktreeDialogs.missingTarget.workspaceId}
           worktree={worktreeDialogs.missingTarget.worktree}
           onClose={worktreeDialogs.closeMissing}
+        />
+      ) : null}
+      {worktreeDialogs.contextTarget ? (
+        <WorktreeContextDialogBoundary
+          workspaceId={worktreeDialogs.contextTarget.workspaceId}
+          worktree={worktreeDialogs.contextTarget.worktree}
+          onCleanUp={worktreeDialogs.requestContextCleanup}
+          onClose={worktreeDialogs.closeContext}
         />
       ) : null}
       <AgentCreateDialog

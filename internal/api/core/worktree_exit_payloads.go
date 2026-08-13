@@ -23,7 +23,8 @@ func WorktreeExitPlanPayload(plan *worktree.ExitPlan) contract.WorktreeExitPlanR
 		BrowserURL:  plan.BrowserURL,
 		ForgeStatus: WorktreeForgePayloadFromStatus(plan.ForgeStatus),
 		Cleanup: contract.WorktreeExitCleanupEvidence{
-			ForgeState: plan.Cleanup.ForgeState, Safe: plan.Cleanup.Safe, Source: plan.Cleanup.Source,
+			ForgeState: plan.Cleanup.ForgeState, Stale: plan.Cleanup.Stale,
+			Safe: plan.Cleanup.Safe, Source: plan.Cleanup.Source,
 			Summary: plan.Cleanup.Summary, Blocker: plan.Cleanup.Blocker, Downgraded: plan.Cleanup.Downgraded,
 		},
 		Base: plan.Base,
@@ -42,6 +43,12 @@ func WorktreeExitPlanPayload(plan *worktree.ExitPlan) contract.WorktreeExitPlanR
 			SupportsDraft: plan.Forge.SupportsDraft, CompareURLTemplate: plan.Forge.CompareURLTemplate,
 			CredentialSource: plan.Forge.CredentialSource, DefaultBranch: plan.Forge.DefaultBranch,
 			TemplatePaths: append([]string(nil), plan.Forge.TemplatePaths...),
+		}
+	}
+	if plan.PRPrefill != nil {
+		payload.PRPrefill = &contract.WorktreeExitPRPrefill{
+			Title: plan.PRPrefill.Title,
+			Body:  plan.PRPrefill.Body,
 		}
 	}
 	return payload

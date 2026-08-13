@@ -82,10 +82,68 @@ describe("loop node schema", () => {
     expect(branch).toMatchObject({ reference: true, cel: true });
     const runLoop = buildNodeFields({ id: "child", class: "action", kind: "run-loop" });
     expect(runLoop.some(f => "key" in f && f.key === "inputs" && "json" in f && f.json)).toBe(true);
-    const cwd = buildNodeFields({ id: "x", class: "action", kind: "run-agent" }).find(
-      f => "key" in f && f.key === "cwd"
+  });
+
+  /**
+   * `params.cwd` is retired end to end (B-009): the daemon rejects it at runtime
+   * validation, so the inspector must offer exactly one environment control and
+   * no directory field beside it (Business Rule 22).
+   */
+  it("Should offer one Environment descriptor and no retired working-dir field on agent nodes", () => {
+    for (const kind of ["run-agent", "goal"]) {
+      const fields = flatten(buildNodeFields({ id: "x", class: "action", kind }));
+      expect(hasKey(fields, "cwd")).toBe(false);
+      expect(fieldByKey(fields, "environment")).toMatchObject({
+        type: "environment",
+        basePath: ["params", "environment"],
+        mode: null,
+        inheritLabel: "Inherit",
+      });
+    }
+  });
+
+  it("Should reveal only the companion input the selected environment mode allows", () => {
+    const worktreeNode = flatten(
+      buildNodeFields({
+        id: "x",
+        class: "action",
+        kind: "run-agent",
+        params: { environment: { mode: "worktree", worktree_ref: "payments-retry" } },
+      })
     );
-    expect(cwd).toMatchObject({ reference: true });
+    expect(hasKey(worktreeNode, "environment_worktree_ref")).toBe(true);
+    expect(hasKey(worktreeNode, "environment_directory")).toBe(false);
+
+    const directoryNode = flatten(
+      buildNodeFields({
+        id: "x",
+        class: "action",
+        kind: "run-agent",
+        params: { environment: { mode: "directory", directory: "packages/api" } },
+      })
+    );
+    expect(hasKey(directoryNode, "environment_directory")).toBe(true);
+    expect(hasKey(directoryNode, "environment_worktree_ref")).toBe(false);
+
+    const perRunNode = flatten(
+      buildNodeFields({
+        id: "x",
+        class: "action",
+        kind: "run-agent",
+        params: { environment: { mode: "per_run" } },
+      })
+    );
+    expect(hasKey(perRunNode, "environment_worktree_ref")).toBe(false);
+    expect(hasKey(perRunNode, "environment_directory")).toBe(false);
+  });
+
+  it("Should keep the Environment descriptor off nodes that cannot start agents", () => {
+    for (const node of [
+      { id: "b", class: "control", kind: "branch" },
+      { id: "c", class: "action", kind: "run-loop" },
+    ]) {
+      expect(hasKey(flatten(buildNodeFields(node)), "environment")).toBe(false);
+    }
   });
 
   it("Should render any non-reserved action kind as a generic ToolID form with editable kind", () => {

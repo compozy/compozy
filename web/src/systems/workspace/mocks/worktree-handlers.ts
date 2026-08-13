@@ -3,6 +3,7 @@ import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 
+import { exitPlanCommitFixture, worktreeStatusDirtyFixture } from "./worktree-exit-fixtures";
 import {
   buildWorktreeFixture,
   discoveredWorktreeFixture,
@@ -122,5 +123,24 @@ export const worktreeHandlers: HttpHandler[] = [
 
       return new HttpResponse(null, { status: 204 });
     }
+  ),
+
+  compozyApiMock.get("/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status", () =>
+    HttpResponse.json(worktreeStatusDirtyFixture)
+  ),
+
+  compozyApiMock.get("/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit", () =>
+    HttpResponse.json(exitPlanCommitFixture)
+  ),
+
+  // 202 + an operation id: the action itself keeps running daemon-side and
+  // reports on the per-worktree stream, never in this response.
+  compozyApiMock.post("/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/actions", () =>
+    HttpResponse.json({ op_id: "op_story_1" }, { status: 202 })
+  ),
+
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/cancel",
+    () => new HttpResponse(null, { status: 204 })
   ),
 ];

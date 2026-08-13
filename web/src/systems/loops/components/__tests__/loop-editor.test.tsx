@@ -17,7 +17,11 @@ import {
   readOnlySourceDetail,
   waitWarningDetail,
 } from "../../mocks/fixture-editor-lifecycle";
-import { loopDetailByName } from "../../mocks/fixtures";
+import {
+  loopConfigFixture,
+  loopDetailByName,
+  loopEffectiveConfigFixture,
+} from "../../mocks/fixtures";
 
 const deliveryDetail = loopDetailByName.get("quality-gate-demo")!;
 
@@ -27,6 +31,15 @@ const WS = "ws_default";
 function detailHandler(detail: LoopDetail) {
   return http.get("/api/workspaces/:workspaceId/loops/:name", () =>
     HttpResponse.json({ loop: detail })
+  );
+}
+
+function configEnvironmentHandler(mode: "root" | "per_run") {
+  return http.get("/api/workspaces/:workspaceId/loops/:name/config", () =>
+    HttpResponse.json({
+      config: { ...loopConfigFixture, environment: { mode } },
+      effective_config: { ...loopEffectiveConfigFixture, environment: { mode } },
+    })
   );
 }
 
@@ -139,6 +152,19 @@ describe("LoopEditor", () => {
     expect(
       within(screen.getByTestId("loop-editor-inspector")).getByTestId("loop-inspector-name")
     ).toHaveTextContent("implement");
+  });
+
+  it("Should show the inherited loop environment only on agent-executing node cards", async () => {
+    renderEditor("quality-gate-demo", [configEnvironmentHandler("per_run")]);
+    await screen.findByTestId("loop-editor");
+
+    await waitFor(() =>
+      expect(within(nodeCard("execute_task")).getByText("Per-run · loop default")).toHaveAttribute(
+        "data-source",
+        "loop-default"
+      )
+    );
+    expect(within(nodeCard("implement")).queryByText(/loop default/)).not.toBeInTheDocument();
   });
 
   it("E2E-web-12: edits a workspace Loop draft — palette add, inspector swap", async () => {

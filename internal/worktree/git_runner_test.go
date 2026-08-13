@@ -52,6 +52,30 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		}
 	})
 
+	t.Run("Should coalesce split writes until a complete output line", func(t *testing.T) {
+		t.Parallel()
+		var outputs []GitOutput
+		writer := &gitOutputWriter{
+			stream: GitOutputStderr,
+			onOutput: func(output GitOutput) {
+				outputs = append(outputs, output)
+			},
+		}
+		for _, value := range [][]byte{
+			[]byte("claim_token=compozy_"),
+			[]byte("claim_hook_secret\nnext"),
+		} {
+			if _, err := writer.Write(value); err != nil {
+				t.Fatalf("Write(%q) error = %v", value, err)
+			}
+		}
+		writer.Flush()
+		if len(outputs) != 2 || string(outputs[0].Chunk) != "claim_token=compozy_claim_hook_secret\n" ||
+			string(outputs[1].Chunk) != "next" {
+			t.Fatalf("output chunks = %#v, want complete line then EOF remainder", outputs)
+		}
+	})
+
 	t.Run("Should report a missing Git executable", func(t *testing.T) {
 		t.Parallel()
 		gate := NewCapabilityGateWithLookPath(&scriptedGitRunner{}, func(string) (string, error) {
@@ -209,6 +233,29 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		var unavailable *RealGitRunner
 		if _, _, err := unavailable.Run(context.Background(), "", "--version"); !errors.Is(err, ErrGitUnavailable) {
 			t.Fatalf("nil Run() error = %v, want ErrGitUnavailable", err)
+		}
+	})
+
+	t.Run("Should stream both output channels while preserving captured output", func(t *testing.T) {
+		t.Parallel()
+		runner := &RealGitRunner{executable: "/bin/sh", timeout: time.Second, environ: os.Environ}
+		var mu sync.Mutex
+		chunks := map[GitOutputStream]string{}
+		stdout, stderr, err := runner.RunStreaming(
+			context.Background(), "", func(output GitOutput) {
+				mu.Lock()
+				chunks[output.Stream] += string(output.Chunk)
+				mu.Unlock()
+			},
+			"-c", "printf streamed-out; printf streamed-err >&2",
+		)
+		if err != nil || string(stdout) != "streamed-out" || string(stderr) != "streamed-err" {
+			t.Fatalf("RunStreaming() = %q, %q, %v", stdout, stderr, err)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if chunks[GitOutputStdout] != "streamed-out" || chunks[GitOutputStderr] != "streamed-err" {
+			t.Fatalf("streamed chunks = %#v, want both complete channels", chunks)
 		}
 	})
 

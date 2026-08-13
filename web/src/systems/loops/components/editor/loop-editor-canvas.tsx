@@ -12,6 +12,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import type { EditorEdge, EditorNode } from "../../lib/codec";
+import type { LoopEnvironmentSpec } from "../../types";
 import { LoopEditorNode } from "./loop-editor-node";
 
 const nodeTypes: NodeTypes = { loopNode: LoopEditorNode };
@@ -34,6 +35,7 @@ interface LoopEditorCanvasProps {
    * positions live in the annotations sidecar the daemon accepts for any source.
    */
   readOnly: boolean;
+  loopDefaultEnvironment?: LoopEnvironmentSpec;
 }
 
 /**
@@ -52,14 +54,15 @@ export function LoopEditorCanvas({
   onConnect,
   onSelectNode,
   readOnly,
+  loopDefaultEnvironment,
 }: LoopEditorCanvasProps) {
   // Drive the accent ring from the view-model selection so every selection path (click,
   // dock reveal, palette add) is truthful — React Flow's internal `selected` only tracks clicks.
-  const displayNodes = nodes.map(node =>
-    node.selected === (node.id === selectedNodeId)
-      ? node
-      : { ...node, selected: node.id === selectedNodeId }
-  );
+  const displayNodes = nodes.map(node => ({
+    ...node,
+    selected: node.id === selectedNodeId,
+    data: { ...node.data, loopDefaultEnvironment },
+  }));
   return (
     <ReactFlow
       // Dark-only for v1 (CompozyOS ships a single dark theme); wire `colorMode` to the app theme

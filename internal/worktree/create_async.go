@@ -137,7 +137,7 @@ func (s *Service) runAcceptedCreation(
 		if errors.Is(ctx.Err(), context.Canceled) && rollbackErr == nil && deleteErr == nil {
 			s.emit(context.WithoutCancel(ctx), EventCreationCanceled, item)
 		} else if deleteErr == nil {
-			s.publishCatalogEvent(CatalogEventDeleted, item)
+			s.publishCatalogFailure(item, err)
 		}
 		return
 	}

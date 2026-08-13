@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -21,6 +22,24 @@ type GitRunner interface {
 	Run(context.Context, string, ...string) ([]byte, []byte, error)
 }
 
+type GitOutputStream string
+
+const (
+	GitOutputStdout GitOutputStream = "stdout"
+	GitOutputStderr GitOutputStream = "stderr"
+)
+
+type GitOutput struct {
+	Stream GitOutputStream
+	Chunk  []byte
+}
+
+type GitOutputHandler func(GitOutput)
+
+type StreamingGitRunner interface {
+	RunStreaming(context.Context, string, GitOutputHandler, ...string) ([]byte, []byte, error)
+}
+
 type RealGitRunner struct {
 	executable string
 	timeout    time.Duration
@@ -30,6 +49,50 @@ type RealGitRunner struct {
 type cappedBuffer struct {
 	buffer bytes.Buffer
 	limit  int
+}
+
+type gitOutputWriter struct {
+	buffer   bytes.Buffer
+	pending  []byte
+	stream   GitOutputStream
+	onOutput GitOutputHandler
+}
+
+func (w *gitOutputWriter) Write(value []byte) (int, error) {
+	written, err := w.buffer.Write(value)
+	if err != nil {
+		return written, err
+	}
+	if w.onOutput != nil && written > 0 {
+		w.pending = append(w.pending, value[:written]...)
+		for {
+			newline := bytes.IndexByte(w.pending, '\n')
+			if newline < 0 {
+				break
+			}
+			w.emitPending(newline + 1)
+		}
+	}
+	return written, nil
+}
+
+func (w *gitOutputWriter) Flush() {
+	if len(w.pending) > 0 {
+		w.emitPending(len(w.pending))
+	}
+}
+
+func (w *gitOutputWriter) emitPending(length int) {
+	w.onOutput(GitOutput{Stream: w.stream, Chunk: append([]byte(nil), w.pending[:length]...)})
+	w.pending = append(w.pending[:0], w.pending[length:]...)
+}
+
+func (w *gitOutputWriter) Bytes() []byte {
+	return w.buffer.Bytes()
+}
+
+func (w *gitOutputWriter) String() string {
+	return w.buffer.String()
 }
 
 func newCappedBuffer(limit int) *cappedBuffer {
@@ -66,6 +129,24 @@ func NewRealGitRunner(timeout time.Duration) (*RealGitRunner, error) {
 }
 
 func (r *RealGitRunner) Run(ctx context.Context, dir string, args ...string) ([]byte, []byte, error) {
+	return r.run(ctx, dir, nil, args...)
+}
+
+func (r *RealGitRunner) RunStreaming(
+	ctx context.Context,
+	dir string,
+	onOutput GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
+	return r.run(ctx, dir, onOutput, args...)
+}
+
+func (r *RealGitRunner) run(
+	ctx context.Context,
+	dir string,
+	onOutput GitOutputHandler,
+	args ...string,
+) ([]byte, []byte, error) {
 	if r == nil || strings.TrimSpace(r.executable) == "" {
 		return nil, nil, ErrGitUnavailable
 	}
@@ -74,10 +155,19 @@ func (r *RealGitRunner) Run(ctx context.Context, dir string, args ...string) ([]
 	cmd.Stdin = nil
 	cmd.Env = gitEnvironment(r.environ())
 	procutil.ConfigureCommandProcessGroup(cmd)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	var callbackMu sync.Mutex
+	var serializedOutput GitOutputHandler
+	if onOutput != nil {
+		serializedOutput = func(output GitOutput) {
+			callbackMu.Lock()
+			defer callbackMu.Unlock()
+			onOutput(output)
+		}
+	}
+	stdout := &gitOutputWriter{stream: GitOutputStdout, onOutput: serializedOutput}
+	stderr := &gitOutputWriter{stream: GitOutputStderr, onOutput: serializedOutput}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		return nil, nil, fmt.Errorf(
 			"worktree: start git %q: %w",
@@ -87,6 +177,8 @@ func (r *RealGitRunner) Run(ctx context.Context, dir string, args ...string) ([]
 	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
 		killErr := procutil.KillCommandProcessGroupAndWait(cmd, time.Second)
 		waitErr := cmd.Wait()
+		stdout.Flush()
+		stderr.Flush()
 		return stdout.Bytes(), stderr.Bytes(), errors.Join(
 			fmt.Errorf("worktree: register git process group: %w", err), killErr, waitErr,
 		)
@@ -103,6 +195,8 @@ func (r *RealGitRunner) Run(ctx context.Context, dir string, args ...string) ([]
 
 	select {
 	case err := <-waitCh:
+		stdout.Flush()
+		stderr.Flush()
 		if err != nil {
 			return stdout.Bytes(), stderr.Bytes(), gitCommandError(args, stderr.String(), err)
 		}
@@ -110,12 +204,16 @@ func (r *RealGitRunner) Run(ctx context.Context, dir string, args ...string) ([]
 	case <-ctx.Done():
 		killErr := procutil.KillCommandProcessGroupAndWait(cmd, time.Second)
 		waitErr := <-waitCh
+		stdout.Flush()
+		stderr.Flush()
 		return stdout.Bytes(), stderr.Bytes(), errors.Join(
 			gitCommandError(args, stderr.String(), ctx.Err()), killErr, waitErr,
 		)
 	case <-timer.C:
 		killErr := procutil.KillCommandProcessGroupAndWait(cmd, time.Second)
 		waitErr := <-waitCh
+		stdout.Flush()
+		stderr.Flush()
 		return stdout.Bytes(), stderr.Bytes(), errors.Join(
 			gitCommandError(args, stderr.String(), context.DeadlineExceeded), killErr, waitErr,
 		)
@@ -152,3 +250,4 @@ func gitCommandError(args []string, stderr string, cause error) error {
 }
 
 var _ GitRunner = (*RealGitRunner)(nil)
+var _ StreamingGitRunner = (*RealGitRunner)(nil)

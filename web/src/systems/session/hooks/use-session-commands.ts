@@ -13,6 +13,13 @@ export interface SessionCommandMenuItem {
   lane: SessionCommandMenuLane;
   /** Daemon source scope (session/workspace/agent/global); surfaced for skills. */
   scope?: string;
+  /**
+   * Daemon availability for this session's current state. An unavailable command
+   * stays listed and inert — hiding it would erase the reason it cannot run.
+   */
+  available: boolean;
+  /** Verbatim daemon explanation for `available: false`. Never reworded locally. */
+  unavailableReason?: string;
 }
 
 export interface SessionCommandMenuSection {
@@ -55,14 +62,30 @@ function commandMenuItem(
   lane: SessionCommandMenuLane
 ): SessionCommandMenuItem {
   const scope = command.source?.scope;
+  const reason = command.unavailable_reason?.trim();
   return {
     id: command.id,
     token: command.canonical_token,
     label: humanizeCommandLabel(command.display_name, lane),
     lane,
+    available: command.available,
     ...(command.description ? { description: command.description } : {}),
     ...(scope ? { scope } : {}),
+    ...(reason ? { unavailableReason: reason } : {}),
   };
+}
+
+/** Finds one command by its canonical token ("/worktree") across every lane. */
+export function findSessionCommand(
+  catalog: SessionCommandMenuCatalog | undefined,
+  token: string
+): SessionCommandMenuItem | undefined {
+  if (!catalog) return undefined;
+  for (const section of catalog.standaloneSections) {
+    const found = section.commands.find(command => command.token === token);
+    if (found) return found;
+  }
+  return catalog.inlineSkills.find(command => command.token === token);
 }
 
 /** Projects the public daemon catalog into the assistant-ui menu contract without local policy. */
@@ -105,9 +128,13 @@ export function sessionCommandMenuCatalog(
   return { standaloneSections, inlineSkills };
 }
 
-export function useSessionCommands(workspaceId: string, sessionId: string) {
+export function useSessionCommands(
+  workspaceId: string,
+  sessionId: string,
+  options: { enabled?: boolean } = {}
+) {
   const query = useQuery({
-    ...sessionCommandsOptions(workspaceId, sessionId),
+    ...sessionCommandsOptions(workspaceId, sessionId, options.enabled),
     select: response => sessionCommandMenuCatalog(response.commands),
   });
   return {

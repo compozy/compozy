@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"sync"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 const catalogSubscriberBuffer = 64
@@ -14,12 +16,14 @@ type CatalogEventKind string
 const (
 	CatalogEventUpserted CatalogEventKind = "upserted"
 	CatalogEventDeleted  CatalogEventKind = "deleted"
+	CatalogEventFailed   CatalogEventKind = "failed"
 )
 
 type CatalogEvent struct {
 	Kind        CatalogEventKind
 	WorkspaceID string
 	WorktreeID  string
+	Error       string
 }
 
 type catalogBroadcaster struct {
@@ -91,6 +95,22 @@ func (s *Service) SubscribeWorktreeCatalogEvents(
 }
 
 func (s *Service) publishCatalogEvent(kind CatalogEventKind, item Worktree) {
+	s.publishCatalogEventWithError(kind, item, "")
+}
+
+func (s *Service) publishCatalogFailure(item Worktree, cause error) {
+	s.publishCatalogEventWithError(
+		CatalogEventFailed,
+		item,
+		diagnostics.RedactAndBound(cause.Error(), setupDiagnosticLimit),
+	)
+}
+
+func (s *Service) publishCatalogEventWithError(
+	kind CatalogEventKind,
+	item Worktree,
+	errorMessage string,
+) {
 	if s == nil {
 		return
 	}
@@ -99,7 +119,7 @@ func (s *Service) publishCatalogEvent(kind CatalogEventKind, item Worktree) {
 	s.catalogMu.Unlock()
 	if broadcaster != nil {
 		broadcaster.publish(CatalogEvent{
-			Kind: kind, WorkspaceID: item.WorkspaceID, WorktreeID: item.ID,
+			Kind: kind, WorkspaceID: item.WorkspaceID, WorktreeID: item.ID, Error: errorMessage,
 		})
 	}
 }

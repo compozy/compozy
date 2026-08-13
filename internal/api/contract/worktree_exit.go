@@ -23,11 +23,17 @@ type WorktreeExitCommitScope struct {
 
 type WorktreeExitCleanupEvidence struct {
 	ForgeState string `json:"forge_state,omitempty"`
+	Stale      bool   `json:"stale,omitempty"`
 	Safe       bool   `json:"safe"`
 	Source     string `json:"source,omitempty"`
 	Summary    string `json:"summary,omitempty"`
 	Blocker    string `json:"blocker,omitempty"`
 	Downgraded bool   `json:"downgraded,omitempty"`
+}
+
+type WorktreeExitPRPrefill struct {
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body,omitempty"`
 }
 
 type WorktreeExitForgeCapabilities struct {
@@ -51,6 +57,7 @@ type WorktreeExitPlanResponse struct {
 	BrowserURL       string                         `json:"browser_url,omitempty"`
 	Forge            *WorktreeExitForgeCapabilities `json:"forge,omitempty"`
 	ForgeStatus      *WorktreeForgeStatusPayload    `json:"forge_status,omitempty"`
+	PRPrefill        *WorktreeExitPRPrefill         `json:"pr_prefill,omitempty"`
 	Cleanup          WorktreeExitCleanupEvidence    `json:"cleanup"`
 	Base             string                         `json:"base,omitempty"`
 }

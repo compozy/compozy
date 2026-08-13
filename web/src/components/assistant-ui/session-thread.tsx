@@ -16,6 +16,7 @@ import { ThreadViewport } from "./session-thread-viewport";
 import { WorkingIndicator } from "./session-working-row";
 import {
   SessionDecisionDock,
+  useSessionFirstPrompt,
   type SessionFailurePayload,
   type SessionState,
 } from "@/systems/session";
@@ -62,9 +63,11 @@ export function SessionThread({
   workingStartedAt,
   liveDataEnabled = true,
   runtimeControl,
+  environmentControl,
   commandCatalog,
   commandCatalogStatus,
   onCommandCatalogOpen,
+  onCommandAction,
 }: SessionThreadProps) {
   const aui = useAui();
   const reducedMotion = usePrefersReducedMotion();
@@ -79,6 +82,7 @@ export function SessionThread({
   const startupFailed =
     sessionState === "stopped" && Boolean(failure) && !acpSessionId?.trim().length;
   const lifecycleCanPrompt = canPrompt && sessionState !== "starting" && !startupFailed;
+  useSessionFirstPrompt({ canPrompt: lifecycleCanPrompt, sessionId });
   const handleCancelPrompt = () => {
     aui.thread.cancelRun();
     promptDispatch.cancelPending();
@@ -149,9 +153,11 @@ export function SessionThread({
                 : undefined
           }
           runtimeControl={runtimeControl}
+          environmentControl={environmentControl}
           commandCatalog={commandCatalog}
           commandCatalogStatus={commandCatalogStatus}
           onCommandCatalogOpen={onCommandCatalogOpen}
+          onCommandAction={onCommandAction}
         />
       </SessionComposerPrefillProvider>
     </ThreadPrimitive.Root>

@@ -41,7 +41,10 @@ func (s *Service) StatusDetails(
 	if s.forge == nil {
 		return nil, ErrForgeUnavailable
 	}
-	remoteURLs := s.readOriginRemoteURLs(ctx, item.Path)
+	remoteURLs, err := s.readOriginRemoteURLs(ctx, item.Path)
+	if err != nil {
+		return nil, err
+	}
 	if len(remoteURLs) == 0 {
 		return nil, fmt.Errorf("%w: origin remote is unavailable", ErrForge)
 	}
@@ -61,6 +64,12 @@ func (s *Service) StatusDetails(
 	}
 	if forgeStatus == nil {
 		return nil, fmt.Errorf("%w: provider returned no status", ErrForge)
+	}
+	if forgeStatus.PRURL != "" {
+		forgeStatus.PRURL, err = sanitizeForgeWebURL(forgeStatus.PRURL)
+		if err != nil {
+			return nil, fmt.Errorf("%w: provider returned an invalid pull request URL", ErrForge)
+		}
 	}
 	if err := s.store.SaveForgeStatus(ctx, workspaceID, id, *forgeStatus); err != nil {
 		return nil, fmt.Errorf("worktree: persist forge status: %w", err)

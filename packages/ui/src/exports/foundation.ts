@@ -34,6 +34,8 @@ export {
   type AvatarSize,
 } from "../components/avatar";
 export { ButtonGroup, ButtonGroupSeparator, ButtonGroupText } from "../components/button-group";
+export { SplitButton } from "../components/custom/split-button";
+export type { SplitButtonProps } from "../components/custom/split-button";
 export { buttonGroupVariants } from "../components/button-group-variants";
 export {
   Field,

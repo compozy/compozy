@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 type ExitAction string
@@ -31,6 +32,7 @@ const (
 	reasonNoPRChanges      = "No branch changes to include in a PR."
 	reasonSessionRunning   = "Git actions are paused while a bound session is running."
 	reasonStatusUnreadable = "Git status could not be read for this worktree."
+	reasonRemoteUnreadable = "Git remote configuration could not be read for this worktree."
 	exitUntrackedFileLimit = 200
 )
 
@@ -55,11 +57,17 @@ type ExitCommitScope struct {
 
 type ExitCleanupEvidence struct {
 	ForgeState string `json:"forge_state,omitempty"`
+	Stale      bool   `json:"stale,omitempty"`
 	Safe       bool   `json:"safe"`
 	Source     string `json:"source,omitempty"`
 	Summary    string `json:"summary,omitempty"`
 	Blocker    string `json:"blocker,omitempty"`
 	Downgraded bool   `json:"downgraded,omitempty"`
+}
+
+type ExitPRPrefill struct {
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body,omitempty"`
 }
 
 type ExitPlan struct {
@@ -71,6 +79,7 @@ type ExitPlan struct {
 	BrowserURL       string              `json:"browser_url,omitempty"`
 	Forge            *ForgeCapabilities  `json:"forge,omitempty"`
 	ForgeStatus      *ForgeStatus        `json:"forge_status,omitempty"`
+	PRPrefill        *ExitPRPrefill      `json:"pr_prefill,omitempty"`
 	Cleanup          ExitCleanupEvidence `json:"cleanup"`
 	Base             string              `json:"base,omitempty"`
 	RemoteURLs       []string            `json:"remote_urls,omitempty"`
@@ -91,7 +100,17 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 	if err != nil {
 		return nil, err
 	}
-	remoteURLs := s.readOriginRemoteURLs(ctx, item.Path)
+	if status.ReadError != "" {
+		return s.unreadableExitPlan(ctx, *item, status)
+	}
+	scope, err := s.readExitCommitScope(ctx, *item, status)
+	if err != nil {
+		return nil, err
+	}
+	remoteURLs, err := s.readOriginRemoteURLs(ctx, item.Path)
+	if err != nil {
+		return s.remoteUnreadableExitPlan(ctx, *item, status, scope)
+	}
 	forge := s.exitForgeCapabilities(ctx, remoteURLs)
 	forgeStatus, err := s.store.GetForgeStatus(ctx, workspaceID, id)
 	if err != nil {
@@ -99,10 +118,6 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 	}
 	base := s.resolveExitBase(ctx, *item, status, forge)
 	baseAhead := s.countCommitsAhead(ctx, item.Path, base)
-	scope, err := s.readExitCommitScope(ctx, *item, status)
-	if err != nil {
-		return nil, err
-	}
 	paused, err := s.exitPauseCause(ctx, *item, status)
 	if err != nil {
 		return nil, err
@@ -110,6 +125,12 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 	plan := &ExitPlan{
 		WorktreeID: item.ID, CommitScope: scope, Forge: forge, ForgeStatus: forgeStatus,
 		Base: base, RemoteURLs: remoteURLs,
+	}
+	if forge != nil && (forgeStatus == nil || forgeStatus.PRURL == "") {
+		plan.PRPrefill = &ExitPRPrefill{
+			Title: item.Branch,
+			Body:  s.detectPRTemplate(ctx, item.Path, base, forge.TemplatePaths),
+		}
 	}
 	if paused != "" {
 		plan.GlobalPauseCause = paused
@@ -120,6 +141,54 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 	)
 	plan.Primary = selectExitPrimary(plan.Actions, status)
 	plan.Cleanup = s.exitCleanupEvidence(ctx, *item, forgeStatus)
+	return plan, nil
+}
+
+func (s *Service) remoteUnreadableExitPlan(
+	ctx context.Context,
+	item Worktree,
+	status *Status,
+	scope ExitCommitScope,
+) (*ExitPlan, error) {
+	forgeStatus, err := s.store.GetForgeStatus(ctx, item.WorkspaceID, item.ID)
+	if err != nil {
+		return nil, fmt.Errorf("worktree: read exit forge status: %w", err)
+	}
+	plan := &ExitPlan{
+		WorktreeID:       item.ID,
+		GlobalPauseCause: reasonRemoteUnreadable,
+		ForgeStatus:      forgeStatus,
+		Base:             strings.TrimPrefix(strings.TrimSpace(item.BaseRef), "origin/"),
+		CommitScope:      scope,
+		Cleanup: ExitCleanupEvidence{
+			Blocker: reasonRemoteUnreadable,
+		},
+	}
+	plan.Actions = buildExitActions(status, nil, nil, 0, false, "", reasonRemoteUnreadable)
+	plan.Primary = selectExitPrimary(plan.Actions, status)
+	return plan, nil
+}
+
+func (s *Service) unreadableExitPlan(
+	ctx context.Context,
+	item Worktree,
+	status *Status,
+) (*ExitPlan, error) {
+	forgeStatus, err := s.store.GetForgeStatus(ctx, item.WorkspaceID, item.ID)
+	if err != nil {
+		return nil, fmt.Errorf("worktree: read exit forge status: %w", err)
+	}
+	plan := &ExitPlan{
+		WorktreeID:       item.ID,
+		GlobalPauseCause: reasonStatusUnreadable,
+		ForgeStatus:      forgeStatus,
+		Base:             strings.TrimPrefix(strings.TrimSpace(item.BaseRef), "origin/"),
+		Cleanup: ExitCleanupEvidence{
+			Blocker: reasonStatusUnreadable,
+		},
+	}
+	plan.Actions = buildExitActions(status, nil, forgeStatus, 0, false, "", reasonStatusUnreadable)
+	plan.Primary = selectExitPrimary(plan.Actions, status)
 	return plan, nil
 }
 
@@ -166,12 +235,14 @@ func buildExitActions(
 	behind := valueOrZero(status.Behind)
 	hasUpstream := status.HasUpstream != nil && *status.HasUpstream
 	pendingPush := ahead > 0 || (!hasUpstream && hasRemote && !detached)
-	rows := []ExitActionPlan{
-		{Action: ExitActionCommit, Label: "Commit", Enabled: dirty},
-		{Action: ExitActionCommitPush, Label: "Commit & push", Enabled: dirty && hasRemote && !detached},
-		{Action: ExitActionPush, Label: "Push", Enabled: !dirty && pendingPush && hasRemote && !detached, Publish: !hasUpstream},
+	rows := []ExitActionPlan{{Action: ExitActionCommit, Label: "Commit", Enabled: dirty}}
+	if hasRemote {
+		rows = append(rows,
+			ExitActionPlan{Action: ExitActionCommitPush, Label: "Commit & push", Enabled: dirty && !detached},
+			ExitActionPlan{Action: ExitActionPush, Label: "Push", Enabled: !dirty && pendingPush && !detached, Publish: !hasUpstream},
+		)
 	}
-	if forgeStatus != nil && forgeStatus.PRURL != "" {
+	if hasRemote && forgeStatus != nil && forgeStatus.PRURL != "" {
 		viewLabel := "View in browser"
 		if forge != nil && strings.TrimSpace(forge.ViewActionLabel) != "" {
 			viewLabel = strings.TrimSpace(forge.ViewActionLabel)
@@ -180,13 +251,13 @@ func buildExitActions(
 			Action: ExitActionViewPR, Label: viewLabel, Enabled: true,
 			URL: forgeStatus.PRURL, PRNumber: valueOrZero(forgeStatus.PRNumber),
 		})
-	} else if forge != nil {
+	} else if hasRemote && forge != nil {
 		openLabel := strings.TrimSpace(forge.OpenActionLabel)
 		if openLabel == "" {
 			openLabel = "Open PR"
 		}
 		rows = append(rows, ExitActionPlan{Action: ExitActionOpenPR, Label: openLabel, Enabled: true})
-	} else if browserURL != "" {
+	} else if hasRemote && browserURL != "" {
 		rows = append(rows, ExitActionPlan{
 			Action: ExitActionOpenPR, Label: "Open in browser", Enabled: true, URL: browserURL,
 		})
@@ -303,10 +374,15 @@ func selectExitPrimary(rows []ExitActionPlan, status *Status) ExitAction {
 	return ""
 }
 
-func (s *Service) readOriginRemoteURLs(ctx context.Context, path string) []string {
-	stdout, _, err := s.runner.Run(ctx, path, "remote", "get-url", "--all", "origin")
+func (s *Service) readOriginRemoteURLs(ctx context.Context, path string) ([]string, error) {
+	stdout, stderr, err := s.runner.Run(ctx, path, "remote", "get-url", "--all", "origin")
 	if err != nil {
-		return nil
+		var exitError interface{ ExitCode() int }
+		if errors.As(err, &exitError) && exitError.ExitCode() == 2 {
+			return nil, nil
+		}
+		safe := diagnostics.RedactAndBound(exitCommandOutput(stdout, stderr, err), 2048)
+		return nil, fmt.Errorf("worktree: read origin remote URLs: %w", errors.New(safe))
 	}
 	values := strings.Fields(string(stdout))
 	remotes := make([]string, 0, len(values))
@@ -315,7 +391,7 @@ func (s *Service) readOriginRemoteURLs(ctx context.Context, path string) []strin
 			remotes = append(remotes, sanitized)
 		}
 	}
-	return remotes
+	return remotes, nil
 }
 
 func (s *Service) resolveExitBase(ctx context.Context, item Worktree, status *Status, forge *ForgeCapabilities) string {
@@ -374,64 +450,4 @@ func (s *Service) readExitCommitScope(ctx context.Context, item Worktree, status
 		Deletions: valueOrZero(status.Deletions), UntrackedFiles: untracked,
 		UntrackedTotal: total, UntrackedTruncated: total > len(untracked),
 	}, nil
-}
-
-func (s *Service) exitCleanupEvidence(ctx context.Context, item Worktree, forge *ForgeStatus) ExitCleanupEvidence {
-	evidence := ExitCleanupEvidence{}
-	if forge != nil && forge.PRState != nil {
-		evidence.ForgeState = *forge.PRState
-	}
-	if forgeMergeIsCurrent(ctx, s.runner, item.Path, forge) {
-		evidence.Safe, evidence.Source = true, "forge"
-		evidence.Summary = "Merged on " + forge.Provider
-		return evidence
-	}
-	stdout, _, err := s.runner.Run(
-		ctx, item.Path, "rev-list", "--count", "HEAD", "--not", "--remotes",
-		"--exclude=refs/heads/"+item.Branch, "--branches",
-	)
-	if err != nil {
-		return evidence
-	}
-	unique, parseErr := strconv.Atoi(strings.TrimSpace(string(stdout)))
-	if parseErr != nil {
-		return evidence
-	}
-	if unique == 0 {
-		evidence.Safe, evidence.Source = true, "local"
-		evidence.Summary = "No commits unique to this branch."
-		return evidence
-	}
-	remote, _, remoteErr := s.runner.Run(ctx, item.Path, "branch", "-r", "--list", "*/"+item.Branch)
-	if remoteErr == nil && strings.TrimSpace(string(remote)) != "" {
-		evidence.Safe, evidence.Source, evidence.Downgraded = true, "local", true
-		evidence.Summary = "Unique commits are already on a remote branch."
-		return evidence
-	}
-	evidence.Source = "local"
-	evidence.Blocker = fmt.Sprintf("%d commits exist nowhere else.", unique)
-	return evidence
-}
-
-func forgeMergeIsCurrent(
-	ctx context.Context,
-	runner GitRunner,
-	path string,
-	forge *ForgeStatus,
-) bool {
-	if forge == nil || forge.PRState == nil || *forge.PRState != "merged" {
-		return false
-	}
-	if forge.FetchedAt == nil {
-		return false
-	}
-	stdout, _, err := runner.Run(ctx, path, "log", "-1", "--format=%cI", "HEAD")
-	if err != nil {
-		return false
-	}
-	committedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(string(stdout)))
-	if err != nil {
-		return false
-	}
-	return !committedAt.After(*forge.FetchedAt)
 }

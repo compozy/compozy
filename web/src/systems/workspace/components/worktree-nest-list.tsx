@@ -34,11 +34,13 @@ function NestRowActions({
   testIdPrefix,
   onRemoveWorktree,
   onResolveMissing,
+  onOpenContext,
 }: {
   entry: WorktreeNestEntry;
   testIdPrefix: string;
   onRemoveWorktree?: (entry: WorktreeNestEntry) => void;
   onResolveMissing?: (entry: WorktreeNestEntry) => void;
+  onOpenContext?: (entry: WorktreeNestEntry) => void;
 }) {
   if (entry.adoptable) {
     return (
@@ -60,6 +62,24 @@ function NestRowActions({
         }}
       >
         Resolve…
+      </button>
+    );
+  }
+
+  // A ready worktree leads to its context, where status and the assisted exit
+  // live; removal stays reachable from there.
+  if (entry.displayState === "ready" && onOpenContext) {
+    return (
+      <button
+        type="button"
+        data-testid={`${testIdPrefix}-context-${entry.key}`}
+        className="ml-auto rounded-md px-2 py-0.5 text-mono-id font-semibold text-subtle hover:bg-row-hover hover:text-fg"
+        onClick={event => {
+          event.stopPropagation();
+          onOpenContext(entry);
+        }}
+      >
+        Context…
       </button>
     );
   }
@@ -96,6 +116,8 @@ export interface WorktreeNestListProps {
   onRemoveWorktree?: (entry: WorktreeNestEntry) => void;
   /** Opens the resolution dialog for a worktree whose directory disappeared. */
   onResolveMissing?: (entry: WorktreeNestEntry) => void;
+  /** Opens the worktree context (status + assisted exit). */
+  onOpenContext?: (entry: WorktreeNestEntry) => void;
   /** Adopted-only count, used by the overflow row's label. */
   adoptedCount: number;
   limit?: number;
@@ -118,6 +140,7 @@ export function WorktreeNestList({
   onShowAll,
   onRemoveWorktree,
   onResolveMissing,
+  onOpenContext,
   adoptedCount,
   limit = WORKTREE_NEST_VISIBLE_LIMIT,
   testIdPrefix = "worktree-nest",
@@ -165,6 +188,7 @@ export function WorktreeNestList({
                 testIdPrefix={testIdPrefix}
                 onRemoveWorktree={onRemoveWorktree}
                 onResolveMissing={onResolveMissing}
+                onOpenContext={onOpenContext}
               />
             }
           />

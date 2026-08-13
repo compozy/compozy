@@ -1,7 +1,6 @@
 package worktree
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -217,7 +216,7 @@ func (s *Service) runExitSequence(
 		var err error
 		switch phase {
 		case ExitPhaseCommit:
-			step, err = s.runExitCommit(ctx, item, plan.CommitScope, request.Message)
+			step, err = s.runExitCommit(ctx, operation, request.Action, item, plan.CommitScope, request.Message)
 		case ExitPhasePush:
 			forcePush := request.Action == ExitActionCommitPush
 			step, err = s.runExitPush(ctx, item, forcePush)
@@ -238,48 +237,6 @@ func (s *Service) runExitSequence(
 		}
 	}
 	return steps, nil
-}
-
-func (s *Service) runExitCommit(
-	ctx context.Context,
-	item Worktree,
-	scope ExitCommitScope,
-	message string,
-) (ExitStepResult, error) {
-	step := ExitStepResult{Phase: ExitPhaseCommit, State: "completed"}
-	if _, stderr, err := s.runner.Run(ctx, item.Path, "add", "-A"); err != nil {
-		step.State, step.Output = "failed", exitCommandOutput(nil, stderr, err)
-		return step, err
-	}
-	staged, stderr, err := s.runner.Run(ctx, item.Path, "diff", "--cached", "--name-only", "-z")
-	if err != nil {
-		step.State, step.Output = "failed", exitCommandOutput(nil, stderr, err)
-		return step, err
-	}
-	if len(bytes.Trim(staged, "\x00")) == 0 {
-		step.State, step.Reason = "skipped", "nothing to commit"
-		return step, nil
-	}
-	commitMessage := strings.TrimSpace(message)
-	if commitMessage == "" {
-		count := scope.ChangedFiles
-		if count <= 0 {
-			count = len(bytes.Split(bytes.Trim(staged, "\x00"), []byte{0}))
-		}
-		commitMessage = fmt.Sprintf("Update %d files", count)
-	}
-	stdout, stderr, err := s.runner.Run(ctx, item.Path, "commit", "-m", commitMessage)
-	if err != nil {
-		step.State, step.Output = "failed", exitCommandOutput(stdout, stderr, err)
-		return step, err
-	}
-	sha, stderr, err := s.runner.Run(ctx, item.Path, "rev-parse", "HEAD")
-	if err != nil {
-		step.State, step.Output = "failed", exitCommandOutput(nil, stderr, err)
-		return step, err
-	}
-	step.SHA = strings.TrimSpace(string(sha))
-	return step, nil
 }
 
 func (s *Service) runExitPush(
@@ -337,11 +294,19 @@ func (s *Service) runExitPR(
 	}
 	body := request.Body
 	if strings.TrimSpace(body) == "" {
-		body = s.detectPRTemplate(ctx, item.Path, base, plan.Forge.TemplatePaths)
+		if base == plan.Base && plan.PRPrefill != nil {
+			body = plan.PRPrefill.Body
+		} else {
+			body = s.detectPRTemplate(ctx, item.Path, base, plan.Forge.TemplatePaths)
+		}
 	}
 	title := strings.TrimSpace(request.Title)
 	if title == "" {
-		title = item.Branch
+		if base == plan.Base && plan.PRPrefill != nil && strings.TrimSpace(plan.PRPrefill.Title) != "" {
+			title = strings.TrimSpace(plan.PRPrefill.Title)
+		} else {
+			title = item.Branch
+		}
 	}
 	created, err := s.forge.CreatePR(ctx, ForgePRRequest{
 		WorkspaceID: item.WorkspaceID, WorktreeID: item.ID, RemoteURLs: plan.RemoteURLs,
@@ -354,12 +319,16 @@ func (s *Service) runExitPR(
 	if created == nil {
 		return step, fmt.Errorf("%w: provider returned no pull request result", ErrForge)
 	}
-	step.PRStatus, step.PRNumber, step.URL = created.Status, created.Number, created.URL
+	createdURL, err := sanitizeForgeWebURL(created.URL)
+	if err != nil {
+		return step, fmt.Errorf("%w: provider returned an invalid pull request URL", ErrForge)
+	}
+	step.PRStatus, step.PRNumber, step.URL = created.Status, created.Number, createdURL
 	state, merged := "open", false
 	fetchedAt := s.now().UTC()
 	forgeStatus := ForgeStatus{
 		WorktreeID: item.ID, Provider: plan.Forge.Provider, PRNumber: &created.Number,
-		PRState: &state, PRURL: created.URL, Merged: &merged, FetchedAt: &fetchedAt,
+		PRState: &state, PRURL: createdURL, Merged: &merged, FetchedAt: &fetchedAt,
 	}
 	if err := s.store.SaveForgeStatus(ctx, item.WorkspaceID, item.ID, forgeStatus); err != nil {
 		return step, fmt.Errorf("worktree: persist created pull request: %w", err)

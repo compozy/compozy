@@ -23,11 +23,67 @@ describe("useTaskFanOutDialog", () => {
     [snapshot] = store.transition(snapshot, {
       type: "submitSucceeded",
       attemptId: 0,
+      result: null,
       setOpen,
     });
 
     expect(snapshot.context.phase).toBe("submitting");
     expect(setOpen).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Per-run worktree attribution exists only in the fan-out response, so an
+   * isolated fan-out holds the dialog open to report it; a shared-root fan-out
+   * keeps closing on success as before.
+   */
+  it("Should hold the dialog open to report per-run attribution after an isolated fan-out", () => {
+    const setOpen = vi.fn();
+    const store = createTaskFanOutDialogLogic().createStore();
+    const response = {
+      designation_group_id: "dg_1",
+      runs: [{ id: "run_1", resolved_worktree_mode: "per_run" as const }],
+    } as never;
+    let snapshot = store.getInitialSnapshot();
+    [snapshot] = store.transition(snapshot, {
+      type: "designationsChanged",
+      value: "Investigate checkout",
+    });
+    [snapshot] = store.transition(snapshot, { type: "worktreePerRunChanged", value: true });
+    [snapshot] = store.transition(snapshot, {
+      type: "submitRequested",
+      execute: vi.fn().mockResolvedValue(response),
+      setOpen,
+    });
+    [snapshot] = store.transition(snapshot, {
+      type: "submitSucceeded",
+      attemptId: snapshot.context.attemptId,
+      result: response,
+      setOpen,
+    });
+
+    expect(setOpen).not.toHaveBeenCalled();
+    expect(snapshot.context.result).toBe(response);
+    expect(snapshot.context.phase).toBe("editing");
+  });
+
+  /**
+   * The daemon's default is shared-root execution, so an explicit `false` would
+   * read back as a policy the operator never set. The flag rides only when asked.
+   */
+  it("Should send worktree_per_run only when isolation is requested", () => {
+    function submitWith(isolate: boolean) {
+      const store = createTaskFanOutDialogLogic().createStore();
+      const execute = vi.fn().mockResolvedValue(undefined);
+      store.trigger.designationsChanged({ value: "One\nTwo" });
+      if (isolate) store.trigger.worktreePerRunChanged({ value: true });
+      store.trigger.submitRequested({ execute, setOpen: vi.fn() });
+      return execute.mock.calls[0][0] as Record<string, unknown>;
+    }
+
+    const shared = submitWith(false);
+    expect(shared).toMatchObject({ designations: [{ brief: "One" }, { brief: "Two" }] });
+    expect(shared).not.toHaveProperty("worktree_per_run");
+    expect(submitWith(true)).toMatchObject({ worktree_per_run: true });
   });
 
   it("Should use the callbacks from the render that submits", async () => {

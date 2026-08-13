@@ -5,11 +5,19 @@ import {
   TaskInspectDrawer,
   TaskPauseDialog,
   TaskSetupSheet,
+  useTaskWorktreePolicyControl,
 } from "@/systems/tasks";
 
 /** Window-scoped overlays for the task-detail location (dialogs, sheets, drawer). */
 export function TaskDetailOverlays({ controller }: { controller: TaskDetailLocationController }) {
   const { page, operator, detail, record } = controller;
+  const worktreePolicy = useTaskWorktreePolicyControl({
+    taskId: record?.id ?? "",
+    workspaceId: detail?.task.workspace_id ?? undefined,
+    profile: page.profile,
+    hasActiveRun: Boolean(page.activeRun),
+    enabled: controller.setupOpen || controller.fanOutOpen,
+  });
   if (!detail || !record) return null;
 
   return (
@@ -29,12 +37,16 @@ export function TaskDetailOverlays({ controller }: { controller: TaskDetailLocat
         triggerTestId="tasks-detail-delete-trigger"
       />
       <TaskFanOutDialog
+        gitBacked={Boolean(worktreePolicy)}
         isPending={page.isFanOutPending}
         onFanOut={page.handleFanOutRuns}
         onOpenChange={controller.setFanOutOpen}
         open={controller.fanOutOpen}
+        taskId={record.id}
+        worktrees={worktreePolicy?.worktrees}
       />
       <TaskSetupSheet
+        activeRunId={page.activeRun?.id}
         clearOpen={controller.setupClearOpen}
         editor={controller.setupEditor}
         hasActiveRun={Boolean(page.activeRun)}
@@ -57,6 +69,8 @@ export function TaskDetailOverlays({ controller }: { controller: TaskDetailLocat
             controller.setupRuntime.providersError ?? controller.setupRuntime.catalogError,
           onRefreshCatalog: controller.setupRuntime.onRefreshCatalog,
         }}
+        worktreePolicy={worktreePolicy}
+        worktreePolicyValid={worktreePolicy?.valid}
       />
       <TaskInspectDrawer
         activeTab={controller.search.inspect ?? "diagnostics"}

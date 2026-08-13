@@ -3,6 +3,7 @@ import type {
   LoopConfigUpdateRequest,
   LoopContract,
   LoopEffectiveConfig,
+  LoopEnvironmentSpec,
 } from "../types";
 import {
   buildCheckDescriptors,
@@ -36,6 +37,26 @@ export interface LoopConfigDraft {
   humanGateEnabled: boolean;
   reattemptStrategy: LoopReattemptStrategy;
   limits: LoopOverrideDraft;
+  /** The loop-level environment default. `null` means the loop pins none. */
+  environment: LoopEnvironmentSpec | null;
+}
+
+/**
+ * Keeps only the companion key its mode allows, so a mode switch can never send
+ * a combination the daemon rejects (`worktree` carries only `worktree_ref`,
+ * `directory` only `directory`, `root`/`per_run` neither).
+ */
+export function normalizeLoopEnvironment(
+  raw: LoopEnvironmentSpec | null | undefined
+): LoopEnvironmentSpec | null {
+  if (!raw) return null;
+  if (raw.mode === "worktree") {
+    return { mode: "worktree", worktree_ref: raw.worktree_ref ?? "" };
+  }
+  if (raw.mode === "directory") {
+    return { mode: "directory", directory: raw.directory ?? "" };
+  }
+  return { mode: raw.mode };
 }
 
 function normalizeReattempt(
@@ -89,6 +110,7 @@ function limitsFromStored(
   return {
     values,
     budgetOnExceeded: normalizePolicy(stored.budget_on_exceeded, base.budgetOnExceeded),
+    environment: base.environment,
   };
 }
 
@@ -107,6 +129,7 @@ export function initialConfigDraft(
     humanGateEnabled: stored?.human_gate_enabled ?? false,
     reattemptStrategy: normalizeReattempt(stored?.reattempt_strategy),
     limits: limitsFromStored(effectiveConfig, stored),
+    environment: normalizeLoopEnvironment(stored?.environment),
   };
 }
 
@@ -120,6 +143,7 @@ export function resetConfigDraft(
     humanGateEnabled: false,
     reattemptStrategy: DEFAULT_REATTEMPT,
     limits: initialOverrideDraft(effectiveConfig),
+    environment: null,
   };
 }
 
@@ -149,6 +173,9 @@ export function buildLoopConfigRequest(
       human_gate_enabled: draft.humanGateEnabled,
       reattempt_strategy: draft.reattemptStrategy,
       enabled_checks_json: serializeEnabledChecks(descriptors, draft.checks),
+      // `PUT /config` replaces the stored block wholesale, so the environment
+      // default has to ride every save — omitting it would silently unpin it.
+      environment: normalizeLoopEnvironment(draft.environment),
     },
   };
 }

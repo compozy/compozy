@@ -8,8 +8,18 @@ export type {
 } from "./types";
 export type {
   DiscoveredWorktreePayload,
+  RunWorktreeExitActionParams,
   WorktreeCatalogEventPayload,
   WorktreeDisplayState,
+  WorktreeExitAction,
+  WorktreeExitActionPlan,
+  WorktreeExitCleanupEvidence,
+  WorktreeExitCommitScope,
+  WorktreeExitPlanPayload,
+  WorktreeForgeCapabilities,
+  WorktreeForgeStatus,
+  WorktreeGitStatus,
+  WorktreeInspectionPayload,
   WorktreePayload,
   WorktreeRepoState,
   WorktreesResponse,
@@ -36,8 +46,11 @@ export type { WorkspaceScopeMode } from "./lib/workspace-scope-mode";
 export { workspaceKeys } from "./lib/query-keys";
 export {
   workspaceDetailOptions,
+  worktreeDetailOptions,
+  worktreeExitPlanOptions,
   worktreesListOptions,
   workspacesListOptions,
+  worktreeStatusOptions,
 } from "./lib/query-options";
 export {
   GLOBAL_SCOPE_COPY,
@@ -56,6 +69,46 @@ export {
   WorktreeApiError,
 } from "./adapters/worktree-api";
 export type { AdoptWorktreeParams, CreateWorktreeParams } from "./adapters/worktree-api";
+export {
+  cancelWorktreeExitAction,
+  fetchWorktreeExitPlan,
+  fetchWorktreeStatus,
+  inspectWorktree,
+  runWorktreeExitAction,
+} from "./adapters/worktree-exit-api";
+export type { WorktreeStatusQuery } from "./adapters/worktree-exit-api";
+export {
+  commitScopeTotal,
+  isCommitScopeEmpty,
+  toWorktreeExitLadder,
+} from "./lib/worktree-exit-ladder";
+export type { WorktreeExitLadder, WorktreeExitLadderRow } from "./lib/worktree-exit-ladder";
+export {
+  isWorktreeExitProgressTerminal,
+  reduceWorktreeExitEvent,
+} from "./lib/worktree-exit-progress";
+export type {
+  WorktreeExitHookChunk,
+  WorktreeExitPhaseState,
+  WorktreeExitProgress,
+  WorktreeExitProgressPhase,
+  WorktreeExitProgressStatus,
+} from "./lib/worktree-exit-progress";
+export {
+  parseWorktreeExitEvent,
+  WORKTREE_EXIT_EVENTS,
+  WORKTREE_EXIT_TERMINAL_EVENTS,
+  WORKTREE_LIFECYCLE_EVENTS,
+} from "./lib/worktree-events";
+export type {
+  WorktreeExitCTA,
+  WorktreeExitEventName,
+  WorktreeExitEventPayload,
+  WorktreeExitPhase,
+  WorktreeExitStepResult,
+  WorktreeExitStream,
+  WorktreeStreamEventName,
+} from "./lib/worktree-events";
 export { reconcileWorktreeList, removeWorktreeFromList } from "./lib/worktree-list-reconciliation";
 export { toWorktreeDisplayState, toWorktreeNestEntries } from "./lib/worktree-display";
 export type { WorktreeNestEntry } from "./lib/worktree-display";
@@ -128,6 +181,32 @@ export type {
   WorktreeCatalogEventSourceFactory,
   WorktreeCatalogStreamStatus,
 } from "./hooks/use-worktree-catalog-stream";
+export {
+  invalidateWorktreeExitScope,
+  useCancelWorktreeExitAction,
+  useRefreshWorktreeStatus,
+  useRunWorktreeExitAction,
+  useWorktreeDetail,
+  useWorktreeExitPlan,
+  useWorktreeStatus,
+} from "./hooks/use-worktree-exit";
+export { useWorktreeMaterialization } from "./hooks/use-worktree-materialization";
+export type {
+  WorktreeMaterialization,
+  WorktreeMaterializationStatus,
+} from "./hooks/use-worktree-materialization";
+export { useWorktreeExitLadder } from "./hooks/use-worktree-exit-ladder";
+export type {
+  UseWorktreeExitLadderOptions,
+  WorktreeExitLadderModel,
+} from "./hooks/use-worktree-exit-ladder";
+export { useWorktreeStream, worktreeStreamURL } from "./hooks/use-worktree-stream";
+export type {
+  WorktreeEventSource,
+  WorktreeEventSourceFactory,
+  WorktreeExitEventHandler,
+  WorktreeStreamStatus,
+} from "./hooks/use-worktree-stream";
 
 // Components
 export { OptionCard } from "./components/option-card";
@@ -151,6 +230,8 @@ export type {
 } from "./components/workspace-scope-statement";
 export { useCreateDestination } from "./hooks/use-create-destination";
 export type { CreateDestination } from "./hooks/use-create-destination";
+export { WorktreeRefSelect } from "./components/worktree-ref-select";
+export type { WorktreeRefSelectProps } from "./components/worktree-ref-select";
 export { WorktreeStateChip } from "./components/worktree-state-chip";
 export type { WorktreeChipState, WorktreeStateChipProps } from "./components/worktree-state-chip";
 export { WorktreeStateDot } from "./components/worktree-state-dot";
@@ -192,3 +273,25 @@ export type {
   WorkspaceSetupDefaultsModel,
   WorkspaceSetupSandboxOption,
 } from "./lib/workspace-setup-defaults";
+
+// Assisted exit surface (Task 07)
+export { WorktreeDetailDialog } from "./components/worktree-detail-dialog";
+export { WorktreeExitProgressSurface } from "./components/worktree-exit-progress-surface";
+export { WorktreeDetailHeader } from "./components/worktree-detail-header";
+export { WorktreeStatusStrip } from "./components/worktree-status-strip";
+export { WorktreeExitControl } from "./components/worktree-exit-control";
+export { AGENT_MESSAGE_PROMPT, WorktreeCommitDialog } from "./components/worktree-commit-dialog";
+export { WorktreeScopeBlock } from "./components/worktree-scope-block";
+export { WorktreePrDialog } from "./components/worktree-pr-dialog";
+export { WorktreePrActionRows } from "./components/worktree-pr-action-rows";
+export type {
+  WorktreePrActionKey,
+  WorktreePrActionRow,
+} from "./components/worktree-pr-action-rows";
+export { WorktreeExitProgress as WorktreeExitProgressToast } from "./components/worktree-exit-progress";
+export { WorktreePhaseSteps } from "./components/worktree-phase-steps";
+export { WorktreeMergedEvidence } from "./components/worktree-merged-evidence";
+export { useWorktreeDetailContext } from "./hooks/use-worktree-detail-context";
+export type { WorktreeDetailModel } from "./hooks/use-worktree-detail-context";
+export { toWorktreePrDialogModel } from "./lib/worktree-pr-rows";
+export type { WorktreePrDialogMode, WorktreePrDialogModel } from "./lib/worktree-pr-rows";

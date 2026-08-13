@@ -6,7 +6,11 @@ import {
   type NetworkParticipationDraft,
 } from "@/lib/network-participation";
 
-import { buildConfigOverrides, type LoopOverrideDraft } from "../lib/loop-overrides";
+import {
+  buildConfigOverrides,
+  isLoopEnvironmentOverrideValid,
+  type LoopOverrideDraft,
+} from "../lib/loop-overrides";
 import { isRunFormValid, missingRequiredInputs, serializeRunInputs } from "../lib/loop-run-form";
 import type { LoopDetail, LoopEffectiveConfig } from "../types";
 import { useRunLoop } from "./use-loop-actions";
@@ -16,6 +20,7 @@ interface UseLoopRunFormOptions {
   workspaceId: string;
   loop: LoopDetail;
   effectiveConfig: LoopEffectiveConfig;
+  gitBacked: boolean;
   onRunStarted?: (runId: string) => void;
 }
 
@@ -30,6 +35,7 @@ export function useLoopRunForm({
   workspaceId,
   loop,
   effectiveConfig,
+  gitBacked,
   onRunStarted,
 }: UseLoopRunFormOptions) {
   const contract = loop.definition.contract;
@@ -57,6 +63,7 @@ export function useLoopRunForm({
   const missing = new Set(missingRequiredInputs(schema, inputs));
   const valid =
     isRunFormValid(schema, inputs) &&
+    isLoopEnvironmentOverrideValid(overrides.environment, gitBacked) &&
     (!networkParticipationOverridden ||
       isNetworkParticipationDraftValid(networkParticipation, ["named", "loop_run"]));
   const busy = pendingRequest !== null;

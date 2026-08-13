@@ -47,6 +47,19 @@ func sanitizeGitRemote(raw string) string {
 	return parsed.String()
 }
 
+// sanitizeForgeWebURL accepts only an absolute HTTP(S) URL and strips the
+// credential-bearing URL parts that must never cross the worktree boundary.
+func sanitizeForgeWebURL(raw string) (string, error) {
+	parsed, err := url.ParseRequestURI(strings.TrimSpace(raw))
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+		return "", ErrForge
+	}
+	parsed.User = nil
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String(), nil
+}
+
 func parseRemoteWebURL(raw string) (*url.URL, bool) {
 	value := strings.TrimSpace(raw)
 	if value == "" {

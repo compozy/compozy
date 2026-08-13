@@ -14,6 +14,11 @@ export interface StreamEventSource {
   onopen: ((event: Event) => void) | null;
 }
 
+interface StreamEventSourceOptions {
+  /** Re-seed a freshly ticketed socket from the last durable SSE event id. */
+  resumeWithLastEventId?: boolean;
+}
+
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 8_000;
 const RECONNECT_MAX_EXPONENT = 4;
@@ -29,8 +34,11 @@ const RECONNECT_STABLE_MS = RECONNECT_MAX_MS;
  * minted ticket instead. Consumers see the same `open` / `error` sequence
  * either way.
  */
-export function createStreamEventSource(url: string): StreamEventSource {
-  return new TicketedEventSource(url);
+export function createStreamEventSource(
+  url: string,
+  options: StreamEventSourceOptions = {}
+): StreamEventSource {
+  return new TicketedEventSource(url, options);
 }
 
 class TicketedEventSource implements StreamEventSource {
@@ -47,8 +55,12 @@ class TicketedEventSource implements StreamEventSource {
   private controller: AbortController | null = null;
   private attempt = 0;
   private closed = false;
+  private lastEventId = "";
 
-  constructor(private readonly url: string) {
+  constructor(
+    private readonly url: string,
+    private readonly options: StreamEventSourceOptions
+  ) {
     void this.connect();
   }
 
@@ -81,7 +93,10 @@ class TicketedEventSource implements StreamEventSource {
   private forwarderFor(type: string): EventListener {
     const existing = this.forwarders.get(type);
     if (existing) return existing;
-    const forwarder: EventListener = event => this.dispatch(type, event);
+    const forwarder: EventListener = event => {
+      this.observeEventId(event);
+      this.dispatch(type, event);
+    };
     this.forwarders.set(type, forwarder);
     return forwarder;
   }
@@ -105,7 +120,11 @@ class TicketedEventSource implements StreamEventSource {
     let authorizedUrl: string;
     try {
       const ticket = await acquireStreamTicket(controller.signal);
-      authorizedUrl = ticket === null ? this.url : appendStreamTicket(this.url, ticket);
+      const resumeUrl =
+        this.options.resumeWithLastEventId && this.lastEventId !== ""
+          ? appendAfterSequence(this.url, this.lastEventId)
+          : this.url;
+      authorizedUrl = ticket === null ? resumeUrl : appendStreamTicket(resumeUrl, ticket);
     } catch {
       // A failed mint is indistinguishable from a dropped stream to consumers:
       // report the error and retry on the same backoff curve. An ended session
@@ -118,7 +137,10 @@ class TicketedEventSource implements StreamEventSource {
     const native = new EventSource(authorizedUrl);
     this.native = native;
     this.attachedTypes = new Set();
-    native.onmessage = event => this.onmessage?.(event);
+    native.onmessage = event => {
+      this.observeEventId(event);
+      this.onmessage?.(event);
+    };
     native.onopen = event => {
       this.scheduleStableReset(native);
       this.onopen?.(event);
@@ -201,8 +223,21 @@ class TicketedEventSource implements StreamEventSource {
     this.native = null;
     native.close();
   }
+
+  private observeEventId(event: Event): void {
+    if (!(event instanceof MessageEvent)) return;
+    const eventId = event.lastEventId.trim();
+    if (eventId !== "") this.lastEventId = eventId;
+  }
 }
 
 function isTicketedUrl(url: string): boolean {
   return url.includes("ticket=");
+}
+
+function appendAfterSequence(url: string, sequence: string): string {
+  const absolute = /^[a-z][a-z\d+.-]*:/iu.test(url);
+  const parsed = new URL(url, "http://compozy.local");
+  parsed.searchParams.set("after_sequence", sequence);
+  return absolute ? parsed.toString() : `${parsed.pathname}${parsed.search}${parsed.hash}`;
 }

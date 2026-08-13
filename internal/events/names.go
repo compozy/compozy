@@ -183,6 +183,7 @@ const (
 	WorktreeBranchReclaimed     = "worktree.branch_reclaimed"
 	WorktreeExitActionStarted   = "worktree.exit_action_started"
 	WorktreeExitActionStep      = "worktree.exit_action_step"
+	WorktreeExitHookOutput      = "worktree.exit_hook_output"
 	WorktreeExitActionCompleted = "worktree.exit_action_completed"
 	WorktreeExitActionFailed    = "worktree.exit_action_failed"
 	WorktreeExitActionCanceled  = "worktree.exit_action_canceled"

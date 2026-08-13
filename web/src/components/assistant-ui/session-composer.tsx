@@ -1,4 +1,4 @@
-import { ComposerPrimitive } from "@assistant-ui/react";
+import { ComposerPrimitive, useAui } from "@assistant-ui/react";
 import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import { ArrowUp, CornerDownRight, ListPlus, Scissors, Square } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { QueuedPrompt } from "@/systems/session";
 import { Button } from "@compozy/ui";
 import { createSessionCommandFormatter } from "./session-command-formatter";
+import { commandItemPresentation } from "./session-command-menu-model";
 import { SessionCommandChip } from "./session-composer-chip";
 import {
   SessionComposerCommandMenu,
@@ -35,6 +36,14 @@ export type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-act
 
 const EMPTY_QUEUED_PROMPTS: QueuedPrompt[] = [];
 
+function removeActionToken(text: string, token: string): string {
+  const at = text.indexOf(token);
+  if (at < 0) return text;
+  const before = text.slice(0, at);
+  const after = text.slice(at + token.length);
+  return `${before}${before.endsWith(" ") && after.startsWith(" ") ? after.slice(1) : after}`;
+}
+
 export interface SessionComposerProps {
   /** Daemon-owned commands projected by the session page into the composer. */
   commandCatalog?: SessionComposerCommandCatalog;
@@ -42,6 +51,8 @@ export interface SessionComposerProps {
   commandCatalogStatus?: "loading" | "ready";
   /** Notifies session orchestration when the native command catalog opens. */
   onCommandCatalogOpen?: () => void;
+  /** Executes a standalone catalog action without inserting it into the prompt. */
+  onCommandAction?: (token: string) => boolean;
   canPrompt: boolean;
   onCancelPrompt: () => void;
   onQueuePrompt?: SessionBusyInputHandler;
@@ -61,6 +72,8 @@ export interface SessionComposerProps {
   decisionDock?: ReactNode;
   /** Runtime picker that applies to the next submitted prompt. */
   runtimeControl?: ReactNode;
+  /** States where the session runs. Sits beside the runtime chip in the control row. */
+  environmentControl?: ReactNode;
 }
 
 export type { SessionComposerCommandCatalog } from "./session-composer-command-menu";
@@ -91,10 +104,13 @@ export function SessionComposer({
   inactivePlaceholder = "Session is not active",
   decisionDock,
   runtimeControl,
+  environmentControl,
   commandCatalog,
   commandCatalogStatus,
   onCommandCatalogOpen,
+  onCommandAction,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
+  const aui = useAui();
   const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
     composerState;
   const [commandScope, setCommandScope] = useState<CommandCatalogScope>("inline");
@@ -177,6 +193,15 @@ export function SessionComposer({
                 submitMode="enter"
                 formatter={commandFormatter}
                 directiveChip={SessionCommandChip}
+                directivePluginProps={{
+                  onDirectiveSelect: item => {
+                    const token = commandItemPresentation(item).token;
+                    if (!onCommandAction?.(token)) return;
+                    window.setTimeout(() => {
+                      setComposerText(removeActionToken(aui.composer.getState().text, token));
+                    }, 0);
+                  },
+                }}
                 className={cn(
                   "max-h-72 min-h-6 w-full text-small-body leading-relaxed text-fg",
                   !canPrompt ? "opacity-60" : null
@@ -201,8 +226,11 @@ export function SessionComposer({
                 <SessionDirectiveBoundaryPlugin />
               </LexicalComposerInput>
               <div className="flex min-h-7 flex-wrap items-center gap-2">
-                {runtimeControl ? (
-                  <div className="flex min-w-0 items-center">{runtimeControl}</div>
+                {runtimeControl || environmentControl ? (
+                  <div className="flex min-w-0 items-center gap-2">
+                    {runtimeControl}
+                    {environmentControl}
+                  </div>
                 ) : null}
                 {canPrompt ? (
                   <span
