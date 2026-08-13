@@ -7,6 +7,7 @@ import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-action
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-desktop-shell-model";
+import { useDesktopWorktreeScope } from "../hooks/use-worktree-scope";
 import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import {
   WorktreeAdoptDialogBoundary,
@@ -134,6 +135,7 @@ function DesktopShellBody({
 }) {
   const sessionCreate = useSessionCreateActions();
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
+  const { worktreeScopeId, worktreeSelection } = useDesktopWorktreeScope(model.worktreeListing);
   const openNewSession = () => {
     sessionCreate.openForAgent("");
   };
@@ -200,12 +202,12 @@ function DesktopShellBody({
         attention={attention}
         worktreesByWorkspace={model.worktreesByWorkspace}
         userHomeDir={model.userHomeDir}
-        worktreeSelection={model.worktreeSelection}
+        worktreeSelection={worktreeSelection}
         onSelectWorktree={(workspaceId, entry) => {
           // A discovered row is the adoption gesture; anything else scopes.
           if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
           if (entry.worktree) {
-            selectWorktreeForScope(model.worktreeScopeId, workspaceId, entry.worktree.id);
+            selectWorktreeForScope(worktreeScopeId, workspaceId, entry.worktree.id);
           }
         }}
         onCreateWorktree={model.openWorktreeCreate}
@@ -324,11 +326,11 @@ function DesktopShellBody({
         reducedMotion={reducedMotion}
         worktreesByWorkspace={model.worktreesByWorkspace}
         userHomeDir={model.userHomeDir}
-        selectedWorktreeId={model.worktreeSelection.selectedWorktreeId}
+        selectedWorktreeId={worktreeSelection.selectedWorktreeId}
         onSelectWorktree={(workspaceId, entry) => {
           if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
           if (entry.worktree) {
-            selectWorktreeForScope(model.worktreeScopeId, workspaceId, entry.worktree.id);
+            selectWorktreeForScope(worktreeScopeId, workspaceId, entry.worktree.id);
           }
         }}
         onCreateWorktree={model.openWorktreeCreate}
@@ -350,7 +352,7 @@ function DesktopShellBody({
               ?.name ?? "workspace"
           }
           listing={model.worktreesByWorkspace[model.worktreeCreateWorkspaceId]}
-          scopeId={model.worktreeScopeId}
+          scopeId={worktreeScopeId}
           onOpenChange={open =>
             model.setWorktreeCreateWorkspaceId(open ? model.worktreeCreateWorkspaceId : null)
           }
@@ -360,7 +362,7 @@ function DesktopShellBody({
         <WorktreeAdoptDialogBoundary
           workspaceId={worktreeDialogs.adoptTarget.workspaceId}
           discovered={worktreeDialogs.adoptTarget.discovered}
-          scopeId={model.worktreeScopeId}
+          scopeId={worktreeScopeId}
           onClose={worktreeDialogs.closeAdopt}
         />
       ) : null}

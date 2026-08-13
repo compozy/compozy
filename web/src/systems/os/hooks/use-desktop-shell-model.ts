@@ -1,19 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useAgentCreateDialog, useAgents } from "@/systems/agent";
 import { useSessionCatalogStreams, useSessionCreateDialogController } from "@/systems/session";
 import {
-  pruneWorktreeScopes,
   useActiveWorkspace,
-  useActiveWorktree,
   useUserHomeDir,
   useWorkspace,
   useWorktreeCatalogStream,
   useWorktreeListings,
 } from "@/systems/workspace";
-
-import { useDesktop } from "./use-desktop";
-import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 
 /**
  * Desktop-shell view model: the surviving responsibilities of the deleted
@@ -66,19 +61,9 @@ export function useDesktopShellModel() {
   // one would silently drop the rest of the tree.
   const worktreesByWorkspace = useWorktreeListings(workspaces, { enabled: hasWorkspaces });
   const userHomeDir = useUserHomeDir();
-  const worktreeScopeId = useFocusedWorktreeScopeId();
-  // Selection still resolves against the active workspace's listing: that is the
-  // only workspace whose worktrees can currently receive work.
   const activeWorktreeListing = activeWorkspaceId
     ? worktreesByWorkspace[activeWorkspaceId]
     : undefined;
-  const worktreeSelection = useActiveWorktree(worktreeScopeId, activeWorktreeListing);
-  // Windows close from any client, so scopes are pruned against the live set
-  // rather than released by whoever closed the window.
-  const liveWindowIds = useDesktop(state => Object.keys(state.windows).join(" "));
-  useEffect(() => {
-    pruneWorktreeScopes(liveWindowIds === "" ? [] : liveWindowIds.split(" "));
-  }, [liveWindowIds]);
   const sessionCreate = useSessionCreateDialogController();
   const agentCreate = useAgentCreateDialog({
     activeWorkspace,
@@ -120,8 +105,6 @@ export function useDesktopShellModel() {
     worktreeCatalogStreamStatus,
     worktreesByWorkspace,
     worktreeListing: activeWorktreeListing,
-    worktreeScopeId,
-    worktreeSelection,
     worktreeCreateWorkspaceId,
     setWorktreeCreateWorkspaceId,
     openWorktreeCreate: (workspaceId: string) => setWorktreeCreateWorkspaceId(workspaceId),
