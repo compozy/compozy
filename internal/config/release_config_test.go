@@ -9,9 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -985,6 +987,50 @@ func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
 		}
 	})
 
+	t.Run("Should verify daemon identity with RFC3339 nanoseconds", func(t *testing.T) {
+		t.Parallel()
+
+		pid := strconv.Itoa(os.Getpid())
+		ps := exec.CommandContext(t.Context(), "ps", "-p", pid, "-o", "lstart=")
+		output, err := ps.CombinedOutput()
+		if err != nil {
+			t.Fatalf("ps process start error = %v, output = %s", err, output)
+		}
+		observed, err := time.ParseInLocation(
+			"Mon Jan _2 15:04:05 2006",
+			strings.TrimSpace(string(output)),
+			time.Local,
+		)
+		if err != nil {
+			t.Fatalf("time.ParseInLocation(process start) error = %v", err)
+		}
+		verify := func(start time.Time) ([]byte, error) {
+			cmd := exec.CommandContext(
+				t.Context(),
+				"python3",
+				filepath.Join(root, "scripts", "verify-process-start.py"),
+				pid,
+				start.UTC().Format(time.RFC3339Nano),
+			)
+			cmd.Dir = root
+			return cmd.CombinedOutput()
+		}
+		nanosecondStart := observed.Add(987654321 * time.Nanosecond)
+		if output, err := verify(nanosecondStart); err != nil {
+			t.Fatalf("nanosecond process identity error = %v, output = %s", err, output)
+		}
+		output, err = verify(nanosecondStart.Add(10 * time.Second))
+		if err == nil {
+			t.Fatalf("mismatched process identity unexpectedly passed: %s", output)
+		}
+		assertContainsText(
+			t,
+			"mismatched process identity",
+			string(output),
+			"recorded start time does not match",
+		)
+	})
+
 	t.Run("Should fail before build when signing material is absent", func(t *testing.T) {
 		t.Parallel()
 
@@ -1537,6 +1583,7 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 			"WORKFLOW_COMMIT: ${{ github.sha }}",
 			"release-publication-state.sh",
 			"release-preflight.sh",
+			"verify-process-start.py",
 			"Accept: application/vnd.github.raw+json",
 			"repos/${GITHUB_REPOSITORY}/contents/scripts/${workflow_tool}?ref=${WORKFLOW_COMMIT}",
 			`run: bash "${RUNNER_TEMP}/release-publication-state.sh"`,

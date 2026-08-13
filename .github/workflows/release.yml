@@ -143,6 +143,7 @@ jobs:
             smoke-desktop-release-artifact.sh
             smoke-public-cli-package.sh
             validate-release-body.sh
+            verify-process-start.py
           )
           for workflow_tool in "${workflow_tools[@]}"; do
             target="${RUNNER_TEMP}/${workflow_tool}"

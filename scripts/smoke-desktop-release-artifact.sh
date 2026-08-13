@@ -89,25 +89,7 @@ validate_daemon_identity_for_teardown() {
     quarantine_unverified_daemon_record "daemon.json has no process start time"
     return 1
   }
-  if ! python3 - "${daemon_pid}" "${recorded_start}" <<'PY'
-import datetime
-import subprocess
-import sys
-import time
-
-pid = int(sys.argv[1])
-recorded = datetime.datetime.fromisoformat(sys.argv[2].replace("Z", "+00:00")).timestamp()
-observed_text = subprocess.run(
-    ["ps", "-p", str(pid), "-o", "lstart="],
-    check=True,
-    capture_output=True,
-    text=True,
-).stdout.strip()
-observed = time.mktime(time.strptime(observed_text, "%a %b %d %H:%M:%S %Y"))
-if abs(recorded - observed) > 2:
-    raise SystemExit(1)
-PY
-  then
+  if ! python3 "${script_dir}/verify-process-start.py" "${daemon_pid}" "${recorded_start}"; then
     quarantine_unverified_daemon_record "pid/start-time identity does not match the live process"
     return 1
   fi
