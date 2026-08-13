@@ -1006,6 +1006,54 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	}
 }
 
+func TestConfigSetSupportsWorktreeLifecyclePaths(t *testing.T) {
+	t.Parallel()
+
+	deps := newWorkspaceTestDeps(t, &stubClient{})
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatalf("resolveHome() error = %v", err)
+	}
+	workspaceRoot := t.TempDir()
+	deps.getwd = func() (string, error) { return workspaceRoot, nil }
+
+	for _, mutation := range []struct {
+		path  string
+		value string
+	}{
+		{path: "worktrees.root", value: filepath.Join(t.TempDir(), "checkouts")},
+		{path: "worktrees.run_branch_namespace", value: "qa/run/"},
+		{path: "worktrees.copy_list", value: `[".env", ".secrets/*"]`},
+		{path: "worktrees.setup_command", value: "bun install"},
+		{path: "worktrees.setup_timeout", value: "45s"},
+		{path: "worktrees.discovery_cache_ttl", value: "5s"},
+	} {
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			mutation.path,
+			mutation.value,
+			"--scope",
+			"workspace",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("config set %s error = %v", mutation.path, err)
+		}
+	}
+
+	loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	if loaded.Worktrees.SetupCommand != "bun install" || loaded.Worktrees.SetupTimeout != 45*time.Second ||
+		loaded.Worktrees.DiscoveryCacheTTL != 5*time.Second || len(loaded.Worktrees.CopyList) != 2 {
+		t.Fatalf("Worktrees config = %#v, want typed lifecycle values", loaded.Worktrees)
+	}
+}
+
 func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {
 	t.Parallel()
 
@@ -1104,6 +1152,63 @@ func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {
 		}
 		if _, err := os.Stat(cwdHome.ConfigFile); !os.IsNotExist(err) {
 			t.Fatalf("Stat(cwd global config) error = %v, want not exist", err)
+		}
+	})
+
+	t.Run("Should not load the operator global file as an isolated runtime workspace overlay", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := t.TempDir()
+		operatorConfigDir := filepath.Join(operatorHome, compozyconfig.DirName)
+		if err := os.MkdirAll(operatorConfigDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(operator config) error = %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(operatorConfigDir, compozyconfig.ConfigName),
+			[]byte("[gateway]\nprivate_port = 5252\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("WriteFile(operator config) error = %v", err)
+		}
+		runtimeHome, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "runtime"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom(runtime) error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(runtimeHome); err != nil {
+			t.Fatalf("EnsureHomeLayout(runtime) error = %v", err)
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-operator-home", RootDir: operatorHome},
+				}, nil
+			},
+		})
+		deps.getwd = func() (string, error) { return operatorHome, nil }
+		deps.resolveHomeForWorkspace = func(string) (compozyconfig.HomePaths, error) {
+			return runtimeHome, nil
+		}
+		baseGetenv := deps.getenv
+		deps.getenv = func(key string) string {
+			if key == "HOME" {
+				return operatorHome
+			}
+			return baseGetenv(key)
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "config", "list", "-o", "json")
+		if err != nil {
+			t.Fatalf("config list error = %v", err)
+		}
+		var record configListRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config list) error = %v", err)
+		}
+		if record.WorkspaceRoot != operatorHome {
+			t.Fatalf("WorkspaceRoot = %q, want %q", record.WorkspaceRoot, operatorHome)
+		}
+		if _, _, err := executeRootCommand(t, deps, "config", "validate", "-o", "json"); err != nil {
+			t.Fatalf("config validate error = %v", err)
 		}
 	})
 }

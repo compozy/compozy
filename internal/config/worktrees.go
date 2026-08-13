@@ -12,6 +12,12 @@ var worktreeNamespacePattern = regexp.MustCompile(`^[a-z0-9._-]+(?:/[a-z0-9._-]+
 const (
 	worktreeConfigInvalidCode    = "worktree_config_invalid"
 	positiveWorktreeValueMessage = "must be positive"
+	worktreeRootConfigPath       = "worktrees.root"
+	worktreeNamespaceConfigPath  = "worktrees.run_branch_namespace"
+	worktreeCopyListConfigPath   = "worktrees.copy_list"
+	worktreeSetupCommandPath     = "worktrees.setup_command"
+	worktreeSetupTimeoutPath     = "worktrees.setup_timeout"
+	worktreeDiscoveryTTLPath     = "worktrees.discovery_cache_ttl"
 )
 
 // WorktreesConfig controls worktree placement, discovery, and bootstrap.
@@ -46,20 +52,20 @@ func (c WorktreesConfig) Validate() error {
 	if c.Root != "" && !filepath.IsAbs(c.Root) {
 		return ValidationError{
 			Code:    worktreeConfigInvalidCode,
-			Path:    "worktrees.root",
+			Path:    worktreeRootConfigPath,
 			Message: "must be absolute or empty",
 		}
 	}
 	if !worktreeNamespacePattern.MatchString(c.RunBranchNamespace) {
 		return ValidationError{
-			Code: worktreeConfigInvalidCode, Path: "worktrees.run_branch_namespace",
+			Code: worktreeConfigInvalidCode, Path: worktreeNamespaceConfigPath,
 			Message: "must be a lowercase slash-terminated namespace",
 		}
 	}
 	for _, pattern := range c.CopyList {
 		if strings.TrimSpace(pattern) == "" {
 			return ValidationError{
-				Code: worktreeConfigInvalidCode, Path: "worktrees.copy_list",
+				Code: worktreeConfigInvalidCode, Path: worktreeCopyListConfigPath,
 				Message: "entries must not be empty",
 			}
 		}
@@ -67,14 +73,14 @@ func (c WorktreesConfig) Validate() error {
 	if c.SetupTimeout <= 0 {
 		return ValidationError{
 			Code:    worktreeConfigInvalidCode,
-			Path:    "worktrees.setup_timeout",
+			Path:    worktreeSetupTimeoutPath,
 			Message: positiveWorktreeValueMessage,
 		}
 	}
 	if c.DiscoveryCacheTTL <= 0 {
 		return ValidationError{
 			Code:    worktreeConfigInvalidCode,
-			Path:    "worktrees.discovery_cache_ttl",
+			Path:    worktreeDiscoveryTTLPath,
 			Message: positiveWorktreeValueMessage,
 		}
 	}

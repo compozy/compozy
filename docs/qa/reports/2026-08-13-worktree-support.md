@@ -34,7 +34,7 @@
 | 7 | CH-worktree-binding-containment | J-worktree-management / RT-session-worktree-fork | Théo | Garbage | Pending | | |
 | 8 | CH-worktree-binding-containment | J-worktree-management / RT-worktree-web-session-environment | Théo | Garbage | Pending | | |
 | 9 | CH-worktree-binding-containment | J-worktree-management / RT-worktree-web-composer-binding-fork | Théo | Garbage | Pending | | |
-| 10 | CH-worktree-bootstrap-hooks | J-worktree-management / MS-worktree-config-bootstrap | Dora | Garbage | Pending | | |
+| 10 | CH-worktree-bootstrap-hooks | J-worktree-management / MS-worktree-config-bootstrap | Dora | Garbage | Pending | BUG-20260813-default-home-global-config-reclassified; BUG-20260813-worktree-config-paths-not-mutable | 2e741d9d; pending |
 | 11 | CH-worktree-bootstrap-hooks | J-worktree-management / ET-worktree-hook-event-contract | Dora | Garbage | Pending | | |
 | 12 | CH-worktree-bootstrap-hooks | J-isolated-task-loop-execution / TA-task-per-run-worktree-isolation | Dora | Garbage | Pending | | |
 | 13 | CH-worktree-destructive-recovery | J-worktree-management / RT-worktree-exit-commit-scope | Bruno | Interrupt | Pending | | |
@@ -76,6 +76,9 @@ Pending execution.
 - `BUG-20260813-default-home-global-config-reclassified` — the default operator-home workspace no longer reclassifies the operator's global config as a workspace overlay when the active runtime uses an isolated `COMPOZY_HOME`. The config and daemon owning suites now cover both same-file deduplication and distinct isolated-home topology.
 - `BUG-20260813-desktop-shell-context-order` — the desktop now mounts its OS shell provider before focused-window worktree projection reads it. A browser replay reached the live desktop.
 - `BUG-20260813-pending-worktree-marked-missing` — catalog reconciliation now marks only vanished `ready` checkouts as missing. A clean Web replay moved an accepted row through pending to ready and Git reported the checkout.
+- `BUG-20260813-worktree-config-paths-not-mutable` — the shared CLI/native typed mutation policy now
+  includes every `[worktrees]` lifecycle setting. Public set/unset applied live and browser
+  cancellation removed a checkout while its configured setup command was still running.
 
 ## Paper Cuts
 
@@ -86,6 +89,9 @@ None recorded yet.
 - The first two bootstrap attempts stopped before readiness with `gateway settings are global-only`; both labs were torn down with `clean: true` before the fix replay.
 - A full-package `internal/daemon` race run timed out nine `HarnessReentryBridgeScenarios` cases under package-wide load. The complete harness suite passed in isolation with `-race` in 17.281s; the official cached gate remains the terminal authority.
 - The daemon restart needed to load the worktree fix ended the development proxy's existing SSE connections. The old page retained its last pending snapshot; reloading opened fresh streams and the clean replay converged. This was kept separate from the original domain race.
+- Contextual CLI config reads initially repeated the daemon's operator-home/global-file
+  misclassification. The shared display/management load policy now suppresses that overlay only
+  when the resolved workspace is the operator home.
 
 ## Human Verifications Needed
 
