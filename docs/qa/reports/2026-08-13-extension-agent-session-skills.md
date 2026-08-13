@@ -85,6 +85,13 @@ None.
 - The pre-existing `E2E-023` bundle-size canary fails on both baseline and branch with identical bundles; this run records that limitation without changing the threshold and does not treat it as evidence about the behavior under test.
 - A fresh feature-profile bootstrap includes task/channel minimums broader than this session/tool-focused diff; the strict auditor result is recorded verbatim rather than padded with synthetic activity.
 
+## Compozy Impact Audit
+
+- **Native tools:** No ToolID, toolset, request schema, response schema, risk flag, or capability gate changed. `compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view` now share the session agent resolver used by prompt and command projection. `compozy__config_get` retains its existing envelope and reports an absent path with the public `config_path_not_found` reason. Hosted MCP coverage exercises all four tools from an extension-agent session.
+- **Extensibility and hooks:** Extension-published agents now fall back to the daemon agent catalog only when authored resolution returns `skills.ErrAgentNotFound`; every other error remains fail-closed. Extension manifests, formats, hooks, resources, capabilities, bridges, sidecars, and configuration lifecycle remain unchanged.
+- **Workspace data isolation:** Prompt, command, and native skill resolution retain the session's resolved workspace. The hosted MCP E2E covers the session workspace and rejects a foreign-workspace skill source; isolated QA also records 404 responses for foreign-workspace HTTP and UDS command reads. No global, workspace, session, or agent store ownership changed.
+- **Official Compozy skill:** `skills/compozy/references/configuration.md` documents the deterministic missing-path result and requires a structured reread after `compozy__config_set`. No skill command name or native ToolID changed.
+
 ## Final Status
 
 - **Exit gate (full automated suite):** pre-existing cached full gate evidence: `.cache/gate/logs/full-1786621883.log` (reported green before this delegated QA phase; no gate command run here).
