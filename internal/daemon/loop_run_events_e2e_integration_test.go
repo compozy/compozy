@@ -507,6 +507,7 @@ func waitForAwaitedChildNode(
 	var detail compozycontract.LoopRunResponse
 	var childRunID string
 	waitForRuntimeCondition(t, "awaited child node "+nodeID, 20*time.Second, func() bool {
+		childRunID = ""
 		detail = readLoopRunDetailViaHTTP(t, ctx, harness, parentRunID)
 		if detail.Run.Status != compozycontract.LoopRunStatusRunning {
 			return false
