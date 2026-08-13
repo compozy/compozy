@@ -2,7 +2,7 @@
 
 - **Scope:** Targeted re-walk of user-visible Global/workspace boundary fixes in PR 368
 - **Cadence tier:** targeted
-- **Build:** `a97e07f` · **Environment:** isolated daemon and Web lab from the PR head
+- **Build:** `7e5d6b8` (latest re-walk; initial pass used `a97e07f`) · **Environment:** isolated daemon and Web lab from the PR head
 - **Started:** 2026-08-13T05:18:21Z · **Status:** pass with explicit human verification blocks
 
 ## Personas
@@ -90,6 +90,18 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 
 The remediation commits `916ef01e` and `8314e5da` address CodeRabbit and React Compiler findings. QA then found `BUG-20260813-retry-leaves-blank-route`; `a97e07f` fixes the root Retry transition and app-shell preload failure boundary.
 
+GitHub E2E later exposed a second production regression: Global correctly had no active project, but mounted runtime apps also lost the hidden operator-home daemon binding. Commit `7e5d6b8` moves Agents, Sessions, Automation suggestions, Loops, Network, restored-window preloads, and session fallbacks to `runtimeWorkspaceId`. Explicit Global/project filters in Marketplace, Tasks, and Knowledge remain on `activeWorkspaceId`.
+
+## Post-CI Regression Re-walk
+
+- `agent-categories.spec.ts`: 1 passed.
+- `agents.spec.ts`: 7 passed; Global agent creation omitted `workspace`.
+- Automation and Network focused journeys: 4 passed.
+- Loop focused journeys: 5 passed.
+- Session hardening, onboarding, and clarification journeys: 9 passed.
+- Full Web unit suite: 572 files and 4,635 tests passed.
+- Evidence: `/Users/pedronauck/dev/qa-labs/compozy-pr-368-global-runtime-binding-20260813-091321-434791-lab/qa-artifacts/qa/verification-report.md`.
+
 ## Paper Cuts
 
 - `WorkspaceApiError: Failed to fetch workspaces: 502` was expected while the daemon was intentionally stopped. The failed Retry was fixed and re-walked.
@@ -115,6 +127,8 @@ None.
 ## Final Status
 
 **Verdict: PASS** for the exercised PR behavior. One QA-discovered P1 regression was fixed and re-walked. The three blocked legs above require human-owned credentials or broader fixture creation and do not hide a known failure.
+
+The later GitHub E2E runtime-binding regression was also fixed and re-walked. Global agent creation and runtime-bound Global views now pass against the production daemon and production Web bundle.
 
 - **Final make verify evidence:** `/Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/logs/final-make-verify.log`
 - **Teardown evidence:** `/Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/teardown.json`
