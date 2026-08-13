@@ -6,13 +6,13 @@ persona: Cora
 journey: J-operate-home-dashboard
 expected: Home window (`/`) renders pagemeta → Needs you → KPI strip → Working now | Network → Pulse → Outcomes | Usage & cost → Agents | Activity → System, each backed by `GET /api/observe/overview` plus existing status/sessions/tasks/network/agents/logs reads; empty windows show honest empty states (no invented metrics); insights with no data are omitted; the head carries glyph + Live pill + one primary New session action and the body renders no H1. Zone queries follow the menubar Global switch: Global (`~`) uses the home-scope filter; a project workspace uses that workspace id. Toggling Global does not invent a home row in the workspace menu.
 entry_points: web `/` (dashboard OS window); `GET /api/observe/overview` (HTTP+UDS)
-qa_status: blocked-verify
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: web/src/systems/dashboard/components/home-dashboard.tsx; internal/observe/overview.go; .compozy/tasks/dashboard-redesign/evidence/visual/home-dashboard/VC-01/review.md; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/037-home-dashboard
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+qa_status: pass
+bug_ids: BUG-20260813-retry-leaves-blank-route
+fix_status: fixed
+retest_status: pass
+fix_commits: a97e07f
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-project-normal.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-daemon-unavailable.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/home-retry-recovered.png
+last_report: docs/qa/reports/2026-08-13-pr-368-coderabbit.md
 overlaps:
 ---
 
@@ -29,3 +29,7 @@ the dashboard body contained no H1. HTTP and UDS normalized to the same overview
 2026-08-12 qa-impact: Home scope follows the menubar Global switch (store `scope`), not home-dir detection. Reset to untested.
 
 2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.
+
+2026-08-13 re-walk: Home rendered all seven truthful zones for project `tmp`, then exposed a recoverable workspace error while the daemon was stopped. After the daemon returned, Retry left the route blank; filed `BUG-20260813-retry-leaves-blank-route`.
+
+2026-08-13 fix re-walk: after `a97e07f`, the same daemon interruption retained a visible recovery boundary and Retry rendered the complete project-scoped Home dashboard after restart. The route no longer entered a blank pending shell.
