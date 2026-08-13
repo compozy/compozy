@@ -116,7 +116,7 @@ func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*
 	}
 	for index := range listing.Worktrees {
 		row := &listing.Worktrees[index]
-		if row.State == StateRemoved || row.State == StateDismissed || row.State == StateMissing {
+		if row.State != StateReady {
 			continue
 		}
 		_, inGit := gitPaths[canonicalComparablePath(row.Path)]

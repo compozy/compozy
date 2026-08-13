@@ -7,12 +7,12 @@ journey: J-worktree-management
 expected: The command switcher, menubar workspace menu, workspaces overview, and shared row/status component render the same nested worktree tree from one query — same rows, locked order, full state vocabulary, adopted-only counts, discovered rows marked and selectable, and pending or missing rows inert with their reason. Keyboard-only traversal reaches nested entries. Selecting a worktree scopes session and task reads server-side, the menubar chip reads `workspace / worktree`, and two open windows hold independent selections.
 entry_points: S1 command switcher "Worktrees" group; S2 OS menubar workspace menu/chip; S3 Workspaces overview; S5 Worktree row/status chip
 qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+bug_ids: BUG-20260813-desktop-shell-context-order;BUG-20260813-pending-worktree-marked-missing
+fix_status: fixed
+retest_status: passed
+fix_commits: 8ec45d75;pending Task 10 QA remediation commit
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-after-daemon-reload.png;/Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-stream-proof.png
+last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: RT-worktree-web-create-adopt
 ---
 
@@ -22,3 +22,8 @@ surfaces agree, that a non-git workspace shows no worktree affordance at all (ab
 that a git-backed workspace with zero worktrees shows no group noise, that nests past five entries
 truncate behind an adopted-only "All N worktrees" row, and that a selection whose worktree goes
 missing falls back to the parent workspace with the notice while the list stops filtering.
+
+2026-08-13 fix replay: the desktop mounts successfully below its shell provider. The workspace menu
+showed the ready checkout and the older intentionally missing record with distinct truthful states;
+a new accepted creation moved from pending to ready through the live catalog stream. The complete
+cross-surface and independent-window matrix continues in the Task 10 charter.

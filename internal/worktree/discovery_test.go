@@ -220,6 +220,42 @@ func TestServiceDiscovery(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve transitional and failed rows whose paths do not exist", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDiscoveryTestFixture(t)
+		fixture.listOutput = worktreeListFixture(fixture.workspace.Root, "main")
+		states := []State{StatePending, StateRemoving, StateFailed}
+		for index, state := range states {
+			item := Worktree{
+				ID: "wt-" + string(state), WorkspaceID: fixture.workspace.ID, Name: string(state),
+				Path: filepath.Join(t.TempDir(), "absent"), State: state, Origin: OriginManual,
+				SetupState: SetupNone, CreatedAt: fixture.now, UpdatedAt: fixture.now,
+			}
+			if index == 0 {
+				item.PendingPhase = PhaseBranch
+			}
+			if err := fixture.store.Insert(context.Background(), item); err != nil {
+				t.Fatalf("seed %s worktree: %v", state, err)
+			}
+		}
+
+		listing, err := fixture.service.List(context.Background(), fixture.workspace.ID, true)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if len(listing.Worktrees) != len(states) {
+			t.Fatalf("List() worktrees = %#v, want %d rows", listing.Worktrees, len(states))
+		}
+		for _, item := range listing.Worktrees {
+			if item.State == StateMissing {
+				t.Fatalf("List() state for %s = missing, want preserved", item.ID)
+			}
+		}
+		if got := fixture.events.count(EventMissing); got != 0 {
+			t.Fatalf("missing events = %d, want zero", got)
+		}
+	})
+
 	t.Run("Should return an empty non-git listing without scanning Git", func(t *testing.T) {
 		t.Parallel()
 		workspace := Workspace{ID: "ws-nongit", Name: "Non Git", Root: t.TempDir()}
