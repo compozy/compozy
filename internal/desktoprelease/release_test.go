@@ -1,6 +1,7 @@
 package desktoprelease
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"os"
@@ -178,6 +179,7 @@ func TestBuildFeeds(t *testing.T) {
 		if strings.HasSuffix(string(latestBytes), "\n") {
 			t.Fatal("latest.json has a trailing newline, want canonical JSON bytes")
 		}
+		assertCanonicalJSON(t, "latest.json", latestBytes)
 		var latest LatestManifest
 		if err := json.Unmarshal(latestBytes, &latest); err != nil {
 			t.Fatalf("json.Unmarshal(latest.json) error = %v", err)
@@ -189,8 +191,11 @@ func TestBuildFeeds(t *testing.T) {
 			t.Fatalf("universal Darwin URLs differ: arm64 = %q, x86_64 = %q", got, want)
 		}
 
+		runtimeBytes := readTestFile(t, filepath.Join(outputDir, "runtime.json"))
+		assertCanonicalJSON(t, "runtime.json", runtimeBytes)
+
 		var runtime RuntimeManifest
-		if err := json.Unmarshal(readTestFile(t, filepath.Join(outputDir, "runtime.json")), &runtime); err != nil {
+		if err := json.Unmarshal(runtimeBytes, &runtime); err != nil {
 			t.Fatalf("json.Unmarshal(runtime.json) error = %v", err)
 		}
 		if err := ValidateRuntimeManifest(runtime); err != nil {
@@ -390,4 +395,21 @@ func readTestFile(t *testing.T, path string) []byte {
 		t.Fatalf("os.ReadFile(%s) error = %v", path, err)
 	}
 	return contents
+}
+
+func assertCanonicalJSON(t *testing.T, name string, contents []byte) {
+	t.Helper()
+	decoder := json.NewDecoder(bytes.NewReader(contents))
+	decoder.UseNumber()
+	var document any
+	if err := decoder.Decode(&document); err != nil {
+		t.Fatalf("decode %s for canonical comparison: %v", name, err)
+	}
+	canonical, err := json.Marshal(document)
+	if err != nil {
+		t.Fatalf("json.Marshal(canonical %s) error = %v", name, err)
+	}
+	if !bytes.Equal(contents, canonical) {
+		t.Fatalf("%s is not recursively key-sorted canonical JSON\ngot:  %s\nwant: %s", name, contents, canonical)
+	}
 }

@@ -876,6 +876,12 @@ jobs:
         with:
           install-playwright: "false"
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
       - name: Install verification tools
         run: brew install minisign awscli
 
@@ -904,6 +910,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           set -euo pipefail
@@ -914,6 +921,15 @@ jobs:
             "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             .artifacts/feed
           scripts/sign-runtime-manifest.sh .artifacts/feed/runtime.json
+          cargo run --locked \
+            --manifest-path desktop/src-tauri/Cargo.toml \
+            --bin compozy-runtime-manifest-check -- \
+            .artifacts/feed/runtime.json \
+            .artifacts/feed/runtime.json.minisig \
+            "${RELEASE_VERSION}" \
+            darwin-aarch64 \
+            darwin-x86_64 \
+            linux-x86_64
 
       - name: Revalidate stapling and bundle version
         env:
