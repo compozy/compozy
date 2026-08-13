@@ -20,13 +20,43 @@ func TestAgentNameValidation(t *testing.T) {
 		{name: "Should normalize outer whitespace", input: "  audio_designer  "},
 		{name: "Should reject an empty name", input: "", wantErr: "agent name is required"},
 		{name: "Should accept the maximum length", input: "a" + repeatAgentNameCharacter(105)},
-		{name: "Should reject internal whitespace", input: "audio designer", wantErr: `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
-		{name: "Should reject uppercase letters", input: "AudioDesigner", wantErr: `agent name "AudioDesigner" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
-		{name: "Should reject a leading number", input: "2designer", wantErr: `agent name "2designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
-		{name: "Should reject dots", input: "audio.designer", wantErr: `agent name "audio.designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
-		{name: "Should reject path separators", input: "audio/designer", wantErr: `agent name "audio/designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
-		{name: "Should reject non-ASCII letters", input: "áudio_designer", wantErr: `agent name "áudio_designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
-		{name: "Should reject a name above the maximum length", input: "a" + repeatAgentNameCharacter(106), wantErr: `agent name "` + "a" + repeatAgentNameCharacter(106) + `" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`},
+		{
+			name:    "Should reject internal whitespace",
+			input:   "audio designer",
+			wantErr: expectedAgentNameValidationError("audio designer"),
+		},
+		{
+			name:    "Should reject uppercase letters",
+			input:   "AudioDesigner",
+			wantErr: expectedAgentNameValidationError("AudioDesigner"),
+		},
+		{
+			name:    "Should reject a leading number",
+			input:   "2designer",
+			wantErr: expectedAgentNameValidationError("2designer"),
+		},
+		{
+			name:    "Should reject dots",
+			input:   "audio.designer",
+			wantErr: expectedAgentNameValidationError("audio.designer"),
+		},
+		{
+			name:    "Should reject path separators",
+			input:   "audio/designer",
+			wantErr: expectedAgentNameValidationError("audio/designer"),
+		},
+		{
+			name:    "Should reject non-ASCII letters",
+			input:   "áudio_designer",
+			wantErr: expectedAgentNameValidationError("áudio_designer"),
+		},
+		{
+			name:  "Should reject a name above the maximum length",
+			input: "a" + repeatAgentNameCharacter(106),
+			wantErr: expectedAgentNameValidationError(
+				"a" + repeatAgentNameCharacter(106),
+			),
+		},
 	}
 
 	for _, tt := range tests {
@@ -55,11 +85,17 @@ provider: claude
 ---
 
 prompt`))
-		wantErr := `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`
+		wantErr := expectedAgentNameValidationError("audio designer")
 		if err == nil || err.Error() != wantErr {
 			t.Fatalf("ParseAgentDef() error = %v, want %q", err, wantErr)
 		}
 	})
+}
+
+func expectedAgentNameValidationError(name string) string {
+	return `agent name "` + name +
+		`" must start with a lowercase letter, use only lowercase letters, numbers, ` +
+		`hyphens, or underscores, and be at most 106 characters`
 }
 
 func repeatAgentNameCharacter(count int) string {

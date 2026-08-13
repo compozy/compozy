@@ -1644,22 +1644,32 @@ func TestReleaseWorkflowVerifiesGoReleaserWithCompatibleCosign(t *testing.T) {
 		t.Parallel()
 
 		productionSetup := strings.LastIndex(workflow, "- name: Setup Release Tools")
-		productionRelease := strings.LastIndex(workflow, "- uses: goreleaser/goreleaser-action@v7")
-		if productionSetup == -1 || productionRelease == -1 {
-			t.Fatal("release workflow missing production setup or GoReleaser action")
+		if productionSetup == -1 {
+			t.Fatal("release workflow missing production setup")
 		}
-		if productionSetup > productionRelease {
-			t.Fatal("release workflow must add Cosign to PATH before the production GoReleaser action")
+		productionSection := workflow[productionSetup:]
+		productionPrerequisites, _, found := strings.Cut(
+			productionSection,
+			"- uses: goreleaser/goreleaser-action@v7",
+		)
+		if !found {
+			t.Fatal("release workflow missing production GoReleaser action")
 		}
-		productionPrerequisites := workflow[productionSetup:productionRelease]
 		assertContainsText(
 			t,
 			"production release prerequisites",
 			productionPrerequisites,
 			"cosign-version: ${{ env.COSIGN_VERSION }}",
 		)
-		if got := strings.Count(workflow, "- uses: goreleaser/goreleaser-action@v7"); got != 2 {
-			t.Fatalf("production GoReleaser action count = %d, want prepare and publish", got)
+		for _, name := range []string{
+			"Prepare npm CLI package without publication",
+			"Prepare GitHub artifacts without npm publisher",
+			"Stage GitHub draft without publishing npm",
+		} {
+			assertContainsText(t, "production GoReleaser actions", productionSection, "name: "+name)
+		}
+		if got := strings.Count(productionSection, "- uses: goreleaser/goreleaser-action@v7"); got != 3 {
+			t.Fatalf("production GoReleaser action count = %d, want two prepares and one publish", got)
 		}
 	})
 }

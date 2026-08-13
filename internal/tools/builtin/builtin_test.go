@@ -221,7 +221,12 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 					t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 				}
 				if !slices.Contains(input.Required, testCase.property) {
-					t.Fatalf("%s input required = %#v, want %q retained", descriptor.ID, input.Required, testCase.property)
+					t.Fatalf(
+						"%s input required = %#v, want %q retained",
+						descriptor.ID,
+						input.Required,
+						testCase.property,
+					)
 				}
 				assertNativeAgentNameInputSchema(
 					t,

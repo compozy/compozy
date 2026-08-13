@@ -21,6 +21,7 @@ const (
 	descriptorKeywordDestructive = "destructive"
 	descriptorKeywordNode        = "node"
 	descriptorKeywordReplace     = "replace"
+	descriptorKeywordAgent       = "agent"
 	emptyInputSchema             = `{"type":"object","additionalProperties":false}`
 )
 

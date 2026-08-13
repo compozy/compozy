@@ -11,7 +11,15 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/identifier"
 	"github.com/compozy/compozy/internal/network/participation"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+type createWorkspaceContext struct {
+	workspace       workspacepkg.ResolvedWorkspace
+	sandboxDisabled bool
+	cwd             string
+	agentName       string
+}
 
 func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sessionStartSpec, error) {
 	opts, err := m.dispatchSessionPreCreate(ctx, opts)
@@ -19,44 +27,31 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		return sessionStartSpec{}, err
 	}
 
-	resolvedWorkspace, err := m.resolveCreateWorkspace(ctx, opts)
+	workspaceContext, err := m.prepareCreateWorkspaceContext(ctx, opts)
 	if err != nil {
 		return sessionStartSpec{}, err
-	}
-	sandboxDisabled, err := applyCreateSandboxOverride(&resolvedWorkspace, opts)
-	if err != nil {
-		return sessionStartSpec{}, err
-	}
-	cwd, err := ResolveSessionCWD(resolvedWorkspace.RootDir, opts.CWD)
-	if err != nil {
-		return sessionStartSpec{}, err
-	}
-
-	agentName, err := compozyconfig.ResolveAgentName(opts.AgentName, resolvedWorkspace.Config.Defaults)
-	if err != nil {
-		return sessionStartSpec{}, fmt.Errorf("session: resolve agent name: %w", err)
 	}
 	sessionType := normalizeSessionType(opts.Type)
 	sessionID, err := m.createSessionID(opts.DesiredSessionID)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	sandboxID, err := m.prepareCreateSandboxID(sandboxDisabled)
+	sandboxID, err := m.prepareCreateSandboxID(workspaceContext.sandboxDisabled)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	lineage, err := m.normalizeCreateLineage(ctx, sessionID, sessionType, resolvedWorkspace.ID, opts.Lineage)
+	lineage, err := m.normalizeCreateLineage(ctx, sessionID, sessionType, workspaceContext.workspace.ID, opts.Lineage)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
 	networkParticipation, networkOwnerKey, participationObservation, err := m.prepareCreateParticipation(
-		ctx, opts, resolvedWorkspace.ID, sessionID,
+		ctx, opts, workspaceContext.workspace.ID, sessionID,
 	)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
 	if networkParticipation.Mode == participation.ModeLive {
-		if err := validateLiveNetworkPeerID(agentName, sessionID); err != nil {
+		if err := validateLiveNetworkPeerID(workspaceContext.agentName, sessionID); err != nil {
 			return sessionStartSpec{}, err
 		}
 	}
@@ -69,15 +64,15 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		sessionID:                sessionID,
 		sandboxID:                sandboxID,
 		sessionName:              strings.TrimSpace(opts.Name),
-		agentName:                strings.TrimSpace(agentName),
+		agentName:                strings.TrimSpace(workspaceContext.agentName),
 		provider:                 strings.TrimSpace(opts.Provider),
 		model:                    strings.TrimSpace(opts.Model),
 		reasoningEffort:          strings.TrimSpace(opts.ReasoningEffort),
 		speed:                    requestedSpeed,
 		permissions:              opts.Permissions,
-		sandboxDisabled:          sandboxDisabled,
-		workspace:                resolvedWorkspace,
-		cwd:                      cwd,
+		sandboxDisabled:          workspaceContext.sandboxDisabled,
+		workspace:                workspaceContext.workspace,
+		cwd:                      workspaceContext.cwd,
 		networkParticipation:     networkParticipation,
 		networkOwnerKey:          networkOwnerKey,
 		participationObservation: participationObservation,
@@ -96,6 +91,34 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		postEvent:                hookspkg.HookSessionPostCreate,
 		startAction:              sessionStartActionCreate,
 		cleanupSessionDir:        true,
+	}, nil
+}
+
+func (m *Manager) prepareCreateWorkspaceContext(
+	ctx context.Context,
+	opts CreateOpts,
+) (createWorkspaceContext, error) {
+	resolvedWorkspace, err := m.resolveCreateWorkspace(ctx, opts)
+	if err != nil {
+		return createWorkspaceContext{}, err
+	}
+	sandboxDisabled, err := applyCreateSandboxOverride(&resolvedWorkspace, opts)
+	if err != nil {
+		return createWorkspaceContext{}, err
+	}
+	cwd, err := ResolveSessionCWD(resolvedWorkspace.RootDir, opts.CWD)
+	if err != nil {
+		return createWorkspaceContext{}, err
+	}
+	agentName, err := compozyconfig.ResolveAgentName(opts.AgentName, resolvedWorkspace.Config.Defaults)
+	if err != nil {
+		return createWorkspaceContext{}, fmt.Errorf("session: resolve agent name: %w", err)
+	}
+	return createWorkspaceContext{
+		workspace:       resolvedWorkspace,
+		sandboxDisabled: sandboxDisabled,
+		cwd:             cwd,
+		agentName:       agentName,
 	}, nil
 }
 
@@ -156,7 +179,8 @@ func (m *Manager) createSessionID(desired string) (string, error) {
 			return "", errors.New("session: session id generator returned empty id")
 		}
 	}
-	if len(sessionID) > identifier.PeerIDMaxLength || sessionID == "." || sessionID == ".." || filepath.Base(sessionID) != sessionID ||
+	if len(sessionID) > identifier.PeerIDMaxLength || sessionID == "." || sessionID == ".." ||
+		filepath.Base(sessionID) != sessionID ||
 		strings.ContainsAny(sessionID, `/\\`) {
 		return "", fmt.Errorf("%w: invalid preallocated session id %q", ErrValidation, sessionID)
 	}

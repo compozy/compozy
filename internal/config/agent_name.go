@@ -39,7 +39,8 @@ func ValidateAgentName(name string) error {
 	}
 	if !agentNamePattern.MatchString(trimmed) {
 		return fmt.Errorf(
-			"agent name %q must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most %d characters",
+			"agent name %q must start with a lowercase letter, use only lowercase letters, numbers, "+
+				"hyphens, or underscores, and be at most %d characters",
 			trimmed,
 			AgentNameMaxLength,
 		)

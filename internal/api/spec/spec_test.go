@@ -156,15 +156,30 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 		assertRequired(t, createAgent, "agent")
 		createAgentPayload := propertySchema(t, createAgent, "agent")
 		assertRequired(t, createAgentPayload, "name")
-		assertAgentNameRequestSchema(t, "create agent name", propertySchema(t, createAgentPayload, "name"), compozyconfig.AgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"create agent name",
+			propertySchema(t, createAgentPayload, "name"),
+			compozyconfig.AgentNamePattern,
+		)
 
 		duplicateAgent := jsonRequestSchema(t, operationFor(t, doc, "/api/agents/{name}/duplicate", http.MethodPost))
 		assertRequired(t, duplicateAgent, "name")
-		assertAgentNameRequestSchema(t, "duplicate agent name", propertySchema(t, duplicateAgent, "name"), compozyconfig.AgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"duplicate agent name",
+			propertySchema(t, duplicateAgent, "name"),
+			compozyconfig.AgentNamePattern,
+		)
 
 		spawnAgent := jsonRequestSchema(t, operationFor(t, doc, "/api/agent/spawn", http.MethodPost))
 		assertRequired(t, spawnAgent, "agent_name")
-		assertAgentNameRequestSchema(t, "spawn agent_name", propertySchema(t, spawnAgent, "agent_name"), compozyconfig.AgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"spawn agent_name",
+			propertySchema(t, spawnAgent, "agent_name"),
+			compozyconfig.AgentNamePattern,
+		)
 	})
 
 	t.Run("Should describe empty-or-canonical reference fields without changing requiredness", func(t *testing.T) {
@@ -172,33 +187,68 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 
 		createSession := jsonRequestSchema(t, operationFor(t, doc, "/api/sessions", http.MethodPost))
 		assertNotRequired(t, createSession, "agent_name")
-		assertAgentNameRequestSchema(t, "create session agent_name", propertySchema(t, createSession, "agent_name"), compozyconfig.OptionalAgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"create session agent_name",
+			propertySchema(t, createSession, "agent_name"),
+			compozyconfig.OptionalAgentNamePattern,
+		)
 
 		createWorkspace := jsonRequestSchema(t, operationFor(t, doc, "/api/workspaces", http.MethodPost))
 		assertNotRequired(t, createWorkspace, "default_agent")
-		assertAgentNameRequestSchema(t, "create workspace default_agent", propertySchema(t, createWorkspace, "default_agent"), compozyconfig.OptionalAgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"create workspace default_agent",
+			propertySchema(t, createWorkspace, "default_agent"),
+			compozyconfig.OptionalAgentNamePattern,
+		)
 
 		updateWorkspace := jsonRequestSchema(t, operationFor(t, doc, "/api/workspaces/{id}", http.MethodPatch))
 		assertRequired(t, updateWorkspace, "default_agent")
-		assertAgentNameRequestSchema(t, "update workspace default_agent", propertySchema(t, updateWorkspace, "default_agent"), compozyconfig.OptionalAgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"update workspace default_agent",
+			propertySchema(t, updateWorkspace, "default_agent"),
+			compozyconfig.OptionalAgentNamePattern,
+		)
 
 		createJob := jsonRequestSchema(t, operationFor(t, doc, "/api/automation/jobs", http.MethodPost))
 		assertRequired(t, createJob, "agent_name")
-		assertAgentNameRequestSchema(t, "create job agent_name", propertySchema(t, createJob, "agent_name"), compozyconfig.OptionalAgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"create job agent_name",
+			propertySchema(t, createJob, "agent_name"),
+			compozyconfig.OptionalAgentNamePattern,
+		)
 
 		createTrigger := jsonRequestSchema(t, operationFor(t, doc, "/api/automation/triggers", http.MethodPost))
 		assertRequired(t, createTrigger, "agent_name")
-		assertAgentNameRequestSchema(t, "create trigger agent_name", propertySchema(t, createTrigger, "agent_name"), compozyconfig.OptionalAgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"create trigger agent_name",
+			propertySchema(t, createTrigger, "agent_name"),
+			compozyconfig.OptionalAgentNamePattern,
+		)
 
 		updateGeneral := jsonRequestSchema(t, operationFor(t, doc, "/api/settings/general", http.MethodPatch))
 		defaults := propertySchema(t, propertySchema(t, updateGeneral, "config"), "defaults")
 		assertRequired(t, defaults, "agent")
-		assertAgentNameRequestSchema(t, "settings defaults agent", propertySchema(t, defaults, "agent"), compozyconfig.OptionalAgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"settings defaults agent",
+			propertySchema(t, defaults, "agent"),
+			compozyconfig.OptionalAgentNamePattern,
+		)
 
 		updateRoles := jsonRequestSchema(t, operationFor(t, doc, "/api/settings/roles", http.MethodPatch))
 		dreamRole := propertySchema(t, propertySchema(t, updateRoles, "config"), "dream")
 		assertRequired(t, dreamRole, "agent")
-		assertAgentNameRequestSchema(t, "settings role agent", propertySchema(t, dreamRole, "agent"), compozyconfig.OptionalAgentNamePattern)
+		assertAgentNameRequestSchema(
+			t,
+			"settings role agent",
+			propertySchema(t, dreamRole, "agent"),
+			compozyconfig.OptionalAgentNamePattern,
+		)
 	})
 }
 

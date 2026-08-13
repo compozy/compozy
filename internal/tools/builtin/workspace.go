@@ -64,7 +64,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
-		[]string{workspaceWorkspaceKey, "agent", descriptorKeywordCreate},
+		[]string{workspaceWorkspaceKey, descriptorKeywordAgent, descriptorKeywordCreate},
 		[]string{"create agent", "author agent definition"},
 	),
 }

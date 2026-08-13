@@ -279,7 +279,10 @@ func assertInvalidWorkspaceDefaultAgent(t *testing.T, err error, value string) {
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("error = %v, want config.ValidationError", err)
 	}
-	wantMessage := `agent name "` + value + `" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most ` + strconv.Itoa(compozyconfig.AgentNameMaxLength) + " characters"
+	wantMessage := `agent name "` + value +
+		`" must start with a lowercase letter, use only lowercase letters, numbers, ` +
+		`hyphens, or underscores, and be at most ` +
+		strconv.Itoa(compozyconfig.AgentNameMaxLength) + " characters"
 	if validationErr.Path != "workspace.default_agent" || validationErr.Message != wantMessage {
 		t.Fatalf(
 			"ValidationError = %#v, want path %q and message %q",
