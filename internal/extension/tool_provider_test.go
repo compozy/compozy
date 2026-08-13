@@ -1,10 +1,12 @@
 package extensionpkg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -185,6 +187,85 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 			t.Fatalf("Registry.List(restored) omitted %q", descriptor.Tool.ID)
 		}
 	})
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(*testing.T, string)
+		logKey string
+	}{
+		{
+			name: "Should isolate an extension with a missing manifest",
+			mutate: func(t *testing.T, path string) {
+				t.Helper()
+				if err := os.Remove(path); err != nil {
+					t.Fatalf("os.Remove(%q) error = %v", path, err)
+				}
+			},
+			logKey: "broken-missing",
+		},
+		{
+			name: "Should isolate an extension with a malformed manifest",
+			mutate: func(t *testing.T, path string) {
+				t.Helper()
+				writeFile(t, path, "{")
+			},
+			logKey: "broken-malformed",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newRegistryTestEnv(t)
+			healthy := createExtensionToolTestExtension(t, "healthy-tool", "fake-extension", nil, nil, true)
+			broken := createExtensionToolTestExtension(t, tc.logKey, "fake-extension", nil, nil, true)
+			installManagerFixture(t, env.registry, healthy, SourceUser, true)
+			installManagerFixture(t, env.registry, broken, SourceUser, true)
+			brokenInfo, err := env.registry.Get(broken.manifest.Name)
+			if err != nil {
+				t.Fatalf("Registry.Get(%q) error = %v", broken.manifest.Name, err)
+			}
+			tc.mutate(t, brokenInfo.ManifestPath)
+
+			descriptors, err := ResolveManifestToolDescriptors(healthy.manifest)
+			if err != nil || len(descriptors) != 1 {
+				t.Fatalf("ResolveManifestToolDescriptors(healthy) = %#v, %v, want one descriptor", descriptors, err)
+			}
+			runtime := newFakeExtensionToolRuntime(
+				t,
+				env.registry,
+				healthy.manifest.Name,
+				[]toolspkg.ExtensionToolRuntimeDescriptor{descriptors[0].RuntimeDescriptor},
+			)
+			var logs bytes.Buffer
+			registry := newExtensionToolRegistry(
+				t,
+				env.registry,
+				runtime,
+				extensionToolPolicyAllowAll(),
+				WithToolProviderLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+			)
+
+			views, err := registry.List(testutil.Context(t), toolspkg.Scope{Operator: true})
+			if err != nil {
+				t.Fatalf("Registry.List() error = %v, want invalid extension isolated", err)
+			}
+			if !extensionToolViewsContain(views, descriptors[0].Tool.ID) {
+				t.Fatalf("Registry.List() omitted healthy tool %q", descriptors[0].Tool.ID)
+			}
+			_, err = registry.Call(
+				testutil.Context(t),
+				toolspkg.Scope{SessionID: "session-1"},
+				toolspkg.CallRequest{
+					ToolID: descriptors[0].Tool.ID,
+					Input:  json.RawMessage(`{"query":"alpha"}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(healthy) error = %v, want invalid extension isolated", err)
+			}
+			if !strings.Contains(logs.String(), tc.logKey) {
+				t.Fatalf("provider logs = %q, want invalid extension name %q", logs.String(), tc.logKey)
+			}
+		})
+	}
 }
 
 func TestExtensionToolProviderDispatch(t *testing.T) {
@@ -518,12 +599,13 @@ func newExtensionToolRegistry(
 	extensionRegistry *Registry,
 	runtime ExtensionToolRuntime,
 	policyInputs toolspkg.PolicyInputs,
+	providerOpts ...ExtensionToolProviderOption,
 ) *toolspkg.RuntimeRegistry {
 	t.Helper()
 
 	provider, err := NewExtensionToolProvider(extensionRegistry, func() ExtensionToolRuntime {
 		return runtime
-	})
+	}, providerOpts...)
 	if err != nil {
 		t.Fatalf("NewExtensionToolProvider() error = %v", err)
 	}

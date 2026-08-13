@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
 	"strconv"
@@ -41,11 +42,22 @@ type ExtensionToolProvider struct {
 	mu       sync.RWMutex
 	registry *Registry
 	runtime  ExtensionToolRuntimeResolver
+	logger   *slog.Logger
 	source   toolspkg.SourceRef
 	cache    extensionToolProviderCache
 }
 
 var _ toolspkg.Provider = (*ExtensionToolProvider)(nil)
+
+// WithToolProviderLogger injects the logger used when one invalid extension is
+// isolated from the aggregate tool catalog.
+func WithToolProviderLogger(logger *slog.Logger) ExtensionToolProviderOption {
+	return func(provider *ExtensionToolProvider) {
+		if logger != nil {
+			provider.logger = logger
+		}
+	}
+}
 
 // NewExtensionToolProvider creates the extension_host provider for the central
 // tool registry.
@@ -64,6 +76,7 @@ func NewExtensionToolProvider(
 	provider := &ExtensionToolProvider{
 		registry: registry,
 		runtime:  runtime,
+		logger:   slog.Default(),
 		source: toolspkg.SourceRef{
 			Kind:  toolspkg.SourceExtension,
 			Owner: extensionToolProviderOwner,
@@ -315,10 +328,7 @@ func (p *ExtensionToolProvider) manifestTools(scope toolspkg.Scope) ([]extension
 			return nil, fmt.Errorf("extension: list tool manifests: %w", err)
 		}
 	}
-	fingerprint, err := extensionToolManifestFingerprint(workspaceID, infos)
-	if err != nil {
-		return nil, err
-	}
+	fingerprint := extensionToolManifestFingerprint(workspaceID, infos)
 	if tools, ok := p.cachedManifestTools(fingerprint); ok {
 		return tools, nil
 	}
@@ -337,11 +347,13 @@ func (p *ExtensionToolProvider) manifestTools(scope toolspkg.Scope) ([]extension
 		}
 		manifest, err := loadManifestAtPath(info.ManifestPath)
 		if err != nil {
-			return nil, fmt.Errorf("extension: load tool manifest %q: %w", info.Name, err)
+			p.logInvalidToolManifest(info.Name, err)
+			continue
 		}
 		descriptors, err := ResolveManifestToolDescriptors(manifest)
 		if err != nil {
-			return nil, fmt.Errorf("extension: resolve tool manifest %q: %w", info.Name, err)
+			p.logInvalidToolManifest(info.Name, err)
+			continue
 		}
 		for i := range descriptors {
 			if descriptors[i].Tool.Backend.Kind != toolspkg.BackendExtensionHost {
@@ -359,6 +371,17 @@ func (p *ExtensionToolProvider) manifestTools(scope toolspkg.Scope) ([]extension
 	})
 	p.storeManifestTools(fingerprint, manifestTools)
 	return cloneExtensionManifestTools(manifestTools), nil
+}
+
+func (p *ExtensionToolProvider) logInvalidToolManifest(name string, err error) {
+	if p == nil || p.logger == nil || err == nil {
+		return
+	}
+	p.logger.Warn(
+		"extension: skip invalid extension tool manifest",
+		"extension_name", strings.TrimSpace(name),
+		"error", err,
+	)
 }
 
 func (p *ExtensionToolProvider) runtimeInstance() ExtensionToolRuntime {
@@ -387,7 +410,7 @@ func (p *ExtensionToolProvider) storeManifestTools(fingerprint string, tools []e
 	p.cache.tools = cloneExtensionManifestTools(tools)
 }
 
-func extensionToolManifestFingerprint(workspaceID string, infos []ExtensionInfo) (string, error) {
+func extensionToolManifestFingerprint(workspaceID string, infos []ExtensionInfo) string {
 	var builder strings.Builder
 	builder.WriteString(strings.TrimSpace(workspaceID))
 	builder.WriteByte(0)
@@ -411,14 +434,16 @@ func extensionToolManifestFingerprint(workspaceID string, infos []ExtensionInfo)
 		builder.WriteByte(0)
 		stat, err := os.Stat(info.ManifestPath)
 		if err != nil {
-			return "", fmt.Errorf("extension: stat tool manifest %q: %w", info.Name, err)
+			builder.WriteString("unavailable")
+			builder.WriteByte(0)
+			continue
 		}
 		builder.WriteString(strconv.FormatInt(stat.Size(), 10))
 		builder.WriteByte(':')
 		builder.WriteString(strconv.FormatInt(stat.ModTime().UnixNano(), 10))
 		builder.WriteByte(0)
 	}
-	return builder.String(), nil
+	return builder.String()
 }
 
 func runtimeDescriptorForTool(
