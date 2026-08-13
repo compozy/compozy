@@ -137,8 +137,10 @@ jobs:
         run: |
           set -euo pipefail
           workflow_tools=(
+            render-and-validate-release-body.sh
             release-publication-state.sh
             release-preflight.sh
+            validate-release-body.sh
           )
           for workflow_tool in "${workflow_tools[@]}"; do
             target="${RUNNER_TEMP}/${workflow_tool}"
@@ -190,6 +192,46 @@ jobs:
           setup-qemu: false
           cosign-version: ${{ env.COSIGN_VERSION }}
 
+      - name: Validate prospective beta release body
+        env:
+          PR_RELEASE_LOG_LEVEL: error
+        run: |
+          set -euo pipefail
+          release_version="$(scripts/resolve-auto-beta-version.sh)"
+          plan_output="${RUNNER_TEMP}/prospective-release-plan"
+          go run "${PR_RELEASE_MODULE}" plan \
+            --ref HEAD \
+            --version "${release_version}" \
+            --channel beta \
+            --format github >"${plan_output}"
+
+          expected_keys=(
+            release_ref release_commit release_version release_tag release_previous_tag
+            release_git_range release_initial release_channel
+            github_prerelease github_make_latest npm_tag homebrew_skip_upload
+          )
+          for key in "${expected_keys[@]}"; do
+            if [[ "$(grep -c "^${key}=" "${plan_output}")" != "1" ]]; then
+              echo "::error::Prospective planner output must contain exactly one ${key} entry"
+              exit 1
+            fi
+          done
+          if [[ "$(wc -l <"${plan_output}" | tr -d ' ')" != "12" ]]; then
+            echo "::error::Prospective planner output must contain exactly twelve authoritative entries"
+            exit 1
+          fi
+
+          release_tag="$(sed -n 's/^release_tag=//p' "${plan_output}")"
+          release_git_range="$(sed -n 's/^release_git_range=//p' "${plan_output}")"
+          release_initial="$(sed -n 's/^release_initial=//p' "${plan_output}")"
+          bash "${RUNNER_TEMP}/render-and-validate-release-body.sh" \
+            "${PR_RELEASE_MODULE}" \
+            "${release_tag}" \
+            "${release_git_range}" \
+            "${release_initial}" \
+            "${RUNNER_TEMP}/PROSPECTIVE_RELEASE_BODY.md"
+          head -1 "${RUNNER_TEMP}/PROSPECTIVE_RELEASE_BODY.md"
+
       - &run-release-preflight
         name: Run release preflight
         run: bash "${RUNNER_TEMP}/release-preflight.sh"
@@ -208,7 +250,107 @@ jobs:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
 
-  # Job 3: Credentialed nightly E2E gate on a fresh runner.
+  # Job 3: Tauri bundle validation on the shipping platforms without publication.
+  desktop-dry-run:
+    name: Dry-Run Desktop ${{ matrix.name }}
+    if: |
+      github.event_name == 'pull_request' &&
+      (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
+       startsWith(github.event.pull_request.title, 'release: Release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    strategy:
+      fail-fast: false
+      matrix: &desktop-release-matrix
+        include:
+          - name: macOS universal
+            id: macos
+            runner: macos-15
+            platform: macos
+            target: universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundles: app,dmg
+          # Windows is paused until the Azure Trusted Signing account is
+          # restored (SignerSign fails server-side).
+          - name: Linux x86_64
+            id: linux
+            runner: ubuntu-22.04
+            platform: linux
+            target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install Linux desktop dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - name: Assert updater signing material before dry-run build
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD TAURI_SIGNING_PUBLIC_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "desktop dry-run: required signing value ${name} is missing" >&2
+              exit 1
+            fi
+          done
+
+      - name: Generate dry-run release channel configuration
+        shell: bash
+        env:
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+        run: |
+          go run ./cmd/compozy-desktop-release channel-config \
+            --version 0.0.0-beta.0 \
+            --channel beta \
+            --public-key "${TAURI_SIGNING_PUBLIC_KEY}" \
+            --output desktop/src-tauri/tauri.channel.conf.json
+
+      - name: Build desktop bundle without publishing
+        uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: desktop
+          uploadUpdaterJson: false
+          uploadWorkflowArtifacts: false
+          args: >-
+            --target ${{ matrix.target }}
+            --bundles ${{ matrix.bundles }}
+            --config src-tauri/tauri.channel.conf.json
+        env:
+          COMPOZY_RELEASE_CHANNEL: beta
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  # Job 4: Credentialed nightly E2E gate on a fresh runner.
   e2e-nightly:
     name: E2E Nightly Lane
     if: |
@@ -263,7 +405,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Job 4: Full integration suite on a fresh runner.
+  # Job 5: Full integration suite on a fresh runner.
   integration:
     name: Full Integration Suite
     if: |
@@ -313,7 +455,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Job 5: Resolve the explicit release identity exactly once.
+  # Job 6: Resolve the explicit release identity exactly once.
   release-plan:
     name: Explicit Release Plan
     # Auto-beta triggers ONLY on release PR merge subjects. Two real-world
@@ -374,32 +516,9 @@ jobs:
             } >>"${GITHUB_OUTPUT}"
             exit 0
           fi
-          # Auto-beta consumes the stable base committed by the release PR.
-          # Existing prerelease tags select the next beta.N, and `pr-release
-          # plan` below remains the identity authority for HEAD, tag absence,
-          # channel policy, and version shape.
-          base="$(node --input-type=module -e '
-            import { readFileSync } from "node:fs";
-            const manifest = JSON.parse(readFileSync("package.json", "utf8"));
-            if (typeof manifest.version !== "string") {
-              throw new Error("package.json version must be a string");
-            }
-            process.stdout.write(manifest.version);
-          ')"
-          if [[ ! "${base}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::release PR package version '${base}' is not plain SemVer; cannot derive the beta version"
-            exit 1
-          fi
-          last=0
-          for tag in $(git tag --list "v${base}-beta.*"); do
-            n="${tag#v"${base}"-beta.}"
-            if [[ "${n}" =~ ^[0-9]+$ ]] && (( n > last )); then
-              last="${n}"
-            fi
-          done
           {
             echo "ref=${GITHUB_SHA}"
-            echo "version=${base}-beta.$((last + 1))"
+            echo "version=$(scripts/resolve-auto-beta-version.sh)"
             echo "channel=beta"
           } >>"${GITHUB_OUTPUT}"
 
@@ -436,7 +555,7 @@ jobs:
           fi
           cat "${plan_output}" >>"${GITHUB_OUTPUT}"
 
-  # Job 6: Publish only from an explicit, validated plan.
+  # Job 7: Publish only from an explicit, validated plan.
   release:
     name: Stage Production Release
     needs: release-plan
@@ -509,30 +628,12 @@ jobs:
           RELEASE_INITIAL: ${{ needs.release-plan.outputs.release_initial }}
           PR_RELEASE_LOG_LEVEL: error
         run: |
-          set -euo pipefail
-          release_body_args=(release-body --tag "${RELEASE_TAG}")
-          case "${RELEASE_INITIAL}" in
-            true)
-              if [[ -n "${RELEASE_GIT_RANGE}" ]]; then
-                echo "::error::Initial release plan cannot include a Git range"
-                exit 1
-              fi
-              release_body_args+=(--initial)
-              ;;
-            false)
-              if [[ -z "${RELEASE_GIT_RANGE}" ]]; then
-                echo "::error::Non-initial release plan must include a Git range"
-                exit 1
-              fi
-              release_body_args+=(--range "${RELEASE_GIT_RANGE}")
-              ;;
-            *)
-              echo "::error::Release plan emitted invalid initial-release intent"
-              exit 1
-              ;;
-          esac
-          go run "${PR_RELEASE_MODULE}" "${release_body_args[@]}" >"${RUNNER_TEMP}/RELEASE_BODY.md"
-          test -s "${RUNNER_TEMP}/RELEASE_BODY.md"
+          bash "${RUNNER_TEMP}/render-and-validate-release-body.sh" \
+            "${PR_RELEASE_MODULE}" \
+            "${RELEASE_TAG}" \
+            "${RELEASE_GIT_RANGE}" \
+            "${RELEASE_INITIAL}" \
+            "${RUNNER_TEMP}/RELEASE_BODY.md"
           head -1 "${RUNNER_TEMP}/RELEASE_BODY.md"
 
       - name: Validate extension SDK release assets
@@ -672,25 +773,7 @@ jobs:
     if: needs.release.result == 'success'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: macOS universal
-            id: macos
-            runner: macos-15
-            platform: macos
-            target: universal-apple-darwin
-            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
-            bundles: app,dmg
-          # Windows is paused until the Azure Trusted Signing account is
-          # restored (SignerSign fails server-side); reintroduce the matrix
-          # entry together with the signing preflight steps from git history.
-          - name: Linux x86_64
-            id: linux
-            runner: ubuntu-22.04
-            platform: linux
-            target: x86_64-unknown-linux-gnu
-            rust_targets: x86_64-unknown-linux-gnu
-            bundles: appimage,deb
+      matrix: *desktop-release-matrix
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     steps:
@@ -923,6 +1006,7 @@ jobs:
           scripts/sign-runtime-manifest.sh .artifacts/feed/runtime.json
           cargo run --locked \
             --manifest-path desktop/src-tauri/Cargo.toml \
+            --features runtime-manifest-check \
             --bin compozy-runtime-manifest-check -- \
             .artifacts/feed/runtime.json \
             .artifacts/feed/runtime.json.minisig \

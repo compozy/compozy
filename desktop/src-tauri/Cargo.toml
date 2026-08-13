@@ -59,6 +59,7 @@ tempfile = "3"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+runtime-manifest-check = []
 
 [profile.release]
 lto = true
@@ -72,3 +73,4 @@ path = "src/main.rs"
 [[bin]]
 name = "compozy-runtime-manifest-check"
 path = "src/bin/runtime_manifest_check.rs"
+required-features = ["runtime-manifest-check"]

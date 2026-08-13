@@ -108,11 +108,11 @@ desktop-build:
 	@cargo build --locked --manifest-path desktop/src-tauri/Cargo.toml
 
 desktop-test:
-	@cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets
+	@cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --all-features --all-targets
 
 desktop-lint:
 	@cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
-	@cargo clippy --locked --manifest-path desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+	@cargo clippy --locked --manifest-path desktop/src-tauri/Cargo.toml --all-features --all-targets -- -D warnings
 
 help:
 	@$(MAGE_RUN) -l

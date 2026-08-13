@@ -406,7 +406,9 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"github.com/compozy/releasepr@v0.0.25",
 		"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}",
 		"go run \"${PR_RELEASE_MODULE}\" plan",
-		"go run \"${PR_RELEASE_MODULE}\" \"${release_body_args[@]}\"",
+		"render-and-validate-release-body.sh",
+		"scripts/resolve-auto-beta-version.sh",
+		"validate-release-body.sh",
 		"PR_RELEASE_LOG_LEVEL: error",
 		"scripts/release-plan-contract.sh",
 		"ref: ${{ needs.release-plan.outputs.release_ref }}",
@@ -448,9 +450,130 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 	} {
 		assertNotContainsText(t, "release workflow", workflow, forbidden)
 	}
-	if got := strings.Count(workflow, `go run "${PR_RELEASE_MODULE}" plan`); got != 1 {
-		t.Fatalf("release workflow plan invocation count = %d, want 1", got)
+	if got := strings.Count(workflow, `go run "${PR_RELEASE_MODULE}" plan`); got != 2 {
+		t.Fatalf("release workflow plan invocation count = %d, want dry-run and production plans", got)
 	}
+	if got := strings.Count(workflow, "\n            validate-release-body.sh\n"); got != 1 {
+		t.Fatalf("release body validator staging count = %d, want 1", got)
+	}
+	if got := strings.Count(workflow, `render-and-validate-release-body.sh`); got != 3 {
+		t.Fatalf("release body render/validation reference count = %d, want staging plus two invocations", got)
+	}
+
+	t.Run("Should derive the next beta from the greatest numeric tag", func(t *testing.T) {
+		t.Parallel()
+
+		repo := t.TempDir()
+		manifest := filepath.Join(repo, "package.json")
+		if err := os.WriteFile(manifest, []byte("{\"version\":\"0.3.0\"}\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(package.json) error = %v", err)
+		}
+		runReleasePreflightFixtureCommand(t, repo, "git", "init", "--initial-branch=main")
+		runReleasePreflightFixtureCommand(t, repo, "git", "config", "user.name", "Compozy Beta Resolver")
+		runReleasePreflightFixtureCommand(t, repo, "git", "config", "user.email", "beta-resolver@compozy.com")
+		runReleasePreflightFixtureCommand(t, repo, "git", "add", "package.json")
+		runReleasePreflightFixtureCommand(
+			t,
+			repo,
+			"git",
+			"-c",
+			"commit.gpgsign=false",
+			"commit",
+			"-m",
+			"test: seed beta resolver",
+		)
+		for _, tag := range []string{"v0.3.0-beta.13", "v0.3.0-beta.14", "v0.3.0-beta.preview"} {
+			runReleasePreflightFixtureCommand(t, repo, "git", "tag", tag)
+		}
+
+		cmd := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "resolve-auto-beta-version.sh"))
+		cmd.Dir = repo
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("resolve-auto-beta-version.sh error = %v, output = %s", err, output)
+		}
+		if got, want := strings.TrimSpace(string(output)), "0.3.0-beta.15"; got != want {
+			t.Fatalf("resolved beta version = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject empty ranges and heading-only release bodies", func(t *testing.T) {
+		t.Parallel()
+
+		repo := t.TempDir()
+		runReleasePreflightFixtureCommand(t, repo, "git", "init", "--initial-branch=main")
+		runReleasePreflightFixtureCommand(t, repo, "git", "config", "user.name", "Compozy Release Body")
+		runReleasePreflightFixtureCommand(t, repo, "git", "config", "user.email", "release-body@compozy.com")
+		seed := filepath.Join(repo, "release.txt")
+		if err := os.WriteFile(seed, []byte("beta 14\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(seed) error = %v", err)
+		}
+		runReleasePreflightFixtureCommand(t, repo, "git", "add", "release.txt")
+		runReleasePreflightFixtureCommand(
+			t,
+			repo,
+			"git",
+			"-c",
+			"commit.gpgsign=false",
+			"commit",
+			"-m",
+			"test: seed release body",
+		)
+		runReleasePreflightFixtureCommand(t, repo, "git", "tag", "v0.3.0-beta.14")
+		if err := os.WriteFile(seed, []byte("beta 15\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(candidate) error = %v", err)
+		}
+		runReleasePreflightFixtureCommand(t, repo, "git", "add", "release.txt")
+		runReleasePreflightFixtureCommand(
+			t,
+			repo,
+			"git",
+			"-c",
+			"commit.gpgsign=false",
+			"commit",
+			"-m",
+			"fix: validate release body",
+		)
+
+		validator := filepath.Join(root, "scripts", "validate-release-body.sh")
+		body := filepath.Join(repo, "body.md")
+		validBody := "## 0.3.0-beta.15 - 2026-08-13\n\n" +
+			"### Bug Fixes\n\n" +
+			"- Validate release body\n"
+		if err := os.WriteFile(body, []byte(validBody), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(valid body) error = %v", err)
+		}
+		run := func(gitRange string) ([]byte, error) {
+			cmd := exec.CommandContext(
+				t.Context(),
+				"bash",
+				validator,
+				"v0.3.0-beta.15",
+				gitRange,
+				"false",
+				body,
+			)
+			cmd.Dir = repo
+			return cmd.CombinedOutput()
+		}
+		if output, err := run("v0.3.0-beta.14..HEAD"); err != nil {
+			t.Fatalf("valid release body error = %v, output = %s", err, output)
+		}
+		output, err := run("")
+		if err == nil {
+			t.Fatalf("empty release range unexpectedly passed: %s", output)
+		}
+		assertContainsText(t, "release body validator", string(output), "non-initial release must include a Git range")
+
+		if err := os.WriteFile(body, []byte("## 0.3.0-beta.15 - 2026-08-13\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(heading-only body) error = %v", err)
+		}
+		output, err = run("v0.3.0-beta.14..HEAD")
+		if err == nil {
+			t.Fatalf("heading-only release body unexpectedly passed: %s", output)
+		}
+		assertContainsText(t, "release body validator", string(output), "release body contains no changelog entries")
+	})
 }
 
 func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
@@ -458,6 +581,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 
 	root := findRepoRootForReleaseConfigTest(t)
 	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+	cargoManifest := readTextFile(t, root, filepath.Join("desktop", "src-tauri", "Cargo.toml"))
 	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
 	release := mapAt(t, goreleaser, "release")
 
@@ -502,6 +626,8 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 
 		for _, snippet := range []string{
 			"fail-fast: false",
+			"matrix: &desktop-release-matrix",
+			"matrix: *desktop-release-matrix",
 			"runner: macos-15",
 			"target: universal-apple-darwin",
 			"runner: ubuntu-22.04",
@@ -517,8 +643,46 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		}
 		// Windows is paused until Trusted Signing is restored.
 		assertNotContainsText(t, "desktop release workflow", workflow, "runner: windows-latest")
-		if got := strings.Count(workflow, "uses: tauri-apps/tauri-action@v1"); got != 1 {
-			t.Fatalf("tauri-action step count = %d, want one matrix step", got)
+		if got := strings.Count(workflow, "uses: tauri-apps/tauri-action@v1"); got != 2 {
+			t.Fatalf("tauri-action step count = %d, want dry-run and production matrix steps", got)
+		}
+	})
+
+	t.Run("Should bundle the shipping matrix without publishing on release PRs", func(t *testing.T) {
+		t.Parallel()
+
+		start := strings.Index(workflow, "  desktop-dry-run:")
+		end := strings.Index(workflow, "  e2e-nightly:")
+		if start == -1 || end == -1 || start >= end {
+			t.Fatal("release workflow is missing the desktop dry-run job before the nightly lane")
+		}
+		dryRun := workflow[start:end]
+		for _, required := range []string{
+			"name: Dry-Run Desktop ${{ matrix.name }}",
+			"matrix: &desktop-release-matrix",
+			"runner: macos-15",
+			"target: universal-apple-darwin",
+			"bundles: app,dmg",
+			"runner: ubuntu-22.04",
+			"target: x86_64-unknown-linux-gnu",
+			"bundles: appimage,deb",
+			"uses: tauri-apps/tauri-action@v1",
+			"uploadUpdaterJson: false",
+			"uploadWorkflowArtifacts: false",
+			"COMPOZY_RELEASE_CHANNEL: beta",
+		} {
+			assertContainsText(t, "desktop release dry-run", dryRun, required)
+		}
+		for _, forbidden := range []string{
+			"tagName:",
+			"releaseName:",
+			"releaseDraft:",
+			"GITHUB_TOKEN:",
+			"APPLE_CERTIFICATE:",
+			"APPLE_ID:",
+			"actions/upload-artifact",
+		} {
+			assertNotContainsText(t, "desktop release dry-run", dryRun, forbidden)
 		}
 	})
 
@@ -560,6 +724,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		}
 		verification := workflow[signManifest:publishFeed]
 		for _, required := range []string{
+			"--features runtime-manifest-check",
 			"TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}",
 			".artifacts/feed/runtime.json.minisig",
 			`"${RELEASE_VERSION}"`,
@@ -568,6 +733,12 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"linux-x86_64",
 		} {
 			assertContainsText(t, "runtime manifest consumer verification", verification, required)
+		}
+		for _, required := range []string{
+			"runtime-manifest-check = []",
+			`required-features = ["runtime-manifest-check"]`,
+		} {
+			assertContainsText(t, "desktop Cargo manifest", cargoManifest, required)
 		}
 	})
 }
