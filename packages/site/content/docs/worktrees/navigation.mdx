@@ -1,0 +1,65 @@
+---
+title: Navigation and Selection
+description: Select a Worktree in Web or bind a new session to one without changing the parent workspace.
+---
+
+Worktrees appear beneath their parent workspace. Selecting one scopes Worktree-aware views in that
+window; it does not create daemon-global "current Worktree" state and does not change another window.
+
+## Select in Web
+
+1. Open the workspace switcher.
+2. Expand a Git-backed workspace.
+3. Select a ready Worktree.
+4. Open its detail view to read branch, dirty files, upstream position, pull-request state, and agent
+   activity.
+
+Expected result: the window keeps the same `workspace_id` and stores the selected `worktree_id` in
+its route. Refreshing the page restores that nested selection. A missing selection resolves to the
+Worktree recovery view; it never silently falls back to the workspace root.
+
+Clean discovered checkouts are selectable; selecting one opens the adoption confirmation before
+CompozyOS binds work to it. Stale or unavailable discoveries stay inert. Pending, failed, missing,
+removing, removed, and dismissed records cannot host new work.
+
+## Start a session in an existing Worktree
+
+```bash
+compozy session new --workspace . --worktree feature-auth --agent general -o json
+```
+
+Expected result includes the same workspace and a resolved Worktree binding:
+
+```json
+{
+  "workspace_id": "ws_01...",
+  "workspace_path": "/src/acme",
+  "worktree_id": "wt_01..."
+}
+```
+
+The daemon resolves the Worktree's canonical path before the first prompt, while the public session
+record keeps the parent workspace path and the resolved `worktree_id`. The session keeps the parent
+workspace's agents, skills, memory, configuration overlay, and permission mode.
+
+## Create and bind in one request
+
+```bash
+compozy session new --workspace . --new-worktree feature-api --agent general -o json
+```
+
+CompozyOS materializes the Worktree to `ready` before it creates the session. A setup-command failure
+leaves a usable `ready` Worktree with `setup_state: "failed"` and a bounded `setup_error`; the session
+can still bind to it.
+
+`--worktree`, `--new-worktree`, and `--cwd` are mutually exclusive. An empty Worktree selector means
+the workspace root only where the owning session API explicitly defines that choice.
+
+## Move work without moving a live session
+
+A session's environment is immutable. To continue an idle session's work in another Worktree, use
+the Web fork action. It creates one fresh session bound to the target and leaves the original
+session, transcript, and environment unchanged. A session mid-turn cannot be forked.
+
+This rule closes a common race: Git checkout selection is decided before the first prompt, not while
+an agent process is already reading files.

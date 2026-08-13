@@ -49,8 +49,10 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_runtime_clear`, `compozy__session_archive`,
 `compozy__session_unarchive`, `compozy__session_rename`.
 
-`compozy__session_create` accepts only workspace, agent, and optional name. It creates an active
-logical session with `runtime.status="unbound"`; it does not accept or send a prompt or runtime.
+`compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
+`new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not
+accept or send a prompt or runtime. A named Worktree must be ready; new creation reaches ready before
+session persistence.
 The calling session is recorded automatically as `lineage.parent_session_id` (provenance only, no
 governance) when the new session lands in the caller's workspace; the link is not a tool input.
 Use `compozy__session_prompt` with `session_id`, `message`, and an optional `runtime` snapshot. A
@@ -71,6 +73,12 @@ reconfiguring ACP; `compozy__session_runtime_clear` removes it. Both accept opti
 `expected_revision`; when omitted, the tool reads the current `runtime.selection_revision` before
 the write. On conflict, read session status and decide from the new server value instead of replaying
 the stale mutation.
+
+Worktree tools: `compozy__worktree_list`, `compozy__worktree_inspect`,
+`compozy__worktree_create`, and `compozy__worktree_remove`. List and inspect are read tools; create is
+mutating; remove is destructive and approval-gated. All carry an explicit or caller-resolved
+workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
+CLI/HTTP/UDS-only; read `references/worktrees.md` before using either path.
 
 Remembered approvals: `compozy__tool_approvals_set`, `compozy__tool_approvals_list`, and
 `compozy__tool_approvals_revoke`. `allow-always` or `reject-always` creates an exact workspace + agent +
@@ -231,9 +239,9 @@ Autonomy tools are bound to the caller session. Do not substitute general task m
 
 ## Loop Tools
 
-Toolset `compozy__loops` (16 tools):
-`compozy__loop_list/_inspect/_validate/_status/_runs/_create/_run/_configure/_pause/_resume/_approve/_stop/_delete`,
-`compozy__goal_get`, `compozy__goal_report`, and `compozy__loop_turns`.
+Toolset `compozy__loops` has 23 tools: Goal get/report; Loop
+list/inspect/validate/create/run/status/runs/turns/cancel/kill/pause/resume/configure/approve/delete;
+and node list/pause/resume/cancel/kill/requeue.
 
 No `compozy__loop_edit`. See references/loops.md for publishing, approval/self-approval, and Goal report
 binding semantics.

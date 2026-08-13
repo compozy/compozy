@@ -1,0 +1,76 @@
+---
+title: Worktree Configuration
+description: Configure managed placement, per-run branch names, bootstrap copying, setup, discovery freshness, and the default Task policy.
+---
+
+Worktree configuration belongs to the parent workspace. Put defaults in
+`$COMPOZY_HOME/config.toml`, then override individual fields in
+`<workspace>/.compozy/config.toml` when one repository needs a different bootstrap.
+
+## Annotated example
+
+```toml
+[worktrees]
+# Empty uses $COMPOZY_HOME/worktrees/<workspace>/<name>.
+root = ""
+# Lowercase, slash-terminated namespace for per-run branches.
+run_branch_namespace = "run/"
+# Relative Git pathspecs for ignored, untracked files copied after checkout.
+copy_list = [".env", ".npmrc"]
+# Runs inside the new checkout after copy. Empty skips setup.
+setup_command = "bun install --frozen-lockfile"
+setup_timeout = "10m"
+# Git discovery and cached status freshness.
+discovery_cache_ttl = "30s"
+
+[task.orchestration.profile]
+# inherit resolves to workspace-root semantics unless a higher task policy supplies a mode.
+default_worktree_mode = "inherit"
+```
+
+## Worktree fields
+
+| Field                  | Default                   | Validation                         |
+| ---------------------- | ------------------------- | ---------------------------------- |
+| `root`                 | `$COMPOZY_HOME/worktrees` | Empty or absolute path.            |
+| `run_branch_namespace` | `run/`                    | Lowercase namespace ending in `/`. |
+| `copy_list`            | empty                     | Non-empty relative Git pathspecs.  |
+| `setup_command`        | empty                     | Shell command; empty skips setup.  |
+| `setup_timeout`        | `10m`                     | Positive Go duration.              |
+| `discovery_cache_ttl`  | `30s`                     | Positive Go duration.              |
+
+Changing `root` affects new managed Worktrees only; it does not move existing checkouts. The copy
+list and setup command apply only during managed creation, not adoption. Only ignored, untracked
+files matching `copy_list` are candidates, so keep secret-bearing pathspecs narrow and never copy a
+file that the new checkout should not receive.
+
+`default_worktree_mode` accepts `inherit`, `none`, or `per_run`. Task profiles additionally accept
+`ref` because they can carry a specific `worktree_ref`; the global default cannot name one Worktree.
+
+## Apply and verify
+
+Both key families have `live` lifecycle. Reload after a file change:
+
+```bash
+compozy config reload -o json
+compozy config apply-history --limit 5 -o json
+```
+
+Expected apply records report:
+
+```json
+{
+  "lifecycle": "live",
+  "applied": true,
+  "next_action": "none"
+}
+```
+
+Later creates and enqueues read the new values. Existing Worktree placement and already-enqueued run
+snapshots do not change.
+
+Agents can read all fields through `compozy__config_get`. The scalar config mutation surface accepts
+the default Task mode, but `[worktrees]` remains operator-owned through `config.toml`; use a workspace
+overlay for repository-specific bootstrap settings. See the complete
+[config.toml reference](/docs/configuration/config-toml) and
+[lifecycle matrix](/docs/configuration/lifecycle-matrix).

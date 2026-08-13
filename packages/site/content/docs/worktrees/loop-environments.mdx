@@ -1,0 +1,93 @@
+---
+title: Loop Environments
+description: Run Loop agent actions at the workspace root, in one Worktree, in a fresh Worktree per execution, or in a contained directory.
+---
+
+Loop environment selection belongs to the Loop config or an agent-starting node. It replaces the
+retired `params.cwd` field with one closed object.
+
+## Modes and precedence
+
+| Mode        | Required companion | Result                                                        |
+| ----------- | ------------------ | ------------------------------------------------------------- |
+| `root`      | none               | Run from the parent workspace root.                           |
+| `worktree`  | `worktree_ref`     | Run in one ready Worktree from that workspace.                |
+| `per_run`   | none               | Create one Worktree per execution instance or fan-out branch. |
+| `directory` | `directory`        | Run in one contained directory.                               |
+
+An explicit node environment wins over the Loop default. If neither exists, execution uses `root`.
+`run-loop` forwards the parent environment unless the child resolves its own default. Only
+`run-agent` and `goal` accept node environments.
+
+## Set a Loop default
+
+### 1. Write a config file
+
+```yaml title="loop-config.yaml"
+environment:
+  mode: worktree
+  worktree_ref: feature-auth
+```
+
+### 2. Apply it
+
+```bash
+compozy loop configure --name release-review --workspace . --file loop-config.yaml -o json
+```
+
+### 3. Read the effective environment from the response
+
+Expected result:
+
+```json
+{
+  "effective_config": {
+    "environment": {
+      "mode": "worktree",
+      "worktree_ref": "feature-auth"
+    }
+  }
+}
+```
+
+To create a fresh checkout for each execution, change the object to:
+
+```yaml
+environment:
+  mode: per_run
+```
+
+## Override one node
+
+```yaml
+nodes:
+  - id: verify-api
+    kind: run-agent
+    params:
+      agent: reviewer
+      prompt: Review the API changes.
+      environment:
+        mode: directory
+        directory: packages/api
+```
+
+The directory must stay inside the owning workspace or resolved Worktree. For a named Worktree use
+`mode: worktree` plus `worktree_ref`. Supplying the wrong companion field returns
+`environment_invalid`; placing `environment` on another node kind returns
+`environment_unsupported`.
+
+Migrate old definitions mechanically:
+
+```yaml
+# retired
+params:
+  cwd: packages/api
+
+# current
+params:
+  environment:
+    mode: directory
+    directory: packages/api
+```
+
+The retired shape fails validation with `environment_cwd_removed`; it is never treated as root.

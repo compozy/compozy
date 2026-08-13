@@ -1,0 +1,124 @@
+---
+title: Assisted Exit
+description: Follow the daemon-computed ladder to commit, push, open a pull request, and confirm cleanup evidence.
+---
+
+Assisted exit reads Git and forge state, then returns the actions that are safe now. The daemon owns
+the order, labels, disabled reasons, commit scope, pull-request wording, and cleanup evidence.
+
+## Follow the action ladder
+
+### 1. Refresh local and forge status
+
+```bash
+compozy worktree status feature-auth --workspace . --refresh --forge -o json
+```
+
+### 2. Read the plan
+
+```bash
+compozy worktree exit feature-auth --workspace . -o json
+```
+
+Expected result for dirty work with a reachable remote resembles:
+
+```json
+{
+  "worktree_id": "wt_01...",
+  "primary": "commit",
+  "commit_scope": {
+    "changed_files": 4,
+    "insertions": 28,
+    "deletions": 6,
+    "untracked_files": ["internal/auth/token.go"]
+  },
+  "actions": [
+    { "action": "commit", "label": "Commit", "enabled": true },
+    { "action": "commit_push", "label": "Commit & push", "enabled": true },
+    {
+      "action": "open_pr",
+      "label": "Open PR",
+      "enabled": false,
+      "blocked_reason": "Push commits before opening pull requests."
+    }
+  ]
+}
+```
+
+Render `blocked_reason` exactly. Behind or diverged branches require an operator-controlled pull,
+merge, or rebase; CompozyOS does not perform that repair.
+
+### 3. Run one offered action
+
+```bash
+compozy worktree commit feature-auth --workspace . \
+  --message "feat: add session token refresh" --push -o json
+```
+
+Expected result:
+
+```json
+{ "op_id": "wtexit_01..." }
+```
+
+The operation continues after the request disconnects. Follow the Worktree stream for
+`worktree.exit_action_started`, step events, redacted `worktree.exit_hook_output`, and exactly one
+terminal completed, failed, or canceled event. Cancel only that operation:
+
+```bash
+compozy worktree exit-cancel feature-auth --workspace . --op wtexit_01... -o json
+```
+
+### 4. Open or view the pull request
+
+Read the plan again after push. If `open_pr` is enabled, use its `base`, forge vocabulary, draft
+support, and `pr_prefill`:
+
+```bash
+compozy worktree pr feature-auth --workspace . \
+  --title "Add session token refresh" --body "Refresh expired sessions." \
+  --base main --draft -o json
+```
+
+Creating the same open pull request again returns the existing one. If the plan offers `view_pr`,
+use its URL instead of trying to create another.
+
+## GitHub provider setup
+
+The bundled `forge-github` extension is enrolled and enabled by daemon boot. It serves `github.com`
+remotes and resolves credentials in this order:
+
+1. Instance-bound `GITHUB_TOKEN`.
+2. `gh auth token` from the daemon's operator environment, with a five-second lookup deadline.
+3. No credential.
+
+Bind the token through hidden input; do not put it in argv:
+
+```bash
+compozy extension secrets set forge-github --env GITHUB_TOKEN
+compozy extension status forge-github -o json
+```
+
+Expected status exposes only secret presence and provider health. Forge capabilities report
+`credential_source: "binding"`; the secret value never appears in output. See
+[Extension secret bindings](/docs/extensions/secrets).
+
+For the native GitHub CLI fallback, authenticate the same operator environment that starts the
+daemon:
+
+```bash
+gh auth login
+gh auth status
+```
+
+The provider reads `gh auth token` for a capability probe and does not write GitHub CLI state.
+
+## Zero-credential tier
+
+Without a binding or usable `gh` login, Git status and local exit actions remain available. The
+plan reports forge cause `credential_absent`, omits PR creation, and may expose `browser_url` from the
+remote compare shape. Open that URL manually. CompozyOS does not claim that it created or inspected
+a pull request in this tier.
+
+Other safe causes are `credential_expired`, `rate_limited`, and `unsupported_remote`. Provider errors
+never include credential values.

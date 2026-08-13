@@ -14,7 +14,9 @@ The daemon owns task state. Treat task.Service, persisted task/run records, sess
 
 Do not infer task ownership from a message. Do not mutate task state outside CompozyOS task tools or the equivalent CLI/API surface.
 
-Task inspection, task pause/resume, forced run recovery, scheduler pause/resume/drain, and scheduler backlog are management surfaces. They are not currently exposed as native `compozy__*` tools. Use CLI or HTTP/UDS with structured output when you need those controls.
+Task inspect, pause/resume, and forced run release/fail/retry plus scheduler pause/resume/drain and
+backlog are CLI or HTTP/UDS management surfaces. Native tools do expose task block/list/unblock and
+task-level `needs_attention` recovery; use those only for their narrower daemon-owned contracts.
 
 ## Catalog And Inbox Reads
 
@@ -101,11 +103,12 @@ Do not leave ready tasks idle after telling the operator that work has been orch
 
 When one task should run as several scoped sibling assignments, use the designated fan-out surface:
 
-    compozy task fan-out <task-id> --designation "Inspect data path" --designation "Validate UI and docs" -o json
+    compozy task fan-out <task-id> --idempotency-key <stable-key> --designation "Inspect data path" --designation "Validate UI and docs" -o json
 
 Fan-out is bounded by `task.orchestration.designated_run_max`, and every sibling assignment must
-carry a non-empty designation and idempotency identity before CompozyOS enqueues any run. Each sibling run
-gets a shared `designation_group_id` and one assignment brief. If the task came from a Compozy Network
+carry a non-empty designation and idempotency identity before CompozyOS enqueues any run. The CLI
+derives per-designation identities from the required `--idempotency-key`. Each sibling run gets a
+shared `designation_group_id` and one assignment brief. If the task came from a Compozy Network
 thread, terminal run state is summarized back to the origin thread by `compozy.runtime`; do not manually
 duplicate raw worker logs into the thread. Read aggregated designation results from task detail JSON
 (`compozy task get <id> -o json`, field `designation_rollups`).

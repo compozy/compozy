@@ -287,6 +287,10 @@ A resolved workspace is also the home scope an agent session works in. Sessions,
 children, native tool calls, and workspace coordination commands use that workspace unless a request
 explicitly names another registered workspace. The daemon sends that crossing through one policy.
 
+A Worktree never creates another ownership scope. Its record and execution paths keep the parent
+`workspace_id` and add a `worktree_id`; memory, configuration, agents, and skills still resolve from
+the workspace. See [Worktrees](/docs/worktrees) for the nested Git lifecycle and selection model.
+
 The session's permission mode is what that policy reads. `approve-all` crosses without asking,
 `deny-all` never crosses and never prompts, and `approve-reads` asks at the native-tool boundary
 while denying at every other one. A denial names `permissions.mode` in its hint, so an agent can tell
@@ -323,6 +327,7 @@ what actually crossed.
 
 - [Config Overlays](/docs/workspaces/config-overlays) explains the workspace TOML and MCP merge rules.
 - [Multi-Root Workspaces](/docs/workspaces/multi-root) shows how `--add-dir` changes discovery.
+- [Worktrees](/docs/worktrees) explains linked Git checkouts inside one workspace identity.
 - [Agent Definitions](/docs/agents/definitions) documents the current `AGENT.md` parser.
 - [Skills Overview](/docs/skills) explains skill precedence after workspace resolution.
 - [Memory Scopes](/docs/memory/scopes) explains how `workspace_id` keys workspace and agent-workspace memory.

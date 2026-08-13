@@ -227,6 +227,11 @@ CompozyOS normalizes every root with `filepath.Abs`, `os.Stat`, and `filepath.Ev
 
 ## Config Boundary
 
+Additional roots and Worktrees solve different problems. An additional root extends agent and skill
+discovery without becoming an execution checkout. A Worktree is a linked Git checkout used by a
+session, Task run, or Loop action. It remains owned by the primary workspace and reads that
+workspace's effective config; CompozyOS does not load a second workspace overlay from the Worktree.
+
 Additional roots do not load config:
 
 ```text
@@ -280,5 +285,6 @@ creation uses.
 
 - [Workspace Resolver](/docs/workspaces/resolver) explains the registration and lookup model.
 - [Config Overlays](/docs/workspaces/config-overlays) explains why config comes only from the primary root.
+- [Worktrees](/docs/worktrees) explains nested execution checkouts and their parent-workspace scope.
 - [Skills Overview](/docs/skills) explains how workspace skill paths overlay the global registry.
 - [Agent Definitions](/docs/agents/definitions) documents agent discovery and parser behavior.

@@ -1,0 +1,113 @@
+---
+title: Task Isolation
+description: Bind task runs to one Worktree or create a fresh checkout for every run and fan-out designation.
+---
+
+A Task stores a Worktree policy inside its execution profile. The policy affects future runs only:
+each enqueue resolves and saves an immutable `resolved_worktree_mode` plus `worktree_id` when one
+exists.
+
+## Choose a policy
+
+| Mode      | Run location                                                             |
+| --------- | ------------------------------------------------------------------------ |
+| `inherit` | Resolve `task.orchestration.profile.default_worktree_mode` at enqueue.   |
+| `none`    | Use the parent workspace root.                                           |
+| `ref`     | Use one ready Worktree from the Task's workspace.                        |
+| `per_run` | Create a fresh Worktree for each run and retain it for assisted cleanup. |
+
+### 1. Inspect the current profile
+
+```bash
+compozy task profile get task_123 -o json
+```
+
+### 2. Patch only its Worktree block
+
+Use a stable checkout:
+
+```bash
+compozy task profile set-worktree task_123 --mode ref --ref feature-auth -o json
+```
+
+Or create one checkout for every future run:
+
+```bash
+compozy task profile set-worktree task_123 --mode per_run -o json
+```
+
+Expected result:
+
+```json
+{
+  "worktree": { "mode": "per_run" }
+}
+```
+
+The dedicated command preserves coordinator, worker, runtime, sandbox, review, and other profile
+blocks. An active run locks profile edits until that run reaches a terminal state.
+
+### 3. Enqueue and inspect the saved result
+
+Read the run after enqueue:
+
+```bash
+compozy task run list task_123 -o json
+```
+
+Expected fields for `per_run`:
+
+```json
+[
+  {
+    "resolved_worktree_mode": "per_run",
+    "worktree_id": "wt_01..."
+  }
+]
+```
+
+If a `ref` is removed before start, the run fails with `worktree_ref_invalid`. It never falls back
+to the workspace root. If per-run materialization fails, only the affected run fails with
+`per_run_materialization_failed`; its Task and sibling runs keep their own state.
+
+## Fan out into separate checkouts
+
+### 1. Enqueue designated siblings
+
+```bash
+compozy task fan-out task_123 --worktree-per-run \
+  --idempotency-key review-task-123-v1 \
+  --designation "Review the API" \
+  --designation "Review the web app" \
+  -o json
+```
+
+### 2. Read the accepted run identities
+
+Expected result:
+
+```json
+{
+  "designation_group_id": "dg_01...",
+  "runs": [
+    {
+      "id": "run_01...",
+      "designation_group_id": "dg_01...",
+      "designation": { "index": 0, "brief": "Review the API" }
+    },
+    {
+      "id": "run_02...",
+      "designation_group_id": "dg_01...",
+      "designation": { "index": 1, "brief": "Review the web app" }
+    }
+  ]
+}
+```
+
+Every accepted run gets its own Worktree and keeps the shared `designation_group_id`. Follow each
+returned run ID rather than treating the whole fan-out as one status. A later materialization or
+execution failure remains attributable to that run.
+
+Agents can apply the same focused mutation with `compozy__task_worktree_policy_set`, and can request
+fan-out isolation with `compozy__task_fanout_runs.worktree_per_run`. See
+[Agent management surface](/docs/worktrees/agent-surface).

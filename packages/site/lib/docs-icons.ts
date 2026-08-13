@@ -19,6 +19,7 @@ import {
   Folder,
   FolderTree,
   Gauge,
+  GitBranch,
   Key,
   Layers,
   LifeBuoy,
@@ -78,6 +79,7 @@ export const DOCS_ICONS: Record<string, LucideIcon> = {
   Folder,
   FolderTree,
   Gauge,
+  GitBranch,
   Key,
   Layers,
   LifeBuoy,
@@ -147,4 +149,5 @@ export const API_TAG_ICONS: Record<string, string> = {
   toolsets: "Boxes",
   vault: "Key",
   workspaces: "FolderTree",
+  worktrees: "GitBranch",
 };

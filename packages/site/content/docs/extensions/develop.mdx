@@ -229,6 +229,7 @@ and validated at build, install, and load.
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
+| `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
 | `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
 
 Missing a required service method for a declared provide fails the build. Declaring a value outside
@@ -294,12 +295,39 @@ can be published, and the bundled [Tailscale extension](/docs/gateway/tailscale)
 implementation. The provider never adds a Host API method; all three calls are initiated by the
 daemon.
 
+### Forge providers
+
+A forge provider translates Git remote state into pull-request capabilities for the
+[Worktree assisted exit](/docs/worktrees/assisted-exit). Register all three handlers with
+`ForgeProvider` in Go or `registerForgeProvider` in TypeScript; registration adds
+`forge.provider` and reserves its service names atomically.
+
+| Method               | Request                                            | Response contract                                                                                                                         |
+| -------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `forge/capabilities` | `remote_urls`                                      | Served remote, availability, provider vocabulary, draft support, compare template, template paths, default branch, and credential source. |
+| `forge/status`       | `remote_urls`, `branch`                            | Provider, pull-request number/state/URL, merged evidence, and fetch time.                                                                 |
+| `forge/pr_create`    | `remote_urls`, `head`, `base`, `title`, body/draft | `created` or `opened_existing`, plus a positive number and absolute URL.                                                                  |
+
+When `served` is true, capabilities must name `provider`, `served_remote`, `request_noun`,
+`open_action_label`, and `view_action_label`. `compare_url_template` uses `{base}` and `{head}`;
+`supports_draft` decides whether the Worktree surface offers draft creation. `template_paths` is an
+ordered set of repository-relative candidates. Treat every template as untrusted plain text.
+
+An available provider reports `credential_source` as `binding` or `gh`. An unavailable result uses
+only `credential_absent`, `credential_expired`, `rate_limited`, or `unsupported_remote`. Never return
+credential values in a result or error. Pull-request creation must be idempotent by open head branch:
+return `opened_existing` instead of creating a duplicate.
+
+The bundled `forge-github` provider serves `github.com`, supports drafts, and resolves a bound
+`GITHUB_TOKEN` before the operator's `gh auth token`. See the assisted-exit guide for secret binding
+and the zero-credential browser path.
+
 ### Bridge adapters
 
 External bridge authoring is a **planned follow-up program**, not a supported path today. CompozyOS
 does not yet publish the bridge service and control contracts, the grant surface, or a public bridge
 conformance harness, so `bridge.adapter` is excluded from the public completeness surface: an
-installed third-party manifest declaring it is rejected deterministically with that reason. The five
+installed third-party manifest declaring it is rejected deterministically with that reason. The six
 public provide surfaces above are the complete third-party set for now.
 
 In-tree bridge providers are unaffected — they are not installed extensions. Contributing one inside

@@ -47,6 +47,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.              | enabled, 32 KiB body, 2 KiB compact projection                                                        |
 | `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.       | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
 | `[permissions]`                      | Default permission mode for tool risk and cross-workspace requests.                  | `mode = "approve-all"`                                                                                |
+| `[worktrees]`                        | Managed placement, per-run branch namespace, bootstrap, and Git discovery freshness. | `$COMPOZY_HOME/worktrees`, `run/`, no copy/setup, 10m setup, 30s discovery                            |
 | `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.          | enabled, hosted MCP enabled, 256 KiB result default                                                   |
 | `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                             | 30 seconds                                                                                            |
 | `[tools.clarify]`                    | Timeout for one live agent clarification question.                                   | 5 minutes                                                                                             |
@@ -299,6 +300,18 @@ session_health_hook_min_interval = "1m"
 [permissions]
 # Valid values: deny-all, approve-reads, approve-all.
 mode = "approve-all"
+
+[worktrees]
+# Empty uses $COMPOZY_HOME/worktrees/<workspace>/<name> for new managed checkouts.
+root = ""
+# Lowercase, slash-terminated namespace for task per-run branches.
+run_branch_namespace = "run/"
+# Relative Git pathspecs for ignored, untracked files copied during managed creation.
+copy_list = []
+# Empty skips setup; a non-empty command runs inside the new checkout.
+setup_command = ""
+setup_timeout = "10m"
+discovery_cache_ttl = "30s"
 
 [tools]
 # Disables registry dispatch and hosted MCP exposure when false.
@@ -772,6 +785,8 @@ network_status_timeout = "5s"
 default_coordinator_mode = "inherit"
 default_worker_mode = "inherit"
 default_sandbox_mode = "inherit"
+# inherit has workspace-root semantics unless a higher task policy supplies a mode.
+default_worktree_mode = "inherit"
 # Gate task-level provider/model overrides on the profile.
 allow_task_provider_override = true
 # Gate task-level sandbox = "none" selections.
@@ -1143,6 +1158,25 @@ The mode also decides cross-workspace requests from agent sessions: `approve-all
 asking, `approve-reads` asks at the native-tool boundary and denies elsewhere, and `deny-all` never
 crosses and never prompts. There is no separate workspace-access key. See
 [Permissions](/docs/sessions/permissions#cross-workspace-access).
+
+## `[worktrees]`
+
+These values belong to the parent workspace. A workspace overlay changes later creates and Git
+discovery for that workspace; it does not move existing Worktrees or create a separate Worktree
+config scope.
+
+| Field                  | Type         | Default                   | Valid values                          | Description                                                              |
+| ---------------------- | ------------ | ------------------------- | ------------------------------------- | ------------------------------------------------------------------------ |
+| `root`                 | string       | `$COMPOZY_HOME/worktrees` | Empty or absolute path.               | Central parent for new managed Worktrees, grouped by workspace and name. |
+| `run_branch_namespace` | string       | `run/`                    | Lowercase slash-terminated namespace. | Prefix for per-run branches.                                             |
+| `copy_list`            | string array | empty                     | Non-empty relative Git pathspecs.     | Matching ignored, untracked files copied without overwriting files.      |
+| `setup_command`        | string       | empty                     | Shell command or empty.               | Bootstrap command run inside a new managed Worktree.                     |
+| `setup_timeout`        | duration     | `10m`                     | Positive Go duration.                 | Deadline for `setup_command`.                                            |
+| `discovery_cache_ttl`  | duration     | `30s`                     | Positive Go duration.                 | Freshness window for Git discovery and cached local status.              |
+
+The section applies live. New creation and later discovery read the active generation; accepted
+creations and existing paths keep their recorded decisions. Adoption does not run the copy or setup
+steps. See [Worktree configuration](/docs/worktrees/configuration) for the full bootstrap flow.
 
 ## `[tools]`
 
@@ -2123,13 +2157,14 @@ Defaults and gates that apply when a task does not store its own execution profi
 that allow or reject task-level provider/sandbox overrides. See
 [Task Execution Profiles](/docs/autonomy/execution-profiles) for the runtime behavior.
 
-| Field                          | Type    | Default   | Valid values        | Description                                                                                                              |
-| ------------------------------ | ------- | --------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `default_coordinator_mode`     | string  | `inherit` | `inherit`, `guided` | Coordinator behavior when a task profile does not set `coordinator.mode`.                                                |
-| `default_worker_mode`          | string  | `inherit` | `inherit`           | Worker selection mode when a task profile does not set `worker.mode`. `select` is allowed only on the per-task profile.  |
-| `default_sandbox_mode`         | string  | `inherit` | `inherit`, `none`   | Sandbox mode when a task profile does not set `sandbox.mode`.                                                            |
-| `allow_task_provider_override` | boolean | `true`    | `true` or `false`   | When false, task profiles may not set `provider`/`model` on coordinator, worker, or review blocks.                       |
-| `allow_task_sandbox_none`      | boolean | `true`    | `true` or `false`   | When false, task profiles may not set `sandbox.mode = "none"`. Required to be `true` if `default_sandbox_mode = "none"`. |
+| Field                          | Type    | Default   | Valid values                 | Description                                                                                                                |
+| ------------------------------ | ------- | --------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `default_coordinator_mode`     | string  | `inherit` | `inherit`, `guided`          | Coordinator behavior when a task profile does not set `coordinator.mode`.                                                  |
+| `default_worker_mode`          | string  | `inherit` | `inherit`                    | Worker selection mode when a task profile does not set `worker.mode`. `select` is allowed only on the per-task profile.    |
+| `default_sandbox_mode`         | string  | `inherit` | `inherit`, `none`            | Sandbox mode when a task profile does not set `sandbox.mode`.                                                              |
+| `default_worktree_mode`        | string  | `inherit` | `inherit`, `none`, `per_run` | Worktree policy resolved when a task profile keeps `worktree.mode = "inherit"`; bare `inherit` resolves to workspace root. |
+| `allow_task_provider_override` | boolean | `true`    | `true` or `false`            | When false, task profiles may not set `provider`/`model` on coordinator, worker, or review blocks.                         |
+| `allow_task_sandbox_none`      | boolean | `true`    | `true` or `false`            | When false, task profiles may not set `sandbox.mode = "none"`. Required to be `true` if `default_sandbox_mode = "none"`.   |
 
 Profile validation runs in `task.Service` when a profile is created or updated; the normalized
 profile is then stored. Session start loads the persisted profile (or the default `inherit` profile

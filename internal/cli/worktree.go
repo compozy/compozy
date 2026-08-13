@@ -30,7 +30,7 @@ func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var refresh bool
 	cmd := &cobra.Command{
-		Use: "list", Short: "List registered and discovered worktrees",
+		Use: "list", Short: "List registered worktrees",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, workspaceID, err := worktreeCommandContext(cmd, deps, workspaceRef)
 			if err != nil {

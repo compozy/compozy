@@ -71,6 +71,15 @@ Marketplace catalog configuration is global-only because its projection and refr
 
 ## Autonomy Scheduler
 
+`[worktrees]` controls the parent-workspace Worktree lifecycle. `root` defaults to
+`$COMPOZY_HOME/worktrees`; `run_branch_namespace` defaults to `run/`; `copy_list` and
+`setup_command` default empty; `setup_timeout` defaults to `10m`; and `discovery_cache_ttl` defaults
+to `30s`. Root must be empty or absolute, the namespace must be lowercase and slash-terminated,
+copy entries must be non-empty relative Git pathspecs, and both durations must be positive. The copy
+candidate set is limited to ignored, untracked files matched by those pathspecs. Workspace overlays
+merge each field independently. `worktrees.*` applies live to later creation and discovery without
+moving existing paths or changing an accepted creation.
+
 `task.orchestration.profile.default_worktree_mode` resolves an inherited task worktree policy before
 enqueue and accepts `inherit`, `none`, or `per_run`. It defaults to `inherit`, which has root
 semantics when no higher policy supplies a mode. The key applies live to later enqueues; existing run

@@ -15,7 +15,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
+func TestTaskCommandsRejectInvalidFlagCombos(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -32,6 +32,13 @@ func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
 			name:    "Should require change flags on update",
 			args:    []string{"task", "update", "task-1"},
 			wantErr: "task update requires at least one change flag",
+		},
+		{
+			name: "Should require an idempotency key for task fan-out",
+			args: []string{
+				"task", "fan-out", "task-1", "--designation", "Review the API",
+			},
+			wantErr: `required flag(s) "idempotency-key" not set`,
 		},
 		{
 			name: "Should reject clear owner with owner mutation",
