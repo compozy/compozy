@@ -49,6 +49,7 @@ vi.mock("@/systems/status/adapters/daemon-api", async importOriginal => {
 const activeWorkspaceState = {
   activeWorkspace: { id: "ws-home", root_dir: "/Users/tester", name: "home" } as unknown,
   activeWorkspaceId: "ws-home",
+  runtimeWorkspaceId: "ws-home",
   scope: "global" as "global" | "workspace",
   isLoading: false,
 };
@@ -95,6 +96,7 @@ describe("useHomeDashboard", () => {
       name: "home",
     };
     activeWorkspaceState.activeWorkspaceId = "ws-home";
+    activeWorkspaceState.runtimeWorkspaceId = "ws-home";
     activeWorkspaceState.scope = "global";
     activeWorkspaceState.isLoading = false;
   });
@@ -109,6 +111,7 @@ describe("useHomeDashboard", () => {
       expect(result.current.overviewStatus).toBe("ready");
     });
     expect(result.current.scope.workspaceParam).toBe("");
+    expect(result.current.agents.workspaceId).toBe("ws-home");
     expect(result.current.overview?.attention.total).toBe(2);
     expect(getHomeOverview).toHaveBeenCalledWith(
       expect.objectContaining({ workspace: undefined, usageWindow: 30 }),
@@ -141,6 +144,7 @@ describe("useHomeDashboard", () => {
       name: "proj",
     };
     activeWorkspaceState.activeWorkspaceId = "ws-proj";
+    activeWorkspaceState.runtimeWorkspaceId = "ws-proj";
     activeWorkspaceState.scope = "workspace";
     getHomeOverview.mockResolvedValue(makeHomeOverview());
 
@@ -165,6 +169,7 @@ describe("useHomeDashboard", () => {
       name: "proj",
     };
     activeWorkspaceState.activeWorkspaceId = "ws-proj";
+    activeWorkspaceState.runtimeWorkspaceId = "ws-proj";
     activeWorkspaceState.scope = "workspace";
     getHomeOverview.mockResolvedValue(makeHomeOverview());
 

@@ -76,12 +76,12 @@ function setRequestFromDraft(draft: ToolApprovalGrantSetDraft): ToolApprovalGran
 
 /**
  * View model for the Permissions "Remembered decisions" section: scopes the read to the
- * active workspace, derives local loading/error/empty/ready states, and owns the revoke
+ * runtime workspace, derives local loading/error/empty/ready states, and owns the revoke
  * confirmation lifecycle (target, pending, error) so the component stays presentational.
  */
 export function useToolApprovalGrantsPanel(): ToolApprovalGrantsPanelViewModel {
-  const { activeWorkspaceId, hasHydrated, isLoading: workspacesLoading } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId, hasHydrated, isLoading: workspacesLoading } = useActiveWorkspace();
+  const workspaceId = runtimeWorkspaceId ?? "";
   const hasWorkspace = workspaceId !== "";
 
   const { data, error: queryErrorRaw, isLoading, refetch } = useToolApprovalGrants(workspaceId);

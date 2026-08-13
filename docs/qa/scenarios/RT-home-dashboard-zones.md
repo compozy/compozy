@@ -33,3 +33,8 @@ the dashboard body contained no H1. HTTP and UDS normalized to the same overview
 2026-08-13 re-walk: Home rendered all seven truthful zones for project `tmp`, then exposed a recoverable workspace error while the daemon was stopped. After the daemon returned, Retry left the route blank; filed `BUG-20260813-retry-leaves-blank-route`.
 
 2026-08-13 fix re-walk: after `a97e07f`, the same daemon interruption retained a visible recovery boundary and Retry rendered the complete project-scoped Home dashboard after restart. The route no longer entered a blank pending shell.
+
+2026-08-13 Global runtime-binding re-walk: reset after the Agents zone was found to query an empty
+project id while Global was active. The canonical daemon-served Home E2E now proves the overview and
+all six agent rows read from the hidden operator-home runtime binding while the menubar remains
+Global. `web/e2e/__tests__/dashboard.spec.ts` passed against a production Web build.

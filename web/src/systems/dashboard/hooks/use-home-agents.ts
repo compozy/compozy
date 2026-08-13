@@ -18,8 +18,8 @@ export interface HomeAgentsModel {
 const HOME_AGENT_LIMIT = 6;
 
 export function useHomeAgents(): HomeAgentsModel {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = runtimeWorkspaceId ?? "";
   const catalogQuery = useAgentCatalog(workspaceId, { limit: HOME_AGENT_LIMIT });
 
   const agents = catalogQuery.agents;

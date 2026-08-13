@@ -286,10 +286,11 @@ test("operator sees blocked sandbox diagnostics without leaking secrets or writi
   await setWorkspaceSandbox(runtime, workspace.id, sandboxProfileName);
   const session = await createSession(runtime, blockedAgent, workspace.id);
 
+  await completeOnboardingIfPrompted(appPage);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
   await appPage.goto(runtime.url(sessionPath(blockedAgent, session.id)), {
     waitUntil: "domcontentloaded",
   });
-  await completeOnboardingIfPrompted(appPage);
   const blockedSessionWin = sessionWindow(appPage, session.id);
   const sessionUI = sessionWindowSelectors(blockedSessionWin);
   await expect(blockedSessionWin).toBeVisible();

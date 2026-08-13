@@ -80,6 +80,12 @@ export async function switchWorkspace(
   const workspaceControl = page.locator('[data-slot="os-menubar-workspace"]');
   await workspaceControl.click();
   const option = page.getByTestId(`os-workspace-option-${workspaceId}`);
+  if (!(await option.isVisible().catch(() => false))) {
+    await page.keyboard.press("Escape");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("os-desktop")).toBeVisible();
+    await workspaceControl.click();
+  }
   await expect(option).toBeVisible();
   await expect(option).toContainText(workspaceName);
   await option.click();

@@ -15,7 +15,7 @@ const allowGrant = toolApprovalGrantFixtures[0]!;
 const rejectGrant = toolApprovalGrantFixtures[1]!;
 
 const workspaceMock = vi.hoisted(() => ({
-  value: { activeWorkspaceId: "ws_default" as string | null, hasHydrated: true, isLoading: false },
+  value: { runtimeWorkspaceId: "ws_default" as string | null, hasHydrated: true, isLoading: false },
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
@@ -45,7 +45,7 @@ function renderSection() {
 
 describe("ToolApprovalGrantsSection", () => {
   beforeEach(() => {
-    workspaceMock.value = { activeWorkspaceId: WS, hasHydrated: true, isLoading: false };
+    workspaceMock.value = { runtimeWorkspaceId: WS, hasHydrated: true, isLoading: false };
   });
 
   afterEach(() => {
@@ -111,8 +111,8 @@ describe("ToolApprovalGrantsSection", () => {
     await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-loading`)).toBeInTheDocument());
   });
 
-  it("Should render the empty state without fetching when there is no active workspace", async () => {
-    workspaceMock.value = { activeWorkspaceId: null, hasHydrated: true, isLoading: false };
+  it("Should render the empty state without fetching when there is no runtime workspace", async () => {
+    workspaceMock.value = { runtimeWorkspaceId: null, hasHydrated: true, isLoading: false };
     stubFetch([listHandler(toolApprovalGrantFixtures)]);
     renderSection();
 

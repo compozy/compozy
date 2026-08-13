@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { appWindow } from "../fixtures/os-navigation";
+import { appWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { marketplaceOperatorSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { runBrowserRuntimeCLIJSON } from "../fixtures/scenario-contracts";
@@ -26,8 +26,9 @@ test.describe("Extension dev overlay and source-union install", () => {
     runtime,
   }) => {
     test.slow();
-    const paths = requireLaunchPaths(runtime);
-    const workspace = await runtime.resolveWorkspace(paths.homeDir);
+    requireLaunchPaths(runtime);
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-extension-"));
+    const workspace = await runtime.resolveWorkspace(workspaceRoot);
     const sourceDir = await scaffoldGoExtension(
       runtime,
       extensionName,
@@ -61,6 +62,7 @@ test.describe("Extension dev overlay and source-union install", () => {
     expect(linked).toMatchObject({ dev: true, name: extensionName, overrides_published: true });
 
     await completeOnboardingIfPrompted(appPage);
+    await switchWorkspace(appPage, workspace.id, workspace.name);
     await appPage.goto(runtime.url(`/marketplace/extension/${extensionName}`), {
       waitUntil: "domcontentloaded",
     });

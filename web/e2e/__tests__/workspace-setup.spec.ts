@@ -29,7 +29,9 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   await completeOnboardingIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
 
-  await appPage.locator('[data-slot="os-menubar-workspace"]').click();
+  const workspaceControl = appPage.locator('[data-slot="os-menubar-workspace"]');
+  await expect(workspaceControl).toContainText("Global");
+  await workspaceControl.click();
   await appPage.getByTestId("os-workspace-add").click();
 
   const dialog = appPage.getByTestId("workspace-setup-dialog");
@@ -40,8 +42,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   await expect(ruledHeader).toHaveAttribute("data-variant", "ruled");
   await expect(ruledHeader).toContainText("Add workspace");
 
-  const dialogGlobalCard = dialog.getByTestId("workspace-setup-global-card");
-  await expect(dialogGlobalCard).toHaveAttribute("data-size", "compact");
+  await expect(dialog.getByTestId("workspace-setup-global-card")).toHaveCount(0);
 
   const browse = await runtime.requestJSON<{ path: string; roots: string[] }>("/api/fs/browse");
   expect(browse.roots.length).toBeGreaterThan(0);
@@ -66,6 +67,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   await appPage.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(ui.osDesktop).toBeVisible();
+  await expect(workspaceControl).toContainText("Global");
 });
 
 test.describe("first-run default model", () => {

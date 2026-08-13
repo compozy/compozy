@@ -7,7 +7,13 @@ import { promisify } from "node:util";
 import type { Browser, Locator, Page } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
-import { appWindow, sessionWindow, windowFrame, windowID } from "../fixtures/os-navigation";
+import {
+  appWindow,
+  sessionWindow,
+  switchWorkspace,
+  windowFrame,
+  windowID,
+} from "../fixtures/os-navigation";
 import {
   osShellSelectors,
   sessionWorkspaceSwitchSelectors,
@@ -969,19 +975,15 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   appPage,
   runtime,
 }) => {
-  const workspace = await prepareShell(appPage, runtime);
+  const workspace = await prepareProjectShell(appPage, runtime);
   const secondWorkspace = await addSecondWorkspace(runtime, workspace.id);
+  await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
 
   await openMenu(appPage, "Session");
   await appPage.getByTestId("os-menu-new-session").click();
   const createDialog = appPage.getByTestId("session-create-dialog");
   await expect(createDialog).toBeVisible();
   await createDialog.getByTestId("session-create-mode-advanced").click();
-  await createDialog.getByTestId("session-create-workspace-select").click();
-  await appPage.getByTestId(`workspace-command-item-${secondWorkspace.id}`).click();
-  await expect(createDialog.getByTestId("session-create-workspace-select")).toContainText(
-    secondWorkspace.name
-  );
   await createDialog.getByTestId("session-create-agent-select").click();
   await appPage.getByTestId(`agent-command-item-${browserLifecycleAgent}`).click();
   await expect(createDialog.getByTestId("session-create-agent-select")).toContainText(
@@ -1590,7 +1592,7 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
   appPage,
   runtime,
 }) => {
-  const workspace = await prepareShell(appPage, runtime);
+  const workspace = await prepareProjectShell(appPage, runtime);
   const secondWorkspace = await addSecondWorkspace(runtime, workspace.id);
   const session = await createNamedSession(runtime, secondWorkspace.id, "cross-workspace-session");
   const confirmSwitch = sessionWorkspaceSwitchSelectors(appPage);
@@ -2861,6 +2863,13 @@ async function prepareShell(page: Page, runtime: BrowserRuntime): Promise<Worksp
   return workspace;
 }
 
+async function prepareProjectShell(page: Page, runtime: BrowserRuntime): Promise<WorkspacePayload> {
+  const runtimeWorkspace = await prepareShell(page, runtime);
+  const projectWorkspace = await addWorkspace(runtime, runtimeWorkspace.id, "primary");
+  await switchWorkspace(page, projectWorkspace.id, projectWorkspace.name);
+  return projectWorkspace;
+}
+
 async function openPeerPage(browser: Browser, runtime: BrowserRuntime): Promise<Page> {
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const page = await context.newPage();
@@ -3485,12 +3494,20 @@ async function addSecondWorkspace(
   runtime: BrowserRuntime,
   firstWorkspaceId: string
 ): Promise<WorkspacePayload> {
+  return await addWorkspace(runtime, firstWorkspaceId, "second");
+}
+
+async function addWorkspace(
+  runtime: BrowserRuntime,
+  excludedWorkspaceId: string,
+  suffix: string
+): Promise<WorkspacePayload> {
   if (!runtime.paths) throw new Error("workspace switch E2E requires launch-mode runtime paths");
-  const rootDir = `${runtime.paths.homeDir}-os-shell-second-workspace`;
+  const rootDir = `${runtime.paths.homeDir}-os-shell-${suffix}-workspace`;
   const { mkdir } = await import("node:fs/promises");
   await mkdir(rootDir, { recursive: true });
   const workspace = await runtime.resolveWorkspace(rootDir);
-  if (workspace.id === firstWorkspaceId) {
+  if (workspace.id === excludedWorkspaceId) {
     throw new Error("cross-workspace E2E setup must resolve a distinct workspace");
   }
   return workspace;
