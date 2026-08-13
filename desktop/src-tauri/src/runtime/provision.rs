@@ -17,7 +17,7 @@ use crate::state::ProvisionStage;
 
 use super::artifacts::{
     ArtifactError, VerifiedArtifact, download_verified, fetch_signed_manifest, http_client,
-    verify_manifest,
+    verify_manifest_with_keys,
 };
 use super::provenance::{self, ProvenanceRecord};
 
@@ -66,6 +66,7 @@ pub struct ProvisionRequest<'a> {
     pub home: &'a CompozyHome,
     pub manifest_url: &'a Url,
     pub public_key: &'a str,
+    pub previous_public_key: Option<&'a str>,
     pub target: &'a str,
     pub installed: Option<&'a Version>,
     pub app_version: &'a str,
@@ -87,10 +88,11 @@ pub fn provision(
         remove_staging(&paths)?;
     }
     let (manifest, signature) = fetch_signed_manifest(&client, request.manifest_url)?;
-    let Some(verified) = verify_manifest(
+    let public_keys = release_public_keys(request.public_key, request.previous_public_key);
+    let Some(verified) = verify_manifest_with_keys(
         &manifest,
         &signature,
-        request.public_key,
+        &public_keys,
         request.target,
         request.installed,
     )?
@@ -136,13 +138,15 @@ pub fn stage_update(
     home: &CompozyHome,
     manifest_url: &Url,
     public_key: &str,
+    previous_public_key: Option<&str>,
     target: &str,
     installed: &Version,
 ) -> Result<Option<StagedRuntime>, ProvisionError> {
     let client = http_client(Duration::from_secs(30))?;
     let (manifest, signature) = fetch_signed_manifest(&client, manifest_url)?;
+    let public_keys = release_public_keys(public_key, previous_public_key);
     let Some(verified) =
-        verify_manifest(&manifest, &signature, public_key, target, Some(installed))?
+        verify_manifest_with_keys(&manifest, &signature, &public_keys, target, Some(installed))?
     else {
         return Ok(None);
     };
@@ -156,6 +160,14 @@ pub fn stage_update(
         verified,
         binary_path: paths.staged_binary,
     }))
+}
+
+fn release_public_keys<'a>(current: &'a str, previous: Option<&'a str>) -> Vec<&'a str> {
+    let mut keys = vec![current];
+    if let Some(previous) = previous.filter(|key| *key != current) {
+        keys.push(previous);
+    }
+    keys
 }
 
 pub fn install_staged(
@@ -426,6 +438,7 @@ mod tests {
             home: &home,
             manifest_url: &manifest_url,
             public_key: "unused",
+            previous_public_key: None,
             target: "darwin-aarch64",
             installed: None,
             app_version: "0.3.0",

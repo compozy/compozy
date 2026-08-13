@@ -6,10 +6,10 @@ persona: Dora
 journey: J-evaluate-compozy-beta
 expected: The hosted installer, `npm install -g @compozy/cli@beta`, and the pinned `go install` command from the latest release notes each install the same latest published v0.3 beta binary; `https://compozy.com/install.sh` and the site install surfaces resolve that tag dynamically (no hand-maintained version literal anywhere); the hosted installer opens bootstrap when it has an interactive terminal, npm and Go require `compozy install`, and the README and site offer no Homebrew path before v0.3.0 stable.
 entry_points: README Installation; compozy.com install section; compozy.com/docs/getting-started/installation; npm registry; Go module proxy
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: blocked — local channel copy and Homebrew removal were verified, but live installer/npm/Go parity is deferred to post-publication acceptance
+retest_status:
 fix_commits:
 evidence:
 last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
@@ -39,3 +39,8 @@ carrying a number. Local evidence: `public-install-contract.test.ts` (route head
 parity, dry-run of the rendered script, anti-literal guard) and `make installer-check`. Live
 three-channel parity against the published latest release stays deferred to the post-publication
 acceptance pass.
+
+QA impact 2026-08-13: beta.15 exposed an npm package before its referenced GitHub archives were
+public, so a successful registry publish still installed with HTTP 404. The release workflow now
+requires public GitHub assets and real macOS/Linux package installation before npm publication.
+Reset to `untested` until the repaired beta.15 install and the complete beta.16 flow are walked.

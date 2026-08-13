@@ -6,7 +6,7 @@ persona: Dora
 journey: J-publish-compozy-beta
 expected: After both npm publishes succeed, production waits at most ten minutes for @compozy/cli and @compozy/extension-sdk to expose the requested dist-tag at the exact release version; stale or absent tags are re-read, while query failures, malformed policy data, or a beta that moves latest stop immediately without republishing.
 entry_points: GitHub Actions release.yml Production Release; Verify published channel policy; npm registry dist-tags
-qa_status: blocked-verify
+qa_status: untested
 bug_ids: BUG-20260807-npm-dist-tag-readiness
 fix_status: pending
 retest_status:
@@ -22,3 +22,8 @@ observed beta.5 even though npm had accepted beta.6; the registry later converge
 republish. The working-tree fix waits on the observable dist-tag condition for at most ten minutes,
 uses fresh registry reads, and keeps malformed responses, query errors, and beta/latest violations
 terminal. The next hosted release must exercise the readiness loop before this scenario can pass.
+
+QA impact 2026-08-13: publication custody moved after the public GitHub release and a real CLI
+installation from its archives. The readiness loop remains the final registry convergence check,
+but can no longer observe a version whose GitHub dependency is private. Reset to `untested` for
+the next hosted release.

@@ -203,6 +203,12 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 		)
 		assertEqualString(t, "npms[0].homepage", stringAt(t, npm, "homepage"), "https://compozy.com")
 		assertEqualString(t, "npms[0].tag", stringAt(t, npm, "tag"), "{{ .Env.NPM_TAG }}")
+		assertEqualString(
+			t,
+			"npms[0].disable",
+			stringAt(t, npm, "disable"),
+			`{{ eq .Env.GORELEASER_PUBLISH_NPM "false" }}`,
+		)
 	})
 
 	t.Run("Should use supported publication policy without an AUR target", func(t *testing.T) {
@@ -585,22 +591,28 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
 	release := mapAt(t, goreleaser, "release")
 
-	t.Run("Should keep the shared GitHub release in draft state until desktop verification", func(t *testing.T) {
+	t.Run("Should publish package managers only after public installation succeeds", func(t *testing.T) {
 		t.Parallel()
 
 		if got, ok := release["draft"].(bool); !ok || !got {
 			t.Fatalf("release.draft = %#v, want true", release["draft"])
 		}
 		publishFeed := strings.Index(workflow, "scripts/publish-desktop-release.sh")
-		publishDraft := strings.Index(workflow, "- name: Publish GitHub draft last")
+		stageDraft := strings.Index(workflow, "name: Stage GitHub draft without publishing npm")
+		publishDraft := strings.Index(workflow, "- name: Publish GitHub release before downstream package managers")
+		publicInstall := strings.Index(workflow, "  cli-public-install-smoke:")
+		publishNPM := strings.Index(workflow, "- name: Publish verified CLI package")
 		verifyPublished := strings.Index(workflow, "- name: Verify published channel policy")
-		patchDraft := strings.Index(workflow, "-F draft=false")
-		if publishFeed == -1 || publishDraft == -1 || verifyPublished == -1 || patchDraft == -1 {
-			t.Fatal("release workflow is missing feed publication or final GitHub draft publication")
+		if publishFeed == -1 || stageDraft == -1 || publishDraft == -1 || publicInstall == -1 ||
+			publishNPM == -1 || verifyPublished == -1 || !strings.Contains(workflow, "-F draft=false") {
+			t.Fatal("release workflow is missing staged, public-install, or package publication phases")
 		}
-		if publishFeed > publishDraft || publishDraft > patchDraft || patchDraft > verifyPublished {
-			t.Fatal("release workflow must verify and publish the feed before publishing the GitHub draft")
+		if stageDraft > publishFeed || publishFeed > publishDraft || publishDraft > publicInstall ||
+			publicInstall > publishNPM {
+			t.Fatal("release workflow must publish GitHub and prove a public install before npm publication")
 		}
+		assertContainsText(t, "GoReleaser npm custody", workflow, `GORELEASER_PUBLISH_NPM: "false"`)
+		assertContainsText(t, "public CLI installation", workflow, "smoke-public-cli-package.sh")
 
 		finalizer := workflow[publishDraft:verifyPublished]
 		for _, required := range []string{
@@ -652,7 +664,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		t.Parallel()
 
 		start := strings.Index(workflow, "  desktop-dry-run:")
-		end := strings.Index(workflow, "  e2e-nightly:")
+		end := strings.Index(workflow, "  desktop-dry-run-smoke:")
 		if start == -1 || end == -1 || start >= end {
 			t.Fatal("release workflow is missing the desktop dry-run job before the nightly lane")
 		}
@@ -670,6 +682,8 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"uploadUpdaterJson: false",
 			"uploadWorkflowArtifacts: false",
 			"COMPOZY_RELEASE_CHANNEL: beta",
+			"scripts/normalize-desktop-artifacts.sh",
+			"uses: actions/upload-artifact@v7",
 		} {
 			assertContainsText(t, "desktop release dry-run", dryRun, required)
 		}
@@ -680,9 +694,22 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"GITHUB_TOKEN:",
 			"APPLE_CERTIFICATE:",
 			"APPLE_ID:",
-			"actions/upload-artifact",
 		} {
 			assertNotContainsText(t, "desktop release dry-run", dryRun, forbidden)
+		}
+
+		smokeEnd := strings.Index(workflow, "  e2e-nightly:")
+		if smokeEnd == -1 || end >= smokeEnd {
+			t.Fatal("release workflow is missing the cross-job desktop dry-run smoke")
+		}
+		smoke := workflow[end:smokeEnd]
+		for _, required := range []string{
+			"needs: desktop-dry-run",
+			"actions/download-artifact@v8",
+			"scripts/smoke-desktop-release-artifact.sh",
+			"desktop-dry-run-smoke-${{ matrix.id }}-diagnostics",
+		} {
+			assertContainsText(t, "desktop dry-run smoke", smoke, required)
 		}
 	})
 
@@ -747,6 +774,33 @@ func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
 	t.Parallel()
 
 	root := findRepoRootForReleaseConfigTest(t)
+
+	t.Run("Should restore the AppImage executable bit after artifact transfer", func(t *testing.T) {
+		t.Parallel()
+
+		artifact := filepath.Join(t.TempDir(), "CompozyOS.AppImage")
+		if err := os.WriteFile(artifact, []byte("fixture"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(AppImage) error = %v", err)
+		}
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "prepare-desktop-smoke-artifact.sh"),
+			"linux",
+			artifact,
+		)
+		cmd.Dir = root
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("prepare AppImage error = %v, output = %s", err, output)
+		}
+		info, err := os.Stat(artifact)
+		if err != nil {
+			t.Fatalf("os.Stat(AppImage) error = %v", err)
+		}
+		if info.Mode().Perm()&0o100 == 0 {
+			t.Fatalf("AppImage mode = %o, want owner executable", info.Mode().Perm())
+		}
+	})
 
 	t.Run("Should fail before build when signing material is absent", func(t *testing.T) {
 		t.Parallel()
@@ -1012,6 +1066,120 @@ func TestReleasePreflightValidatesPublishWorkspace(t *testing.T) {
 	}
 }
 
+func TestReleasePublicationStateKeepsImmutableRegistryVersionsRecoverable(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	tests := []struct {
+		name           string
+		cliState       string
+		extensionState string
+		releases       string
+		wantState      string
+		wantStage      string
+		wantDesktop    string
+	}{
+		{
+			name:           "Should repair a missing GitHub release without rebuilding desktop",
+			cliState:       "published",
+			extensionState: "published",
+			releases:       `[]`,
+			wantState:      "missing_published_published",
+			wantStage:      "true",
+			wantDesktop:    "false",
+		},
+		{
+			name:           "Should require desktop validation for a fresh release",
+			cliState:       "missing",
+			extensionState: "missing",
+			releases:       `[]`,
+			wantState:      "missing_missing_missing",
+			wantStage:      "true",
+			wantDesktop:    "true",
+		},
+		{
+			name:           "Should resume an orphaned draft without presenting its old desktop as fixed",
+			cliState:       "published",
+			extensionState: "published",
+			releases:       `[{"id":42,"tag_name":"v0.3.0-beta.15","target_commitish":"release-commit","draft":true,"assets":[{"id":1,"name":"checksums.txt","state":"uploaded","size":100},{"id":2,"name":"checksums.txt.sigstore.json","state":"uploaded","size":1},{"id":3,"name":"install.sh","state":"uploaded","size":1},{"id":4,"name":"compozy_darwin_arm64.tar.gz","state":"uploaded","size":1}]}]`,
+			wantState:      "draft_published_published",
+			wantStage:      "false",
+			wantDesktop:    "false",
+		},
+		{
+			name:           "Should resume npm publication from an already public GitHub release",
+			cliState:       "missing",
+			extensionState: "missing",
+			releases:       `[{"id":42,"tag_name":"v0.3.0-beta.15","target_commitish":"release-commit","draft":false,"assets":[{"id":1,"name":"checksums.txt","state":"uploaded","size":100},{"id":2,"name":"checksums.txt.sigstore.json","state":"uploaded","size":1},{"id":3,"name":"install.sh","state":"uploaded","size":1},{"id":4,"name":"compozy_darwin_arm64.tar.gz","state":"uploaded","size":1}]}]`,
+			wantState:      "published_missing_missing",
+			wantStage:      "false",
+			wantDesktop:    "false",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			binDir := t.TempDir()
+			npmStub := `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == "whoami" ]]; then exit 0; fi
+package="$2"
+state="${CLI_STATE}"
+if [[ "${package}" == @compozy/extension-sdk@* ]]; then state="${EXTENSION_STATE}"; fi
+if [[ "${state}" == "published" ]]; then printf '%s\n' "${RELEASE_VERSION}"; exit 0; fi
+echo 'npm error E404 404 Not Found' >&2
+exit 1
+`
+			ghStub := `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$*" == *"releases/assets/"* ]]; then
+  printf '%064d  compozy_darwin_arm64.tar.gz\n' 0
+  exit 0
+fi
+printf '[%s]\n' "${GH_RELEASES}"
+`
+			for name, contents := range map[string]string{"npm": npmStub, "gh": ghStub} {
+				if err := os.WriteFile(filepath.Join(binDir, name), []byte(contents), 0o755); err != nil {
+					t.Fatalf("os.WriteFile(%s stub) error = %v", name, err)
+				}
+			}
+
+			outputPath := filepath.Join(t.TempDir(), "github-output")
+			cmd := exec.CommandContext(
+				t.Context(),
+				"bash",
+				filepath.Join(root, "scripts", "release-publication-state.sh"),
+			)
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(),
+				"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"CLI_STATE="+tt.cliState,
+				"EXTENSION_STATE="+tt.extensionState,
+				"GH_RELEASES="+tt.releases,
+				"GITHUB_OUTPUT="+outputPath,
+				"GITHUB_REPOSITORY=compozy/compozy",
+				"NPM_TOKEN=fixture",
+				"RELEASE_COMMIT=release-commit",
+				"RELEASE_TAG=v0.3.0-beta.15",
+				"RELEASE_VERSION=0.3.0-beta.15",
+				"RUNNER_TEMP="+t.TempDir(),
+			)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("release-publication-state.sh error = %v, output = %s", err, output)
+			}
+			decision, err := os.ReadFile(outputPath)
+			if err != nil {
+				t.Fatalf("os.ReadFile(GITHUB_OUTPUT) error = %v", err)
+			}
+			assertContainsText(t, "publication state", string(decision), "publication_state="+tt.wantState)
+			assertContainsText(t, "stage decision", string(decision), "stage_release="+tt.wantStage)
+			assertContainsText(t, "desktop decision", string(decision), "desktop_required="+tt.wantDesktop)
+		})
+	}
+}
+
 func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 	t.Parallel()
 
@@ -1033,8 +1201,8 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 		} {
 			assertContainsText(t, "release workflow", workflow, snippet)
 		}
-		if got := strings.Count(workflow, "Accept: application/vnd.github.raw+json"); got != 1 {
-			t.Fatalf("release workflow tool loader count = %d, want 1 shared definition", got)
+		if got := strings.Count(workflow, "Accept: application/vnd.github.raw+json"); got != 2 {
+			t.Fatalf("release workflow raw loader count = %d, want scripts and GoReleaser config", got)
 		}
 		assertNotContainsText(t, "release workflow", workflow, ".release-workflow-tools")
 	})
@@ -1131,8 +1299,8 @@ func TestReleaseWorkflowVerifiesGoReleaserWithCompatibleCosign(t *testing.T) {
 			productionPrerequisites,
 			"cosign-version: ${{ env.COSIGN_VERSION }}",
 		)
-		if got := strings.Count(workflow, "- uses: goreleaser/goreleaser-action@v7"); got != 1 {
-			t.Fatalf("production GoReleaser action count = %d, want 1", got)
+		if got := strings.Count(workflow, "- uses: goreleaser/goreleaser-action@v7"); got != 2 {
+			t.Fatalf("production GoReleaser action count = %d, want prepare and publish", got)
 		}
 	})
 }

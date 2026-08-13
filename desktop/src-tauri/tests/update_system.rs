@@ -286,6 +286,7 @@ fn request<'a>(
         home,
         manifest_url: &server.manifest_url,
         public_key: key,
+        previous_public_key: None,
         target: current_target().expect("test target is supported"),
         installed: None,
         app_version: "0.3.0",

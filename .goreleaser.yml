@@ -90,6 +90,7 @@ nfpms:
 
 npms:
   - name: "@compozy/cli"
+    disable: '{{ eq .Env.GORELEASER_PUBLISH_NPM "false" }}'
     ids:
       - compozy-archive
     description: "One complete environment to create, automate, and supervise agent work."
