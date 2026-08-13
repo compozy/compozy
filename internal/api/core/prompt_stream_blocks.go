@@ -133,7 +133,7 @@ func promptAISDKFinishReason(stopReason acp.PromptStopReason) string {
 }
 
 func promptPermissionDataPartID(event acp.AgentEvent) string {
-	if requestID := strings.TrimSpace(event.RequestID); requestID != "" {
+	if requestID := strings.TrimSpace(event.RequestIDValue()); requestID != "" {
 		return requestID
 	}
 	if turnID := strings.TrimSpace(event.TurnID); turnID != "" {

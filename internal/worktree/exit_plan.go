@@ -34,6 +34,8 @@ const (
 	reasonStatusUnreadable = "Git status could not be read for this worktree."
 	reasonRemoteUnreadable = "Git remote configuration could not be read for this worktree."
 	exitUntrackedFileLimit = 200
+	exitOpenPRLabel        = "Open PR"
+	defaultBaseBranch      = "main"
 )
 
 type ExitActionPlan struct {
@@ -237,12 +239,19 @@ func buildExitActions(
 	pendingPush := ahead > 0 || (!hasUpstream && hasRemote && !detached)
 	rows := []ExitActionPlan{{Action: ExitActionCommit, Label: "Commit", Enabled: dirty}}
 	if hasRemote {
-		rows = append(rows,
+		rows = append(
+			rows,
 			ExitActionPlan{Action: ExitActionCommitPush, Label: "Commit & push", Enabled: dirty && !detached},
-			ExitActionPlan{Action: ExitActionPush, Label: "Push", Enabled: !dirty && pendingPush && !detached, Publish: !hasUpstream},
+			ExitActionPlan{
+				Action:  ExitActionPush,
+				Label:   "Push",
+				Enabled: !dirty && pendingPush && !detached,
+				Publish: !hasUpstream,
+			},
 		)
 	}
-	if hasRemote && forgeStatus != nil && forgeStatus.PRURL != "" {
+	switch {
+	case hasRemote && forgeStatus != nil && forgeStatus.PRURL != "":
 		viewLabel := "View in browser"
 		if forge != nil && strings.TrimSpace(forge.ViewActionLabel) != "" {
 			viewLabel = strings.TrimSpace(forge.ViewActionLabel)
@@ -251,42 +260,62 @@ func buildExitActions(
 			Action: ExitActionViewPR, Label: viewLabel, Enabled: true,
 			URL: forgeStatus.PRURL, PRNumber: valueOrZero(forgeStatus.PRNumber),
 		})
-	} else if hasRemote && forge != nil {
+	case hasRemote && forge != nil:
 		openLabel := strings.TrimSpace(forge.OpenActionLabel)
 		if openLabel == "" {
-			openLabel = "Open PR"
+			openLabel = exitOpenPRLabel
 		}
 		rows = append(rows, ExitActionPlan{Action: ExitActionOpenPR, Label: openLabel, Enabled: true})
-	} else if hasRemote && browserURL != "" {
+	case hasRemote && browserURL != "":
 		rows = append(rows, ExitActionPlan{
-			Action: ExitActionOpenPR, Label: "Open in browser", Enabled: true, URL: browserURL,
+			Action: ExitActionOpenPR, Label: exitOpenBrowserLabel, Enabled: true, URL: browserURL,
 		})
 	}
+	applyExitActionBlocks(rows, exitActionBlockState{
+		dirty: dirty, detached: detached, hasRemote: hasRemote, hasUpstream: hasUpstream,
+		pendingPush: pendingPush, ahead: ahead, behind: behind, baseAhead: baseAhead, pause: pause,
+	})
+	return rows
+}
+
+type exitActionBlockState struct {
+	dirty, detached, hasRemote, hasUpstream, pendingPush bool
+	ahead, behind, baseAhead                             int
+	pause                                                string
+}
+
+func applyExitActionBlocks(rows []ExitActionPlan, state exitActionBlockState) {
 	for index := range rows {
 		row := &rows[index]
-		if pause != "" {
-			row.Enabled, row.BlockedReason = false, pause
+		if state.pause != "" {
+			row.Enabled, row.BlockedReason = false, state.pause
 			continue
 		}
 		switch row.Action {
 		case ExitActionCommit:
-			if !dirty {
+			if !state.dirty {
 				row.BlockedReason = reasonNoChanges
 			}
 		case ExitActionCommitPush:
-			row.BlockedReason = commitPushBlockReason(dirty, detached, hasRemote, ahead, behind)
+			row.BlockedReason = commitPushBlockReason(
+				state.dirty, state.detached, state.hasRemote, state.ahead, state.behind,
+			)
 			row.Enabled = row.BlockedReason == ""
 		case ExitActionPush:
-			row.BlockedReason = pushBlockReason(dirty, detached, hasRemote, pendingPush, ahead, behind)
+			row.BlockedReason = pushBlockReason(
+				state.dirty, state.detached, state.hasRemote, state.pendingPush, state.ahead, state.behind,
+			)
 			row.Enabled = row.BlockedReason == ""
 		case ExitActionOpenPR:
-			row.BlockedReason = openPRBlockReason(dirty, detached, hasRemote, hasUpstream, ahead, behind, baseAhead)
+			row.BlockedReason = openPRBlockReason(
+				state.dirty, state.detached, state.hasRemote, state.hasUpstream,
+				state.ahead, state.behind, state.baseAhead,
+			)
 			row.Enabled = row.BlockedReason == ""
 		case ExitActionViewPR:
 			// A cached PR remains viewable regardless of local branch divergence.
 		}
 	}
-	return rows
 }
 
 func commitPushBlockReason(dirty, detached, hasRemote bool, ahead, behind int) string {
@@ -414,7 +443,7 @@ func (s *Service) resolveExitBase(ctx context.Context, item Worktree, status *St
 	if strings.TrimSpace(item.BaseRef) != "" {
 		return strings.TrimPrefix(strings.TrimSpace(item.BaseRef), "origin/")
 	}
-	return "main"
+	return defaultBaseBranch
 }
 
 func (s *Service) countCommitsAhead(ctx context.Context, path, base string) int {

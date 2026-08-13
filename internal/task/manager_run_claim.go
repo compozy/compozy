@@ -452,7 +452,7 @@ func (m *Service) attachAndPersistRunSession(
 	boundSessionID := strings.TrimSpace(sessionRef.SessionID)
 	candidate := run
 	candidate.SessionID = boundSessionID
-	candidate.WorktreeID = strings.TrimSpace(sessionRef.WorktreeID)
+	candidate.SetWorktreeID(sessionRef.WorktreeID)
 	candidate.Status = TaskRunStatusStarting
 	if err := m.preflightRunTransition(candidate, taskEventRunSessionBound, candidate.Status, actor); err != nil {
 		return nil, err

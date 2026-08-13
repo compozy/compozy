@@ -96,7 +96,7 @@ func newAppOpenCommand(deps commandDeps) *cobra.Command {
 					cmd.Context(),
 					filepath.Join(homePaths.HomeDir, "app.sock"),
 					"navigate",
-					map[string]string{"path": productPath},
+					map[string]string{automationPathKey: productPath},
 				)
 				if callErr != nil {
 					return callErr
@@ -241,7 +241,7 @@ func appStatusBundle(report AppStatusReport) outputBundle {
 }
 
 func appControlBundle(action string, result any) outputBundle {
-	payload := map[string]any{"action": action, "result": result}
+	payload := map[string]any{authoredContextActionKey: action, "result": result}
 	return outputBundle{
 		jsonValue: payload,
 		jsonl: func(cmd *cobra.Command) error {

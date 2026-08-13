@@ -218,7 +218,6 @@ func TestWorktreeExitCommands(t *testing.T) {
 			},
 		},
 	} {
-		testCase := testCase
 		t.Run("Should send "+testCase.name, func(t *testing.T) {
 			t.Parallel()
 			var got WorktreeExitActionRequest

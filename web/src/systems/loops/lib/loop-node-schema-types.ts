@@ -114,7 +114,7 @@ export interface WaitModeFieldSpec extends FieldCommon {
 }
 
 /**
- * The locked environment-mode vocabulary shared by every Compozy surface. Wire
+ * The locked environment-mode vocabulary shared by every CompozyOS surface. Wire
  * values come from the contract (`LoopEnvironmentMode`); the labels are the only
  * mode wording allowed anywhere.
  */

@@ -57,12 +57,18 @@ func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteAndEscalate(t *testing.T) {
 		if output.Status != "succeeded" || !strings.Contains(output.OutputRef, "recovered") {
 			t.Fatalf("retry output = %#v, want recovered success", output)
 		}
-		events := readLoopRunSSEUntil(t, ctx, harness, loopRunEventsPath(harness.WorkspaceID, run.ID, 0), func(events []loopRunSSEEvent) bool {
-			return loopSSEKinds(events).Contains(
-				string(compozycontract.LoopRunEventNodeRetryScheduled),
-				string(compozycontract.LoopRunEventNodeSucceeded),
-			)
-		})
+		events := readLoopRunSSEUntil(
+			t,
+			ctx,
+			harness,
+			loopRunEventsPath(harness.WorkspaceID, run.ID, 0),
+			func(events []loopRunSSEEvent) bool {
+				return loopSSEKinds(events).Contains(
+					string(compozycontract.LoopRunEventNodeRetryScheduled),
+					string(compozycontract.LoopRunEventNodeSucceeded),
+				)
+			},
+		)
 		if got := feedbackNodeEventCount(t, events, compozycontract.LoopRunEventNodeRunning, "primary"); got != 2 {
 			t.Fatalf("primary node_running events = %d, want two attempts", got)
 		}

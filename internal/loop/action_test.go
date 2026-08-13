@@ -465,7 +465,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				StopWhen:         "generation > 2",
 			},
 			RuntimeSelection: &loop.ActionRuntimeSelection{Catalog: actionTestRuntimeCatalog{}},
-			Environment:      dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot},
+			Environment:      &dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot},
 		})
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -501,7 +501,8 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if bind.Runtime.Model != "gpt-5.4" || bind.MaxTurns != 3 || len(bind.AllowedTools) != 1 {
 			t.Fatalf("bind overrides = %#v, want model/tool/max_turns", bind)
 		}
-		if bind.Environment.Mode != dsl.EnvironmentDirectory || bind.Environment.Directory != "packages/delivery" {
+		if bind.EnvironmentValue().Mode != dsl.EnvironmentDirectory ||
+			bind.EnvironmentValue().Directory != "packages/delivery" {
 			t.Fatalf("bind environment = %#v, want rendered node directory", bind.Environment)
 		}
 		if raw.ResolvedRuntime.Runtime.Model != "gpt-5.4" ||
@@ -828,7 +829,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			WorkspaceID: "ws-1",
 			LoopRunID:   "parent-1",
 			Namespace:   map[string]any{"inputs": map[string]any{"ticket": "T-1"}},
-			Environment: dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "parent-feature"},
+			Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "parent-feature"},
 			RuntimeSelection: &loop.ActionRuntimeSelection{
 				RunRules: []loop.RuntimeRule{{
 					Match:   loop.RuntimeMatch{Type: "frontend"},

@@ -50,7 +50,7 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 	} else {
 		for _, operation := range running {
 			s.emitExit(ctx, EventExitActionFailed, operation, ExitEventPayload{
-				OperationID: operation.ID, Action: ExitAction(operation.Action), State: "failed",
+				OperationID: operation.ID, Action: ExitAction(operation.Action), State: exitStepFailed,
 				Message: "Exit action interrupted by daemon restart.",
 			})
 		}
@@ -62,7 +62,14 @@ func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item 
 	switch item.PendingPhase {
 	case PhaseCopy, PhaseSetup:
 		message := "setup interrupted by daemon restart"
-		if err := s.store.CompleteCreate(ctx, item.WorkspaceID, item.ID, SetupFailed, message, s.now().UTC()); err != nil {
+		if err := s.store.CompleteCreate(
+			ctx,
+			item.WorkspaceID,
+			item.ID,
+			SetupFailed,
+			message,
+			s.now().UTC(),
+		); err != nil {
 			return fmt.Errorf("worktree: recover usable checkout: %w", err)
 		}
 		item.State, item.SetupState, item.SetupError = StateReady, SetupFailed, message

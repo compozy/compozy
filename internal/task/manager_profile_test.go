@@ -196,7 +196,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetTaskRun() error = %v", err)
 		}
-		if got, want := stored.ResolvedWorktreeMode, WorktreeModePerRun; got != want {
+		if got, want := stored.ResolvedWorktreeModeValue(), WorktreeModePerRun; got != want {
 			t.Fatalf("ResolvedWorktreeMode = %q, want immutable %q", got, want)
 		}
 	})
@@ -220,7 +220,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		if got, want := run.ResolvedWorktreeMode, WorktreeModePerRun; got != want {
+		if got, want := run.ResolvedWorktreeModeValue(), WorktreeModePerRun; got != want {
 			t.Fatalf("ResolvedWorktreeMode = %q, want fan-out override %q", got, want)
 		}
 		if got, want := store.profiles["task-1"].Worktree.Mode, WorktreeModeNone; got != want {
@@ -249,7 +249,7 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		if got, want := run.ResolvedWorktreeMode, WorktreeModePerRun; got != want {
+		if got, want := run.ResolvedWorktreeModeValue(), WorktreeModePerRun; got != want {
 			t.Fatalf("ResolvedWorktreeMode = %q, want config default %q", got, want)
 		}
 	})

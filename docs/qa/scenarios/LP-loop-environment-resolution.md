@@ -5,7 +5,7 @@ title: Resolve each Loop node into its declared environment
 persona: Ada
 journey: J-isolated-task-loop-execution
 expected: A Loop node overrides the loop default, resolves a ready worktree or contained directory, creates a distinct worktree for every per-run fan-out instance, and fails before session start when the environment cannot be resolved.
-entry_points: compozy__loop_create; compozy__loop_configure; compozy__loop_run; HTTP/UDS Loop definition, config, and run routes
+entry_points: compozy loop create|validate --file; compozy loop configure --file|--set; compozy loop run --config-file; HTTP/UDS Loop definition, config, and run routes; compozy__loop_create|configure|run.environment
 qa_status: untested
 bug_ids:
 fix_status:

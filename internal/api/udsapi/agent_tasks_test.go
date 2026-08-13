@@ -408,7 +408,7 @@ func TestAgentTaskStartUsesSessionBoundLeaseWithoutEchoingToken(t *testing.T) {
 				t.Fatalf("StartRun() = run %q req=%#v actor=%#v, want session-brokered lease", runID, req, actor)
 			}
 			run := agentTaskRun(taskpkg.TaskRunStatusRunning)
-			run.WorktreeID = "worktree-1"
+			run.SetWorktreeID("worktree-1")
 			return &run, nil
 		},
 	}

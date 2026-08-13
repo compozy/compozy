@@ -36,7 +36,14 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		if _, err := globalDB.Worktrees.Get(ctx, workspaceB, item.ID); !errors.Is(err, worktreepkg.ErrNotFound) {
 			t.Fatalf("Get(cross-workspace) error = %v, want ErrNotFound", err)
 		}
-		if _, err := globalDB.Worktrees.GetByPath(ctx, workspaceB, item.Path); !errors.Is(err, worktreepkg.ErrNotFound) {
+		if _, err := globalDB.Worktrees.GetByPath(
+			ctx,
+			workspaceB,
+			item.Path,
+		); !errors.Is(
+			err,
+			worktreepkg.ErrNotFound,
+		) {
 			t.Fatalf("GetByPath(cross-workspace) error = %v, want ErrNotFound", err)
 		}
 		if rows, err := globalDB.Worktrees.List(ctx, workspaceB); err != nil || len(rows) != 0 {
@@ -245,7 +252,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			t.Fatal("cross-workspace task run binding succeeded, want composite FK rejection")
 		}
 		if _, err := globalDB.db.ExecContext(
-			ctx, `UPDATE task_runs SET resolved_worktree_mode = 'none', resolved_worktree_ref = 'unexpected' WHERE id = ?`,
+			ctx,
+			`UPDATE task_runs SET resolved_worktree_mode = 'none', resolved_worktree_ref = 'unexpected' WHERE id = ?`,
 			run.ID,
 		); err == nil {
 			t.Fatal("invalid resolved mode/ref succeeded, want CHECK rejection")
@@ -281,7 +289,12 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		ctx := context.Background()
 		globalDB := openTestGlobalDB(t)
 		workspaceA := registerSessionForGlobalTests(t, globalDB, "session-worktree-constraints")
-		workspaceB := registerWorkspaceForGlobalTests(t, globalDB, "session-worktree-b", filepath.Join(t.TempDir(), "b"))
+		workspaceB := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"session-worktree-b",
+			filepath.Join(t.TempDir(), "b"),
+		)
 		now := time.Date(2026, 8, 12, 19, 0, 0, 0, time.UTC)
 		item := worktreepkg.Worktree{
 			ID: "wt_session_constraints", WorkspaceID: workspaceB, Name: "session-constraints",
@@ -355,59 +368,62 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fence new session bindings after removal starts without blocking bound session updates", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		workspaceID := registerWorkspaceForGlobalTests(
-			t,
-			globalDB,
-			"session-removal-fence",
-			filepath.Join(t.TempDir(), "workspace"),
-		)
-		now := time.Date(2026, 8, 12, 19, 15, 0, 0, time.UTC)
-		item := worktreepkg.Worktree{
-			ID: "wt_session_removal_fence", WorkspaceID: workspaceID, Name: "session-removal-fence",
-			Path: filepath.Join(t.TempDir(), "worktree"), State: worktreepkg.StateReady,
-			Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
-			CreatedAt: now, UpdatedAt: now,
-		}
-		if err := globalDB.Worktrees.Insert(ctx, item); err != nil {
-			t.Fatalf("Insert() error = %v", err)
-		}
-		bound := store.SessionInfo{
-			ID: "session-before-removal", AgentName: "coder", Provider: "claude",
-			RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID, WorktreeID: item.ID,
-			State: "active", CreatedAt: now, UpdatedAt: now,
-		}
-		if err := globalDB.RegisterSession(ctx, bound); err != nil {
-			t.Fatalf("RegisterSession(bound) error = %v", err)
-		}
-		if err := globalDB.Worktrees.SetState(
-			ctx, workspaceID, item.ID, worktreepkg.StateRemoving, now.Add(time.Minute),
-		); err != nil {
-			t.Fatalf("SetState(removing) error = %v", err)
-		}
+	t.Run(
+		"Should fence new session bindings after removal starts without blocking bound session updates",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			globalDB := openTestGlobalDB(t)
+			workspaceID := registerWorkspaceForGlobalTests(
+				t,
+				globalDB,
+				"session-removal-fence",
+				filepath.Join(t.TempDir(), "workspace"),
+			)
+			now := time.Date(2026, 8, 12, 19, 15, 0, 0, time.UTC)
+			item := worktreepkg.Worktree{
+				ID: "wt_session_removal_fence", WorkspaceID: workspaceID, Name: "session-removal-fence",
+				Path: filepath.Join(t.TempDir(), "worktree"), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				CreatedAt: now, UpdatedAt: now,
+			}
+			if err := globalDB.Worktrees.Insert(ctx, item); err != nil {
+				t.Fatalf("Insert() error = %v", err)
+			}
+			bound := store.SessionInfo{
+				ID: "session-before-removal", AgentName: "coder", Provider: "claude",
+				RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID, WorktreeID: item.ID,
+				State: "active", CreatedAt: now, UpdatedAt: now,
+			}
+			if err := globalDB.RegisterSession(ctx, bound); err != nil {
+				t.Fatalf("RegisterSession(bound) error = %v", err)
+			}
+			if err := globalDB.Worktrees.SetState(
+				ctx, workspaceID, item.ID, worktreepkg.StateRemoving, now.Add(time.Minute),
+			); err != nil {
+				t.Fatalf("SetState(removing) error = %v", err)
+			}
 
-		bound.State = "stopped"
-		bound.UpdatedAt = now.Add(2 * time.Minute)
-		if err := globalDB.RegisterSession(ctx, bound); err != nil {
-			t.Fatalf("RegisterSession(existing bound update) error = %v", err)
-		}
-		newBinding := bound
-		newBinding.ID = "session-after-removal"
-		newBinding.State = "active"
-		if err := globalDB.RegisterSession(ctx, newBinding); !errors.Is(err, worktreepkg.ErrNotReady) {
-			t.Fatalf("RegisterSession(new binding) error = %v, want %v", err, worktreepkg.ErrNotReady)
-		}
-		rows, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: newBinding.ID})
-		if err != nil {
-			t.Fatalf("ListSessions(new binding) error = %v", err)
-		}
-		if len(rows) != 0 {
-			t.Fatalf("new binding rows = %#v, want none", rows)
-		}
-	})
+			bound.State = "stopped"
+			bound.UpdatedAt = now.Add(2 * time.Minute)
+			if err := globalDB.RegisterSession(ctx, bound); err != nil {
+				t.Fatalf("RegisterSession(existing bound update) error = %v", err)
+			}
+			newBinding := bound
+			newBinding.ID = "session-after-removal"
+			newBinding.State = "active"
+			if err := globalDB.RegisterSession(ctx, newBinding); !errors.Is(err, worktreepkg.ErrNotReady) {
+				t.Fatalf("RegisterSession(new binding) error = %v, want %v", err, worktreepkg.ErrNotReady)
+			}
+			rows, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: newBinding.ID})
+			if err != nil {
+				t.Fatalf("ListSessions(new binding) error = %v", err)
+			}
+			if len(rows) != 0 {
+				t.Fatalf("new binding rows = %#v, want none", rows)
+			}
+		},
+	)
 
 	t.Run("Should dismiss a tombstone without cascading session or task-run history", func(t *testing.T) {
 		t.Parallel()
@@ -443,7 +459,11 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		); err != nil {
 			t.Fatalf("bind task-run history: %v", err)
 		}
-		service := worktreepkg.NewService(globalDB.Worktrees, nil, worktreepkg.WithClock(func() time.Time { return now }))
+		service := worktreepkg.NewService(
+			globalDB.Worktrees,
+			nil,
+			worktreepkg.WithClock(func() time.Time { return now }),
+		)
 		if err := service.Dismiss(ctx, workspaceID, item.ID); err != nil {
 			t.Fatalf("Dismiss() error = %v", err)
 		}

@@ -83,7 +83,7 @@ func seedObserveRunSnapshot(t *testing.T, registry *globaldb.GlobalDB, target ta
 	manager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(observeFixtureSessionExecutor{
-			sessionID: sessionID, workspaceID: target.WorkspaceID, worktreeID: target.WorktreeID,
+			sessionID: sessionID, workspaceID: target.WorkspaceID, worktreeID: target.WorktreeIDValue(),
 		}),
 		taskpkg.WithManagerNow(func() time.Time { return fixtureNow }),
 	)

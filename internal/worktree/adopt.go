@@ -46,35 +46,23 @@ func (s *Service) Adopt(ctx context.Context, workspaceID, candidatePath string) 
 	if err != nil {
 		return nil, err
 	}
-	if existing, getErr := s.store.GetByPath(ctx, workspaceID, canonicalCandidate); getErr == nil && existing != nil {
-		if filepath.Clean(existing.GitDir) != identity.adminGitDir {
-			return nil, refusal(ErrAdoptionUnreadable, "adopted worktree identity changed")
-		}
-		if existing.State == StateMissing {
-			now := s.now().UTC()
-			swapped, swapErr := s.store.CompareAndSwapState(
-				ctx, workspaceID, existing.ID, StateMissing, StateReady, now,
-			)
-			if swapErr != nil {
-				return nil, fmt.Errorf("worktree: restore adopted path: %w", swapErr)
-			}
-			if swapped {
-				existing.State = StateReady
-				existing.UpdatedAt = now
-				s.invalidateDiscovery(workspaceID)
-				s.publishCatalogEvent(CatalogEventUpserted, *existing)
-				return existing, nil
-			}
-			current, currentErr := s.store.Get(ctx, workspaceID, existing.ID)
-			if currentErr != nil {
-				return nil, fmt.Errorf("worktree: reread adopted path: %w", currentErr)
-			}
-			return current, nil
-		}
-		return existing, nil
-	} else if getErr != nil && !errors.Is(getErr, ErrNotFound) {
+	existing, getErr := s.store.GetByPath(ctx, workspaceID, canonicalCandidate)
+	if getErr == nil && existing != nil {
+		return s.reuseAdoptedWorktree(ctx, existing, identity.adminGitDir)
+	}
+	if getErr != nil && !errors.Is(getErr, ErrNotFound) {
 		return nil, fmt.Errorf("worktree: inspect adopted path: %w", getErr)
 	}
+	return s.insertAdoptedWorktree(ctx, workspaceID, canonicalCandidate, identity.adminGitDir, matched.Branch)
+}
+
+func (s *Service) insertAdoptedWorktree(
+	ctx context.Context,
+	workspaceID string,
+	candidatePath string,
+	adminGitDir string,
+	branch string,
+) (*Worktree, error) {
 	rows, err := s.store.List(ctx, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: list adoption names: %w", err)
@@ -83,7 +71,7 @@ func (s *Service) Adopt(ctx context.Context, workspaceID, candidatePath string) 
 	for _, row := range rows {
 		taken[row.Name] = struct{}{}
 	}
-	baseName := SanitizeName(matched.Branch)
+	baseName := SanitizeName(branch)
 	name := baseName
 	for suffix := 2; ; suffix++ {
 		if _, exists := taken[name]; !exists {
@@ -97,13 +85,18 @@ func (s *Service) Adopt(ctx context.Context, workspaceID, candidatePath string) 
 	}
 	now := s.now().UTC()
 	item := Worktree{
-		ID: id, WorkspaceID: workspaceID, Name: name, Branch: matched.Branch,
-		Path: canonicalCandidate, GitDir: identity.adminGitDir, State: StateReady,
+		ID: id, WorkspaceID: workspaceID, Name: name, Branch: branch,
+		Path: candidatePath, GitDir: adminGitDir, State: StateReady,
 		Origin: OriginAdopted, SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := s.store.Insert(ctx, item); err != nil {
-		if existing, getErr := s.store.GetByPath(ctx, workspaceID, canonicalCandidate); getErr == nil && existing != nil {
-			if filepath.Clean(existing.GitDir) != identity.adminGitDir {
+		if existing, getErr := s.store.GetByPath(
+			ctx,
+			workspaceID,
+			candidatePath,
+		); getErr == nil &&
+			existing != nil {
+			if filepath.Clean(existing.GitDir) != adminGitDir {
 				return nil, refusal(ErrAdoptionUnreadable, "adopted worktree identity changed")
 			}
 			return existing, nil
@@ -113,6 +106,38 @@ func (s *Service) Adopt(ctx context.Context, workspaceID, candidatePath string) 
 	s.invalidateDiscovery(workspaceID)
 	s.emit(ctx, EventAdopted, item)
 	return &item, nil
+}
+
+func (s *Service) reuseAdoptedWorktree(
+	ctx context.Context,
+	existing *Worktree,
+	adminGitDir string,
+) (*Worktree, error) {
+	if filepath.Clean(existing.GitDir) != adminGitDir {
+		return nil, refusal(ErrAdoptionUnreadable, "adopted worktree identity changed")
+	}
+	if existing.State != StateMissing {
+		return existing, nil
+	}
+	now := s.now().UTC()
+	swapped, err := s.store.CompareAndSwapState(
+		ctx, existing.WorkspaceID, existing.ID, StateMissing, StateReady, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("worktree: restore adopted path: %w", err)
+	}
+	if !swapped {
+		current, currentErr := s.store.Get(ctx, existing.WorkspaceID, existing.ID)
+		if currentErr != nil {
+			return nil, fmt.Errorf("worktree: reread adopted path: %w", currentErr)
+		}
+		return current, nil
+	}
+	existing.State = StateReady
+	existing.UpdatedAt = now
+	s.invalidateDiscovery(existing.WorkspaceID)
+	s.publishCatalogEvent(CatalogEventUpserted, *existing)
+	return existing, nil
 }
 
 func (s *Service) inspectAdoptionCandidate(
@@ -182,28 +207,16 @@ func (s *Service) validateAdoptionIdentity(
 	if err != nil {
 		return adoptionIdentity{}, refusal(ErrAdoptionUnreadable, "linked-worktree admin directory is invalid")
 	}
-	adminRoot := filepath.Join(commonDir, "worktrees")
-	lexicallyContained, lexicalErr := fileutil.PathWithinRoot(adminRoot, adminPath)
-	adminGitDir, err := fileutil.CanonicalExistingDirectory(adminPath)
+	adminGitDir, err := validateAdoptionAdminPath(adminPath, commonDir)
 	if err != nil {
-		return adoptionIdentity{}, refusal(ErrAdoptionUnreadable, "linked-worktree admin directory is unreadable")
-	}
-	contained, err := fileutil.PathWithinRoot(adminRoot, adminGitDir)
-	if err != nil || !contained || adminGitDir == filepath.Clean(adminRoot) {
-		if lexicalErr == nil && lexicallyContained {
-			return adoptionIdentity{}, refusal(ErrAdoptionUnreadable, "linked-worktree admin directory escapes the repository")
-		}
-		modulesRoot := filepath.Join(commonDir, "modules")
-		if inModules, modulesErr := fileutil.PathWithinRoot(modulesRoot, adminGitDir); modulesErr == nil && inModules {
-			return adoptionIdentity{}, refusal(ErrAdoptionUnreadable, "candidate is a submodule checkout")
-		}
-		return adoptionIdentity{}, ErrAdoptionForeignRepo
+		return adoptionIdentity{}, err
 	}
 	commonPointer, err := os.ReadFile(filepath.Join(adminGitDir, "commondir"))
 	linkedCommonPath := ""
-	if err == nil {
+	switch {
+	case err == nil:
 		linkedCommonPath = filepath.Join(adminGitDir, strings.TrimSpace(string(commonPointer)))
-	} else if errors.Is(err, os.ErrNotExist) {
+	case errors.Is(err, os.ErrNotExist):
 		stdout, stderr, fallbackErr := s.runner.Run(
 			ctx, candidate, "rev-parse", "--path-format=absolute", "--git-common-dir",
 		)
@@ -214,7 +227,7 @@ func (s *Service) validateAdoptionIdentity(
 			)
 		}
 		linkedCommonPath = strings.TrimSpace(string(stdout))
-	} else {
+	default:
 		return adoptionIdentity{}, refusal(ErrAdoptionUnreadable, "linked-worktree commondir is unreadable")
 	}
 	linkedCommon, err := fileutil.CanonicalExistingDirectory(linkedCommonPath)
@@ -235,7 +248,31 @@ func (s *Service) validateAdoptionIdentity(
 	}
 	canonicalBacklink, err := filepath.EvalSymlinks(backlinkAbs)
 	if err != nil || canonicalBacklink != filepath.Join(candidate, ".git") {
-		return adoptionIdentity{}, refusal(ErrAdoptionUnreadable, "linked-worktree backlink does not match the candidate")
+		return adoptionIdentity{}, refusal(
+			ErrAdoptionUnreadable,
+			"linked-worktree backlink does not match the candidate",
+		)
 	}
 	return adoptionIdentity{adminGitDir: adminGitDir}, nil
+}
+
+func validateAdoptionAdminPath(adminPath string, commonDir string) (string, error) {
+	adminRoot := filepath.Join(commonDir, "worktrees")
+	lexicallyContained, lexicalErr := fileutil.PathWithinRoot(adminRoot, adminPath)
+	adminGitDir, err := fileutil.CanonicalExistingDirectory(adminPath)
+	if err != nil {
+		return "", refusal(ErrAdoptionUnreadable, "linked-worktree admin directory is unreadable")
+	}
+	contained, err := fileutil.PathWithinRoot(adminRoot, adminGitDir)
+	if err == nil && contained && adminGitDir != filepath.Clean(adminRoot) {
+		return adminGitDir, nil
+	}
+	if lexicalErr == nil && lexicallyContained {
+		return "", refusal(ErrAdoptionUnreadable, "linked-worktree admin directory escapes the repository")
+	}
+	modulesRoot := filepath.Join(commonDir, "modules")
+	if inModules, modulesErr := fileutil.PathWithinRoot(modulesRoot, adminGitDir); modulesErr == nil && inModules {
+		return "", refusal(ErrAdoptionUnreadable, "candidate is a submodule checkout")
+	}
+	return "", ErrAdoptionForeignRepo
 }

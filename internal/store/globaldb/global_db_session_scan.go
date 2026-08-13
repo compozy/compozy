@@ -87,18 +87,9 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		row.selectedReasoning,
 		row.selectedSpeed,
 	)
-	if err := store.ValidateSessionRuntime(
-		session.RuntimeStatus,
-		session.RuntimeTransition,
-		session.RuntimeFailure,
-	); err != nil {
+	if err := applySessionRuntimeScan(&session, &row); err != nil {
 		return store.SessionInfo{}, err
 	}
-	speedResolution, err := decodeSessionSpeedResolution(row.speedResolutionJSON)
-	if err != nil {
-		return store.SessionInfo{}, err
-	}
-	session.SpeedResolution = speedResolution
 	networkSpec, err := decodeParticipationSnapshot(
 		session.WorkspaceID,
 		row.networkSpecJSON,
@@ -148,6 +139,22 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 		return store.SessionInfo{}, err
 	}
 	return session, nil
+}
+
+func applySessionRuntimeScan(session *store.SessionInfo, row *sessionInfoRow) error {
+	if err := store.ValidateSessionRuntime(
+		session.RuntimeStatus,
+		session.RuntimeTransition,
+		session.RuntimeFailure,
+	); err != nil {
+		return err
+	}
+	resolution, err := decodeSessionSpeedResolution(row.speedResolutionJSON)
+	if err != nil {
+		return err
+	}
+	session.SpeedResolution = resolution
+	return nil
 }
 
 func decodeSessionSpeedResolution(raw string) (*speedpkg.Resolution, error) {

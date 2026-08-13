@@ -212,7 +212,12 @@ func TestServiceCreate(t *testing.T) {
 		); err != nil {
 			t.Fatalf("RollbackRunMaterialization() error = %v", err)
 		}
-		if got, err := fixture.store.Get(context.Background(), fixture.workspace.ID, item.ID); !errors.Is(err, ErrNotFound) || got != nil {
+		if got, err := fixture.store.Get(
+			context.Background(),
+			fixture.workspace.ID,
+			item.ID,
+		); !errors.Is(err, ErrNotFound) ||
+			got != nil {
 			t.Fatalf("Get() after rollback = %#v, %v, want ErrNotFound", got, err)
 		}
 		commands := invocationCommands(fixture.runner.invocations())
@@ -231,7 +236,11 @@ func TestServiceCreate(t *testing.T) {
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		events := &recordingEventSink{}
 		fixture.service.events = events
-		item, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{Name: "Docs Refresh"})
+		item, err := fixture.service.Create(
+			context.Background(),
+			fixture.workspace.ID,
+			CreateOptions{Name: "Docs Refresh"},
+		)
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -389,7 +398,14 @@ func TestServiceCreate(t *testing.T) {
 		if err := <-errResult; !errors.Is(err, context.Canceled) {
 			t.Fatalf("CreateReady() error = %v, want context.Canceled", err)
 		}
-		if _, err := fixture.store.Get(context.Background(), fixture.workspace.ID, rows[0].ID); !errors.Is(err, ErrNotFound) {
+		if _, err := fixture.store.Get(
+			context.Background(),
+			fixture.workspace.ID,
+			rows[0].ID,
+		); !errors.Is(
+			err,
+			ErrNotFound,
+		) {
 			t.Fatalf("Get(canceled CreateReady) error = %v, want ErrNotFound", err)
 		}
 	})
@@ -403,7 +419,9 @@ func TestServiceCreate(t *testing.T) {
 		fixture.runner.run = func(call gitInvocation) gitResponse {
 			switch strings.Join(call.args, " ") {
 			case "status --porcelain=v2 --branch -z":
-				return gitResponse{stdout: []byte("# branch.oid created-head\x00# branch.head canceled-after-ready\x00")}
+				return gitResponse{
+					stdout: []byte("# branch.oid created-head\x00# branch.head canceled-after-ready\x00"),
+				}
 			case "diff --numstat -z", "diff --cached --numstat -z", "branch -r --contains HEAD":
 				return gitResponse{}
 			case "rev-list --count main..HEAD":
@@ -484,7 +502,8 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatal("CreatedBranch = true, want false")
 		}
 		for _, command := range invocationCommands(fixture.runner.invocations()) {
-			if strings.HasPrefix(command, "branch feature/existing ") || strings.HasPrefix(command, "config branch.feature/existing") {
+			if strings.HasPrefix(command, "branch feature/existing ") ||
+				strings.HasPrefix(command, "config branch.feature/existing") {
 				t.Fatalf("existing branch received a mint/config mutation: %q", command)
 			}
 		}
@@ -501,7 +520,11 @@ func TestServiceCreate(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("seed worktree: %v", err)
 		}
-		_, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{Name: "Docs Refresh"})
+		_, err := fixture.service.Create(
+			context.Background(),
+			fixture.workspace.ID,
+			CreateOptions{Name: "Docs Refresh"},
+		)
 		if !errors.Is(err, ErrNameTaken) {
 			t.Fatalf("Create(duplicate) error = %v, want ErrNameTaken", err)
 		}
@@ -518,7 +541,11 @@ func TestServiceCreate(t *testing.T) {
 			want error
 		}{
 			{name: "path", err: errors.New("UNIQUE constraint failed: worktrees.path"), want: ErrPathExists},
-			{name: "name", err: errors.New("UNIQUE constraint failed: worktrees.workspace_id, worktrees.name"), want: ErrNameTaken},
+			{
+				name: "name",
+				err:  errors.New("UNIQUE constraint failed: worktrees.workspace_id, worktrees.name"),
+				want: ErrNameTaken,
+			},
 			{name: "other", err: errors.New("database unavailable")},
 		}
 		for _, testCase := range cases {
@@ -552,15 +579,13 @@ func TestServiceCreate(t *testing.T) {
 		results := make(chan error, 2)
 		var group sync.WaitGroup
 		for range 2 {
-			group.Add(1)
-			go func() {
-				defer group.Done()
+			group.Go(func() {
 				<-start
 				_, err := fixture.service.Create(
 					context.Background(), fixture.workspace.ID, CreateOptions{Name: "Concurrent"},
 				)
 				results <- err
-			}()
+			})
 		}
 		close(start)
 		group.Wait()
@@ -648,7 +673,12 @@ func TestServiceCreate(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "checkout failed") {
 			t.Fatalf("Create(failing checkout) error = %v, want checkout failure", err)
 		}
-		if item, getErr := fixture.store.Get(context.Background(), fixture.workspace.ID, "retry-me"); !errors.Is(getErr, ErrNotFound) || item != nil {
+		if item, getErr := fixture.store.Get(
+			context.Background(),
+			fixture.workspace.ID,
+			"retry-me",
+		); !errors.Is(getErr, ErrNotFound) ||
+			item != nil {
 			t.Fatalf("failed row = %#v, %v, want deleted", item, getErr)
 		}
 		commands := invocationCommands(fixture.runner.invocations())
@@ -656,7 +686,11 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("rollback Git calls = %#v, want compare-and-delete", commands)
 		}
 		fixture.failWorktreeAdd.Store(false)
-		if _, retryErr := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{Name: "Retry Me"}); retryErr != nil {
+		if _, retryErr := fixture.service.Create(
+			context.Background(),
+			fixture.workspace.ID,
+			CreateOptions{Name: "Retry Me"},
+		); retryErr != nil {
 			t.Fatalf("Create(retry) error = %v", retryErr)
 		}
 	})
@@ -669,7 +703,11 @@ func TestServiceCreate(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(fixture.workspace.Root, ".env"), []byte("source"), 0o600); err != nil {
 			t.Fatalf("write bootstrap source: %v", err)
 		}
-		item, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{Name: "Bootstrap"})
+		item, err := fixture.service.Create(
+			context.Background(),
+			fixture.workspace.ID,
+			CreateOptions{Name: "Bootstrap"},
+		)
 		if err != nil {
 			t.Fatalf("Create(bootstrap) error = %v", err)
 		}
@@ -714,57 +752,89 @@ func TestServiceCreate(t *testing.T) {
 		if err := fixture.service.CancelCreate(context.Background(), fixture.workspace.ID, pending.ID); err != nil {
 			t.Fatalf("CancelCreate() error = %v", err)
 		}
-		if _, err := fixture.store.Get(context.Background(), fixture.workspace.ID, pending.ID); !errors.Is(err, ErrNotFound) {
+		if _, err := fixture.store.Get(
+			context.Background(),
+			fixture.workspace.ID,
+			pending.ID,
+		); !errors.Is(
+			err,
+			ErrNotFound,
+		) {
 			t.Fatalf("Get(canceled) error = %v, want ErrNotFound", err)
 		}
 		if got := events.count(EventCreationCanceled); got != 1 {
 			t.Fatalf("creation canceled events = %d, want one", got)
 		}
 		ready := pending
-		ready.ID, ready.Name, ready.Path, ready.State = "wt-ready", "ready", filepath.Join(fixture.worktreesRoot, "ready"), StateReady
+		ready.ID, ready.Name, ready.Path, ready.State = "wt-ready", "ready", filepath.Join(
+			fixture.worktreesRoot,
+			"ready",
+		), StateReady
 		if err := fixture.store.Insert(context.Background(), ready); err != nil {
 			t.Fatalf("seed ready worktree: %v", err)
 		}
-		if err := fixture.service.CancelCreate(context.Background(), fixture.workspace.ID, ready.ID); !errors.Is(err, ErrNotPending) {
+		if err := fixture.service.CancelCreate(
+			context.Background(),
+			fixture.workspace.ID,
+			ready.ID,
+		); !errors.Is(
+			err,
+			ErrNotPending,
+		) {
 			t.Fatalf("CancelCreate(ready) error = %v, want ErrNotPending", err)
 		}
-		if err := fixture.service.CancelCreate(context.Background(), "ws-other", ready.ID); !errors.Is(err, ErrNotFound) {
+		if err := fixture.service.CancelCreate(
+			context.Background(),
+			"ws-other",
+			ready.ID,
+		); !errors.Is(
+			err,
+			ErrNotFound,
+		) {
 			t.Fatalf("CancelCreate(cross-workspace) error = %v, want ErrNotFound", err)
 		}
 	})
 
-	t.Run("Should allowlist setup environment and report timeout without exposing unrelated values", func(t *testing.T) {
-		t.Parallel()
-		workspace := Workspace{ID: "ws-setup", Root: t.TempDir()}
-		item := Worktree{ID: "wt-setup", Path: t.TempDir(), Branch: "feature/setup"}
-		got := setupEnvironment([]string{
-			"PATH=/bin", "HOME=/operator", "LANG=en_US.UTF-8", "LC_ALL=C", "TMPDIR=/tmp",
-			"SHELL=/bad", "GIT_TOKEN=secret", "CLAIM_TOKEN=secret", "UNRELATED=value",
-		}, workspace, item, "/bin/sh")
-		joined := strings.Join(got, "\n")
-		for _, required := range []string{
-			"PATH=/bin", "HOME=/operator", "LANG=en_US.UTF-8", "LC_ALL=C", "TMPDIR=/tmp",
-			"SHELL=/bin/sh", "COMPOZY_WORKSPACE_ROOT=" + workspace.Root,
-			"COMPOZY_WORKTREE_PATH=" + item.Path, "COMPOZY_WORKTREE_ID=wt-setup",
-			"COMPOZY_WORKTREE_BRANCH=feature/setup",
-		} {
-			if !strings.Contains(joined, required) {
-				t.Fatalf("setup environment = %#v, missing %q", got, required)
+	t.Run(
+		"Should allowlist setup environment and report timeout without exposing unrelated values",
+		func(t *testing.T) {
+			t.Parallel()
+			workspace := Workspace{ID: "ws-setup", Root: t.TempDir()}
+			item := Worktree{ID: "wt-setup", Path: t.TempDir(), Branch: "feature/setup"}
+			got := setupEnvironment([]string{
+				"PATH=/bin", "HOME=/operator", "LANG=en_US.UTF-8", "LC_ALL=C", "TMPDIR=/tmp",
+				"SHELL=/bad", "GIT_TOKEN=secret", "CLAIM_TOKEN=secret", "UNRELATED=value",
+			}, workspace, item, "/bin/sh")
+			joined := strings.Join(got, "\n")
+			for _, required := range []string{
+				"PATH=/bin", "HOME=/operator", "LANG=en_US.UTF-8", "LC_ALL=C", "TMPDIR=/tmp",
+				"SHELL=/bin/sh", "COMPOZY_WORKSPACE_ROOT=" + workspace.Root,
+				"COMPOZY_WORKTREE_PATH=" + item.Path, "COMPOZY_WORKTREE_ID=wt-setup",
+				"COMPOZY_WORKTREE_BRANCH=feature/setup",
+			} {
+				if !strings.Contains(joined, required) {
+					t.Fatalf("setup environment = %#v, missing %q", got, required)
+				}
 			}
-		}
-		if strings.Contains(joined, "GIT_TOKEN") || strings.Contains(joined, "CLAIM_TOKEN") || strings.Contains(joined, "UNRELATED") {
-			t.Fatalf("setup environment leaked unrelated values: %#v", got)
-		}
+			if strings.Contains(joined, "GIT_TOKEN") || strings.Contains(joined, "CLAIM_TOKEN") ||
+				strings.Contains(joined, "UNRELATED") {
+				t.Fatalf("setup environment leaked unrelated values: %#v", got)
+			}
 
-		worktreesConfig := config.DefaultWorktreesConfig()
-		worktreesConfig.SetupCommand = "printf timed-out >&2; sleep 5"
-		worktreesConfig.SetupTimeout = 30 * time.Millisecond
-		service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{}, WithConfig(worktreesConfig, t.TempDir()))
-		state, detail := service.runSetup(context.Background(), workspace, item, true)
-		if state != SetupFailed || detail == "" || !strings.Contains(detail, context.DeadlineExceeded.Error()) {
-			t.Fatalf("runSetup(timeout) = (%q, %q), want readable failed timeout", state, detail)
-		}
-	})
+			worktreesConfig := config.DefaultWorktreesConfig()
+			worktreesConfig.SetupCommand = "printf timed-out >&2; sleep 5"
+			worktreesConfig.SetupTimeout = 30 * time.Millisecond
+			service := NewService(
+				newMemoryWorktreeStore(),
+				&recordingGitRunner{},
+				WithConfig(worktreesConfig, t.TempDir()),
+			)
+			state, detail := service.runSetup(context.Background(), workspace, item, true)
+			if state != SetupFailed || detail == "" || !strings.Contains(detail, context.DeadlineExceeded.Error()) {
+				t.Fatalf("runSetup(timeout) = (%q, %q), want readable failed timeout", state, detail)
+			}
+		},
+	)
 
 	t.Run("Should reject explicit paths that overlap workspace or live worktree roots", func(t *testing.T) {
 		t.Parallel()
@@ -927,11 +997,12 @@ func TestServiceCreate(t *testing.T) {
 		if strings.Contains(refusalErr.Error(), secret) || !strings.Contains(refusalErr.Error(), "[REDACTED]") {
 			t.Fatalf("refusal diagnostic = %q, want redacted", refusalErr)
 		}
-		requestType := reflect.TypeOf(RunWorktreeRequest{})
-		for index := range requestType.NumField() {
-			fieldName := strings.ToLower(requestType.Field(index).Name)
-			if strings.Contains(fieldName, "claim") || strings.Contains(fieldName, "token") || strings.Contains(fieldName, "secret") {
-				t.Fatalf("RunWorktreeRequest exposes secret-bearing field %q", requestType.Field(index).Name)
+		requestType := reflect.TypeFor[RunWorktreeRequest]()
+		for field := range requestType.Fields() {
+			fieldName := strings.ToLower(field.Name)
+			if strings.Contains(fieldName, "claim") || strings.Contains(fieldName, "token") ||
+				strings.Contains(fieldName, "secret") {
+				t.Fatalf("RunWorktreeRequest exposes secret-bearing field %q", field.Name)
 			}
 		}
 	})

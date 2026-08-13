@@ -4,8 +4,8 @@ area: RT
 title: Navigate nested worktrees and scope work to one from the desktop shell
 persona: Ada
 journey: J-worktree-management
-expected: The command switcher, the menubar workspace menu, and the workspaces overview render the same nested worktree tree from one query — same rows, same locked order, adopted-only counts, discovered rows marked and selectable, pending and missing rows inert with their reason. Keyboard-only traversal reaches nested entries. Selecting a worktree scopes session and task reads server-side, the menubar chip reads `workspace / worktree`, and two open windows hold independent selections.
-entry_points: OS menubar workspace chip; ⌘K palette "Worktrees" group; Workspaces overview
+expected: The command switcher, menubar workspace menu, workspaces overview, and shared row/status component render the same nested worktree tree from one query — same rows, locked order, full state vocabulary, adopted-only counts, discovered rows marked and selectable, and pending or missing rows inert with their reason. Keyboard-only traversal reaches nested entries. Selecting a worktree scopes session and task reads server-side, the menubar chip reads `workspace / worktree`, and two open windows hold independent selections.
+entry_points: S1 command switcher "Worktrees" group; S2 OS menubar workspace menu/chip; S3 Workspaces overview; S5 Worktree row/status chip
 qa_status: untested
 bug_ids:
 fix_status:

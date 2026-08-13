@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-func upsertSessionParams(record sessionCatalogRecord) (sqlcgen.UpsertSessionParams, error) {
+func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionParams, error) {
 	session := record.session
 	speedResolutionJSON, network, err := sessionCatalogRuntimeProjections(session)
 	if err != nil {
@@ -88,7 +88,7 @@ func upsertSessionParams(record sessionCatalogRecord) (sqlcgen.UpsertSessionPara
 	return params, nil
 }
 
-func applySessionCatalogLineage(params *sqlcgen.UpsertSessionParams, record sessionCatalogRecord) {
+func applySessionCatalogLineage(params *sqlcgen.UpsertSessionParams, record *sessionCatalogRecord) {
 	lineage := record.lineage
 	params.ParentSessionID = nullableSessionString(lineage.ParentSessionID)
 	params.RootSessionID = nullableSessionString(lineage.RootSessionID)

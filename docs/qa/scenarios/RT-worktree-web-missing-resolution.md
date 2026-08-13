@@ -5,7 +5,7 @@ title: Resolve a worktree whose directory disappeared out of band
 persona: Ada
 journey: J-worktree-management
 expected: A worktree removed outside Compozy is reported as missing with its history preserved and never cascades into session or task deletion. The resolution dialog states history preservation before either choice and offers two legs — Dismiss record, which drops the entry only and renders the idempotent no-op outcome verbatim; and It's back, which re-verifies the recorded path and restores that same record to ready when the identical repository is found there. A different repository at that path stays refused and the record stays missing.
-entry_points: Workspaces overview → worktree nest → Resolve…
+entry_points: S15 Workspaces overview → worktree nest → Resolve
 qa_status: untested
 bug_ids:
 fix_status:

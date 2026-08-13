@@ -165,7 +165,12 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 		t.Fatalf("EvalSymlinks(directory) error = %v", err)
 	}
 	if resolvedDirectory != wantDirectory || directoryCall.Worktree != "" {
-		t.Fatalf("directory binding = %#v resolved=%q, want contained %q without worktree", directoryCall, resolvedDirectory, wantDirectory)
+		t.Fatalf(
+			"directory binding = %#v resolved=%q, want contained %q without worktree",
+			directoryCall,
+			resolvedDirectory,
+			wantDirectory,
+		)
 	}
 }
 

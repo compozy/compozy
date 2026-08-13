@@ -120,10 +120,18 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 	if got := h.driver.startCalls[2].Cwd; got != canonicalB {
 		t.Fatalf("other cmd.Dir = %q, want %q", got, canonicalB)
 	}
-	if err := os.WriteFile(filepath.Join(h.driver.startCalls[0].Cwd, "isolated.txt"), []byte("worktree-a\n"), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(h.driver.startCalls[0].Cwd, "isolated.txt"),
+		[]byte("worktree-a\n"),
+		0o600,
+	); err != nil {
 		t.Fatalf("WriteFile(worktree A) error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(h.driver.startCalls[2].Cwd, "isolated.txt"), []byte("worktree-b\n"), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(h.driver.startCalls[2].Cwd, "isolated.txt"),
+		[]byte("worktree-b\n"),
+		0o600,
+	); err != nil {
 		t.Fatalf("WriteFile(worktree B) error = %v", err)
 	}
 	assertIntegrationFileContent(t, filepath.Join(worktreeA, "isolated.txt"), "worktree-a\n")
@@ -157,7 +165,12 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 	}
 
 	if parent.Info().WorkspaceID != h.workspaceID || rootSession.Info().WorkspaceID != h.workspaceID {
-		t.Fatalf("session workspace ids = %q/%q, want %q", parent.Info().WorkspaceID, rootSession.Info().WorkspaceID, h.workspaceID)
+		t.Fatalf(
+			"session workspace ids = %q/%q, want %q",
+			parent.Info().WorkspaceID,
+			rootSession.Info().WorkspaceID,
+			h.workspaceID,
+		)
 	}
 
 	runSessionIntegrationGit(t, h.workspace, "worktree", "remove", "--force", worktreeA)

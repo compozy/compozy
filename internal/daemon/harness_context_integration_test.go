@@ -31,7 +31,10 @@ import (
 )
 
 func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing.T) {
-	t.Run("Should share one resolver policy across startup and live prompts", testHarnessContextIntegrationStartupAndPromptShareResolverPolicy)
+	t.Run(
+		"Should share one resolver policy across startup and live prompts",
+		testHarnessContextIntegrationStartupAndPromptShareResolverPolicy,
+	)
 }
 
 func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing.T) {
@@ -353,7 +356,10 @@ func writeHarnessCheckpointSummary(t *testing.T, workspaceRoot string, fact stri
 }
 
 func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
-	t.Run("Should preserve resolver policy across session resume", testHarnessContextIntegrationResolverStableAcrossResume)
+	t.Run(
+		"Should preserve resolver policy across session resume",
+		testHarnessContextIntegrationResolverStableAcrossResume,
+	)
 }
 
 func testHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
@@ -455,7 +461,10 @@ func testHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 }
 
 func TestHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession(t *testing.T) {
-	t.Run("Should omit the startup network section for a non-channel session", testHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession)
+	t.Run(
+		"Should omit the startup network section for a non-channel session",
+		testHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession,
+	)
 }
 
 func testHarnessContextIntegrationStartupOmitsNetworkSectionForNonChannelSession(t *testing.T) {
@@ -634,9 +643,11 @@ func newHarnessIntegrationManager(
 		session.WithHomePaths(homePaths),
 		session.WithDriver(driver),
 		session.WithWorkspaceResolver(&harnessIntegrationWorkspaceResolver{resolved: resolvedWorkspace}),
-		session.WithStore(func(ctx context.Context, owner store.SessionDBOwner, path string) (session.EventRecorder, error) {
-			return sessiondb.OpenSessionDB(ctx, owner, path)
-		}),
+		session.WithStore(
+			func(ctx context.Context, owner store.SessionDBOwner, path string) (session.EventRecorder, error) {
+				return sessiondb.OpenSessionDB(ctx, owner, path)
+			},
+		),
 		session.WithLogger(discardLogger()),
 		session.WithSandboxRegistry(deps.SandboxRegistry),
 		session.WithPromptAssembler(deps.PromptAssembler),

@@ -5,7 +5,7 @@ title: Remove a worktree through the two-step safety flow
 persona: Ada
 journey: J-worktree-management
 expected: A clean worktree removes after one confirm that quotes the record label and states the branch is not deleted. A dirty or unpushed worktree refuses with quantified risk rows (changed files, ± lines, unpushed commits) and offers the assisted exit as the primary; force is a ghost-danger doorway after Cancel that leads to a second confirm re-stating the quantities. A bound idle session is reported as stopping; a session mid-turn blocks removal outright. A branch that also exists on a remote downgrades to an informational note and single-step removal.
-entry_points: Workspaces overview → worktree nest → Remove…
+entry_points: S15 Workspaces overview → worktree nest → Remove
 qa_status: untested
 bug_ids:
 fix_status:

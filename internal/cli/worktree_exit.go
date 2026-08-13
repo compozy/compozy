@@ -36,7 +36,7 @@ func newWorktreeCommitCommand(deps commandDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			action := contract.WorktreeExitAction("commit")
 			if push {
-				action = "commit_push"
+				action = worktreeCommitPushAction
 			}
 			return runWorktreeExitCommand(cmd, deps, workspaceRef, args[0], WorktreeExitActionRequest{
 				Action: action, Message: message,
@@ -55,7 +55,7 @@ func newWorktreePushCommand(deps commandDeps) *cobra.Command {
 		Use: "push <ref>", Short: "Push the worktree branch", Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWorktreeExitCommand(cmd, deps, workspaceRef, args[0], WorktreeExitActionRequest{
-				Action: "push",
+				Action: worktreePushAction,
 			})
 		},
 	}

@@ -329,7 +329,7 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 	if err != nil {
 		return err
 	}
-	params, err := upsertSessionParams(record)
+	params, err := upsertSessionParams(&record)
 	if err != nil {
 		return err
 	}

@@ -43,9 +43,9 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
     env: {
       ...process.env,
       // Deterministic identity and no operator config bleeding into the fixture.
-      GIT_AUTHOR_NAME: "Compozy E2E",
+      GIT_AUTHOR_NAME: "CompozyOS E2E",
       GIT_AUTHOR_EMAIL: "e2e@compozy.test",
-      GIT_COMMITTER_NAME: "Compozy E2E",
+      GIT_COMMITTER_NAME: "CompozyOS E2E",
       GIT_COMMITTER_EMAIL: "e2e@compozy.test",
       GIT_CONFIG_GLOBAL: "/dev/null",
       GIT_CONFIG_SYSTEM: "/dev/null",

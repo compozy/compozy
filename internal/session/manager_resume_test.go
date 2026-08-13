@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -718,7 +719,7 @@ func TestResumeRejectsMissingWorktreeWithoutMutatingMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("json.Marshal(meta after) error = %v", err)
 	}
-	if string(encodedAfter) != string(encodedBefore) {
+	if !bytes.Equal(encodedAfter, encodedBefore) {
 		t.Fatalf("metadata changed after missing resume:\nbefore: %s\nafter:  %s", encodedBefore, encodedAfter)
 	}
 }

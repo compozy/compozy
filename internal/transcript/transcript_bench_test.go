@@ -165,7 +165,6 @@ func benchmarkToolResultAgentEvent() acp.AgentEvent {
 		Type:      acp.EventTypeToolResult,
 		SessionID: "session-bench",
 		TurnID:    "turn-bench",
-		RequestID: "request-bench",
 		Timestamp: time.Date(2026, 4, 3, 15, 0, 0, 0, time.UTC),
 		Title:     "tool result",
 		Raw: json.RawMessage(`{
@@ -176,5 +175,5 @@ func benchmarkToolResultAgentEvent() acp.AgentEvent {
 			"_meta":{"claudeCode":{"toolName":"Bash"}},
 			"rawInput":{"command":"pwd"}
 		}`),
-	}
+	}.WithRequestID("request-bench")
 }

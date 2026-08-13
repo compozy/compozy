@@ -32,7 +32,11 @@ func TestServiceLifecycleHooks(t *testing.T) {
 		if !errors.Is(err, ErrDeniedByHook) || !strings.Contains(err.Error(), "protect-main") {
 			t.Fatalf("Create(denied) error = %v, want named hook denial", err)
 		}
-		if rows, listErr := fixture.store.List(context.Background(), fixture.workspace.ID); listErr != nil || len(rows) != 0 {
+		if rows, listErr := fixture.store.List(
+			context.Background(),
+			fixture.workspace.ID,
+		); listErr != nil ||
+			len(rows) != 0 {
 			t.Fatalf("rows after denial = %#v, %v, want empty", rows, listErr)
 		}
 		for _, command := range invocationCommands(fixture.runner.invocations()) {
@@ -48,7 +52,11 @@ func TestServiceLifecycleHooks(t *testing.T) {
 		hooks := &recordingLifecycleHooks{failPreCreate: true}
 		WithHooks(hooks)(fixture.service)
 		fixture.service.events = nil
-		item, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{Name: "hook-fail-open"})
+		item, err := fixture.service.Create(
+			context.Background(),
+			fixture.workspace.ID,
+			CreateOptions{Name: "hook-fail-open"},
+		)
 		if err != nil || item.State != StateReady {
 			t.Fatalf("Create(fail-open) = %#v, %v, want ready", item, err)
 		}

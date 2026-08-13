@@ -26,7 +26,7 @@ func (r *coordinatorRuntime) activeWorkerWorktrees(
 			continue
 		}
 		runID := strings.TrimSpace(run.ID)
-		worktreeID := strings.TrimSpace(run.WorktreeID)
+		worktreeID := strings.TrimSpace(run.WorktreeIDValue())
 		if runID == "" || worktreeID == "" {
 			continue
 		}

@@ -1958,9 +1958,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			}
 			run := taskRunForTest("run-"+binding.taskID, binding.taskID)
 			run.WorkspaceID = workspaceID
-			run.WorktreeID = binding.worktreeID
-			run.ResolvedWorktreeMode = taskpkg.WorktreeModeRef
-			run.ResolvedWorktreeRef = binding.worktreeRef
+			run.SetWorktreeState(binding.worktreeID, taskpkg.WorktreeModeRef, binding.worktreeRef)
 			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
 				t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
 			}
@@ -1981,7 +1979,11 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("ListTaskCatalog(first) = %#v, want one of two filtered tasks with continuation", first)
 		}
 		if first.Tasks[0].ActiveRun == nil || first.Tasks[0].ActiveRun.WorktreeID != worktrees[0].ID {
-			t.Fatalf("ListTaskCatalog(first).ActiveRun = %#v, want worktree %q", first.Tasks[0].ActiveRun, worktrees[0].ID)
+			t.Fatalf(
+				"ListTaskCatalog(first).ActiveRun = %#v, want worktree %q",
+				first.Tasks[0].ActiveRun,
+				worktrees[0].ID,
+			)
 		}
 		facetTotal := 0
 		for _, facet := range first.StatusFacets {
@@ -2000,7 +2002,11 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			t.Fatalf("ListTaskCatalog(second) = %#v, want final filtered task", second)
 		}
 		if second.Tasks[0].ActiveRun == nil || second.Tasks[0].ActiveRun.WorktreeID != worktrees[0].ID {
-			t.Fatalf("ListTaskCatalog(second).ActiveRun = %#v, want worktree %q", second.Tasks[0].ActiveRun, worktrees[0].ID)
+			t.Fatalf(
+				"ListTaskCatalog(second).ActiveRun = %#v, want worktree %q",
+				second.Tasks[0].ActiveRun,
+				worktrees[0].ID,
+			)
 		}
 
 		mismatch := query

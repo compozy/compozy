@@ -31,94 +31,101 @@ import (
 const remoteGatewayE2ETimeout = 10 * time.Second
 
 func TestRemoteGatewayE2EProfileWorkSurvivesDisconnectAndReconnect(t *testing.T) {
-	t.Run("Should pair, preserve admitted work, reconnect, and refuse local-only operations [E2E-002]", func(t *testing.T) {
-		harness := newIntegrationHarness(t)
-		mustExecuteRoot(t, harness.deps, "daemon", "start", "-o", "json")
+	t.Run(
+		"Should pair, preserve admitted work, reconnect, and refuse local-only operations [E2E-002]",
+		func(t *testing.T) {
+			harness := newIntegrationHarness(t)
+			mustExecuteRoot(t, harness.deps, "daemon", "start", "-o", "json")
 
-		sessionOut := mustExecuteRoot(
-			t,
-			harness.deps,
-			"session", "new", "--agent", "coder", "--cwd", harness.workspace, "-o", "json",
-		)
-		var created SessionRecord
-		if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
-			t.Fatalf("json.Unmarshal(session new) error = %v", err)
-		}
-
-		gatewayService, closeGatewayStore := newRemoteGatewayE2EService(t, harness)
-		defer closeGatewayStore()
-		privateServer := startRemoteGatewayE2EPrivateServer(t, harness, gatewayService)
-		tlsGateway := startRemoteGatewayE2ETLSProxy(t, privateServer)
-		remoteDeps := newRemoteGatewayE2ECommandDeps(t, harness, tlsGateway)
-
-		artifact, err := gatewayService.MintPairing(t.Context(), gateway.PairingRequest{
-			Source: gateway.PairingSourceLocal,
-		})
-		if err != nil {
-			t.Fatalf("MintPairing() error = %v", err)
-		}
-		pairOut, _, err := executeRootCommand(
-			t,
-			remoteDeps,
-			"pair", "redeem", artifact.Artifact,
-			"--name", "e2e-remote", "--address", tlsGateway.URL, "--use", "-o", "json",
-		)
-		if err != nil {
-			t.Fatalf("pair redeem error = %v", err)
-		}
-		if strings.Contains(pairOut, gatewayDeviceCredentialPrefix) {
-			t.Fatalf("pair redeem output leaked the device credential: %s", pairOut)
-		}
-		assertRemoteGatewayE2EProfileAtRest(t, harness.homePaths)
-
-		promptCtx, cancelPrompt := context.WithCancel(t.Context())
-		promptResult, promptOutput := executeRemoteGatewayE2EPrompt(
-			remoteDeps,
-			promptCtx,
-			created.ID,
-			"long work __block__",
-		)
-		blockedPromptID, blocked := waitForRemoteGatewayE2EBlocked(harness.runner, remoteGatewayE2ETimeout)
-		if !blocked {
-			cancelPrompt()
-			select {
-			case promptErr := <-promptResult:
-				t.Fatalf("remote prompt ended before entering blocked work: %v; output=%q", promptErr, promptOutput.String())
-			case <-time.After(time.Second):
+			sessionOut := mustExecuteRoot(
+				t,
+				harness.deps,
+				"session", "new", "--agent", "coder", "--cwd", harness.workspace, "-o", "json",
+			)
+			var created SessionRecord
+			if err := json.Unmarshal([]byte(sessionOut), &created); err != nil {
+				t.Fatalf("json.Unmarshal(session new) error = %v", err)
 			}
-			t.Fatal("remote prompt did not reach the admitted blocked-work state")
-		}
-		waitForRemoteGatewayE2EOutput(t, promptOutput, `"type":"start"`)
-		cancelPrompt()
-		if promptErr := <-promptResult; !errors.Is(promptErr, context.Canceled) &&
-			!errors.Is(promptErr, errSessionPromptStreamIncomplete) {
-			t.Fatalf("disconnected remote prompt error = %v, want canceled or incomplete stream", promptErr)
-		}
 
-		if status, err := harness.runner.manager.Status(t.Context(), created.ID); err != nil || status == nil {
-			t.Fatalf("Status(admitted remote work) = %#v, %v", status, err)
-		}
-		releaseRemoteGatewayE2EBlocked(harness.runner, blockedPromptID)
-		waitForRemoteGatewayE2ESessionEvent(t, remoteDeps, created.ID, "done")
+			gatewayService, closeGatewayStore := newRemoteGatewayE2EService(t, harness)
+			defer closeGatewayStore()
+			privateServer := startRemoteGatewayE2EPrivateServer(t, harness, gatewayService)
+			tlsGateway := startRemoteGatewayE2ETLSProxy(t, privateServer)
+			remoteDeps := newRemoteGatewayE2ECommandDeps(t, harness, tlsGateway)
 
-		client, err := clientFromDeps(remoteDeps)
-		if err != nil {
-			t.Fatalf("clientFromDeps(reconnected) error = %v", err)
-		}
-		remoteClient, ok := client.(*daemonClient)
-		if !ok {
-			t.Fatalf("reconnected client = %T, want *daemonClient", client)
-		}
-		localOnlyErr := remoteClient.doJSON(
-			t.Context(),
-			http.MethodPost,
-			"/api/agent/tasks/claim-next",
-			nil,
-			struct{}{},
-			nil,
-		)
-		assertGatewayClientErrorCode(t, localOnlyErr, "gateway_local_only_operation")
-	})
+			artifact, err := gatewayService.MintPairing(t.Context(), gateway.PairingRequest{
+				Source: gateway.PairingSourceLocal,
+			})
+			if err != nil {
+				t.Fatalf("MintPairing() error = %v", err)
+			}
+			pairOut, _, err := executeRootCommand(
+				t,
+				remoteDeps,
+				"pair", "redeem", artifact.Artifact,
+				"--name", "e2e-remote", "--address", tlsGateway.URL, "--use", "-o", "json",
+			)
+			if err != nil {
+				t.Fatalf("pair redeem error = %v", err)
+			}
+			if strings.Contains(pairOut, gatewayDeviceCredentialPrefix) {
+				t.Fatalf("pair redeem output leaked the device credential: %s", pairOut)
+			}
+			assertRemoteGatewayE2EProfileAtRest(t, harness.homePaths)
+
+			promptCtx, cancelPrompt := context.WithCancel(t.Context())
+			promptResult, promptOutput := executeRemoteGatewayE2EPrompt(
+				remoteDeps,
+				promptCtx,
+				created.ID,
+				"long work __block__",
+			)
+			blockedPromptID, blocked := waitForRemoteGatewayE2EBlocked(harness.runner, remoteGatewayE2ETimeout)
+			if !blocked {
+				cancelPrompt()
+				select {
+				case promptErr := <-promptResult:
+					t.Fatalf(
+						"remote prompt ended before entering blocked work: %v; output=%q",
+						promptErr,
+						promptOutput.String(),
+					)
+				case <-time.After(time.Second):
+				}
+				t.Fatal("remote prompt did not reach the admitted blocked-work state")
+			}
+			waitForRemoteGatewayE2EOutput(t, promptOutput, `"type":"start"`)
+			cancelPrompt()
+			if promptErr := <-promptResult; !errors.Is(promptErr, context.Canceled) &&
+				!errors.Is(promptErr, errSessionPromptStreamIncomplete) {
+				t.Fatalf("disconnected remote prompt error = %v, want canceled or incomplete stream", promptErr)
+			}
+
+			if status, err := harness.runner.manager.Status(t.Context(), created.ID); err != nil || status == nil {
+				t.Fatalf("Status(admitted remote work) = %#v, %v", status, err)
+			}
+			releaseRemoteGatewayE2EBlocked(harness.runner, blockedPromptID)
+			waitForRemoteGatewayE2ESessionEvent(t, remoteDeps, created.ID, "done")
+
+			client, err := clientFromDeps(remoteDeps)
+			if err != nil {
+				t.Fatalf("clientFromDeps(reconnected) error = %v", err)
+			}
+			remoteClient, ok := client.(*daemonClient)
+			if !ok {
+				t.Fatalf("reconnected client = %T, want *daemonClient", client)
+			}
+			localOnlyErr := remoteClient.doJSON(
+				t.Context(),
+				http.MethodPost,
+				"/api/agent/tasks/claim-next",
+				nil,
+				struct{}{},
+				nil,
+			)
+			assertGatewayClientErrorCode(t, localOnlyErr, "gateway_local_only_operation")
+		},
+	)
 }
 
 type remoteGatewayE2EPolicy struct{}

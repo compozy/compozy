@@ -28,7 +28,11 @@ type sessionPromptStateReader interface {
 func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 	var req contract.ForkSessionWorktreeRequest
 	if err := decodeStrictJSONBody(c, &req); err != nil {
-		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: decode worktree fork request: %w", h.transportName(), err))
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%s: decode worktree fork request: %w", h.transportName(), err),
+		)
 		return
 	}
 	if err := validateWorktreeForkRequest(req); err != nil {
@@ -45,12 +49,20 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 		return
 	}
 	if h.SessionAcceptance == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: asynchronous session acceptance is unavailable"))
+		h.respondError(
+			c,
+			http.StatusServiceUnavailable,
+			errors.New("api: asynchronous session acceptance is unavailable"),
+		)
 		return
 	}
 	forkAcceptance, ok := h.SessionAcceptance.(SessionWorktreeForkAcceptanceManager)
 	if !ok {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: atomic worktree fork acceptance is unavailable"))
+		h.respondError(
+			c,
+			http.StatusServiceUnavailable,
+			errors.New("api: atomic worktree fork acceptance is unavailable"),
+		)
 		return
 	}
 	if err := validateWorktreeForkAvailability(origin, sessionID, promptState); err != nil {
@@ -70,15 +82,19 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 		return
 	}
 
-	created, err := forkAcceptance.CreateWorktreeForkAccepted(c.Request.Context(), origin.ID, session.CreateAcceptedOpts{
-		Session: session.CreateOpts{
-			AgentName: origin.AgentName,
-			Workspace: scope.SessionWorkspaceID(),
-			Worktree:  worktreeTarget.ID,
-			Type:      session.SessionTypeUser,
-			Lineage:   &store.SessionLineage{ParentSessionID: origin.ID},
+	created, err := forkAcceptance.CreateWorktreeForkAccepted(
+		c.Request.Context(),
+		origin.ID,
+		session.CreateAcceptedOpts{
+			Session: session.CreateOpts{
+				AgentName: origin.AgentName,
+				Workspace: scope.SessionWorkspaceID(),
+				Worktree:  worktreeTarget.ID,
+				Type:      session.SessionTypeUser,
+				Lineage:   &store.SessionLineage{ParentSessionID: origin.ID},
+			},
 		},
-	})
+	)
 	if err != nil {
 		if errors.Is(err, session.ErrPromptInProgress) {
 			err = fmt.Errorf("%w: %s", worktree.ErrSessionActive, origin.ID)

@@ -27,12 +27,18 @@ type RunReviewLineage struct {
 	NextRoundGuidance  string          `json:"next_round_guidance,omitempty"`
 }
 
+// RunWorktreeState keeps optional worktree binding data off the hot Run value.
+type RunWorktreeState struct {
+	WorktreeID           string       `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode WorktreeMode `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string       `json:"resolved_worktree_ref,omitempty"`
+}
+
 // Run is the durable execution record for one task attempt.
 type Run struct {
 	ID             string         `json:"id"`
 	TaskID         string         `json:"task_id"`
 	WorkspaceID    string         `json:"workspace_id,omitempty"`
-	WorktreeID     string         `json:"worktree_id,omitempty"`
 	Attempt        int32          `json:"attempt"`
 	RecoveryCount  int32          `json:"recovery_count"`
 	RunKind        RunKind        `json:"run_kind,omitempty"`
@@ -45,9 +51,8 @@ type Run struct {
 	Origin         Origin         `json:"origin"`
 	IdempotencyKey string         `json:"idempotency_key,omitempty"`
 	*RunNetworkState
+	*RunWorktreeState
 	DesignationGroupID    string            `json:"designation_group_id,omitempty"`
-	ResolvedWorktreeMode  WorktreeMode      `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef   string            `json:"resolved_worktree_ref,omitempty"`
 	ClaimTokenHash        string            `json:"claim_token_hash,omitempty"`
 	LeaseUntil            time.Time         `json:"lease_until"`
 	HeartbeatAt           time.Time         `json:"heartbeat_at"`

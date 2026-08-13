@@ -9,7 +9,7 @@ export type SessionProviderOption = NonNullable<WorkspaceDetailPayload["provider
 export type WorktreesResponse = OperationResponse<"listWorktrees", 200>;
 /** Adopted/registered worktree record. Discovered entries are a separate array. */
 export type WorktreePayload = WorktreesResponse["worktrees"][number];
-/** Git-known checkout with no Compozy record yet — selecting it is the adoption gesture. */
+/** Git-known checkout with no CompozyOS record yet — selecting it is the adoption gesture. */
 export type DiscoveredWorktreePayload = WorktreesResponse["discovered"][number];
 export type WorktreeRepoState = WorktreesResponse["repo"];
 export type WorktreeStatusPayload = OperationResponse<"getWorktreeStatus", 200>;

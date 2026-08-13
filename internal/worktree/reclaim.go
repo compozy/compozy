@@ -22,7 +22,8 @@ func (s *Service) reclaimBranch(
 	if !ReclamationEligible(item.Branch, item.RunNamespace, item.CreatedBranch) || item.CreatedHead == "" {
 		return ReclaimOutcome{Reason: "branch is not runtime-owned"}, nil
 	}
-	if status == nil || status.Detached == nil || *status.Detached || status.Branch == nil || *status.Branch != item.Branch {
+	if status == nil || status.Detached == nil || *status.Detached || status.Branch == nil ||
+		*status.Branch != item.Branch {
 		return ReclaimOutcome{Eligible: true, Reason: "checkout no longer owns the recorded branch"}, nil
 	}
 	ref := "refs/heads/" + item.Branch
@@ -37,7 +38,10 @@ func (s *Service) reclaimBranch(
 		)
 	}
 	if len(stderr) > 0 {
-		return ReclaimOutcome{}, fmt.Errorf("worktree: reclaim branch: %s", diagnostics.RedactAndBound(string(stderr), 2048))
+		return ReclaimOutcome{}, fmt.Errorf(
+			"worktree: reclaim branch: %s",
+			diagnostics.RedactAndBound(string(stderr), 2048),
+		)
 	}
 	s.emit(ctx, EventBranchReclaimed, item)
 	return ReclaimOutcome{Eligible: true, Deleted: true}, nil

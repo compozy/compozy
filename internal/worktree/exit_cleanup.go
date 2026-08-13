@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	forgePRMergedState = "merged"
+	cleanupLocalSource = "local"
+)
+
 const exitForgeFreshness = 30 * time.Second
 
 func (s *Service) exitCleanupEvidence(ctx context.Context, item Worktree, forge *ForgeStatus) ExitCleanupEvidence {
@@ -21,7 +26,7 @@ func (s *Service) exitCleanupEvidence(ctx context.Context, item Worktree, forge 
 		evidence.Summary = "Merged on " + forge.Provider
 		return evidence
 	}
-	if forge != nil && forge.PRState != nil && *forge.PRState == "merged" {
+	if forge != nil && forge.PRState != nil && *forge.PRState == forgePRMergedState {
 		// A merged verdict that cannot be proven against the current HEAD is not
 		// current cleanup authority, even when its wall-clock TTL has not elapsed.
 		evidence.Stale = true
@@ -38,17 +43,17 @@ func (s *Service) exitCleanupEvidence(ctx context.Context, item Worktree, forge 
 		return evidence
 	}
 	if unique == 0 {
-		evidence.Safe, evidence.Source = true, "local"
+		evidence.Safe, evidence.Source = true, cleanupLocalSource
 		evidence.Summary = "No commits unique to this branch."
 		return evidence
 	}
 	remote, _, remoteErr := s.runner.Run(ctx, item.Path, "branch", "-r", "--list", "*/"+item.Branch)
 	if remoteErr == nil && strings.TrimSpace(string(remote)) != "" {
-		evidence.Safe, evidence.Source, evidence.Downgraded = true, "local", true
+		evidence.Safe, evidence.Source, evidence.Downgraded = true, cleanupLocalSource, true
 		evidence.Summary = "Unique commits are already on a remote branch."
 		return evidence
 	}
-	evidence.Source = "local"
+	evidence.Source = cleanupLocalSource
 	evidence.Blocker = fmt.Sprintf("%d commits exist nowhere else.", unique)
 	return evidence
 }
@@ -59,7 +64,7 @@ func forgeMergeIsCurrent(
 	path string,
 	forge *ForgeStatus,
 ) bool {
-	if forge == nil || forge.PRState == nil || *forge.PRState != "merged" {
+	if forge == nil || forge.PRState == nil || *forge.PRState != forgePRMergedState {
 		return false
 	}
 	if forge.FetchedAt == nil {

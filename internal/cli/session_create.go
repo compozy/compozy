@@ -76,7 +76,8 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		StringVar(&workspaceRef, workspaceSkillSource, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Absolute workspace directory to auto-register")
 	cmd.Flags().StringVar(&worktreeRef, "worktree", "", "Start in an existing ready worktree")
-	cmd.Flags().StringVar(&newWorktree, "new-worktree", "", "Create a worktree before starting; optionally provide its name")
+	cmd.Flags().
+		StringVar(&newWorktree, "new-worktree", "", "Create a worktree before starting; optionally provide its name")
 	cmd.Flags().Lookup("new-worktree").NoOptDefVal = sessionNewWorktreeAutoValue
 	cmd.Flags().StringVar(&name, sessionNameKey, "", "Optional session label")
 	cmd.Flags().StringVar(&parentID, "parent", "", "Record a same-workspace parent session as creation provenance")

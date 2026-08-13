@@ -6186,7 +6186,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			opts worktree.CreateOptions,
 		) (*worktree.Worktree, error) {
 			createdWorktrees++
-			if workspaceID != registryWorkspaceID || opts.Name != "native-feature" || opts.Origin != worktree.OriginManual {
+			if workspaceID != registryWorkspaceID || opts.Name != "native-feature" ||
+				opts.Origin != worktree.OriginManual {
 				t.Fatalf("Create() = workspace %q opts %#v", workspaceID, opts)
 			}
 			return &worktree.Worktree{ID: "wt-created", WorkspaceID: workspaceID}, nil

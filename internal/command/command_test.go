@@ -115,7 +115,13 @@ func TestBuildCatalog(t *testing.T) {
 		if catalog.Revision == originalRevision {
 			t.Fatal("disabled worktree catalog revision did not change")
 		}
-		if _, err := commandpkg.ParseSkillInvocations("/worktree", catalog); !errors.Is(err, commandpkg.ErrUnavailable) {
+		if _, err := commandpkg.ParseSkillInvocations(
+			"/worktree",
+			catalog,
+		); !errors.Is(
+			err,
+			commandpkg.ErrUnavailable,
+		) {
 			t.Fatalf("ParseSkillInvocations(/worktree) error = %v, want ErrUnavailable", err)
 		}
 	})

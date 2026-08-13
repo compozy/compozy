@@ -12,6 +12,7 @@ import (
 
 const (
 	nativeProfileToolsDeletedKey = "deleted"
+	nativeProfileToolsProfileKey = "profile"
 )
 
 type taskExecutionProfileRefInput struct {
@@ -54,7 +55,9 @@ func (n *daemonNativeTools) taskExecutionProfileGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"profile": profile}, fmt.Sprintf("profile %s", profile.TaskID))
+	return structuredResult(
+		map[string]any{nativeProfileToolsProfileKey: profile}, fmt.Sprintf("profile %s", profile.TaskID),
+	)
 }
 
 func (n *daemonNativeTools) taskExecutionProfileSet(
@@ -71,7 +74,7 @@ func (n *daemonNativeTools) taskExecutionProfileSet(
 		return toolspkg.ToolResult{}, err
 	}
 	if input.Profile == nil {
-		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "profile")
+		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, nativeProfileToolsProfileKey)
 	}
 	actor, err := actorContextFromScope(scope)
 	if err != nil {

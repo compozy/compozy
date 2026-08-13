@@ -134,7 +134,7 @@ func (h *BaseHandlers) replayWorktreeEvents(
 			if event.Sequence <= cursor {
 				continue
 			}
-			payload := json.RawMessage(event.Content)
+			payload := event.Content
 			if len(payload) == 0 {
 				payload = json.RawMessage("{}")
 			}

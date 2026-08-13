@@ -7,6 +7,11 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 )
 
+const (
+	worktreeBranchHeldCode = "branch_held_by_worktree"
+	worktreeForgeErrorCode = "forge_error"
+)
+
 func WorktreeErrorCode(err error) string {
 	for _, candidate := range worktreeErrorCodes {
 		if errors.Is(err, candidate.err) {
@@ -56,7 +61,7 @@ var worktreeErrorCodes = []struct {
 	{worktree.ErrWorkspaceNotGitBacked, "workspace_not_git_backed"},
 	{worktree.ErrNameTaken, "worktree_name_taken"},
 	{worktree.ErrPathExists, "worktree_path_exists"},
-	{worktree.ErrBranchHeld, "branch_held_by_worktree"},
+	{worktree.ErrBranchHeld, worktreeBranchHeldCode},
 	{worktree.ErrBranchCheckedOutAtRoot, "branch_checked_out_at_root"},
 	{worktree.ErrBaseRefNotFound, "base_ref_not_found"},
 	{worktree.ErrRepoHasNoCommits, "repo_has_no_commits"},
@@ -80,6 +85,6 @@ var worktreeErrorCodes = []struct {
 	{worktree.ErrDeniedByHook, "worktree_denied_by_hook"},
 	{worktree.ErrNotPending, "worktree_not_pending"},
 	{worktree.ErrForgeUnavailable, "forge_unavailable"},
-	{worktree.ErrForge, "forge_error"},
+	{worktree.ErrForge, worktreeForgeErrorCode},
 	{worktree.ErrExitActionInvalid, "worktree_exit_action_invalid"},
 }

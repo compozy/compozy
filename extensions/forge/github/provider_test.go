@@ -128,7 +128,6 @@ func TestRunProviderForgeProtocolConformanceIT035(t *testing.T) {
 			},
 		},
 	} {
-		test := test
 		t.Run("Should serve "+test.name+" through the public SDK", func(t *testing.T) {
 			result := runtime.call(t, 2, test.method, test.params)
 			if result.Error != nil {
@@ -141,7 +140,12 @@ func TestRunProviderForgeProtocolConformanceIT035(t *testing.T) {
 				t.Fatalf("decode %s result: %v; result=%s", test.method, err, result.Result)
 			}
 			if response.Cause != extensioncontract.ForgeCauseUnsupportedRemote {
-				t.Fatalf("%s cause = %q, want %q", test.method, response.Cause, extensioncontract.ForgeCauseUnsupportedRemote)
+				t.Fatalf(
+					"%s cause = %q, want %q",
+					test.method,
+					response.Cause,
+					extensioncontract.ForgeCauseUnsupportedRemote,
+				)
 			}
 		})
 	}
@@ -304,7 +308,6 @@ func TestProvider(t *testing.T) {
 		{name: "expired credentials", statusCode: http.StatusUnauthorized, cause: extensioncontract.ForgeCauseCredentialExpired},
 		{name: "rate limiting", statusCode: http.StatusForbidden, cause: extensioncontract.ForgeCauseRateLimited},
 	} {
-		testCase := testCase
 		t.Run("Should classify "+testCase.name+" without retrying", func(t *testing.T) {
 			t.Parallel()
 			var calls atomic.Int32
@@ -334,11 +337,17 @@ func TestProvider(t *testing.T) {
 			if got := r.URL.Query().Get("head"); got != "acme:feature/exit" {
 				t.Fatalf("head query = %q", got)
 			}
-			writeJSON(t, w, http.StatusOK, []pullPayload{{Number: 41, HTMLURL: "https://github.com/acme/repo/pull/41", State: "open"}})
+			writeJSON(
+				t,
+				w,
+				http.StatusOK,
+				[]pullPayload{{Number: 41, HTMLURL: "https://github.com/acme/repo/pull/41", State: "open"}},
+			)
 		})
 		defer closeServer()
 		got, err := provider.CreatePR(context.Background(), createRequest())
-		if err != nil || got.Status != "opened_existing" || got.Number != 41 || getCalls.Load() != 1 || postCalls.Load() != 0 {
+		if err != nil || got.Status != "opened_existing" || got.Number != 41 || getCalls.Load() != 1 ||
+			postCalls.Load() != 0 {
 			t.Fatalf("CreatePR() = %#v, %v; GET=%d POST=%d", got, err, getCalls.Load(), postCalls.Load())
 		}
 	})
@@ -360,7 +369,12 @@ func TestProvider(t *testing.T) {
 				if body.Head != "feature/exit" || body.Base != "main" || body.Title != "Exit worktree" || !body.Draft {
 					t.Fatalf("create body = %#v", body)
 				}
-				writeJSON(t, w, http.StatusCreated, pullPayload{Number: 42, HTMLURL: "https://github.com/acme/repo/pull/42", State: "open"})
+				writeJSON(
+					t,
+					w,
+					http.StatusCreated,
+					pullPayload{Number: 42, HTMLURL: "https://github.com/acme/repo/pull/42", State: "open"},
+				)
 			default:
 				t.Fatalf("unexpected method %s", r.Method)
 			}
@@ -423,7 +437,6 @@ func TestParseRepository(t *testing.T) {
 		{name: "enterprise host", url: "https://github.mycompany.com/acme/repo.git", ok: false},
 		{name: "non GitHub remote", url: "https://gitlab.com/acme/repo.git", ok: false},
 	} {
-		testCase := testCase
 		t.Run("Should classify "+testCase.name, func(t *testing.T) {
 			t.Parallel()
 			repository, ok := parseRepository(testCase.url)

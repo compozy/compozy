@@ -77,14 +77,29 @@ func TestExitPlan(t *testing.T) {
 			baseAhead: 1, primary: ExitActionOpenPR,
 		},
 		{
-			name: "cached PR advances to view PR", status: exitStatus(0, true, 0, 0), forge: forge,
-			forgeState: &ForgeStatus{PRState: &openState, PRNumber: &prNumber, PRURL: "https://github.com/acme/repo/pull/42"},
-			baseAhead:  1, primary: ExitActionViewPR, viewLabel: "View PR",
+			name:   "cached PR advances to view PR",
+			status: exitStatus(0, true, 0, 0),
+			forge:  forge,
+			forgeState: &ForgeStatus{
+				PRState:  &openState,
+				PRNumber: &prNumber,
+				PRURL:    "https://github.com/acme/repo/pull/42",
+			},
+			baseAhead: 1,
+			primary:   ExitActionViewPR,
+			viewLabel: "View PR",
 		},
 		{
-			name: "cached PR remains visible without an available provider", status: exitStatus(0, true, 0, 0),
-			forgeState: &ForgeStatus{PRState: &openState, PRNumber: &prNumber, PRURL: "https://github.com/acme/repo/pull/42"},
-			baseAhead:  1, primary: ExitActionViewPR, viewLabel: "View in browser",
+			name:   "cached PR remains visible without an available provider",
+			status: exitStatus(0, true, 0, 0),
+			forgeState: &ForgeStatus{
+				PRState:  &openState,
+				PRNumber: &prNumber,
+				PRURL:    "https://github.com/acme/repo/pull/42",
+			},
+			baseAhead: 1,
+			primary:   ExitActionViewPR,
+			viewLabel: "View in browser",
 		},
 		{
 			name: "diverged branch refuses publish actions", status: exitStatus(0, true, 2, 1), forge: forge,
@@ -192,30 +207,37 @@ func TestExitPlan(t *testing.T) {
 		}
 	})
 
-	t.Run("Should prefer local and remote cleanup evidence without claiming unique commits are safe", func(t *testing.T) {
-		t.Parallel()
-		for _, testCase := range []struct {
-			name      string
-			responses []gitResponse
-			want      ExitCleanupEvidence
-		}{
-			{name: "no unique commits", responses: []gitResponse{{stdout: []byte("0\n")}},
-				want: ExitCleanupEvidence{Safe: true, Source: "local", Summary: "No commits unique to this branch."}},
-			{name: "remote branch downgrade", responses: []gitResponse{{stdout: []byte("2\n")}, {stdout: []byte("origin/feature\n")}},
-				want: ExitCleanupEvidence{Safe: true, Source: "local", Downgraded: true, Summary: "Unique commits are already on a remote branch."}},
-			{name: "unique commits block", responses: []gitResponse{{stdout: []byte("2\n")}, {}},
-				want: ExitCleanupEvidence{Source: "local", Blocker: "2 commits exist nowhere else."}},
-		} {
-			t.Run("Should report "+testCase.name, func(t *testing.T) {
-				t.Parallel()
-				service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: testCase.responses})
-				got := service.exitCleanupEvidence(context.Background(), Worktree{Path: "/repo", Branch: "feature"}, nil)
-				if got != testCase.want {
-					t.Fatalf("cleanup = %#v, want %#v", got, testCase.want)
-				}
-			})
-		}
-	})
+	t.Run(
+		"Should prefer local and remote cleanup evidence without claiming unique commits are safe",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, testCase := range []struct {
+				name      string
+				responses []gitResponse
+				want      ExitCleanupEvidence
+			}{
+				{name: "no unique commits", responses: []gitResponse{{stdout: []byte("0\n")}},
+					want: ExitCleanupEvidence{Safe: true, Source: "local", Summary: "No commits unique to this branch."}},
+				{name: "remote branch downgrade", responses: []gitResponse{{stdout: []byte("2\n")}, {stdout: []byte("origin/feature\n")}},
+					want: ExitCleanupEvidence{Safe: true, Source: "local", Downgraded: true, Summary: "Unique commits are already on a remote branch."}},
+				{name: "unique commits block", responses: []gitResponse{{stdout: []byte("2\n")}, {}},
+					want: ExitCleanupEvidence{Source: "local", Blocker: "2 commits exist nowhere else."}},
+			} {
+				t.Run("Should report "+testCase.name, func(t *testing.T) {
+					t.Parallel()
+					service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: testCase.responses})
+					got := service.exitCleanupEvidence(
+						context.Background(),
+						Worktree{Path: "/repo", Branch: "feature"},
+						nil,
+					)
+					if got != testCase.want {
+						t.Fatalf("cleanup = %#v, want %#v", got, testCase.want)
+					}
+				})
+			}
+		},
+	)
 
 	t.Run("Should apply merged evidence freshness before local cleanup evidence", func(t *testing.T) {
 		t.Parallel()
@@ -373,13 +395,16 @@ func TestExitPlan(t *testing.T) {
 				case "status --porcelain=v2 --branch -z":
 					return gitResponse{stdout: []byte("# branch.oid abc\x00# branch.head feature/prefill\x00" +
 						"# branch.upstream origin/feature/prefill\x00# branch.ab +0 -0\x00")}
-				case "diff --numstat -z", "diff --cached --numstat -z", "status --porcelain=v2 -z --untracked-files=all":
+				case "diff --numstat -z",
+					"diff --cached --numstat -z",
+					"status --porcelain=v2 -z --untracked-files=all":
 					return gitResponse{}
 				case "remote get-url --all origin":
 					return gitResponse{stdout: []byte("git@github.com:acme/repo.git\n")}
 				case "config --get branch.feature/prefill.gh-merge-base":
 					return gitResponse{stdout: []byte("main\n")}
-				case "rev-list --count main..HEAD", "rev-list --count HEAD --not --remotes --exclude=refs/heads/feature/prefill --branches":
+				case "rev-list --count main..HEAD",
+					"rev-list --count HEAD --not --remotes --exclude=refs/heads/feature/prefill --branches":
 					return gitResponse{stdout: []byte("1\n")}
 				case "branch -r --list */feature/prefill":
 					return gitResponse{}

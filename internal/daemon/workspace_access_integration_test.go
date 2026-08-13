@@ -293,9 +293,11 @@ func newWorkspaceAccessIntegrationSession(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(workspaceAccessIntegrationResolver{resolved: resolved}),
 		session.WithDriver(driver),
-		session.WithStore(func(ctx context.Context, owner store.SessionDBOwner, path string) (session.EventRecorder, error) {
-			return sessiondb.OpenSessionDB(ctx, owner, path)
-		}),
+		session.WithStore(
+			func(ctx context.Context, owner store.SessionDBOwner, path string) (session.EventRecorder, error) {
+				return sessiondb.OpenSessionDB(ctx, owner, path)
+			},
+		),
 		session.WithQueryStore(
 			func(ctx context.Context, owner store.SessionDBOwner, path string) (session.EventReadCloser, error) {
 				return sessiondb.OpenSessionDBReadOnly(ctx, owner, path)

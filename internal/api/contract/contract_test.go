@@ -1197,7 +1197,6 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 			Type:      acp.EventTypePermission,
 			SessionID: "sess-1",
 			TurnID:    "turn-1",
-			RequestID: "req-1",
 			Timestamp: time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
 			Action:    "fs/read_text_file",
 			Resource:  "/tmp/file.txt",
@@ -1209,7 +1208,7 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 				Timestamp:   time.Date(2026, 4, 7, 10, 30, 1, 0, time.UTC),
 			},
 			Raw: []byte(`{"ok":true}`),
-		}).WithPromptRuntime(&acp.PromptRuntime{
+		}).WithRequestID("req-1").WithPromptRuntime(&acp.PromptRuntime{
 			Provider:        "codex",
 			Model:           "gpt-5.6",
 			ReasoningEffort: "high",
@@ -1220,7 +1219,8 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 		var roundTrip contract.AgentEventPayload
 		marshalJSON(t, payload, &roundTrip)
 
-		if roundTrip.Type != event.Type || roundTrip.RequestID != event.RequestID || roundTrip.Action != event.Action {
+		if roundTrip.Type != event.Type || roundTrip.RequestID != event.RequestIDValue() ||
+			roundTrip.Action != event.Action {
 			t.Fatalf("roundTrip payload = %#v", roundTrip)
 		}
 		if roundTrip.Usage == nil || roundTrip.Usage.InputTokens == nil || *roundTrip.Usage.InputTokens != inputTokens {

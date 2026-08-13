@@ -44,7 +44,7 @@ func (s *Service) CreateReady(
 		return nil, errors.Join(ctx.Err(), s.cancelReadyCreation(ctx, workspaceID, item.ID, operation))
 	case <-operation.done:
 	}
-	operationErr, canceled := operation.result()
+	canceled, operationErr := operation.result()
 	if operationErr != nil {
 		return nil, fmt.Errorf("worktree: materialize accepted creation: %w", operationErr)
 	}
@@ -75,7 +75,7 @@ func (s *Service) cancelReadyCreation(
 	case <-cleanupCtx.Done():
 		return fmt.Errorf("worktree: cancel ready creation: %w", cleanupCtx.Err())
 	}
-	operationErr, canceled := operation.result()
+	canceled, operationErr := operation.result()
 	if operationErr != nil || canceled {
 		return operationErr
 	}
@@ -103,7 +103,8 @@ func (s *Service) startAcceptedCreation(
 		return nil, nil, err
 	}
 
-	operationContext, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	// The operation owns cancel until runAcceptedCreation finishes or an explicit cancellation wins.
+	operationContext, cancel := context.WithCancel(context.WithoutCancel(ctx)) // #nosec G118
 	operation := &createOperation{cancel: cancel, done: make(chan struct{})}
 	s.setCreateOperation(item.WorkspaceID, item.ID, operation)
 	go s.runAcceptedCreation(
@@ -156,7 +157,7 @@ func (s *Service) cancelAcceptedCreation(ctx context.Context, workspaceID, id st
 		return true, ctx.Err()
 	case <-operation.done:
 	}
-	err, canceled := operation.result()
+	canceled, err := operation.result()
 	if err != nil {
 		return true, fmt.Errorf("worktree: cancel accepted creation: %w", err)
 	}
@@ -199,8 +200,8 @@ func (o *createOperation) setResult(err error, canceled bool) {
 	o.errMu.Unlock()
 }
 
-func (o *createOperation) result() (error, bool) {
+func (o *createOperation) result() (bool, error) {
 	o.errMu.Lock()
 	defer o.errMu.Unlock()
-	return o.err, o.canceled
+	return o.canceled, o.err
 }

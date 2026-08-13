@@ -542,7 +542,10 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						if request.ConfigOverrides == nil ||
 							request.ConfigOverrides.Environment == nil ||
 							request.ConfigOverrides.Environment.Mode != contract.LoopEnvironmentModePerRun {
-							t.Fatalf("RunLoop config overrides = %#v, want per_run environment", request.ConfigOverrides)
+							t.Fatalf(
+								"RunLoop config overrides = %#v, want per_run environment",
+								request.ConfigOverrides,
+							)
 						}
 						if request.NetworkParticipation == nil ||
 							request.NetworkParticipation.Mode == nil ||

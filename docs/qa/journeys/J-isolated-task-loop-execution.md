@@ -27,8 +27,12 @@ flowchart TD
     O --> P[Reach the Loop node and run terminal state]
     I --> Q[Fresh reads show the same run, session, and worktree identities]
     P --> Q
+    Q --> R{Retained worktree?}
+    R -->|yes| S[Open its exit plan or keep it for later inspection]
+    R -->|no| T[Keep the root or contained-directory attribution]
+    S --> U[True end: isolated files and durable attribution remain manageable]
+    T --> U
     X1 -.->|policy changes or hook permits a retry| A
-    Q --> R[True end: isolated files and durable attribution on every structured surface]
 ```
 
 ```yaml
@@ -44,6 +48,8 @@ journey:
       origin: direct
     - url: "Native tools: compozy__task_worktree_policy_set, compozy__task_fanout_runs, compozy__loop_create|configure|run"
       origin: agent
+    - url: "Web: task setup and fan-out dialogs; Loop configure and node inspector"
+      origin: in-app-nav
   actions:
     - step: 1
       verb: "Choose a task worktree policy or Loop environment"
@@ -60,10 +66,13 @@ journey:
     - step: 5
       verb: "Read the outcome through another structured surface"
       expected_observable: "CLI, HTTP, UDS, native tools, run summaries, sessions, and worktree events agree on the terminal state and identities."
+    - step: 6
+      verb: "Manage the retained per-run checkout"
+      expected_observable: "A retained task or Loop worktree enters the ordinary assisted-exit and removal lifecycle without losing its run, session, or event attribution."
   goal:
     observable: "Task and Loop work runs in the selected isolated environment and remains attributable after completion."
     side_effects: [policy-snapshotted, worktree-created, session-bound, run-attributed, terminal-state-persisted]
-  true_end_state: "Fresh structured reads show each run and session bound to the same durable worktree or contained directory used for execution; denied creation has no Git, registry, or event residue."
+  true_end_state: "Fresh structured reads show each run and session bound to the same durable worktree or contained directory used for execution; retained worktrees remain manageable through the ordinary exit flow, and denied creation has no Git, registry, or event residue."
   exit:
     natural: "The operator inspects or removes retained worktrees after the task or Loop reaches a terminal state."
   abandonment:

@@ -187,8 +187,22 @@ func TestUDSTransportSessionCommandsProjectionMatchesHTTP(t *testing.T) {
 		}
 
 		foreignPath := "/api/workspaces/foreign-workspace/sessions/" + url.PathEscape(created.ID) + "/commands"
-		httpForeign := mustUnixRequest(t, clients.HTTPClient, http.MethodGet, runtimeHarness.HTTPURL(foreignPath), nil, nil)
-		udsForeign := mustUnixRequest(t, clients.UDSClient, http.MethodGet, runtimeHarness.UDSURL(foreignPath), nil, nil)
+		httpForeign := mustUnixRequest(
+			t,
+			clients.HTTPClient,
+			http.MethodGet,
+			runtimeHarness.HTTPURL(foreignPath),
+			nil,
+			nil,
+		)
+		udsForeign := mustUnixRequest(
+			t,
+			clients.UDSClient,
+			http.MethodGet,
+			runtimeHarness.UDSURL(foreignPath),
+			nil,
+			nil,
+		)
 		httpForeignBody := readAndCloseHTTPBody(t, httpForeign)
 		udsForeignBody := readAndCloseHTTPBody(t, udsForeign)
 		if httpForeign.StatusCode != http.StatusNotFound || udsForeign.StatusCode != http.StatusNotFound {

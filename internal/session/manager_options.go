@@ -213,7 +213,7 @@ func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
 }
 
 // WithWorktreeResolver injects ready-worktree resolution for bound sessions.
-func WithWorktreeResolver(resolver SessionWorktreeResolver) Option {
+func WithWorktreeResolver(resolver WorktreeResolver) Option {
 	return func(manager *Manager) {
 		manager.worktreeResolver = resolver
 	}

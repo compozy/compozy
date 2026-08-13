@@ -25,6 +25,18 @@ type SessionSandboxMeta struct {
 	LastSyncError         string          `json:"last_sync_error,omitempty"`
 }
 
+// SessionWorktreeState keeps the optional worktree binding compact inside SessionMeta.
+// Embedding preserves the flat session metadata JSON contract.
+type SessionWorktreeState struct {
+	WorktreeID string `json:"worktree_id,omitempty"`
+}
+
+// SessionAdvertisedCommandState keeps the optional command catalog compact inside SessionMeta.
+// Embedding preserves the flat session metadata JSON contract.
+type SessionAdvertisedCommandState struct {
+	AdvertisedCommands []SessionAdvertisedCommand `json:"advertised_commands,omitempty"`
+}
+
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
 	ID                   string                        `json:"id"`
@@ -41,29 +53,65 @@ type SessionMeta struct {
 	RuntimeSelection     *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
 	EffectivePermissions string                        `json:"effective_permissions,omitempty"`
 	WorkspaceID          string                        `json:"workspace_id,omitempty"`
-	WorktreeID           string                        `json:"worktree_id,omitempty"`
-	CWD                  string                        `json:"cwd,omitempty"`
-	NetworkParticipation *participation.Spec           `json:"network_participation"`
-	SessionType          string                        `json:"session_type,omitempty"`
-	Lineage              *SessionLineage               `json:"lineage,omitempty"`
-	State                string                        `json:"state"`
-	StopReason           *StopReason                   `json:"stop_reason,omitempty"`
-	StopDetail           string                        `json:"stop_detail,omitempty"`
-	Failure              *SessionFailure               `json:"failure,omitempty"`
-	ACPSessionID         *string                       `json:"acp_session_id,omitempty"`
-	Liveness             *SessionLivenessMeta          `json:"liveness,omitempty"`
-	Sandbox              *SessionSandboxMeta           `json:"sandbox,omitempty"`
-	CreationProfile      *SessionCreationProfile       `json:"creation_profile,omitempty"`
-	CreationOptions      *SessionCreationOptions       `json:"creation_options,omitempty"`
-	CreationProfileRef   string                        `json:"creation_profile_ref,omitempty"`
-	PolicySpecDigest     string                        `json:"policy_spec_digest,omitempty"`
-	CreationDigest       string                        `json:"creation_digest,omitempty"`
-	AdvertisedCommands   []SessionAdvertisedCommand    `json:"advertised_commands,omitempty"`
-	SoulSnapshotID       string                        `json:"soul_snapshot_id,omitempty"`
-	SoulDigest           string                        `json:"soul_digest,omitempty"`
-	ParentSoulDigest     string                        `json:"parent_soul_digest,omitempty"`
-	CreatedAt            time.Time                     `json:"created_at"`
-	UpdatedAt            time.Time                     `json:"updated_at"`
+	*SessionWorktreeState
+	CWD                  string                  `json:"cwd,omitempty"`
+	NetworkParticipation *participation.Spec     `json:"network_participation"`
+	SessionType          string                  `json:"session_type,omitempty"`
+	Lineage              *SessionLineage         `json:"lineage,omitempty"`
+	State                string                  `json:"state"`
+	StopReason           *StopReason             `json:"stop_reason,omitempty"`
+	StopDetail           string                  `json:"stop_detail,omitempty"`
+	Failure              *SessionFailure         `json:"failure,omitempty"`
+	ACPSessionID         *string                 `json:"acp_session_id,omitempty"`
+	Liveness             *SessionLivenessMeta    `json:"liveness,omitempty"`
+	Sandbox              *SessionSandboxMeta     `json:"sandbox,omitempty"`
+	CreationProfile      *SessionCreationProfile `json:"creation_profile,omitempty"`
+	CreationOptions      *SessionCreationOptions `json:"creation_options,omitempty"`
+	CreationProfileRef   string                  `json:"creation_profile_ref,omitempty"`
+	PolicySpecDigest     string                  `json:"policy_spec_digest,omitempty"`
+	CreationDigest       string                  `json:"creation_digest,omitempty"`
+	*SessionAdvertisedCommandState
+	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest       string    `json:"soul_digest,omitempty"`
+	ParentSoulDigest string    `json:"parent_soul_digest,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// WorktreeIDValue returns the optional worktree binding without exposing nil embedding details.
+func (m SessionMeta) WorktreeIDValue() string {
+	if m.SessionWorktreeState == nil {
+		return ""
+	}
+	return m.WorktreeID
+}
+
+// SetWorktreeID updates the optional worktree binding with value semantics.
+func (m *SessionMeta) SetWorktreeID(worktreeID string) {
+	if worktreeID == "" {
+		m.SessionWorktreeState = nil
+		return
+	}
+	m.SessionWorktreeState = &SessionWorktreeState{WorktreeID: worktreeID}
+}
+
+// AdvertisedCommandsValue returns the optional advertised command catalog.
+func (m *SessionMeta) AdvertisedCommandsValue() []SessionAdvertisedCommand {
+	if m == nil || m.SessionAdvertisedCommandState == nil {
+		return nil
+	}
+	return m.AdvertisedCommands
+}
+
+// SetAdvertisedCommands stores an ownership-safe advertised command catalog.
+func (m *SessionMeta) SetAdvertisedCommands(commands []SessionAdvertisedCommand) {
+	if len(commands) == 0 {
+		m.SessionAdvertisedCommandState = nil
+		return
+	}
+	m.SessionAdvertisedCommandState = &SessionAdvertisedCommandState{
+		AdvertisedCommands: CloneSessionAdvertisedCommands(commands),
+	}
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.
@@ -115,8 +163,9 @@ func (m SessionMeta) Validate() error {
 	if err := ValidateSessionRuntimeSelectionState(m.RuntimeSelection); err != nil {
 		return err
 	}
-	seenCommands := make(map[string]struct{}, len(m.AdvertisedCommands))
-	for _, command := range m.AdvertisedCommands {
+	advertisedCommands := m.AdvertisedCommandsValue()
+	seenCommands := make(map[string]struct{}, len(advertisedCommands))
+	for _, command := range advertisedCommands {
 		if err := command.Validate(); err != nil {
 			return err
 		}

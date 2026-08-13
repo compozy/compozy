@@ -83,5 +83,5 @@ func samePromptChunkRun(left acp.AgentEvent, right acp.AgentEvent) bool {
 	return strings.TrimSpace(left.Type) == strings.TrimSpace(right.Type) &&
 		strings.TrimSpace(left.SessionID) == strings.TrimSpace(right.SessionID) &&
 		strings.TrimSpace(left.TurnID) == strings.TrimSpace(right.TurnID) &&
-		strings.TrimSpace(left.RequestID) == strings.TrimSpace(right.RequestID)
+		strings.TrimSpace(left.RequestIDValue()) == strings.TrimSpace(right.RequestIDValue())
 }

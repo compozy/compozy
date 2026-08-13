@@ -455,7 +455,8 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	if initialEvents[0].Decision != "" {
 		t.Fatalf("initial permission decision = %q, want empty", initialEvents[0].Decision)
 	}
-	if initialEvents[0].RequestID == "" {
+	requestID := initialEvents[0].RequestIDValue()
+	if requestID == "" {
 		t.Fatal("initial permission request_id = empty, want non-empty")
 	}
 	if !proc.HasPendingPermission() {
@@ -463,8 +464,8 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	}
 
 	raw := decodePermissionEventRaw(t, initialEvents[0].Raw)
-	if raw.RequestID != initialEvents[0].RequestID {
-		t.Fatalf("raw.request_id = %q, want %q", raw.RequestID, initialEvents[0].RequestID)
+	if raw.RequestID != requestID {
+		t.Fatalf("raw.request_id = %q, want %q", raw.RequestID, requestID)
 	}
 	if len(raw.Options) != 4 {
 		t.Fatalf("raw.options = %#v, want 4 permission options", raw.Options)
@@ -474,7 +475,7 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	}
 
 	if err := proc.ResolvePermission(ApproveRequest{
-		RequestID: initialEvents[0].RequestID,
+		RequestID: requestID,
 		Decision:  string(decisionAllowAlways),
 	}); err != nil {
 		t.Fatalf("ResolvePermission() error = %v", err)
@@ -754,7 +755,8 @@ func TestEmitPermissionEvent(t *testing.T) {
 			if event.Type != EventTypePermission {
 				t.Fatalf("event.Type = %q, want %q", event.Type, EventTypePermission)
 			}
-			if event.SessionID != "sess-emit" || event.TurnID != "turn-permission-event" || event.RequestID != "req-1" {
+			if event.SessionID != "sess-emit" || event.TurnID != "turn-permission-event" ||
+				event.RequestIDValue() != "req-1" {
 				t.Fatalf("event ids = %#v, want session/turn/request populated", event)
 			}
 			if event.Title != "permission request" || event.ToolCallID != "tool-1" {
@@ -1641,7 +1643,7 @@ func TestHandleSessionUpdateMarksToolCallAsPrecheckedAfterGatewayIntercept(t *te
 	if len(events) != 1 || events[0].Type != EventTypeToolCall {
 		t.Fatalf("events = %#v, want one tool_call", events)
 	}
-	if !events[0].ToolPrechecked {
+	if !events[0].ToolPrechecked() {
 		t.Fatalf("tool call event = %#v, want ToolPrechecked true", events[0])
 	}
 }

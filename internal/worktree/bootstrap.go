@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,7 +18,10 @@ import (
 	"golang.org/x/sys/execabs"
 )
 
-const setupDiagnosticLimit = 16 * 1024
+const (
+	setupDiagnosticLimit = 16 * 1024
+	defaultPOSIXShell    = "/bin/sh"
+)
 
 func (s *Service) copyBootstrapFiles(
 	ctx context.Context,
@@ -36,9 +40,13 @@ func (s *Service) copyBootstrapFiles(
 	args = append(args, settings.CopyList...)
 	stdout, stderr, err := s.runner.Run(ctx, workspace.Root, args...)
 	if err != nil {
-		return fmt.Errorf("worktree: enumerate bootstrap files: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
+		return fmt.Errorf(
+			"worktree: enumerate bootstrap files: %s: %w",
+			diagnostics.RedactAndBound(string(stderr), 2048),
+			err,
+		)
 	}
-	for _, raw := range bytes.Split(stdout, []byte{0}) {
+	for raw := range bytes.SplitSeq(stdout, []byte{0}) {
 		relative := string(raw)
 		if relative == "" {
 			continue
@@ -159,7 +167,7 @@ func (s *Service) runSetup(
 	}
 	shell := strings.TrimSpace(s.getenv("SHELL"))
 	if shell == "" {
-		shell = "/bin/sh"
+		shell = defaultPOSIXShell
 	}
 	setupCtx, cancel := context.WithTimeout(ctx, settings.SetupTimeout)
 	defer cancel()
@@ -209,7 +217,8 @@ func setupEnvironment(parent []string, workspace Workspace, item Worktree, shell
 			continue
 		}
 		upper := strings.ToUpper(strings.TrimSpace(name))
-		if upper == "PATH" || upper == "HOME" || upper == "LANG" || upper == "TMPDIR" || strings.HasPrefix(upper, "LC_") {
+		if upper == "PATH" || upper == "HOME" || upper == "LANG" || upper == "TMPDIR" ||
+			strings.HasPrefix(upper, "LC_") {
 			allowed = append(allowed, entry)
 		}
 	}
@@ -313,8 +322,8 @@ func canonicalFuturePath(value string) (string, error) {
 	for {
 		resolved, resolveErr := filepath.EvalSymlinks(current)
 		if resolveErr == nil {
-			for index := len(remainder) - 1; index >= 0; index-- {
-				resolved = filepath.Join(resolved, remainder[index])
+			for _, v := range slices.Backward(remainder) {
+				resolved = filepath.Join(resolved, v)
 			}
 			return filepath.Clean(resolved), nil
 		}

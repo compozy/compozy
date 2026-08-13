@@ -32,7 +32,12 @@ func TestServiceDiscovery(t *testing.T) {
 		if err != nil || got.ID != item.ID {
 			t.Fatalf("Get(owner) = %#v, %v, want %s", got, err, item.ID)
 		}
-		if crossWorkspace, err := fixture.service.Get(context.Background(), "ws-other", item.ID); !errors.Is(err, ErrNotFound) || crossWorkspace != nil {
+		if crossWorkspace, err := fixture.service.Get(
+			context.Background(),
+			"ws-other",
+			item.ID,
+		); !errors.Is(err, ErrNotFound) ||
+			crossWorkspace != nil {
 			t.Fatalf("Get(cross-workspace) = %#v, %v, want ErrNotFound", crossWorkspace, err)
 		}
 	})
@@ -92,43 +97,46 @@ func TestServiceDiscovery(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not repopulate stale cache data after a concurrent mutation invalidates the scan", func(t *testing.T) {
-		t.Parallel()
-		fixture := newDiscoveryTestFixture(t)
-		fixture.listOutput = worktreeListFixture(fixture.workspace.Root, "main")
-		entered, release := make(chan struct{}), make(chan struct{})
-		var calls atomic.Int64
-		var blockFirst atomic.Bool
-		blockFirst.Store(true)
-		baseRun := fixture.runner.run
-		fixture.runner.run = func(call gitInvocation) gitResponse {
-			if strings.Contains(strings.Join(call.args, " "), "worktree list --porcelain -z") {
-				calls.Add(1)
-				if blockFirst.CompareAndSwap(true, false) {
-					close(entered)
-					<-release
+	t.Run(
+		"Should not repopulate stale cache data after a concurrent mutation invalidates the scan",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := newDiscoveryTestFixture(t)
+			fixture.listOutput = worktreeListFixture(fixture.workspace.Root, "main")
+			entered, release := make(chan struct{}), make(chan struct{})
+			var calls atomic.Int64
+			var blockFirst atomic.Bool
+			blockFirst.Store(true)
+			baseRun := fixture.runner.run
+			fixture.runner.run = func(call gitInvocation) gitResponse {
+				if strings.Contains(strings.Join(call.args, " "), "worktree list --porcelain -z") {
+					calls.Add(1)
+					if blockFirst.CompareAndSwap(true, false) {
+						close(entered)
+						<-release
+					}
 				}
+				return baseRun(call)
 			}
-			return baseRun(call)
-		}
-		firstDone := make(chan error, 1)
-		go func() {
-			_, err := fixture.service.List(context.Background(), fixture.workspace.ID, false)
-			firstDone <- err
-		}()
-		<-entered
-		fixture.service.invalidateDiscovery(fixture.workspace.ID)
-		close(release)
-		if err := <-firstDone; err != nil {
-			t.Fatalf("List(in-flight) error = %v", err)
-		}
-		if _, err := fixture.service.List(context.Background(), fixture.workspace.ID, false); err != nil {
-			t.Fatalf("List(after invalidation) error = %v", err)
-		}
-		if got := calls.Load(); got != 2 {
-			t.Fatalf("discovery scans = %d, want stale in-flight result discarded", got)
-		}
-	})
+			firstDone := make(chan error, 1)
+			go func() {
+				_, err := fixture.service.List(context.Background(), fixture.workspace.ID, false)
+				firstDone <- err
+			}()
+			<-entered
+			fixture.service.invalidateDiscovery(fixture.workspace.ID)
+			close(release)
+			if err := <-firstDone; err != nil {
+				t.Fatalf("List(in-flight) error = %v", err)
+			}
+			if _, err := fixture.service.List(context.Background(), fixture.workspace.ID, false); err != nil {
+				t.Fatalf("List(after invalidation) error = %v", err)
+			}
+			if got := calls.Load(); got != 2 {
+				t.Fatalf("discovery scans = %d, want stale in-flight result discarded", got)
+			}
+		},
+	)
 
 	t.Run("Should retain registry rows and diagnostics when discovery fails", func(t *testing.T) {
 		t.Parallel()
@@ -145,7 +153,8 @@ func TestServiceDiscovery(t *testing.T) {
 		if err != nil {
 			t.Fatalf("List(failed discovery) error = %v", err)
 		}
-		if len(listing.Worktrees) != 1 || listing.Repo.Diagnostic == "" || strings.Contains(listing.Repo.Diagnostic, "ghp_") {
+		if len(listing.Worktrees) != 1 || listing.Repo.Diagnostic == "" ||
+			strings.Contains(listing.Repo.Diagnostic, "ghp_") {
 			t.Fatalf("List(failed discovery) = %#v, want retained row and redacted diagnostic", listing)
 		}
 	})
@@ -221,7 +230,12 @@ func TestServiceDiscovery(t *testing.T) {
 		)
 		listing, err := service.List(context.Background(), workspace.ID, false)
 		if err != nil || listing.Repo.GitBacked || len(listing.Worktrees) != 0 || len(runner.invocations()) != 0 {
-			t.Fatalf("List(non-git) = %#v, %v calls=%#v, want empty truthful listing", listing, err, runner.invocations())
+			t.Fatalf(
+				"List(non-git) = %#v, %v calls=%#v, want empty truthful listing",
+				listing,
+				err,
+				runner.invocations(),
+			)
 		}
 	})
 

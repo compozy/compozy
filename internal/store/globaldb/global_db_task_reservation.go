@@ -160,20 +160,22 @@ func (g *TaskRepo) createQueuedRunWithExecutor(
 		workspaceID = strings.TrimSpace(input.networkSpec.WorkspaceID)
 	}
 	run := taskpkg.Run{
-		ID:                   input.runID,
-		TaskID:               taskRecord.ID,
-		WorkspaceID:          workspaceID,
-		RunKind:              input.runKind,
-		LoopRunID:            input.loopRunID,
-		Status:               taskpkg.TaskRunStatusQueued,
-		Attempt:              runAttempt,
-		Origin:               input.origin,
-		IdempotencyKey:       input.idempotencyKey,
-		DesignationGroupID:   input.designationGroupID,
-		ResolvedWorktreeMode: input.resolvedWorktreeMode,
-		ResolvedWorktreeRef:  input.resolvedWorktreeRef,
-		Metadata:             input.metadata,
-		QueuedAt:             input.queuedAt,
+		ID:                 input.runID,
+		TaskID:             taskRecord.ID,
+		WorkspaceID:        workspaceID,
+		RunKind:            input.runKind,
+		LoopRunID:          input.loopRunID,
+		Status:             taskpkg.TaskRunStatusQueued,
+		Attempt:            runAttempt,
+		Origin:             input.origin,
+		IdempotencyKey:     input.idempotencyKey,
+		DesignationGroupID: input.designationGroupID,
+		RunWorktreeState: &taskpkg.RunWorktreeState{
+			ResolvedWorktreeMode: input.resolvedWorktreeMode,
+			ResolvedWorktreeRef:  input.resolvedWorktreeRef,
+		},
+		Metadata: input.metadata,
+		QueuedAt: input.queuedAt,
 	}
 	run.SetNetworkState(input.networkSpec, "", "", "")
 	normalizedRun, err := g.normalizeTaskRunForCreate(run)

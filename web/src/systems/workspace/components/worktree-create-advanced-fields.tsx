@@ -25,7 +25,7 @@ export interface WorktreeCreateAdvancedFieldsProps {
 
 /**
  * Branch, base ref, and the existing-branch picker. Branch prefill is derived
- * from the name alone — Compozy forces no prefix and exposes no prefix setting
+ * from the name alone — CompozyOS forces no prefix and exposes no prefix setting
  * (BR-15), so any namespace here is something the user typed.
  */
 export function WorktreeCreateAdvancedFields({

@@ -2,6 +2,8 @@ package builtin
 
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
+const worktreeDescriptorKey = "worktree"
+
 func worktreeDescriptors() []toolspkg.Descriptor {
 	return []toolspkg.Descriptor{
 		nativeDescriptor(
@@ -9,28 +11,38 @@ func worktreeDescriptors() []toolspkg.Descriptor {
 			"List registered and discovered worktrees for one workspace.",
 			worktreeListInputSchema, toolspkg.RiskRead, true, false, false,
 			[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorktrees},
-			[]string{"worktree", "list"}, []string{"worktree list", "git worktrees"},
+			[]string{worktreeDescriptorKey, descriptorKeywordList}, []string{"worktree list", "git worktrees"},
 		),
 		nativeDescriptor(
 			toolspkg.ToolIDWorktreeInspect, "worktree_inspect", "Worktree Inspect",
 			"Inspect one worktree with cached status, forge state, and agent activity.",
 			worktreeRefInputSchema, toolspkg.RiskRead, true, false, false,
 			[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorktrees},
-			[]string{"worktree", "inspect"}, []string{"worktree inspect", "worktree status"},
+			[]string{worktreeDescriptorKey, "inspect"}, []string{"worktree inspect", "worktree status"},
 		),
 		nativeDescriptor(
 			toolspkg.ToolIDWorktreeCreate, "worktree_create", "Worktree Create",
 			"Accept one durable phased worktree creation for a workspace.",
 			worktreeCreateInputSchema, toolspkg.RiskMutating, false, false, false,
 			[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorktrees},
-			[]string{"worktree", descriptorKeywordCreate}, []string{"create worktree", "git worktree add"},
+			[]string{worktreeDescriptorKey, descriptorKeywordCreate}, []string{"create worktree", "git worktree add"},
 		),
 		nativeDescriptor(
-			toolspkg.ToolIDWorktreeRemove, "worktree_remove", "Worktree Remove",
+			toolspkg.ToolIDWorktreeRemove,
+			"worktree_remove",
+			"Worktree Remove",
 			"Remove one worktree after authoritative dirty, commit, identity, and session checks.",
-			worktreeRemoveInputSchema, toolspkg.RiskDestructive, false, true, false,
+			worktreeRemoveInputSchema,
+			toolspkg.RiskDestructive,
+			false,
+			true,
+			false,
 			[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorktrees},
-			[]string{"worktree", descriptorKeywordDestructive}, []string{"remove worktree", "delete checkout"},
+			[]string{
+				worktreeDescriptorKey,
+				descriptorKeywordDestructive,
+			},
+			[]string{"remove worktree", "delete checkout"},
 		),
 	}
 }

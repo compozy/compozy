@@ -336,7 +336,15 @@ func marshalWorktreeRemovalExecutionError(
 	case OutputToon:
 		return []byte(renderToonObject(
 			"worktree_removal_refusal",
-			[]string{cliCodeKey, "changed_files", "insertions", "deletions", "unpushed_commits", "exists_on_remote", "downgrade"},
+			[]string{
+				cliCodeKey,
+				"changed_files",
+				"insertions",
+				"deletions",
+				"unpushed_commits",
+				"exists_on_remote",
+				"downgrade",
+			},
 			[]string{
 				payload.Code,
 				fmt.Sprintf("%d", payload.Risk.ChangedFiles),

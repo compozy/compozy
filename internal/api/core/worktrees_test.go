@@ -239,7 +239,8 @@ func TestCreateSessionWorktreeBinding(t *testing.T) {
 				opts worktree.CreateOptions,
 			) (*worktree.Worktree, error) {
 				createdWorktrees++
-				if workspaceID != "ws-stable" || opts.Name != "feature-session" || opts.Origin != worktree.OriginManual {
+				if workspaceID != "ws-stable" || opts.Name != "feature-session" ||
+					opts.Origin != worktree.OriginManual {
 					t.Fatalf("Create() = workspace %q opts %#v", workspaceID, opts)
 				}
 				return &worktree.Worktree{ID: "wt-created", WorkspaceID: workspaceID}, nil
@@ -262,7 +263,7 @@ func TestCreateSessionWorktreeBinding(t *testing.T) {
 	router.POST("/sessions", handlers.CreateSession)
 	request := func(body string) *httptest.ResponseRecorder {
 		t.Helper()
-		req := httptest.NewRequest(http.MethodPost, "/sessions", strings.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/sessions", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, req)
@@ -309,7 +310,12 @@ func TestCreateSessionWorktreeBinding(t *testing.T) {
 		beforeCreated := createdWorktrees
 		response := request(body)
 		if response.Code != http.StatusBadRequest {
-			t.Fatalf("invalid binding status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+			t.Fatalf(
+				"invalid binding status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusBadRequest,
+				response.Body.String(),
+			)
 		}
 		if len(accepted) != beforeAccepted || createdWorktrees != beforeCreated {
 			t.Fatalf("invalid binding caused mutation: accepted=%d worktrees=%d", len(accepted), createdWorktrees)
@@ -386,7 +392,8 @@ func TestForkSessionToWorktree(t *testing.T) {
 			"/workspaces/:workspace_id/sessions/:session_id/worktree-fork",
 			handlers.ForkSessionToWorktree,
 		)
-		req := httptest.NewRequest(
+		req := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodPost,
 			"/workspaces/workspace-a/sessions/sess-origin/worktree-fork",
 			strings.NewReader(body),
@@ -677,7 +684,9 @@ func TestWorktreeExitHandlers(t *testing.T) {
 	router.POST(path+"/cancel", handlers.CancelWorktreeExitAction)
 
 	t.Run("Should return the complete plan without internal remote URLs", func(t *testing.T) {
-		request := httptest.NewRequest(http.MethodGet, "/workspaces/workspace-a/worktrees/wt-a/exit", http.NoBody)
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet, "/workspaces/workspace-a/worktrees/wt-a/exit", http.NoBody,
+		)
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, request)
 		var payload contract.WorktreeExitPlanResponse
@@ -707,7 +716,8 @@ func TestWorktreeExitHandlers(t *testing.T) {
 
 	t.Run("Should accept an action with snake-case options", func(t *testing.T) {
 		body := `{"action":"open_pr","message":"Commit","title":"Exit","body":"Ready","draft":true,"base":"trunk"}`
-		request := httptest.NewRequest(
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodPost, "/workspaces/workspace-a/worktrees/wt-a/exit/actions", strings.NewReader(body),
 		)
 		request.Header.Set("Content-Type", "application/json")
@@ -722,7 +732,8 @@ func TestWorktreeExitHandlers(t *testing.T) {
 
 	t.Run("Should reject an unknown action before mutation", func(t *testing.T) {
 		before := runRequest
-		request := httptest.NewRequest(
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodPost, "/workspaces/workspace-a/worktrees/wt-a/exit/actions",
 			strings.NewReader(`{"action":"publish_everything"}`),
 		)
@@ -735,7 +746,8 @@ func TestWorktreeExitHandlers(t *testing.T) {
 	})
 
 	t.Run("Should cancel the named operation", func(t *testing.T) {
-		request := httptest.NewRequest(
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodPost, "/workspaces/workspace-a/worktrees/wt-a/exit/cancel",
 			strings.NewReader(`{"op_id":" op-exit "}`),
 		)
@@ -783,7 +795,8 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 		}
 		router := gin.New()
 		router.DELETE("/workspaces/:workspace_id/worktrees/:worktree_id", handlers.RemoveWorktree)
-		request := httptest.NewRequest(
+		request := httptest.NewRequestWithContext(
+			t.Context(),
 			http.MethodDelete,
 			"/workspaces/workspace-a/worktrees/wt-a",
 			http.NoBody,
@@ -856,11 +869,12 @@ func TestWorktreeStreams(t *testing.T) {
 			}
 			router := gin.New()
 			router.GET("/workspaces/:workspace_id/worktrees/:worktree_id/stream", handlers.StreamWorktree)
-			request := httptest.NewRequest(
+			request := httptest.NewRequestWithContext(
+				requestContext,
 				http.MethodGet,
 				fmt.Sprintf("/workspaces/workspace-a/worktrees/wt-a/stream?after_sequence=%d", afterSequence),
 				http.NoBody,
-			).WithContext(requestContext)
+			)
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, request)
 			if response.Code != http.StatusOK {
@@ -875,8 +889,8 @@ func TestWorktreeStreams(t *testing.T) {
 				t.Fatalf("initial stream sequence %d count = %d; body=%s", sequence, count, initial)
 			}
 		}
-		if !(strings.Index(initial, "id: 1\n") < strings.Index(initial, "id: 2\n") &&
-			strings.Index(initial, "id: 2\n") < strings.Index(initial, "id: 3\n")) {
+		if strings.Index(initial, "id: 1\n") >= strings.Index(initial, "id: 2\n") ||
+			strings.Index(initial, "id: 2\n") >= strings.Index(initial, "id: 3\n") {
 			t.Fatalf("initial stream order is not monotonic: %s", initial)
 		}
 
@@ -899,7 +913,9 @@ func TestWorktreeStreams(t *testing.T) {
 		handlers := &BaseHandlers{Worktrees: worktreeServiceStub{catalogEvents: events}}
 		router := gin.New()
 		router.GET("/worktrees/catalog-stream", handlers.StreamWorktreeCatalog)
-		request := httptest.NewRequest(http.MethodGet, "/worktrees/catalog-stream", http.NoBody)
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet, "/worktrees/catalog-stream", http.NoBody,
+		)
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, request)
 

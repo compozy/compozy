@@ -108,7 +108,6 @@ func BenchmarkAgentEventPayloadFromEvent(b *testing.B) {
 		Type:       acp.EventTypeToolResult,
 		SessionID:  "sess-1",
 		TurnID:     "turn-1",
-		RequestID:  "req-1",
 		Timestamp:  time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
 		Text:       "tool completed",
 		Title:      "read_file",
@@ -130,7 +129,7 @@ func BenchmarkAgentEventPayloadFromEvent(b *testing.B) {
 			Timestamp:    time.Date(2026, 4, 17, 12, 0, 1, 0, time.UTC),
 		},
 		Raw: []byte(`{"result":{"path":"/tmp/notes.md","preview":"hello"},"ok":true}`),
-	}
+	}.WithRequestID("req-1")
 
 	for b.Loop() {
 		benchmarkAgentEventPayload = AgentEventPayloadFromEvent(event)

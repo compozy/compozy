@@ -45,7 +45,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), resolvedWorkspace.ID); err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: validate resume participation for %q: %w", meta.ID, err)
 	}
-	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, resolvedWorkspace.ID, meta.WorktreeID)
+	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, resolvedWorkspace.ID, meta.WorktreeIDValue())
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: resolve resume worktree for %q: %w", meta.ID, err)
 	}
@@ -119,15 +119,14 @@ func (m *Manager) startAgentProcess(
 func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.SessionContext {
 	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
 	ctx := hookspkg.SessionContext{
-		SessionID:    strings.TrimSpace(s.sessionID),
-		SessionName:  strings.TrimSpace(s.sessionName),
-		SessionType:  string(normalizeSessionType(s.sessionType)),
-		AgentName:    strings.TrimSpace(s.agentName),
-		WorkspaceID:  ref.WorkspaceID,
-		Workspace:    ref.Workspace,
-		WorktreeID:   strings.TrimSpace(s.worktreeID),
-		ACPSessionID: strings.TrimSpace(s.acpSessionID),
-		State:        string(StateStarting),
+		SessionID:             strings.TrimSpace(s.sessionID),
+		SessionName:           strings.TrimSpace(s.sessionName),
+		SessionType:           string(normalizeSessionType(s.sessionType)),
+		AgentName:             strings.TrimSpace(s.agentName),
+		WorkspaceID:           ref.WorkspaceID,
+		Workspace:             ref.Workspace,
+		SessionRuntimeContext: hookspkg.NewSessionRuntimeContext(s.worktreeID, s.acpSessionID),
+		State:                 string(StateStarting),
 		SessionSoulContext: hookSessionSoulContext(
 			s.soulSnapshotID,
 			s.soulDigest,

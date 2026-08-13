@@ -12,6 +12,9 @@ func (m HookMatcher) matchSessionContext(payload SessionContext, includeSessionT
 	if !matchStringField(m.WorkspaceRoot, payload.Workspace) {
 		return false
 	}
+	if !matchStringField(m.WorktreeID, payload.WorktreeIDValue()) {
+		return false
+	}
 	if includeSessionType && !matchStringField(m.SessionType, payload.SessionType) {
 		return false
 	}

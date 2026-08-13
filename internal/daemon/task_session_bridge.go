@@ -161,7 +161,7 @@ func (b *taskSessionBridge) StartTaskSession(
 	if b.contextOverlay != nil {
 		overlayRun := spec.Run
 		if materialized != nil {
-			overlayRun.WorktreeID = materialized.ID
+			overlayRun.SetWorktreeID(materialized.ID)
 		}
 		overlay, err := b.contextOverlay.TaskRunPromptOverlay(
 			ctx,
@@ -180,19 +180,28 @@ func (b *taskSessionBridge) StartTaskSession(
 		opts.PromptOverlay = joinPromptOverlays(opts.PromptOverlay, overlay)
 	}
 
+	return b.createTaskSession(ctx, spec.Run, opts, materialized)
+}
+
+func (b *taskSessionBridge) createTaskSession(
+	ctx context.Context,
+	run taskpkg.Run,
+	opts session.CreateOpts,
+	materialized *worktree.Worktree,
+) (*taskpkg.SessionRef, error) {
 	created, err := b.sessions.Create(ctx, opts)
 	if err != nil {
-		return nil, b.rollbackTaskSessionMaterialization(ctx, spec.Run, materialized, err)
+		return nil, b.rollbackTaskSessionMaterialization(ctx, run, materialized, err)
 	}
 	if created == nil {
-		return nil, b.rollbackTaskSessionMaterialization(ctx, spec.Run, materialized, fmt.Errorf(
+		return nil, b.rollbackTaskSessionMaterialization(ctx, run, materialized, fmt.Errorf(
 			"%w: task session bridge create returned nil session",
 			taskpkg.ErrValidation,
 		))
 	}
 	info := created.Info()
 	if info == nil {
-		return nil, b.rollbackTaskSessionMaterialization(ctx, spec.Run, materialized, fmt.Errorf(
+		return nil, b.rollbackTaskSessionMaterialization(ctx, run, materialized, fmt.Errorf(
 			"%w: task session bridge create returned nil session info",
 			taskpkg.ErrValidation,
 		))
@@ -215,8 +224,8 @@ func (b *taskSessionBridge) applySessionWorktreePolicy(
 	spec *taskpkg.StartTaskSession,
 ) (*worktree.Worktree, error) {
 	policy := taskpkg.WorktreePolicy{
-		Mode:        spec.Run.ResolvedWorktreeMode.Normalize(),
-		WorktreeRef: strings.TrimSpace(spec.Run.ResolvedWorktreeRef),
+		Mode:        spec.Run.ResolvedWorktreeModeValue().Normalize(),
+		WorktreeRef: strings.TrimSpace(spec.Run.ResolvedWorktreeRefValue()),
 	}
 	if policy.Mode == "" {
 		policy.Mode = taskpkg.WorktreeModeNone
@@ -307,7 +316,7 @@ func (b *taskSessionBridge) CleanupUnboundTaskSession(
 	run taskpkg.Run,
 	ref taskpkg.SessionRef,
 ) error {
-	if run.ResolvedWorktreeMode.Normalize() != taskpkg.WorktreeModePerRun ||
+	if run.ResolvedWorktreeModeValue().Normalize() != taskpkg.WorktreeModePerRun ||
 		strings.TrimSpace(ref.WorktreeID) == "" || b.worktrees == nil {
 		return nil
 	}
@@ -357,14 +366,17 @@ func (b *taskSessionBridge) AttachTaskRunSession(
 	if err != nil {
 		return nil, err
 	}
-	mode := run.ResolvedWorktreeMode.Normalize()
+	mode := run.ResolvedWorktreeModeValue().Normalize()
 	if mode == "" {
 		mode = taskpkg.WorktreeModeNone
 	}
 	switch mode {
 	case taskpkg.WorktreeModeNone:
 		if strings.TrimSpace(ref.WorktreeID) != "" {
-			return nil, fmt.Errorf("%w: root run cannot attach a worktree-bound session", taskpkg.ErrSessionAttachNotAllowed)
+			return nil, fmt.Errorf(
+				"%w: root run cannot attach a worktree-bound session",
+				taskpkg.ErrSessionAttachNotAllowed,
+			)
 		}
 	case taskpkg.WorktreeModePerRun:
 		return nil, fmt.Errorf("%w: per-run worktree requires a dedicated session", taskpkg.ErrSessionAttachNotAllowed)
@@ -375,11 +387,14 @@ func (b *taskSessionBridge) AttachTaskRunSession(
 		item, getErr := b.worktrees.Get(
 			ctx,
 			strings.TrimSpace(run.WorkspaceID),
-			strings.TrimSpace(run.ResolvedWorktreeRef),
+			strings.TrimSpace(run.ResolvedWorktreeRefValue()),
 		)
 		if getErr != nil || item == nil || item.State != worktree.StateReady ||
 			strings.TrimSpace(item.ID) != strings.TrimSpace(ref.WorktreeID) {
-			return nil, fmt.Errorf("%w: attached session does not match resolved worktree", taskpkg.ErrSessionAttachNotAllowed)
+			return nil, fmt.Errorf(
+				"%w: attached session does not match resolved worktree",
+				taskpkg.ErrSessionAttachNotAllowed,
+			)
 		}
 	default:
 		return nil, fmt.Errorf("%w: unsupported resolved worktree mode %q", taskpkg.ErrValidation, mode)

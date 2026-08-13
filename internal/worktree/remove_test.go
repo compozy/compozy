@@ -36,7 +36,12 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		if result, err := removed.service.Remove(
 			context.Background(), removed.workspace.ID, removed.item.ID, false,
 		); err != nil || result != nil || len(removed.runner.invocations()) != 0 {
-			t.Fatalf("Remove(removed) = (%#v, %v), calls=%#v, want idempotent", result, err, removed.runner.invocations())
+			t.Fatalf(
+				"Remove(removed) = (%#v, %v), calls=%#v, want idempotent",
+				result,
+				err,
+				removed.runner.invocations(),
+			)
 		}
 
 		missing := newRemovalTestFixture(t)
@@ -48,7 +53,12 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		if result, err := missing.service.Remove(
 			context.Background(), missing.workspace.ID, missing.item.ID, false,
 		); !errors.Is(err, ErrNotReady) || result != nil || len(missing.runner.invocations()) != 0 {
-			t.Fatalf("Remove(missing) = (%#v, %v), calls=%#v, want ErrNotReady", result, err, missing.runner.invocations())
+			t.Fatalf(
+				"Remove(missing) = (%#v, %v), calls=%#v, want ErrNotReady",
+				result,
+				err,
+				missing.runner.invocations(),
+			)
 		}
 	})
 
@@ -59,7 +69,12 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		if result, err := removal.service.Remove(
 			context.Background(), removal.workspace.ID, removal.item.ID, false,
 		); !errors.Is(err, ErrNotReady) || result != nil || len(removal.runner.invocations()) != 0 {
-			t.Fatalf("Remove(lost fence) = (%#v, %v), calls=%#v, want ErrNotReady", result, err, removal.runner.invocations())
+			t.Fatalf(
+				"Remove(lost fence) = (%#v, %v), calls=%#v, want ErrNotReady",
+				result,
+				err,
+				removal.runner.invocations(),
+			)
 		}
 
 		dismissal := newRemovalTestFixture(t)
@@ -69,7 +84,14 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 			t.Fatalf("seed dismissal target: %v", err)
 		}
 		dismissal.service.store = &lostStateFenceStore{memoryWorktreeStore: dismissal.store}
-		if err := dismissal.service.Dismiss(context.Background(), dismissal.workspace.ID, dismissal.item.ID); !errors.Is(err, ErrNotReady) {
+		if err := dismissal.service.Dismiss(
+			context.Background(),
+			dismissal.workspace.ID,
+			dismissal.item.ID,
+		); !errors.Is(
+			err,
+			ErrNotReady,
+		) {
 			t.Fatalf("Dismiss(lost fence) error = %v, want ErrNotReady", err)
 		}
 	})
@@ -115,7 +137,10 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		if getErr != nil || stored.State != StateReady {
 			t.Fatalf("stored refusal = %#v, %v, want ready", stored, getErr)
 		}
-		if containsCommandPrefix(invocationCommands(fixture.runner.invocations()), "--git-dir "+fixture.commonDir+" worktree remove ") {
+		if containsCommandPrefix(
+			invocationCommands(fixture.runner.invocations()),
+			"--git-dir "+fixture.commonDir+" worktree remove ",
+		) {
 			t.Fatal("dirty refusal invoked destructive Git removal")
 		}
 	})
@@ -135,7 +160,10 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		if !errors.Is(err, ErrDirtyRequiresForce) || refusalResult == nil {
 			t.Fatalf("Remove(TOCTOU) = %#v, %v, want dirty refusal", refusalResult, err)
 		}
-		if containsCommandPrefix(invocationCommands(fixture.runner.invocations()), "--git-dir "+fixture.commonDir+" worktree remove ") {
+		if containsCommandPrefix(
+			invocationCommands(fixture.runner.invocations()),
+			"--git-dir "+fixture.commonDir+" worktree remove ",
+		) {
 			t.Fatal("post-hook dirty state was removed")
 		}
 	})
@@ -307,7 +335,10 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 			!strings.Contains(setupStored.SetupError, "daemon restart") {
 			t.Fatalf("setup recovery = %#v, %v, want usable setup failure", setupStored, setupErr)
 		}
-		if !containsCommandPrefix(invocationCommands(fixture.runner.invocations()), "update-ref -d refs/heads/run/recover base-head") {
+		if !containsCommandPrefix(
+			invocationCommands(fixture.runner.invocations()),
+			"update-ref -d refs/heads/run/recover base-head",
+		) {
 			t.Fatal("branch-phase recovery did not compare-delete the recorded branch")
 		}
 		if got := fixture.events.count(EventSetupFailed); got != 2 {
@@ -425,7 +456,6 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Run("Should dismiss only terminal tombstones inside the owning workspace", func(t *testing.T) {
 		t.Parallel()
 		for _, state := range []State{StateFailed, StateRemoved} {
-			state := state
 			t.Run("Should dismiss "+string(state), func(t *testing.T) {
 				t.Parallel()
 				fixture := newRemovalTestFixture(t)
@@ -434,7 +464,11 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 				); err != nil {
 					t.Fatalf("seed %s state: %v", state, err)
 				}
-				if err := fixture.service.Dismiss(context.Background(), fixture.workspace.ID, fixture.item.ID); err != nil {
+				if err := fixture.service.Dismiss(
+					context.Background(),
+					fixture.workspace.ID,
+					fixture.item.ID,
+				); err != nil {
 					t.Fatalf("Dismiss(%s) error = %v", state, err)
 				}
 				if got := fixture.mustItem(t).State; got != StateDismissed {
@@ -444,7 +478,14 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 
 		ready := newRemovalTestFixture(t)
-		if err := ready.service.Dismiss(context.Background(), ready.workspace.ID, ready.item.ID); !errors.Is(err, ErrNotReady) {
+		if err := ready.service.Dismiss(
+			context.Background(),
+			ready.workspace.ID,
+			ready.item.ID,
+		); !errors.Is(
+			err,
+			ErrNotReady,
+		) {
 			t.Fatalf("Dismiss(ready) error = %v, want ErrNotReady", err)
 		}
 		if err := ready.service.Dismiss(context.Background(), "ws-other", ready.item.ID); !errors.Is(err, ErrNotFound) {
@@ -539,7 +580,11 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 	if err := os.WriteFile(filepath.Join(adminGitDir, "commondir"), []byte("../..\n"), 0o600); err != nil {
 		t.Fatalf("write common pointer: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(adminGitDir, "gitdir"), []byte(filepath.Join(path, ".git")+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(adminGitDir, "gitdir"),
+		[]byte(filepath.Join(path, ".git")+"\n"),
+		0o600,
+	); err != nil {
 		t.Fatalf("write worktree backlink: %v", err)
 	}
 	workspace := Workspace{ID: "ws-remove", Name: "Remove", Root: canonicalRoot}

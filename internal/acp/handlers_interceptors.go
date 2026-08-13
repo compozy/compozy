@@ -158,7 +158,6 @@ func (p *AgentProcess) emitPermissionEvent(
 		Type:       EventTypePermission,
 		SessionID:  sessionID,
 		TurnID:     turnID,
-		RequestID:  requestID,
 		Timestamp:  timeNowUTC(),
 		Title:      title,
 		ToolCallID: toolCallID,
@@ -166,5 +165,5 @@ func (p *AgentProcess) emitPermissionEvent(
 		Resource:   resource,
 		Decision:   string(decision),
 		Raw:        CloneRawMessage(raw),
-	})
+	}.WithRequestID(requestID))
 }

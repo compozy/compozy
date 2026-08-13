@@ -34,7 +34,6 @@ type AgentEvent struct {
 	Type      string
 	SessionID string
 	TurnID    string
-	RequestID string
 	store.EventCorrelation
 	Timestamp         time.Time
 	Text              string
@@ -54,5 +53,4 @@ type AgentEvent struct {
 	Usage             *TokenUsage
 	Runtime           *RuntimeActivity
 	Raw               json.RawMessage
-	ToolPrechecked    bool
 }

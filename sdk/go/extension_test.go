@@ -627,7 +627,8 @@ func TestStdioRuntimeProvidesConnectivityProvider(t *testing.T) {
 		}
 		var statusReachability compozysdk.ConnectivityReachability
 		decodeResult(t, status.Result, &statusReachability)
-		if statusReachability.Tier != "private" || statusReachability.Health != "healthy" || len(statusReachability.Endpoints) != 1 {
+		if statusReachability.Tier != "private" || statusReachability.Health != "healthy" ||
+			len(statusReachability.Endpoints) != 1 {
 			t.Fatalf("connectivity status = %#v", statusReachability)
 		}
 		teardown := runtime.call(t, 4, "connectivity/teardown", map[string]any{
@@ -658,7 +659,10 @@ func TestConnectivityProviderRegistrationIsAtomic(t *testing.T) {
 	t.Run("Should leave every unreserved method available after a collision", func(t *testing.T) {
 		t.Parallel()
 		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "collision", Version: "0.1.0"})
-		if err := extension.Handle(compozysdk.ExtensionServiceMethodConnectivityStatus, noOpExtensionHandler); err != nil {
+		if err := extension.Handle(
+			compozysdk.ExtensionServiceMethodConnectivityStatus,
+			noOpExtensionHandler,
+		); err != nil {
 			t.Fatalf("Handle(status) error = %v", err)
 		}
 		if err := compozysdk.ConnectivityProvider(extension, validConnectivityHandlers()); err == nil {

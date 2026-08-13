@@ -43,16 +43,15 @@ func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 		}
 		opts.CWD = pinnedCWD
 		opts.Worktree = pinnedWorktree
-		return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, resolution, nil)
-	} else {
-		if agent == "" {
-			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, fmt.Errorf(
-				"%w: managed Goal agent is required",
-				looppkg.ErrValidation,
-			)
-		}
-		opts = b.baseCreateOptions(req, agent, loopManagedGoalKind)
+		return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, &resolution, nil)
 	}
+	if agent == "" {
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, fmt.Errorf(
+			"%w: managed Goal agent is required",
+			looppkg.ErrValidation,
+		)
+	}
+	opts = b.baseCreateOptions(req, agent, loopManagedGoalKind)
 	resolution, err := b.policyGate.applyResolved(ctx, &opts, agent, opts.AllowedToolsOverride)
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
@@ -61,7 +60,7 @@ func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 	}
-	return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, resolution, materialized)
+	return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, &resolution, materialized)
 }
 
 func (b *loopActionSessionBinder) validateLoopCreationProfile(
@@ -69,10 +68,10 @@ func (b *loopActionSessionBinder) validateLoopCreationProfile(
 	req looppkg.ActionSessionBindRequest,
 	pinnedProfileRef string,
 	opts session.CreateOpts,
-	resolution loopSessionPolicyResolution,
+	resolution *loopSessionPolicyResolution,
 	materialized *worktree.Worktree,
 ) (store.SessionCreationProfile, session.CreateOpts, *worktree.Worktree, error) {
-	profile := profileFromPolicyResolution(opts, &resolution)
+	profile := profileFromPolicyResolution(opts, resolution)
 	profileRef, err := profile.Ref()
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil,
@@ -119,7 +118,7 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 		ContractOverlay: strings.TrimSpace(req.ContractBlock),
 		Type:            session.SessionTypeSystem,
 	}
-	applyLoopDirectoryBeforePolicy(&opts, req.Environment)
+	applyLoopDirectoryBeforePolicy(&opts, req.EnvironmentValue())
 	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {
 		opts.Workspace = workspaceID
 	} else {

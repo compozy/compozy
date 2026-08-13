@@ -192,7 +192,6 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 			Type:             acp.EventTypeAgentMessage,
 			SessionID:        "acp-1",
 			TurnID:           "turn-1",
-			RequestID:        "req-1",
 			Timestamp:        time.Date(2026, 4, 11, 2, 0, 0, 0, time.UTC),
 			Text:             "hello",
 			Title:            "assistant",
@@ -203,7 +202,7 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 				{Name: "review", Description: "Review changes"},
 			}),
 			Raw: json.RawMessage(`{"chunk":1}`),
-		}).WithSkillInvocations(wantInvocations).WithPromptRuntime(&acp.PromptRuntime{
+		}).WithRequestID("req-1").WithSkillInvocations(wantInvocations).WithPromptRuntime(&acp.PromptRuntime{
 			Provider:        "codex",
 			Model:           "gpt-5.6",
 			ReasoningEffort: "high",
@@ -227,7 +226,7 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		if got, want := event.TurnID, "turn-1"; got != want {
 			t.Fatalf("TurnID = %q, want %q", got, want)
 		}
-		if got, want := event.RequestID, "req-1"; got != want {
+		if got, want := event.RequestIDValue(), "req-1"; got != want {
 			t.Fatalf("RequestID = %q, want %q", got, want)
 		}
 		if got, want := event.Text, "hello"; got != want {

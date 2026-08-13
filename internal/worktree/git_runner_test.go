@@ -90,7 +90,10 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 	t.Run("Should reject unavailable capability dependencies and failed probes", func(t *testing.T) {
 		t.Parallel()
 		var nilGate *CapabilityGate
-		if diagnostic, err := nilGate.Check(context.Background()); !errors.Is(err, ErrGitUnavailable) || diagnostic.Code == "" {
+		if diagnostic, err := nilGate.Check(
+			context.Background(),
+		); !errors.Is(err, ErrGitUnavailable) ||
+			diagnostic.Code == "" {
 			t.Fatalf("nil Check() = (%#v, %v), want unavailable", diagnostic, err)
 		}
 		cases := []struct {
@@ -143,7 +146,6 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 	t.Run("Should reject malformed Git version output deterministically", func(t *testing.T) {
 		t.Parallel()
 		for _, output := range []string{"", "git version 2", "git version two.45", "git version 2.x"} {
-			output := output
 			t.Run("Should reject "+output, func(t *testing.T) {
 				t.Parallel()
 				runner := &scriptedGitRunner{stdout: []byte(output)}

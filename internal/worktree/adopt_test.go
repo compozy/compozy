@@ -48,7 +48,11 @@ func TestServiceAdopt(t *testing.T) {
 		if err != nil || second.ID != first.ID {
 			t.Fatalf("Adopt(second) = %#v, %v, want existing %q", second, err, first.ID)
 		}
-		if rows, listErr := fixture.store.List(context.Background(), fixture.workspace.ID); listErr != nil || len(rows) != 1 {
+		if rows, listErr := fixture.store.List(
+			context.Background(),
+			fixture.workspace.ID,
+		); listErr != nil ||
+			len(rows) != 1 {
 			t.Fatalf("List() = %#v, %v, want one row", rows, listErr)
 		}
 		if got := len(fixture.runner.invocations()); got <= callsBefore+1 {
@@ -176,10 +180,24 @@ func TestServiceAdopt(t *testing.T) {
 	t.Run("Should classify main checkout and vanished candidates", func(t *testing.T) {
 		t.Parallel()
 		fixture := newAdoptionTestFixture(t)
-		if _, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.workspace.Root); !errors.Is(err, ErrAdoptionMainCheckout) {
+		if _, err := fixture.service.Adopt(
+			context.Background(),
+			fixture.workspace.ID,
+			fixture.workspace.Root,
+		); !errors.Is(
+			err,
+			ErrAdoptionMainCheckout,
+		) {
 			t.Fatalf("Adopt(main) error = %v, want ErrAdoptionMainCheckout", err)
 		}
-		if _, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, filepath.Join(t.TempDir(), "gone")); !errors.Is(err, ErrNotFound) {
+		if _, err := fixture.service.Adopt(
+			context.Background(),
+			fixture.workspace.ID,
+			filepath.Join(t.TempDir(), "gone"),
+		); !errors.Is(
+			err,
+			ErrNotFound,
+		) {
 			t.Fatalf("Adopt(vanished) error = %v, want ErrNotFound", err)
 		}
 	})
@@ -191,18 +209,40 @@ func TestServiceAdopt(t *testing.T) {
 		if err := os.MkdirAll(foreignAdmin, 0o700); err != nil {
 			t.Fatalf("create foreign admin dir: %v", err)
 		}
-		if err := os.WriteFile(filepath.Join(foreign.candidate, ".git"), []byte("gitdir: "+foreignAdmin+"\n"), 0o600); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(foreign.candidate, ".git"),
+			[]byte("gitdir: "+foreignAdmin+"\n"),
+			0o600,
+		); err != nil {
 			t.Fatalf("write foreign .git pointer: %v", err)
 		}
-		if _, err := foreign.service.Adopt(context.Background(), foreign.workspace.ID, foreign.candidate); !errors.Is(err, ErrAdoptionForeignRepo) {
+		if _, err := foreign.service.Adopt(
+			context.Background(),
+			foreign.workspace.ID,
+			foreign.candidate,
+		); !errors.Is(
+			err,
+			ErrAdoptionForeignRepo,
+		) {
 			t.Fatalf("Adopt(foreign) error = %v, want ErrAdoptionForeignRepo", err)
 		}
 
 		broken := newAdoptionTestFixture(t)
-		if err := os.WriteFile(filepath.Join(broken.adminGitDir, "gitdir"), []byte(filepath.Join(t.TempDir(), ".git")), 0o600); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(broken.adminGitDir, "gitdir"),
+			[]byte(filepath.Join(t.TempDir(), ".git")),
+			0o600,
+		); err != nil {
 			t.Fatalf("write broken backlink: %v", err)
 		}
-		if _, err := broken.service.Adopt(context.Background(), broken.workspace.ID, broken.candidate); !errors.Is(err, ErrAdoptionUnreadable) {
+		if _, err := broken.service.Adopt(
+			context.Background(),
+			broken.workspace.ID,
+			broken.candidate,
+		); !errors.Is(
+			err,
+			ErrAdoptionUnreadable,
+		) {
 			t.Fatalf("Adopt(broken backlink) error = %v, want ErrAdoptionUnreadable", err)
 		}
 	})
@@ -349,7 +389,11 @@ func newAdoptionTestFixture(t *testing.T) adoptionTestFixture {
 	if err := os.WriteFile(filepath.Join(adminGitDir, "commondir"), []byte("../..\n"), 0o600); err != nil {
 		t.Fatalf("write commondir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(adminGitDir, "gitdir"), []byte(filepath.Join(candidate, ".git")+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(adminGitDir, "gitdir"),
+		[]byte(filepath.Join(candidate, ".git")+"\n"),
+		0o600,
+	); err != nil {
 		t.Fatalf("write backlink: %v", err)
 	}
 	workspace := Workspace{ID: "ws-adopt", Name: "Adopt", Root: workspaceRoot}

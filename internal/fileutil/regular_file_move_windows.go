@@ -53,7 +53,10 @@ func removeBoundRegularFile(
 	removeErr := removeBoundWindowsHandle(bound)
 	closeErr := bound.Close()
 	if removeErr != nil {
-		return errors.Join(removeErr, wrapDirectoryMovePostCommitError("close rejected regular-file removal handle", closeErr))
+		return errors.Join(
+			removeErr,
+			wrapDirectoryMovePostCommitError("close rejected regular-file removal handle", closeErr),
+		)
 	}
 	return errors.Join(
 		wrapDirectoryMovePostCommitError("close removed regular-file handle", closeErr),

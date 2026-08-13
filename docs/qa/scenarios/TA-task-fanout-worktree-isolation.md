@@ -5,7 +5,7 @@ title: Isolate every designated fan-out run in its own worktree
 persona: Bruno
 journey: J-isolated-task-loop-execution
 expected: Fan-out requires an idempotency identity before enqueue; with worktree-per-run it creates one attributable run branch and ready worktree per designation, keeps sibling identities distinct, and lets one failed or canceled run leave the other runs unaffected.
-entry_points: compozy task fan-out --idempotency-key <stable-key> --worktree-per-run; POST /api/tasks/:id/runs/fan-out; compozy__task_fanout_runs
+entry_points: compozy task fan-out --idempotency-key <stable-key> --worktree-per-run; HTTP/UDS POST /api/tasks/:id/runs/fan-out; compozy__task_fanout_runs.worktree_per_run
 qa_status: untested
 bug_ids:
 fix_status:

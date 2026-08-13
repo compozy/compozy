@@ -9,7 +9,10 @@ import (
 	"time"
 )
 
-const credentialLookupTimeout = 5 * time.Second
+const (
+	credentialLookupTimeout = 5 * time.Second
+	credentialSourceBinding = "binding"
+)
 
 type credential struct {
 	token  string
@@ -34,7 +37,7 @@ func newCredentialResolver() credentialResolver {
 
 func (r credentialResolver) resolve(ctx context.Context) (credential, error) {
 	if token := strings.TrimSpace(r.getenv("GITHUB_TOKEN")); token != "" {
-		return credential{token: token, source: "binding"}, nil
+		return credential{token: token, source: credentialSourceBinding}, nil
 	}
 	path, err := r.lookPath("gh")
 	if err != nil {

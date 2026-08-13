@@ -227,34 +227,8 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 }
 
 func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
-	if info == nil || info.Type == SessionTypeDream {
-		return false
-	}
-	if lineage := info.Lineage; lineage != nil && IsInternalSpawnRole(lineage.SpawnRole) {
-		return false
-	}
-	if query.WorkspaceID != "" && strings.TrimSpace(info.WorkspaceID) != query.WorkspaceID {
-		return false
-	}
-	if query.WorktreeID != "" && strings.TrimSpace(info.WorktreeID) != query.WorktreeID {
-		return false
-	}
-	if query.State != "" && strings.TrimSpace(string(info.State)) != query.State {
-		return false
-	}
-	if query.SessionType != "" && normalizeSessionType(info.Type) != query.SessionType {
-		return false
-	}
-	if query.AgentName != "" && strings.TrimSpace(info.AgentName) != query.AgentName {
-		return false
-	}
-	if !sessionMatchesLineageFilters(info, query) {
-		return false
-	}
-	if query.Resumable && !AttachableForInfo(info, now) {
-		return false
-	}
-	if !sessionMatchesArchiveFilter(info, query.Archive) {
+	if !sessionMatchesIdentityFilters(info, query) || !sessionMatchesLineageFilters(info, query) ||
+		query.Resumable && !AttachableForInfo(info, now) || !sessionMatchesArchiveFilter(info, query.Archive) {
 		return false
 	}
 	search := strings.ToLower(strings.TrimSpace(query.Search))
@@ -273,6 +247,20 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 		}
 	}
 	return false
+}
+
+func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
+	if info == nil || info.Type == SessionTypeDream {
+		return false
+	}
+	if lineage := info.Lineage; lineage != nil && IsInternalSpawnRole(lineage.SpawnRole) {
+		return false
+	}
+	return (query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID) &&
+		(query.WorktreeID == "" || strings.TrimSpace(info.WorktreeID) == query.WorktreeID) &&
+		(query.State == "" || strings.TrimSpace(string(info.State)) == query.State) &&
+		(query.SessionType == "" || normalizeSessionType(info.Type) == query.SessionType) &&
+		(query.AgentName == "" || strings.TrimSpace(info.AgentName) == query.AgentName)
 }
 
 func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {

@@ -223,7 +223,7 @@ func (m *Manager) preparePromptRuntimePlan(
 	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), workspace.ID); err != nil {
 		return nil, err
 	}
-	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, workspace.ID, meta.WorktreeID)
+	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, workspace.ID, meta.WorktreeIDValue())
 	if err != nil {
 		return nil, fmt.Errorf("session: resolve runtime worktree: %w", err)
 	}

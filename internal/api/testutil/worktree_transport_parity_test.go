@@ -24,38 +24,40 @@ import (
 func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return byte-identical JSON or empty success bodies for every finite worktree route", func(t *testing.T) {
-		t.Parallel()
-		service := newParityWorktreeService()
-		httpRouter := newWorktreeParityHTTPRouter(t, service)
-		udsRouter := newWorktreeParityUDSRouter(t, service)
-		for _, test := range []struct {
-			name       string
-			method     string
-			path       string
-			body       string
-			wantStatus int
-		}{
-			{name: "list", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees", wantStatus: http.StatusOK},
-			{name: "create", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees", body: `{"name":"feature"}`, wantStatus: http.StatusAccepted},
-			{name: "adopt", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/adopt", body: `{"path":"/repo/feature"}`, wantStatus: http.StatusOK},
-			{name: "inspect", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity", wantStatus: http.StatusOK},
-			{name: "status", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity/status?refresh=true", wantStatus: http.StatusOK},
-			{name: "exit plan", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit", wantStatus: http.StatusOK},
-			{name: "exit action", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit/actions", body: `{"action":"commit"}`, wantStatus: http.StatusAccepted},
-			{name: "exit cancel", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit/cancel", body: `{"op_id":"op-parity"}`, wantStatus: http.StatusNoContent},
-			{name: "create cancel", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/cancel", wantStatus: http.StatusNoContent},
-			{name: "remove", method: http.MethodDelete, path: "/api/workspaces/ws-public/worktrees/wt-parity", wantStatus: http.StatusNoContent},
-			{name: "dismiss", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/dismiss", wantStatus: http.StatusNoContent},
-		} {
-			test := test
-			t.Run("Should match "+test.name, func(t *testing.T) {
-				httpResponse := performWorktreeParityRequest(t, httpRouter, test.method, test.path, test.body)
-				udsResponse := performWorktreeParityRequest(t, udsRouter, test.method, test.path, test.body)
-				assertWorktreeParityResponse(t, httpResponse, udsResponse, test.wantStatus)
-			})
-		}
-	})
+	t.Run(
+		"Should return byte-identical JSON or empty success bodies for every finite worktree route",
+		func(t *testing.T) {
+			t.Parallel()
+			service := newParityWorktreeService()
+			httpRouter := newWorktreeParityHTTPRouter(t, service)
+			udsRouter := newWorktreeParityUDSRouter(t, service)
+			for _, test := range []struct {
+				name       string
+				method     string
+				path       string
+				body       string
+				wantStatus int
+			}{
+				{name: "list", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees", wantStatus: http.StatusOK},
+				{name: "create", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees", body: `{"name":"feature"}`, wantStatus: http.StatusAccepted},
+				{name: "adopt", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/adopt", body: `{"path":"/repo/feature"}`, wantStatus: http.StatusOK},
+				{name: "inspect", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity", wantStatus: http.StatusOK},
+				{name: "status", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity/status?refresh=true", wantStatus: http.StatusOK},
+				{name: "exit plan", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit", wantStatus: http.StatusOK},
+				{name: "exit action", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit/actions", body: `{"action":"commit"}`, wantStatus: http.StatusAccepted},
+				{name: "exit cancel", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit/cancel", body: `{"op_id":"op-parity"}`, wantStatus: http.StatusNoContent},
+				{name: "create cancel", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/cancel", wantStatus: http.StatusNoContent},
+				{name: "remove", method: http.MethodDelete, path: "/api/workspaces/ws-public/worktrees/wt-parity", wantStatus: http.StatusNoContent},
+				{name: "dismiss", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/dismiss", wantStatus: http.StatusNoContent},
+			} {
+				t.Run("Should match "+test.name, func(t *testing.T) {
+					httpResponse := performWorktreeParityRequest(t, httpRouter, test.method, test.path, test.body)
+					udsResponse := performWorktreeParityRequest(t, udsRouter, test.method, test.path, test.body)
+					assertWorktreeParityResponse(t, httpResponse, udsResponse, test.wantStatus)
+				})
+			}
+		},
+	)
 
 	t.Run("Should return byte-identical removal refusal tiers", func(t *testing.T) {
 		t.Parallel()
@@ -72,7 +74,6 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 				Risk: worktree.RemovalRisk{UnpushedCommits: 3},
 			}},
 		} {
-			test := test
 			t.Run("Should match "+test.name+" refusal", func(t *testing.T) {
 				service := newParityWorktreeService()
 				service.removal = &test.refusal
@@ -96,7 +97,6 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 			t.Fatalf("worktree parity error contract count = %d, want 31", len(errorsByCode))
 		}
 		for _, test := range errorsByCode {
-			test := test
 			t.Run("Should match "+test.code, func(t *testing.T) {
 				service := newParityWorktreeService()
 				service.inspectErr = fmt.Errorf("parity: %w", test.err)

@@ -3,12 +3,14 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 const (
-	specAPIWorktreesPath       = "/api/workspaces/{workspace_id}/worktrees"
-	specAPIWorktreePath        = specAPIWorktreesPath + "/{worktree_id}"
-	specAPIWorktreeStatusPath  = specAPIWorktreePath + "/status"
-	specAPIWorktreeExitPath    = specAPIWorktreePath + "/exit"
-	specAPIWorktreeStreamPath  = specAPIWorktreePath + "/stream"
-	specAPIWorktreeCatalogPath = "/api/worktrees/catalog-stream"
+	specAPIWorktreesPath           = "/api/workspaces/{workspace_id}/worktrees"
+	specAPIWorktreePath            = specAPIWorktreesPath + "/{worktree_id}"
+	specAPIWorktreeStatusPath      = specAPIWorktreePath + "/status"
+	specAPIWorktreeExitPath        = specAPIWorktreePath + "/exit"
+	specAPIWorktreeStreamPath      = specAPIWorktreePath + "/stream"
+	specAPIWorktreeCatalogPath     = "/api/worktrees/catalog-stream"
+	worktreeUnavailableDescription = "Worktree service is unavailable"
+	worktreeNotFoundDescription    = "Worktree or workspace not found"
 )
 
 func registryWorktreeOperations() []OperationSpec {
@@ -40,7 +42,7 @@ func listWorktreesOperationSpec() OperationSpec {
 			{Status: 400, Description: "Invalid worktree list query", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Worktree service is unavailable", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: worktreeUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -76,9 +78,9 @@ func inspectWorktreeOperationSpec() OperationSpec {
 		Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: worktreeRouteParams(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorktreeInspectionResponse{}},
-			{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Worktree service is unavailable", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: worktreeUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -95,7 +97,7 @@ func worktreeStatusOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorktreeStatusResponse{}},
 			{Status: 400, Description: "Invalid status query", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Worktree status is unavailable", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 502, Description: "Forge provider error", Body: contract.ErrorPayload{}},
@@ -111,10 +113,10 @@ func worktreeExitPlanOperationSpec() OperationSpec {
 		Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: worktreeRouteParams(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorktreeExitPlanResponse{}},
-			{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Worktree exit plan is unavailable", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Worktree service is unavailable", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: worktreeUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -125,8 +127,13 @@ func runWorktreeExitActionOperationSpec() OperationSpec {
 		OperationID: "runWorktreeExitAction", Summary: "Run a worktree exit action",
 		Tags: []string{specWorktreesKey}, Transports: []Transport{TransportHTTP, TransportUDS},
 		Parameters: worktreeRouteParams(), RequestBody: contract.RunWorktreeExitActionRequest{},
-		Responses: append(worktreeExitMutationResponses(),
-			ResponseSpec{Status: 202, Description: specAcceptedDescription, Body: contract.WorktreeExitOperationResponse{}},
+		Responses: append(
+			worktreeExitMutationResponses(),
+			ResponseSpec{
+				Status:      202,
+				Description: specAcceptedDescription,
+				Body:        contract.WorktreeExitOperationResponse{},
+			},
 		),
 	}
 }
@@ -146,7 +153,7 @@ func cancelWorktreeExitActionOperationSpec() OperationSpec {
 func worktreeExitMutationResponses() []ResponseSpec {
 	return []ResponseSpec{
 		{Status: 400, Description: "Invalid worktree exit request", Body: contract.ErrorPayload{}},
-		{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
+		{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
 		{Status: 409, Description: "Worktree exit action conflict", Body: contract.ErrorPayload{}},
 		{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		{Status: 502, Description: "Forge provider error", Body: contract.ErrorPayload{}},
@@ -169,10 +176,14 @@ func removeWorktreeOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 400, Description: "Invalid removal query", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Removal requires another decision", Body: contract.WorktreeRemovalRefusalPayload{}},
+			{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Removal requires another decision",
+				Body:        contract.WorktreeRemovalRefusalPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Worktree service is unavailable", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: worktreeUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -193,9 +204,14 @@ func streamWorktreeOperationSpec() OperationSpec {
 			optionalHeaderParam("Last-Event-ID", "Resume after this durable sequence"),
 		),
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "Canonical worktree event stream", Body: map[string]any{}, ContentType: specContentTypeEventStream},
+			{
+				Status:      200,
+				Description: "Canonical worktree event stream",
+				Body:        map[string]any{},
+				ContentType: specContentTypeEventStream,
+			},
 			{Status: 400, Description: "Invalid stream cursor", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Worktree stream is unavailable", Body: contract.ErrorPayload{}},
 		},
@@ -231,11 +247,11 @@ func worktreeMutationResponses() []ResponseSpec {
 	return []ResponseSpec{
 		{Status: 400, Description: "Invalid worktree request", Body: contract.ErrorPayload{}},
 		{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-		{Status: 404, Description: "Worktree or workspace not found", Body: contract.ErrorPayload{}},
+		{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
 		{Status: 409, Description: "Worktree operation conflict", Body: contract.ErrorPayload{}},
 		{Status: 422, Description: "Invalid worktree configuration", Body: contract.ErrorPayload{}},
 		{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		{Status: 503, Description: "Worktree service is unavailable", Body: contract.ErrorPayload{}},
+		{Status: 503, Description: worktreeUnavailableDescription, Body: contract.ErrorPayload{}},
 	}
 }
 

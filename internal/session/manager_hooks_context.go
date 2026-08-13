@@ -36,15 +36,14 @@ func hookSessionContext(session *Session) hookspkg.SessionContext {
 
 	ref := workref.NewRoot(info.WorkspaceID, info.Workspace)
 	return hookspkg.SessionContext{
-		SessionID:    strings.TrimSpace(info.ID),
-		SessionName:  strings.TrimSpace(info.Name),
-		SessionType:  string(info.Type),
-		AgentName:    strings.TrimSpace(info.AgentName),
-		WorkspaceID:  ref.WorkspaceID,
-		Workspace:    ref.Workspace,
-		WorktreeID:   strings.TrimSpace(info.WorktreeID),
-		ACPSessionID: strings.TrimSpace(info.ACPSessionID),
-		State:        string(info.State),
+		SessionID:             strings.TrimSpace(info.ID),
+		SessionName:           strings.TrimSpace(info.Name),
+		SessionType:           string(info.Type),
+		AgentName:             strings.TrimSpace(info.AgentName),
+		WorkspaceID:           ref.WorkspaceID,
+		Workspace:             ref.Workspace,
+		SessionRuntimeContext: hookspkg.NewSessionRuntimeContext(info.WorktreeID, info.ACPSessionID),
+		State:                 string(info.State),
 		SessionSoulContext: hookSessionSoulContext(
 			info.SoulSnapshotID,
 			info.SoulDigest,
@@ -87,8 +86,10 @@ func validateImmutableSessionWorkspace(expected, actual hookspkg.SessionContext)
 	expectedPath := strings.TrimSpace(expected.Workspace)
 	actualID := strings.TrimSpace(actual.WorkspaceID)
 	actualPath := strings.TrimSpace(actual.Workspace)
+	expectedWorktreeID := strings.TrimSpace(expected.WorktreeIDValue())
+	actualWorktreeID := strings.TrimSpace(actual.WorktreeIDValue())
 	if actualID == expectedID && actualPath == expectedPath &&
-		strings.TrimSpace(actual.WorktreeID) == strings.TrimSpace(expected.WorktreeID) {
+		actualWorktreeID == expectedWorktreeID {
 		return nil
 	}
 	return fmt.Errorf(
@@ -96,10 +97,10 @@ func validateImmutableSessionWorkspace(expected, actual hookspkg.SessionContext)
 		ErrValidation,
 		expectedID,
 		expectedPath,
-		strings.TrimSpace(expected.WorktreeID),
+		expectedWorktreeID,
 		actualID,
 		actualPath,
-		strings.TrimSpace(actual.WorktreeID),
+		actualWorktreeID,
 	)
 }
 

@@ -343,7 +343,7 @@ func supportBundleResultBundle(result supportBundleResult) outputBundle {
 		jsonValue: result,
 		human: func() (string, error) {
 			rows := []keyValue{
-				{Label: "Operation", Value: stringOrDash(operation.OperationID)},
+				{Label: authoredContextOperationValue, Value: stringOrDash(operation.OperationID)},
 				{Label: supportStatusValue, Value: stringOrDash(operation.Status)},
 				{Label: automationPathValue, Value: stringOrDash(result.Path)},
 				{Label: "Size", Value: fmt.Sprintf("%d", operation.SizeBytes)},

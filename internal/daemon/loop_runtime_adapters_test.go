@@ -239,7 +239,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 				ItemIndex:   itemIndex,
 				Agent:       "task-worker",
 				Handle:      "review",
-				Environment: dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun},
+				Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun},
 			})
 			if err != nil {
 				t.Fatalf("BindActionSession(item=%d) error = %v", itemIndex, err)
@@ -298,7 +298,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			Generation:  1,
 			NodeID:      "review",
 			Agent:       "task-worker",
-			Environment: dsl.EnvironmentSpec{
+			Environment: &dsl.EnvironmentSpec{
 				Mode: dsl.EnvironmentWorktree, WorktreeRef: "removed-loop-ref",
 			},
 		})
@@ -344,7 +344,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			NodeID:      "review",
 			Agent:       "task-worker",
 			Handle:      "review",
-			Environment: dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun},
+			Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun},
 		})
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("BindActionSession() error = %v, want %v", err, wantErr)

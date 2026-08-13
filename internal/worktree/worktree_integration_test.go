@@ -42,10 +42,23 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 		assertFileContent(t, filepath.Join(item.Path, ".env"), "local=true\n")
 		assertFileContent(t, filepath.Join(item.Path, ".setup-marker"), item.ID+"\n")
-		if output := fixture.git(item.Path, "status", "--porcelain", "--ignored"); !strings.Contains(output, "!! .env") {
+		if output := fixture.git(
+			item.Path,
+			"status",
+			"--porcelain",
+			"--ignored",
+		); !strings.Contains(
+			output,
+			"!! .env",
+		) {
 			t.Fatalf("ignored status = %q, want copied .env", output)
 		}
-		if got := fixture.git(fixture.workspace.Root, "config", "--get", "branch.feature-a.gh-merge-base"); got != "main" {
+		if got := fixture.git(
+			fixture.workspace.Root,
+			"config",
+			"--get",
+			"branch.feature-a.gh-merge-base",
+		); got != "main" {
 			t.Fatalf("gh-merge-base = %q, want main", got)
 		}
 		if got := fixture.git(fixture.workspace.Root, "rev-parse", "feature-a"); got != item.CreatedHead {
@@ -137,8 +150,13 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			canonicalComparablePath(merged.Discovered[0].Path) != canonicalComparablePath(discoveredPath) {
 			t.Fatalf("List(adopted plus discovered) = %#v, %v, want one registry row and one Git-only row", merged, err)
 		}
-		if _, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.workspace.Root); !errors.Is(
-			err, ErrAdoptionMainCheckout,
+		if _, err := fixture.service.Adopt(
+			context.Background(),
+			fixture.workspace.ID,
+			fixture.workspace.Root,
+		); !errors.Is(
+			err,
+			ErrAdoptionMainCheckout,
 		) {
 			t.Fatalf("Adopt(main) error = %v, want ErrAdoptionMainCheckout", err)
 		}
@@ -343,8 +361,15 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		close(start)
 		first := <-adoptResults
 		second := <-adoptResults
-		if first.err != nil || second.err != nil || first.item == nil || second.item == nil || first.item.ID != second.item.ID {
-			t.Fatalf("concurrent Adopt() = (%#v, %v) / (%#v, %v), want one identity", first.item, first.err, second.item, second.err)
+		if first.err != nil || second.err != nil || first.item == nil || second.item == nil ||
+			first.item.ID != second.item.ID {
+			t.Fatalf(
+				"concurrent Adopt() = (%#v, %v) / (%#v, %v), want one identity",
+				first.item,
+				first.err,
+				second.item,
+				second.err,
+			)
 		}
 	})
 
@@ -421,7 +446,8 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		risk.git(unpushed.Path, "add", "commit.txt")
 		risk.git(unpushed.Path, "commit", "-m", "unique")
 		refusalResult, err = risk.service.Remove(context.Background(), risk.workspace.ID, unpushed.ID, false)
-		if !errors.Is(err, ErrUnpushedRequiresForce) || refusalResult == nil || refusalResult.Risk.UnpushedCommits != 1 {
+		if !errors.Is(err, ErrUnpushedRequiresForce) || refusalResult == nil ||
+			refusalResult.Risk.UnpushedCommits != 1 {
 			t.Fatalf("Remove(unpushed real) = (%#v, %v), want one-commit refusal", refusalResult, err)
 		}
 		risk.git(unpushed.Path, "push", "-u", "origin", unpushed.Branch)
@@ -753,7 +779,8 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create(timeout setup) error = %v", err)
 		}
-		if item.State != StateReady || item.SetupState != SetupFailed || !strings.Contains(item.SetupError, "deadline") {
+		if item.State != StateReady || item.SetupState != SetupFailed ||
+			!strings.Contains(item.SetupError, "deadline") {
 			t.Fatalf("timeout item = %#v, want ready with readable setup failure", item)
 		}
 		if refusalResult, err := fixture.service.Remove(
@@ -800,11 +827,21 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 				return createErr
 			},
 			func() error {
-				_, removeErr := concurrent.service.Remove(context.Background(), concurrent.workspace.ID, first.ID, false)
+				_, removeErr := concurrent.service.Remove(
+					context.Background(),
+					concurrent.workspace.ID,
+					first.ID,
+					false,
+				)
 				return removeErr
 			},
 			func() error {
-				_, removeErr := concurrent.service.Remove(context.Background(), concurrent.workspace.ID, second.ID, false)
+				_, removeErr := concurrent.service.Remove(
+					context.Background(),
+					concurrent.workspace.ID,
+					second.ID,
+					false,
+				)
 				return removeErr
 			},
 			func() error {
@@ -812,7 +849,12 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 				return statusErr
 			},
 			func() error {
-				_, statusErr := concurrent.service.Status(context.Background(), concurrent.workspace.ID, second.ID, true)
+				_, statusErr := concurrent.service.Status(
+					context.Background(),
+					concurrent.workspace.ID,
+					second.ID,
+					true,
+				)
 				return statusErr
 			},
 			func() error {
@@ -1134,7 +1176,13 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 				t.Fatalf("event %s payload correlation = %#v, envelope=%#v", event.Name, payload, event)
 			}
 			if event.WorktreeID == runItem.ID && (event.RunID != runItem.RunID || payload.RunID != runItem.RunID) {
-				t.Fatalf("event %s run correlation = payload:%#v envelope:%#v, want %q", event.Name, payload, event, runItem.RunID)
+				t.Fatalf(
+					"event %s run correlation = payload:%#v envelope:%#v, want %q",
+					event.Name,
+					payload,
+					event,
+					runItem.RunID,
+				)
 			}
 		}
 		for name, observed := range required {

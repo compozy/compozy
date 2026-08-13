@@ -208,7 +208,13 @@ func TestSessionSandboxUsesBoundWorktreeRootAndParentWorkspaceBrain(t *testing.T
 		t.Fatalf("prompt workspace root = %q, want parent root %q", assembledWorkspaceRoot, h.workspace)
 	}
 	if info := created.Info(); info.WorkspaceID != h.workspaceID || info.Workspace != h.workspace {
-		t.Fatalf("bound session parent workspace = (%q, %q), want (%q, %q)", info.WorkspaceID, info.Workspace, h.workspaceID, h.workspace)
+		t.Fatalf(
+			"bound session parent workspace = (%q, %q), want (%q, %q)",
+			info.WorkspaceID,
+			info.Workspace,
+			h.workspaceID,
+			h.workspace,
+		)
 	}
 
 	t.Run("Should reject a pre-start hook cwd outside the bound sandbox root", func(t *testing.T) {

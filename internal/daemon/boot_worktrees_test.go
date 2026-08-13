@@ -90,7 +90,11 @@ func TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot(t *testing.T) {
 		t.Fatalf("MaterializeForRun(after boot) error = %v", err)
 	}
 	if item == nil || item.ID != "wt-late" || len(backing.materializeCalls) != 1 {
-		t.Fatalf("MaterializeForRun(after boot) = %#v calls=%#v, want late-bound service", item, backing.materializeCalls)
+		t.Fatalf(
+			"MaterializeForRun(after boot) = %#v calls=%#v, want late-bound service",
+			item,
+			backing.materializeCalls,
+		)
 	}
 }
 
@@ -134,10 +138,17 @@ func TestDaemonSessionWorktreeResolver(t *testing.T) {
 		root := t.TempDir()
 		var gotWorkspace, gotRef string
 		resolver := daemonSessionWorktreeResolver{lookup: func() sessionWorktreeLookup {
-			return sessionWorktreeLookupFunc(func(_ context.Context, workspaceID, ref string) (*worktree.Worktree, error) {
-				gotWorkspace, gotRef = workspaceID, ref
-				return &worktree.Worktree{ID: "wt-ready", WorkspaceID: workspaceID, Path: root, State: worktree.StateReady}, nil
-			})
+			return sessionWorktreeLookupFunc(
+				func(_ context.Context, workspaceID, ref string) (*worktree.Worktree, error) {
+					gotWorkspace, gotRef = workspaceID, ref
+					return &worktree.Worktree{
+						ID:          "wt-ready",
+						WorkspaceID: workspaceID,
+						Path:        root,
+						State:       worktree.StateReady,
+					}, nil
+				},
+			)
 		}}
 
 		id, gotRoot, err := resolver.ResolveSessionWorktree(context.Background(), " ws-1 ", " wt-ref ")

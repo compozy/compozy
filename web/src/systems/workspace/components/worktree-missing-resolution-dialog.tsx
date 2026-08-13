@@ -65,7 +65,7 @@ export function WorktreeMissingResolutionDialog({
           </span>
           <DialogTitle>{worktree.name} is missing from disk</DialogTitle>
           <DialogDescription>
-            The directory was removed outside Compozy. Run history is preserved.
+            The directory was removed outside CompozyOS. Run history is preserved.
           </DialogDescription>
         </DialogHeader>
 

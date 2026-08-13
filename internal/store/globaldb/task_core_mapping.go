@@ -72,13 +72,13 @@ func taskRunFromGenerated(row *sqlcgen.GetTaskRunRow) (taskpkg.Run, error) {
 		ID:            row.ID,
 		TaskID:        taskNullStringValue(row.TaskID),
 		WorkspaceID:   taskNullStringValue(row.WorkspaceID),
-		WorktreeID:    taskNullStringValue(row.WorktreeID),
 		Attempt:       attempt,
 		RecoveryCount: recoveryCount,
 		Origin: taskpkg.Origin{
 			Ref: row.OriginRef,
 		},
 	}
+	run.SetWorktreeID(taskNullStringValue(row.WorktreeID))
 	fields := taskRunScanFields{
 		status:                 row.Status,
 		runKind:                row.RunKind,
@@ -139,11 +139,11 @@ func taskRunFromStatusGenerated(row *sqlcgen.ListTaskRunsByStatusRow) (taskpkg.R
 		ID:            row.ID,
 		TaskID:        taskNullStringValue(row.TaskID),
 		WorkspaceID:   taskNullStringValue(row.WorkspaceID),
-		WorktreeID:    taskNullStringValue(row.WorktreeID),
 		Attempt:       attempt,
 		RecoveryCount: recoveryCount,
 		Origin:        taskpkg.Origin{Ref: row.OriginRef},
 	}
+	run.SetWorktreeID(taskNullStringValue(row.WorktreeID))
 	fields := taskRunScanFields{
 		status:                 row.Status,
 		runKind:                row.RunKind,
@@ -279,7 +279,7 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		ID:                     run.ID,
 		TaskID:                 nullableTaskString(run.TaskID),
 		WorkspaceID:            nullableTaskString(run.WorkspaceID),
-		WorktreeID:             nullableTaskString(run.WorktreeID),
+		WorktreeID:             nullableTaskString(run.WorktreeIDValue()),
 		RunKind:                run.RunKind.String(),
 		LoopRunID:              nullableTaskString(run.LoopRunID),
 		Status:                 run.Status.String(),
@@ -298,8 +298,8 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		NetworkChannel:         network.Channel,
 		NetworkSource:          network.Source,
 		DesignationGroupID:     strings.TrimSpace(run.DesignationGroupID),
-		ResolvedWorktreeMode:   string(run.ResolvedWorktreeMode),
-		ResolvedWorktreeRef:    strings.TrimSpace(run.ResolvedWorktreeRef),
+		ResolvedWorktreeMode:   string(run.ResolvedWorktreeModeValue()),
+		ResolvedWorktreeRef:    strings.TrimSpace(run.ResolvedWorktreeRefValue()),
 		ClaimTokenHash:         nullableTaskString(run.ClaimTokenHash),
 		LeaseUntil:             nullableTaskTime(run.LeaseUntil),
 		HeartbeatAt:            nullableTaskTime(run.HeartbeatAt),

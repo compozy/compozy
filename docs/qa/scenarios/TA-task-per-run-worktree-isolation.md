@@ -4,8 +4,8 @@ area: TA
 title: Run a task in its enqueue-time per-run worktree
 persona: Ada
 journey: J-isolated-task-loop-execution
-expected: Setting per_run, enqueueing, changing the live profile, and finishing the run leaves the run and its dedicated session bound to the original fresh run branch with identical state through CLI, HTTP, UDS, and worktree reads.
-entry_points: compozy task profile set-worktree; compozy task run; PATCH /api/tasks/:id/execution-profile/worktree; compozy__task_worktree_policy_set
+expected: Setting per_run, enqueueing, changing the live profile, and finishing the run leaves the run and its dedicated session bound to the original fresh run branch with identical state through CLI, HTTP, UDS, and worktree reads; a denied, failed, cancelled, or stale-lease materialization leaves no branch, directory, registry row, binding, or created event.
+entry_points: compozy task profile set-worktree|update; compozy task run; compozy task list --worktree; HTTP/UDS PATCH /api/tasks/:id/execution-profile/worktree; GET /api/tasks|/api/observe/tasks/dashboard|inbox?worktree=; compozy__task_worktree_policy_set; compozy__task_execution_profile_set.worktree; compozy__task_list.worktree
 qa_status: untested
 bug_ids:
 fix_status:
@@ -19,3 +19,5 @@ overlaps:
 QA impact: Task 04 adds the task policy patch, enqueue-time snapshot, claimed-run materialization,
 session binding, and durable worktree attribution. The Phase C walk must also reverse the edit order:
 enqueue under `none`, switch the live profile to `per_run`, and prove the queued run still uses root.
+It must also provoke denial or bootstrap failure and prove the shared creation rollback removes every
+artifact before a retry.

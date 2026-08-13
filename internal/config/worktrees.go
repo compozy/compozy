@@ -9,7 +9,10 @@ import (
 
 var worktreeNamespacePattern = regexp.MustCompile(`^[a-z0-9._-]+(?:/[a-z0-9._-]+)*/$`)
 
-const worktreeConfigInvalidCode = "worktree_config_invalid"
+const (
+	worktreeConfigInvalidCode    = "worktree_config_invalid"
+	positiveWorktreeValueMessage = "must be positive"
+)
 
 // WorktreesConfig controls worktree placement, discovery, and bootstrap.
 type WorktreesConfig struct {
@@ -41,7 +44,11 @@ func (c WorktreesConfig) ResolveRoot(homePaths HomePaths) string {
 // Validate rejects invalid worktree configuration and names the offending key.
 func (c WorktreesConfig) Validate() error {
 	if c.Root != "" && !filepath.IsAbs(c.Root) {
-		return ValidationError{Code: worktreeConfigInvalidCode, Path: "worktrees.root", Message: "must be absolute or empty"}
+		return ValidationError{
+			Code:    worktreeConfigInvalidCode,
+			Path:    "worktrees.root",
+			Message: "must be absolute or empty",
+		}
 	}
 	if !worktreeNamespacePattern.MatchString(c.RunBranchNamespace) {
 		return ValidationError{
@@ -58,11 +65,17 @@ func (c WorktreesConfig) Validate() error {
 		}
 	}
 	if c.SetupTimeout <= 0 {
-		return ValidationError{Code: worktreeConfigInvalidCode, Path: "worktrees.setup_timeout", Message: "must be positive"}
+		return ValidationError{
+			Code:    worktreeConfigInvalidCode,
+			Path:    "worktrees.setup_timeout",
+			Message: positiveWorktreeValueMessage,
+		}
 	}
 	if c.DiscoveryCacheTTL <= 0 {
 		return ValidationError{
-			Code: worktreeConfigInvalidCode, Path: "worktrees.discovery_cache_ttl", Message: "must be positive",
+			Code:    worktreeConfigInvalidCode,
+			Path:    "worktrees.discovery_cache_ttl",
+			Message: positiveWorktreeValueMessage,
 		}
 	}
 	return nil

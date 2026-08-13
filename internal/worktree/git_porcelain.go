@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+const (
+	worktreeListFormat = "worktree-list"
+	statusV2Format     = "status-v2"
+	numstatFormat      = "numstat"
+)
+
 type ParseError struct {
 	Format string
 	Record string
@@ -17,7 +23,7 @@ type ParseError struct {
 // snapshot. Ignored records are deliberately absent from the result.
 func ParseUntrackedStatusV2(output []byte) ([]string, error) {
 	files := make([]string, 0)
-	for _, record := range bytes.Split(output, []byte{0}) {
+	for record := range bytes.SplitSeq(output, []byte{0}) {
 		if len(record) == 0 || record[0] == '#' || record[0] == '!' {
 			continue
 		}
@@ -64,7 +70,7 @@ func ParseWorktreeList(output []byte) ([]GitWorktree, error) {
 			return nil
 		}
 		if strings.TrimSpace(current.Path) == "" {
-			return &ParseError{Format: "worktree-list", Record: "missing worktree path"}
+			return &ParseError{Format: worktreeListFormat, Record: "missing worktree path"}
 		}
 		current.Main = recordIndex == 0
 		if !current.Bare {
@@ -91,7 +97,7 @@ func ParseWorktreeList(output []byte) ([]GitWorktree, error) {
 			continue
 		}
 		if current == nil {
-			return nil, &ParseError{Format: "worktree-list", Record: field}
+			return nil, &ParseError{Format: worktreeListFormat, Record: field}
 		}
 		switch {
 		case strings.HasPrefix(field, "HEAD "):
@@ -113,7 +119,7 @@ func ParseWorktreeList(output []byte) ([]GitWorktree, error) {
 			current.Prunable = true
 			current.PrunableReason = strings.TrimSpace(strings.TrimPrefix(field, "prunable "))
 		default:
-			return nil, &ParseError{Format: "worktree-list", Record: field}
+			return nil, &ParseError{Format: worktreeListFormat, Record: field}
 		}
 	}
 	if err := flush(); err != nil {
@@ -136,8 +142,24 @@ type GitStatus struct {
 func ParseStatusV2(output []byte) (GitStatus, error) {
 	var result GitStatus
 	remaining := output
-	headOIDSeen := false
-	headNameSeen := false
+	headOIDSeen, headNameSeen, remaining, err := parseStatusHeaders(&result, remaining)
+	if err != nil {
+		return GitStatus{}, err
+	}
+	if !headOIDSeen || !headNameSeen {
+		return GitStatus{}, &ParseError{Format: statusV2Format, Record: "missing branch identity headers"}
+	}
+	if err := parseStatusRecords(&result, remaining); err != nil {
+		return GitStatus{}, err
+	}
+	if result.HasUpstream && (result.Ahead == nil || result.Behind == nil) {
+		return GitStatus{}, &ParseError{Format: statusV2Format, Record: "upstream without branch.ab"}
+	}
+	return result, nil
+}
+
+func parseStatusHeaders(result *GitStatus, remaining []byte) (bool, bool, []byte, error) {
+	headOIDSeen, headNameSeen := false, false
 	for len(remaining) > 0 && remaining[0] == '#' {
 		separator := nextStatusSeparator(remaining)
 		line := string(remaining[:separator])
@@ -161,18 +183,19 @@ func ParseStatusV2(output []byte) (GitStatus, error) {
 		case strings.HasPrefix(line, "# branch.ab "):
 			ahead, behind, err := parseAheadBehind(strings.TrimSpace(strings.TrimPrefix(line, "# branch.ab ")))
 			if err != nil {
-				return GitStatus{}, err
+				return false, false, nil, err
 			}
 			result.Ahead, result.Behind = &ahead, &behind
 		case line[0] == '#':
 			continue
 		default:
-			return GitStatus{}, &ParseError{Format: "status-v2", Record: line}
+			return false, false, nil, &ParseError{Format: statusV2Format, Record: line}
 		}
 	}
-	if !headOIDSeen || !headNameSeen {
-		return GitStatus{}, &ParseError{Format: "status-v2", Record: "missing branch identity headers"}
-	}
+	return headOIDSeen, headNameSeen, remaining, nil
+}
+
+func parseStatusRecords(result *GitStatus, remaining []byte) error {
 	records := bytes.Split(remaining, []byte{0})
 	for index := 0; index < len(records); index++ {
 		raw := records[index]
@@ -184,20 +207,17 @@ func ParseStatusV2(output []byte) (GitStatus, error) {
 			result.DirtyFiles++
 		case '2':
 			if index+1 >= len(records) || len(records[index+1]) == 0 {
-				return GitStatus{}, &ParseError{Format: "status-v2", Record: string(raw)}
+				return &ParseError{Format: statusV2Format, Record: string(raw)}
 			}
 			result.DirtyFiles++
 			index++
 		case '!':
 			continue
 		default:
-			return GitStatus{}, &ParseError{Format: "status-v2", Record: string(raw)}
+			return &ParseError{Format: statusV2Format, Record: string(raw)}
 		}
 	}
-	if result.HasUpstream && (result.Ahead == nil || result.Behind == nil) {
-		return GitStatus{}, &ParseError{Format: "status-v2", Record: "upstream without branch.ab"}
-	}
-	return result, nil
+	return nil
 }
 
 func nextStatusSeparator(value []byte) int {
@@ -218,15 +238,15 @@ func nextStatusSeparator(value []byte) int {
 func parseAheadBehind(value string) (int, int, error) {
 	parts := strings.Fields(value)
 	if len(parts) != 2 || !strings.HasPrefix(parts[0], "+") || !strings.HasPrefix(parts[1], "-") {
-		return 0, 0, &ParseError{Format: "status-v2", Record: value}
+		return 0, 0, &ParseError{Format: statusV2Format, Record: value}
 	}
 	ahead, err := strconv.Atoi(strings.TrimPrefix(parts[0], "+"))
 	if err != nil {
-		return 0, 0, &ParseError{Format: "status-v2", Record: value}
+		return 0, 0, &ParseError{Format: statusV2Format, Record: value}
 	}
 	behind, err := strconv.Atoi(strings.TrimPrefix(parts[1], "-"))
 	if err != nil {
-		return 0, 0, &ParseError{Format: "status-v2", Record: value}
+		return 0, 0, &ParseError{Format: statusV2Format, Record: value}
 	}
 	return ahead, behind, nil
 }
@@ -247,7 +267,7 @@ func ParseNumstat(output []byte) (Numstat, error) {
 		}
 		parts := strings.SplitN(record, "\t", 3)
 		if len(parts) != 3 {
-			return Numstat{}, &ParseError{Format: "numstat", Record: record}
+			return Numstat{}, &ParseError{Format: numstatFormat, Record: record}
 		}
 		insertions, err := parseNumstatCount(parts[0])
 		if err != nil {
@@ -260,7 +280,7 @@ func ParseNumstat(output []byte) (Numstat, error) {
 		path := parts[2]
 		if path == "" {
 			if index+2 >= len(records) || len(records[index+1]) == 0 || len(records[index+2]) == 0 {
-				return Numstat{}, &ParseError{Format: "numstat", Record: record}
+				return Numstat{}, &ParseError{Format: numstatFormat, Record: record}
 			}
 			path = string(records[index+2])
 			index += 2
@@ -278,7 +298,7 @@ func parseNumstatCount(value string) (int, error) {
 	}
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed < 0 {
-		return 0, &ParseError{Format: "numstat", Record: value}
+		return 0, &ParseError{Format: numstatFormat, Record: value}
 	}
 	return parsed, nil
 }

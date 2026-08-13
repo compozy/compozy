@@ -1433,12 +1433,12 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 				WorkspaceID: "ws-worktree-root",
 			},
 			Run: taskpkg.Run{
-				ID:                   "run-worktree-none",
-				TaskID:               "task-worktree-none",
-				WorkspaceID:          "ws-worktree-root",
-				ResolvedWorktreeMode: taskpkg.WorktreeModeNone,
-				Status:               taskpkg.TaskRunStatusStarting,
-				Attempt:              1,
+				ID:               "run-worktree-none",
+				TaskID:           "task-worktree-none",
+				WorkspaceID:      "ws-worktree-root",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModeNone},
+				Status:           taskpkg.TaskRunStatusStarting,
+				Attempt:          1,
 				Origin: taskpkg.Origin{
 					Kind: taskpkg.OriginKindCLI, Ref: "compozy task run",
 				},
@@ -1484,15 +1484,17 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 				WorkspaceID: "ws-worktree",
 			},
 			Run: taskpkg.Run{
-				ID:                   "run-worktree-ref",
-				TaskID:               "task-worktree-ref",
-				WorkspaceID:          "ws-worktree",
-				ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
-				ResolvedWorktreeRef:  "feature-docs",
-				Status:               taskpkg.TaskRunStatusStarting,
-				Attempt:              1,
-				Origin:               taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
-				QueuedAt:             time.Date(2026, 5, 5, 12, 30, 0, 0, time.UTC),
+				ID:          "run-worktree-ref",
+				TaskID:      "task-worktree-ref",
+				WorkspaceID: "ws-worktree",
+				RunWorktreeState: &taskpkg.RunWorktreeState{
+					ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
+					ResolvedWorktreeRef:  "feature-docs",
+				},
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 30, 0, 0, time.UTC),
 			},
 		})
 		if err != nil {
@@ -1530,15 +1532,17 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 				WorkspaceID: "ws-worktree",
 			},
 			Run: taskpkg.Run{
-				ID:                   "run-removed-ref",
-				TaskID:               "task-removed-ref",
-				WorkspaceID:          "ws-worktree",
-				ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
-				ResolvedWorktreeRef:  "removed-ref",
-				Status:               taskpkg.TaskRunStatusStarting,
-				Attempt:              1,
-				Origin:               taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
-				QueuedAt:             time.Date(2026, 5, 5, 12, 32, 0, 0, time.UTC),
+				ID:          "run-removed-ref",
+				TaskID:      "task-removed-ref",
+				WorkspaceID: "ws-worktree",
+				RunWorktreeState: &taskpkg.RunWorktreeState{
+					ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
+					ResolvedWorktreeRef:  "removed-ref",
+				},
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 32, 0, 0, time.UTC),
 			},
 		})
 		if !errors.Is(err, worktreepkg.ErrRefInvalid) {
@@ -1579,14 +1583,14 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 				WorkspaceID: "ws-worktree",
 			},
 			Run: taskpkg.Run{
-				ID:                   "run-per-run",
-				TaskID:               "task-per-run",
-				WorkspaceID:          "ws-worktree",
-				ResolvedWorktreeMode: taskpkg.WorktreeModePerRun,
-				Status:               taskpkg.TaskRunStatusStarting,
-				Attempt:              1,
-				Origin:               taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
-				QueuedAt:             time.Date(2026, 5, 5, 12, 35, 0, 0, time.UTC),
+				ID:               "run-per-run",
+				TaskID:           "task-per-run",
+				WorkspaceID:      "ws-worktree",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
+				Status:           taskpkg.TaskRunStatusStarting,
+				Attempt:          1,
+				Origin:           taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
+				QueuedAt:         time.Date(2026, 5, 5, 12, 35, 0, 0, time.UTC),
 			},
 		})
 		if err != nil {
@@ -1596,7 +1600,8 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 			t.Fatalf("MaterializeForRun() calls = %d, want %d", got, want)
 		}
 		call := worktrees.materializeCalls[0]
-		if call.workspaceID != "ws-worktree" || call.request.TaskSlug != "review-docs" || call.request.RunID != "run-per-run" {
+		if call.workspaceID != "ws-worktree" || call.request.TaskSlug != "review-docs" ||
+			call.request.RunID != "run-per-run" {
 			t.Fatalf("MaterializeForRun() call = %#v, want immutable run identity", call)
 		}
 		if got, want := sessions.createCall(0).Worktree, "wt-run-1"; got != want {
@@ -1752,9 +1757,9 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 		_, err = bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
-			ID:                   "run-root",
-			WorkspaceID:          "ws-attach",
-			ResolvedWorktreeMode: taskpkg.WorktreeModeNone,
+			ID:               "run-root",
+			WorkspaceID:      "ws-attach",
+			RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModeNone},
 		}, "sess-worktree")
 		if !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
 			t.Fatalf("AttachTaskRunSession() error = %v, want ErrSessionAttachNotAllowed", err)
@@ -1785,10 +1790,12 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 		ref, err := bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
-			ID:                   "run-ref",
-			WorkspaceID:          "ws-attach",
-			ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
-			ResolvedWorktreeRef:  "feature-docs",
+			ID:          "run-ref",
+			WorkspaceID: "ws-attach",
+			RunWorktreeState: &taskpkg.RunWorktreeState{
+				ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
+				ResolvedWorktreeRef:  "feature-docs",
+			},
 		}, "sess-ref")
 		if err != nil {
 			t.Fatalf("AttachTaskRunSession() error = %v", err)
@@ -1817,9 +1824,9 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 			t.Fatalf("newTaskSessionBridge() error = %v", err)
 		}
 		_, err = bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
-			ID:                   "run-per-run",
-			WorkspaceID:          "ws-attach",
-			ResolvedWorktreeMode: taskpkg.WorktreeModePerRun,
+			ID:               "run-per-run",
+			WorkspaceID:      "ws-attach",
+			RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
 		}, "sess-active")
 		if !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
 			t.Fatalf("AttachTaskRunSession() error = %v, want ErrSessionAttachNotAllowed", err)
@@ -2263,9 +2270,9 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 				WorkspaceID: "ws-materialize-failure",
 			},
 			Run: taskpkg.Run{
-				ID:                   "run-materialize-failure",
-				WorkspaceID:          "ws-materialize-failure",
-				ResolvedWorktreeMode: taskpkg.WorktreeModePerRun,
+				ID:               "run-materialize-failure",
+				WorkspaceID:      "ws-materialize-failure",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
 			},
 		})
 		if !errors.Is(err, worktreepkg.ErrPerRunMaterialization) {
@@ -2304,9 +2311,9 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 				WorkspaceID: "ws-create-failure",
 			},
 			Run: taskpkg.Run{
-				ID:                   "run-create-failure",
-				WorkspaceID:          "ws-create-failure",
-				ResolvedWorktreeMode: taskpkg.WorktreeModePerRun,
+				ID:               "run-create-failure",
+				WorkspaceID:      "ws-create-failure",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
 			},
 		})
 		if !errors.Is(err, wantErr) {
@@ -3197,7 +3204,7 @@ func (s *taskContextOverlayStub) TaskRunPromptOverlay(
 	s.calls = append(s.calls, taskContextOverlayCall{
 		taskID:     strings.TrimSpace(taskRecord.ID),
 		runID:      strings.TrimSpace(run.ID),
-		worktreeID: strings.TrimSpace(run.WorktreeID),
+		worktreeID: strings.TrimSpace(run.WorktreeIDValue()),
 	})
 	if s.err != nil {
 		return "", s.err

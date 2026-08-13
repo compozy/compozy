@@ -45,10 +45,9 @@ func (m *Manager) PublishClarifyEvent(ctx context.Context, event toolspkg.Clarif
 		Type:      EventTypeClarify,
 		SessionID: sessionID,
 		TurnID:    turnID,
-		RequestID: event.Request.RequestID,
 		Timestamp: event.At.UTC(),
 		Raw:       payload,
-	})
+	}.WithRequestID(event.Request.RequestID))
 	if err != nil {
 		return fmt.Errorf("session: encode clarification event: %w", err)
 	}

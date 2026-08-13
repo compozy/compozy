@@ -6690,10 +6690,9 @@ func (f *fakeSessionManager) PublishClarifyEvent(
 		Type:      acp.EventTypeClarify,
 		SessionID: event.Request.SessionID,
 		TurnID:    turnID,
-		RequestID: event.Request.RequestID,
 		Timestamp: event.At.UTC(),
 		Raw:       payload,
-	})
+	}.WithRequestID(event.Request.RequestID))
 	if err != nil {
 		return fmt.Errorf("fake session manager: encode clarification event: %w", err)
 	}

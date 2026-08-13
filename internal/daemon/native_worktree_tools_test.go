@@ -137,85 +137,88 @@ func (s *nativeWorktreeServiceStub) Dismiss(context.Context, string, string) err
 func TestNativeWorktreeTools(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should resolve workspace identity to the registry boundary without leaking another workspace", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should resolve workspace identity to the registry boundary without leaking another workspace",
+		func(t *testing.T) {
+			t.Parallel()
 
-		workspaces := nativeWorktreeWorkspaceService()
-		sessions := apitest.StubSessionManager{StatusFn: func(
-			_ context.Context,
-			id string,
-		) (*session.Info, error) {
-			return &session.Info{
-				ID: id, WorkspaceID: "ws-a", AgentName: "coder", State: session.StateActive,
-			}, nil
-		}}
-		calls := 0
-		service := &nativeWorktreeServiceStub{list: func(
-			_ context.Context,
-			workspaceID string,
-			refresh bool,
-		) (*worktree.DetailedListing, error) {
-			calls++
-			if refresh {
-				t.Fatal("ListDetails() refresh = true, want cached read")
+			workspaces := nativeWorktreeWorkspaceService()
+			sessions := apitest.StubSessionManager{StatusFn: func(
+				_ context.Context,
+				id string,
+			) (*session.Info, error) {
+				return &session.Info{
+					ID: id, WorkspaceID: "ws-a", AgentName: "coder", State: session.StateActive,
+				}, nil
+			}}
+			calls := 0
+			service := &nativeWorktreeServiceStub{list: func(
+				_ context.Context,
+				workspaceID string,
+				refresh bool,
+			) (*worktree.DetailedListing, error) {
+				calls++
+				if refresh {
+					t.Fatal("ListDetails() refresh = true, want cached read")
+				}
+				name := "alpha"
+				if workspaceID == "registry-b" {
+					name = "beta"
+				} else if workspaceID != "registry-a" {
+					t.Fatalf("ListDetails() workspace = %q, want registry id", workspaceID)
+				}
+				return &worktree.DetailedListing{Worktrees: []worktree.Inspection{{
+					Worktree: worktree.Worktree{
+						ID: "wt-" + name, WorkspaceID: workspaceID, Name: name,
+						State: worktree.StateReady, Origin: worktree.OriginManual,
+					},
+					AgentActivity: worktree.AgentActivityIdle,
+				}}}, nil
+			}}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Sessions: sessions, Workspaces: workspaces, Worktrees: service,
+			}, nativeApproveAllPolicyInputs())
+			scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "coder"}
+			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorktreeList, Input: json.RawMessage(`{}`),
+			})
+			if err != nil {
+				t.Fatalf("worktree_list error = %v", err)
 			}
-			name := "alpha"
-			if workspaceID == "registry-b" {
-				name = "beta"
-			} else if workspaceID != "registry-a" {
-				t.Fatalf("ListDetails() workspace = %q, want registry id", workspaceID)
+			var payload contract.WorktreesResponse
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatalf("json.Unmarshal(worktree_list) error = %v", err)
 			}
-			return &worktree.DetailedListing{Worktrees: []worktree.Inspection{{
-				Worktree: worktree.Worktree{
-					ID: "wt-" + name, WorkspaceID: workspaceID, Name: name,
-					State: worktree.StateReady, Origin: worktree.OriginManual,
-				},
-				AgentActivity: worktree.AgentActivityIdle,
-			}}}, nil
-		}}
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: sessions, Workspaces: workspaces, Worktrees: service,
-		}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "coder"}
-		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDWorktreeList, Input: json.RawMessage(`{}`),
-		})
-		if err != nil {
-			t.Fatalf("worktree_list error = %v", err)
-		}
-		var payload contract.WorktreesResponse
-		if err := json.Unmarshal(result.Structured, &payload); err != nil {
-			t.Fatalf("json.Unmarshal(worktree_list) error = %v", err)
-		}
-		if len(payload.Worktrees) != 1 || payload.Worktrees[0].ID != "wt-alpha" ||
-			payload.Worktrees[0].WorkspaceID != "registry-a" {
-			t.Fatalf("workspace A worktrees = %#v, want only registry-a", payload.Worktrees)
-		}
+			if len(payload.Worktrees) != 1 || payload.Worktrees[0].ID != "wt-alpha" ||
+				payload.Worktrees[0].WorkspaceID != "registry-a" {
+				t.Fatalf("workspace A worktrees = %#v, want only registry-a", payload.Worktrees)
+			}
 
-		_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDWorktreeList,
-			Input:  json.RawMessage(`{"workspace":"ws-b"}`),
-		})
-		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
-		if calls != 1 {
-			t.Fatalf("ListDetails() calls = %d, want denied request stopped before service", calls)
-		}
+			_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorktreeList,
+				Input:  json.RawMessage(`{"workspace":"ws-b"}`),
+			})
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+			if calls != 1 {
+				t.Fatalf("ListDetails() calls = %d, want denied request stopped before service", calls)
+			}
 
-		result, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDWorktreeList,
-			Input:  json.RawMessage(`{"workspace":"ws-b"}`),
-		})
-		if err != nil {
-			t.Fatalf("operator worktree_list error = %v", err)
-		}
-		if err := json.Unmarshal(result.Structured, &payload); err != nil {
-			t.Fatalf("json.Unmarshal(operator worktree_list) error = %v", err)
-		}
-		if len(payload.Worktrees) != 1 || payload.Worktrees[0].ID != "wt-beta" ||
-			payload.Worktrees[0].WorkspaceID != "registry-b" {
-			t.Fatalf("workspace B worktrees = %#v, want only registry-b", payload.Worktrees)
-		}
-	})
+			result, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorktreeList,
+				Input:  json.RawMessage(`{"workspace":"ws-b"}`),
+			})
+			if err != nil {
+				t.Fatalf("operator worktree_list error = %v", err)
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatalf("json.Unmarshal(operator worktree_list) error = %v", err)
+			}
+			if len(payload.Worktrees) != 1 || payload.Worktrees[0].ID != "wt-beta" ||
+				payload.Worktrees[0].WorkspaceID != "registry-b" {
+				t.Fatalf("workspace B worktrees = %#v, want only registry-b", payload.Worktrees)
+			}
+		},
+	)
 
 	t.Run("Should carry the exact removal refusal as a partial tool result", func(t *testing.T) {
 		t.Parallel()

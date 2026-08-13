@@ -83,7 +83,7 @@ type ActionExecutionInput struct {
 	Actor                    task.ActorContext
 	CorrelationID            string
 	RuntimeSelection         *ActionRuntimeSelection
-	Environment              dsl.EnvironmentSpec
+	Environment              *dsl.EnvironmentSpec
 	AllowedTools             []string
 	OriginSessionID          string
 	OriginCreationProfileRef string
@@ -233,7 +233,7 @@ type ActionSessionBindRequest struct {
 	NodeID                         dsl.NodeID
 	ItemIndex                      int
 	Agent                          string
-	Environment                    dsl.EnvironmentSpec
+	Environment                    *dsl.EnvironmentSpec
 	Handle                         string
 	SharedKey                      string
 	Mode                           string

@@ -45,7 +45,7 @@ func bridgeListDescriptor() toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBridges},
-		[]string{bridgesBridgesKey, "list"},
+		[]string{bridgesBridgesKey, descriptorKeywordList},
 		[]string{"bridge list", "bridge instances"},
 	)
 	descriptor.OutputSchema = json.RawMessage(bridgesListOutputSchema)

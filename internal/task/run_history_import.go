@@ -54,6 +54,10 @@ func cloneImportedRun(run Run) Run {
 		networkState := *run.RunNetworkState
 		cloned.RunNetworkState = &networkState
 	}
+	if run.RunWorktreeState != nil {
+		worktreeState := *run.RunWorktreeState
+		cloned.RunWorktreeState = &worktreeState
+	}
 	cloned.RequiredCapabilities = slices.Clone(run.RequiredCapabilities)
 	cloned.PreferredCapabilities = slices.Clone(run.PreferredCapabilities)
 	if run.Review != nil {

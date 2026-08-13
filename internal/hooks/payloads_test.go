@@ -42,14 +42,14 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	sampleSession := SessionContext{
-		SessionID:    "sess-1",
-		SessionName:  "demo",
-		SessionType:  "user",
-		AgentName:    "codex",
-		WorkspaceID:  "ws-1",
-		Workspace:    "/tmp/demo",
-		ACPSessionID: "acp-1",
-		State:        "active",
+		SessionID:             "sess-1",
+		SessionName:           "demo",
+		SessionType:           "user",
+		AgentName:             "codex",
+		WorkspaceID:           "ws-1",
+		Workspace:             "/tmp/demo",
+		SessionRuntimeContext: NewSessionRuntimeContext("", "acp-1"),
+		State:                 "active",
 		SessionSoulContext: optionalSessionSoulContext(
 			"ss-1",
 			"soul-digest",

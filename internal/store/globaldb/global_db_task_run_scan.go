@@ -72,7 +72,7 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 	}
 	run.TaskID = taskNullStringValue(taskID)
 	run.WorkspaceID = taskNullStringValue(workspaceID)
-	run.WorktreeID = taskNullStringValue(worktreeID)
+	run.SetWorktreeID(taskNullStringValue(worktreeID))
 	return (&fields).record(run)
 }
 
@@ -139,8 +139,11 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 		fields.claimTokenHash,
 		fields.runErr,
 	)
-	run.ResolvedWorktreeMode = taskpkg.WorktreeMode(strings.TrimSpace(fields.resolvedWorktreeMode))
-	run.ResolvedWorktreeRef = strings.TrimSpace(fields.resolvedWorktreeRef)
+	run.SetWorktreeState(
+		run.WorktreeIDValue(),
+		taskpkg.WorktreeMode(strings.TrimSpace(fields.resolvedWorktreeMode)),
+		fields.resolvedWorktreeRef,
+	)
 	networkSpec, err := decodeParticipationSnapshot(
 		run.WorkspaceID,
 		fields.networkSpecJSON,

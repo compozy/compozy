@@ -17,7 +17,7 @@ func (g *GlobalDB) PublishWorktreeEvent(ctx context.Context, event worktree.Life
 	if g == nil || g.ObserveRepo == nil {
 		return fmt.Errorf("store: worktree event writer is required")
 	}
-	return g.ObserveRepo.WriteEventSummary(ctx, worktreeEventSummary(event))
+	return g.WriteEventSummary(ctx, worktreeEventSummary(event))
 }
 
 func (g *GlobalDB) FinishExitOperationWithEvent(
@@ -38,28 +38,32 @@ func (g *GlobalDB) FinishExitOperationWithEvent(
 		return false, fmt.Errorf("store: worktree terminal event scope does not match operation")
 	}
 	summary := worktreeEventSummary(event)
-	if err := g.ObserveRepo.prepareEventSummary(ctx, &summary); err != nil {
+	if err := g.prepareEventSummary(ctx, &summary); err != nil {
 		return false, err
 	}
 	finished := false
-	err := g.Worktrees.withImmediateTransaction(ctx, "finish worktree exit operation with event", func(exec globalSQLExecutor) error {
-		queries := sqlcgen.New(exec)
-		count, err := queries.FinishWorktreeExitOperation(ctx, sqlcgen.FinishWorktreeExitOperationParams{
-			State: state, FinishedAt: nullableTime(&finishedAt), WorkspaceID: workspaceID,
-			WorktreeID: worktreeID, OpID: strings.TrimSpace(opID),
-		})
-		if err != nil {
-			return fmt.Errorf("finish worktree exit operation: %w", err)
-		}
-		if count != 1 {
+	err := g.Worktrees.withImmediateTransaction(
+		ctx,
+		"finish worktree exit operation with event",
+		func(exec globalSQLExecutor) error {
+			queries := sqlcgen.New(exec)
+			count, err := queries.FinishWorktreeExitOperation(ctx, sqlcgen.FinishWorktreeExitOperationParams{
+				State: state, FinishedAt: nullableTime(&finishedAt), WorkspaceID: workspaceID,
+				WorktreeID: worktreeID, OpID: strings.TrimSpace(opID),
+			})
+			if err != nil {
+				return fmt.Errorf("finish worktree exit operation: %w", err)
+			}
+			if count != 1 {
+				return nil
+			}
+			if err := insertEventSummary(ctx, queries, summary); err != nil {
+				return err
+			}
+			finished = true
 			return nil
-		}
-		if err := insertEventSummary(ctx, queries, summary); err != nil {
-			return err
-		}
-		finished = true
-		return nil
-	})
+		},
+	)
 	if err != nil {
 		return false, err
 	}

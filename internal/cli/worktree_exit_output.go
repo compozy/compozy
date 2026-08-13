@@ -10,7 +10,7 @@ func worktreeExitPlanBundle(plan WorktreeExitPlanRecord) outputBundle {
 		},
 		human: func() (string, error) {
 			return renderHumanSection("Worktree Exit", []keyValue{
-				{Label: "Worktree", Value: stringOrDash(plan.WorktreeID)},
+				{Label: worktreeLabel, Value: stringOrDash(plan.WorktreeID)},
 				{Label: "Primary", Value: stringOrDash(string(plan.Primary))},
 				{Label: "Base", Value: stringOrDash(plan.Base)},
 				{Label: "Pause", Value: stringOrDash(plan.GlobalPauseCause)},
@@ -18,7 +18,7 @@ func worktreeExitPlanBundle(plan WorktreeExitPlanRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("worktree_exit",
-				[]string{"worktree_id", "primary", "base", "global_pause_cause"},
+				[]string{worktreeIDKey, "primary", "base", "global_pause_cause"},
 				[]string{plan.WorktreeID, string(plan.Primary), plan.Base, plan.GlobalPauseCause},
 			), nil
 		},
@@ -33,7 +33,7 @@ func worktreeExitOperationBundle(operation WorktreeExitOperationRecord) outputBu
 		},
 		human: func() (string, error) {
 			return renderHumanSection("Worktree Exit", []keyValue{
-				{Label: "Operation", Value: stringOrDash(operation.OperationID)},
+				{Label: authoredContextOperationValue, Value: stringOrDash(operation.OperationID)},
 			}), nil
 		},
 		toon: func() (string, error) {
@@ -47,7 +47,7 @@ func worktreeExitCancelBundle(worktreeID, operationID string) outputBundle {
 		WorktreeID  string `json:"worktree_id"`
 		OperationID string `json:"op_id"`
 		State       string `json:"state"`
-	}{WorktreeID: worktreeID, OperationID: operationID, State: "cancel_requested"}
+	}{WorktreeID: worktreeID, OperationID: operationID, State: worktreeCancelRequested}
 	return outputBundle{
 		jsonValue: value,
 		jsonl: func(cmd *cobra.Command) error {
@@ -57,12 +57,13 @@ func worktreeExitCancelBundle(worktreeID, operationID string) outputBundle {
 			return renderHumanSection("Worktree Exit", []keyValue{
 				{Label: "Worktree", Value: stringOrDash(worktreeID)},
 				{Label: "Operation", Value: stringOrDash(operationID)},
-				{Label: "State", Value: "cancel_requested"},
+				{Label: authoredContextStateValue, Value: worktreeCancelRequested},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("worktree_exit_operation",
-				[]string{"worktree_id", "op_id", "state"}, []string{worktreeID, operationID, "cancel_requested"},
+				[]string{worktreeIDKey, "op_id", stateKey},
+				[]string{worktreeID, operationID, worktreeCancelRequested},
 			), nil
 		},
 	}

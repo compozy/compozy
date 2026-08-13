@@ -177,7 +177,7 @@ func TestSessionWorktreeBinding(t *testing.T) {
 		if got := created.Info().WorktreeID; got != "wt-ready" {
 			t.Fatalf("Info.WorktreeID = %q, want wt-ready", got)
 		}
-		if got := readMeta(t, created.MetaPath()).WorktreeID; got != "wt-ready" {
+		if got := readMeta(t, created.MetaPath()).WorktreeIDValue(); got != "wt-ready" {
 			t.Fatalf("meta.WorktreeID = %q, want wt-ready", got)
 		}
 		if got, want := resolver.callsSnapshot(), []sessionWorktreeResolveCall{
@@ -370,7 +370,7 @@ func TestManagerPublishClarifyEvent(t *testing.T) {
 		if got, want := decoded.Type, EventTypeClarify; got != want {
 			t.Fatalf("event type = %q, want %q", got, want)
 		}
-		if got, want := decoded.RequestID, clarifyEvent.Request.RequestID; got != want {
+		if got, want := decoded.RequestIDValue(), clarifyEvent.Request.RequestID; got != want {
 			t.Fatalf("request id = %q, want %q", got, want)
 		}
 		var persisted toolspkg.ClarifyEvent

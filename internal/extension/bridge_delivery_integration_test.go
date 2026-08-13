@@ -812,9 +812,11 @@ func newDeliveryIntegrationEnv(
 		session.WithDriver(driver),
 		session.WithNotifier(notifier),
 		session.WithWorkspaceResolver(workspaces),
-		session.WithStore(func(ctx context.Context, owner storepkg.SessionDBOwner, path string) (session.EventRecorder, error) {
-			return storeSessionDB(ctx, owner, path)
-		}),
+		session.WithStore(
+			func(ctx context.Context, owner storepkg.SessionDBOwner, path string) (session.EventRecorder, error) {
+				return storeSessionDB(ctx, owner, path)
+			},
+		),
 		session.WithSandboxRegistry(mustLocalSandboxRegistry(t)),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		session.WithNow(func() time.Time { return baseNow }),

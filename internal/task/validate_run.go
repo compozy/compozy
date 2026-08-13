@@ -97,8 +97,8 @@ func validateRunExecutorBinding(r Run) error {
 		return err
 	}
 	if err := validateResolvedWorktreePolicy(WorktreePolicy{
-		Mode:        r.ResolvedWorktreeMode,
-		WorktreeRef: r.ResolvedWorktreeRef,
+		Mode:        r.ResolvedWorktreeModeValue(),
+		WorktreeRef: r.ResolvedWorktreeRefValue(),
 	}); err != nil {
 		return err
 	}

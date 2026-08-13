@@ -2,6 +2,8 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+const taskExecutionProfileConflictDescription = "Task execution profile conflict"
+
 func registryTaskManagementOperations() []OperationSpec {
 	return []OperationSpec{
 		listTasksOperationSpec(),
@@ -287,7 +289,7 @@ func setTaskExecutionProfileOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.TaskExecutionProfileResponse{}},
 			{Status: 400, Description: "Invalid task execution profile", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Task execution profile conflict", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: taskExecutionProfileConflictDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -309,7 +311,7 @@ func setTaskWorktreePolicyOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.TaskExecutionProfileResponse{}},
 			{Status: 400, Description: "Invalid task worktree policy", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Task execution profile conflict", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: taskExecutionProfileConflictDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -329,7 +331,7 @@ func deleteTaskExecutionProfileOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 404, Description: "Task or execution profile not found", Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Task execution profile conflict", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: taskExecutionProfileConflictDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

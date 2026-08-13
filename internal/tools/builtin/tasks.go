@@ -13,6 +13,7 @@ const (
 	tasksRunsKey                   = "runs"
 	tasksTaskExecutionProfileValue = "task execution profile"
 	tasksTasksKey                  = "tasks"
+	tasksWorktreeKey               = "worktree"
 )
 
 var taskTools = []toolspkg.Descriptor{
@@ -251,7 +252,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{tasksTasksKey, tasksExecutionProfileKey, "worktree"},
+		[]string{tasksTasksKey, tasksExecutionProfileKey, tasksWorktreeKey},
 		[]string{"task worktree policy", "profile worktree set"},
 	),
 	nativeDescriptor(

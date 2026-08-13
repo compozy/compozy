@@ -31,24 +31,29 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	run.SetNetworkState(participation.LocalSpec(), "", "", "")
 	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), run)
 	store.runs["run-worker-z"] = taskpkg.Run{
-		ID: "run-worker-z", TaskID: "task-z", WorkspaceID: "ws-1", WorktreeID: "wt-z",
-		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+		ID: "run-worker-z", TaskID: "task-z", WorkspaceID: "ws-1",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-z"},
+		RunKind:          taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
 	}
 	store.runs["run-worker-a"] = taskpkg.Run{
-		ID: "run-worker-a", TaskID: "task-a", WorkspaceID: "ws-1", WorktreeID: "wt-a",
-		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusClaimed,
+		ID: "run-worker-a", TaskID: "task-a", WorkspaceID: "ws-1",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-a"},
+		RunKind:          taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusClaimed,
 	}
 	store.runs["run-loop-worker"] = taskpkg.Run{
-		ID: "run-loop-worker", WorkspaceID: "ws-1", WorktreeID: "wt-loop", LoopRunID: "loop-1",
-		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+		ID: "run-loop-worker", WorkspaceID: "ws-1", LoopRunID: "loop-1",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-loop"},
+		RunKind:          taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
 	}
 	store.runs["run-coordinator"] = taskpkg.Run{
-		ID: "run-coordinator", WorkspaceID: "ws-1", WorktreeID: "wt-coordinator",
-		RunKind: taskpkg.RunKindCoordinator, Status: taskpkg.TaskRunStatusRunning,
+		ID: "run-coordinator", WorkspaceID: "ws-1",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-coordinator"},
+		RunKind:          taskpkg.RunKindCoordinator, Status: taskpkg.TaskRunStatusRunning,
 	}
 	store.runs["run-other-workspace"] = taskpkg.Run{
-		ID: "run-other-workspace", WorkspaceID: "ws-2", WorktreeID: "wt-other",
-		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+		ID: "run-other-workspace", WorkspaceID: "ws-2",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-other"},
+		RunKind:          taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
 	}
 	store.runs["run-root-worker"] = taskpkg.Run{
 		ID: "run-root-worker", WorkspaceID: "ws-1",

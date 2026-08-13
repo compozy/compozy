@@ -5,7 +5,7 @@ type RunAgentParams struct {
 	Agent        string          `json:"agent"                   yaml:"agent"`
 	Prompt       string          `json:"prompt"                  yaml:"prompt"`
 	OutputSchema Schema          `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
-	Environment  EnvironmentSpec `json:"environment,omitzero"   yaml:"environment,omitempty"`
+	Environment  EnvironmentSpec `json:"environment,omitzero"    yaml:"environment,omitempty"`
 	Runtime      RuntimeSpec     `json:"runtime,omitzero"        yaml:"runtime,omitempty"`
 	AllowedTools []string        `json:"allowed_tools,omitempty" yaml:"allowed_tools,omitempty"`
 	MaxTurns     int             `json:"max_turns,omitempty"     yaml:"max_turns,omitempty"`
@@ -20,7 +20,7 @@ type GoalParams struct {
 	MaxTurns     int             `json:"max_turns"               yaml:"max_turns"`
 	OnExhausted  string          `json:"on_exhausted,omitempty"  yaml:"on_exhausted,omitempty"`
 	OutputSchema *Schema         `json:"output_schema,omitempty" yaml:"output_schema,omitempty"`
-	Environment  EnvironmentSpec `json:"environment,omitzero"   yaml:"environment,omitempty"`
+	Environment  EnvironmentSpec `json:"environment,omitzero"    yaml:"environment,omitempty"`
 	Runtime      RuntimeSpec     `json:"runtime,omitzero"        yaml:"runtime,omitempty"`
 	Extra        map[string]any  `json:"-"                       yaml:",inline"`
 }

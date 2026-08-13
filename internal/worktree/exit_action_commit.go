@@ -15,18 +15,18 @@ func (s *Service) runExitCommit(
 	scope ExitCommitScope,
 	message string,
 ) (ExitStepResult, error) {
-	step := ExitStepResult{Phase: ExitPhaseCommit, State: "completed"}
+	step := ExitStepResult{Phase: ExitPhaseCommit, State: exitStepCompleted}
 	if _, stderr, err := s.runner.Run(ctx, item.Path, "add", "-A"); err != nil {
-		step.State, step.Output = "failed", exitCommandOutput(nil, stderr, err)
+		step.State, step.Output = exitStepFailed, exitCommandOutput(nil, stderr, err)
 		return step, err
 	}
 	staged, stderr, err := s.runner.Run(ctx, item.Path, "diff", "--cached", "--name-only", "-z")
 	if err != nil {
-		step.State, step.Output = "failed", exitCommandOutput(nil, stderr, err)
+		step.State, step.Output = exitStepFailed, exitCommandOutput(nil, stderr, err)
 		return step, err
 	}
 	if len(bytes.Trim(staged, "\x00")) == 0 {
-		step.State, step.Reason = "skipped", "nothing to commit"
+		step.State, step.Reason = exitStepSkipped, "nothing to commit"
 		return step, nil
 	}
 	commitMessage := strings.TrimSpace(message)
@@ -39,12 +39,12 @@ func (s *Service) runExitCommit(
 	}
 	stdout, stderr, err := s.runExitCommitCommand(ctx, operation, action, item.Path, commitMessage)
 	if err != nil {
-		step.State, step.Output = "failed", exitCommandOutput(stdout, stderr, err)
+		step.State, step.Output = exitStepFailed, exitCommandOutput(stdout, stderr, err)
 		return step, err
 	}
 	sha, stderr, err := s.runner.Run(ctx, item.Path, "rev-parse", "HEAD")
 	if err != nil {
-		step.State, step.Output = "failed", exitCommandOutput(nil, stderr, err)
+		step.State, step.Output = exitStepFailed, exitCommandOutput(nil, stderr, err)
 		return step, err
 	}
 	step.SHA = strings.TrimSpace(string(sha))

@@ -11,6 +11,8 @@ import (
 
 type State string
 
+const worktreeDescriptorName = "worktree"
+
 const (
 	StatePending   State = "pending"
 	StateReady     State = "ready"

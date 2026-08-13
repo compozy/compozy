@@ -78,7 +78,7 @@ export function WorktreeAdoptDialog({
       onOpenChange={onOpenChange}
       tone="accent"
       title={discovered ? `Adopt ${discovered.name}?` : "Adopt worktree?"}
-      description="Its metadata resolves to this repository. Compozy manages it in place — bootstrap is not re-run, the directory is not moved."
+      description="Its metadata resolves to this repository. CompozyOS manages it in place — bootstrap is not re-run, the directory is not moved."
       note="Sessions and runs can target it once adopted."
       noteTone="info"
       body={

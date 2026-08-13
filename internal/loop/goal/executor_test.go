@@ -197,7 +197,7 @@ func TestExecutorShouldMaterializeGoalParamsOnceBeforeEffects(t *testing.T) {
 		) {
 			t.Fatalf("prepared Goal prompt = %#v, want one-pass materialized objective", requests)
 		}
-		if len(binder.binds) != 1 || binder.binds[0].Environment != (dsl.EnvironmentSpec{
+		if len(binder.binds) != 1 || binder.binds[0].EnvironmentValue() != (dsl.EnvironmentSpec{
 			Mode: dsl.EnvironmentDirectory, Directory: "packages/weather-app",
 		}) {
 			t.Fatalf("Goal bind environment = %#v, want one-pass materialized directory", binder.binds)

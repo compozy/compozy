@@ -1,11 +1,14 @@
 package hooks
 
 func cloneSessionContext(payload SessionContext) SessionContext {
-	if payload.SessionSoulContext == nil {
-		return payload
+	if payload.SessionRuntimeContext != nil {
+		runtimeContext := *payload.SessionRuntimeContext
+		payload.SessionRuntimeContext = &runtimeContext
 	}
-	soul := *payload.SessionSoulContext
-	payload.SessionSoulContext = &soul
+	if payload.SessionSoulContext != nil {
+		soul := *payload.SessionSoulContext
+		payload.SessionSoulContext = &soul
+	}
 	return payload
 }
 

@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// SessionWorktreeResolver resolves one ready worktree within its parent workspace.
-type SessionWorktreeResolver interface {
+// WorktreeResolver resolves one ready worktree within its parent workspace.
+type WorktreeResolver interface {
 	ResolveSessionWorktree(ctx context.Context, workspaceRegistryID, ref string) (id, root string, err error)
 }
 

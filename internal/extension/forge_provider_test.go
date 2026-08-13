@@ -171,7 +171,6 @@ func TestManagerForgeProvider(t *testing.T) {
 		extensioncontract.ForgeCauseRateLimited,
 		extensioncontract.ForgeCauseCredentialExpired,
 	} {
-		cause := cause
 		t.Run("Should preserve transient cause "+cause+" as a forge failure", func(t *testing.T) {
 			t.Parallel()
 			process := newFakeProcess(5105)
@@ -198,9 +197,14 @@ func TestManagerForgeProvider(t *testing.T) {
 func installForgeTestProvider(manager *Manager, name string, process *fakeProcess, startedAt time.Time) {
 	provides := []string{extensionprotocol.CapabilityProvideForgeProvider}
 	manager.extensions[name] = &managedExtension{
-		key: GlobalInstanceKey(name), info: ExtensionInfo{Name: name, Capabilities: CapabilitiesConfig{Provides: provides}},
-		manifest: &Manifest{Name: name, Capabilities: CapabilitiesConfig{Provides: provides}},
-		process:  process, active: true, lastStartedAt: startedAt,
+		key: GlobalInstanceKey(
+			name,
+		),
+		info:          ExtensionInfo{Name: name, Capabilities: CapabilitiesConfig{Provides: provides}},
+		manifest:      &Manifest{Name: name, Capabilities: CapabilitiesConfig{Provides: provides}},
+		process:       process,
+		active:        true,
+		lastStartedAt: startedAt,
 		initialize: &subprocess.InitializeResponse{
 			ImplementedMethods: extensionprotocol.CapabilityServiceMethods(provides),
 		},

@@ -25,10 +25,9 @@ func TestClarificationEventProjectionPreservesTypedEvidence(t *testing.T) {
 			Type:      acp.EventTypeClarify,
 			SessionID: "sess-clarify",
 			TurnID:    "clarify:req-clarify",
-			RequestID: "req-clarify",
 			Timestamp: time.Date(2026, 7, 15, 12, 1, 0, 0, time.UTC),
 			Raw:       raw,
-		})
+		}.WithRequestID("req-clarify"))
 		if err != nil {
 			t.Fatalf("MarshalAgentEvent() error = %v", err)
 		}
@@ -252,7 +251,6 @@ func TestToUIMessagesPermissionDataParts(t *testing.T) {
 			Type:      acp.EventTypePermission,
 			SessionID: "sess-permission",
 			TurnID:    "turn-permission",
-			RequestID: "req-permission-options",
 			Timestamp: timestamp,
 			Title:     "Bash",
 			Action:    "session/request_permission",
@@ -265,7 +263,7 @@ func TestToUIMessagesPermissionDataParts(t *testing.T) {
 				],
 				"tool_input":{"command":"touch blocked.txt"}
 			}`),
-		})
+		}.WithRequestID("req-permission-options"))
 		if err != nil {
 			t.Fatalf("MarshalAgentEvent() error = %v", err)
 		}

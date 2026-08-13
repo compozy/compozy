@@ -199,10 +199,18 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		assertNativeLoopEnvironmentSchema(t, toolspkg.ToolIDLoopRun.String(), run.Properties["environment"])
 
 		definition := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopCreate], "definition")
-		graph := decodeRawNativeObjectSchema(t, toolspkg.ToolIDLoopCreate.String()+" graph", definition.Properties["graph"])
+		graph := decodeRawNativeObjectSchema(
+			t,
+			toolspkg.ToolIDLoopCreate.String()+" graph",
+			definition.Properties["graph"],
+		)
 		nodes := decodeRawNativeObjectSchema(t, toolspkg.ToolIDLoopCreate.String()+" nodes", graph.Properties["nodes"])
 		node := decodeRawNativeObjectSchema(t, toolspkg.ToolIDLoopCreate.String()+" node", nodes.Items)
-		params := decodeRawNativeObjectSchema(t, toolspkg.ToolIDLoopCreate.String()+" params", node.Properties["params"])
+		params := decodeRawNativeObjectSchema(
+			t,
+			toolspkg.ToolIDLoopCreate.String()+" params",
+			node.Properties["params"],
+		)
 		assertNativeLoopEnvironmentSchema(t, toolspkg.ToolIDLoopCreate.String(), params.Properties["environment"])
 		if _, ok := params.Properties["cwd"]; ok {
 			t.Fatal("compozy__loop_create params schema exposes retired cwd")

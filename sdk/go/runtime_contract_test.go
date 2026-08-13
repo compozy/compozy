@@ -21,10 +21,18 @@ func TestSDKRuntimeContracts(t *testing.T) {
 	t.Run("Should expose session archive methods through the public SDK", func(t *testing.T) {
 		t.Parallel()
 
-		if got, want := string(compozysdk.HostAPIMethodSessionsArchive), string(contract.HostAPIMethodSessionsArchive); got != want {
+		if got, want := string(
+			compozysdk.HostAPIMethodSessionsArchive,
+		), string(
+			contract.HostAPIMethodSessionsArchive,
+		); got != want {
 			t.Fatalf("HostAPIMethodSessionsArchive = %q, want %q", got, want)
 		}
-		if got, want := string(compozysdk.HostAPIMethodSessionsUnarchive), string(contract.HostAPIMethodSessionsUnarchive); got != want {
+		if got, want := string(
+			compozysdk.HostAPIMethodSessionsUnarchive,
+		), string(
+			contract.HostAPIMethodSessionsUnarchive,
+		); got != want {
 			t.Fatalf("HostAPIMethodSessionsUnarchive = %q, want %q", got, want)
 		}
 	})

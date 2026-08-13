@@ -40,7 +40,12 @@ type Manager interface {
 		profile *ExecutionProfile,
 		actor ActorContext,
 	) (ExecutionProfile, error)
-	SetWorktreePolicy(ctx context.Context, taskID string, policy WorktreePolicy, actor ActorContext) (ExecutionProfile, error)
+	SetWorktreePolicy(
+		ctx context.Context,
+		taskID string,
+		policy WorktreePolicy,
+		actor ActorContext,
+	) (ExecutionProfile, error)
 	DeleteExecutionProfile(ctx context.Context, taskID string, actor ActorContext) error
 
 	RequestRunReview(ctx context.Context, req RunReviewRequest, actor ActorContext) (RunReview, bool, error)

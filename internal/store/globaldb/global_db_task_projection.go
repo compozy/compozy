@@ -193,7 +193,11 @@ func taskRunsShareDesignationGroup(
 	}
 	firstGroup := strings.TrimSpace(first.DesignationGroupID)
 	return firstGroup != "" && firstGroup == strings.TrimSpace(second.DesignationGroupID) &&
-		strings.TrimSpace(taskNullStringValue(first.TaskID)) == strings.TrimSpace(taskNullStringValue(second.TaskID)), nil
+		strings.TrimSpace(
+			taskNullStringValue(first.TaskID),
+		) == strings.TrimSpace(
+			taskNullStringValue(second.TaskID),
+		), nil
 }
 
 func reprojectActiveDesignationSibling(

@@ -98,27 +98,15 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 	}
 	defer release()
 
-	current, err := s.store.Get(ctx, item.WorkspaceID, item.ID)
-	if errors.Is(err, ErrNotFound) || current == nil {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("worktree: reread fenced removal target: %w", err)
-	}
-	if current.State != StateRemoving {
-		return nil, ErrNotReady
-	}
-	item = *current
-	pathPresent, err := s.validateRemovalIdentity(ctx, item, commonDir)
+	item, err = s.requireFencedRemovalTarget(ctx, item, false)
 	if err != nil {
 		return nil, err
 	}
-	if !pathPresent {
+	terminal, risk, refusalResult, err := s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
+	if terminal {
 		restoreReady = false
-		return nil, s.finishRemoval(ctx, workspace, item)
 	}
-	risk, refusalResult, err := s.authoritativeRemovalEvaluation(ctx, item, force)
-	if err != nil || refusalResult != nil {
+	if terminal || err != nil || refusalResult != nil {
 		return refusalResult, err
 	}
 	if err := s.dispatchGate(ctx, EventPreRemove, HookPreRemovePayload{
@@ -128,65 +116,114 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 	}
 
 	// Hooks can run arbitrary code. Close that final race before deleting.
-	current, err = s.store.Get(ctx, item.WorkspaceID, item.ID)
-	if err != nil || current == nil || current.State != StateRemoving {
-		if err != nil && !errors.Is(err, ErrNotFound) {
-			return nil, fmt.Errorf("worktree: final removal target read: %w", err)
-		}
-		return nil, ErrNotReady
-	}
-	item = *current
-	pathPresent, err = s.validateRemovalIdentity(ctx, item, commonDir)
+	item, err = s.requireFencedRemovalTarget(ctx, item, true)
 	if err != nil {
 		return nil, err
 	}
-	if !pathPresent {
+	terminal, _, refusalResult, err = s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
+	if terminal {
 		restoreReady = false
-		return nil, s.finishRemoval(ctx, workspace, item)
 	}
-	_, refusalResult, err = s.authoritativeRemovalEvaluation(ctx, item, force)
-	if err != nil || refusalResult != nil {
+	if terminal || err != nil || refusalResult != nil {
 		return refusalResult, err
 	}
 
-	args := []string{"--git-dir", commonDir, "worktree", "remove"}
-	if force {
-		args = append(args, "--force")
+	removedDespiteError, err := s.runFencedRemoval(ctx, workspace.Root, item, commonDir, force)
+	if removedDespiteError {
+		restoreReady = false
 	}
-	args = append(args, item.Path)
-	_, stderr, removeErr := s.runner.Run(ctx, workspace.Root, args...)
-	if removeErr != nil {
-		stillPresent, identityErr := s.validateRemovalIdentity(ctx, item, commonDir)
-		switch {
-		case identityErr != nil:
-			restoreReady = false
-			return nil, errors.Join(
-				fmt.Errorf(
-					"%w: %s: %v",
-					ErrRemovalFailed, diagnostics.RedactAndBound(string(stderr), 2048), removeErr,
-				),
-				identityErr,
-			)
-		case !stillPresent:
-			// Git returned an error after removing the checkout. Complete the
-			// durable tombstone instead of resurrecting a ready row.
-		case force:
-			if cleanupErr := s.removeVerifiedLeftover(ctx, item.Path, commonDir, item.GitDir); cleanupErr != nil {
-				return nil, fmt.Errorf(
-					"%w: %s: %v: %v",
-					ErrRemovalFailed, diagnostics.RedactAndBound(string(stderr), 2048), removeErr, cleanupErr,
-				)
-			}
-		default:
-			return nil, fmt.Errorf(
-				"%w: %s: %v",
-				ErrRemovalFailed, diagnostics.RedactAndBound(string(stderr), 2048), removeErr,
-			)
-		}
+	if err != nil {
+		return nil, err
 	}
 
 	restoreReady = false
 	return nil, s.finishRemoval(ctx, workspace, item)
+}
+
+func (s *Service) readFencedRemovalTarget(ctx context.Context, item Worktree) (Worktree, error) {
+	current, err := s.store.Get(ctx, item.WorkspaceID, item.ID)
+	if errors.Is(err, ErrNotFound) || current == nil {
+		return Worktree{}, ErrNotFound
+	}
+	if err != nil {
+		return Worktree{}, err
+	}
+	if current.State != StateRemoving {
+		return Worktree{}, ErrNotReady
+	}
+	return *current, nil
+}
+
+func (s *Service) requireFencedRemovalTarget(
+	ctx context.Context,
+	item Worktree,
+	final bool,
+) (Worktree, error) {
+	current, err := s.readFencedRemovalTarget(ctx, item)
+	if err == nil {
+		return current, nil
+	}
+	if final {
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrNotReady) {
+			return Worktree{}, ErrNotReady
+		}
+		return Worktree{}, fmt.Errorf("worktree: final removal target read: %w", err)
+	}
+	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrNotReady) {
+		return Worktree{}, err
+	}
+	return Worktree{}, fmt.Errorf("worktree: reread fenced removal target: %w", err)
+}
+
+func (s *Service) runFencedRemoval(
+	ctx context.Context,
+	workspaceRoot string,
+	item Worktree,
+	commonDir string,
+	force bool,
+) (bool, error) {
+	args := []string{"--git-dir", commonDir, worktreeDescriptorName, exitRemoveAction}
+	if force {
+		args = append(args, "--force")
+	}
+	args = append(args, item.Path)
+	_, stderr, removeErr := s.runner.Run(ctx, workspaceRoot, args...)
+	if removeErr == nil {
+		return false, nil
+	}
+	detail := diagnostics.RedactAndBound(string(stderr), 2048)
+	stillPresent, identityErr := s.validateRemovalIdentity(ctx, item, commonDir)
+	switch {
+	case identityErr != nil:
+		return true, errors.Join(fmt.Errorf("%w: %s: %v", ErrRemovalFailed, detail, removeErr), identityErr)
+	case !stillPresent:
+		return true, nil
+	case force:
+		if cleanupErr := s.removeVerifiedLeftover(ctx, item.Path, commonDir, item.GitDir); cleanupErr != nil {
+			return false, fmt.Errorf("%w: %s: %v: %v", ErrRemovalFailed, detail, removeErr, cleanupErr)
+		}
+		return false, nil
+	default:
+		return false, fmt.Errorf("%w: %s: %v", ErrRemovalFailed, detail, removeErr)
+	}
+}
+
+func (s *Service) evaluateFencedRemoval(
+	ctx context.Context,
+	workspace Workspace,
+	item Worktree,
+	commonDir string,
+	force bool,
+) (bool, RemovalRisk, *RemovalRefusal, error) {
+	present, err := s.validateRemovalIdentity(ctx, item, commonDir)
+	if err != nil {
+		return false, RemovalRisk{}, nil, err
+	}
+	if !present {
+		return true, RemovalRisk{}, nil, s.finishRemoval(ctx, workspace, item)
+	}
+	risk, refusalResult, err := s.authoritativeRemovalEvaluation(ctx, item, force)
+	return false, risk, refusalResult, err
 }
 
 func (s *Service) authoritativeRemovalEvaluation(
@@ -275,11 +312,12 @@ func (s *Service) removalRisk(ctx context.Context, item Worktree) (RemovalRisk, 
 		Deletions: valueOrZero(status.Deletions),
 	}
 	comparison := ""
-	if item.BaseRef != "" {
+	switch {
+	case item.BaseRef != "":
 		comparison = item.BaseRef + "..HEAD"
-	} else if status.Detached != nil && *status.Detached {
+	case status.Detached != nil && *status.Detached:
 		comparison = "HEAD --not --all"
-	} else if status.HasUpstream != nil && *status.HasUpstream {
+	case status.HasUpstream != nil && *status.HasUpstream:
 		comparison = "@{upstream}..HEAD"
 	}
 	if comparison == "" {

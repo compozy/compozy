@@ -183,7 +183,7 @@ type Manager struct {
 	ledgerMaterializer           LedgerMaterializer
 	homePaths                    compozyconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
-	worktreeResolver             SessionWorktreeResolver
+	worktreeResolver             WorktreeResolver
 	workspaceAccess              workspaceaccess.Policy
 	readSessionMeta              sessionMetaReader
 	openStore                    StoreOpener

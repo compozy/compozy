@@ -208,8 +208,8 @@ func (r *taskRoleRuntime) starvationActivation(
 		NetworkParticipation: new(run.NetworkSpecSnapshot()),
 		Title:                strings.TrimSpace(taskRecord.Title),
 		Worktree: taskpkg.WorktreePolicy{
-			Mode:        run.ResolvedWorktreeMode,
-			WorktreeRef: run.ResolvedWorktreeRef,
+			Mode:        run.ResolvedWorktreeModeValue(),
+			WorktreeRef: run.ResolvedWorktreeRefValue(),
 		},
 	}
 	applyTaskRoleDesignation(&activation, run)

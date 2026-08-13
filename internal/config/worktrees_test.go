@@ -23,7 +23,8 @@ func TestWorktreesConfig(t *testing.T) {
 		if root := got.ResolveRoot(paths); root != filepath.Join(home, "worktrees") {
 			t.Fatalf("ResolveRoot() = %q, want %q", root, filepath.Join(home, "worktrees"))
 		}
-		if got.RunBranchNamespace != "run/" || got.SetupTimeout != 10*time.Minute || got.DiscoveryCacheTTL != 30*time.Second {
+		if got.RunBranchNamespace != "run/" || got.SetupTimeout != 10*time.Minute ||
+			got.DiscoveryCacheTTL != 30*time.Second {
 			t.Fatalf("DefaultWorktreesConfig() = %#v, want run/, 10m, 30s", got)
 		}
 	})
@@ -41,8 +42,12 @@ func TestWorktreesConfig(t *testing.T) {
 		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if cfg.Worktrees.SetupCommand != "bun install" || len(cfg.Worktrees.CopyList) != 1 || cfg.Worktrees.CopyList[0] != ".env*" {
-			t.Fatalf("ApplyConfigOverlayFile() Worktrees = %#v, want setup override plus preserved copy list", cfg.Worktrees)
+		if cfg.Worktrees.SetupCommand != "bun install" || len(cfg.Worktrees.CopyList) != 1 ||
+			cfg.Worktrees.CopyList[0] != ".env*" {
+			t.Fatalf(
+				"ApplyConfigOverlayFile() Worktrees = %#v, want setup override plus preserved copy list",
+				cfg.Worktrees,
+			)
 		}
 	})
 
@@ -82,11 +87,31 @@ func TestWorktreesConfig(t *testing.T) {
 			mutate func(*WorktreesConfig)
 			key    string
 		}{
-			{name: "relative root", mutate: func(cfg *WorktreesConfig) { cfg.Root = "relative" }, key: "worktrees.root"},
-			{name: "namespace", mutate: func(cfg *WorktreesConfig) { cfg.RunBranchNamespace = "Run Branch/" }, key: "worktrees.run_branch_namespace"},
-			{name: "empty copy pattern", mutate: func(cfg *WorktreesConfig) { cfg.CopyList = []string{" "} }, key: "worktrees.copy_list"},
-			{name: "setup timeout", mutate: func(cfg *WorktreesConfig) { cfg.SetupTimeout = 0 }, key: "worktrees.setup_timeout"},
-			{name: "discovery ttl", mutate: func(cfg *WorktreesConfig) { cfg.DiscoveryCacheTTL = 0 }, key: "worktrees.discovery_cache_ttl"},
+			{
+				name:   "relative root",
+				mutate: func(cfg *WorktreesConfig) { cfg.Root = "relative" },
+				key:    "worktrees.root",
+			},
+			{
+				name:   "namespace",
+				mutate: func(cfg *WorktreesConfig) { cfg.RunBranchNamespace = "Run Branch/" },
+				key:    "worktrees.run_branch_namespace",
+			},
+			{
+				name:   "empty copy pattern",
+				mutate: func(cfg *WorktreesConfig) { cfg.CopyList = []string{" "} },
+				key:    "worktrees.copy_list",
+			},
+			{
+				name:   "setup timeout",
+				mutate: func(cfg *WorktreesConfig) { cfg.SetupTimeout = 0 },
+				key:    "worktrees.setup_timeout",
+			},
+			{
+				name:   "discovery ttl",
+				mutate: func(cfg *WorktreesConfig) { cfg.DiscoveryCacheTTL = 0 },
+				key:    "worktrees.discovery_cache_ttl",
+			},
 		}
 		for _, test := range tests {
 			t.Run("Should reject "+test.name, func(t *testing.T) {
@@ -98,7 +123,8 @@ func TestWorktreesConfig(t *testing.T) {
 					t.Fatalf("Validate() error = %v, want key %q", err, test.key)
 				}
 				var validationErr ValidationError
-				if !errors.As(err, &validationErr) || validationErr.Code != worktreeConfigInvalidCode || validationErr.Path != test.key {
+				if !errors.As(err, &validationErr) || validationErr.Code != worktreeConfigInvalidCode ||
+					validationErr.Path != test.key {
 					t.Fatalf("Validate() error = %#v, want structured worktree config error for %q", err, test.key)
 				}
 			})

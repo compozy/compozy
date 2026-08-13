@@ -5,7 +5,7 @@ title: Fork a live session into a worktree after confirmation
 persona: Bruno
 journey: J-worktree-management
 expected: Choosing /worktree on a live idle session explains the consequences, creates a fresh clean session in the confirmed ready or newly created worktree, and leaves the original session and its uncommitted files untouched; canceling or invoking it mid-turn creates nothing.
-entry_points: web session composer /worktree; session command catalog
+entry_points: web session composer /worktree; session command catalog; HTTP/UDS POST /api/workspaces/:workspace_id/sessions/:session_id/worktree-fork
 qa_status: untested
 bug_ids:
 fix_status:

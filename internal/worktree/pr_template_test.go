@@ -27,7 +27,12 @@ func TestPRTemplateDetection(t *testing.T) {
 			}
 		}}
 		service := NewService(newMemoryWorktreeStore(), runner)
-		if got := service.detectPRTemplate(context.Background(), "/repo", "main", nil); got != "## Summary\n\nDescribe the change." {
+		if got := service.detectPRTemplate(
+			context.Background(),
+			"/repo",
+			"main",
+			nil,
+		); got != "## Summary\n\nDescribe the change." {
 			t.Fatalf("detectPRTemplate() = %q", got)
 		}
 	})

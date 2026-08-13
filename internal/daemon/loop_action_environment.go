@@ -60,7 +60,7 @@ func (b *loopActionSessionBinder) applyLoopActionEnvironment(
 	if opts == nil {
 		return nil, errors.New("daemon: loop action session options are required")
 	}
-	environment, err := looppkg.ResolveActionEnvironment(req.Environment, dsl.EnvironmentSpec{})
+	environment, err := looppkg.ResolveActionEnvironment(req.EnvironmentValue(), dsl.EnvironmentSpec{})
 	if err != nil {
 		return nil, err
 	}

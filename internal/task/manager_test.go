@@ -1666,7 +1666,7 @@ func (s *inMemoryManagerStore) BindRunSession(
 	updated := cloneTaskRun(current)
 	updated.Status = TaskRunStatusStarting
 	updated.SessionID = mutation.SessionID()
-	updated.WorktreeID = mutation.WorktreeID()
+	updated.SetWorktreeID(mutation.WorktreeID())
 	s.runs[updated.ID] = cloneTaskRun(updated)
 	return NominalRunMutationResult{Previous: current, Run: updated}, nil
 }
@@ -2997,19 +2997,21 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	}
 
 	run := Run{
-		ID:                   normalizedReservation.RunID,
-		TaskID:               taskRecord.ID,
-		RunKind:              normalizedReservation.RunKind,
-		LoopRunID:            normalizedReservation.LoopRunID,
-		Status:               TaskRunStatusQueued,
-		Attempt:              int32(nextAttempt),
-		Origin:               normalizedReservation.Origin,
-		IdempotencyKey:       trimmedKey,
-		DesignationGroupID:   requestedDesignationGroupID,
-		ResolvedWorktreeMode: normalizedReservation.ResolvedWorktreeMode,
-		ResolvedWorktreeRef:  normalizedReservation.ResolvedWorktreeRef,
-		Metadata:             normalizedReservation.Metadata,
-		QueuedAt:             normalizedReservation.QueuedAt.UTC(),
+		ID:                 normalizedReservation.RunID,
+		TaskID:             taskRecord.ID,
+		RunKind:            normalizedReservation.RunKind,
+		LoopRunID:          normalizedReservation.LoopRunID,
+		Status:             TaskRunStatusQueued,
+		Attempt:            int32(nextAttempt),
+		Origin:             normalizedReservation.Origin,
+		IdempotencyKey:     trimmedKey,
+		DesignationGroupID: requestedDesignationGroupID,
+		RunWorktreeState: &RunWorktreeState{
+			ResolvedWorktreeMode: normalizedReservation.ResolvedWorktreeMode,
+			ResolvedWorktreeRef:  normalizedReservation.ResolvedWorktreeRef,
+		},
+		Metadata: normalizedReservation.Metadata,
+		QueuedAt: normalizedReservation.QueuedAt.UTC(),
 	}
 	run.SetNetworkState(normalizedReservation.NetworkSpec, "", "", "")
 	if err := s.CreateTaskRun(context.Background(), run); err != nil {
@@ -7571,14 +7573,16 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	}
 
 	store.runs["run-active"] = Run{
-		ID:                   "run-active",
-		TaskID:               child.ID,
-		WorktreeID:           "wt-run-active",
-		ResolvedWorktreeMode: WorktreeModePerRun,
-		Status:               TaskRunStatusRunning,
-		Attempt:              1,
-		Origin:               Origin{Kind: OriginKindAutomation, Ref: "rule:nightly"},
-		QueuedAt:             time.Date(2026, 4, 14, 13, 0, 0, 0, time.UTC),
+		ID:     "run-active",
+		TaskID: child.ID,
+		RunWorktreeState: &RunWorktreeState{
+			WorktreeID:           "wt-run-active",
+			ResolvedWorktreeMode: WorktreeModePerRun,
+		},
+		Status:   TaskRunStatusRunning,
+		Attempt:  1,
+		Origin:   Origin{Kind: OriginKindAutomation, Ref: "rule:nightly"},
+		QueuedAt: time.Date(2026, 4, 14, 13, 0, 0, 0, time.UTC),
 	}
 
 	view, err := manager.GetTask(context.Background(), child.ID, actor)
@@ -11565,13 +11569,17 @@ func TestManagerStartRunTransfersClaimedPerRunExecutionToDedicatedSession(t *tes
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}
-	if running.SessionID != "sess-per-run" || running.WorktreeID != "wt-per-run" {
-		t.Fatalf("running binding = session %q worktree %q, want dedicated per-run binding", running.SessionID, running.WorktreeID)
+	if running.SessionID != "sess-per-run" || running.WorktreeIDValue() != "wt-per-run" {
+		t.Fatalf(
+			"running binding = session %q worktree %q, want dedicated per-run binding",
+			running.SessionID,
+			running.WorktreeIDValue(),
+		)
 	}
 	if got, want := len(executor.startCalls), 1; got != want {
 		t.Fatalf("StartTaskSession calls = %d, want %d", got, want)
 	}
-	if executor.startCalls[0].Run.ResolvedWorktreeMode != WorktreeModePerRun {
+	if executor.startCalls[0].Run.ResolvedWorktreeModeValue() != WorktreeModePerRun {
 		t.Fatalf("StartTaskSession run snapshot = %#v, want per_run", executor.startCalls[0].Run)
 	}
 }
@@ -11705,7 +11713,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			t.Fatalf("CleanupUnboundTaskSession() calls = %d, want %d", got, want)
 		}
 		cleanup := executor.cleanupCalls[0]
-		if cleanup.run.ID != run.ID || cleanup.run.ResolvedWorktreeMode != WorktreeModePerRun ||
+		if cleanup.run.ID != run.ID || cleanup.run.ResolvedWorktreeModeValue() != WorktreeModePerRun ||
 			cleanup.ref.SessionID != "sess-stale-bind" || cleanup.ref.WorktreeID != "wt-stale-bind" {
 			t.Fatalf("CleanupUnboundTaskSession() call = %#v, want exact run/session worktree", cleanup)
 		}
@@ -11713,8 +11721,12 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetTaskRun() error = %v", err)
 		}
-		if stored.SessionID != "" || stored.WorktreeID != "" {
-			t.Fatalf("stored binding = session %q worktree %q, want unchanged", stored.SessionID, stored.WorktreeID)
+		if stored.SessionID != "" || stored.WorktreeIDValue() != "" {
+			t.Fatalf(
+				"stored binding = session %q worktree %q, want unchanged",
+				stored.SessionID,
+				stored.WorktreeIDValue(),
+			)
 		}
 	})
 	t.Run("Should accept a heartbeat extension while materializing before session binding", func(t *testing.T) {
@@ -11782,7 +11794,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			t.Fatalf("StartRun() error = %v", err)
 		}
 		if started.Status != TaskRunStatusRunning || started.SessionID != "sess-heartbeat-bind" ||
-			started.WorktreeID != "wt-heartbeat-bind" || !started.LeaseUntil.Equal(now.Add(150*time.Second)) {
+			started.WorktreeIDValue() != "wt-heartbeat-bind" || !started.LeaseUntil.Equal(now.Add(150*time.Second)) {
 			t.Fatalf("StartRun() = %#v, want heartbeat-refreshed session binding", started)
 		}
 	})
@@ -11994,7 +12006,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetTaskRun(expired) error = %v", err)
 		}
-		if stored.SessionID != agent.Scope.SessionID || stored.WorktreeID != "" ||
+		if stored.SessionID != agent.Scope.SessionID || stored.WorktreeIDValue() != "" ||
 			stored.Status != TaskRunStatusStarting {
 			t.Fatalf("expired stored run = %#v, want original claimant without worktree binding", stored)
 		}
@@ -12033,7 +12045,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("StartRun(recovered) error = %v", err)
 		}
-		if started.Status != TaskRunStatusRunning || started.WorktreeID != "wt-recovered-bind" {
+		if started.Status != TaskRunStatusRunning || started.WorktreeIDValue() != "wt-recovered-bind" {
 			t.Fatalf("StartRun(recovered) = %#v, want new running materialization", started)
 		}
 	})

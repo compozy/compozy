@@ -301,8 +301,8 @@ func (r *taskRoleRuntime) activationForRun(
 		Title:                strings.TrimSpace(taskRecord.Title),
 		Profile:              profile,
 		Worktree: taskpkg.WorktreePolicy{
-			Mode:        run.ResolvedWorktreeMode,
-			WorktreeRef: run.ResolvedWorktreeRef,
+			Mode:        run.ResolvedWorktreeModeValue(),
+			WorktreeRef: run.ResolvedWorktreeRefValue(),
 		},
 		Capabilities: append(
 			append([]string(nil), run.RequiredCapabilities...),

@@ -14,10 +14,18 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+const (
+	forgeStatusCreated     = "created"
+	forgeCredentialBinding = "binding"
+)
+
 type ForgeRuntime interface {
 	ForgeCapabilities(context.Context, []string) (extensioncontract.ForgeCapabilitiesResponse, error)
 	ForgeStatus(context.Context, extensioncontract.ForgeStatusRequest) (extensioncontract.ForgeStatusResponse, error)
-	ForgeCreatePR(context.Context, extensioncontract.ForgePRCreateRequest) (extensioncontract.ForgePRCreateResponse, error)
+	ForgeCreatePR(
+		context.Context,
+		extensioncontract.ForgePRCreateRequest,
+	) (extensioncontract.ForgePRCreateResponse, error)
 }
 
 type ForgeProviderError struct {
@@ -124,7 +132,12 @@ func (m *Manager) ForgeStatus(
 		return extensioncontract.ForgeStatusResponse{}, err
 	}
 	var response extensioncontract.ForgeStatusResponse
-	if err := process.Call(ctx, string(extensionprotocol.ExtensionServiceMethodForgeStatus), request, &response); err != nil {
+	if err := process.Call(
+		ctx,
+		string(extensionprotocol.ExtensionServiceMethodForgeStatus),
+		request,
+		&response,
+	); err != nil {
 		return extensioncontract.ForgeStatusResponse{}, fmt.Errorf("extension: forge status via %q: %w", name, err)
 	}
 	if response.Provider == "" {
@@ -150,7 +163,9 @@ func (m *Manager) ForgeCreatePR(
 	request.RemoteURLs = remotes
 	if strings.TrimSpace(request.Head) == "" || strings.TrimSpace(request.Base) == "" ||
 		strings.TrimSpace(request.Title) == "" {
-		return extensioncontract.ForgePRCreateResponse{}, errors.New("extension: forge head, base, and title are required")
+		return extensioncontract.ForgePRCreateResponse{}, errors.New(
+			"extension: forge head, base, and title are required",
+		)
 	}
 	capabilities, err := m.ForgeCapabilities(ctx, request.RemoteURLs)
 	if err != nil {
@@ -166,13 +181,18 @@ func (m *Manager) ForgeCreatePR(
 		return extensioncontract.ForgePRCreateResponse{}, err
 	}
 	var response extensioncontract.ForgePRCreateResponse
-	if err := process.Call(ctx, string(extensionprotocol.ExtensionServiceMethodForgePRCreate), request, &response); err != nil {
+	if err := process.Call(
+		ctx,
+		string(extensionprotocol.ExtensionServiceMethodForgePRCreate),
+		request,
+		&response,
+	); err != nil {
 		return extensioncontract.ForgePRCreateResponse{}, fmt.Errorf("extension: forge PR create via %q: %w", name, err)
 	}
 	if response.Cause != "" {
 		return extensioncontract.ForgePRCreateResponse{}, forgeProviderFailure(response.Cause)
 	}
-	if response.Status != "created" && response.Status != "opened_existing" {
+	if response.Status != forgeStatusCreated && response.Status != "opened_existing" {
 		return extensioncontract.ForgePRCreateResponse{}, fmt.Errorf(
 			"extension: forge PR create via %q returned invalid status %q", name, response.Status,
 		)
@@ -263,7 +283,7 @@ func validateForgeCapabilitiesResponse(value extensioncontract.ForgeCapabilities
 	if value.Cause != "" && !validForgeProviderCause(value.Cause) {
 		return fmt.Errorf("extension: forge capabilities returned invalid cause %q", value.Cause)
 	}
-	if value.Available && value.CredentialSource != "binding" && value.CredentialSource != "gh" {
+	if value.Available && value.CredentialSource != forgeCredentialBinding && value.CredentialSource != "gh" {
 		return errors.New("extension: available forge provider has invalid credential source")
 	}
 	return nil

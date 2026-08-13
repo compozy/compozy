@@ -10,17 +10,18 @@ func worktreeRecordBundle(item WorktreeRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Worktree", []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Branch", Value: stringOrDash(item.Branch)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: worktreeBranchLabel, Value: stringOrDash(item.Branch)},
 				{Label: "Path", Value: stringOrDash(item.Path)},
-				{Label: "State", Value: stringOrDash(item.State)},
+				{Label: authoredContextStateValue, Value: stringOrDash(item.State)},
 				{Label: "Origin", Value: stringOrDash(item.Origin)},
 				{Label: "Agent Activity", Value: stringOrDash(item.AgentActivity)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("worktree",
-				[]string{"id", "name", "branch", "path", "state", "origin", "agent_activity"},
+				[]string{"id", automationNameKey, worktreeBranchKey, automationPathKey, stateKey,
+					taskOriginKey, "agent_activity"},
 				[]string{item.ID, item.Name, item.Branch, item.Path, item.State, item.Origin, item.AgentActivity},
 			), nil
 		},
@@ -35,9 +36,11 @@ func worktreeListBundle(items []WorktreeRecord) outputBundle {
 		items,
 		items,
 		"Worktrees",
-		[]string{"ID", "Name", "Branch", "State", "Dirty", "Ahead", "Behind", "Agent"},
+		[]string{"ID", automationNameValue, worktreeBranchLabel, authoredContextStateValue,
+			"Dirty", "Ahead", "Behind", authoredContextAgentValue},
 		"worktrees",
-		[]string{"id", "name", "branch", "path", "state", "origin", "dirty", "ahead", "behind", "agent_activity"},
+		[]string{"id", automationNameKey, worktreeBranchKey, automationPathKey, stateKey,
+			taskOriginKey, "dirty", "ahead", "behind", "agent_activity"},
 		func(item WorktreeRecord) []string {
 			return []string{
 				item.ID, item.Name, item.Branch, item.State, formatOptionalBool(item.Dirty),
@@ -71,7 +74,7 @@ func worktreeStatusBundle(item WorktreeStatusRecord) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Worktree Status", []keyValue{
-				{Label: "Worktree", Value: stringOrDash(item.WorktreeID)},
+				{Label: worktreeLabel, Value: stringOrDash(item.WorktreeID)},
 				{Label: "Branch", Value: stringOrDash(pointerStringValue(item.Status.Branch))},
 				{Label: "Dirty Files", Value: formatOptionalInt(item.Status.DirtyFiles)},
 				{Label: "Ahead", Value: formatOptionalInt(item.Status.Ahead)},
@@ -81,7 +84,7 @@ func worktreeStatusBundle(item WorktreeStatusRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("worktree_status",
-				[]string{"worktree_id", "branch", "dirty_files", "ahead", "behind", "read_error"},
+				[]string{worktreeIDKey, worktreeBranchKey, "dirty_files", "ahead", "behind", "read_error"},
 				[]string{item.WorktreeID, pointerStringValue(item.Status.Branch),
 					formatOptionalInt(item.Status.DirtyFiles), formatOptionalInt(item.Status.Ahead),
 					formatOptionalInt(item.Status.Behind), item.Status.ReadError},
@@ -102,13 +105,13 @@ func worktreeMutationBundle(action string, item WorktreeRecord) outputBundle {
 			return renderHumanSection("Worktree", []keyValue{
 				{Label: "Action", Value: action},
 				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "State", Value: stringOrDash(item.State)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: authoredContextStateValue, Value: stringOrDash(item.State)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("worktree",
-				[]string{"action", "id", "name", "state"},
+				[]string{authoredContextActionKey, "id", automationNameKey, stateKey},
 				[]string{action, item.ID, item.Name, item.State},
 			), nil
 		},

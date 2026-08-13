@@ -42,7 +42,11 @@ func (s *Service) commonDir(ctx context.Context, root string) (string, error) {
 	}
 	stdout, stderr, err := s.runner.Run(ctx, root, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
-		return "", fmt.Errorf("worktree: resolve Git common directory: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
+		return "", fmt.Errorf(
+			"worktree: resolve Git common directory: %s: %w",
+			diagnostics.RedactAndBound(string(stderr), 2048),
+			err,
+		)
 	}
 	return fileutil.CanonicalExistingDirectory(strings.TrimSpace(string(stdout)))
 }
@@ -50,7 +54,11 @@ func (s *Service) commonDir(ctx context.Context, root string) (string, error) {
 func (s *Service) resolveGitDir(ctx context.Context, root string) (string, error) {
 	stdout, stderr, err := s.runner.Run(ctx, root, "rev-parse", "--path-format=absolute", "--git-dir")
 	if err != nil {
-		return "", fmt.Errorf("worktree: resolve Git directory: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
+		return "", fmt.Errorf(
+			"worktree: resolve Git directory: %s: %w",
+			diagnostics.RedactAndBound(string(stderr), 2048),
+			err,
+		)
 	}
 	return fileutil.CanonicalExistingDirectory(strings.TrimSpace(string(stdout)))
 }
@@ -58,7 +66,11 @@ func (s *Service) resolveGitDir(ctx context.Context, root string) (string, error
 func (s *Service) readWorktreeList(ctx context.Context, root, commonDir string) ([]GitWorktree, error) {
 	stdout, stderr, err := s.runner.Run(ctx, root, "--git-dir", commonDir, "worktree", "list", "--porcelain", "-z")
 	if err != nil {
-		return nil, fmt.Errorf("worktree: list Git worktrees: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
+		return nil, fmt.Errorf(
+			"worktree: list Git worktrees: %s: %w",
+			diagnostics.RedactAndBound(string(stderr), 2048),
+			err,
+		)
 	}
 	return ParseWorktreeList(stdout)
 }

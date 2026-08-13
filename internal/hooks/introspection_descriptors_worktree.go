@@ -1,5 +1,10 @@
 package hooks
 
+const (
+	worktreeObservationPayloadSchema = "WorktreeObservationPayload"
+	worktreeObservationPatchSchema   = "WorktreeObservationPatch"
+)
+
 func worktreeHookEventDescriptors() map[HookEvent]EventDescriptor {
 	return map[HookEvent]EventDescriptor{
 		HookWorktreePreCreate: {
@@ -12,15 +17,15 @@ func worktreeHookEventDescriptors() map[HookEvent]EventDescriptor {
 		},
 		HookWorktreeCreated: {
 			Event: HookWorktreeCreated, Family: HookEventFamilyWorktree,
-			PayloadSchema: "WorktreeObservationPayload", PatchSchema: "WorktreeObservationPatch",
+			PayloadSchema: worktreeObservationPayloadSchema, PatchSchema: worktreeObservationPatchSchema,
 		},
 		HookWorktreeAdopted: {
 			Event: HookWorktreeAdopted, Family: HookEventFamilyWorktree,
-			PayloadSchema: "WorktreeObservationPayload", PatchSchema: "WorktreeObservationPatch",
+			PayloadSchema: worktreeObservationPayloadSchema, PatchSchema: worktreeObservationPatchSchema,
 		},
 		HookWorktreeRemoved: {
 			Event: HookWorktreeRemoved, Family: HookEventFamilyWorktree,
-			PayloadSchema: "WorktreeObservationPayload", PatchSchema: "WorktreeObservationPatch",
+			PayloadSchema: worktreeObservationPayloadSchema, PatchSchema: worktreeObservationPatchSchema,
 		},
 	}
 }

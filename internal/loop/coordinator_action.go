@@ -373,7 +373,7 @@ func actionExecutionInput(
 		GoalContextNudgeRatio:    new(loopRun.GoalContextNudgeRatio),
 		GoalSegmentEpoch:         meta.GoalSegmentEpoch,
 		NetworkParticipation:     new(loopRun.NetworkSpecSnapshot()),
-		Environment:              effective.Environment,
+		Environment:              cloneEnvironmentSpec(effective.Environment),
 	}
 	if meta.ContinuationKind == deathResumeContinuationKind {
 		input.DeathResume = &DeathResumeContext{

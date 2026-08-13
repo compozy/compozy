@@ -5,7 +5,10 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-const loopKindField = "kind"
+const (
+	loopKindField = "kind"
+	loopModeField = "mode"
+)
 
 func customizeLoopGraphSchema(schema *openapi3.Schema) {
 	*schema = *openapi3.NewObjectSchema().
@@ -99,11 +102,11 @@ func loopRetrySchema() *openapi3.Schema {
 
 func loopEnvironmentSchema() *openapi3.Schema {
 	schema := openapi3.NewObjectSchema().
-		WithProperty("mode", openapi3.NewStringSchema().WithEnum(enumAsAny(loopEnvironmentModeValues())...)).
+		WithProperty(loopModeField, openapi3.NewStringSchema().WithEnum(enumAsAny(loopEnvironmentModeValues())...)).
 		WithProperty("worktree_ref", openapi3.NewStringSchema()).
 		WithProperty("directory", openapi3.NewStringSchema()).
 		WithoutAdditionalProperties()
-	schema.Required = []string{"mode"}
+	schema.Required = []string{loopModeField}
 	return schema
 }
 

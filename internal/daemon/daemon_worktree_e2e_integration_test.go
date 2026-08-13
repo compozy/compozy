@@ -188,7 +188,14 @@ func TestDaemonWorktreeExitJourneyE2E001IT033IT037(t *testing.T) {
 	if localHead != remoteHead {
 		t.Fatalf("local/remote exit branch heads = %q/%q", localHead, remoteHead)
 	}
-	if got := runWorktreeE2EGit(t, ctx, root, "--git-dir="+remote, "show", remoteHead+":agent.txt"); got != "written by bound agent\n" {
+	if got := runWorktreeE2EGit(
+		t,
+		ctx,
+		root,
+		"--git-dir="+remote,
+		"show",
+		remoteHead+":agent.txt",
+	); got != "written by bound agent\n" {
 		t.Fatalf("remote committed marker = %q", got)
 	}
 
@@ -1171,7 +1178,14 @@ func waitForWorktreeE2ESessionState(
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("wait for session %q state %q: current=%#v error=%v context=%v", sessionID, want, current, err, ctx.Err())
+			t.Fatalf(
+				"wait for session %q state %q: current=%#v error=%v context=%v",
+				sessionID,
+				want,
+				current,
+				err,
+				ctx.Err(),
+			)
 		case <-ticker.C:
 		}
 	}

@@ -371,7 +371,10 @@ func assertReviewAndFixRunContract(t testing.TB, detail contract.LoopRunResponse
 		t.Fatal("review-and-fix executed definition = nil")
 	}
 	if !strings.Contains(detail.ExecutedDefinition.Contract.Goal, "{{ .inputs.task_name }}") {
-		t.Fatalf("raw executed contract goal = %q, want authored task_name reference", detail.ExecutedDefinition.Contract.Goal)
+		t.Fatalf(
+			"raw executed contract goal = %q, want authored task_name reference",
+			detail.ExecutedDefinition.Contract.Goal,
+		)
 	}
 	if strings.Contains(detail.MaterializedContract.Goal, "{{") ||
 		!strings.Contains(detail.MaterializedContract.Goal, "review-e2e") {

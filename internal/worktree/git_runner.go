@@ -150,7 +150,8 @@ func (r *RealGitRunner) run(
 	if r == nil || strings.TrimSpace(r.executable) == "" {
 		return nil, nil, ErrGitUnavailable
 	}
-	cmd := execabs.CommandContext(ctx, r.executable, args...)
+	// The executable is resolved once from the operator environment; callers supply structured git arguments.
+	cmd := execabs.CommandContext(ctx, r.executable, args...) // #nosec G204
 	cmd.Dir = dir
 	cmd.Stdin = nil
 	cmd.Env = gitEnvironment(r.environ())

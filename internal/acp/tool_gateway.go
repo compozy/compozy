@@ -308,7 +308,7 @@ func (p *AgentProcess) markToolEventPrechecked(event AgentEvent) AgentEvent {
 		return event
 	}
 
-	event.ToolPrechecked = true
+	event = event.WithToolPrechecked()
 	return event
 }
 

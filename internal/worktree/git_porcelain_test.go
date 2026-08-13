@@ -47,9 +47,12 @@ func TestGitPorcelain(t *testing.T) {
 
 	t.Run("Should preserve upstream ahead and behind counts", func(t *testing.T) {
 		t.Parallel()
-		fixture := []byte("# branch.oid abc\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +2 -1\n1 M. N... file\x00")
+		fixture := []byte(
+			"# branch.oid abc\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +2 -1\n1 M. N... file\x00",
+		)
 		got, err := ParseStatusV2(fixture)
-		if err != nil || got.Branch != "main" || got.Ahead == nil || *got.Ahead != 2 || got.Behind == nil || *got.Behind != 1 {
+		if err != nil || got.Branch != "main" || got.Ahead == nil || *got.Ahead != 2 || got.Behind == nil ||
+			*got.Behind != 1 {
 			t.Fatalf("ParseStatusV2() = (%#v, %v), want main +2 -1", got, err)
 		}
 	})
@@ -152,7 +155,9 @@ func TestGitPorcelain(t *testing.T) {
 				return err
 			}},
 			{name: "upstream without counts", format: "status-v2", parse: func() error {
-				_, err := ParseStatusV2([]byte("# branch.oid abc\x00# branch.head main\x00# branch.upstream origin/main\x00"))
+				_, err := ParseStatusV2(
+					[]byte("# branch.oid abc\x00# branch.head main\x00# branch.upstream origin/main\x00"),
+				)
 				return err
 			}},
 			{name: "rename without old path", format: "status-v2", parse: func() error {

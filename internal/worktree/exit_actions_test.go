@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -28,7 +29,12 @@ func TestExitActions(t *testing.T) {
 		}
 		operation := waitForExitOperation(t, fixture.store, opID, "completed")
 		if operation.FinishedAt == nil || !fixture.runner.isCommitted() || !fixture.runner.isPushed() {
-			t.Fatalf("operation/runner = %#v committed=%t pushed=%t", operation, fixture.runner.isCommitted(), fixture.runner.isPushed())
+			t.Fatalf(
+				"operation/runner = %#v committed=%t pushed=%t",
+				operation,
+				fixture.runner.isCommitted(),
+				fixture.runner.isPushed(),
+			)
 		}
 		commands := fixture.runner.commands()
 		if countCommand(commands, "add -A") != 1 || countCommand(commands, "commit -m Update 1 files") != 1 ||
@@ -69,7 +75,12 @@ func TestExitActions(t *testing.T) {
 		waitForExitEvent(t, fixture.events, EventExitActionCanceled)
 		operation := exitOperation(fixture.store, opID)
 		if operation.State != "canceled" || !fixture.runner.isCommitted() || fixture.runner.isPushed() {
-			t.Fatalf("canceled operation = %#v committed=%t pushed=%t", operation, fixture.runner.isCommitted(), fixture.runner.isPushed())
+			t.Fatalf(
+				"canceled operation = %#v committed=%t pushed=%t",
+				operation,
+				fixture.runner.isCommitted(),
+				fixture.runner.isPushed(),
+			)
 		}
 		payload := exitEventPayload(t, fixture.events, EventExitActionCanceled)
 		if payload.Phase != ExitPhasePush || payload.Result == nil || len(payload.Result.Steps) != 2 {
@@ -245,7 +256,14 @@ func TestExitActions(t *testing.T) {
 			!strings.Contains(string(encoded), "compozy_claim_[REDACTED]") {
 			t.Fatalf("hook output events leaked raw token: %s", encoded)
 		}
-		if outputIndex, terminalIndex := exitEventIndex(events, EventExitHookOutput), exitLastEventIndex(events, EventExitActionStep); outputIndex < 0 || terminalIndex < 0 || outputIndex >= terminalIndex {
+		if outputIndex, terminalIndex := exitEventIndex(
+			events,
+			EventExitHookOutput,
+		), exitLastEventIndex(
+			events,
+			EventExitActionStep,
+		); outputIndex < 0 || terminalIndex < 0 ||
+			outputIndex >= terminalIndex {
 			t.Fatalf("event order output=%d terminal-step=%d, want output first", outputIndex, terminalIndex)
 		}
 	})
@@ -324,7 +342,13 @@ func TestExitActions(t *testing.T) {
 			step.URL != "https://github.com/acme/repo/pull/51" || cached == nil || cached.PRURL != step.URL || provider.createCalls != 1 ||
 			!provider.lastCreate.Draft || provider.lastCreate.Title != "Exit" || provider.lastCreate.Body != "Ready" ||
 			provider.lastCreate.Base != "main" {
-			t.Fatalf("runExitPR() = %#v, %v; request=%#v calls=%d", step, err, provider.lastCreate, provider.createCalls)
+			t.Fatalf(
+				"runExitPR() = %#v, %v; request=%#v calls=%d",
+				step,
+				err,
+				provider.lastCreate,
+				provider.createCalls,
+			)
 		}
 	})
 
@@ -582,12 +606,12 @@ func exitEventPayload(t *testing.T, events *recordingEventSink, name string) Exi
 	t.Helper()
 	events.mu.Lock()
 	defer events.mu.Unlock()
-	for index := len(events.events) - 1; index >= 0; index-- {
-		if events.events[index].Name != name {
+	for _, v := range slices.Backward(events.events) {
+		if v.Name != name {
 			continue
 		}
 		var payload ExitEventPayload
-		if err := json.Unmarshal(events.events[index].Payload, &payload); err != nil {
+		if err := json.Unmarshal(v.Payload, &payload); err != nil {
 			t.Fatalf("decode %s payload: %v", name, err)
 		}
 		return payload
@@ -610,8 +634,8 @@ func exitEventIndex(events *recordingEventSink, name string) int {
 func exitLastEventIndex(events *recordingEventSink, name string) int {
 	events.mu.Lock()
 	defer events.mu.Unlock()
-	for index := len(events.events) - 1; index >= 0; index-- {
-		if events.events[index].Name == name {
+	for index, v := range slices.Backward(events.events) {
+		if v.Name == name {
 			return index
 		}
 	}

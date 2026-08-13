@@ -509,14 +509,13 @@ func mustPermissionSessionEvent(
 		Type:      acp.EventTypePermission,
 		SessionID: "sess-permission",
 		TurnID:    "turn-permission",
-		RequestID: "req-permission",
 		Timestamp: timestamp,
 		Title:     "Bash",
 		Action:    "session/request_permission",
 		Resource:  "Bash",
 		Decision:  decision,
 		Raw:       json.RawMessage(`{"command":"pwd"}`),
-	})
+	}.WithRequestID("req-permission"))
 	if err != nil {
 		t.Fatalf("MarshalAgentEvent() error = %v", err)
 	}

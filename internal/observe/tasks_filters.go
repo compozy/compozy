@@ -107,7 +107,7 @@ func filterTasksByWorktree(
 	for idx := range tasks {
 		item := &tasks[idx]
 		selected, ok := selectedRuns[strings.TrimSpace(item.ID)]
-		if ok && strings.TrimSpace(selected.WorktreeID) == worktreeID {
+		if ok && strings.TrimSpace(selected.WorktreeIDValue()) == worktreeID {
 			filtered = append(filtered, *item)
 		}
 	}

@@ -146,7 +146,7 @@ func TestACPIntegrationRequestPermissionPolicy(t *testing.T) {
 				}
 				events = append(events, event)
 				if event.Type == EventTypePermission && event.Decision == "" && pendingRequestID == "" {
-					pendingRequestID = event.RequestID
+					pendingRequestID = event.RequestIDValue()
 					if pendingRequestID == "" {
 						t.Fatal("permission request_id = empty, want non-empty")
 					}

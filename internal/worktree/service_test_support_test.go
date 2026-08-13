@@ -135,8 +135,8 @@ func (s *memoryWorktreeStore) Get(_ context.Context, workspaceID, ref string) (*
 	defer s.mu.Unlock()
 	for _, item := range s.items {
 		if item.WorkspaceID == workspaceID && (item.ID == ref || item.Name == ref) {
-			copy := item
-			return &copy, nil
+			cloned := item
+			return &cloned, nil
 		}
 	}
 	return nil, ErrNotFound
@@ -146,9 +146,10 @@ func (s *memoryWorktreeStore) GetByPath(_ context.Context, workspaceID, path str
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, item := range s.items {
-		if item.WorkspaceID == workspaceID && item.Path == path && item.State != StateRemoved && item.State != StateDismissed {
-			copy := item
-			return &copy, nil
+		if item.WorkspaceID == workspaceID && item.Path == path && item.State != StateRemoved &&
+			item.State != StateDismissed {
+			cloned := item
+			return &cloned, nil
 		}
 	}
 	return nil, ErrNotFound
@@ -332,8 +333,8 @@ func (s *memoryWorktreeStore) GetStatus(_ context.Context, workspaceID, id strin
 	if !ok {
 		return nil, nil
 	}
-	copy := status
-	return &copy, nil
+	cloned := status
+	return &cloned, nil
 }
 
 func (s *memoryWorktreeStore) SaveForgeStatus(_ context.Context, workspaceID, id string, status ForgeStatus) error {
@@ -353,8 +354,8 @@ func (s *memoryWorktreeStore) GetForgeStatus(_ context.Context, workspaceID, id 
 	if !ok {
 		return nil, nil
 	}
-	copy := status
-	return &copy, nil
+	cloned := status
+	return &cloned, nil
 }
 
 func (s *memoryWorktreeStore) InsertExitOperation(_ context.Context, operation ExitOperation) error {
@@ -405,7 +406,8 @@ func (s *memoryWorktreeStore) FinishExitOperation(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	operation, ok := s.exitOps[opID]
-	if !ok || operation.WorkspaceID != workspaceID || operation.WorktreeID != worktreeID || operation.State != "running" {
+	if !ok || operation.WorkspaceID != workspaceID || operation.WorktreeID != worktreeID ||
+		operation.State != "running" {
 		return false, nil
 	}
 	operation.State, operation.FinishedAt = state, &finishedAt

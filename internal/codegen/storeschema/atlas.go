@@ -24,6 +24,8 @@ import (
 
 var atlasDatabaseSequence atomic.Uint64
 
+const atlasSchemaName = "schema"
+
 type atlasPlan struct {
 	migration *migrate.Plan
 	changes   schema.Changes
@@ -186,7 +188,7 @@ func planAtlasStream(
 		}
 		return nil, nil, nil, migrate.ErrNoPlan
 	}
-	plan, err := dev.PlanChanges(ctx, "schema", changes, func(options *migrate.PlanOptions) {
+	plan, err := dev.PlanChanges(ctx, atlasSchemaName, changes, func(options *migrate.PlanOptions) {
 		options.Mode = migrate.PlanModeDeferred
 	})
 	if err != nil {
@@ -368,7 +370,7 @@ func (sequentialGooseFormatter) Format(plan *migrate.Plan) ([]migrate.File, erro
 	name := strings.Trim(strings.ToLower(plan.Name), " _-")
 	name = strings.NewReplacer(" ", "_", "-", "_").Replace(name)
 	if name == "" {
-		name = "schema"
+		name = atlasSchemaName
 	}
 	return []migrate.File{
 		migrate.NewLocalFile(fmt.Sprintf("%s_%s.sql", plan.Version, name), contents),

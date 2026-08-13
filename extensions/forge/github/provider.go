@@ -19,6 +19,8 @@ var githubTemplatePaths = []string{
 	"docs/pull_request_template.txt",
 }
 
+const githubProviderName = "github"
+
 type Provider struct {
 	credentials credentialResolver
 	api         githubClient
@@ -51,7 +53,7 @@ func (p *Provider) Capabilities(
 		}, nil
 	}
 	response := extensioncontract.ForgeCapabilitiesResponse{
-		Served: true, Provider: "github", ServedRemote: repo.url,
+		Served: true, Provider: githubProviderName, ServedRemote: repo.url,
 		RequestNoun: "PR", OpenActionLabel: "Open PR", ViewActionLabel: "View PR",
 		SupportsDraft: true, CompareURLTemplate: repo.url + "/compare/{base}...{head}",
 		TemplatePaths: append([]string(nil), githubTemplatePaths...),
@@ -101,7 +103,7 @@ func (p *Provider) Status(
 		}
 		return extensioncontract.ForgeStatusResponse{}, err
 	}
-	response := extensioncontract.ForgeStatusResponse{Provider: "github", FetchedAt: p.now().UTC()}
+	response := extensioncontract.ForgeStatusResponse{Provider: githubProviderName, FetchedAt: p.now().UTC()}
 	if len(pulls) == 0 {
 		return response, nil
 	}

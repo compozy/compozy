@@ -12,7 +12,8 @@ func TestExitBrowserURL(t *testing.T) {
 	t.Run("Should strip embedded remote credentials before any consumer sees the URL", func(t *testing.T) {
 		t.Parallel()
 		got := sanitizeGitRemote("https://secret-token@github.com/acme/repo.git?token=other#fragment")
-		if strings.Contains(got, "secret-token") || strings.Contains(got, "token=") || strings.Contains(got, "fragment") {
+		if strings.Contains(got, "secret-token") || strings.Contains(got, "token=") ||
+			strings.Contains(got, "fragment") {
 			t.Fatalf("sanitizeGitRemote() = %q, want credential-free URL", got)
 		}
 	})

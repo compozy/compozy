@@ -10,11 +10,13 @@ import (
 type agentEventPayload struct {
 	eventID          string
 	messageID        string
+	requestID        string
 	toolName         string
 	toolKind         string
 	toolInput        json.RawMessage
 	toolErrorDetail  string
 	toolFailed       bool
+	toolPrechecked   bool
 	hasTool          bool
 	promptRuntime    *PromptRuntime
 	skillInvocations []commandpkg.Invocation
@@ -32,8 +34,9 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 }
 
 func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
-	if payload == nil || payload.eventID == "" && payload.messageID == "" &&
-		!payload.hasTool && payload.promptRuntime == nil && len(payload.skillInvocations) == 0 {
+	if payload == nil || payload.eventID == "" && payload.messageID == "" && payload.requestID == "" &&
+		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
+		len(payload.skillInvocations) == 0 {
 		return nil
 	}
 	return payload
@@ -87,6 +90,22 @@ func (e *AgentEvent) MessageIDValue() string {
 	return e.payload.messageID
 }
 
+// WithRequestID returns an event carrying its externally addressable request identity.
+func (e AgentEvent) WithRequestID(requestID string) AgentEvent {
+	payload := e.clonePayload()
+	payload.requestID = strings.TrimSpace(requestID)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// RequestIDValue returns the externally addressable request identity.
+func (e AgentEvent) RequestIDValue() string {
+	if e.payload == nil {
+		return ""
+	}
+	return e.payload.requestID
+}
+
 // WithTool returns an event carrying an isolated optional tool payload.
 func (e AgentEvent) WithTool(name string, input json.RawMessage, failed bool) AgentEvent {
 	return e.WithToolDetail(name, input, failed, "")
@@ -107,6 +126,19 @@ func (e AgentEvent) WithToolDetail(
 	payload.hasTool = name != "" || len(input) > 0 || failed || errorDetail != ""
 	e.payload = normalizeAgentEventPayload(payload)
 	return e
+}
+
+// WithToolPrechecked marks tool admission as already enforced at the ACP boundary.
+func (e AgentEvent) WithToolPrechecked() AgentEvent {
+	payload := e.clonePayload()
+	payload.toolPrechecked = true
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// ToolPrechecked reports whether tool admission was already enforced.
+func (e AgentEvent) ToolPrechecked() bool {
+	return e.payload != nil && e.payload.toolPrechecked
 }
 
 // WithToolKind returns an event carrying the normalized tool kind.

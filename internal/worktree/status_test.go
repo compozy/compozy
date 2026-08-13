@@ -44,10 +44,22 @@ func TestServiceStatus(t *testing.T) {
 		}
 		runner := &recordingGitRunner{}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
-		if got, err := service.Status(context.Background(), item.WorkspaceID, item.ID, false); !errors.Is(err, ErrMissing) || got != nil {
+		if got, err := service.Status(
+			context.Background(),
+			item.WorkspaceID,
+			item.ID,
+			false,
+		); !errors.Is(err, ErrMissing) ||
+			got != nil {
 			t.Fatalf("Status(missing) = %#v, %v, want ErrMissing", got, err)
 		}
-		if got, err := service.Status(context.Background(), "ws-other", item.ID, true); !errors.Is(err, ErrNotFound) || got != nil {
+		if got, err := service.Status(
+			context.Background(),
+			"ws-other",
+			item.ID,
+			true,
+		); !errors.Is(err, ErrNotFound) ||
+			got != nil {
 			t.Fatalf("Status(cross-workspace) = %#v, %v, want ErrNotFound", got, err)
 		}
 		if len(runner.invocations()) != 0 {
@@ -90,7 +102,8 @@ func TestServiceStatus(t *testing.T) {
 			t.Fatalf("Status() = %#v, want 3 files +10 -2 and upstream +1 -0", status)
 		}
 		persisted, err := store.GetStatus(context.Background(), item.WorkspaceID, item.ID)
-		if err != nil || persisted == nil || persisted.RefreshedAt == nil || !persisted.RefreshedAt.Equal(statusTestClock()) {
+		if err != nil || persisted == nil || persisted.RefreshedAt == nil ||
+			!persisted.RefreshedAt.Equal(statusTestClock()) {
 			t.Fatalf("persisted status = %#v, %v, want refreshed timestamp", persisted, err)
 		}
 		if got := events.count(EventStatusRefreshed); got != 1 {
@@ -119,7 +132,8 @@ func TestServiceStatus(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(read failure) error = %v", err)
 		}
-		if status.ReadError == "" || status.DirtyFiles != nil || status.Ahead != nil || status.Behind != nil || status.HasUpstream != nil {
+		if status.ReadError == "" || status.DirtyFiles != nil || status.Ahead != nil || status.Behind != nil ||
+			status.HasUpstream != nil {
 			t.Fatalf("Status(read failure) = %#v, want explicit error and unknown numeric fields", status)
 		}
 	})

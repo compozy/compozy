@@ -31,7 +31,7 @@ func (m *Service) transitionClaimedRunToStarting(
 		return Run{}, nil, err
 	}
 	if strings.TrimSpace(startingRun.SessionID) != "" {
-		switch startingRun.ResolvedWorktreeMode.Normalize() {
+		switch startingRun.ResolvedWorktreeModeValue().Normalize() {
 		case WorktreeModePerRun:
 			// A per-run checkout does not exist at claim time. Transfer the
 			// claimed run to a dedicated session only after materialization.
@@ -114,7 +114,7 @@ func (m *Service) startAndBindClaimedRunSession(
 	}
 	candidate := run
 	candidate.SessionID = sessionRef.SessionID
-	candidate.WorktreeID = sessionRef.WorktreeID
+	candidate.SetWorktreeID(sessionRef.WorktreeID)
 	if err := m.preflightRunTransition(candidate, taskEventRunSessionBound, candidate.Status, actor); err != nil {
 		stopErr := m.stopUnboundStartedTaskSession(ctx, run, sessionRef)
 		return Run{}, nil, errorsJoin(err, stopErr)

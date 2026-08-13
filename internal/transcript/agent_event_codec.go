@@ -55,7 +55,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		SessionID:         event.SessionID,
 		TurnID:            event.TurnID,
 		MessageID:         event.MessageIDValue(),
-		RequestID:         event.RequestID,
+		RequestID:         event.RequestIDValue(),
 		EventCorrelation:  event.Normalize(),
 		Timestamp:         event.Timestamp,
 		Text:              event.Text,
@@ -134,7 +134,6 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Type:             strings.TrimSpace(decoded.Type),
 		SessionID:        strings.TrimSpace(decoded.SessionID),
 		TurnID:           strings.TrimSpace(decoded.TurnID),
-		RequestID:        strings.TrimSpace(decoded.RequestID),
 		EventCorrelation: decoded.Normalize(),
 		Timestamp:        decoded.Timestamp,
 		Text:             decoded.Text,
@@ -152,7 +151,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
-	}
+	}.WithRequestID(decoded.RequestID)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)
 	event = event.WithPromptRuntime(decoded.PromptRuntime)
 	if messageID := strings.TrimSpace(decoded.MessageID); messageID != "" {

@@ -12,9 +12,17 @@ import (
 type ExitPhase string
 
 const (
-	ExitPhaseCommit ExitPhase = "commit"
-	ExitPhasePush   ExitPhase = "push"
-	ExitPhasePR     ExitPhase = "pr"
+	ExitPhaseCommit       ExitPhase = "commit"
+	ExitPhasePush         ExitPhase = "push"
+	ExitPhasePR           ExitPhase = "pr"
+	exitStepCompleted               = "completed"
+	exitStepFailed                  = "failed"
+	exitStepSkipped                 = "skipped"
+	exitOperationRunning            = "running"
+	exitOperationCanceled           = "canceled"
+	exitOpenBrowserLabel            = "Open in browser"
+	exitViewPRLabel                 = "View PR"
+	exitRemoveAction                = "remove"
 )
 
 type ExitActionRequest struct {
@@ -89,7 +97,7 @@ func (s *Service) RunExitAction(
 	}
 	operation := ExitOperation{
 		ID: opID, WorkspaceID: workspaceID, WorktreeID: id,
-		Action: string(request.Action), State: "running", StartedAt: s.now().UTC(),
+		Action: string(request.Action), State: exitOperationRunning, StartedAt: s.now().UTC(),
 	}
 	if err := s.store.InsertExitOperation(ctx, operation); err != nil {
 		return "", err
@@ -103,7 +111,7 @@ func (s *Service) RunExitAction(
 	s.exitMu.Unlock()
 	phases := request.Action.phases()
 	s.emitExit(executionCtx, EventExitActionStarted, operation, ExitEventPayload{
-		OperationID: opID, Action: request.Action, Phases: phases, State: "running",
+		OperationID: opID, Action: request.Action, Phases: phases, State: exitOperationRunning,
 	})
 	go s.executeExitOperation(executionCtx, control, operation, *item, plan, request)
 	return opID, nil
@@ -123,9 +131,9 @@ func (s *Service) CancelExitAction(ctx context.Context, workspaceID, id, opID st
 			return ctx.Err()
 		}
 	}
-	operation := ExitOperation{ID: opID, WorkspaceID: workspaceID, WorktreeID: id, State: "canceled"}
-	_, err := s.finishExitOperation(ctx, operation, "canceled", EventExitActionCanceled, ExitEventPayload{
-		OperationID: opID, State: "canceled", Message: "Exit action canceled.",
+	operation := ExitOperation{ID: opID, WorkspaceID: workspaceID, WorktreeID: id, State: exitOperationCanceled}
+	_, err := s.finishExitOperation(ctx, operation, exitOperationCanceled, EventExitActionCanceled, ExitEventPayload{
+		OperationID: opID, State: exitOperationCanceled, Message: "Exit action canceled.",
 	})
 	return err
 }
@@ -173,9 +181,15 @@ func (s *Service) executeExitOperation(
 		s.finishExitFailure(ctx, operation, result, ctx.Err())
 		return
 	}
-	finished, finishErr := s.finishExitOperation(context.WithoutCancel(ctx), operation, "completed", EventExitActionCompleted, ExitEventPayload{
-		OperationID: operation.ID, Action: request.Action, State: "completed", Result: &result,
-	})
+	finished, finishErr := s.finishExitOperation(
+		context.WithoutCancel(ctx),
+		operation,
+		"completed",
+		EventExitActionCompleted,
+		ExitEventPayload{
+			OperationID: operation.ID, Action: request.Action, State: exitStepCompleted, Result: &result,
+		},
+	)
 	if finishErr != nil {
 		s.logger.ErrorContext(ctx, "worktree exit terminalization failed", "op_id", operation.ID, "error", finishErr)
 		return
@@ -210,7 +224,7 @@ func (s *Service) runExitSequence(
 	steps := make([]ExitStepResult, 0, len(request.Action.phases()))
 	for _, phase := range request.Action.phases() {
 		s.emitExit(ctx, EventExitActionStep, operation, ExitEventPayload{
-			OperationID: operation.ID, Action: request.Action, Phase: phase, State: "running",
+			OperationID: operation.ID, Action: request.Action, Phase: phase, State: exitOperationRunning,
 		})
 		var step ExitStepResult
 		var err error
@@ -226,7 +240,7 @@ func (s *Service) runExitSequence(
 		steps = append(steps, step)
 		state := step.State
 		if err != nil {
-			state = "failed"
+			state = exitStepFailed
 		}
 		s.emitExit(ctx, EventExitActionStep, operation, ExitEventPayload{
 			OperationID: operation.ID, Action: request.Action, Phase: phase, State: state,
@@ -244,23 +258,23 @@ func (s *Service) runExitPush(
 	item Worktree,
 	force bool,
 ) (ExitStepResult, error) {
-	step := ExitStepResult{Phase: ExitPhasePush, State: "completed"}
+	step := ExitStepResult{Phase: ExitPhasePush, State: exitStepCompleted}
 	status, err := s.readCurrentGitStatus(ctx, item.Path)
 	if err != nil {
-		step.State, step.Output = "failed", err.Error()
+		step.State, step.Output = exitStepFailed, err.Error()
 		return step, err
 	}
 	if !force && status.HasUpstream && valueOrZero(status.Ahead) == 0 {
-		step.State, step.Reason = "skipped", "already up to date"
+		step.State, step.Reason = exitStepSkipped, "already up to date"
 		return step, nil
 	}
-	args := []string{"push"}
+	args := []string{string(ExitPhasePush)}
 	if !status.HasUpstream {
 		args = append(args, "-u", "origin", item.Branch)
 	}
 	stdout, stderr, err := s.runner.Run(ctx, item.Path, args...)
 	if err != nil {
-		step.State, step.Output = "failed", exitCommandOutput(stdout, stderr, err)
+		step.State, step.Output = exitStepFailed, exitCommandOutput(stdout, stderr, err)
 		return step, err
 	}
 	step.Upstream = status.Upstream
@@ -280,7 +294,7 @@ func (s *Service) runExitPR(
 	plan *ExitPlan,
 	request ExitActionRequest,
 ) (ExitStepResult, error) {
-	step := ExitStepResult{Phase: ExitPhasePR, State: "completed"}
+	step := ExitStepResult{Phase: ExitPhasePR, State: exitStepCompleted}
 	if s.forge == nil || plan.Forge == nil {
 		if plan.BrowserURL == "" {
 			return step, ErrForgeUnavailable
@@ -313,7 +327,7 @@ func (s *Service) runExitPR(
 		Head: item.Branch, Base: base, Title: title, Body: body, Draft: request.Draft,
 	})
 	if err != nil {
-		step.State, step.Output = "failed", diagnostics.RedactAndBound(err.Error(), 2048)
+		step.State, step.Output = exitStepFailed, diagnostics.RedactAndBound(err.Error(), 2048)
 		return step, fmt.Errorf("%w: %w", ErrForge, err)
 	}
 	if created == nil {
@@ -354,7 +368,7 @@ func (s *Service) finishExitFailure(
 	result ExitActionResult,
 	cause error,
 ) {
-	state, event := "failed", EventExitActionFailed
+	state, event := exitStepFailed, EventExitActionFailed
 	if errors.Is(ctx.Err(), context.Canceled) {
 		state, event = "canceled", EventExitActionCanceled
 	}
@@ -413,23 +427,23 @@ func exitResultCTA(action ExitAction, plan *ExitPlan, steps []ExitStepResult) *E
 	if action == ExitActionOpenPR && len(steps) > 0 {
 		last := steps[len(steps)-1]
 		if last.PRStatus == "browser" {
-			return &ExitCTA{Action: ExitActionOpenPR, Label: "Open in browser", URL: last.URL}
+			return &ExitCTA{Action: ExitActionOpenPR, Label: exitOpenBrowserLabel, URL: last.URL}
 		}
-		return &ExitCTA{Action: ExitActionViewPR, Label: "View PR", URL: last.URL}
+		return &ExitCTA{Action: ExitActionViewPR, Label: exitViewPRLabel, URL: last.URL}
 	}
 	if action == ExitActionCommit && len(plan.RemoteURLs) > 0 {
 		return &ExitCTA{Action: ExitActionPush, Label: "Push"}
 	}
 	if plan.ForgeStatus != nil && plan.ForgeStatus.PRURL != "" {
-		return &ExitCTA{Action: ExitActionViewPR, Label: "View PR", URL: plan.ForgeStatus.PRURL}
+		return &ExitCTA{Action: ExitActionViewPR, Label: exitViewPRLabel, URL: plan.ForgeStatus.PRURL}
 	}
 	if plan.Forge != nil {
 		return &ExitCTA{Action: ExitActionOpenPR, Label: plan.Forge.OpenActionLabel}
 	}
 	if plan.BrowserURL != "" {
-		return &ExitCTA{Action: ExitActionOpenPR, Label: "Open in browser", URL: plan.BrowserURL}
+		return &ExitCTA{Action: ExitActionOpenPR, Label: exitOpenBrowserLabel, URL: plan.BrowserURL}
 	}
-	return &ExitCTA{Action: "remove", Label: "Remove worktree"}
+	return &ExitCTA{Action: exitRemoveAction, Label: "Remove worktree"}
 }
 
 func exitCommandOutput(stdout, stderr []byte, cause error) string {

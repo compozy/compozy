@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+const (
+	httpsScheme = "https"
+	httpScheme  = "http"
+)
+
 func browserCompareURL(remotes []string, base, head string, forge *ForgeCapabilities) string {
 	if len(remotes) == 0 || strings.TrimSpace(head) == "" {
 		return ""
@@ -51,7 +56,7 @@ func sanitizeGitRemote(raw string) string {
 // credential-bearing URL parts that must never cross the worktree boundary.
 func sanitizeForgeWebURL(raw string) (string, error) {
 	parsed, err := url.ParseRequestURI(strings.TrimSpace(raw))
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+	if err != nil || parsed.Host == "" || (parsed.Scheme != httpsScheme && parsed.Scheme != httpScheme) {
 		return "", ErrForge
 	}
 	parsed.User = nil
@@ -65,8 +70,8 @@ func parseRemoteWebURL(raw string) (*url.URL, bool) {
 	if value == "" {
 		return nil, false
 	}
-	if strings.HasPrefix(value, "git@") {
-		hostPath := strings.TrimPrefix(value, "git@")
+	if after, ok := strings.CutPrefix(value, "git@"); ok {
+		hostPath := after
 		host, repoPath, ok := strings.Cut(hostPath, ":")
 		if !ok {
 			return nil, false

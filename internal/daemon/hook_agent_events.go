@@ -105,7 +105,7 @@ func dispatchToolHookEvent(
 	updateType := strings.ToLower(strings.TrimSpace(raw.SessionUpdate))
 	status := strings.ToLower(strings.TrimSpace(raw.Status))
 	switch {
-	case updateType == hookAgentEventsToolCallKey && !event.ToolPrechecked && status != hookAgentEventsPendingKey:
+	case updateType == hookAgentEventsToolCallKey && !event.ToolPrechecked() && status != hookAgentEventsPendingKey:
 		_, err := hooks.DispatchToolPreCall(ctx, hookspkg.ToolPreCallPayload{
 			PayloadBase:    withHookEvent(base, hookspkg.HookToolPreCall),
 			SessionContext: sessionCtx,
@@ -162,7 +162,7 @@ func dispatchPermissionHookEvent(
 			PayloadBase:    withHookEvent(base, hookspkg.HookPermissionRequest),
 			SessionContext: sessionCtx,
 			TurnContext:    turn,
-			RequestID:      firstNonEmpty(strings.TrimSpace(event.RequestID), strings.TrimSpace(raw.RequestID)),
+			RequestID:      firstNonEmpty(strings.TrimSpace(event.RequestIDValue()), strings.TrimSpace(raw.RequestID)),
 			Action:         strings.TrimSpace(event.Action),
 			Resource:       strings.TrimSpace(event.Resource),
 			DecisionClass:  decisionClass,
@@ -176,7 +176,7 @@ func dispatchPermissionHookEvent(
 			PayloadBase:    withHookEvent(base, hookspkg.HookPermissionDenied),
 			SessionContext: sessionCtx,
 			TurnContext:    turn,
-			RequestID:      firstNonEmpty(strings.TrimSpace(event.RequestID), strings.TrimSpace(raw.RequestID)),
+			RequestID:      firstNonEmpty(strings.TrimSpace(event.RequestIDValue()), strings.TrimSpace(raw.RequestID)),
 			Action:         strings.TrimSpace(event.Action),
 			Resource:       strings.TrimSpace(event.Resource),
 			Decision:       decision,
@@ -190,7 +190,7 @@ func dispatchPermissionHookEvent(
 			PayloadBase:    withHookEvent(base, hookspkg.HookPermissionResolved),
 			SessionContext: sessionCtx,
 			TurnContext:    turn,
-			RequestID:      firstNonEmpty(strings.TrimSpace(event.RequestID), strings.TrimSpace(raw.RequestID)),
+			RequestID:      firstNonEmpty(strings.TrimSpace(event.RequestIDValue()), strings.TrimSpace(raw.RequestID)),
 			Action:         strings.TrimSpace(event.Action),
 			Resource:       strings.TrimSpace(event.Resource),
 			Decision:       decision,

@@ -32,7 +32,7 @@ type SessionManagerDeps struct {
 	SkillRegistry          session.SkillRegistry
 	MCPResolver            session.MCPResolver
 	WorkspaceResolver      workspacepkg.RuntimeResolver
-	WorktreeResolver       session.SessionWorktreeResolver
+	WorktreeResolver       session.WorktreeResolver
 	ParticipationResolver  participation.Resolver
 	SandboxRegistry        *sandbox.Registry
 	SessionSupervision     compozyconfig.SessionSupervisionConfig

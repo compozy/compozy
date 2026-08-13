@@ -3,10 +3,12 @@ package contract
 import "time"
 
 const (
-	ForgeCauseRateLimited       = "rate_limited"
+	ForgeCauseRateLimited = "rate_limited"
+	// #nosec G101 -- these are public error cause identifiers, not credentials.
 	ForgeCauseCredentialExpired = "credential_expired"
 	ForgeCauseUnsupportedRemote = "unsupported_remote"
-	ForgeCauseCredentialAbsent  = "credential_absent"
+	// #nosec G101 -- these are public error cause identifiers, not credentials.
+	ForgeCauseCredentialAbsent = "credential_absent"
 )
 
 type ForgeCapabilitiesRequest struct {

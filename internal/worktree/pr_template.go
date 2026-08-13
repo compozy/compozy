@@ -31,7 +31,7 @@ func (s *Service) detectPRTemplate(
 	}
 	entries := make(map[string]string)
 	directoryCandidates := make([]string, 0)
-	for _, raw := range bytes.Split(stdout, []byte{0}) {
+	for raw := range bytes.SplitSeq(stdout, []byte{0}) {
 		metadataAndName := strings.SplitN(string(raw), "\t", 2)
 		if len(metadataAndName) != 2 {
 			continue

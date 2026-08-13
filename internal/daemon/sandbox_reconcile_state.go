@@ -116,19 +116,19 @@ func (d *Daemon) resolveSandboxReconcileLocalRoots(
 	workspaceResolved bool,
 ) (string, []string, bool) {
 	if !workspaceResolved || resolvedWorkspace == nil {
-		if strings.TrimSpace(meta.WorktreeID) == "" {
+		if strings.TrimSpace(meta.WorktreeIDValue()) == "" {
 			return "", nil, true
 		}
 		return "", nil, false
 	}
-	if strings.TrimSpace(meta.WorktreeID) == "" {
+	if strings.TrimSpace(meta.WorktreeIDValue()) == "" {
 		return strings.TrimSpace(resolvedWorkspace.RootDir),
 			append([]string(nil), resolvedWorkspace.AdditionalDirs...), true
 	}
 	_, root, err := (daemonSessionWorktreeResolver{state: state}).ResolveSessionWorktree(
 		ctx,
 		meta.WorkspaceID,
-		meta.WorktreeID,
+		meta.WorktreeIDValue(),
 	)
 	if err != nil {
 		sandboxReconcileLogger(state).Warn(

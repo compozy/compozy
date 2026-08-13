@@ -319,19 +319,8 @@ func (s *Service) materializePending(
 ) error {
 	_, placementRoot := s.worktreeSettings(workspace)
 	explicitPath := options.Path != ""
-	item.CreatedBranch = options.ExistingBranch == ""
-	if item.CreatedBranch {
-		baseRef, baseHead, err := s.resolveBaseRef(ctx, workspace.Root, item.BaseRef)
-		if err != nil {
-			return err
-		}
-		item.BaseRef, item.CreatedHead = baseRef, baseHead
-	} else {
-		head, stderr, err := s.runner.Run(ctx, workspace.Root, "rev-parse", "--verify", item.Branch+"^{commit}")
-		if err != nil {
-			return refusal(ErrBaseRefNotFound, diagnostics.RedactAndBound(string(stderr), 2048))
-		}
-		item.CreatedHead = strings.TrimSpace(string(head))
+	if err := s.resolvePendingBranch(ctx, workspace.Root, item, options); err != nil {
+		return err
 	}
 	if err := s.setPending(ctx, item, PhaseBranch); err != nil {
 		return err
@@ -361,14 +350,8 @@ func (s *Service) materializePending(
 		return err
 	}
 	item.GitDir = gitDir
-	if item.CreatedBranch {
-		key := "branch." + item.Branch + ".gh-merge-base"
-		if err := s.revalidateMutationPath(ctx, workspace, *item, placementRoot, explicitPath); err != nil {
-			return err
-		}
-		if _, stderr, err := s.runner.Run(ctx, workspace.Root, "config", key, item.BaseRef); err != nil {
-			return fmt.Errorf("worktree: record branch base: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
-		}
+	if err := s.recordPendingBranchBase(ctx, workspace, item, placementRoot, explicitPath); err != nil {
+		return err
 	}
 	if err := s.setPending(ctx, item, PhaseCopy); err != nil {
 		return err
@@ -432,8 +415,18 @@ func (s *Service) rollbackCreate(
 	item Worktree,
 ) error {
 	var rollbackErr error
-	if item.PendingPhase == PhaseCheckout || item.PendingPhase == PhaseCopy || item.PendingPhase == PhaseSetup || item.GitDir != "" {
-		_, stderr, err := s.runner.Run(ctx, workspace.Root, "--git-dir", commonDir, "worktree", "remove", "--force", item.Path)
+	if item.PendingPhase == PhaseCheckout || item.PendingPhase == PhaseCopy || item.PendingPhase == PhaseSetup ||
+		item.GitDir != "" {
+		_, stderr, err := s.runner.Run(
+			ctx,
+			workspace.Root,
+			"--git-dir",
+			commonDir,
+			"worktree",
+			"remove",
+			"--force",
+			item.Path,
+		)
 		if err != nil {
 			_, statErr := os.Lstat(item.Path)
 			if !errors.Is(statErr, os.ErrNotExist) {
