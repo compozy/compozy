@@ -1586,6 +1586,9 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 			"verify-process-start.py",
 			"Accept: application/vnd.github.raw+json",
 			"repos/${GITHUB_REPOSITORY}/contents/scripts/${workflow_tool}?ref=${WORKFLOW_COMMIT}",
+			`*.sh) bash -n "${target}" ;;`,
+			`*.py) python3 -m py_compile "${target}" ;;`,
+			"Unsupported release workflow tool",
 			`run: bash "${RUNNER_TEMP}/release-publication-state.sh"`,
 		} {
 			assertContainsText(t, "release workflow", workflow, snippet)

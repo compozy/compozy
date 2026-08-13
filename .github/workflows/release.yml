@@ -151,7 +151,14 @@ jobs:
               -H "Accept: application/vnd.github.raw+json" \
               "repos/${GITHUB_REPOSITORY}/contents/scripts/${workflow_tool}?ref=${WORKFLOW_COMMIT}" \
               >"${target}"
-            bash -n "${target}"
+            case "${workflow_tool}" in
+              *.sh) bash -n "${target}" ;;
+              *.py) python3 -m py_compile "${target}" ;;
+              *)
+                echo "Unsupported release workflow tool: ${workflow_tool}" >&2
+                exit 1
+                ;;
+            esac
           done
           gh api \
             -H "Accept: application/vnd.github.raw+json" \
