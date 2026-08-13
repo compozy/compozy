@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/command-catalog-parity.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/web-proxy-parity.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/workspace-fence-http.status;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/workspace-fence-uds.status
-last_report: docs/qa/reports/2026-08-13-extension-agent-session-skills.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/catalogs/cli-compact-current.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/catalogs/http-compact-current.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/catalogs/uds-compact-current.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/web/reviewer-session-route-limitation.md;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/qa-audit-report.md
+last_report: docs/qa/reports/2026-08-13-pr372-extension-agent-session-skills-native-cli.md
 overlaps: ET-native-workspace-scope-isolation
 ---
 
@@ -30,4 +30,6 @@ QA verdict 2026-08-12: passed in the fresh isolated lab. The unbound `reviewer` 
 
 QA impact 2026-08-13: reset because prompt, native skill tools, and command catalogs now share extension-agent session skill resolution. Re-walk the extension-agent catalog and workspace fence.
 
-QA verdict 2026-08-13: blocked for human browser verification. CLI, HTTP, direct UDS, and the isolated Vite Web proxy returned the same 11-command payload at revision `9fce06ed445f6e2e51a6110ca3dcc54c4e8e22ef7f9e8b031e8344b64cd74512`, including all nine `dev-cycle` skills; HTTP and UDS foreign-workspace reads both returned 404. The bootstrap reported neither `browser-use` nor `agent-browser`, so the rendered Web command menu was not observed and this scenario is not marked pass.
+QA evidence correction 2026-08-13: the preceding pass/blocked claims use a build that predates PR #372 and are historical only.
+
+QA verdict 2026-08-13 (fresh native-CLI lab): blocked-verify. CLI, HTTP, and direct UDS returned an identical canonicalized ten-skill catalog (`compozy` plus the nine `dev-cycle` skills); foreign-workspace HTTP and UDS reads both returned 404 with no command payload. The built Web root rendered through `agent-browser`, but the concrete reviewer-session route returned “Route not found”, so menu parity was not observable. This route limitation is outside the exercised daemon command-resolution contract, but it prevents a Web parity pass.

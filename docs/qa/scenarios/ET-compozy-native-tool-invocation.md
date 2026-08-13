@@ -11,8 +11,8 @@ bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634
-evidence: /home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/provider-hosted-mcp-summary.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/native-config-get-missing.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/native-config-set.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/native-config-get-reread.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/operator-config-reread-after-provider.json
-last_report: docs/qa/reports/2026-08-13-extension-agent-session-skills.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/provider-config-get-missing.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/provider-config-get-missing-summary.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/qa-audit-report.md
+last_report: docs/qa/reports/2026-08-13-pr372-extension-agent-session-skills-native-cli.md
 overlaps: ET-native-tool-approval-grants;ET-workspace-host-api-mcp
 ---
 
@@ -28,4 +28,6 @@ managed-session invocation plus explicit legacy-identifier rejection.
 
 QA impact 2026-08-13: reset because `compozy__config_get` now distinguishes an absent key with `config_path_not_found`, and extension-agent sessions share one skill resolver across native calls.
 
-QA verdict 2026-08-13: passed. The live extension-agent Codex session invoked `compozy__command_list`, all three skill tools, and `compozy__config_get/set` through hosted MCP. An absent `loops.inputs.batuta-deliver.auto_commit` returned `config_path_not_found`; the session persisted workspace `false`, reread `false`, preserved `todo 1.0.0` literally, and did not modify repository files.
+QA evidence correction 2026-08-13: the prior pass is not valid evidence for PR #372 because its build predates this PR head. It is historical only and does not set this scenario status.
+
+QA verdict 2026-08-13 (fresh native-CLI lab): passed. The real operator-home Codex reviewer invoked hosted skill-list, empty skill-search, all ten skill views, and `compozy__config_get`; the missing `loops.inputs.batuta-deliver.auto_commit` path returned `config_path_not_found`. This is a substantive persona-walk verdict only: the QA report remains blocked on C14 until a successful final gate exists.

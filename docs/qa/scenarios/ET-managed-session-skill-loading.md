@@ -11,8 +11,8 @@ bug_ids: BUG-20260805-hosted-mcp-cold-start-nonce-expiry
 fix_status: fixed
 retest_status: pass
 fix_commits: PR #323 remediation commit
-evidence: /home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/provider-hosted-mcp-summary.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/native-skill-list.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/native-skill-search.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/native-skill-view.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/managed-cli-skill-view.stderr
-last_report: docs/qa/reports/2026-08-13-extension-agent-session-skills.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/hosted-skill-summary.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/provider-hosted-skill-walk.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/qa-audit-report.md
+last_report: docs/qa/reports/2026-08-13-pr372-extension-agent-session-skills-native-cli.md
 overlaps: ET-003
 ---
 
@@ -22,4 +22,6 @@ full-walk evidence in the prior report.
 
 QA impact 2026-08-13: reset because extension-published agents now fall back to their concrete session definition after authored lookup reports `agent not found`. Re-walk prompt catalog injection and `skill_list/search/view` through hosted MCP.
 
-QA verdict 2026-08-13: passed. A live Codex session using the extension-published `reviewer` agent received all nine `dev-cycle` skills in its prompt and invoked `compozy__skill_list`, `compozy__skill_search`, and source-qualified `compozy__skill_view` through hosted MCP with no `agent not found`. The managed CLI guard rejected `compozy skill view` before access, while the operator and native reads both returned the `cy-review-round` body.
+QA evidence correction 2026-08-13: the prior pass is not valid evidence for PR #372 because its build predates this PR head. It is historical only and does not set this scenario status.
+
+QA verdict 2026-08-13 (fresh native-CLI lab): passed. A real operator-home Codex `reviewer` session exposed the exact ten-name catalog (`compozy` plus the nine `dev-cycle` skills) in prompt, command, hosted `skill_list`, empty `skill_search`, and all ten `skill_view` calls; the provenance-filtered extension subset was exactly the nine `dev-cycle` names. This is a substantive persona-walk verdict only: the QA report remains blocked on C14 until a successful final gate exists.
