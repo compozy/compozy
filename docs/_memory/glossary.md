@@ -122,7 +122,7 @@ Operator access is not cross-workspace access — operators are not governed by 
 
 ### AGENT.md (frontmatter format)
 
-Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The current runtime portability unit is the CompozyOS agent directory rooted at `$COMPOZY_HOME/agents/<name>/` for global scope and `.compozy/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.
+Self-contained agent definition: YAML frontmatter (provider/model/tools/permissions) + Markdown prompt. The frontmatter `name` is trimmed and must match `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters); filesystem-loaded definitions must also match their directory name. The current runtime portability unit is the CompozyOS agent directory rooted at `$COMPOZY_HOME/agents/<name>/` for global scope and `.compozy/agents/<name>/` for workspace or additional roots. That directory can carry agent-scoped `skills/` and other sidecars owned by the agent.
 
 **Status:** Partially shipped from RFC 001. The runtime now parses `AGENT.md` frontmatter,
 including agent-local `skills/` overlays and `skills.disabled`. Draft fields such as

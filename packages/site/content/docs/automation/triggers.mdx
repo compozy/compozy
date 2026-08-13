@@ -35,22 +35,22 @@ that created it; restart from the first page when any filter changes. See the ge
 
 ## Trigger fields
 
-| Field                        | Required                | Meaning                                                                                      |
-| ---------------------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
-| `name`                       | Yes                     | Human-readable trigger name.                                                                 |
-| `scope`                      | Yes                     | `global` or `workspace`.                                                                     |
-| `workspace` / `workspace_id` | Workspace triggers only | TOML uses `workspace`; API payloads and stored triggers use `workspace_id`.                  |
-| `target_kind`                | No                      | `agent` or `loop`. Omitted targets default to `agent` unless a `loop_target` is present.     |
-| `event`                      | Yes                     | Event name to match. Built-in events are documented below, and extension events use `ext.*`. |
-| `agent` / `agent_name`       | Agent targets           | Agent to run when the trigger matches. Must be empty for Loop targets.                       |
-| `prompt`                     | Agent targets           | Go `text/template` rendered against the activation envelope. Must be empty for Loop targets. |
-| `loop_target`                | Loop targets            | Selects `workspace_id`, `loop_name`, static `inputs`, and optional event `input_mapping`.    |
-| `filter`                     | No                      | Exact-match conditions on envelope fields.                                                   |
-| `enabled`                    | No                      | Defaults to `true` for parsed config definitions.                                            |
-| `retry`                      | No                      | Same retry policy as jobs. Defaults to `none`.                                               |
-| `fire_limit`                 | No                      | Same rolling fire limit as jobs. Defaults to `12/1h` unless changed.                         |
-| `endpoint_slug`              | Webhook triggers        | Human-readable webhook endpoint segment.                                                     |
-| `webhook_secret_ref`         | Webhook triggers        | `env:NAME` or `vault:automation/...` ref for the webhook signing secret.                     |
+| Field                        | Required                | Meaning                                                                                                                                                      |
+| ---------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`                       | Yes                     | Human-readable trigger name.                                                                                                                                 |
+| `scope`                      | Yes                     | `global` or `workspace`.                                                                                                                                     |
+| `workspace` / `workspace_id` | Workspace triggers only | TOML uses `workspace`; API payloads and stored triggers use `workspace_id`.                                                                                  |
+| `target_kind`                | No                      | `agent` or `loop`. Omitted targets default to `agent` unless a `loop_target` is present.                                                                     |
+| `event`                      | Yes                     | Event name to match. Built-in events are documented below, and extension events use `ext.*`.                                                                 |
+| `agent` / `agent_name`       | Agent targets           | Agent to run when the trigger matches. After trimming, it must match `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters). It must be empty for Loop targets. |
+| `prompt`                     | Agent targets           | Go `text/template` rendered against the activation envelope. Must be empty for Loop targets.                                                                 |
+| `loop_target`                | Loop targets            | Selects `workspace_id`, `loop_name`, static `inputs`, and optional event `input_mapping`.                                                                    |
+| `filter`                     | No                      | Exact-match conditions on envelope fields.                                                                                                                   |
+| `enabled`                    | No                      | Defaults to `true` for parsed config definitions.                                                                                                            |
+| `retry`                      | No                      | Same retry policy as jobs. Defaults to `none`.                                                                                                               |
+| `fire_limit`                 | No                      | Same rolling fire limit as jobs. Defaults to `12/1h` unless changed.                                                                                         |
+| `endpoint_slug`              | Webhook triggers        | Human-readable webhook endpoint segment.                                                                                                                     |
+| `webhook_secret_ref`         | Webhook triggers        | `env:NAME` or `vault:automation/...` ref for the webhook signing secret.                                                                                     |
 
 ## Target a Loop from an event
 

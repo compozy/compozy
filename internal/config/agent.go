@@ -282,38 +282,6 @@ func validateAgentCategoryPath(path []string) error {
 	return nil
 }
 
-// NormalizeAgentName returns the canonical in-memory agent identity.
-func NormalizeAgentName(name string) string {
-	return strings.TrimSpace(name)
-}
-
-// ValidateAgentName rejects names that could reshape the canonical agent path.
-func ValidateAgentName(name string) error {
-	trimmed := NormalizeAgentName(name)
-	switch {
-	case trimmed == "":
-		return errors.New("agent name is required")
-	case trimmed == "." || trimmed == "..":
-		return fmt.Errorf("agent name %q is invalid", trimmed)
-	case strings.Contains(trimmed, "/"), strings.Contains(trimmed, `\`):
-		return fmt.Errorf("agent name %q is invalid", trimmed)
-	default:
-		return nil
-	}
-}
-
-// ValidateAuthoredAgentName rejects names that cannot be materialized in an agent catalog.
-func ValidateAuthoredAgentName(name string) error {
-	trimmed := NormalizeAgentName(name)
-	if err := ValidateAgentName(trimmed); err != nil {
-		return err
-	}
-	if IsReservedAgentName(trimmed) {
-		return fmt.Errorf("%w: %q", ErrAgentNameReserved, trimmed)
-	}
-	return nil
-}
-
 func normalizeAgentSkillsConfig(config AgentSkillsConfig) AgentSkillsConfig {
 	if len(config.Disabled) == 0 {
 		return AgentSkillsConfig{}

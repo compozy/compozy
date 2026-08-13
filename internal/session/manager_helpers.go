@@ -194,10 +194,6 @@ func derefString(value *string) string {
 	return *value
 }
 
-func networkPeerID(agentName string, sessionID string) string {
-	return strings.ToLower(strings.TrimSpace(agentName)) + "." + strings.TrimSpace(sessionID)
-}
-
 func isProcessDone(proc *AgentProcess) bool {
 	if proc == nil {
 		return true

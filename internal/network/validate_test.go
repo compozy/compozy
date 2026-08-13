@@ -10,7 +10,40 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network/identifier"
 )
+
+func TestValidatePeerIDSharesCanonicalIdentifierContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should share the canonical identifier contract", func(t *testing.T) {
+		t.Parallel()
+
+		if PeerIDMaxLength != identifier.PeerIDMaxLength {
+			t.Fatalf("PeerIDMaxLength = %d, want %d", PeerIDMaxLength, identifier.PeerIDMaxLength)
+		}
+		if PeerIDPattern != identifier.PeerIDPattern {
+			t.Fatalf("PeerIDPattern = %q, want %q", PeerIDPattern, identifier.PeerIDPattern)
+		}
+
+		invalidPeerID := "Coder.sess-1234567890abcdef"
+		err := ValidatePeerID(invalidPeerID)
+		if !errors.Is(err, ErrInvalidField) {
+			t.Fatalf("ValidatePeerID() error = %v, want ErrInvalidField", err)
+		}
+		if !errors.Is(err, identifier.ErrInvalidField) {
+			t.Fatalf("ValidatePeerID() error = %v, want identifier.ErrInvalidField", err)
+		}
+		wantError := `network: invalid field: peer_id="Coder.sess-1234567890abcdef"`
+		if err.Error() != wantError {
+			t.Fatalf("ValidatePeerID() error = %q, want %q", err.Error(), wantError)
+		}
+
+		if err := ValidatePeerID(strings.Repeat("a", PeerIDMaxLength)); err != nil {
+			t.Fatalf("ValidatePeerID(maximum length) error = %v", err)
+		}
+	})
+}
 
 func TestProtocolIdentityConstants(t *testing.T) {
 	t.Parallel()

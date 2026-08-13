@@ -147,18 +147,25 @@ describe("AgentCreateDialog", () => {
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
-  it("Should block submit while a required Simple field is empty", async () => {
+  it("Should keep a noncanonical name visible and block submit with an inline error", async () => {
+    const onSubmit = vi.fn();
     const user = userEvent.setup();
-    renderStatefulDialog();
+    renderStatefulDialog({ onSubmit });
 
     expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
 
-    await user.type(screen.getByTestId("agent-create-name"), "../bad");
+    const nameInput = screen.getByTestId("agent-create-name");
+    await user.type(nameInput, "audio designer");
 
     expect(screen.getByTestId("agent-create-name-error")).toHaveTextContent(
-      "Agent names cannot be . or .. and cannot contain path separators."
+      "Start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and use at most 106 characters."
     );
-    expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
+    expect(nameInput).toHaveValue("audio designer");
+    expect(nameInput).toHaveAttribute("aria-invalid", "true");
+    const submit = screen.getByTestId("submit-agent-create");
+    expect(submit).toBeDisabled();
+    await user.click(submit);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("Should reveal Advanced instead of submitting when only a hidden field is invalid", async () => {

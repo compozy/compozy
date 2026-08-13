@@ -81,6 +81,10 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
+	if err := automationpkg.ValidateTriggerAgentName(validationTrigger, "trigger"); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		return
+	}
 	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
 		c,
 		"automation.triggers.create",
@@ -176,6 +180,10 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 		next, patchErr := applyTriggerPatch(current, req)
 		if patchErr != nil {
 			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(patchErr))
+			return
+		}
+		if err := automationpkg.ValidateTriggerAgentName(next, "trigger"); err != nil {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 			return
 		}
 		webhookSecret := webhookSecretWriteFromUpdateRequest(req)

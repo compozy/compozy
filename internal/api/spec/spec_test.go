@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -138,6 +139,67 @@ func TestValidateOperationRegistry(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document() error = %v", err)
+	}
+
+	t.Run("Should describe strict authored and required agent identities", func(t *testing.T) {
+		t.Parallel()
+
+		createAgent := jsonRequestSchema(t, operationFor(t, doc, "/api/agents", http.MethodPost))
+		assertRequired(t, createAgent, "agent")
+		createAgentPayload := propertySchema(t, createAgent, "agent")
+		assertRequired(t, createAgentPayload, "name")
+		assertAgentNameRequestSchema(t, "create agent name", propertySchema(t, createAgentPayload, "name"), compozyconfig.AgentNamePattern)
+
+		duplicateAgent := jsonRequestSchema(t, operationFor(t, doc, "/api/agents/{name}/duplicate", http.MethodPost))
+		assertRequired(t, duplicateAgent, "name")
+		assertAgentNameRequestSchema(t, "duplicate agent name", propertySchema(t, duplicateAgent, "name"), compozyconfig.AgentNamePattern)
+
+		spawnAgent := jsonRequestSchema(t, operationFor(t, doc, "/api/agent/spawn", http.MethodPost))
+		assertRequired(t, spawnAgent, "agent_name")
+		assertAgentNameRequestSchema(t, "spawn agent_name", propertySchema(t, spawnAgent, "agent_name"), compozyconfig.AgentNamePattern)
+	})
+
+	t.Run("Should describe empty-or-canonical reference fields without changing requiredness", func(t *testing.T) {
+		t.Parallel()
+
+		createSession := jsonRequestSchema(t, operationFor(t, doc, "/api/sessions", http.MethodPost))
+		assertNotRequired(t, createSession, "agent_name")
+		assertAgentNameRequestSchema(t, "create session agent_name", propertySchema(t, createSession, "agent_name"), compozyconfig.OptionalAgentNamePattern)
+
+		createWorkspace := jsonRequestSchema(t, operationFor(t, doc, "/api/workspaces", http.MethodPost))
+		assertNotRequired(t, createWorkspace, "default_agent")
+		assertAgentNameRequestSchema(t, "create workspace default_agent", propertySchema(t, createWorkspace, "default_agent"), compozyconfig.OptionalAgentNamePattern)
+
+		updateWorkspace := jsonRequestSchema(t, operationFor(t, doc, "/api/workspaces/{id}", http.MethodPatch))
+		assertRequired(t, updateWorkspace, "default_agent")
+		assertAgentNameRequestSchema(t, "update workspace default_agent", propertySchema(t, updateWorkspace, "default_agent"), compozyconfig.OptionalAgentNamePattern)
+
+		createJob := jsonRequestSchema(t, operationFor(t, doc, "/api/automation/jobs", http.MethodPost))
+		assertRequired(t, createJob, "agent_name")
+		assertAgentNameRequestSchema(t, "create job agent_name", propertySchema(t, createJob, "agent_name"), compozyconfig.OptionalAgentNamePattern)
+
+		createTrigger := jsonRequestSchema(t, operationFor(t, doc, "/api/automation/triggers", http.MethodPost))
+		assertRequired(t, createTrigger, "agent_name")
+		assertAgentNameRequestSchema(t, "create trigger agent_name", propertySchema(t, createTrigger, "agent_name"), compozyconfig.OptionalAgentNamePattern)
+
+		updateGeneral := jsonRequestSchema(t, operationFor(t, doc, "/api/settings/general", http.MethodPatch))
+		defaults := propertySchema(t, propertySchema(t, updateGeneral, "config"), "defaults")
+		assertRequired(t, defaults, "agent")
+		assertAgentNameRequestSchema(t, "settings defaults agent", propertySchema(t, defaults, "agent"), compozyconfig.OptionalAgentNamePattern)
+
+		updateRoles := jsonRequestSchema(t, operationFor(t, doc, "/api/settings/roles", http.MethodPatch))
+		dreamRole := propertySchema(t, propertySchema(t, updateRoles, "config"), "dream")
+		assertRequired(t, dreamRole, "agent")
+		assertAgentNameRequestSchema(t, "settings role agent", propertySchema(t, dreamRole, "agent"), compozyconfig.OptionalAgentNamePattern)
+	})
 }
 
 func validRegistryOperation() OperationSpec {
@@ -3140,6 +3202,20 @@ func propertySchema(t *testing.T, schema *openapi3.Schema, name string) *openapi
 		t.Fatalf("missing property %q", name)
 	}
 	return propertyRef.Value
+}
+
+func assertAgentNameRequestSchema(t *testing.T, owner string, schema *openapi3.Schema, pattern string) {
+	t.Helper()
+
+	if schema.Type == nil || !schema.Type.Is("string") {
+		t.Fatalf("%s type = %#v, want string", owner, schema.Type)
+	}
+	if schema.Pattern != pattern {
+		t.Fatalf("%s pattern = %q, want %q", owner, schema.Pattern, pattern)
+	}
+	if schema.MaxLength == nil || *schema.MaxLength != uint64(compozyconfig.AgentNameMaxLength) {
+		t.Fatalf("%s maxLength = %v, want %d", owner, schema.MaxLength, compozyconfig.AgentNameMaxLength)
+	}
 }
 
 func assertPropertyAbsent(t *testing.T, schema *openapi3.Schema, name string) {

@@ -34,6 +34,38 @@ function baseDraft(reasoningEffort: string): AgentCreateDialogDraft {
   };
 }
 
+describe("agent-create-draft name validation", () => {
+  it.each(["designer", "designer2", "audio-designer", "audio_designer", "a".repeat(106)])(
+    "Should accept the canonical agent name %s",
+    name => {
+      const validation = validateAgentCreateDraft({ ...baseDraft(""), name }, context);
+
+      expect(validation.fields.name).toBeUndefined();
+      expect(validation.simpleValid).toBe(true);
+      expect(validation.canSubmit).toBe(true);
+    }
+  );
+
+  it.each([
+    "audio designer",
+    "AudioDesigner",
+    "2designer",
+    "audio.designer",
+    "áudio_designer",
+    "a".repeat(107),
+  ])("Should reject the noncanonical agent name %s", name => {
+    const draft = { ...baseDraft(""), name };
+    const validation = validateAgentCreateDraft(draft, context);
+
+    expect(validation.fields.name).toBe(
+      "Start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and use at most 106 characters."
+    );
+    expect(validation.simpleValid).toBe(false);
+    expect(validation.canSubmit).toBe(false);
+    expect(buildCreateAgentParams(draft, null, context)).toBeNull();
+  });
+});
+
 describe("agent-create-draft reasoning effort validation", () => {
   it("Should inherit project runtime when no provider override is authored", () => {
     const draft = {
@@ -167,5 +199,19 @@ describe("duplicate draft mapping", () => {
       },
     });
     expect(params).not.toHaveProperty("agent");
+  });
+
+  it("Should return null when the duplicate name is noncanonical", () => {
+    const draft = {
+      ...buildDraftFromAgentPayload(source, true),
+      name: "release captain copy",
+    };
+    const workspaceContext: AgentCreateValidationContext = {
+      ...context,
+      hasActiveWorkspace: true,
+      providerOptions,
+    };
+
+    expect(buildDuplicateAgentParams(source, draft, "ws_alpha", workspaceContext)).toBeNull();
   });
 });

@@ -81,13 +81,13 @@ const workspaceRefInputSchema = `{
 	"additionalProperties":false
 }`
 
-const agentCreateInputSchema = `{
+var agentCreateInputSchema = `{
 	"type":"object",
 	"required":["scope","name","prompt"],
 	"properties":{
 		"scope":{"type":"string","enum":["global","workspace"]},
 		"workspace":{"type":"string"},
-		"name":{"type":"string"},
+		"name":` + agentNameInputSchema + `,
 		"provider":{"type":"string"},
 		"model":{"type":"string"},
 		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},

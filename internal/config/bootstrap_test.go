@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,64 @@ func TestResolveAgentNameFallsBackToDefaults(t *testing.T) {
 	if resolved != DefaultAgentName {
 		t.Fatalf("ResolveAgentName() = %q, want %q", resolved, DefaultAgentName)
 	}
+}
+
+func TestDefaultsAgentNameValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow an empty default agent as no override", func(t *testing.T) {
+		t.Parallel()
+
+		if err := (DefaultsConfig{}).Validate(); err != nil {
+			t.Fatalf("DefaultsConfig.Validate() error = %v, want nil", err)
+		}
+		_, err := ResolveAgentName("", DefaultsConfig{})
+		const wantErr = "agent name is required; run `compozy install` or set defaults.agent"
+		if err == nil || err.Error() != wantErr {
+			t.Fatalf("ResolveAgentName() error = %v, want %q", err, wantErr)
+		}
+	})
+
+	t.Run("Should reject an invalid explicit or default agent name", func(t *testing.T) {
+		t.Parallel()
+
+		const invalidName = "audio designer"
+		wantErr := `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`
+		for _, tc := range []struct {
+			name     string
+			explicit string
+			defaults DefaultsConfig
+		}{
+			{name: "Should reject explicit", explicit: invalidName, defaults: DefaultsConfig{Agent: DefaultAgentName}},
+			{name: "Should reject default", defaults: DefaultsConfig{Agent: invalidName}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := ResolveAgentName(tc.explicit, tc.defaults)
+				if err == nil || err.Error() != wantErr {
+					t.Fatalf("ResolveAgentName() error = %v, want %q", err, wantErr)
+				}
+			})
+		}
+	})
+
+	t.Run("Should return a structured defaults path for an invalid name", func(t *testing.T) {
+		t.Parallel()
+
+		err := (DefaultsConfig{Agent: "audio designer"}).Validate()
+		var validationErr ValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("DefaultsConfig.Validate() error = %T, want ValidationError", err)
+		}
+		if got, want := validationErr.Path, "defaults.agent"; got != want {
+			t.Fatalf("DefaultsConfig.Validate() path = %q, want %q", got, want)
+		}
+		wantMessage := `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`
+		if got := validationErr.Message; got != wantMessage {
+			t.Fatalf("DefaultsConfig.Validate() message = %q, want %q", got, wantMessage)
+		}
+	})
 }
 
 func TestSaveBootstrapConfigWritesManagedDefaults(t *testing.T) {

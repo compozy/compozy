@@ -9,6 +9,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/network/identifier"
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
@@ -53,6 +54,11 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	)
 	if err != nil {
 		return sessionStartSpec{}, err
+	}
+	if networkParticipation.Mode == participation.ModeLive {
+		if err := validateLiveNetworkPeerID(agentName, sessionID); err != nil {
+			return sessionStartSpec{}, err
+		}
 	}
 	requestedSpeed, err := normalizeRequestedSpeed(opts.Speed)
 	if err != nil {
@@ -150,7 +156,7 @@ func (m *Manager) createSessionID(desired string) (string, error) {
 			return "", errors.New("session: session id generator returned empty id")
 		}
 	}
-	if len(sessionID) > 128 || sessionID == "." || sessionID == ".." || filepath.Base(sessionID) != sessionID ||
+	if len(sessionID) > identifier.PeerIDMaxLength || sessionID == "." || sessionID == ".." || filepath.Base(sessionID) != sessionID ||
 		strings.ContainsAny(sessionID, `/\\`) {
 		return "", fmt.Errorf("%w: invalid preallocated session id %q", ErrValidation, sessionID)
 	}

@@ -49,6 +49,16 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.SettingsMCPCatalogInputPayload]():      customizeSettingsMCPCatalogInputSchema,
 	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest]():      customizeSettingsMCPAuthExchangeRequestSchema,
 	reflect.TypeFor[contract.AttachSessionRequest]():                customizeAttachSessionRequestSchema,
+	reflect.TypeFor[contract.CreateAgentPayload]():                  customizeCreateAgentPayloadSchema,
+	reflect.TypeFor[contract.DuplicateAgentRequest]():               customizeDuplicateAgentRequestSchema,
+	reflect.TypeFor[contract.AgentSpawnRequest]():                   customizeAgentSpawnRequestSchema,
+	reflect.TypeFor[contract.CreateSessionRequest]():                customizeCreateSessionRequestSchema,
+	reflect.TypeFor[contract.CreateWorkspaceRequest]():              customizeWorkspaceAgentNameSchema,
+	reflect.TypeFor[contract.UpdateWorkspaceRequest]():              customizeWorkspaceAgentNameSchema,
+	reflect.TypeFor[contract.CreateJobRequest]():                    customizeJobAgentNameSchema,
+	reflect.TypeFor[contract.CreateTriggerRequest]():                customizeTriggerAgentNameSchema,
+	reflect.TypeFor[contract.SettingsDefaultsPayload]():             customizeSettingsDefaultsSchema,
+	reflect.TypeFor[contract.SettingsRoleConfigPayload]():           customizeSettingsRoleSchema,
 	reflect.TypeFor[contract.SchedulerDrainRequest]():               customizeSchedulerDrainRequestSchema,
 	rawMessageType: func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewSchema()

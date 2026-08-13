@@ -80,10 +80,6 @@ func (m *Manager) joinNetworkPeerWithBinding(
 	if session == nil || spec.Mode != participation.ModeLive {
 		return nil
 	}
-	lifecycle := m.currentNetworkPeerLifecycle()
-	if lifecycle == nil {
-		return nil
-	}
 
 	session.networkPeerMu.Lock()
 	defer session.networkPeerMu.Unlock()
@@ -91,6 +87,13 @@ func (m *Manager) joinNetworkPeerWithBinding(
 	info := session.Info()
 	if requireActive && info.State != StateActive {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, info.ID)
+	}
+	if err := validateLiveNetworkPeerID(info.AgentName, info.ID); err != nil {
+		return err
+	}
+	lifecycle := m.currentNetworkPeerLifecycle()
+	if lifecycle == nil {
+		return nil
 	}
 	return lifecycle.JoinChannel(
 		ctx,

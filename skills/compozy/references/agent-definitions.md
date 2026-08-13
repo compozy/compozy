@@ -35,7 +35,7 @@ The prompt body is required. CompozyOS rejects an agent definition with no promp
 
 ## Fields
 
-- name is required and must match the directory name for filesystem-loaded agents.
+- name is required. Outer whitespace is trimmed, and the result must match `^[a-z][a-z0-9_-]{0,105}$`: start with a lowercase ASCII letter, then use lowercase ASCII letters, numbers, hyphens, or underscores; the maximum length is 106 characters. Filesystem-loaded agents must also match the directory name.
 - provider, model, reasoning_effort, and command can be omitted when defaults supply them.
 - reasoning_effort is `none|minimal|low|medium|high|xhigh|max`; a session override wins over AGENT.md, which wins over the selected curated model's default effort. Empty after that cascade keeps the provider/adapter default.
 - tools grants exact ToolIDs or namespace-prefix wildcard patterns.
@@ -124,7 +124,7 @@ The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:
 5. Reconcile desired config with runtime truth after config edits, using `compozy config reload -o json` when the daemon is running.
 6. Validate with CompozyOS CLI/API rather than guessing from file shape.
 
-If CompozyOS rejects the agent, inspect missing name, invalid permissions, empty prompt body, malformed mcp_servers, or a directory/name mismatch first.
+If CompozyOS rejects the agent, inspect the name format, invalid permissions, empty prompt body, malformed mcp_servers, or a directory/name mismatch first. Use names such as `code-reviewer` or `code_reviewer`; names with spaces or uppercase letters are invalid.
 
 ## Provider Aliases And Settings Apply
 

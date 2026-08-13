@@ -18119,6 +18119,8 @@
               "schema": {
                 "properties": {
                   "agent_name": {
+                    "maxLength": 106,
+                    "pattern": "^[a-z][a-z0-9_-]{0,105}$",
                     "type": "string"
                   },
                   "auto_stop_on_parent": {
@@ -24671,6 +24673,8 @@
                         "type": "string"
                       },
                       "name": {
+                        "maxLength": 106,
+                        "pattern": "^[a-z][a-z0-9_-]{0,105}$",
                         "type": "string"
                       },
                       "permissions": {
@@ -27112,6 +27116,8 @@
                         "type": "string"
                       },
                       "name": {
+                        "maxLength": 106,
+                        "pattern": "^[a-z][a-z0-9_-]{0,105}$",
                         "type": "string"
                       },
                       "permissions": {
@@ -27973,6 +27979,8 @@
               "schema": {
                 "properties": {
                   "name": {
+                    "maxLength": 106,
+                    "pattern": "^[a-z][a-z0-9_-]{0,105}$",
                     "type": "string"
                   },
                   "overrides": {
@@ -42402,6 +42410,8 @@
               "schema": {
                 "properties": {
                   "agent_name": {
+                    "maxLength": 106,
+                    "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                     "type": "string"
                   },
                   "enabled": {
@@ -50190,6 +50200,8 @@
               "schema": {
                 "properties": {
                   "agent_name": {
+                    "maxLength": 106,
+                    "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                     "type": "string"
                   },
                   "enabled": {
@@ -121150,6 +121162,8 @@
               "schema": {
                 "properties": {
                   "agent_name": {
+                    "maxLength": 106,
+                    "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                     "type": "string"
                   },
                   "name": {
@@ -125505,6 +125519,8 @@
                         "defaults": {
                           "properties": {
                             "agent": {
+                              "maxLength": 106,
+                              "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                               "type": "string"
                             },
                             "provider": {
@@ -125831,6 +125847,8 @@
                       "defaults": {
                         "properties": {
                           "agent": {
+                            "maxLength": 106,
+                            "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                             "type": "string"
                           },
                           "provider": {
@@ -141146,6 +141164,8 @@
                         "auto_title": {
                           "properties": {
                             "agent": {
+                              "maxLength": 106,
+                              "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                               "type": "string"
                             },
                             "enabled": {
@@ -141196,6 +141216,8 @@
                         "checkpoint_summary": {
                           "properties": {
                             "agent": {
+                              "maxLength": 106,
+                              "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                               "type": "string"
                             },
                             "enabled": {
@@ -141308,6 +141330,8 @@
                         "dream": {
                           "properties": {
                             "agent": {
+                              "maxLength": 106,
+                              "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                               "type": "string"
                             },
                             "enabled": {
@@ -141420,6 +141444,8 @@
                         "memory_extractor": {
                           "properties": {
                             "agent": {
+                              "maxLength": 106,
+                              "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                               "type": "string"
                             },
                             "enabled": {
@@ -141606,6 +141632,8 @@
                       "auto_title": {
                         "properties": {
                           "agent": {
+                            "maxLength": 106,
+                            "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                             "type": "string"
                           },
                           "enabled": {
@@ -141656,6 +141684,8 @@
                       "checkpoint_summary": {
                         "properties": {
                           "agent": {
+                            "maxLength": 106,
+                            "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                             "type": "string"
                           },
                           "enabled": {
@@ -141768,6 +141798,8 @@
                       "dream": {
                         "properties": {
                           "agent": {
+                            "maxLength": 106,
+                            "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                             "type": "string"
                           },
                           "enabled": {
@@ -141880,6 +141912,8 @@
                       "memory_extractor": {
                         "properties": {
                           "agent": {
+                            "maxLength": 106,
+                            "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                             "type": "string"
                           },
                           "enabled": {
@@ -214115,6 +214149,8 @@
                     "type": "array"
                   },
                   "default_agent": {
+                    "maxLength": 106,
+                    "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                     "type": "string"
                   },
                   "name": {
@@ -216209,7 +216245,9 @@
                     "type": "array"
                   },
                   "default_agent": {
+                    "maxLength": 106,
                     "nullable": true,
+                    "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
                     "type": "string"
                   },
                   "name": {

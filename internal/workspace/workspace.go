@@ -32,6 +32,8 @@ var (
 	ErrWorkspaceIdentityInvalid = errors.New("workspace identity invalid")
 	// ErrWorkspaceIdentityPermissionDenied reports a fail-closed identity file permission failure.
 	ErrWorkspaceIdentityPermissionDenied = errors.New("workspace identity permission denied")
+	// ErrWorkspaceValidation reports an invalid mutable workspace field.
+	ErrWorkspaceValidation = errors.New("workspace validation failed")
 )
 
 // Workspace is the persisted workspace registration stored in the global database.

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -179,6 +180,57 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
 		assertSessionRuntimeMutationSchemas(t, descriptors)
 		assertSessionInputSchemas(t, descriptors)
+	})
+
+	t.Run("Should describe canonical agent name constraints on native inputs", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		for _, testCase := range []struct {
+			id       toolspkg.ToolID
+			property string
+			pattern  string
+		}{
+			{
+				id:       toolspkg.ToolIDAgentCreate,
+				property: "name",
+				pattern:  compozyconfig.AgentNamePattern,
+			},
+			{
+				id:       toolspkg.ToolIDSessionCreate,
+				property: "agent",
+				pattern:  compozyconfig.AgentNamePattern,
+			},
+			{
+				id:       toolspkg.ToolIDAutomationJobsCreate,
+				property: "agent_name",
+				pattern:  compozyconfig.OptionalAgentNamePattern,
+			},
+			{
+				id:       toolspkg.ToolIDAutomationTriggersCreate,
+				property: "agent_name",
+				pattern:  compozyconfig.OptionalAgentNamePattern,
+			},
+		} {
+			t.Run("Should describe "+testCase.id.String()+" "+testCase.property, func(t *testing.T) {
+				t.Parallel()
+
+				var input nativeObjectSchema
+				descriptor := descriptors[testCase.id]
+				if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+					t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+				}
+				if !slices.Contains(input.Required, testCase.property) {
+					t.Fatalf("%s input required = %#v, want %q retained", descriptor.ID, input.Required, testCase.property)
+				}
+				assertNativeAgentNameInputSchema(
+					t,
+					descriptor.ID.String(),
+					input.Properties[testCase.property],
+					testCase.pattern,
+				)
+			})
+		}
 	})
 
 	t.Run("Should expose a closed atomic memory operations batch schema", func(t *testing.T) {
@@ -1385,6 +1437,34 @@ type nativeObjectSchema struct {
 	MaxLength            int                        `json:"maxLength"`
 	Items                json.RawMessage            `json:"items"`
 	AdditionalProperties *bool                      `json:"additionalProperties"`
+}
+
+func assertNativeAgentNameInputSchema(
+	t *testing.T,
+	owner string,
+	raw json.RawMessage,
+	pattern string,
+) {
+	t.Helper()
+
+	var schema nativeObjectSchema
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("%s agent name schema unmarshal error = %v", owner, err)
+	}
+	if schema.Type != "string" {
+		t.Fatalf("%s agent name type = %q, want string", owner, schema.Type)
+	}
+	if schema.Pattern != pattern {
+		t.Fatalf("%s agent name pattern = %q, want %q", owner, schema.Pattern, pattern)
+	}
+	if schema.MaxLength != compozyconfig.AgentNameMaxLength {
+		t.Fatalf(
+			"%s agent name maxLength = %d, want %d",
+			owner,
+			schema.MaxLength,
+			compozyconfig.AgentNameMaxLength,
+		)
+	}
 }
 
 func assertTypedNetworkParticipationSchema(t *testing.T, owner string, raw json.RawMessage) {

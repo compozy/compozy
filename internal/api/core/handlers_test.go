@@ -2678,6 +2678,35 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a noncanonical agent name without writing a directory", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		body := mustJSON(t, contract.CreateAgentRequest{
+			Scope: contract.AgentCreateScopeGlobal,
+			Agent: contract.CreateAgentPayload{
+				Name:     "audio designer",
+				Provider: "codex",
+				Prompt:   "Prompt.",
+			},
+		})
+
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		assertAPIErrorResponse(t, resp, http.StatusBadRequest, "agent name")
+
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "audio designer")
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want os.ErrNotExist", path, err)
+		}
+	})
+
 	t.Run("Should map unresolved workspaces through workspace errors", func(t *testing.T) {
 		t.Parallel()
 

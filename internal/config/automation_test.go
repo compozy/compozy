@@ -1,9 +1,12 @@
 package config
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	automationpkg "github.com/compozy/compozy/internal/automation/model"
 )
 
 func TestLoadParsesAutomationConfigAndAppliesConfigSourceDefaults(t *testing.T) {
@@ -337,6 +340,71 @@ prompt = "Review {{ .Kind }}"
 			}
 			if got := err.Error(); !strings.Contains(got, tc.wantErr) {
 				t.Fatalf("Load() error = %q, want substring %q", got, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestConfigAutomationAgentReferencesValidateAtTheirOwningBoundary(t *testing.T) {
+	t.Parallel()
+
+	const wantMessage = `agent name "audio designer" must start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and be at most 106 characters`
+	tests := []struct {
+		name     string
+		validate func() error
+		wantPath string
+	}{
+		{
+			name: "Should reject an invalid job agent reference",
+			validate: func() error {
+				return (AutomationJob{
+					Scope:     automationpkg.AutomationScopeGlobal,
+					Name:      "health-check",
+					AgentName: "audio designer",
+					Prompt:    "Check system health",
+					Schedule: automationpkg.ScheduleSpec{
+						Mode:     automationpkg.ScheduleModeEvery,
+						Interval: "30m",
+					},
+					Retry:     automationpkg.DefaultRetryConfig(),
+					FireLimit: automationpkg.DefaultFireLimitConfig(),
+					Source:    automationpkg.JobSourceConfig,
+				}).Validate("automation.jobs[0]")
+			},
+			wantPath: "automation.jobs[0].agent",
+		},
+		{
+			name: "Should reject an invalid trigger agent reference",
+			validate: func() error {
+				return (AutomationTrigger{
+					Scope:     automationpkg.AutomationScopeGlobal,
+					Name:      "post-run",
+					AgentName: "audio designer",
+					Prompt:    "Summarize {{ .Kind }}",
+					Event:     "session.stopped",
+					Retry:     automationpkg.DefaultRetryConfig(),
+					FireLimit: automationpkg.DefaultFireLimitConfig(),
+					Source:    automationpkg.JobSourceConfig,
+				}).Validate("automation.triggers[0]")
+			},
+			wantPath: "automation.triggers[0].agent",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.validate()
+			var validationErr ValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("validation error = %T, want ValidationError", err)
+			}
+			if got := validationErr.Path; got != tc.wantPath {
+				t.Fatalf("validation path = %q, want %q", got, tc.wantPath)
+			}
+			if got := validationErr.Message; got != wantMessage {
+				t.Fatalf("validation message = %q, want %q", got, wantMessage)
 			}
 		})
 	}

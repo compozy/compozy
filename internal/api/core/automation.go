@@ -89,6 +89,10 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
+	if err := automationpkg.ValidateJobAgentName(job, "job"); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		return
+	}
 
 	created, err := manager.CreateJob(c.Request.Context(), job)
 	if err != nil {
@@ -182,6 +186,10 @@ func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 			return
 		}
 		if err := next.Validate("job"); err != nil {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+			return
+		}
+		if err := automationpkg.ValidateJobAgentName(next, "job"); err != nil {
 			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 			return
 		}
