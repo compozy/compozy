@@ -31,7 +31,7 @@ import {
 } from "@/systems/loops";
 import { DEFAULT_MEMORY_LIST_LIMIT, memoriesListOptions, useMemories } from "@/systems/knowledge";
 import { useNotificationPresets } from "@/systems/notifications";
-import { useOnboardingStatus } from "@/systems/onboarding";
+import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
@@ -1050,6 +1050,32 @@ describe("route query preloading", () => {
     expect(queryClient.getQueryState(testCase.queryKey)?.status).toBe("error");
     queryClient.clear();
   });
+
+  it.each([
+    {
+      name: "onboarding status",
+      reject: () =>
+        adapterMocks.fetchOnboardingStatus.mockRejectedValue(new Error("onboarding unavailable")),
+      queryKey: onboardingStatusOptions().queryKey,
+    },
+    {
+      name: "workspace catalog",
+      reject: () =>
+        adapterMocks.fetchWorkspaces.mockRejectedValue(new Error("workspaces unavailable")),
+      queryKey: workspacesListOptions().queryKey,
+    },
+  ])(
+    "Should preserve a failed app-shell $name query without rejecting navigation",
+    async testCase => {
+      const queryClient = createQueryClient();
+      testCase.reject();
+
+      await expect(invokeLoader(AppRoute, context(queryClient))).resolves.toBeUndefined();
+
+      expect(queryClient.getQueryState(testCase.queryKey)?.status).toBe("error");
+      queryClient.clear();
+    }
+  );
 
   it("Should preload the inbox badge and defer the stale inbox request until mount", async () => {
     const queryClient = createQueryClient();

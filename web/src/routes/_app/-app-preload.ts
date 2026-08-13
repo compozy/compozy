@@ -7,18 +7,20 @@ import { sessionsListOptions } from "@/systems/session";
 import { workspaceDetailOptions } from "@/systems/workspace";
 
 export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
-  const [[onboardingResult], workspaceId] = await Promise.all([
-    Promise.allSettled([queryClient.ensureQueryData(onboardingStatusOptions())] as const),
+  const [onboardingResult, workspaceResult] = await Promise.allSettled([
+    queryClient.ensureQueryData(onboardingStatusOptions()),
     resolveActiveWorkspaceId(queryClient),
   ]);
 
   if (
     onboardingResult.status === "rejected" ||
+    workspaceResult.status === "rejected" ||
     onboardingResult.value.completed !== true ||
-    !workspaceId
+    !workspaceResult.value
   ) {
     return;
   }
+  const workspaceId = workspaceResult.value;
 
   await settleRouteQueries([
     queryClient.ensureQueryData(agentsListOptions(workspaceId)),
