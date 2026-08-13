@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-08-11
+## 0.3.0 - 2026-08-13
 
 ### ♻️ Refactoring
 
@@ -64,6 +64,16 @@
 - Adjust project copy
 - Publish staged GitHub release drafts
 - Repair release integration contracts
+- Harden desktop startup and diagnostics (#343)
+- Resolve desktop and session usability issues (#351)
+- Recover canceled Loop coordinators on restart (#353)
+- Resolve extension-published agents for session command catalogs (#350)
+- Eliminate persistent performance bottlenecks (#354)
+- Reject automation trigger events no producer emits (#358)
+- Read loop watch-events with a stream-global cursor (#356)
+- Prevent session timeline render loops (#361)
+- Align update artifacts with release policy (#363)
+- Canonicalize desktop runtime manifests (#364)
 
 ### 🧪 Testing
 
