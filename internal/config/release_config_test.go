@@ -475,7 +475,7 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"release_previous_tag:",
 		"release_git_range:",
 		"release_initial:",
-		"github.com/compozy/releasepr@v0.0.27",
+		"github.com/compozy/releasepr@v0.0.28",
 		"COMPOZY_WEB_ASSETS_TOKEN: ${{ secrets.COMPOZY_WEB_ASSETS_TOKEN }}",
 		"go run \"${PR_RELEASE_MODULE}\" plan",
 		"if [[ \"${GITHUB_EVENT_NAME}\" == \"workflow_dispatch\" ]]",
@@ -1551,21 +1551,23 @@ func TestReleaseWorkflowKeepsRepositoryCleanBeforeTagPublication(t *testing.T) {
 
 	t.Run("Should run the same preflight before dry-run and tag publication", func(t *testing.T) {
 		t.Parallel()
-		releasePRTrigger := "startsWith(github.event.pull_request.title, 'release: release ')"
+		releasePRTrigger := "startsWith(github.event.pull_request.title, 'build: release ')"
 		if got := strings.Count(workflow, releasePRTrigger); got != 4 {
 			t.Fatalf("semantic release PR trigger count = %d, want 4", got)
-		}
-		ciReleasePRTrigger := "startsWith(github.event.pull_request.title, 'ci(release): release ')"
-		if got := strings.Count(workflow, ciReleasePRTrigger); got != 4 {
-			t.Fatalf("semantic ci(release) PR trigger count = %d, want 4", got)
 		}
 		assertContainsText(
 			t,
 			"semantic release merge trigger",
 			workflow,
-			"startsWith(github.event.head_commit.message, 'release: release ')",
+			"startsWith(github.event.head_commit.message, 'build: release ')",
 		)
-		assertNotContainsText(t, "non-semantic release title", workflow, "release: Release ")
+		assertContainsText(
+			t,
+			"semantic prepared release merge trigger",
+			workflow,
+			"startsWith(github.event.head_commit.message, 'build: prepare release ')",
+		)
+		assertNotContainsText(t, "non-conventional release title", workflow, "release: release ")
 
 		preflightDefinition := strings.Index(workflow, "- &run-release-preflight")
 		if preflightDefinition == -1 {

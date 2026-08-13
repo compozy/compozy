@@ -45,7 +45,7 @@ env:
   NODE_VERSION: "22"
   COSIGN_VERSION: "v3.1.3"
   INITIAL_VERSION: "v0.0.2"
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.27
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.28
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -116,8 +116,7 @@ jobs:
     name: Dry-Run Build Validation
     if: |
       github.event_name == 'pull_request' &&
-      (startsWith(github.event.pull_request.title, 'ci(release): release ') ||
-       startsWith(github.event.pull_request.title, 'release: release ') ||
+      (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -262,8 +261,7 @@ jobs:
     name: Dry-Run Desktop ${{ matrix.name }}
     if: |
       github.event_name == 'pull_request' &&
-      (startsWith(github.event.pull_request.title, 'ci(release): release ') ||
-       startsWith(github.event.pull_request.title, 'release: release ') ||
+      (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     strategy:
       fail-fast: false
@@ -450,8 +448,7 @@ jobs:
     name: E2E Nightly Lane
     if: |
       github.event_name == 'pull_request' &&
-      (startsWith(github.event.pull_request.title, 'ci(release): release ') ||
-       startsWith(github.event.pull_request.title, 'release: release ') ||
+      (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -505,8 +502,7 @@ jobs:
     name: Full Integration Suite
     if: |
       github.event_name == 'pull_request' &&
-      (startsWith(github.event.pull_request.title, 'ci(release): release ') ||
-       startsWith(github.event.pull_request.title, 'release: release ') ||
+      (startsWith(github.event.pull_request.title, 'build: release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 150
@@ -554,16 +550,16 @@ jobs:
   release-plan:
     name: Explicit Release Plan
     # Auto-beta triggers ONLY on release PR merge subjects. Two real-world
-    # shapes exist: the PR title ("release: release vX.Y.Z") and the branch
-    # commit subject GitHub uses for single-commit squashes ("release:
-    # prepare release vX.Y.Z" — how v0.3.0 merged as 7cf16a49). Other
-    # Other bot-generated subjects must stay inert or publishing loops.
+    # shapes exist: the PR title ("build: release vX.Y.Z") and the branch
+    # commit subject GitHub uses for single-commit squashes ("build:
+    # prepare release vX.Y.Z"). Other bot-generated subjects must stay inert
+    # or publishing loops.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' &&
        github.ref == 'refs/heads/main' &&
-       (startsWith(github.event.head_commit.message, 'release: release ') ||
-        startsWith(github.event.head_commit.message, 'release: prepare release ')) &&
+       (startsWith(github.event.head_commit.message, 'build: release ') ||
+        startsWith(github.event.head_commit.message, 'build: prepare release ')) &&
        vars.RELEASE_AUTO_CHANNEL == 'beta')
     runs-on: ubuntu-latest
     timeout-minutes: 15
