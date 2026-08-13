@@ -299,7 +299,9 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
 		situation.WorkspaceKnowledgeAugmenter,
 		memory.NewRecallAugmenter(state.memoryStore),
-		newSkillsCatalogAugmenter(state.skillsRegistry, func() promptSkillsWorkspaceResolver {
+		newSkillsCatalogAugmenter(state.skillsRegistry, func() session.AgentResolver {
+			return agentCatalogDependency(state.agentCatalog)
+		}, func() promptSkillsWorkspaceResolver {
 			return state.workspaceResolver
 		}),
 		state.situationContext.Augment,

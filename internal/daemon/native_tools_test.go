@@ -860,6 +860,68 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should list search and view skills for an extension agent session", func(t *testing.T) {
+		t.Parallel()
+
+		const skillContent = "Review changes carefully."
+		reviewSkill := &skills.Skill{
+			Meta:                   skills.SkillMeta{Name: "cy-review-round", Description: "Review changes."},
+			Source:                 skills.SourceBundled,
+			InstalledFromExtension: "dev-cycle",
+			FilePath:               "/extensions/dev-cycle/skills/cy-review-round/SKILL.md",
+			Enabled:                true,
+		}
+		skillRegistry := nativeExtensionAgentSkillsRegistry{
+			skills:  []*skills.Skill{reviewSkill},
+			content: skillContent,
+			nameErr: skills.ErrAgentNotFound,
+		}
+		manager := &nativeSessionAgentManager{
+			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
+			agent: compozyconfig.AgentDef{
+				Name:       "reviewer",
+				SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+			},
+		}
+		agentResolver := nativeExtensionAgentResolver{agent: manager.agent}
+		workspaceResolver := nativeNetworkTestWorkspaceService(t)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: workspaceResolver, WorkspaceResolver: workspaceResolver,
+			Skills: skillRegistry, AgentResolver: agentResolver,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{
+			Operator: true, WorkspaceID: "ws-command", SessionID: "sess-command", AgentName: "reviewer",
+		}
+
+		listResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSkillList,
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extension skill_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, listResult, []byte(`"cy-review-round"`))
+
+		searchResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSkillSearch,
+			Input:  json.RawMessage(`{"query":"review"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extension skill_search) error = %v", err)
+		}
+		requireNativeStructuredContains(t, searchResult, []byte(`"cy-review-round"`))
+
+		viewResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSkillView,
+			Input:  json.RawMessage(`{"name":"cy-review-round"}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(extension skill_view) error = %v", err)
+		}
+		if len(viewResult.Content) != 1 || viewResult.Content[0].Text != skillContent {
+			t.Fatalf("extension skill_view content = %#v, want %q", viewResult.Content, skillContent)
+		}
+	})
+
 	t.Run("Should list the same workspace-fenced session command catalog through the native tool", func(t *testing.T) {
 		t.Parallel()
 
@@ -2590,6 +2652,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(config_unset Loop input default) error = %v", err)
 		}
 		requireNativeStructuredContains(t, unsetLoopInputResult, []byte(`"deleted":true`))
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDConfigGet,
+				Input: json.RawMessage(fmt.Sprintf(
+					`{"path":%q,"workspace":%q}`,
+					loopInputPath,
+					loopInputWorkspace,
+				)),
+			},
+		)
+		requireToolReason(
+			t,
+			err,
+			toolspkg.ErrToolNotFound,
+			toolspkg.ReasonConfigPathNotFound,
+		)
 
 		_, err = registry.Call(
 			t.Context(),
@@ -10443,7 +10523,9 @@ func (m *nativeSessionAgentManagerWithoutSnapshot) SessionAgentDefinition(string
 type nativeExtensionAgentSkillsRegistry struct {
 	core.SkillsRegistry
 	candidates []skills.CommandCandidate
+	skills     []*skills.Skill
 	content    string
+	nameErr    error
 }
 
 func (r nativeExtensionAgentSkillsRegistry) ForAgentSession(
@@ -10452,7 +10534,7 @@ func (r nativeExtensionAgentSkillsRegistry) ForAgentSession(
 	string,
 	string,
 ) ([]*skills.Skill, error) {
-	return nil, nil
+	return nil, r.nameErr
 }
 
 func (r nativeExtensionAgentSkillsRegistry) ForAgentDefSession(
@@ -10461,7 +10543,7 @@ func (r nativeExtensionAgentSkillsRegistry) ForAgentDefSession(
 	compozyconfig.AgentDef,
 	string,
 ) ([]*skills.Skill, error) {
-	return nil, nil
+	return append([]*skills.Skill(nil), r.skills...), nil
 }
 
 func (r nativeExtensionAgentSkillsRegistry) CommandCandidatesForAgentSession(

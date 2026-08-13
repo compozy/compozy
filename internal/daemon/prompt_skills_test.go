@@ -227,7 +227,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/tmp/ws-1"},
 		}}
-		augmenter := newSkillsCatalogAugmenter(registry, func() promptSkillsWorkspaceResolver { return resolver })
+		augmenter := newSkillsCatalogAugmenter(registry, nil, func() promptSkillsWorkspaceResolver { return resolver })
 		sess := newPromptSkillsSession("sess-tool-gate")
 		sess.AgentName = "coordinator"
 
@@ -281,6 +281,89 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		}
 		if got, want := registry.concreteNames, []string{"packaged"}; !slices.Equal(got, want) {
 			t.Fatalf("concrete agent names = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should resolve an extension agent after the authored lookup reports it absent", func(t *testing.T) {
+		t.Parallel()
+
+		registry := &stubPromptSkillsRegistry{
+			skillsByAgent: map[string][]*skillspkg.Skill{
+				"reviewer": {{Meta: skillspkg.SkillMeta{Name: "cy-review-round"}, Enabled: true}},
+			},
+			nameErr: skillspkg.ErrAgentNotFound,
+		}
+		workspace := &workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-extension", RootDir: "/workspace"},
+		}
+		var resolver session.AgentResolver
+		augmenter := &skillsCatalogAugmenter{
+			registry:      registry,
+			agentResolver: func() session.AgentResolver { return resolver },
+		}
+		agent := compozyconfig.AgentDef{
+			Name: "reviewer", SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+		}
+		if _, err := augmenter.skillsForSessionAgent(
+			t.Context(), workspace, agent, "sess-extension",
+		); !errors.Is(err, skillspkg.ErrAgentNotFound) {
+			t.Fatalf("skillsForSessionAgent(before resolver) error = %v, want ErrAgentNotFound", err)
+		}
+		resolver = stubSessionCommandAgentResolver(func(
+			name string,
+			resolved *workspacepkg.ResolvedWorkspace,
+		) (compozyconfig.AgentDef, error) {
+			if name != "reviewer" || resolved.ID != "ws-extension" {
+				return compozyconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
+			}
+			return compozyconfig.AgentDef{Name: name, SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md"}, nil
+		})
+
+		got, err := augmenter.skillsForSessionAgent(
+			t.Context(),
+			workspace,
+			agent,
+			"sess-extension",
+		)
+		if err != nil {
+			t.Fatalf("skillsForSessionAgent(extension) error = %v", err)
+		}
+		if len(got) != 1 || got[0].Meta.Name != "cy-review-round" {
+			t.Fatalf("skillsForSessionAgent(extension) = %#v, want cy-review-round", got)
+		}
+		if got, want := registry.resolvedNames, []string{"reviewer", "reviewer"}; !slices.Equal(got, want) {
+			t.Fatalf("resolved agent names = %#v, want %#v", got, want)
+		}
+		if got, want := registry.concreteNames, []string{"reviewer"}; !slices.Equal(got, want) {
+			t.Fatalf("concrete agent names = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should preserve authored lookup failures without consulting the extension catalog", func(t *testing.T) {
+		t.Parallel()
+
+		registryErr := fmt.Errorf("%w: reviewer", skillspkg.ErrAgentLocalInvalid)
+		registry := &stubPromptSkillsRegistry{nameErr: registryErr}
+		resolverCalled := false
+		augmenter := &skillsCatalogAugmenter{
+			registry: registry,
+			agentResolver: func() session.AgentResolver {
+				resolverCalled = true
+				return nil
+			},
+		}
+
+		_, err := augmenter.skillsForSessionAgent(
+			t.Context(),
+			nil,
+			compozyconfig.AgentDef{Name: "reviewer", SourcePath: "/workspace/.compozy/agents/reviewer/AGENT.md"},
+			"sess-authored",
+		)
+		if !errors.Is(err, registryErr) {
+			t.Fatalf("skillsForSessionAgent(authored failure) error = %v, want %v", err, registryErr)
+		}
+		if resolverCalled {
+			t.Fatal("skillsForSessionAgent(authored failure) consulted the extension catalog")
 		}
 	})
 }
@@ -623,7 +706,7 @@ func newPromptSkillsAugmenterForTest(
 			},
 		},
 	}
-	augmenter := newSkillsCatalogAugmenter(registry, func() promptSkillsWorkspaceResolver {
+	augmenter := newSkillsCatalogAugmenter(registry, nil, func() promptSkillsWorkspaceResolver {
 		return resolver
 	})
 	if augmenter == nil {
@@ -645,6 +728,7 @@ type stubPromptSkillsRegistry struct {
 	skillsByAgent map[string][]*skillspkg.Skill
 	resolvedNames []string
 	concreteNames []string
+	nameErr       error
 }
 
 func (s *stubPromptSkillsRegistry) ForWorkspace(
@@ -677,6 +761,9 @@ func (s *stubPromptSkillsRegistry) ForAgentSession(
 		return nil, nil
 	}
 	s.resolvedNames = append(s.resolvedNames, agentName)
+	if s.nameErr != nil {
+		return nil, s.nameErr
+	}
 	return append([]*skillspkg.Skill(nil), s.skillsByAgent[agentName]...), nil
 }
 

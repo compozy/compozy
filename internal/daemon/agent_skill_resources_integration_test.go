@@ -559,7 +559,7 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			t.Fatalf("workspace B bundled content = %q, want cy-execute-task body", contentB)
 		}
 
-		augmenter := newSkillsCatalogAugmenter(rebuiltSkills, func() promptSkillsWorkspaceResolver {
+		augmenter := newSkillsCatalogAugmenter(rebuiltSkills, nil, func() promptSkillsWorkspaceResolver {
 			return workspaceResolver
 		})
 		for _, promptCase := range []struct {

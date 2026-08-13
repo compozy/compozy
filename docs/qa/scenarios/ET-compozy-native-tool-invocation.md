@@ -11,8 +11,8 @@ bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634
-evidence: /Users/pedronauck/dev/qa-labs/compozy-critical-runtime-ui-fixes-20260807-225222-371495-lab/qa-artifacts/qa/codex-native-tools-evidence.md
-last_report: docs/qa/reports/2026-08-07-critical-runtime-ui-fixes.md
+evidence: /home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/provider-hosted-mcp-summary.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/native-config-get-missing.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/native-config-set.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/native-config-get-reread.json;/home/franciscpd/dev/qa-labs/compozy-extension-agent-session-skills-20260813-122950-240954-lab/qa-artifacts/qa/operator-config-reread-after-provider.json
+last_report: docs/qa/reports/2026-08-13-extension-agent-session-skills.md
 overlaps: ET-native-tool-approval-grants;ET-workspace-host-api-mcp
 ---
 
@@ -25,3 +25,7 @@ session calls through `compozy-hosted-tools` without a CLI lease substitute.
 QA impact 2026-07-26: native ToolIDs, ToolsetIDs, and the hosted MCP façade now
 use the Compozy namespaces. Planning flag only; the next QA cycle owns real
 managed-session invocation plus explicit legacy-identifier rejection.
+
+QA impact 2026-08-13: reset because `compozy__config_get` now distinguishes an absent key with `config_path_not_found`, and extension-agent sessions share one skill resolver across native calls.
+
+QA verdict 2026-08-13: passed. The live extension-agent Codex session invoked `compozy__command_list`, all three skill tools, and `compozy__config_get/set` through hosted MCP. An absent `loops.inputs.batuta-deliver.auto_commit` returned `config_path_not_found`; the session persisted workspace `false`, reread `false`, preserved `todo 1.0.0` literally, and did not modify repository files.

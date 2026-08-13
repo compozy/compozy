@@ -13,6 +13,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/skills"
 
@@ -66,10 +67,18 @@ func (n *daemonNativeTools) skillsForSessionAgent(
 	agent compozyconfig.AgentDef,
 	sessionID string,
 ) ([]*skills.Skill, error) {
-	if strings.TrimSpace(agent.SourcePath) == "" {
-		return n.deps.Skills.ForAgentDefSession(ctx, workspace, agent, sessionID)
-	}
-	return n.deps.Skills.ForAgentSession(ctx, workspace, agent.Name, sessionID)
+	return resolveSessionAgentProjection(sessionAgentProjection[[]*skills.Skill]{
+		agent:                 agent,
+		hasConcreteDefinition: true,
+		workspace:             workspace,
+		agentResolver:         func() session.AgentResolver { return n.deps.AgentResolver },
+		byName: func(agentName string) ([]*skills.Skill, error) {
+			return n.deps.Skills.ForAgentSession(ctx, workspace, agentName, sessionID)
+		},
+		byDefinition: func(resolvedAgent compozyconfig.AgentDef) ([]*skills.Skill, error) {
+			return n.deps.Skills.ForAgentDefSession(ctx, workspace, resolvedAgent, sessionID)
+		},
+	})
 }
 
 type sessionAgentDefinitionReader interface {

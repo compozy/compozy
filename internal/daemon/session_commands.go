@@ -171,61 +171,22 @@ func (s *sessionCommandService) commandSkillCandidates(
 	}
 	hasAgentSnapshot := strings.TrimSpace(agent.Name) != ""
 	agent.Name = firstTrimmed(agent.Name, info.AgentName)
-	if hasAgentSnapshot && strings.TrimSpace(agent.SourcePath) == "" {
-		candidates, candidateErr := s.registry.CommandCandidatesForAgentDefSession(ctx, workspace, agent, info.ID)
-		if candidateErr != nil {
-			return nil, fmt.Errorf("daemon: project command skills: %w", candidateErr)
-		}
-		return candidates, nil
-	}
-
-	candidates, candidateErr := s.registry.CommandCandidatesForAgentSession(ctx, workspace, agent.Name, info.ID)
-	if candidateErr == nil {
-		return candidates, nil
-	}
-	if !errors.Is(candidateErr, skillspkg.ErrAgentNotFound) {
-		return nil, fmt.Errorf("daemon: project command skills: %w", candidateErr)
-	}
-
-	resolvedAgent, found, resolveErr := s.resolveAgentDef(agent.Name, workspace)
-	if resolveErr != nil {
-		return nil, resolveErr
-	}
-	if !found {
-		return nil, fmt.Errorf("daemon: project command skills: %w", candidateErr)
-	}
-	candidates, candidateErr = s.registry.CommandCandidatesForAgentDefSession(ctx, workspace, resolvedAgent, info.ID)
+	candidates, candidateErr := resolveSessionAgentProjection(sessionAgentProjection[[]skillspkg.CommandCandidate]{
+		agent:                 agent,
+		hasConcreteDefinition: hasAgentSnapshot,
+		workspace:             workspace,
+		agentResolver:         s.agentResolver,
+		byName: func(agentName string) ([]skillspkg.CommandCandidate, error) {
+			return s.registry.CommandCandidatesForAgentSession(ctx, workspace, agentName, info.ID)
+		},
+		byDefinition: func(resolvedAgent compozyconfig.AgentDef) ([]skillspkg.CommandCandidate, error) {
+			return s.registry.CommandCandidatesForAgentDefSession(ctx, workspace, resolvedAgent, info.ID)
+		},
+	})
 	if candidateErr != nil {
 		return nil, fmt.Errorf("daemon: project command skills: %w", candidateErr)
 	}
 	return candidates, nil
-}
-
-// resolveAgentDef resolves extension-published and bundled agents after the name-based registry
-// reports them absent. A false result preserves the registry's original not-found error.
-func (s *sessionCommandService) resolveAgentDef(
-	agentName string,
-	workspace *workspacepkg.ResolvedWorkspace,
-) (compozyconfig.AgentDef, bool, error) {
-	if s.agentResolver == nil || strings.TrimSpace(agentName) == "" {
-		return compozyconfig.AgentDef{}, false, nil
-	}
-	resolver := s.agentResolver()
-	if resolver == nil {
-		return compozyconfig.AgentDef{}, false, nil
-	}
-	resolved, err := resolver.ResolveAgent(agentName, workspace)
-	if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
-		return compozyconfig.AgentDef{}, false, nil
-	}
-	if err != nil {
-		return compozyconfig.AgentDef{}, false, fmt.Errorf(
-			"daemon: resolve command agent %q: %w",
-			agentName,
-			err,
-		)
-	}
-	return resolved, true, nil
 }
 
 func projectCommandSkillCandidates(
