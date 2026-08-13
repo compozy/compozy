@@ -4,6 +4,10 @@ import { joinAgentCategorySegments } from "./agent-category";
 import type { AgentPayload, CreateAgentParams, DuplicateAgentParams } from "../types";
 import type { RuntimeProviderOption } from "@/systems/runtime";
 
+const agentNamePattern = /^[a-z][a-z0-9_-]*$/;
+const invalidAgentNameMessage =
+  "Start with a lowercase letter and use only lowercase letters, numbers, hyphens, or underscores.";
+
 export type AgentCreateScope = CreateAgentParams["scope"];
 export type AgentCreatePermission = NonNullable<CreateAgentParams["agent"]["permissions"]>;
 export type AgentCreatePermissionChoice = "" | AgentCreatePermission;
@@ -167,8 +171,8 @@ export function validateAgentCreateDraft(
   const name = draft.name.trim();
   if (name.length === 0) {
     fields.name = "Enter an agent name.";
-  } else if (name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
-    fields.name = "Agent names cannot be . or .. and cannot contain path separators.";
+  } else if (!agentNamePattern.test(name)) {
+    fields.name = invalidAgentNameMessage;
   }
 
   if (draft.scope === "workspace" && !context.hasActiveWorkspace) {

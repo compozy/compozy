@@ -186,7 +186,7 @@ export const ValidationError: Story = {
     <AgentCreateDialogHarness
       initialDraft={{
         ...createDefaultAgentCreateDraft(true),
-        name: "../release",
+        name: "release captain",
         categoryPath: "Engineering//Release",
       }}
       initialMode="advanced"
@@ -195,7 +195,7 @@ export const ValidationError: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId("agent-create-name-error")).toHaveTextContent(
-      "Agent names cannot be . or .."
+      "Start with a lowercase letter and use only lowercase letters, numbers, hyphens, or underscores."
     );
     await expect(canvas.getByTestId("agent-create-category-path-error")).toHaveTextContent(
       "Category path cannot contain blank segments."
