@@ -691,12 +691,13 @@ func TestCoordinatorRunnerShouldYieldWhileAwaitingChildLoop(t *testing.T) {
 			Generation:  1,
 		}
 		childRun := Run{
-			ID:          "looprun-awaiting-child-live-child",
-			WorkspaceID: "ws-1",
-			LoopName:    "child",
-			Status:      StatusRunning,
-			Generation:  1,
-			CreatedAt:   time.Date(2026, 7, 4, 10, 0, 0, 0, time.UTC),
+			ID:              "looprun-awaiting-child-live-child",
+			WorkspaceID:     "ws-1",
+			LoopName:        "child",
+			Status:          StatusRunning,
+			Generation:      1,
+			ParentLoopRunID: loopRun.ID,
+			CreatedAt:       time.Date(2026, 7, 4, 10, 0, 0, 0, time.UTC),
 		}
 		coordinatorRun := task.Run{
 			ID:        "run-coordinator-awaiting-child-live",
@@ -731,6 +732,306 @@ func TestCoordinatorRunnerShouldYieldWhileAwaitingChildLoop(t *testing.T) {
 	})
 }
 
+func TestCoordinatorRunnerShouldRestoreAwaitedChildFromCompletedActionResult(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep dependent blocked while completed action child is live", func(t *testing.T) {
+		t.Parallel()
+
+		parent := Run{
+			ID:          "looprun-await-result-parent",
+			WorkspaceID: "ws-1",
+			LoopName:    "parent",
+			Status:      StatusRunning,
+			Generation:  1,
+		}
+		child := Run{
+			ID:              "looprun-await-result-child",
+			WorkspaceID:     parent.WorkspaceID,
+			LoopName:        "child",
+			Status:          StatusRunning,
+			Generation:      1,
+			ParentLoopRunID: parent.ID,
+		}
+		coordinatorRun := task.Run{
+			ID:        "run-coordinator-await-result",
+			TaskID:    "task-coordinator-await-result",
+			RunKind:   task.RunKindCoordinator,
+			LoopRunID: string(parent.ID),
+			Status:    task.TaskRunStatusClaimed,
+		}
+		completedRun := task.Run{
+			ID:        coordinatorNodeRunID(parent.ID, 1, "first_child", 0),
+			TaskID:    coordinatorNodeTaskID(parent.ID, 1, "first_child", 0),
+			RunKind:   task.RunKindWorker,
+			LoopRunID: string(parent.ID),
+			Status:    task.TaskRunStatusCompleted,
+			Result: json.RawMessage(
+				`{"loop_run_id":"looprun-await-result-child","status":"awaiting_child"}`,
+			),
+		}
+		graph := dsl.Graph{
+			Nodes: []dsl.Node{
+				{
+					ID:    "first_child",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionRunLoop),
+					Params: dsl.NodeParams{
+						"loop": "child",
+						"mode": string(dsl.RunLoopAwait),
+					},
+				},
+				{
+					ID:    "second_child",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionRunLoop),
+					Params: dsl.NodeParams{
+						"loop": "child",
+						"mode": string(dsl.RunLoopAwait),
+					},
+				},
+			},
+			Edges: []dsl.Edge{{From: "first_child", To: "second_child"}},
+		}
+		runner := newCoordinatorRunnerForTestWithGraph(
+			t,
+			parent,
+			coordinatorRun,
+			map[string]task.Run{
+				coordinatorRun.ID: coordinatorRun,
+				completedRun.ID:   completedRun,
+			},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{
+					Generation: 1,
+					NodeID:     "first_child",
+					Status:     generationOutputEnqueued,
+					TaskRunID:  completedRun.ID,
+				},
+				{
+					Generation: 1,
+					NodeID:     "second_child",
+					Status:     generationOutputPending,
+				},
+			}}},
+			graph,
+		)
+		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{
+			parent.ID: parent,
+			child.ID:  child,
+		})
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if !plan.Yield {
+			t.Fatal("Yield = false, want true while restored child wait is live")
+		}
+		if len(plan.NodeRuns) != 0 || plan.Terminal != nil {
+			t.Fatalf("NodeRuns/Terminal = %#v/%#v, want no dependent or terminal", plan.NodeRuns, plan.Terminal)
+		}
+		outputs := outputsByNodeForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
+		first := outputs["first_child"]
+		if got, want := first.Status, generationOutputAwaitingChild; got != want {
+			t.Fatalf("first_child status = %q, want %q", got, want)
+		}
+		if got, want := first.ChildLoopRunID, string(child.ID); got != want {
+			t.Fatalf("first_child child_loop_run_id = %q, want %q", got, want)
+		}
+		if got, want := outputs["second_child"].Status, generationOutputPending; got != want {
+			t.Fatalf("second_child status = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestRefreshCompletedTaskRunOutputShouldValidateRunLoopAwaitResult(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name      string
+		graph     dsl.Graph
+		result    json.RawMessage
+		wantCause string
+	}{
+		{name: "Should reject an empty result"},
+		{name: "Should reject malformed JSON", result: json.RawMessage(`{"loop_run_id":`)},
+		{name: "Should reject a missing child id", result: json.RawMessage(`{"status":"awaiting_child"}`)},
+		{name: "Should reject a whitespace child id", result: json.RawMessage(`{"loop_run_id":" ","status":"awaiting_child"}`)},
+		{name: "Should reject a contradictory status", result: json.RawMessage(`{"loop_run_id":"looprun-child","status":"completed"}`)},
+		{
+			name:      "Should reject a missing owner node",
+			graph:     dsl.Graph{Nodes: []dsl.Node{}},
+			result:    json.RawMessage(`{"loop_run_id":"looprun-child","status":"awaiting_child"}`),
+			wantCause: "completed action owner node is missing",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			wantCause := testCase.wantCause
+			if wantCause == "" {
+				wantCause = "completed run-loop await result is invalid"
+			}
+
+			graph := testCase.graph
+			if graph.Nodes == nil {
+				graph = dsl.Graph{Nodes: []dsl.Node{{
+					ID:    "child",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionRunLoop),
+					Params: dsl.NodeParams{
+						"loop": "child-loop",
+						"mode": string(dsl.RunLoopAwait),
+					},
+				}}}
+			}
+			output, live, stops, terminal, err := refreshCompletedTaskRunOutput(
+				Run{ID: "looprun-parent", WorkspaceID: "ws-1"},
+				graph,
+				GenerationOutput{NodeID: "child", Status: generationOutputEnqueued},
+				task.Run{Status: task.TaskRunStatusCompleted, Result: testCase.result},
+			)
+			if err != nil {
+				t.Fatalf("refreshCompletedTaskRunOutput() error = %v", err)
+			}
+			if live || len(stops) != 0 || terminal != nil || output.Status != generationOutputFailed {
+				t.Fatalf(
+					"completed output = %#v live=%t stops=%#v terminal=%#v",
+					output,
+					live,
+					stops,
+					terminal,
+				)
+			}
+			failure := classifyGenerationOutputFailure(output, task.Run{})
+			if failure.Class != FailureAuthoring || failure.Code != string(ReasonCodeActionSchemaInvalid) ||
+				failure.Cause != wantCause || failure.Target != "child" {
+				t.Fatalf("classified invalid result = %#v", failure)
+			}
+		})
+	}
+}
+
+func TestRefreshCompletedTaskRunOutputShouldPreserveRunLoopDetachSuccess(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep detached child as immediate success", func(t *testing.T) {
+		t.Parallel()
+
+		graph := dsl.Graph{Nodes: []dsl.Node{{
+			ID:    "child",
+			Class: dsl.NodeClassAction,
+			Kind:  string(dsl.ActionRunLoop),
+			Params: dsl.NodeParams{
+				"loop": "child-loop",
+				"mode": string(dsl.RunLoopDetach),
+			},
+		}}}
+		output, live, stops, terminal, err := refreshCompletedTaskRunOutput(
+			Run{ID: "looprun-parent", WorkspaceID: "ws-1"},
+			graph,
+			GenerationOutput{NodeID: "child", Status: generationOutputEnqueued},
+			task.Run{
+				Status: task.TaskRunStatusCompleted,
+				Result: json.RawMessage(`{"loop_run_id":"looprun-detached-child"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("refreshCompletedTaskRunOutput() error = %v", err)
+		}
+		if live || len(stops) != 0 || terminal != nil {
+			t.Fatalf("live/stops/terminal = %t/%#v/%#v, want none", live, stops, terminal)
+		}
+		if got, want := output.Status, generationOutputSucceeded; got != want {
+			t.Fatalf("detached status = %q, want %q", got, want)
+		}
+		if output.ChildLoopRunID != "" {
+			t.Fatalf("detached child_loop_run_id = %q, want no parent wait ownership", output.ChildLoopRunID)
+		}
+	})
+}
+
+func TestCoordinatorRunnerShouldResolveCompletedAwaitedChildTerminal(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name       string
+		status     Status
+		wantStatus string
+	}{
+		{name: "Should resolve a done child", status: StatusDone, wantStatus: generationOutputSucceeded},
+		{name: "Should resolve a no-op child", status: StatusNoOp, wantStatus: generationOutputSucceeded},
+		{name: "Should resolve a failed child", status: StatusFailed, wantStatus: generationOutputFailed},
+		{name: "Should resolve a canceled child", status: StatusCanceled, wantStatus: generationOutputFailed},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			parent := Run{
+				ID: "looprun-completed-child-parent", WorkspaceID: "ws-1", LoopName: "parent",
+				Status: StatusRunning, Generation: 1,
+			}
+			child := Run{
+				ID: "looprun-completed-child", WorkspaceID: parent.WorkspaceID, LoopName: "child",
+				Status: testCase.status, Generation: 1, ParentLoopRunID: parent.ID,
+			}
+			completedRun := task.Run{
+				ID: "run-completed-child", RunKind: task.RunKindWorker,
+				LoopRunID: string(parent.ID), Status: task.TaskRunStatusCompleted,
+				Result: json.RawMessage(
+					`{"loop_run_id":"looprun-completed-child","status":"awaiting_child"}`,
+				),
+			}
+			graph := dsl.Graph{Nodes: []dsl.Node{{
+				ID:    "child",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionRunLoop),
+				Params: dsl.NodeParams{
+					"loop": "child-loop",
+					"mode": string(dsl.RunLoopAwait),
+				},
+			}}}
+			coordinatorRun := task.Run{
+				ID: "run-coordinator-completed-child", TaskID: "task-coordinator-completed-child",
+				RunKind: task.RunKindCoordinator, LoopRunID: string(parent.ID), Status: task.TaskRunStatusClaimed,
+			}
+			runner := newCoordinatorRunnerForTestWithGraph(
+				t,
+				parent,
+				coordinatorRun,
+				map[string]task.Run{
+					coordinatorRun.ID: coordinatorRun,
+					completedRun.ID:   completedRun,
+				},
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{}},
+				graph,
+			)
+			setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{parent.ID: parent, child.ID: child})
+
+			output, live, stops, terminal, err := runner.refreshGenerationOutputFromTaskRun(
+				context.Background(),
+				parent,
+				graph,
+				GenerationOutput{
+					NodeID: "child", Status: generationOutputEnqueued, TaskRunID: completedRun.ID,
+				},
+			)
+			if err != nil {
+				t.Fatalf("refreshGenerationOutputFromTaskRun() error = %v", err)
+			}
+			if live || len(stops) != 0 || terminal != nil {
+				t.Fatalf("live/stops/terminal = %t/%#v/%#v, want none", live, stops, terminal)
+			}
+			if got := output.Status; got != testCase.wantStatus {
+				t.Fatalf("output status = %q, want %q", got, testCase.wantStatus)
+			}
+			if got, want := output.ChildLoopRunID, string(child.ID); got != want {
+				t.Fatalf("child_loop_run_id = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestCoordinatorRunnerShouldResolveAwaitingChildCoordinatorTerminal(t *testing.T) {
 	t.Run("Should resolve awaiting child loop terminal", func(t *testing.T) {
 		t.Parallel()
@@ -743,11 +1044,12 @@ func TestCoordinatorRunnerShouldResolveAwaitingChildCoordinatorTerminal(t *testi
 			Generation:  1,
 		}
 		childRun := Run{
-			ID:          "looprun-awaiting-child-terminal-child",
-			WorkspaceID: "ws-1",
-			LoopName:    "child",
-			Status:      StatusDone,
-			Generation:  1,
+			ID:              "looprun-awaiting-child-terminal-child",
+			WorkspaceID:     "ws-1",
+			LoopName:        "child",
+			Status:          StatusDone,
+			Generation:      1,
+			ParentLoopRunID: loopRun.ID,
 		}
 		coordinatorRun := task.Run{
 			ID:        "run-coordinator-awaiting-child-terminal",
@@ -867,6 +1169,132 @@ func TestCoordinatorRunnerShouldClassifyAwaitedChildTerminalFailClosed(t *testin
 	}
 }
 
+func TestCoordinatorRunnerShouldRejectAwaitedChildOutsideParentBoundary(t *testing.T) {
+	t.Parallel()
+
+	parent := Run{
+		ID: "looprun-parent-boundary", WorkspaceID: "ws-1", LoopName: "parent",
+		Status: StatusRunning, Generation: 1,
+	}
+	for _, testCase := range []struct {
+		name  string
+		child Run
+	}{
+		{
+			name: "Should reject a child from another workspace",
+			child: Run{
+				ID: "looprun-child-other-workspace", WorkspaceID: "ws-2", LoopName: "child",
+				Status: StatusRunning, Generation: 1, ParentLoopRunID: parent.ID,
+			},
+		},
+		{
+			name: "Should reject a child owned by another parent",
+			child: Run{
+				ID: "looprun-child-other-parent", WorkspaceID: parent.WorkspaceID, LoopName: "child",
+				Status: StatusRunning, Generation: 1, ParentLoopRunID: "looprun-another-parent",
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			coordinatorRun := task.Run{
+				ID: "run-coordinator-child-boundary", TaskID: "task-coordinator-child-boundary",
+				RunKind: task.RunKindCoordinator, LoopRunID: string(parent.ID), Status: task.TaskRunStatusClaimed,
+			}
+			runner := newCoordinatorRunnerForTestWithGraph(
+				t,
+				parent,
+				coordinatorRun,
+				map[string]task.Run{coordinatorRun.ID: coordinatorRun},
+				coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{}},
+				dsl.Graph{Nodes: []dsl.Node{{
+					ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+				}}},
+			)
+			setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{
+				parent.ID:         parent,
+				testCase.child.ID: testCase.child,
+			})
+
+			output, live, stops, err := runner.refreshAwaitingChildOutput(
+				context.Background(), parent, dsl.Graph{}, GenerationOutput{
+					Generation: 1, NodeID: "child", Status: generationOutputAwaitingChild,
+					ChildLoopRunID: string(testCase.child.ID),
+				},
+			)
+			if err != nil {
+				t.Fatalf("refreshAwaitingChildOutput() error = %v", err)
+			}
+			if live || len(stops) != 0 || output.Status != generationOutputFailed {
+				t.Fatalf("awaited child output = %#v live=%t stops=%#v", output, live, stops)
+			}
+			if output.ChildLoopRunID != "" {
+				t.Fatalf("failed boundary child_loop_run_id = %q, want cleared", output.ChildLoopRunID)
+			}
+			failure := classifyGenerationOutputFailure(output, task.Run{})
+			if failure.Class != FailureAuthoring || failure.Target != string(testCase.child.ID) ||
+				failure.Code != string(ReasonCodeActionSchemaInvalid) ||
+				failure.Cause != "awaited child Loop is outside the parent boundary" {
+				t.Fatalf("classified boundary failure = %#v", failure)
+			}
+		})
+	}
+}
+
+func TestCoordinatorRunnerShouldRejectMalformedAwaitedChildIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject child id that would require normalization", func(t *testing.T) {
+		t.Parallel()
+
+		parent := Run{
+			ID: "looprun-parent-identity", WorkspaceID: "ws-1", LoopName: "parent",
+			Status: StatusRunning, Generation: 1,
+		}
+		child := Run{
+			ID: "looprun-child-identity", WorkspaceID: parent.WorkspaceID, LoopName: "child",
+			Status: StatusRunning, Generation: 1, ParentLoopRunID: parent.ID,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-child-identity", TaskID: "task-coordinator-child-identity",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(parent.ID), Status: task.TaskRunStatusClaimed,
+		}
+		runner := newCoordinatorRunnerForTestWithGraph(
+			t,
+			parent,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{}},
+			dsl.Graph{Nodes: []dsl.Node{{
+				ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			}}},
+		)
+		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{parent.ID: parent, child.ID: child})
+
+		output, live, stops, err := runner.refreshAwaitingChildOutput(
+			context.Background(), parent, dsl.Graph{}, GenerationOutput{
+				Generation: 1, NodeID: "child", Status: generationOutputAwaitingChild,
+				ChildLoopRunID: " " + string(child.ID),
+			},
+		)
+		if err != nil {
+			t.Fatalf("refreshAwaitingChildOutput() error = %v", err)
+		}
+		if live || len(stops) != 0 || output.Status != generationOutputFailed {
+			t.Fatalf("awaited child output = %#v live=%t stops=%#v", output, live, stops)
+		}
+		if output.ChildLoopRunID != "" {
+			t.Fatalf("malformed child_loop_run_id = %q, want cleared", output.ChildLoopRunID)
+		}
+		failure := classifyGenerationOutputFailure(output, task.Run{})
+		if failure.Class != FailureAuthoring || failure.Code != string(ReasonCodeActionSchemaInvalid) ||
+			failure.Cause != "awaited child Loop identity is invalid" {
+			t.Fatalf("classified malformed child identity = %#v", failure)
+		}
+	})
+}
+
 // Invariant: a terminal parent plan carries only owned terminate/cancel children; abandon is
 // intentionally absent, and an omitted policy defaults to terminate. The coordinator suite
 // owns authored parent-close selection.
@@ -932,12 +1360,13 @@ func TestCoordinatorRunnerShouldRetryAwaitingChildLoopOnTimeout(t *testing.T) {
 			LastProgressAt: now,
 		}
 		childRun := Run{
-			ID:          "looprun-awaiting-child-timeout-child",
-			WorkspaceID: "ws-1",
-			LoopName:    "child",
-			Status:      StatusRunning,
-			Generation:  1,
-			CreatedAt:   now,
+			ID:              "looprun-awaiting-child-timeout-child",
+			WorkspaceID:     "ws-1",
+			LoopName:        "child",
+			Status:          StatusRunning,
+			Generation:      1,
+			ParentLoopRunID: loopRun.ID,
+			CreatedAt:       now,
 		}
 		coordinatorRun := task.Run{
 			ID:        "run-coordinator-awaiting-child-timeout",

@@ -194,6 +194,12 @@ healthy waiting ticks remain `watching`.
 watch tick), `needs-approval` (parked on a human gate — a live pause, not terminal), `paused`
 (operator paused at a boundary). `ready` and `awaiting_child` are node-level, never run states.
 
+A `run-loop` node in `await` mode remains `awaiting_child` with its exact `child_loop_run_id` while
+the child is live. The parent remains live, dependents stay pending, and daemon restart restores the
+same child identity without submitting another child. Child `done` or `no-op` settles the node as
+`succeeded`; every other child terminal outcome settles it as `failed`. `detach` remains immediate
+success and does not establish parent wait ownership.
+
 Native control rejections are `tool_invalid_input`: `invalid_status_transition` for an unsupported
 live state, or `terminal_loop_run` after termination. `schema_invalid` is reserved for malformed input.
 

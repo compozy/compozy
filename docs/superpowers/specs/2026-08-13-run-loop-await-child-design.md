@@ -33,7 +33,7 @@ graph:
       kind: wait
       params: { for: 10m }
   edges: []
-start: [{ kind: manual }]
+start: [{ kind: manual }, { kind: http }, { kind: uds }]
 ```
 
 The parent starts that child twice, with an authored edge requiring strict order:
@@ -66,7 +66,7 @@ graph:
       params: { loop: await-child-hold, mode: await }
   edges:
     - { from: first_child, to: second_child }
-start: [{ kind: manual }]
+start: [{ kind: manual }, { kind: http }, { kind: uds }]
 ```
 
 After saving the files as `await-child-hold.yaml` and `await-parent-probe.yaml`, validate, publish, run, and inspect them:
@@ -232,7 +232,9 @@ Tests use conditions and durable reads, never sleeps as synchronization.
 
 Issue #386 leads with the standalone authored-Loop reproduction and keeps the real extension-driven sequence as secondary discovery evidence. It carries the run IDs, executed graph, observed output, expected contract, and impact. The PR will link that issue and include the executable regression commands.
 
-The official Compozy Loop skill will be checked against the corrected behavior. It already states that `awaiting_child` is node-level and live; it needs no wording change unless implementation review finds a mismatch.
+The official Compozy Loop skill and site documentation will state that an awaited child keeps the
+parent and dependents nonterminal, survives restart with the same child identity, and maps child
+terminal outcomes without coercion.
 
 A fresh isolated QA lab will first reproduce the standalone two-Loop flow with unique `COMPOZY_HOME`, ports, and UDS path, then use an installed extension as a compatibility canary. Evidence will include the ordered run timeline, exact parent/child IDs, restart boundary, absence of duplicate children, terminal states, and clean teardown.
 
@@ -241,11 +243,13 @@ A fresh isolated QA lab will first reproduce the standalone two-Loop flow with u
 - **Native tools:** No ToolID, descriptor, schema, risk, capability, or reason-code change. `compozy__loop_status` exposes corrected existing state.
 - **Extensibility and hooks:** Corrects generic nested Loop behavior for every extension and authored Loop. No manifest, resource, hook, capability, registry, MCP, or config lifecycle change.
 - **Workspace data isolation:** Child lookup and parent validation remain bound to the parent run's workspace. Tests must reject a child from another workspace.
-- **Official Compozy skill:** Checked `skills/compozy/references/loops.md`; its current live-state contract already matches the intended behavior.
+- **Official Compozy skill:** Update `skills/compozy/references/loops.md` with ordering, restart, and child-terminal mapping.
 
 ## Web And Docs Impact
 
-No Web component or route changes. Existing Loop run inspectors consume the same status fields and will display corrected runtime truth. No public documentation change is required beyond issue and QA/PR evidence because the documented `mode: await` contract is already correct.
+No Web component or route changes. Existing Loop run inspectors consume the same status fields and
+will display corrected runtime truth. The Loop guardrails documentation is updated with ordering,
+restart, and terminal-mapping behavior; no API or schema documentation changes.
 
 ## Rollout And Rollback
 

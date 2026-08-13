@@ -147,6 +147,79 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			t.Fatalf("resumed loop generation = %d, want 2", detail.Run.Generation)
 		}
 	})
+
+	t.Run("Should restore ordered awaited children after restart", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := e2etest.NewHomePaths(t)
+		harnessOptions := e2etest.RuntimeHarnessOptions{
+			HomePaths: homePaths,
+			Workspace: e2etest.WorkspaceSeedOptions{Root: homePaths.HomeDir},
+		}
+		harness := e2etest.StartRuntimeHarness(t, &harnessOptions)
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+
+		createLoopViaHTTP(t, ctx, harness, awaitedChildHoldDefinition())
+		createLoopViaHTTP(t, ctx, harness, awaitedParentProbeDefinition())
+		parent := runLoopViaHTTP(t, ctx, harness, "await-parent-probe")
+		beforeRestart, firstChildID := waitForAwaitedChildNode(
+			t,
+			ctx,
+			harness,
+			parent.ID,
+			"first_child",
+			1,
+		)
+		assertAwaitedParentNodeStatus(t, beforeRestart, "second_child", "pending")
+
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := harness.Stop(stopCtx); err != nil {
+			stopCancel()
+			t.Fatalf("Stop runtime harness error = %v", err)
+		}
+		stopCancel()
+
+		restarted := e2etest.StartRuntimeHarness(t, &harnessOptions)
+		afterRestart, restartedChildID := waitForAwaitedChildNode(
+			t,
+			ctx,
+			restarted,
+			parent.ID,
+			"first_child",
+			1,
+		)
+		if restartedChildID != firstChildID {
+			t.Fatalf("restarted child id = %q, want original %q", restartedChildID, firstChildID)
+		}
+		assertAwaitedParentNodeStatus(t, afterRestart, "second_child", "pending")
+
+		resumeLoopWaitViaHTTP(t, ctx, restarted, firstChildID, "hold")
+		withSecondChild, secondChildID := waitForAwaitedChildNode(
+			t,
+			ctx,
+			restarted,
+			parent.ID,
+			"second_child",
+			2,
+		)
+		if secondChildID == firstChildID {
+			t.Fatalf("second child id = first child id %q, want distinct run", secondChildID)
+		}
+		assertAwaitedParentNodeStatus(t, withSecondChild, "first_child", "succeeded")
+
+		resumeLoopWaitViaHTTP(t, ctx, restarted, secondChildID, "hold")
+		waitForLoopRunStatus(t, ctx, restarted, parent.ID, compozycontract.LoopRunStatusDone)
+		children := awaitedChildRunsViaHTTP(t, ctx, restarted)
+		if len(children) != 2 {
+			t.Fatalf("terminal child runs = %d, want 2", len(children))
+		}
+		for _, child := range children {
+			if child.Status != compozycontract.LoopRunStatusDone {
+				t.Fatalf("terminal child %q status = %q, want done", child.ID, child.Status)
+			}
+		}
+	})
 }
 
 func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
@@ -334,6 +407,179 @@ func loopEventsDefinition() compozycontract.LoopDefinitionDocument {
 			{Kind: "http"},
 			{Kind: "uds"},
 		},
+	}
+}
+
+func awaitedChildHoldDefinition() compozycontract.LoopDefinitionDocument {
+	return compozycontract.LoopDefinitionDocument{
+		APIVersion:  "compozy.loop/v1",
+		Kind:        "Loop",
+		Concurrency: "allow",
+		Meta: compozycontract.LoopDefinitionMeta{
+			Name:        "await-child-hold",
+			Description: "Generic child Loop held by a durable wait.",
+		},
+		Contract: compozycontract.LoopContract{
+			Goal:             "Hold a child run in a live state.",
+			DefinitionOfDone: "The durable wait is released.",
+			StopWhen:         "nodes.hold.status == 'succeeded'",
+			IterationCap:     1,
+			NoProgress: compozycontract.LoopNoProgress{
+				Window:     2,
+				HashFields: []string{"nodes.hold.status"},
+			},
+			Budget: compozycontract.LoopBudget{
+				OnExceeded: compozycontract.LoopBudgetExceededHalt,
+			},
+			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+		},
+		Graph: compozycontract.LoopGraph{
+			Nodes: []compozycontract.LoopGraphNode{{
+				ID:     "hold",
+				Class:  compozycontract.LoopNodeClassControl,
+				Kind:   "wait",
+				Params: map[string]any{"for": "10m"},
+			}},
+		},
+		Start: []compozycontract.LoopStartBinding{{Kind: "manual"}, {Kind: "http"}},
+	}
+}
+
+func awaitedParentProbeDefinition() compozycontract.LoopDefinitionDocument {
+	return compozycontract.LoopDefinitionDocument{
+		APIVersion:  "compozy.loop/v1",
+		Kind:        "Loop",
+		Concurrency: "allow",
+		Meta: compozycontract.LoopDefinitionMeta{
+			Name:        "await-parent-probe",
+			Description: "Generic parent with two sequential awaited child Loops.",
+		},
+		Contract: compozycontract.LoopContract{
+			Goal:             "Run two child Loops in strict sequence.",
+			DefinitionOfDone: "Both awaited child Loops finish in authored order.",
+			StopWhen:         "nodes.second_child.status == 'succeeded'",
+			IterationCap:     1,
+			NoProgress: compozycontract.LoopNoProgress{
+				Window:     2,
+				HashFields: []string{"nodes.first_child.status", "nodes.second_child.status"},
+			},
+			Budget: compozycontract.LoopBudget{
+				OnExceeded: compozycontract.LoopBudgetExceededHalt,
+			},
+			TerminalStates: []string{"done", "failed", "blocked", "exhausted", "stalled"},
+		},
+		Graph: compozycontract.LoopGraph{
+			Nodes: []compozycontract.LoopGraphNode{
+				{
+					ID:    "first_child",
+					Class: compozycontract.LoopNodeClassAction,
+					Kind:  "run-loop",
+					Params: map[string]any{
+						"loop": "await-child-hold",
+						"mode": "await",
+					},
+				},
+				{
+					ID:    "second_child",
+					Class: compozycontract.LoopNodeClassAction,
+					Kind:  "run-loop",
+					Params: map[string]any{
+						"loop": "await-child-hold",
+						"mode": "await",
+					},
+				},
+			},
+			Edges: []compozycontract.LoopGraphEdge{{From: "first_child", To: "second_child"}},
+		},
+		Start: []compozycontract.LoopStartBinding{{Kind: "manual"}, {Kind: "http"}},
+	}
+}
+
+func waitForAwaitedChildNode(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	parentRunID string,
+	nodeID string,
+	wantChildRuns int,
+) (compozycontract.LoopRunResponse, string) {
+	t.Helper()
+	var detail compozycontract.LoopRunResponse
+	var childRunID string
+	waitForRuntimeCondition(t, "awaited child node "+nodeID, 20*time.Second, func() bool {
+		detail = readLoopRunDetailViaHTTP(t, ctx, harness, parentRunID)
+		if detail.Run.Status != compozycontract.LoopRunStatusRunning {
+			return false
+		}
+		for _, generation := range detail.Generations {
+			for _, output := range generation.Outputs {
+				if output.NodeID == nodeID && output.Status == "awaiting_child" {
+					childRunID = output.ChildLoopRunID
+				}
+			}
+		}
+		return childRunID != "" && len(awaitedChildRunsViaHTTP(t, ctx, harness)) == wantChildRuns
+	})
+	return detail, childRunID
+}
+
+func awaitedChildRunsViaHTTP(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) []compozycontract.LoopRunPayload {
+	t.Helper()
+	var response compozycontract.LoopRunsResponse
+	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/loop-runs"
+	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		t.Fatalf("HTTP list loop runs error = %v", err)
+	}
+	children := make([]compozycontract.LoopRunPayload, 0, len(response.Runs))
+	for _, run := range response.Runs {
+		if run.LoopName == "await-child-hold" {
+			children = append(children, run)
+		}
+	}
+	return children
+}
+
+func assertAwaitedParentNodeStatus(
+	t testing.TB,
+	detail compozycontract.LoopRunResponse,
+	nodeID string,
+	want string,
+) {
+	t.Helper()
+	for _, generation := range detail.Generations {
+		for _, output := range generation.Outputs {
+			if output.NodeID == nodeID {
+				if output.Status != want {
+					t.Fatalf("%s status = %q, want %q", nodeID, output.Status, want)
+				}
+				return
+			}
+		}
+	}
+	t.Fatalf("node %q missing from parent detail", nodeID)
+}
+
+func resumeLoopWaitViaHTTP(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+	nodeID string,
+) {
+	t.Helper()
+	var response compozycontract.LoopMutationResponse
+	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+		"/loop-runs/" + url.PathEscape(runID) + "/nodes/" + url.PathEscape(nodeID) + "/resume"
+	request := compozycontract.LoopNodeResumeRequest{Payload: json.RawMessage(`{}`)}
+	if err := harness.HTTPJSON(ctx, http.MethodPost, path, request, &response); err != nil {
+		t.Fatalf("HTTP resume loop wait error = %v", err)
+	}
+	if !response.OK {
+		t.Fatalf("HTTP resume loop wait response = %#v, want ok", response)
 	}
 }
 
