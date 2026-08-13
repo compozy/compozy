@@ -189,6 +189,7 @@ export {
 } from "./hooks/use-session-inputs";
 export {
   canPromptSession,
+  hasUnrecoverableRuntime,
   hasRunningSession,
   idleAttachableAgentNames,
   isSessionRunning,

@@ -79,7 +79,10 @@ export async function fetchSession(
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: {
+        path: { workspace_id: workspaceId, session_id: id },
+        query: { include_health: true },
+      },
       signal,
     }
   );

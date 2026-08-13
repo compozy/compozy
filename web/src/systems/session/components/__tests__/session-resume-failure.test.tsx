@@ -51,6 +51,33 @@ describe("SessionResumeFailure", () => {
     expect(screen.queryByTestId("session-resume-failure-provider")).not.toBeInTheDocument();
   });
 
+  it("renders a dead runtime as read-only history with a fork action", () => {
+    render(
+      <SessionResumeFailure
+        isRetrying={false}
+        message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
+        missingProvider={null}
+        onDismiss={vi.fn()}
+        onRetry={vi.fn()}
+        retryLabel="Fork into a new session"
+        sessionId="sess_dead"
+        showDismiss={false}
+        title="Runtime unavailable"
+      />
+    );
+
+    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent(
+      "Runtime unavailable"
+    );
+    expect(screen.getByTestId("session-resume-failure-message")).toHaveTextContent(
+      "original transcript and failure details remain available here"
+    );
+    expect(screen.getByTestId("session-resume-failure-retry")).toHaveTextContent(
+      "Fork into a new session"
+    );
+    expect(screen.queryByTestId("session-resume-failure-dismiss")).not.toBeInTheDocument();
+  });
+
   it("falls back to the raw message when the provider detail is only whitespace", () => {
     render(
       <SessionResumeFailure

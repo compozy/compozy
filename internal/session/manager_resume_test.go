@@ -73,6 +73,34 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	})
 }
 
+func TestResumeRejectsTerminalProcessFailureBeforeStartingACP(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep a dead process-exited session read-only", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		const sessionID = "dead-session-resume"
+		writeStoppedSessionArtifacts(t, h, sessionID, true)
+		metaPath := store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, sessionID))
+		meta := readMeta(t, metaPath)
+		meta.Failure = &store.SessionFailure{
+			Kind:    store.FailureProcess,
+			Summary: "Codex exited before the response completed",
+		}
+		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+			t.Fatalf("WriteSessionMeta(%q) error = %v", metaPath, err)
+		}
+
+		if _, err := h.manager.Resume(testutil.Context(t), sessionID); !errors.Is(err, store.ErrSessionNotAttachable) {
+			t.Fatalf("Resume(dead session) error = %v, want ErrSessionNotAttachable", err)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("Resume(dead session) started ACP %d times, want 0", got)
+		}
+	})
+}
+
 func TestCreateAndResumePreserveNetworkParticipation(t *testing.T) {
 	t.Parallel()
 

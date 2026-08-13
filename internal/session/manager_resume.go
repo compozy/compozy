@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -45,6 +46,9 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 		return nil, err
 	}
 	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, target); err != nil {
+		return nil, err
+	}
+	if err := m.rejectDeadSessionAttachment(ctx, target, meta); err != nil {
 		return nil, err
 	}
 	return m.resumeSession(ctx, target)
@@ -120,6 +124,21 @@ func resumeTarget(id string) (string, error) {
 		return "", errors.New("session: session id is required")
 	}
 	return target, nil
+}
+
+// rejectDeadSessionAttachment keeps terminal process failures out of runtime attachment paths.
+func (m *Manager) rejectDeadSessionAttachment(ctx context.Context, target string, meta store.SessionMeta) error {
+	if meta.Failure == nil || meta.Failure.Kind != store.FailureProcess {
+		return nil
+	}
+	health, err := m.GetSessionHealth(ctx, target)
+	if err != nil {
+		return fmt.Errorf("session: read health before attachment %q: %w", target, err)
+	}
+	if health.Health != heartbeat.SessionHealthDead || health.Attachable || health.EligibleForWake {
+		return nil
+	}
+	return fmt.Errorf("%w: session %q has a dead runtime", store.ErrSessionNotAttachable, target)
 }
 
 func isUnboundLogicalResume(meta store.SessionMeta) bool {

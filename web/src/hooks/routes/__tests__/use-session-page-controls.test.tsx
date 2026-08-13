@@ -187,6 +187,27 @@ describe("useSessionPageControls", () => {
     expect(result.current.isSessionRunning).toBe(false);
   });
 
+  it("Should keep a dead stopped session readable without allowing another prompt", () => {
+    const { result } = renderControls({
+      ...makeSession("stopped"),
+      failure: { kind: "process_exit", summary: "Codex exited" },
+      health: {
+        active_prompt: false,
+        agent_name: "codex-agent",
+        attachable: false,
+        eligible_for_wake: false,
+        health: "dead",
+        session_id: "sess-1",
+        state: "stopped",
+        updated_at: "2026-04-17T10:00:00Z",
+        workspace_id: WORKSPACE_ID,
+      },
+    });
+
+    expect(result.current.canPrompt).toBe(false);
+    expect(result.current.isSessionRunning).toBe(false);
+  });
+
   it("Should block clear while work is running and allow durable transcript content when idle", () => {
     routeHookMocks.auiState.thread.isRunning = true;
     routeHookMocks.transcriptMessages = [{ id: "message-1" }];

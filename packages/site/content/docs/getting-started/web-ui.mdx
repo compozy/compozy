@@ -76,8 +76,9 @@ compozy session stop sess_1234
 compozy session history sess_1234
 ```
 
-The stopped session remains visible and promptable, but it is no longer attachable until a normal
-prompt restarts its agent process.
+The stopped session remains visible. An eligible stopped session is promptable even though it is no
+longer attachable. A session with terminal `process_exit` stays readable instead; the web UI offers a
+fork that starts a new child session while keeping the original transcript and diagnostics available.
 
 ## Change the HTTP address if needed
 

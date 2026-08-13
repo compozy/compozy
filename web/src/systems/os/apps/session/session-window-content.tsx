@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { toast } from "sonner";
 
 import { loadSessionThread } from "./session-window-module-loader";
 import { useSessionWindowController } from "./use-session-window-controller";
@@ -7,6 +8,8 @@ import {
   SessionPromptRuntimeSelector,
   SessionResumeFailure,
   SessionSidebar,
+  hasUnrecoverableRuntime,
+  useCreateSession,
 } from "@/systems/session";
 
 const SessionThread = lazy(() =>
@@ -76,6 +79,23 @@ export function SessionWindowContent({
     commandCatalogStatus,
     refreshCommandCatalog,
   } = page;
+  const forkSession = useCreateSession();
+
+  const handleForkDeadSession = () => {
+    forkSession.mutate(
+      {
+        agent_name: session.agent_name,
+        parent_session_id: sessionId,
+        workspace: workspaceId,
+      },
+      {
+        onError: error => {
+          toast.error(error instanceof Error ? error.message : "Failed to fork session.");
+        },
+        onSuccess: sidebar.onSelectSession,
+      }
+    );
+  };
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -102,6 +122,19 @@ export function SessionWindowContent({
             onDismiss={controls.handleDismissResumeFailure}
             onRetry={controls.handleResume}
             sessionId={sessionId}
+          />
+        ) : hasUnrecoverableRuntime(session) ? (
+          <SessionResumeFailure
+            agentName={agentName}
+            isRetrying={forkSession.isPending}
+            message="This provider runtime cannot be resumed. Its original transcript and failure details remain available here."
+            missingProvider={null}
+            onDismiss={() => undefined}
+            onRetry={handleForkDeadSession}
+            retryLabel="Fork into a new session"
+            sessionId={sessionId}
+            showDismiss={false}
+            title="Runtime unavailable"
           />
         ) : null}
         <SessionThread

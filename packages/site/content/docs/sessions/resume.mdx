@@ -27,7 +27,8 @@ eligible for an explicit holder:
 
 Use a new session when you want a clean slate. Use history, repair, and recap when the session is
 stopped and you need to understand what happened before either sending a normal prompt to continue
-it or creating new work.
+an eligible session or creating new work. A terminal `process_exit` is not eligible for a normal
+prompt; keep its durable history and create a child with `compozy session new --parent <session-id>`.
 
 ## Finding an attachable session
 
@@ -203,9 +204,10 @@ lease on the same CompozyOS session ID.
 
 ### Attach after a terminal stop
 
-Attach is intentionally refused. Inspect recap, history, status, and repair output, then send a
-normal prompt when you want CompozyOS to restore the provider history and continue the same session.
-Only normal prompt dispatch triggers that restart.
+Attach is intentionally refused. Inspect recap, history, status, and repair output. A normal prompt
+can restore an eligible stopped session. For a terminal `process_exit`, CompozyOS keeps the original
+session read-only and rejects another prompt before it can try ACP `session/load`. Create a child
+session with `compozy session new --parent <session-id>` when you need to continue separately.
 
 ### Resume does not rewrite history
 

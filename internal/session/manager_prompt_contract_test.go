@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -12,7 +11,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -369,8 +367,8 @@ func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 	}
 }
 
-func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *testing.T) {
-	t.Run("Should stop after a fatal process failure and recover with an explicit prompt", func(t *testing.T) {
+func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *testing.T) {
+	t.Run("Should stop after a fatal process failure without resuming the original session", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -490,57 +488,17 @@ func TestPromptFatalProcessFailureStopsSessionAndAllowsFreshResumeFallback(t *te
 			t.Fatalf("stored agent message = %s, want persisted partial chunk", partial.Content)
 		}
 
-		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
-			if opts.ResumeSessionID != "" {
-				return nil, fmt.Errorf(
-					"%w: load session %q for %q: %w",
-					acp.ErrLoadSessionFailed,
-					opts.ResumeSessionID,
-					opts.AgentName,
-					&acpsdk.RequestError{
-						Code:    -32002,
-						Message: "Resource not found: " + opts.ResumeSessionID,
-					},
-				)
-			}
-			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-new-%d", sequence)), nil
-		}
-
-		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
-		if err != nil {
-			t.Fatalf("Resume() error = %v", err)
-		}
-		t.Cleanup(func() {
-			reportSessionStop(t, h, resumed.ID)
+		startsBeforeRejectedPrompt := len(h.driver.startCalls)
+		_, err = h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
+			Message:        "retry the dead session",
+			MessageID:      "message-dead-session-retry",
+			IdempotencyKey: "idempotency-dead-session-retry",
 		})
-
-		if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
-			t.Fatalf("first resume start ResumeSessionID = %q, want %q", got, originalACP)
+		if !errors.Is(err, store.ErrSessionNotAttachable) {
+			t.Fatalf("SendPrompt(dead session) error = %v, want ErrSessionNotAttachable", err)
 		}
-		if got := h.driver.startCalls[2].ResumeSessionID; got != "" {
-			t.Fatalf("fallback resume start ResumeSessionID = %q, want empty", got)
-		}
-		if got := resumed.Info().ACPSessionID; got == "" || got == originalACP {
-			t.Fatalf("resumed ACPSessionID = %q, want fresh ACP session id distinct from %q", got, originalACP)
-		}
-
-		h.driver.mu.Lock()
-		h.driver.promptHook = nil
-		h.driver.stopHook = nil
-		h.driver.mu.Unlock()
-		recoveryEventsCh, err := h.manager.Prompt(testutil.Context(t), resumed.ID, "continue after disconnect")
-		if err != nil {
-			t.Fatalf("Prompt(recovered session) error = %v", err)
-		}
-		recoveryEvents := collectEvents(t, recoveryEventsCh)
-		if got, want := len(recoveryEvents), 2; got != want {
-			t.Fatalf("Prompt(recovered session) events = %d, want %d", got, want)
-		}
-		if recoveryEvents[0].Type != acp.EventTypeAgentMessage || recoveryEvents[1].Type != acp.EventTypeDone {
-			t.Fatalf("Prompt(recovered session) events = %#v, want agent message then done", recoveryEvents)
-		}
-		if got, want := len(h.driver.promptCalls), 2; got != want {
-			t.Fatalf("driver prompt calls = %d, want failed prompt plus one explicit recovery prompt", got)
+		if got := len(h.driver.startCalls); got != startsBeforeRejectedPrompt {
+			t.Fatalf("dead-session Prompt() start calls = %d, want %d", got, startsBeforeRejectedPrompt)
 		}
 	})
 }
