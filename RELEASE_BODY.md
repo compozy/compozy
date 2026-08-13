@@ -7,6 +7,7 @@
 - Replace bundles with extension kits (#291)
 - Modernize Go runtime packages (#293)
 - Use geist instead of inter (#334)
+- Add global workspace toggle (#368)
 
 ### 🎉 Features
 
@@ -74,6 +75,7 @@
 - Prevent session timeline render loops (#361)
 - Align update artifacts with release policy (#363)
 - Canonicalize desktop runtime manifests (#364)
+- Validate desktop bundles before release
 
 ### 🧪 Testing
 
