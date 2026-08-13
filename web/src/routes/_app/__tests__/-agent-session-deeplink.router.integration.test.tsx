@@ -34,7 +34,9 @@ import {
   type SessionOwnerDialogState,
   type SessionPayload,
 } from "@/systems/session";
+import { statusKeys, type StatusPayload } from "@/systems/status";
 import {
+  ACTIVE_WORKSPACE_PERSIST_KEY,
   activeWorkspaceStore,
   setActiveWorkspaceId,
   workspaceKeys,
@@ -108,6 +110,10 @@ const foreignSession = makeSession(
  * cache so the pre-confirm isolation assertions cannot pass on seeded data.
  */
 function seedSessionRouteQueries(queryClient: QueryClient): void {
+  // Scope resolution requires `$HOME` to tell the home row from projects.
+  queryClient.setQueryData(statusKeys.current(), {
+    daemon: { user_home_dir: "/Users/operator" },
+  } as StatusPayload);
   queryClient.setQueryData(workspaceKeys.list(), [
     makeWorkspace(BENCH_WORKSPACE_ID, "bench-ops"),
     makeWorkspace(PRIMARY_WORKSPACE_ID, PRIMARY_WORKSPACE_NAME),
@@ -266,7 +272,7 @@ function buildSessionDeepLinkRouter({
           open={workspaceSwitch === "confirm"}
           workspaceName={data.owner.workspaceName}
           onConfirm={() =>
-            confirmSessionWorkspaceSwitch(data.owner, () => {
+            confirmSessionWorkspaceSwitch(data.owner, { isGlobal: false }, () => {
               void navigate({
                 to: "/agents/$name/sessions/$id",
                 params,
@@ -317,7 +323,7 @@ function buildSessionDeepLinkRouter({
         open={workspaceSwitch === "confirm"}
         workspaceName={owner.workspaceName}
         onConfirm={() =>
-          confirmSessionWorkspaceSwitch(owner, () => {
+          confirmSessionWorkspaceSwitch(owner, { isGlobal: false }, () => {
             void navigate({ to: "/session/$id", params, search: {}, replace: true });
           })
         }
@@ -418,7 +424,7 @@ describe("cross-workspace session deep-link router integration", () => {
     expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(
       PRIMARY_WORKSPACE_ID
     );
-    expect(localStorage.getItem("compozy:active-workspace:v2")).toContain(PRIMARY_WORKSPACE_ID);
+    expect(localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)).toContain(PRIMARY_WORKSPACE_ID);
     expect(router.state.location.pathname).toBe(`/agents/general/sessions/${PRIMARY_SESSION_ID}`);
     expect(router.state.location.search).toEqual({});
     expect(
@@ -440,7 +446,7 @@ describe("cross-workspace session deep-link router integration", () => {
     });
     expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
     expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(BENCH_WORKSPACE_ID);
-    expect(localStorage.getItem("compozy:active-workspace:v2")).toContain(BENCH_WORKSPACE_ID);
+    expect(localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)).toContain(BENCH_WORKSPACE_ID);
     expect(
       queryClient.getQueryData(sessionKeys.detail(PRIMARY_WORKSPACE_ID, PRIMARY_SESSION_ID))
     ).toBeUndefined();
@@ -510,11 +516,13 @@ describe("cross-workspace session deep-link router integration", () => {
     });
     renderRouter(router);
 
-    const error = await screen.findByText(/Permalink error:/);
+    const error = await screen.findByText(/Permalink error:/, undefined, { timeout: 5000 });
     expect(error).toHaveTextContent(/Failed to fetch workspaces/);
     expect(error).not.toHaveTextContent("Session not found");
     expect(router.state.location.pathname).toBe(`/session/${BENCH_SESSION_ID}`);
-    expect(fetchedPathnames()).toEqual(["/api/workspaces"]);
+    // Status retries once on failure; only the two resolution endpoints may be hit.
+    expect(fetchedPathnames()[0]).toBe("/api/workspaces");
+    expect(new Set(fetchedPathnames())).toEqual(new Set(["/api/workspaces", "/api/status"]));
   });
 
   it("Should load a session owned by the active workspace", async () => {

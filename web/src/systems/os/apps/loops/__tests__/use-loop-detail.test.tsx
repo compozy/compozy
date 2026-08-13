@@ -24,7 +24,7 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_default" }),
+  useActiveWorkspace: () => ({ runtimeWorkspaceId: "ws_default" }),
 }));
 
 vi.mock("@/systems/automation", async importOriginal => ({

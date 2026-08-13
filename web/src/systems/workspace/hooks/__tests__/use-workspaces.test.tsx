@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import { statusKeys } from "@/systems/status";
+import { ACTIVE_WORKSPACE_PERSIST_KEY } from "@/systems/workspace";
 import { statusFixture } from "@/systems/status/mocks";
 
 import { useActiveWorkspace } from "../use-active-workspace";
@@ -103,13 +104,17 @@ describe("workspace hooks", () => {
 
   it("keeps cached workspaces visible without fetching while disabled", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(statusKeys.current(), statusFixture);
     queryClient.setQueryData(workspaceKeys.list(), [makeWorkspace()]);
 
     const { result } = renderHook(() => useActiveWorkspace({ enabled: false }), {
       wrapper: createWrapper(queryClient),
     });
 
-    expect(result.current.activeWorkspaceId).toBe("ws_alpha");
+    // No selection means Global — the deleted `workspaces[0]` fallback must not return.
+    expect(result.current.workspaces).toHaveLength(1);
+    expect(result.current.scope).toBe("global");
+    expect(result.current.activeWorkspaceId).toBeNull();
     expect(fetchWorkspaces).not.toHaveBeenCalled();
   });
 
@@ -263,10 +268,13 @@ describe("useActiveWorkspace", () => {
 
   it("uses the persisted selected workspace after rehydration", async () => {
     setActiveWorkspaceId("ws_alpha");
-    expect(window.localStorage.getItem("compozy:active-workspace:v2")).toContain("ws_alpha");
+    expect(window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)).toContain("ws_alpha");
     window.localStorage.setItem(
-      "compozy:active-workspace:v2",
-      JSON.stringify({ context: { selectedWorkspaceId: "ws_beta" }, version: 0 })
+      ACTIVE_WORKSPACE_PERSIST_KEY,
+      JSON.stringify({
+        context: { scope: "workspace", selectedWorkspaceId: "ws_beta" },
+        version: 0,
+      })
     );
     await act(async () => {
       await rehydrateActiveWorkspaceStore();
@@ -279,6 +287,7 @@ describe("useActiveWorkspace", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+    queryClient.setQueryData(statusKeys.current(), statusFixture);
 
     const { result } = renderHook(() => useActiveWorkspace(), {
       wrapper: createWrapper(queryClient),
@@ -291,19 +300,21 @@ describe("useActiveWorkspace", () => {
     expect(result.current.activeWorkspace?.name).toBe("beta");
   });
 
-  it("derives a valid fallback without rewriting the persisted preference", async () => {
+  it("stays Global when the remembered project is missing instead of falling back", async () => {
     setActiveWorkspaceId("ws_missing");
     vi.mocked(fetchWorkspaces).mockResolvedValue([
       makeWorkspace({ id: "ws_alpha", name: "alpha" }),
       makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
     ]);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(statusKeys.current(), statusFixture);
 
     const { result } = renderHook(() => useActiveWorkspace(), {
       wrapper: createWrapper(queryClient),
     });
 
-    await waitFor(() => expect(result.current.activeWorkspaceId).toBe("ws_alpha"));
+    await waitFor(() => expect(result.current.scope).toBe("global"));
+    expect(result.current.activeWorkspaceId).toBeNull();
     expect(result.current.selectedWorkspaceId).toBe("ws_missing");
     expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe("ws_missing");
   });

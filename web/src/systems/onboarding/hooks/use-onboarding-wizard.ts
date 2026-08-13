@@ -28,7 +28,7 @@ const STEP_META: Record<number, OnboardingStepMeta> = {
   },
   2: {
     title: "Pick where agents can work",
-    lead: "A workspace is a folder CompozyOS is allowed to open, read and write inside. Every session runs in one — add at least one to finish.",
+    lead: "A workspace is a folder CompozyOS is allowed to open, read and write inside. Add project folders now, or skip and start in Global scope.",
   },
 };
 
@@ -60,9 +60,9 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
   const workspaces = useOnboardingWorkspaces();
   const complete = useCompleteOnboarding();
   const [commitError, setCommitError] = useState<string | null>(null);
+  const workspaceBusy = workspaces.isResolving || workspaces.isRemoving;
 
-  const canContinue =
-    step === 1 ? defaultModel.isValid : step === 2 ? workspaces.workspaces.length > 0 : true;
+  const canContinue = step === 1 ? defaultModel.isValid : !workspaceBusy;
 
   const goToStep = (next: number) => {
     if (next < 1 || next > ONBOARDING_STEP_COUNT || next > maxStep) return;
@@ -90,6 +90,7 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
 
   const next = async () => {
     setCommitError(null);
+    if (workspaceBusy) return;
     if (step === 1) {
       try {
         await defaultModel.commit();
@@ -117,7 +118,7 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     workspaces,
     canContinue,
     isLastStep: step === ONBOARDING_STEP_COUNT,
-    isBusy: defaultModel.isCommitting || complete.isPending,
+    isBusy: defaultModel.isCommitting || workspaceBusy || complete.isPending,
     commitError,
     goToStep,
     back,

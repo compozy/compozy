@@ -2,19 +2,22 @@ import { Folder, X } from "lucide-react";
 
 import { Alert, AlertDescription, Button, Eyebrow } from "@compozy/ui";
 
+import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
 import type { OnboardingWorkspacesApi } from "../hooks/use-onboarding-workspaces";
 import { DirectoryBrowser } from "./directory-browser";
 import { OnboardingNetworkMention } from "./onboarding-network-mention";
 
 interface StepWorkspacesProps {
   workspaces: OnboardingWorkspacesApi;
+  onSkip: () => void;
+  skipDisabled?: boolean;
 }
 
 /**
  * Browse on the left, confirm on the right: the two columns close flush at a
  * fixed split height so the panel keeps one shape while folders come and go.
  */
-export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
+export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: StepWorkspacesProps) {
   const selected = workspaces.workspaces;
 
   return (
@@ -114,6 +117,23 @@ export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
               ))}
             </ul>
           )}
+          <div
+            className="mt-3 flex items-start gap-3 rounded-md bg-canvas-soft px-2.5 py-2 ring-1 ring-inset ring-line"
+            data-testid="onboarding-skip-global"
+          >
+            <Button
+              disabled={skipDisabled}
+              onClick={onSkip}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {GLOBAL_SCOPE_COPY.skipOnboarding}
+            </Button>
+            <p className="min-w-0 flex-1 text-form-hint text-muted">
+              {GLOBAL_SCOPE_COPY.skipOnboardingHint}
+            </p>
+          </div>
         </section>
       </div>
 

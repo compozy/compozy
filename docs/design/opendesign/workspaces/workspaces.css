@@ -1,0 +1,351 @@
+/* ============================================================
+   WORKSPACES OVERVIEW — workspaces.css
+   Companion to design-system/ds-core.css + ds-shell.css
+   (link core → shell → this file).
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css + os-workspaces-overview.tsx
+     2. design-system/ds-core.css + ds-shell.css (+ GUIDE.md)
+     3. global-workspace/DESIGN-NOTES.md (scope contract)
+     4. This file (Command-Tab overlay vocabulary)
+
+   Semantic contract (locked in DESIGN-NOTES.md):
+     Overview = full-screen Command-Tab switcher. Compact tiles in a
+     centered glass strip. ONE ROW — never wrap. Overflow is a fluid
+     horizontal track with edge fades, not a second line.
+     Current = check, not accent border.
+     New workspace is a trailing dashed tile, never a second primary.
+   ============================================================ */
+
+/* ---- domain tokens (derived from ds-core / ds-shell only) ---- */
+:root{
+  --wsov-well:52px;
+  --wsov-tile:86px;
+  --wsov-gap:5px;
+  --wsov-fade:72px;
+}
+
+/* ============ LAB SCAFFOLD (states sheet only) ============ */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2head .w2-back svg{width:14px;height:14px}
+.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2head .w2-flex{flex:1;min-width:8px}
+.w2head .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:920px;margin:0 auto;padding:24px 24px 80px}
+.lab-sec{margin:0 0 40px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto}
+.spec{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11px;line-height:1.55;color:var(--subtle)}
+.spec__note b{display:block;font-size:11.5px;font-weight:600;color:var(--fg);margin-bottom:2px}
+.spec__note code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+@media (max-width:760px){.spec{grid-template-columns:1fr}.lab-sec__gist{display:none}}
+
+/* demo stage — wallpapered, not a product window */
+.stage{
+  position:relative;min-height:420px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(480px 260px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage--short{min-height:280px}
+.stage .wsov{position:absolute;animation:none}
+
+/* ============ OVERLAY (Command-Tab) ============
+   gating: Dialog in os-workspaces-overview.tsx:105-114 — full-bleed,
+   transparent, centered. Format change: glass strip, not a 264px wrap. */
+.wsov{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px 16px 80px;
+}
+.wsov-stage{
+  display:flex;flex-direction:column;align-items:center;
+  width:min(1080px, calc(100% - 32px));
+  animation:wsov-in .2s var(--ease);
+}
+@keyframes wsov-in{from{opacity:0;transform:translateY(8px) scale(.985)}}
+.wsov-title{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
+.wsov-sub{
+  font-size:12px;color:var(--muted);margin-bottom:14px;
+  text-align:center;
+}
+.wsov-notice{
+  font-size:12px;color:var(--muted);margin:-6px 0 14px;text-align:center;max-width:42ch;
+}
+.wsov-notice b{font-weight:600;color:var(--fg)}
+
+/* the one flourish — frosted Command-Tab panel, single row */
+.wsov-strip{
+  position:relative;
+  display:flex;flex-wrap:nowrap;align-items:stretch;
+  max-width:100%;
+  width:max-content;
+  background:var(--shell-glass-pop);
+  backdrop-filter:blur(34px) saturate(1.25);
+  border:1px solid var(--line-strong);
+  border-radius:14px;
+  box-shadow:var(--shadow-overlay),var(--highlight);
+  overflow:hidden;
+  isolation:isolate;
+}
+.wsov-strip[data-overflow]:not([data-overflow="none"]){width:100%}
+.wsov-strip:has(.wsov-empty){width:auto;padding:20px 24px}
+
+.wsov-track{
+  display:flex;flex-wrap:nowrap;align-items:flex-start;
+  flex:1;min-width:0;
+  max-width:100%;
+  padding:16px 20px 14px;
+  overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x proximity;
+  scroll-behavior:smooth;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x;
+}
+.wsov-track::-webkit-scrollbar{display:none;width:0;height:0}
+.wsov-strip[data-overflow]:not([data-overflow="none"]) .wsov-track{cursor:grab}
+.wsov-strip[data-overflow]:not([data-overflow="none"]) .wsov-track.is-dragging{cursor:grabbing;scroll-behavior:auto;scroll-snap-type:none}
+
+.wsov-row{
+  display:flex;flex-wrap:nowrap;align-items:flex-start;
+  gap:var(--wsov-gap);
+  width:max-content;
+}
+
+/* edge fades — tiles dissolve into the glass; shadow reads as more-to-scroll */
+.wsov-edge{
+  position:absolute;top:0;bottom:0;width:var(--wsov-fade);
+  z-index:2;pointer-events:none;
+  opacity:0;
+  transition:opacity .22s var(--ease);
+}
+.wsov-edge--start{
+  left:0;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.28) 0%, transparent 55%),
+    linear-gradient(90deg, var(--shell-glass-pop) 0%, color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%, transparent 100%);
+  border-radius:14px 0 0 14px;
+}
+.wsov-edge--end{
+  right:0;
+  background:
+    linear-gradient(270deg, rgba(0,0,0,.28) 0%, transparent 55%),
+    linear-gradient(270deg, var(--shell-glass-pop) 0%, color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%, transparent 100%);
+  border-radius:0 14px 14px 0;
+}
+.wsov-strip[data-overflow~="start"] .wsov-edge--start,
+.wsov-strip[data-overflow~="end"] .wsov-edge--end{opacity:1}
+
+/* ---- tile ---- */
+.wsov-tile{
+  width:var(--wsov-tile);flex:none;
+  display:flex;flex-direction:column;align-items:center;gap:7px;
+  padding:8px 6px 7px;background:transparent;color:var(--fg-strong);
+  border:1px solid transparent;
+  border-radius:14px;
+  text-align:center;
+  scroll-snap-align:center;
+  scroll-snap-stop:normal;
+  user-select:none;
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease);
+}
+.wsov-well{
+  position:relative;
+  width:var(--wsov-well);height:var(--wsov-well);flex:none;
+  display:grid;place-items:center;
+  border-radius:12px;
+  background:linear-gradient(180deg, color-mix(in oklch, var(--elevated) 90%, var(--fg) 5%), var(--elevated));
+  border:1px solid var(--line-strong);
+  box-shadow:var(--highlight);
+  color:var(--fg);
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),transform var(--dur) var(--ease);
+}
+.wsov-mono{
+  font-family:var(--font-mono);font-size:14px;font-weight:600;letter-spacing:.04em;
+  font-variant-numeric:tabular-nums;
+}
+.wsov-name{
+  display:block;width:100%;
+  font-size:11.5px;font-weight:500;letter-spacing:-.01em;line-height:1.2;
+  color:var(--fg-strong);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.wsov-tile:hover .wsov-well{
+  background:var(--btn-hover);border-color:var(--line-strong);
+}
+.wsov-tile:hover .wsov-name{color:var(--fg-strong)}
+.wsov-tile:active .wsov-well{transform:scale(.96)}
+
+/* selection plate — macOS Command-Tab: the focused tile sits on a frosted
+   glass plate (well + name together). No fill block, no border — a translucent
+   light gradient + blur + a top light edge. Ring stays for :focus-visible only. */
+.wsov-tile.is-on{
+  background:linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.035));
+  backdrop-filter:blur(12px) saturate(1.2);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09), 0 4px 14px rgba(0,0,0,.18);
+}
+.wsov-tile.is-on .wsov-well{transform:translateY(-1px)}
+/* the glass plate is the focus indicator — no ring on the well */
+.wsov-tile:focus-visible{outline:none;box-shadow:none}
+
+/* current workspace — check, never accent border
+   gating: data-current from activeWorkspaceId; hidden while scope=global */
+.wsov-check{
+  position:absolute;right:-4px;bottom:-4px;
+  width:16px;height:16px;border-radius:var(--radius-pill);
+  display:grid;place-items:center;
+  background:var(--success);color:var(--accent-ink);
+  box-shadow:0 0 0 2px var(--shell-glass-pop);
+}
+.wsov-check svg{width:10px;height:10px}
+.wsov[data-scope="global"] .wsov-check,
+.wsov-tile:not([data-current]) .wsov-check{display:none}
+
+/* add tile — secondary, dashed well. Not a solid primary. */
+.wsov-well--add{
+  background:transparent;border-style:dashed;box-shadow:none;color:var(--muted);
+}
+.wsov-tile--add .wsov-name{color:var(--muted)}
+.wsov-tile--add:hover .wsov-well--add{
+  background:var(--btn-fill);border-color:var(--line-strong);color:var(--fg-strong);
+}
+.wsov-tile--add:hover .wsov-name{color:var(--fg-strong)}
+.wsov-tile--add.is-on .wsov-well--add{
+  color:var(--fg-strong);border-color:var(--line-strong);
+}
+.wsov-tile--add:focus-visible .wsov-well--add{color:var(--fg-strong)}
+.wsov-well--add svg{width:18px;height:18px}
+
+/* caption under the strip — identity of the focused tile, once */
+.wsov-caption{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  margin-top:16px;min-height:52px;text-align:center;
+}
+.wsov-caption b{
+  font-size:15px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong);
+}
+.wsov-caption .meta{font-size:12px;color:var(--muted)}
+.wsov-caption .path{
+  font-family:var(--font-mono);font-size:10.5px;color:var(--faint);
+  font-variant-numeric:tabular-nums;
+}
+.wsov-caption[data-empty] b{font-weight:500}
+.wsov-caption.is-swap > *{animation:wsov-cap-swap .16s var(--ease)}
+@keyframes wsov-cap-swap{from{opacity:0;transform:translateY(3px)}}
+
+.wsov-hint{
+  display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  margin-top:18px;font-size:11px;color:var(--muted);
+}
+.wsov-hint kbd{
+  font-size:10px;color:var(--muted);
+  border:1px solid var(--line-strong);border-radius:var(--radius-sm);
+  padding:1px 5px;background:var(--badge-fill);
+}
+
+/* empty — zero project workspaces. CTA is the one primary on this screen.
+   gating: workspaces.length === 0; global locked-on (DESIGN-NOTES). */
+.wsov-empty{
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:8px 12px 4px;text-align:center;
+}
+.wsov-empty p{font-size:12.5px;color:var(--muted);max-width:28ch}
+.wsov-empty .btn{margin-top:4px}
+
+/* ============ GLOBAL TOGGLE (between mark and workspace chip) — from global-workspace.css
+   28px Globe; accent inks the icon when pressed. Chip stays neutral. */
+.gw-toggle{position:relative;width:28px;height:28px;padding:0;flex:none;border-radius:7px;
+  display:grid;place-items:center;color:var(--muted);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+.gw-toggle svg{width:16px;height:16px}
+.gw-toggle:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.gw-toggle[aria-pressed="true"]{background:var(--elevated);color:var(--accent);box-shadow:var(--highlight)}
+.gw-toggle[aria-pressed="true"]:hover{color:var(--accent)}
+.gw-toggle[aria-disabled="true"]{opacity:.45;cursor:default}
+.gw-toggle[aria-disabled="true"]:hover{background:transparent;color:var(--muted)}
+.ws-trigger[data-scope="global"] .ws-name{color:var(--fg-strong)}
+.ws-avatar--path{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:0}
+
+/* ============ LEGACY 264px CARD (lab anti-reference only) ============
+   Transcribed from os-workspaces-overview.tsx:155-208. Not used in the final. */
+.legacy-row{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;padding:28px 20px}
+.legacy-card{
+  width:264px;display:flex;flex-direction:column;gap:12px;padding:16px;
+  border-radius:14px;border:1px solid var(--line-strong);background:var(--canvas-soft);text-align:left;
+}
+.legacy-card[data-current]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.legacy-top{display:flex;align-items:center;gap:10px}
+.legacy-mono{
+  width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:var(--radius-sm);
+  background:var(--elevated);border:1px solid var(--line-strong);
+  font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--muted);
+}
+.legacy-name{font-size:13px;font-weight:600;color:var(--fg-strong);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.legacy-meta{font-size:11.5px;color:var(--subtle)}
+.legacy-members{display:flex;flex-direction:column;gap:6px}
+.legacy-members .eyebrow{font-size:10px;color:var(--faint)}
+.legacy-avatars{display:flex}
+.legacy-avatars .agent-chip{margin-right:-6px;box-shadow:0 0 0 2px var(--canvas-soft)}
+.legacy-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  border-top:1px solid var(--line-soft);padding-top:10px;
+  font-family:var(--font-mono);font-size:10px;color:var(--faint);
+}
+.legacy-enter{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-sans);font-size:11px;font-weight:500;color:var(--muted)}
+.legacy-enter svg{width:12px;height:12px}
+
+/* ============ TOAST (switch / add feedback) ============ */
+.wsov-toast{
+  pointer-events:auto;
+  background:var(--shell-glass-pop);
+  backdrop-filter:blur(30px) saturate(1.25);
+  border:1px solid var(--line-strong);border-radius:13px;
+  box-shadow:var(--shadow-overlay);
+  padding:11px 13px;font-size:12.5px;color:var(--fg);
+  animation:toast-in .22s var(--ease);
+}
+.wsov-toast b{color:var(--fg-strong);font-weight:600}
+.wsov-toast code{font-family:var(--font-mono);font-size:11.5px}
+
+/* ============ MOBILE ============ */
+@media (max-width:959px){
+  :root{--wsov-well:56px;--wsov-tile:94px;--wsov-fade:56px}
+  .wsov{padding:16px 12px 72px}
+  .wsov-stage{width:calc(100% - 16px)}
+  .wsov-hint{display:none}
+  .wsov-caption{min-height:48px}
+}
+@media (prefers-reduced-motion:reduce){
+  .wsov-stage,.wsov-toast,.wsov-caption.is-swap > *{animation:none}
+  .wsov-well,.wsov-tile,.wsov-edge{transition:none}
+  .wsov-tile.is-on .wsov-well,.wsov-tile:active .wsov-well{transform:none}
+  .wsov-track{scroll-behavior:auto;scroll-snap-type:none}
+}
+body[data-motion="reduced"] .wsov-stage,
+body[data-motion="reduced"] .wsov-toast,
+body[data-motion="reduced"] .wsov-caption.is-swap > *{animation:none}
+body[data-motion="reduced"] .wsov-track{scroll-behavior:auto;scroll-snap-type:none}
+
+::selection{background:var(--accent-tint);color:var(--fg-strong)}

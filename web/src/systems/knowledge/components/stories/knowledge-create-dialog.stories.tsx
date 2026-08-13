@@ -32,6 +32,7 @@ export const Default: Story = {
       onConfirm={async () => undefined}
       onOpenChange={() => undefined}
       open
+      destinationLabel="Global"
       scope="global"
     />
   ),
@@ -50,6 +51,7 @@ export const PendingSubmit: Story = {
       onConfirm={async () => undefined}
       onOpenChange={() => undefined}
       open
+      destinationLabel="launch-hq"
       scope="workspace"
     />
   ),
@@ -70,6 +72,7 @@ export const RejectedByPolicy: Story = {
       onConfirm={async () => undefined}
       onOpenChange={() => undefined}
       open
+      destinationLabel="Agent"
       scope="agent"
     />
   ),

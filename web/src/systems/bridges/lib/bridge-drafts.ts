@@ -10,6 +10,7 @@ import type {
   BridgeCreateDraft,
   BridgeDeliveryDefaults,
   BridgeDmPolicy,
+  BridgeScope,
   BridgeSecretBinding,
   BridgeProviderConfig,
   BridgeProvider,
@@ -79,10 +80,7 @@ type BuildBridgeSecretBindingRequestResult =
 const DM_POLICIES = new Set<BridgeDmPolicy>(["allowlist", "open", "pairing"]);
 const BRIDGE_SECRET_PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
-export function createBridgeCreateDraft(
-  providers: BridgeProvider[],
-  activeWorkspaceId?: string | null
-): BridgeCreateDraft {
+export function createBridgeCreateDraft(providers: BridgeProvider[]): BridgeCreateDraft {
   const preferredProvider = providers.find(isBridgeProviderSelectable) ?? providers[0] ?? null;
 
   return {
@@ -97,7 +95,6 @@ export function createBridgeCreateDraft(
     secretSlotValues: {},
     providerConfigText: "",
     routingPolicy: { ...DEFAULT_BRIDGE_ROUTING_POLICY },
-    scope: activeWorkspaceId ? "workspace" : "global",
     selectedProviderKey: preferredProvider ? buildBridgeProviderKey(preferredProvider) : "",
   };
 }
@@ -180,7 +177,8 @@ export function buildBridgeCreateRequest(
     };
   }
 
-  const scope = draft.scope;
+  // Scope is menubar-derived at submit time — the draft never owns it.
+  const scope: BridgeScope = activeWorkspaceId ? "workspace" : "global";
 
   return {
     data: {

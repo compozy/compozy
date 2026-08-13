@@ -17,7 +17,6 @@ const baseDraft: BridgeCreateDraft = {
   secretSlotValues: {},
   providerConfigText: "",
   routingPolicy: { include_group: true, include_peer: true, include_thread: true },
-  scope: "global",
   selectedProviderKey: "",
 };
 
@@ -79,7 +78,6 @@ function DialogHarness({
         onSubmit={vi.fn()}
         open
         providers={providers}
-        userHomeDir={undefined}
         {...overrides}
       />
       <output data-testid="bridge-create-draft-probe">{JSON.stringify(draft)}</output>
@@ -381,7 +379,6 @@ describe("BridgeCreateDialog", () => {
           onSubmit={handleSubmit}
           open={open}
           providers={[makeProvider()]}
-          userHomeDir={undefined}
         />
       );
     }
@@ -467,7 +464,6 @@ describe("BridgeCreateDialog", () => {
       onSubmit: vi.fn(),
       open: true,
       providers: [slackProvider],
-      userHomeDir: undefined,
     };
 
     const { rerender } = render(<BridgeCreateDialog {...props} supportsManifest />);
@@ -511,7 +507,6 @@ describe("BridgeCreateDialog", () => {
           }),
         ]}
         supportsManifest
-        userHomeDir={undefined}
       />
     );
 
@@ -562,7 +557,6 @@ describe("BridgeCreateDialog", () => {
           }),
         ]}
         supportsManifest
-        userHomeDir={undefined}
       />
     );
 
@@ -613,7 +607,6 @@ describe("BridgeCreateDialog", () => {
           }),
         ]}
         supportsManifest
-        userHomeDir={undefined}
       />
     );
 

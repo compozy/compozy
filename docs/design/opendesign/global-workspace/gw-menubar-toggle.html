@@ -12,21 +12,26 @@
 <link rel="stylesheet" href="../design-system/ds-shell.css">
 <link rel="stylesheet" href="global-workspace.css">
 <!--
-  gw-menubar-toggle · the ONE scope control — menubar global toggle + chip states.
+  gw-menubar-toggle · the ONE scope control — menubar 28px Globe toggle + chip states.
   Spec: global-workspace/DESIGN-NOTES.md · shared story: ws compozy · ~ = /Users/pedro.
   Provenance:
-    production        — 44px menubar + chip anatomy from os-menubar.tsx:134-144
-                        (18px monogram, name 12.5/600, chevrons-up-down); tray order
-                        bell · ⌘K · cog per design-system/os-shell.html §menubar
-    redesign proposal — .gw-toggle 28px control after .ws-trigger; chip global identity;
-                        store gains scope field (active-workspace-store.ts, v3 key)
-    authorized delta  — menubars render inline (.mb-demo), tooltips pinned with [data-show]
+    production        — 44px menubar + chip anatomy from os-menubar.tsx
+                        (18px monogram, name 12.5/600, chevrons-up-down); leading
+                        order logo · globe · chip · menus; tray bell · ⌘K · cog;
+                        Toggle 28px from packages/ui toggle.tsx + Lucide Globe 16px
+    redesign proposal — .gw-toggle Globe between the mark and the workspace chip;
+                        chip path mark ~; store gains scope field
+                        (active-workspace-store.ts, v3 key)
+    authorized delta  — menubars render inline (.mb-demo), tooltips pinned with [data-show];
+                        house glyph still rejected (read as Home / Dashboard);
+                        Globe + pressed fill + accent ink authorized 2026-08-13
 -->
 <style>
   a{color:inherit;text-decoration:none}
   .anat{position:relative;display:inline-flex}
   .anat__tag{position:absolute;top:calc(100% + 6px);left:50%;translate:-50% 0;white-space:nowrap;
     font-family:var(--font-mono);font-size:9px;color:var(--faint)}
+  .anat__tag{left:0;translate:0}
   .kbdrow{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--subtle)}
   .kbdrow kbd{font-size:10.5px;color:var(--muted);border:1px solid var(--line-strong);border-radius:var(--radius-sm);
     padding:1px 5px;background:var(--badge-fill);font-family:var(--font-mono)}
@@ -54,28 +59,28 @@
     <!-- ════ 01 · THE CONTROL ════ -->
     <section class="lab-sec" data-od-id="gw-control">
       <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The control</h2>
-        <span class="lab-sec__gist">one 28px toggle owns scope — everything else derives</span></div>
+        <span class="lab-sec__gist">one globe toggle owns scope — everything else derives</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Placement</b>Directly after the workspace chip, before the app menus — the menu bar owns workspace, so it owns scope. 28×28, radius 7, house glyph 15px (the mode points at <code>~</code>). Same footprint as <code>.mb-icon</code>; never in the right tray — the tray stays bell · ⌘K · cog.</div>
+        <div class="spec__note"><b>Placement</b>Between the CompozyOS mark and the workspace chip — logo · globe · chip · menus. Production Toggle 28px + Lucide Globe 16px, same hit target as bell and settings. The globe sits outside <code>role="menubar"</code> (a mode, not a menu). The trailing tray is bell · ⌘K · cog. The chip still states the active destination.</div>
         <div class="spec__demo">
           <div class="mb-demo" style="padding-bottom:26px">
             <header class="menubar" data-od-id="gw-strip-anatomy">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <!-- gating: store.scope = "workspace" | "global" (active-workspace-store v3) -->
+                <span class="anat">
+                  <button class="gw-toggle" aria-pressed="false" aria-label="Global scope" data-od-id="gw-toggle-anatomy">
+                    <svg data-lucide="globe"></svg>
+                  </button>
+                  <span class="anat__tag">.gw-toggle · Globe 28px</span>
+                </span>
                 <!-- gating: store.selectedWorkspaceId → chip identity (os-menubar.tsx:134-144) -->
                 <button class="ws-trigger" aria-haspopup="menu" aria-expanded="false">
                   <span class="ws-avatar">CO</span>
                   <span class="ws-name">compozy</span>
                   <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
                 </button>
-                <!-- gating: store.scope = "workspace" | "global" (active-workspace-store v3) -->
-                <span class="anat">
-                  <button class="gw-toggle" aria-pressed="false" aria-label="Global scope" data-od-id="gw-toggle-anatomy">
-                    <svg data-lucide="house"></svg>
-                  </button>
-                  <span class="anat__tag">.gw-toggle · 28px</span>
-                </span>
                 <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button><button class="mb-menu">Help</button></nav>
               </div>
               <div class="mb-side mb-right">
@@ -89,7 +94,7 @@
       </div>
 
       <div class="spec">
-        <div class="spec__note"><b>Semantics</b>OFF → scope is the selected workspace; the chip shows it. ON → scope is Global (<code>~</code>); the chip swaps to the house identity. The workspace selection is <i>remembered</i> underneath — toggling off returns to it. New sessions, tasks, agents, installs all land in the active scope.</div>
+        <div class="spec__note"><b>Semantics</b>OFF → scope is the selected workspace; the chip shows it. ON → scope is Global (<code>~</code>); the chip swaps to the path mark + <b>Global</b>. The workspace selection is <i>remembered</i> underneath — toggling off returns to it. New sessions, tasks, agents, installs all land in the active scope.</div>
         <div class="spec__demo">
           <div class="kbdrow"><kbd>⇧⌘G</kbd> toggles · <span>also in ⌘K as "Turn on Global scope"</span></div>
         </div>
@@ -99,17 +104,19 @@
     <!-- ════ 02 · STATES ════ -->
     <section class="lab-sec" data-od-id="gw-states-sec">
       <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">States</h2>
-        <span class="lab-sec__gist">pressed = the one accent instance · chip stays neutral</span></div>
+        <span class="lab-sec__gist">pressed fill + accent globe · chip stays neutral</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Off · resting</b>Quiet subtle ink, no fill. Workspace chip carries the identity — production verbatim.</div>
+        <div class="spec__note"><b>Off · resting</b>Muted globe, same chrome as bell and settings. Workspace chip carries the identity — production verbatim.</div>
         <div class="spec__demo">
           <div class="mb-demo">
             <header class="menubar" data-od-id="gw-strip-off">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope">
+                  <svg data-lucide="globe"></svg>
+                </button>
                 <button class="ws-trigger"><span class="ws-avatar">CO</span><span class="ws-name">compozy</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
-                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope"><svg data-lucide="house"></svg></button>
                 <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
               </div>
               <div class="mb-side mb-right">
@@ -123,17 +130,17 @@
       </div>
 
       <div class="spec">
-        <div class="spec__note"><b>Hover · tooltip</b>Hover fills <code>--btn-fill</code>, ink to strong — same pair as every menubar control. Tooltip names the mode and its root; while ON it flips to the off-statement ("Back to compozy").</div>
+        <div class="spec__note"><b>Hover · tooltip</b>Hit fills <code>--btn-fill</code>, icon ink to strong — same pair as every menubar control. Tooltip names the mode and its root; while ON it flips to the off-statement ("Back to compozy").</div>
         <div class="spec__demo">
           <div class="mb-demo" style="padding-bottom:34px">
             <header class="menubar" data-od-id="gw-strip-tooltip">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
-                <button class="ws-trigger"><span class="ws-avatar">CO</span><span class="ws-name">compozy</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
-                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope" style="background:var(--btn-fill);color:var(--fg-strong)">
-                  <svg data-lucide="house"></svg>
+                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope" data-demo="hover">
+                  <svg data-lucide="globe"></svg>
                   <span class="tip" data-show>Global scope <span class="mono">~</span></span>
                 </button>
+                <button class="ws-trigger"><span class="ws-avatar">CO</span><span class="ws-name">compozy</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
                 <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
               </div>
               <div class="mb-side mb-right">
@@ -147,20 +154,20 @@
       </div>
 
       <div class="spec">
-        <div class="spec__note"><b>On</b>Accent tint fill + accent-strong ink + 1px inset accent ring — the single accent instance of the global state. The chip swaps to house glyph + <b>Global</b>; the workspace name leaves the bar (the chip never shows a scope that is not active). Click the toggle in this demo — it works.</div>
+        <div class="spec__note"><b>On</b>Pressed fill plus accent globe — the single accent instance of the global state. The chip swaps to <code>~</code> + <b>Global</b>; the workspace name leaves the bar (the chip never shows a scope that is not active). Click the globe in this demo — it works.</div>
         <div class="spec__demo">
           <div class="mb-demo">
             <header class="menubar" data-od-id="gw-strip-on">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="gw-toggle" aria-pressed="true" aria-label="Global scope" id="toggleLive" data-od-id="gw-toggle-live">
+                  <svg data-lucide="globe"></svg>
+                </button>
                 <!-- gating: scope="global" → chip identity swaps; selectedWorkspaceId stays remembered -->
                 <button class="ws-trigger" data-scope="global" id="chipLive">
-                  <span class="ws-avatar" id="chipAvatar"><svg data-lucide="house"></svg></span>
+                  <span class="ws-avatar ws-avatar--path" id="chipAvatar">~</span>
                   <span class="ws-name" id="chipName">Global</span>
                   <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
-                </button>
-                <button class="gw-toggle" aria-pressed="true" aria-label="Global scope" id="toggleLive" data-od-id="gw-toggle-live">
-                  <svg data-lucide="house"></svg>
                 </button>
                 <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
               </div>
@@ -175,14 +182,16 @@
       </div>
 
       <div class="spec">
-        <div class="spec__note"><b>Focus</b>2px accent <code>:focus-visible</code> ring, 1px offset — keyboard path is first-class (<code>⇧⌘G</code> lives here).</div>
+        <div class="spec__note"><b>Focus</b>2px accent <code>:focus-visible</code> ring, 1px offset — keyboard path is first-class (<code>⇧⌘G</code> lives here). Space and Enter flip the toggle.</div>
         <div class="spec__demo">
           <div class="mb-demo">
             <header class="menubar" data-od-id="gw-strip-focus">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope" data-demo="focus">
+                  <svg data-lucide="globe"></svg>
+                </button>
                 <button class="ws-trigger"><span class="ws-avatar">CO</span><span class="ws-name">compozy</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
-                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope" style="outline:2px solid var(--accent);outline-offset:1px"><svg data-lucide="house"></svg></button>
                 <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
               </div>
               <div class="mb-side mb-right">
@@ -208,15 +217,15 @@
             <header class="menubar" data-od-id="gw-strip-zero">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <!-- gating: workspaces.length === 0 → toggle locked-on; aria-disabled, no hover fill -->
+                <button class="gw-toggle" aria-pressed="true" aria-disabled="true" aria-label="Global scope — add a workspace to scope down">
+                  <svg data-lucide="globe"></svg>
+                  <span class="tip" data-show>Add a workspace to scope down</span>
+                </button>
                 <button class="ws-trigger" data-scope="global">
-                  <span class="ws-avatar"><svg data-lucide="house"></svg></span>
+                  <span class="ws-avatar ws-avatar--path">~</span>
                   <span class="ws-name">Global</span>
                   <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
-                </button>
-                <!-- gating: workspaces.length === 0 → toggle locked-on; aria-disabled, no hover fill -->
-                <button class="gw-toggle" aria-pressed="true" aria-disabled="true" aria-label="Global scope — add a workspace to scope down" style="cursor:default">
-                  <svg data-lucide="house"></svg>
-                  <span class="tip" data-show>Add a workspace to scope down</span>
                 </button>
                 <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
               </div>
@@ -237,14 +246,16 @@
         <span class="lab-sec__gist">the toggle survives the reflow — scope must stay reachable</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Kept</b>Mobile menubar order: logo · workspace chip · <b>toggle</b> · bell · ⌘K · cog (app menus already hide). The toggle is the only left-cluster control besides the chip, so it fits; 28px stays above the 44px hit target via the existing padding halo.</div>
+        <div class="spec__note"><b>Kept</b>Mobile menubar order: logo · <b>globe</b> · workspace chip · bell · ⌘K · cog (app menus already hide). The globe stays with the chip on the leading edge; 28px hit target matches the neighbors.</div>
         <div class="spec__demo">
           <div class="mb-demo" style="max-width:390px">
             <header class="menubar" data-od-id="gw-strip-mobile">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope">
+                  <svg data-lucide="globe"></svg>
+                </button>
                 <button class="ws-trigger"><span class="ws-avatar">CO</span><span class="ws-name">compozy</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
-                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope"><svg data-lucide="house"></svg></button>
               </div>
               <div class="mb-side mb-right">
                 <button class="mb-icon" aria-label="Approvals"><svg data-lucide="bell"></svg></button>
@@ -276,10 +287,20 @@ lucide.createIcons();
   var av = document.getElementById('chipAvatar'), nm = document.getElementById('chipName');
   if(!t) return;
   t.addEventListener('click', function(){
+    if(t.getAttribute('aria-disabled') === 'true') return;
     var on = t.getAttribute('aria-pressed') === 'true';
     t.setAttribute('aria-pressed', String(!on));
-    if(on){ chip.removeAttribute('data-scope'); av.textContent = 'CO'; nm.textContent = 'compozy'; }
-    else{ chip.setAttribute('data-scope','global'); av.innerHTML = '<svg data-lucide="house"></svg>'; nm.textContent = 'Global'; lucide.createIcons(); }
+    if(on){
+      chip.removeAttribute('data-scope');
+      av.className = 'ws-avatar';
+      av.textContent = 'CO';
+      nm.textContent = 'compozy';
+    } else {
+      chip.setAttribute('data-scope','global');
+      av.className = 'ws-avatar ws-avatar--path';
+      av.textContent = '~';
+      nm.textContent = 'Global';
+    }
   });
 })();
 </script>

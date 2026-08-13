@@ -1,10 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Box, Globe } from "lucide-react";
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { expect, waitFor, within } from "storybook/test";
 
 import { EntityModeToolbar, type EntityMode } from "../entity-mode-toolbar";
-import { PillGroup } from "../pill-group";
 
 const meta: Meta<typeof EntityModeToolbar> = {
   title: "components/custom/EntityModeToolbar",
@@ -14,7 +13,7 @@ const meta: Meta<typeof EntityModeToolbar> = {
     docs: {
       description: {
         component:
-          "Simple/Advanced toolbar for entity editors. Advanced is the only disclosure tier and never hides a required field. The trailing slot stays domain-free — web surfaces pass their `ScopeSelector` into it.",
+          "Simple/Advanced toolbar for entity editors. Advanced is the only disclosure tier and never hides a required field. The trailing slot stays domain-free — web surfaces pass a destination statement, not a scope picker.",
       },
     },
   },
@@ -23,12 +22,7 @@ const meta: Meta<typeof EntityModeToolbar> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const SCOPE_ITEMS = [
-  { value: "global", label: <Globe aria-hidden="true" className="size-3" /> },
-  { value: "workspace", label: <Box aria-hidden="true" className="size-3" /> },
-];
-
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({ children }: { children: ReactNode }) {
   return (
     <div className="p-6">
       <div className="w-(--width-modal-md) max-w-full overflow-hidden rounded-lg bg-canvas-soft">
@@ -38,9 +32,14 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Harness({ initialMode, withScope }: { initialMode: EntityMode; withScope: boolean }) {
+function Harness({
+  initialMode,
+  withTrailing,
+}: {
+  initialMode: EntityMode;
+  withTrailing: boolean;
+}) {
   const [mode, setMode] = useState<EntityMode>(initialMode);
-  const [scope, setScope] = useState("workspace");
   return (
     <Frame>
       <EntityModeToolbar
@@ -48,17 +47,12 @@ function Harness({ initialMode, withScope }: { initialMode: EntityMode; withScop
         onModeChange={setMode}
         testIdPrefix="entity"
         trailing={
-          withScope ? (
-            <PillGroup
-              aria-label="Scope"
-              items={SCOPE_ITEMS}
-              onChange={setScope}
-              size="md"
-              value={scope}
-            />
+          withTrailing ? (
+            <span className="inline-flex h-7 items-center truncate rounded-md border border-line bg-canvas-tint px-2.5 text-form-hint text-muted">
+              Creates in alpha
+            </span>
           ) : undefined
         }
-        trailingLabel={withScope ? "Scope" : undefined}
       />
       <div className="px-6 py-5 text-small-body text-muted">
         {mode === "simple" ? "Common path only." : "Common path plus advanced disclosure."}
@@ -69,12 +63,12 @@ function Harness({ initialMode, withScope }: { initialMode: EntityMode; withScop
 
 export const Simple: Story = {
   args: { mode: "simple", onModeChange: () => {} },
-  render: () => <Harness initialMode="simple" withScope />,
+  render: () => <Harness initialMode="simple" withTrailing />,
 };
 
 export const Advanced: Story = {
   args: { mode: "advanced", onModeChange: () => {} },
-  render: () => <Harness initialMode="advanced" withScope />,
+  render: () => <Harness initialMode="advanced" withTrailing />,
 };
 
 export const FocusVisibleMode: Story = {
@@ -87,7 +81,7 @@ export const FocusVisibleMode: Story = {
       },
     },
   },
-  render: () => <Harness initialMode="simple" withScope />,
+  render: () => <Harness initialMode="simple" withTrailing />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const advanced = await waitFor(() => canvas.getByTestId("entity-mode-advanced"));
@@ -103,5 +97,5 @@ export const WithoutTrailingControl: Story = {
       description: { story: "Editors for unscoped entities leave the trailing slot empty." },
     },
   },
-  render: () => <Harness initialMode="simple" withScope={false} />,
+  render: () => <Harness initialMode="simple" withTrailing={false} />,
 };

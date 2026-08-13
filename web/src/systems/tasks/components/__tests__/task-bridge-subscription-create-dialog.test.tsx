@@ -17,8 +17,7 @@ describe("TaskBridgeSubscriptionCreateDialog", () => {
       />
     );
 
-    expect(screen.getByLabelText("Workspace id")).toHaveValue(" ws_authoritative ");
-    expect(screen.getByLabelText("Workspace id")).toHaveAttribute("readonly");
+    expect(screen.getByTestId("workspace-scope-statement")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("tasks-bridges-instance"), {
       target: { value: " bridge_primary " },

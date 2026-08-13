@@ -16,7 +16,7 @@ import { useHomeNetwork, type HomeNetworkModel } from "./use-home-network";
 import { homePrefsStore, useHomeSystemOpen, useHomeUsageWindow } from "./use-home-prefs-store";
 import { useHomeSystem, type HomeSystemModel } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
-import { useDaemonHealth, useDaemonStatus } from "@/systems/status";
+import { useDaemonHealth } from "@/systems/status";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface HomeDashboardModel {
@@ -60,14 +60,11 @@ export function useHomeDashboard({
   liveEnabled = true,
 }: UseHomeDashboardOptions = {}): HomeDashboardModel {
   const { connectionStatus } = useDaemonHealth();
-  const { activeWorkspace } = useActiveWorkspace();
-  // Await daemon-owned home metadata before selecting global or workspace scope.
-  const daemonStatus = useDaemonStatus();
-  const userHomeDir = daemonStatus.data?.user_home_dir ?? undefined;
+  const { activeWorkspace, activeWorkspaceId, scope: workspaceScope } = useActiveWorkspace();
   const usageWindow = useHomeUsageWindow();
   const systemOpen = useHomeSystemOpen();
 
-  const resolvedScope = homeScopeForActiveWorkspace(activeWorkspace, userHomeDir);
+  const resolvedScope = homeScopeForActiveWorkspace(workspaceScope, activeWorkspaceId);
   const scopeSettled = resolvedScope !== null;
   const scope = resolvedScope ?? UNSETTLED_HOME_SCOPE;
 
@@ -115,7 +112,7 @@ export function useHomeDashboard({
       activityQuery.data !== undefined
     ),
     activityErrorMessage: activityQuery.error instanceof Error ? activityQuery.error.message : null,
-    activeWorkspaceName: activeWorkspace?.name ?? null,
+    activeWorkspaceName: workspaceScope === "global" ? "Global" : (activeWorkspace?.name ?? null),
     workingNow,
     network,
     agents,

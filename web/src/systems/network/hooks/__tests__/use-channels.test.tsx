@@ -13,7 +13,7 @@ import {
 import { useNetworkChannels } from "../use-channels";
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "w1" }),
+  useActiveWorkspace: () => ({ runtimeWorkspaceId: "w1" }),
 }));
 
 vi.mock("../../adapters/network-api", () => ({

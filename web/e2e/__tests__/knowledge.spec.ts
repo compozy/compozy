@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -8,7 +9,7 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
-import { appWindow, sessionWindow } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import {
   knowledgeOperatorSelectors,
   sessionLifecycleSelectors,
@@ -16,7 +17,7 @@ import {
 } from "../fixtures/selectors";
 import { type BrowserRuntime, waitForSeedSessionActive } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const memoryRecallFixture = path.resolve(
@@ -129,9 +130,11 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   }
 
   await ensureGlobalWorkspace(runtime);
-  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-knowledge-"));
+  const workspace = await runtime.resolveWorkspace(workspaceRoot);
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
 
   await appPage.goto(runtime.url("/knowledge"), { waitUntil: "domcontentloaded" });
   const kWin = appWindow(appPage, "knowledge");

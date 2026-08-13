@@ -46,7 +46,6 @@ function MarketplaceKindPage({ kind, search, liveDataEnabled = true }: Marketpla
   return (
     <MarketplaceKindPageBody
       key={page.workspaceId ?? "none"}
-      explicitConfigScope={search.config_scope}
       kind={kind}
       page={page}
       searchInputRef={searchInputRef}
@@ -55,18 +54,12 @@ function MarketplaceKindPage({ kind, search, liveDataEnabled = true }: Marketpla
 }
 
 interface MarketplaceKindPageBodyProps {
-  explicitConfigScope?: "global" | "workspace";
   kind: MarketplaceKind;
   page: ReturnType<typeof useMarketplaceKindPage>;
   searchInputRef: RefObject<HTMLInputElement | null>;
 }
 
-function MarketplaceKindPageBody({
-  explicitConfigScope,
-  kind,
-  page,
-  searchInputRef,
-}: MarketplaceKindPageBodyProps) {
+function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKindPageBodyProps) {
   const refresh = useRefreshMarketplaceCatalog();
   const mcpEditor = useMarketplaceMCPEditor({
     enabled: kind === "mcp",
@@ -76,6 +69,8 @@ function MarketplaceKindPageBody({
   });
   const actions = useMarketplaceActionController(page.workspaceId, {
     installedItems: page.installedItems,
+    mcpScope: page.mcpConfigScope,
+    workspaceName: page.workspaceName,
     onViewInstalled: () => page.setScope("installed"),
   });
   const extensionInstall = useExtensionInstallDialog({
@@ -122,9 +117,6 @@ function MarketplaceKindPageBody({
               render={
                 <Link
                   search={{
-                    // Only MCP consumes config_scope; other kinds carry it only
-                    // when the operator set it explicitly in the current URL.
-                    config_scope: item.kind === "mcp" ? page.mcpConfigScope : explicitConfigScope,
                     q: page.query || undefined,
                     tab: page.scope === "market" ? "market" : undefined,
                   }}
@@ -150,26 +142,6 @@ function MarketplaceKindPageBody({
           </ListingToolbar.Leading>
           <ListingToolbar.Trailing>
             <div className="flex flex-wrap items-center gap-2">
-              {kind === "mcp" && page.scope === "installed" ? (
-                <PillGroup
-                  aria-label="New MCP server scope"
-                  data-testid="marketplace-mcp-config-scope"
-                  items={[
-                    {
-                      value: "workspace" as const,
-                      label: "Workspace",
-                      testId: "marketplace-mcp-config-scope-workspace",
-                    },
-                    {
-                      value: "global" as const,
-                      label: "Global",
-                      testId: "marketplace-mcp-config-scope-global",
-                    },
-                  ]}
-                  onChange={page.setMCPConfigScope}
-                  value={page.mcpConfigScope}
-                />
-              ) : null}
               <PillGroup
                 aria-label="Marketplace scope"
                 data-testid={`marketplace-scope-${kind}`}

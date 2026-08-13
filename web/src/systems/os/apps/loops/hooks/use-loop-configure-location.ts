@@ -7,8 +7,8 @@ import { useCurrentWindowLiveDataEnabled } from "../../../hooks/use-window-live-
 
 export function useLoopConfigureLocation(name: string) {
   const navigate = useNavigate();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = runtimeWorkspaceId ?? "";
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const queryEnabled = workspaceId !== "" && liveDataEnabled;
   const loopQuery = useLoop(workspaceId, name, queryEnabled);

@@ -9,7 +9,7 @@ import {
 import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -68,7 +68,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
     sessionAgentName: tasksSessionAgentName,
   });
 
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
 
   await expect(sessionUI.osDesktop).toBeVisible();
   const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");

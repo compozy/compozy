@@ -134,16 +134,16 @@
     <!-- ════ 05 · KEYBOARD & ARIA ════ -->
     <section class="lab-sec" data-od-id="gw-a11y">
       <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Keyboard &amp; ARIA</h2>
-        <span class="lab-sec__gist">a toggle button, announced as one</span></div>
+        <span class="lab-sec__gist">a toggle, announced as one</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Contract</b><code>&lt;button aria-pressed&gt;</code> with a stable accessible name — state comes from <code>aria-pressed</code>, never from a name swap. Locked-on (zero workspaces) uses <code>aria-disabled</code> and keeps the reason in the name. <code>⇧⌘G</code> toggles from anywhere; the flip announces via a polite live region ("Global scope on").</div>
+        <div class="spec__note"><b>Contract</b><code>&lt;button aria-pressed&gt;</code> with a stable accessible name — state comes from <code>aria-pressed</code>, never from a name swap. Locked-on (zero workspaces) uses <code>aria-disabled</code> and keeps the reason in the name. <code>⇧⌘G</code> toggles from anywhere; Space and Enter flip the control; the flip announces via a polite live region ("Global scope on").</div>
         <div class="spec__demo">
           <table class="mtx" data-od-id="gw-a11y-table">
             <thead><tr><th>State</th><th>aria</th><th>Announces</th></tr></thead>
             <tbody>
-              <tr><td>off</td><td class="mono">aria-pressed="false" · label "Global scope"</td><td>"Global scope, toggle button, off"</td></tr>
-              <tr><td>on</td><td class="mono">aria-pressed="true"</td><td>"Global scope, toggle button, on"</td></tr>
+              <tr><td>off</td><td class="mono">aria-pressed="false" · label "Global scope"</td><td>"Global scope, toggle button, not pressed"</td></tr>
+              <tr><td>on</td><td class="mono">aria-pressed="true"</td><td>"Global scope, toggle button, pressed"</td></tr>
               <tr><td>locked-on</td><td class="mono">aria-pressed="true" aria-disabled="true" · label "Global scope — add a workspace to scope down"</td><td>reason included</td></tr>
             </tbody>
           </table>

@@ -22,11 +22,11 @@ export function useNetworkCreateChannelAction({
   workspaceId?: string | null;
 }) {
   const navigate = useNavigate();
-  const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
-  const requestedWorkspaceId = workspaceId ?? activeWorkspaceId;
+  const { runtimeWorkspace, runtimeWorkspaceId, workspaces } = useActiveWorkspace();
+  const requestedWorkspaceId = workspaceId ?? runtimeWorkspaceId;
   const requestedWorkspace =
     (workspaces ?? []).find(candidate => candidate.id === requestedWorkspaceId) ??
-    (activeWorkspace?.id === requestedWorkspaceId ? activeWorkspace : undefined);
+    (runtimeWorkspace?.id === requestedWorkspaceId ? runtimeWorkspace : undefined);
   const agentsQuery = useAgents(requestedWorkspaceId);
   const createChannel = useCreateNetworkChannel({ workspaceId: requestedWorkspaceId });
   const { store } = useStoreBinding(requestedWorkspaceId, () =>

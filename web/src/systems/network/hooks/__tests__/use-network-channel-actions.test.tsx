@@ -16,7 +16,7 @@ vi.mock("../../adapters/network-api", async importOriginal => {
 });
 
 vi.mock("@/systems/workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_active" }),
+  useActiveWorkspace: () => ({ runtimeWorkspaceId: "ws_active" }),
 }));
 
 function wrapper(queryClient: QueryClient) {

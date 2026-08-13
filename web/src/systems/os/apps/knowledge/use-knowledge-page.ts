@@ -25,7 +25,7 @@ import {
   useRevertMemoryDecision,
   useWriteMemory,
 } from "@/systems/knowledge";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, useCreateDestination } from "@/systems/workspace";
 
 interface DecorateOptions {
   scope: KnowledgeScope;
@@ -69,6 +69,7 @@ function describeError(error: unknown, fallback: string): string {
 
 function useKnowledgePage() {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const destination = useCreateDestination();
 
   const [activeScope, setActiveScope] = useState<KnowledgeScope>("global");
   const [agentName, setAgentName] = useState("");
@@ -99,6 +100,15 @@ function useKnowledgePage() {
         }
       : null;
   }
+
+  const createSelector: KnowledgeSelector | null =
+    activeScope === "agent"
+      ? selector
+      : destination.scope === "workspace" && destination.workspaceId
+        ? { scope: "workspace", workspaceId: destination.workspaceId }
+        : { scope: "global" };
+  const createDestinationLabel =
+    activeScope === "agent" ? trimmedAgentName || "Agent" : destination.destinationLabel;
 
   const decorateOptions: DecorateOptions = {
     scope: activeScope,
@@ -267,24 +277,27 @@ function useKnowledgePage() {
     description?: string;
     content: string;
   }) => {
-    if (!selector) {
+    if (!createSelector) {
       return;
     }
     resetWriteMutation();
     const body: MemoryWriteRequest = {
-      scope: selector.scope,
+      scope: createSelector.scope,
       type: input.type,
       name: input.name,
       description: input.description,
       content: input.content,
-      workspace_id: selector.workspaceId,
-      agent_name: selector.agentName,
-      agent_tier: selector.agentTier,
+      workspace_id: createSelector.workspaceId,
+      agent_name: createSelector.agentName,
+      agent_tier: createSelector.agentTier,
     };
     const response = await writeMemoryMutate(body);
     const filename = response.decision.target_filename ?? response.decision.frontmatter.filename;
     searchInput.clear();
-    setSelectedMemoryKey(`${selector.scope}:${filename}`);
+    if (activeScope !== "agent") {
+      setActiveScope(createSelector.scope);
+    }
+    setSelectedMemoryKey(`${createSelector.scope}:${filename}`);
     setCreateOpen(false);
   };
 
@@ -413,8 +426,16 @@ function useKnowledgePage() {
     handleCreate,
     isCreatePending,
     createError,
-    createDefaultType: defaultMemoryType(activeScope),
-    canCreateMemory: Boolean(selector),
+    createDefaultType: defaultMemoryType(
+      createSelector?.scope === "workspace"
+        ? "workspace"
+        : activeScope === "agent"
+          ? "agent"
+          : "global"
+    ),
+    canCreateMemory: Boolean(createSelector),
+    createDestinationLabel,
+    createScope: createSelector?.scope ?? "global",
     decisions: decisionsForSelected,
     decisionsError: decisionsQuery.error,
     isDecisionsLoading: decisionsQuery.isLoading && Boolean(selectedMemory),

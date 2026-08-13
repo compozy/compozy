@@ -19,6 +19,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: mocks.workspaceId,
     activeWorkspace: { name: "Test" },
+    runtimeWorkspaceId: mocks.workspaceId,
   }),
 }));
 vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({

@@ -14,8 +14,8 @@ import {
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
-  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = activeWorkspaceId ?? "";
+  const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = runtimeWorkspaceId ?? "";
   const workspaceLabel = activeWorkspace?.name ?? activeWorkspace?.id ?? "workspace";
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const enabled = workspaceId !== "" && liveDataEnabled;

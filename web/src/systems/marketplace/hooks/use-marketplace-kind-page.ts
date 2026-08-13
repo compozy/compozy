@@ -40,7 +40,6 @@ export interface MarketplaceKindPageModel {
   setScope: (scope: MarketplaceKindScope) => void;
   clearSearch: () => void;
   mcpConfigScope: MCPConfigScope;
-  setMCPConfigScope: (scope: MCPConfigScope) => void;
   marketplaceTotal: number;
   marketplaceTotalExact: boolean;
   installedCount: number;
@@ -58,6 +57,7 @@ export interface MarketplaceKindPageModel {
   error: Error | null;
   refetch: () => void;
   workspaceId: string | null | undefined;
+  workspaceName: string | null;
 }
 
 function useMarketplaceKindPage(
@@ -69,8 +69,9 @@ function useMarketplaceKindPage(
   const routeKind = marketplaceRouteKindFor(kind);
   const scope = marketplaceKindScopeFromSearch(search);
   const routeQuery = search.q ?? "";
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const mcpConfigScope = search.config_scope ?? (activeWorkspaceId ? "workspace" : "global");
+  const { activeWorkspace, activeWorkspaceId, scope: workspaceScope } = useActiveWorkspace();
+  const mcpConfigScope: MCPConfigScope =
+    workspaceScope === "workspace" && activeWorkspaceId ? "workspace" : "global";
   const updateSearch = (updater: (current: MarketplaceKindSearch) => MarketplaceKindSearch) => {
     void navigate({
       search: current => updater(current as MarketplaceKindSearch),
@@ -135,13 +136,6 @@ function useMarketplaceKindPage(
     updateSearch(current => ({
       ...current,
       tab: next === "market" ? "market" : undefined,
-    }));
-  };
-
-  const setMCPConfigScope = (next: MCPConfigScope) => {
-    updateSearch(current => ({
-      ...current,
-      config_scope: next,
     }));
   };
 
@@ -242,7 +236,6 @@ function useMarketplaceKindPage(
     setScope,
     clearSearch,
     mcpConfigScope,
-    setMCPConfigScope,
     marketplaceTotal,
     marketplaceTotalExact: exactMarketplaceTotal !== undefined,
     installedCount,
@@ -281,6 +274,7 @@ function useMarketplaceKindPage(
       }
     },
     workspaceId: activeWorkspaceId,
+    workspaceName: activeWorkspace?.name ?? null,
   };
 }
 

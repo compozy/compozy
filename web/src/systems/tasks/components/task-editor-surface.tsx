@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import {
   EntityDialogBody,
   EntityDialogFooter,
+  EntityDialogToolbar,
   EntityModeToolbar,
   FormSection,
   type EntityMode,
@@ -27,7 +28,11 @@ import { QueueOwnershipSection } from "./task-form/queue-ownership-section";
 import { TemplateCards } from "./task-form/template-cards";
 import { useTasksCreateModalForm } from "./use-tasks-create-modal-form";
 import { NetworkParticipationFields } from "@/systems/network";
-import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
+import {
+  WorkspaceScopeStatement,
+  destinationLabel,
+  type WorkspaceCommandSelectOption,
+} from "@/systems/workspace";
 
 export type TaskEditorSurfaceMode = "new" | "edit";
 
@@ -45,7 +50,6 @@ export interface TaskEditorSurfaceProps {
   onCancel: () => void;
   canSubmit?: boolean;
   isSubmitting?: boolean;
-  userHomeDir?: string;
   workspaces?: ReadonlyArray<WorkspaceCommandSelectOption>;
   templateId?: TaskTemplateId;
   onTemplateChange?: (templateId: TaskTemplateId) => void;
@@ -68,7 +72,6 @@ export function TaskEditorSurface({
   onCancel,
   canSubmit = true,
   isSubmitting = false,
-  userHomeDir,
   workspaces,
   templateId,
   onTemplateChange,
@@ -109,6 +112,18 @@ export function TaskEditorSurface({
     "loop_run",
   ]);
   const submitAllowed = canSubmit && participationValid;
+  const destination = destinationLabel(
+    draft.scope,
+    workspaces?.find(workspace => workspace.id === draft.workspaceId)?.name
+  );
+  const scopeStatement = (
+    <WorkspaceScopeStatement
+      destination={destination}
+      kind={isNewMode ? "create" : "edit"}
+      scope={draft.scope}
+      variant="chip"
+    />
+  );
 
   return (
     <section
@@ -133,21 +148,11 @@ export function TaskEditorSurface({
             mode={formMode}
             onModeChange={handleModeChange}
             testIdPrefix="task"
-            trailing={
-              <ScopeSelector
-                ariaLabel="Task scope"
-                onScopeChange={form.updateScope}
-                onWorkspaceChange={form.updateWorkspace}
-                scope={draft.scope}
-                testIdPrefix="task"
-                userHomeDir={userHomeDir}
-                workspaceId={draft.workspaceId}
-                workspaces={workspaces}
-              />
-            }
-            trailingLabel="Scope"
+            trailing={scopeStatement}
           />
-        ) : null}
+        ) : (
+          <EntityDialogToolbar trailing={scopeStatement} />
+        )}
 
         <EntityDialogBody data-testid="task-editor-modal-body">
           <FormSection

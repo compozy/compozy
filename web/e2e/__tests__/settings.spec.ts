@@ -4,7 +4,12 @@ import path from "node:path";
 import process from "node:process";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
-import { appWindow, openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import {
+  appWindow,
+  openAppWindow,
+  setGlobalScope,
+  switchWorkspace,
+} from "../fixtures/os-navigation";
 import { settingsOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
 import {
   browserSettingsOperatorFlowScenario,
@@ -12,7 +17,7 @@ import {
   seedBrowserSettingsFixtures,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 test.use({
   runtimeOptions: {
@@ -32,7 +37,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   const sessionUI = sessionLifecycleSelectors(appPage);
 
   await ensureGlobalWorkspace(runtime);
-  await useGlobalWorkspaceIfPrompted(sessionUI);
+  await completeOnboardingIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
   const settingsWin = appWindow(appPage, "settings");
   await expect(settingsWin).toBeVisible({ timeout: 20_000 });
@@ -148,7 +153,7 @@ test("operator can distinguish skills actions that apply now from policy changes
 
   try {
     await ensureGlobalWorkspace(runtime);
-    await useGlobalWorkspaceIfPrompted(sessionUI);
+    await completeOnboardingIfPrompted(sessionUI);
     await appPage.goto(runtime.url("/settings/skills"), { waitUntil: "domcontentloaded" });
     const settingsWin = appWindow(appPage, "settings");
     await expect(settingsWin).toBeVisible({ timeout: 20_000 });
@@ -201,7 +206,7 @@ test("operator can replace a builtin provider with a config overlay and delete i
   const builtinProviderName = await pickBuiltinProviderName(runtime);
 
   await ensureGlobalWorkspace(runtime);
-  await useGlobalWorkspaceIfPrompted(sessionUI);
+  await completeOnboardingIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/providers"), { waitUntil: "domcontentloaded" });
   const settingsWin = appWindow(appPage, "settings");
   await expect(settingsWin).toBeVisible({ timeout: 20_000 });
@@ -262,41 +267,18 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
   await ensureGlobalWorkspace(runtime);
-  await useGlobalWorkspaceIfPrompted(sessionUI);
+  await completeOnboardingIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/marketplace/mcps"), {
     waitUntil: "domcontentloaded",
   });
 
   await expect(settingsUI.mcpServers.page).toBeVisible();
-  await expect(settingsUI.mcpServers.scopeWorkspace).toBeVisible();
-  await expect(settingsUI.mcpServers.scopeGlobal).toBeVisible();
 
   await switchWorkspace(appPage, workspace.id, workspace.name);
   await appPage.goto(runtime.url("/marketplace/mcps"), {
     waitUntil: "domcontentloaded",
   });
   await expect(settingsUI.mcpServers.page).toBeVisible();
-  await settingsUI.mcpServers.scopeWorkspace.click();
-  await expect(settingsUI.mcpServers.scopeWorkspace).toHaveAttribute("aria-pressed", "true");
-
-  await settingsUI.mcpServers.scopeGlobal.click();
-  await expect(settingsUI.mcpServers.scopeGlobal).toHaveAttribute("aria-pressed", "true");
-
-  await createMCPServerViaUI(settingsUI, {
-    name: browserSettingsOperatorFlowScenario.mcpServers.global.name,
-    command: browserSettingsOperatorFlowScenario.mcpServers.global.command,
-    target: browserSettingsOperatorFlowScenario.mcpServers.global.target,
-  });
-
-  await expect(settingsUI.mcpServers.actionResult).toContainText(
-    `Saved "${browserSettingsOperatorFlowScenario.mcpServers.global.name}" · global-mcp-sidecar · applied now`
-  );
-  await expect(
-    settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.global.name)
-  ).toBeVisible();
-
-  await settingsUI.mcpServers.scopeWorkspace.click();
-  await expect(settingsUI.mcpServers.scopeWorkspace).toHaveAttribute("aria-pressed", "true");
 
   await createMCPServerViaUI(settingsUI, {
     name: browserSettingsOperatorFlowScenario.mcpServers.workspace.name,
@@ -311,9 +293,29 @@ test("operator can manage MCP servers across global and workspace scopes with vi
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).toBeVisible();
 
+  await setGlobalScope(appPage, true);
+  await appPage.goto(runtime.url("/marketplace/mcps"), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(settingsUI.mcpServers.page).toBeVisible();
+
+  await createMCPServerViaUI(settingsUI, {
+    name: browserSettingsOperatorFlowScenario.mcpServers.global.name,
+    command: browserSettingsOperatorFlowScenario.mcpServers.global.command,
+    target: browserSettingsOperatorFlowScenario.mcpServers.global.target,
+  });
+
+  await expect(settingsUI.mcpServers.actionResult).toContainText(
+    `Saved "${browserSettingsOperatorFlowScenario.mcpServers.global.name}" · global-mcp-sidecar · applied now`
+  );
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.global.name)
   ).toBeVisible();
+
+  await setGlobalScope(appPage, false);
+  await appPage.goto(runtime.url("/marketplace/mcps"), {
+    waitUntil: "domcontentloaded",
+  });
   await expect(
     settingsUI.mcpServers.row(browserSettingsOperatorFlowScenario.mcpServers.workspace.name)
   ).toBeVisible();
@@ -366,7 +368,7 @@ test("operator can manage restart-aware hooks and extension policy on split sett
 
   try {
     await ensureGlobalWorkspace(runtime);
-    await useGlobalWorkspaceIfPrompted(sessionUI);
+    await completeOnboardingIfPrompted(sessionUI);
     await appPage.goto(runtime.url("/settings/hooks"), {
       waitUntil: "domcontentloaded",
     });
@@ -426,7 +428,7 @@ test("operator routes a background role, persists it across reload, and keeps bu
   const nextModelLabel = "Claude Haiku 4.5";
 
   await ensureGlobalWorkspace(runtime);
-  await useGlobalWorkspaceIfPrompted(sessionUI);
+  await completeOnboardingIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/roles"), { waitUntil: "domcontentloaded" });
 
   await expect(settingsUI.roles.page).toBeVisible({ timeout: 20_000 });

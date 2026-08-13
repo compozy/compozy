@@ -39,9 +39,9 @@ export function useNetworkMessages({
   query = {},
   enabled = true,
 }: UseNetworkMessagesArgs): UseNetworkMessagesResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useNetworkLiveDataEnabled();
-  const selectedWorkspaceId = requestedWorkspaceId ?? activeWorkspaceId;
+  const selectedWorkspaceId = requestedWorkspaceId ?? runtimeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
   const isReady =
     Boolean(channel) &&

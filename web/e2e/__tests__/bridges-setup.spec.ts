@@ -25,7 +25,7 @@ import { slackBridgeManifestFixture } from "@/systems/bridges/mocks";
 
 import { bridgeOperatorSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const NOW = "2026-07-12T12:00:00Z";
 const CREATED_BRIDGE_ID = "brg_browser_slack_setup";
@@ -109,8 +109,7 @@ test("Should wait for Slack create 201 before manifest, copy daemon JSON, and op
   await ui.createDialog.getByTestId(`bridge-provider-card-${PROVIDER_KEY}`).click();
   await expect(ui.createDisplayNameInput).toBeVisible();
   await ui.createDisplayNameInput.fill("Browser Slack Setup");
-  await ui.createScopeGlobal.click();
-  await expect(ui.createScopeGlobal).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("workspace-scope-statement")).toContainText("Creates in Global");
   await ui.createModeAdvanced.click();
   await ui.createProviderConfigInput.fill(
     JSON.stringify({
@@ -410,7 +409,7 @@ async function openBridgesPage(
 ): Promise<void> {
   await ensureGlobalWorkspace(runtime);
   await page.goto(targetURL, { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(page);
+  await completeOnboardingIfPrompted(page);
   await expect(page.getByTestId("os-desktop")).toBeVisible();
 }
 

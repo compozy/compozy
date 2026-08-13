@@ -13,7 +13,7 @@ import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { sessionWindow } from "../fixtures/os-navigation";
 import { sessionWindowSelectors, toolApprovalGrantsSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const MOCK_AGENT = "mock-tool-approval-grants";
 const FIXTURE_AGENT = "tool-approval-grants";
@@ -80,9 +80,8 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
   assertLaunchRuntime(runtime);
   const grantsUI = toolApprovalGrantsSelectors(appPage);
 
-  // The session's workspace is the global workspace, which is also the browser's active
-  // workspace, so the remembered decision is visible in General Settings.
-  await useGlobalWorkspaceIfPrompted(appPage);
+  // The session and its remembered decision belong to the hidden operator-home runtime binding.
+  await completeOnboardingIfPrompted(appPage);
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
 
   const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {

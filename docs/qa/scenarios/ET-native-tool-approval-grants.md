@@ -44,4 +44,11 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 - A deny-all run proving a stored allow grant never overrides the mode ceiling, and a grant-store
   read-error run falling to the prompt (never auto-approve).
 
+2026-08-13 Global runtime-binding re-walk: the focused daemon-served E2E created an allow-always
+decision from a Global session, rendered the exact row in Web Settings / General through the hidden
+operator-home runtime binding, revoked it, and confirmed the workspace-scoped HTTP list was empty.
+`web/e2e/__tests__/tool-approval-grants.spec.ts` passed against a production Web build. The scenario
+remains `blocked-verify` for its wider cross-surface and restart matrix, which this focused regression
+walk did not claim to cover.
+
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-001-durable-approval-grants-for-native-tools

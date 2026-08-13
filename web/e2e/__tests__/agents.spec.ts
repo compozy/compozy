@@ -4,7 +4,7 @@ import path from "node:path";
 import { appWindow, openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -31,7 +31,7 @@ test("agent navigation renders the managed default agent after first-run setup",
 
   await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
 
   const agentsWin = appWindow(appPage, "agents");
   await expect(agentsWin).toBeVisible();
@@ -66,7 +66,7 @@ test.describe("seeded agent detail", () => {
   }) => {
     const ui = sessionLifecycleSelectors(appPage);
 
-    await useGlobalWorkspaceIfPrompted(ui);
+    await completeOnboardingIfPrompted(ui);
     const agentsWin = await openAppWindow(appPage, "Agents", "agents");
     const fleet = sessionLifecycleSelectors(agentsWin);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
@@ -111,7 +111,7 @@ test.describe("seeded agent detail", () => {
 
   test("operator edits agent settings, saves, and returns to overview", async ({ appPage }) => {
     const ui = sessionLifecycleSelectors(appPage);
-    await useGlobalWorkspaceIfPrompted(ui);
+    await completeOnboardingIfPrompted(ui);
     const agentsWin = await openAppWindow(appPage, "Agents", "agents");
     const fleet = sessionLifecycleSelectors(agentsWin);
     await fleet.agentRow("agent-detail-primary").click();
@@ -159,7 +159,7 @@ test.describe("seeded agent detail", () => {
 
   test("operator duplicates an agent from the overflow menu", async ({ appPage }) => {
     const ui = sessionLifecycleSelectors(appPage);
-    await useGlobalWorkspaceIfPrompted(ui);
+    await completeOnboardingIfPrompted(ui);
     const agentsWin = await openAppWindow(appPage, "Agents", "agents");
     const fleet = sessionLifecycleSelectors(agentsWin);
     await fleet.agentRow("agent-detail-primary").click();
@@ -175,7 +175,7 @@ test.describe("seeded agent detail", () => {
     appPage,
   }) => {
     const ui = sessionLifecycleSelectors(appPage);
-    await useGlobalWorkspaceIfPrompted(ui);
+    await completeOnboardingIfPrompted(ui);
     const agentsWin = await openAppWindow(appPage, "Agents", "agents");
     const fleet = sessionLifecycleSelectors(agentsWin);
     await fleet.agentRow("agent-detail-secondary").click();
@@ -203,7 +203,7 @@ test.describe("seeded agent detail", () => {
     await ensureGlobalWorkspace(runtime);
     const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
     await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
-    await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
+    await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
 
     await appPage.getByTestId("agents-topbar-create").click();
     await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
@@ -239,8 +239,7 @@ test.describe("seeded agent detail", () => {
     const createRequest = await createRequestPromise;
     const createResponse = await createResponsePromise;
     expect(createRequest.postDataJSON()).toMatchObject({
-      scope: "workspace",
-      workspace: workspace.id,
+      scope: "global",
       agent: {
         name: "reasoning-default-agent",
         provider: mockAgentProvider,
@@ -302,7 +301,7 @@ test.describe("fleet scan journey", () => {
     appPage,
   }) => {
     const ui = sessionLifecycleSelectors(appPage);
-    await useGlobalWorkspaceIfPrompted(ui);
+    await completeOnboardingIfPrompted(ui);
     const agentsWin = await openAppWindow(appPage, "Agents", "agents");
     const fleet = sessionLifecycleSelectors(agentsWin);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
@@ -381,7 +380,7 @@ test.describe("empty-fleet first-contact journey", () => {
     await ensureGlobalWorkspace(runtime);
     await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
     const ui = sessionLifecycleSelectors(appPage);
-    await useGlobalWorkspaceIfPrompted(ui);
+    await completeOnboardingIfPrompted(ui);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
 
     await expect(appPage.getByTestId("agent-fleet-empty")).toBeVisible();

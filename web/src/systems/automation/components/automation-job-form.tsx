@@ -35,11 +35,10 @@ import { ScheduleEvery } from "./job-form/schedule-every";
 import { TaskRunStep } from "./job-form/task-run-step";
 import type { AgentPayload } from "@/systems/agent";
 import { LoopTargetFields } from "@/systems/loops";
-import { ScopeSelector } from "@/systems/workspace";
+import { WorkspaceScopeStatement, destinationLabel } from "@/systems/workspace";
 
 interface AutomationJobFormProps {
   activeWorkspaceId?: string | null;
-  userHomeDir: string | undefined;
   draft: CreateAutomationJobRequest;
   isPending: boolean;
   mode: "create" | "edit";
@@ -140,7 +139,6 @@ function reliabilityBadge(
 
 export function AutomationJobForm({
   activeWorkspaceId,
-  userHomeDir,
   draft,
   isPending,
   mode,
@@ -168,6 +166,10 @@ export function AutomationJobForm({
   // Held above the view swap: the preview unmounts the form body, and a
   // disclosure someone opened must survive a look at the preview.
   const [reliabilityOpen, setReliabilityOpen] = useState(form.reliabilityDefaultOpen);
+  const destination = destinationLabel(
+    draft.scope,
+    form.resolvedWorkspaces.find(workspace => workspace.id === draft.workspace_id)?.name
+  );
 
   return (
     <form
@@ -177,19 +179,13 @@ export function AutomationJobForm({
     >
       <EntityDialogToolbar
         trailing={
-          <ScopeSelector
-            ariaLabel="Job scope"
-            disabled={mode === "edit"}
-            onScopeChange={form.onScopeChange}
-            onWorkspaceChange={form.onWorkspaceChange}
+          <WorkspaceScopeStatement
+            destination={destination}
+            kind={mode === "edit" ? "edit" : "create"}
             scope={draft.scope}
-            testIdPrefix="job"
-            userHomeDir={userHomeDir}
-            workspaceId={draft.workspace_id}
-            workspaces={form.resolvedWorkspaces}
+            variant="chip"
           />
         }
-        trailingLabel="Scope"
       />
 
       <EntityDialogBody data-testid="automation-job-form-body">

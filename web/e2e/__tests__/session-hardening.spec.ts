@@ -16,7 +16,7 @@ import {
   type WorkspacePayload,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const fixtureRoot = path.resolve(
@@ -608,7 +608,7 @@ test.describe("E2E-010 truthful session cost provenance by auth mode", () => {
       const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
       await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-      await useGlobalWorkspaceIfPrompted(ui);
+      await completeOnboardingIfPrompted(ui);
       await expect(ui.osDesktop).toBeVisible();
       await switchWorkspace(appPage, workspace.id, workspace.name);
       await appPage.setViewportSize({ width: 1440, height: 900 });
@@ -749,7 +749,7 @@ async function prepareSessionRuntime(
   const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
   const ui = sessionLifecycleSelectors(page);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
   return workspace;
 }
 

@@ -14,12 +14,14 @@ vi.mock("@/systems/tasks/hooks/use-task-dashboard", () => ({
 vi.mock("@/systems/tasks/hooks/use-tasks", () => ({
   useTasks: vi.fn(),
 }));
-vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({ useUserHomeDir: vi.fn() }));
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  useActiveWorkspace: vi.fn(),
+}));
 
 import { useOsAttention } from "../use-os-attention";
 import { useSessions } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
-import { useUserHomeDir, type WorkspacePayload } from "@/systems/workspace";
+import { useActiveWorkspace, type WorkspacePayload } from "@/systems/workspace";
 
 const workspace: WorkspacePayload = {
   id: "ws_alpha",
@@ -45,7 +47,10 @@ function sessionsQuery({
 describe("useOsAttention", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useUserHomeDir).mockReturnValue("/workspace");
+    vi.mocked(useActiveWorkspace).mockReturnValue({
+      scope: "workspace",
+      activeWorkspaceId: "ws_alpha",
+    } as never);
     vi.mocked(taskScopeForActiveWorkspace).mockReturnValue({} as never);
     vi.mocked(useTaskDashboard).mockReturnValue({
       data: { freshness: { stale: false }, totals: { awaiting_approval_tasks: 0 } },

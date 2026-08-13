@@ -10,6 +10,7 @@ import {
   useTaskEditState,
 } from "@/systems/tasks";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
+import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
 
 /**
  * Task creation is a focused single-entity form on the `md` host, so it stays a
@@ -32,6 +33,7 @@ export function TaskCreateDialog({
   return (
     <TaskEditorModal
       canSubmit={
+        !page.isScopeResolving &&
         page.draft.title.trim().length > 0 &&
         (page.draft.scope === "global" || Boolean(page.draft.workspaceId))
       }
@@ -46,7 +48,6 @@ export function TaskCreateDialog({
       onTemplateChange={page.handleTemplateChange}
       open
       templateId={page.templateId}
-      userHomeDir={page.userHomeDir}
       workspaces={page.workspaces}
     />
   );
@@ -62,6 +63,8 @@ export function TaskEditDialog({
 }) {
   const navigate = useTasksNavigation();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
+  // The edit chip echoes the entity's own scope; the list only resolves its name.
+  const { workspaces } = useActiveWorkspace();
   const backToTask = () =>
     navigate({ pathname: `/tasks/${encodeURIComponent(taskId)}`, search: { ...search } });
   const page = useTaskEditState(taskId, backToTask, { liveDataEnabled });
@@ -84,6 +87,7 @@ export function TaskEditDialog({
       onSubmit={page.handleSubmit}
       open
       status={status}
+      workspaces={toWorkspaceCommandSelectOptions(workspaces)}
     />
   );
 }

@@ -29,7 +29,6 @@ describe("WorkspaceCommandSelect", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
-          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -49,7 +48,6 @@ describe("WorkspaceCommandSelect", () => {
         <span id="workspace-field-label">Workspace</span>
         <WorkspaceCommandSelect
           ariaLabelledBy="workspace-field-label"
-          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -64,30 +62,35 @@ describe("WorkspaceCommandSelect", () => {
     expect(screen.getByRole("button", { name: "Workspace" })).toBeInTheDocument();
   });
 
-  it("Should render the selected home workspace with the home icon", () => {
+  it("Should hide the operator-home registration from the list", async () => {
+    const user = userEvent.setup();
+    const home = makeWorkspace({
+      id: "ws_home",
+      name: "home",
+      root_dir: "/Users/operator",
+    });
+
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
-          userHomeDir="/workspace/beta"
-          workspaces={workspaces}
-          value="ws_beta"
+          userHomeDir="/Users/operator"
+          workspaces={[home, ...workspaces]}
+          value="ws_alpha"
           onChange={() => undefined}
         />
       </UIProvider>
     );
 
-    const avatar = screen.getByTestId("workspace-switcher-avatar");
-    expect(avatar).toHaveAttribute("data-home", "true");
-    expect(avatar.querySelector("svg")).not.toBeNull();
-    expect(avatar).not.toHaveTextContent("B");
-    expect(screen.getByTestId("workspace-switcher")).toHaveAccessibleName("Home workspace: beta");
+    await user.click(screen.getByTestId("workspace-switcher"));
+    expect(screen.queryByTestId("workspace-command-item-ws_home")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-command-item-ws_alpha")).toBeInTheDocument();
+    expect(screen.queryByText("Home workspace")).not.toBeInTheDocument();
   });
 
   it("Should align compact trigger height with pill-group md track tokens", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
-          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -109,12 +112,7 @@ describe("WorkspaceCommandSelect", () => {
   it("Should show No workspace and disable the trigger when the registry is empty", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
-        <WorkspaceCommandSelect
-          userHomeDir={undefined}
-          workspaces={[]}
-          value={null}
-          onChange={() => undefined}
-        />
+        <WorkspaceCommandSelect workspaces={[]} value={null} onChange={() => undefined} />
       </UIProvider>
     );
 
@@ -128,12 +126,7 @@ describe("WorkspaceCommandSelect", () => {
 
     render(
       <UIProvider reducedMotion="never" skipAnimations>
-        <WorkspaceCommandSelect
-          userHomeDir={undefined}
-          workspaces={workspaces}
-          value="ws_alpha"
-          onChange={onChange}
-        />
+        <WorkspaceCommandSelect workspaces={workspaces} value="ws_alpha" onChange={onChange} />
       </UIProvider>
     );
 
@@ -151,7 +144,6 @@ describe("WorkspaceCommandSelect", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
-          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -170,7 +162,7 @@ describe("WorkspaceCommandSelect", () => {
     );
   });
 
-  it("Should pin the home workspace first in the command list", async () => {
+  it("Should hide the operator-home row and list project workspaces only", async () => {
     const user = userEvent.setup();
 
     render(
@@ -189,18 +181,9 @@ describe("WorkspaceCommandSelect", () => {
     const group = screen.getByTestId("workspace-command-group");
     const items = Array.from(group.querySelectorAll<HTMLElement>('[data-slot="command-item"]'));
     expect(items.map(item => item.getAttribute("data-testid"))).toEqual([
-      "workspace-command-item-ws_beta",
       "workspace-command-item-ws_alpha",
     ]);
-    expect(screen.getByTestId("workspace-command-item-ws_beta")).toHaveAttribute(
-      "data-home",
-      "true"
-    );
-    expect(screen.getByTestId("workspace-command-item-avatar-ws_beta")).toHaveAttribute(
-      "data-home",
-      "true"
-    );
-    expect(screen.getByText("Home workspace")).toBeInTheDocument();
+    expect(screen.queryByText("Home workspace")).not.toBeInTheDocument();
   });
 
   it("Should filter results via keyboard search", async () => {
@@ -209,7 +192,6 @@ describe("WorkspaceCommandSelect", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
-          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}
@@ -230,7 +212,6 @@ describe("WorkspaceCommandSelect", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>
         <WorkspaceCommandSelect
-          userHomeDir={undefined}
           workspaces={workspaces}
           value="ws_alpha"
           onChange={() => undefined}

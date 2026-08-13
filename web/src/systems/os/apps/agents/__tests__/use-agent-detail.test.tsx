@@ -16,6 +16,7 @@ const {
 }));
 
 let mockActiveWorkspaceId: string | null = "ws_alpha";
+let mockRuntimeWorkspaceId: string | null = "ws_alpha";
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -66,6 +67,7 @@ vi.mock("@/systems/session/hooks/use-session-lifecycle-actions", () => ({
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: mockActiveWorkspaceId,
+    runtimeWorkspaceId: mockRuntimeWorkspaceId,
   }),
 }));
 
@@ -76,6 +78,7 @@ const emptySearch = {};
 describe("useAgentDetailPage", () => {
   beforeEach(() => {
     mockActiveWorkspaceId = "ws_alpha";
+    mockRuntimeWorkspaceId = "ws_alpha";
     mockNavigate.mockReset();
     mockUseAgent.mockReset();
     mockUseAgentSessions.mockReset();
@@ -137,15 +140,16 @@ describe("useAgentDetailPage", () => {
     });
   });
 
-  it("Should fall back to global agent details when no workspace is active", () => {
+  it("Should bind Global agent details to the hidden home workspace", () => {
     mockActiveWorkspaceId = null;
+    mockRuntimeWorkspaceId = "ws_home";
 
     renderHook(() => useAgentDetailPage("global-agent", emptySearch));
 
-    expect(mockUseAgent).toHaveBeenCalledWith("global-agent", null);
-    expect(mockUseAgentSessions).toHaveBeenCalledWith(null, "global-agent");
-    expect(mockUseAgentCatalogMetrics).toHaveBeenCalledWith(null, "global-agent");
-    expect(mockUseSessionLifecycleActions).toHaveBeenCalledWith({ workspaceId: null });
+    expect(mockUseAgent).toHaveBeenCalledWith("global-agent", "ws_home");
+    expect(mockUseAgentSessions).toHaveBeenCalledWith("ws_home", "global-agent");
+    expect(mockUseAgentCatalogMetrics).toHaveBeenCalledWith("ws_home", "global-agent");
+    expect(mockUseSessionLifecycleActions).toHaveBeenCalledWith({ workspaceId: "ws_home" });
   });
 
   it("exposes exact catalog session metrics and session-row pagination separately", () => {

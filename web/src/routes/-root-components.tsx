@@ -38,11 +38,10 @@ function SkipToContentLink() {
   );
 }
 
-export function RootRouteErrorBoundary({ error, reset }: ErrorComponentProps) {
+export function RootRouteErrorBoundary({ error }: ErrorComponentProps) {
   const router = useRouter();
   const handleRetry = () => {
-    reset();
-    void router.invalidate({ forcePending: true });
+    void router.invalidate();
   };
 
   return (

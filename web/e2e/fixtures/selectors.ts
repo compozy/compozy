@@ -5,9 +5,7 @@ import type { Locator, Page } from "@playwright/test";
 export const sessionLifecycleTestIds = {
   osDesktop: "os-desktop",
   workspaceManualPathInput: "workspace-manual-path-input",
-  workspaceOnboarding: "workspace-onboarding",
   workspaceRegisterManual: "workspace-register-manual",
-  workspaceUseGlobal: "workspace-use-global",
 } as const;
 
 /**
@@ -50,9 +48,7 @@ export interface SessionLifecycleSelectors {
   agentRow(agentName: string): Locator;
   osDesktop: Locator;
   workspaceManualPathInput: Locator;
-  workspaceOnboarding: Locator;
   workspaceRegisterManual: Locator;
-  workspaceUseGlobal: Locator;
 }
 
 export interface SessionWindowSelectors {
@@ -104,8 +100,6 @@ export const networkOperatorTestIds = {
   threadsTab: "network-threads-tab",
   threadTab: "network-tab-threads",
   workspace: "network-shell",
-  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
-  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
 
 export const automationOperatorTestIds = {
@@ -138,8 +132,6 @@ export const automationOperatorTestIds = {
   jobScheduleModeCron: "job-schedule-mode-cron",
   jobScheduleModeEvery: "job-schedule-mode-every",
   jobScheduleTime: "job-schedule-time",
-  jobScopeGlobal: "job-scope-global",
-  jobScopeWorkspace: "job-scope-workspace",
   submitJobForm: "submit-job-form",
   submitTriggerForm: "submit-trigger-form",
   triggerAgentInput: "trigger-agent-input",
@@ -153,14 +145,11 @@ export const automationOperatorTestIds = {
   triggerRetryMax: "trigger-retry-max",
   triggerRetryStrategyBackoff: "trigger-retry-strategy-backoff",
   triggerRetryStrategyNone: "trigger-retry-strategy-none",
-  triggerScopeGlobal: "trigger-scope-global",
   triggerWebhookIDInput: "trigger-webhook-id-input",
   triggerWebhookSecretValueInput: "trigger-webhook-secret-value-input",
   toggleAutomationButton: "toggle-automation-btn",
   triggerJobButton: "trigger-job-btn",
   triggerNameInput: "trigger-name-input",
-  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
-  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
 
 export const bridgeOperatorTestIds = {
@@ -189,8 +178,6 @@ export const bridgeOperatorTestIds = {
   createBridgeModeAdvanced: "bridge-create-mode-advanced",
   createBridgeRoutingIncludePeer: "bridge-routing-include-peer",
   createBridgeRoutingIncludeThread: "bridge-routing-include-thread",
-  createBridgeScopeGlobal: "bridge-create-scope-global",
-  createBridgeScopeWorkspace: "bridge-create-scope-workspace",
   createBridgeButton: "create-bridge-btn",
   detailOverflow: "bridge-detail-overflow",
   disableBridgeButton: "disable-bridge-btn",
@@ -208,8 +195,6 @@ export const bridgeOperatorTestIds = {
   testDeliveryPeerInput: "test-delivery-peer-input",
   testDeliveryThreadInput: "test-delivery-thread-input",
   verifyBridgeButton: "verify-bridge-btn",
-  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
-  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
 
 export const knowledgeOperatorTestIds = {
@@ -240,8 +225,6 @@ export const knowledgeOperatorTestIds = {
   tabAgent: "tab-agent",
   tabGlobal: "tab-global",
   tabWorkspace: "tab-workspace",
-  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
-  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
 
 export const marketplaceOperatorTestIds = {
@@ -302,8 +285,6 @@ export const sandboxOperatorTestIds = {
   shell: "sandbox-shell",
   total: "sandbox-page-total",
   workspaceReferences: "sandbox-page-workspaces",
-  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
-  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
 
 export interface NetworkOperatorSelectors {
@@ -347,8 +328,6 @@ export interface NetworkOperatorSelectors {
   threadsTab: Locator;
   threadTab: Locator;
   workspace: Locator;
-  workspaceOnboarding: Locator;
-  workspaceUseGlobal: Locator;
 }
 
 export interface AutomationOperatorSelectors {
@@ -381,8 +360,6 @@ export interface AutomationOperatorSelectors {
   jobScheduleModeCron: Locator;
   jobScheduleModeEvery: Locator;
   jobScheduleTime: Locator;
-  jobScopeGlobal: Locator;
-  jobScopeWorkspace: Locator;
   jobsListRows: Locator;
   jobsShell: Locator;
   itemLink(id: string): Locator;
@@ -407,14 +384,11 @@ export interface AutomationOperatorSelectors {
   triggerRetryMax: Locator;
   triggerRetryStrategyBackoff: Locator;
   triggerRetryStrategyNone: Locator;
-  triggerScopeGlobal: Locator;
   triggerWebhookIDInput: Locator;
   triggerWebhookSecretValueInput: Locator;
   toggleAutomationButton: Locator;
   triggerJobButton: Locator;
   triggerNameInput: Locator;
-  workspaceOnboarding: Locator;
-  workspaceUseGlobal: Locator;
 }
 
 export interface BridgeOperatorSelectors {
@@ -432,8 +406,6 @@ export interface BridgeOperatorSelectors {
   createModeAdvanced: Locator;
   createRoutingIncludePeer: Locator;
   createRoutingIncludeThread: Locator;
-  createScopeGlobal: Locator;
-  createScopeWorkspace: Locator;
   deleteSecret(bindingName: string): Locator;
   detailPanel: Locator;
   detailOverflow: Locator;
@@ -474,8 +446,6 @@ export interface BridgeOperatorSelectors {
   testDeliveryResult: Locator;
   testDeliveryThreadInput: Locator;
   verifyBridgeButton: Locator;
-  workspaceOnboarding: Locator;
-  workspaceUseGlobal: Locator;
 }
 
 export interface KnowledgeOperatorSelectors {
@@ -508,8 +478,6 @@ export interface KnowledgeOperatorSelectors {
   tabAgent: Locator;
   tabGlobal: Locator;
   tabWorkspace: Locator;
-  workspaceOnboarding: Locator;
-  workspaceUseGlobal: Locator;
 }
 
 export interface MarketplaceOperatorSelectors {
@@ -583,8 +551,6 @@ export interface SandboxOperatorSelectors {
   shell: Locator;
   total: Locator;
   workspaceReferences: Locator;
-  workspaceOnboarding: Locator;
-  workspaceUseGlobal: Locator;
 }
 
 export const settingsShellTestIds = {
@@ -650,9 +616,6 @@ export const settingsMCPServersTestIds = {
   create: "marketplace-mcp-add",
   actionResult: "marketplace-mcp-save-toast",
   actionResultDismiss: "settings-page-mcp-servers-action-result-dismiss",
-  scopeGlobal: "marketplace-mcp-config-scope-global",
-  scopeWorkspace: "marketplace-mcp-config-scope-workspace",
-  scopeLabel: "marketplace-mcp-config-scope",
   editor: "settings-mcp-servers-editor",
   editorNameInput: "settings-mcp-servers-editor-name-input",
   editorCommandInput: "settings-mcp-servers-editor-command-input",
@@ -771,9 +734,6 @@ interface SettingsMCPServersSelectors {
   page: Locator;
   row(name: string): Locator;
   rowSource(name: string): Locator;
-  scopeGlobal: Locator;
-  scopeLabel: Locator;
-  scopeWorkspace: Locator;
 }
 
 interface SettingsHooksSelectors {
@@ -810,11 +770,8 @@ export const tasksOperatorTestIds = {
   createModeAdvanced: "task-mode-advanced",
   createModeSimple: "task-mode-simple",
   createSaveDraft: "task-editor-modal-submit",
-  createScopeGlobal: "task-scope-global",
-  createScopeWorkspace: "task-scope-workspace",
   createSubmit: "task-editor-modal-submit",
   createTitle: "task-title-input",
-  createWorkspaceSelect: "task-workspace-select",
   dashboardView: "tasks-dashboard-view",
   detailActiveRunChannel: "tasks-detail-active-run-channel",
   detailActiveRunEmpty: "tasks-detail-active-run-empty",
@@ -865,8 +822,6 @@ export const tasksOperatorTestIds = {
   runDetailOverflow: "tasks-run-overflow",
   runReviews: "tasks-run-reviews",
   runSessionDrilldown: "tasks-run-open-session",
-  workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
-  workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
 
 const tasksInboxGroupByLane: Record<string, string> = {
@@ -882,13 +837,9 @@ export interface TasksOperatorSelectors {
   createModeAdvanced: Locator;
   createModeSimple: Locator;
   createSaveDraft: Locator;
-  createScopeGlobal: Locator;
-  createScopeWorkspace: Locator;
   createSubmit: Locator;
   createTemplate(templateId: string): Locator;
   createTitle: Locator;
-  createWorkspaceOption(workspaceId: string): Locator;
-  createWorkspaceSelect: Locator;
   dashboardActiveRun(runId: string): Locator;
   dashboardActiveRunLink(runId: string): Locator;
   dashboardView: Locator;
@@ -961,8 +912,6 @@ export interface TasksOperatorSelectors {
   runSessionDrilldown: Locator;
   taskCard(taskId: string): Locator;
   taskCardPublish(taskId: string): Locator;
-  workspaceOnboarding: Locator;
-  workspaceUseGlobal: Locator;
 }
 export function sessionLifecycleSelectors(
   page: Pick<Page, "getByRole" | "getByTestId">
@@ -972,9 +921,7 @@ export function sessionLifecycleSelectors(
     agentRow: (agentName: string) => page.getByTestId(`agent-fleet-row-link-${agentName}`),
     osDesktop: page.getByTestId(sessionLifecycleTestIds.osDesktop),
     workspaceManualPathInput: page.getByTestId(sessionLifecycleTestIds.workspaceManualPathInput),
-    workspaceOnboarding: page.getByTestId(sessionLifecycleTestIds.workspaceOnboarding),
     workspaceRegisterManual: page.getByTestId(sessionLifecycleTestIds.workspaceRegisterManual),
-    workspaceUseGlobal: page.getByTestId(sessionLifecycleTestIds.workspaceUseGlobal),
   };
 }
 
@@ -1177,8 +1124,6 @@ export function networkOperatorSelectors(
     threadsTab: page.getByTestId(networkOperatorTestIds.threadsTab),
     threadTab: page.getByTestId(networkOperatorTestIds.threadTab),
     workspace: page.getByTestId(networkOperatorTestIds.workspace),
-    workspaceOnboarding: page.getByTestId(networkOperatorTestIds.workspaceOnboarding),
-    workspaceUseGlobal: page.getByTestId(networkOperatorTestIds.workspaceUseGlobal),
   };
 }
 
@@ -1216,8 +1161,6 @@ export function knowledgeOperatorSelectors(
     tabAgent: page.getByTestId(knowledgeOperatorTestIds.tabAgent),
     tabGlobal: page.getByTestId(knowledgeOperatorTestIds.tabGlobal),
     tabWorkspace: page.getByTestId(knowledgeOperatorTestIds.tabWorkspace),
-    workspaceOnboarding: page.getByTestId(knowledgeOperatorTestIds.workspaceOnboarding),
-    workspaceUseGlobal: page.getByTestId(knowledgeOperatorTestIds.workspaceUseGlobal),
   };
 }
 
@@ -1316,8 +1259,6 @@ export function sandboxOperatorSelectors(
     shell: page.getByTestId(sandboxOperatorTestIds.shell),
     total: page.getByTestId(sandboxOperatorTestIds.total),
     workspaceReferences: page.getByTestId(sandboxOperatorTestIds.workspaceReferences),
-    workspaceOnboarding: page.getByTestId(sandboxOperatorTestIds.workspaceOnboarding),
-    workspaceUseGlobal: page.getByTestId(sandboxOperatorTestIds.workspaceUseGlobal),
   };
 }
 
@@ -1365,8 +1306,6 @@ export function automationOperatorSelectors(
     jobScheduleModeCron: page.getByTestId(automationOperatorTestIds.jobScheduleModeCron),
     jobScheduleModeEvery: page.getByTestId(automationOperatorTestIds.jobScheduleModeEvery),
     jobScheduleTime: page.getByTestId(automationOperatorTestIds.jobScheduleTime),
-    jobScopeGlobal: page.getByTestId(automationOperatorTestIds.jobScopeGlobal),
-    jobScopeWorkspace: page.getByTestId(automationOperatorTestIds.jobScopeWorkspace),
     jobsListRows: page.getByTestId(automationOperatorTestIds.jobsListRows),
     jobsShell: page.getByTestId(automationOperatorTestIds.jobsShell),
     run: (id: string) => page.getByTestId(`automation-run-${id}`),
@@ -1393,7 +1332,6 @@ export function automationOperatorSelectors(
       automationOperatorTestIds.triggerRetryStrategyBackoff
     ),
     triggerRetryStrategyNone: page.getByTestId(automationOperatorTestIds.triggerRetryStrategyNone),
-    triggerScopeGlobal: page.getByTestId(automationOperatorTestIds.triggerScopeGlobal),
     triggerWebhookIDInput: page.getByTestId(automationOperatorTestIds.triggerWebhookIDInput),
     triggerWebhookSecretValueInput: page.getByTestId(
       automationOperatorTestIds.triggerWebhookSecretValueInput
@@ -1403,8 +1341,6 @@ export function automationOperatorSelectors(
     ),
     triggerJobButton: page.getByTestId(automationOperatorTestIds.triggerJobButton),
     triggerNameInput: page.getByTestId(automationOperatorTestIds.triggerNameInput),
-    workspaceOnboarding: page.getByTestId(automationOperatorTestIds.workspaceOnboarding),
-    workspaceUseGlobal: page.getByTestId(automationOperatorTestIds.workspaceUseGlobal),
   };
 }
 
@@ -1440,8 +1376,6 @@ export function bridgeOperatorSelectors(
     createRoutingIncludeThread: page.getByTestId(
       bridgeOperatorTestIds.createBridgeRoutingIncludeThread
     ),
-    createScopeGlobal: page.getByTestId(bridgeOperatorTestIds.createBridgeScopeGlobal),
-    createScopeWorkspace: page.getByTestId(bridgeOperatorTestIds.createBridgeScopeWorkspace),
     deleteSecret: (bindingName: string) => page.getByTestId(`delete-bridge-secret-${bindingName}`),
     detailPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDetailPanel),
     detailOverflow: page.getByTestId(bridgeOperatorTestIds.detailOverflow),
@@ -1485,8 +1419,6 @@ export function bridgeOperatorSelectors(
     testDeliveryResult: page.getByTestId(bridgeOperatorTestIds.bridgeTestDeliveryResult),
     testDeliveryThreadInput: page.getByTestId(bridgeOperatorTestIds.testDeliveryThreadInput),
     verifyBridgeButton: page.getByTestId(bridgeOperatorTestIds.verifyBridgeButton),
-    workspaceOnboarding: page.getByTestId(bridgeOperatorTestIds.workspaceOnboarding),
-    workspaceUseGlobal: page.getByTestId(bridgeOperatorTestIds.workspaceUseGlobal),
   };
 }
 export function settingsOperatorSelectors(
@@ -1579,9 +1511,6 @@ export function settingsOperatorSelectors(
       create: page.getByTestId(settingsMCPServersTestIds.create),
       actionResult: page.locator("[data-sonner-toast]:last-of-type"),
       actionResultDismiss: page.getByTestId(settingsMCPServersTestIds.actionResultDismiss),
-      scopeGlobal: page.getByTestId(settingsMCPServersTestIds.scopeGlobal),
-      scopeWorkspace: page.getByTestId(settingsMCPServersTestIds.scopeWorkspace),
-      scopeLabel: page.getByTestId(settingsMCPServersTestIds.scopeLabel),
       editor: page.getByTestId(settingsMCPServersTestIds.editor),
       editorNameInput: page.getByTestId(settingsMCPServersTestIds.editorNameInput),
       editorCommandInput: page.getByTestId(settingsMCPServersTestIds.editorCommandInput),
@@ -1630,14 +1559,9 @@ export function tasksOperatorSelectors(
     createModeSimple: page.getByTestId(tasksOperatorTestIds.createModeSimple),
     createPriority: (priority: string) => page.getByTestId(`task-priority-${priority}`),
     createSaveDraft: page.getByTestId(tasksOperatorTestIds.createSaveDraft),
-    createScopeGlobal: page.getByTestId(tasksOperatorTestIds.createScopeGlobal),
-    createScopeWorkspace: page.getByTestId(tasksOperatorTestIds.createScopeWorkspace),
     createSubmit: page.getByTestId(tasksOperatorTestIds.createSubmit),
     createTemplate: (templateId: string) => page.getByTestId(`task-template-${templateId}`),
     createTitle: page.getByTestId(tasksOperatorTestIds.createTitle),
-    createWorkspaceOption: (workspaceId: string) =>
-      page.getByTestId(`task-workspace-item-${workspaceId}`),
-    createWorkspaceSelect: page.getByTestId(tasksOperatorTestIds.createWorkspaceSelect),
     dashboardActiveRun: (runId: string) => page.getByTestId(`tasks-dashboard-active-run-${runId}`),
     dashboardActiveRunLink: (runId: string) =>
       page.getByTestId(`tasks-dashboard-active-run-link-${runId}`),
@@ -1713,7 +1637,5 @@ export function tasksOperatorSelectors(
     runSessionDrilldown: page.getByTestId(tasksOperatorTestIds.runSessionDrilldown),
     taskCard: (taskId: string) => page.getByTestId(`task-card-${taskId}`),
     taskCardPublish: (taskId: string) => page.getByTestId(`task-card-publish-${taskId}`),
-    workspaceOnboarding: page.getByTestId(tasksOperatorTestIds.workspaceOnboarding),
-    workspaceUseGlobal: page.getByTestId(tasksOperatorTestIds.workspaceUseGlobal),
   };
 }

@@ -36,13 +36,13 @@ function WorkspaceCommandSelectHarness({
   return (
     <Frame>
       <WorkspaceCommandSelect
-        userHomeDir={userHomeDir}
         workspaces={workspaceFixtures}
         value={workspaceId}
         onChange={setWorkspaceId}
         onAddWorkspace={onAddWorkspace}
         open={open}
         onOpenChange={setOpen}
+        userHomeDir={userHomeDir}
       />
     </Frame>
   );
@@ -78,28 +78,22 @@ export const Open: Story = {
   },
 };
 
-export const HomeWorkspaceOpen: Story = {
+export const HidesHomeRegistration: Story = {
   args: {
-    defaultWorkspaceId: workspaceFixtures[3]?.id ?? workspaceFixtures[0]?.id ?? null,
     defaultOpen: true,
     userHomeDir: workspaceFixtures[3]?.root_dir,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const homeWorkspace = workspaceFixtures[3] ?? workspaceFixtures[0];
+    const homeWorkspace = workspaceFixtures[3];
     if (!homeWorkspace) {
-      throw new Error("Expected a workspace fixture");
+      throw new Error("Expected a home workspace fixture");
     }
 
-    await expect(canvas.getByTestId("workspace-switcher-avatar")).toHaveAttribute(
-      "data-home",
-      "true"
-    );
-    await expect(canvas.getByTestId(`workspace-command-item-${homeWorkspace.id}`)).toHaveAttribute(
-      "data-home",
-      "true"
-    );
-    await expect(canvas.getByText("Home workspace")).toBeInTheDocument();
+    await expect(
+      canvas.queryByTestId(`workspace-command-item-${homeWorkspace.id}`)
+    ).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Home workspace")).not.toBeInTheDocument();
   },
 };
 
@@ -123,12 +117,7 @@ export const SwitchesWorkspace: Story = {
 export const EmptyRegistry: Story = {
   render: () => (
     <Frame>
-      <WorkspaceCommandSelect
-        userHomeDir={undefined}
-        workspaces={[]}
-        value={null}
-        onChange={() => undefined}
-      />
+      <WorkspaceCommandSelect workspaces={[]} value={null} onChange={() => undefined} />
     </Frame>
   ),
   play: async ({ canvasElement }) => {
@@ -142,8 +131,7 @@ export const Compact: Story = {
   parameters: {
     docs: {
       description: {
-        story:
-          "Compact trigger for scope rows: pill-group md track height, form-label typography, and field border beside Global/Workspace toggles.",
+        story: "Compact trigger for dense rows: pill-group md track height and form-label type.",
       },
     },
   },
@@ -151,7 +139,6 @@ export const Compact: Story = {
     <CenteredSurface className="items-start justify-center p-6">
       <div className="w-[220px] border border-line bg-canvas-soft p-3">
         <WorkspaceCommandSelect
-          userHomeDir={undefined}
           workspaces={workspaceFixtures}
           value={workspaceFixtures[0]?.id ?? null}
           onChange={() => undefined}

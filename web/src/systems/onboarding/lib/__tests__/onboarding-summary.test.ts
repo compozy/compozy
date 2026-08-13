@@ -100,7 +100,7 @@ describe("onboardingSummary", () => {
 
     expect(summary).toEqual({
       label: "Workspaces",
-      value: "None yet — add at least one folder to finish.",
+      value: "None yet — start in Global scope. Add project folders any time.",
       tone: "neutral",
     });
   });

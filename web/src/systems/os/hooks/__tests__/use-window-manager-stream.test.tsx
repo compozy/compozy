@@ -8,9 +8,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { statusKeys, type StatusPayload } from "@/systems/status";
 import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 import { useActiveWorkspace } from "@/systems/workspace/hooks/use-active-workspace";
+import {
+  clearActiveWorkspaceSelection,
+  setActiveWorkspaceId,
+} from "@/systems/workspace/stores/active-workspace-store";
 import type { WorkspacePayload } from "@/systems/workspace/types";
 
 import { fetchWindowManagerSnapshot } from "../../adapters/window-manager-api";
@@ -200,56 +205,70 @@ describe("useWindowManagerStream", () => {
   it("Should reconcile a removed workspace before opening the replacement stream", async () => {
     const staleWorkspace = workspace("workspace:stale");
     const currentWorkspace = workspace("workspace:current");
+    const homeRow = { ...workspace("workspace:home"), root_dir: "/Users/operator" };
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    queryClient.setQueryData(workspaceKeys.list(), [staleWorkspace]);
-    vi.mocked(fetchWorkspaces).mockResolvedValue([currentWorkspace]);
+    // Scope resolution needs `$HOME` before it claims a workspace binding.
+    queryClient.setQueryData(statusKeys.current(), {
+      daemon: { user_home_dir: "/Users/operator" },
+    } as StatusPayload);
+    queryClient.setQueryData(workspaceKeys.list(), [staleWorkspace, homeRow]);
+    setActiveWorkspaceId(staleWorkspace.id);
+    vi.mocked(fetchWorkspaces).mockResolvedValue([currentWorkspace, homeRow]);
     const { factory, sockets } = createSocketFactory();
 
-    const { result } = renderHook(
-      () => {
-        const { activeWorkspaceId } = useActiveWorkspace();
-        useWindowManagerStream({
-          workspaceId: activeWorkspaceId,
-          clientId: "client:web",
-          registrationEpoch: 0,
-          currentClient: null,
-          enabled: activeWorkspaceId !== null,
-          afterRevision: 0,
-          socketFactory: factory,
-          onStatusChange: vi.fn(),
-          onSnapshot: vi.fn(),
-          onClient: vi.fn(),
-          onClientInvalidated: vi.fn(),
-          onError: vi.fn(),
-        });
-        return activeWorkspaceId;
-      },
-      { wrapper: wrapper(queryClient) }
-    );
-
-    expect(result.current).toBe(staleWorkspace.id);
-    expect(factory).toHaveBeenCalledWith(
-      "/api/workspaces/workspace%3Astale/window-manager/stream?after_revision=0&client_id=client%3Aweb"
-    );
-
-    act(() => {
-      sockets[0]?.message({
-        type: "error",
-        error: {
-          error: "window_manager_workspace_not_found",
-          code: "window_manager_workspace_not_found",
-          workspace_id: staleWorkspace.id,
+    try {
+      const { result } = renderHook(
+        () => {
+          // Mirrors the desktop shell: the stream binds the runtime workspace,
+          // which is the home row while Global scope is on.
+          const { runtimeWorkspaceId } = useActiveWorkspace();
+          useWindowManagerStream({
+            workspaceId: runtimeWorkspaceId,
+            clientId: "client:web",
+            registrationEpoch: 0,
+            currentClient: null,
+            enabled: runtimeWorkspaceId !== null,
+            afterRevision: 0,
+            socketFactory: factory,
+            onStatusChange: vi.fn(),
+            onSnapshot: vi.fn(),
+            onClient: vi.fn(),
+            onClientInvalidated: vi.fn(),
+            onError: vi.fn(),
+          });
+          return runtimeWorkspaceId;
         },
-      });
-    });
+        { wrapper: wrapper(queryClient) }
+      );
 
-    await waitFor(() => expect(result.current).toBe(currentWorkspace.id));
-    expect(fetchWorkspaces).toHaveBeenCalledOnce();
-    expect(factory).toHaveBeenLastCalledWith(
-      "/api/workspaces/workspace%3Acurrent/window-manager/stream?after_revision=0&client_id=client%3Aweb"
-    );
+      expect(result.current).toBe(staleWorkspace.id);
+      expect(factory).toHaveBeenCalledWith(
+        "/api/workspaces/workspace%3Astale/window-manager/stream?after_revision=0&client_id=client%3Aweb"
+      );
+
+      act(() => {
+        sockets[0]?.message({
+          type: "error",
+          error: {
+            error: "window_manager_workspace_not_found",
+            code: "window_manager_workspace_not_found",
+            workspace_id: staleWorkspace.id,
+          },
+        });
+      });
+
+      // A pruned selection never adopts another project — it falls back to
+      // Global, whose runtime binding is the operator-home row.
+      await waitFor(() => expect(result.current).toBe(homeRow.id));
+      expect(fetchWorkspaces).toHaveBeenCalledOnce();
+      expect(factory).toHaveBeenLastCalledWith(
+        "/api/workspaces/workspace%3Ahome/window-manager/stream?after_revision=0&client_id=client%3Aweb"
+      );
+    } finally {
+      clearActiveWorkspaceSelection();
+    }
   });
 
   it("Should keep one socket across topology advances and reconnect with the latest cached fence", async () => {

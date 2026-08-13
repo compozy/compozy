@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>summarize-failures · Triggers · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="triggers.css">
+</head>
+<body class="tr-stage" data-target-kind="agent" data-target-name="summarizer">
+<!--
+  THESIS: A trigger is a When → If → Then rule. This page refuses the shared Jobs inspector (Hook / Governance / fire_id as the lead).
+  OWN-WORLD: CompozyOS warm-dark ramp, Geist + JetBrains Mono, 44px drill-in head, .wit contract, separate .rsec rail cards.
+  STORY: See what it watches, whether it is on, whether the last fire worked; enable, edit, or inspect without hunting overflow.
+  FIRST VIEWPORT: Crumbs + Edit. Page head sentence with enable opposite it. When / If / Then. Separate collapsible rail cards. Lucide. No Run now.
+  FORM: Established Operate surface · code-led · seed n/a (AGH world, not a new identity).
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+-->
+<section class="win is-focused" id="win" data-od-id="trigger-window" aria-label="Triggers window">
+  <header class="win-head" data-od-id="trigger-detail-head">
+    <div class="win-controls">
+      <button class="wc wc-close" type="button" aria-label="Close"></button>
+      <button class="wc wc-min" type="button" aria-label="Minimize"></button>
+      <button class="wc wc-zoom" type="button" aria-label="Zoom"></button>
+    </div>
+    <!-- production: drill-in replaces glyph; trail starts at window route Triggers -->
+    <a class="w2-back" href="../empty-states/triggers-empty-suggestions.html" aria-label="Back to Triggers">
+      <i data-lucide="chevron-left"></i>
+    </a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="../empty-states/triggers-empty-suggestions.html">Triggers</a>
+      <span class="w2-sep" aria-hidden="true">/</span>
+      <span class="w2-title" data-od-id="trigger-title">summarize-failures</span>
+    </nav>
+    <span class="w2-flex" aria-hidden="true"></span>
+    <div class="w2-actions" data-od-id="trigger-actions">
+      <!-- production: Edit is overflow, dynamic source only. authorized delta: ghost in head — user asked for reachable controls. No primary: daemon has no POST /triggers/{id}/trigger -->
+      <a class="btn" data-od-id="action-edit" href="../_done/modals/create-trigger-redesign.html"><i data-lucide="pencil"></i>Edit</a>
+      <button class="btn btn--icon" id="moreBtn" type="button" aria-label="More" aria-haspopup="menu" aria-expanded="false">
+        <i data-lucide="ellipsis"></i>
+      </button>
+      <div class="menu" id="moreMenu" role="menu">
+        <button class="menu__item" type="button" role="menuitem" data-copy="summarize-failures" data-od-id="action-copy-id">
+          <i data-lucide="copy"></i>
+          Copy trigger id
+        </button>
+        <button class="menu__item" type="button" role="menuitem" id="menuToggle" data-od-id="action-disable">
+          <i data-lucide="power"></i>
+          <span id="menuToggleLabel">Disable</span>
+        </button>
+        <div class="menu__sep"></div>
+        <button class="menu__item" type="button" role="menuitem" data-tone="danger" id="menuDelete" data-od-id="action-delete">
+          <i data-lucide="trash-2"></i>
+          Delete trigger…
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="win-body">
+    <div class="page">
+      <div class="lede" data-od-id="trigger-lede">
+        <div class="lede__row">
+          <div class="lede__copy">
+            <h1 class="lede__s" id="ledeSentence">When a session stops in <em>checkout-api</em>, if the stop reason is error, run <em>summarizer</em>.</h1>
+            <p class="lede__pause" id="ledePause">Matching events will not run the agent until this trigger is enabled.</p>
+          </div>
+          <!-- production: PATCH /api/automation/triggers/{id} { enabled }. Page head, opposite the sentence — not the 44px window chrome. 32×18 track is the production lock. -->
+          <button class="lede-enable" id="enableSwitch" type="button" role="switch" aria-checked="true" aria-label="Enable trigger" data-od-id="trigger-enable">
+            <span class="lede-enable__lab" id="enableLab" aria-hidden="true">Enabled</span>
+            <span class="switch is-on" id="enableTrack" aria-hidden="true"><span class="knob"></span></span>
+          </button>
+        </div>
+        <div class="subhead" data-od-id="trigger-subhead">
+          <span class="pill" data-tone="info" data-od-id="trigger-event-pill">Session stopped</span>
+          <span>Workspace <b>checkout-api</b></span><span class="dotsep"></span>
+          <span>Last ran <time datetime="2026-08-12T21:14:00-03:00" title="12 Aug 2026, 21:14">2h ago</time></span><span class="dotsep"></span>
+          <span>Updated <time datetime="2026-08-11T16:02:00-03:00" title="11 Aug 2026, 16:02">yesterday</time></span>
+        </div>
+      </div>
+
+      <div class="layout">
+        <main data-od-id="trigger-main">
+          <details class="sec" open data-od-id="section-rule">
+            <summary>
+              <i class="si" data-lucide="zap"></i>
+              <span class="st">Rule</span>
+              <span class="ssum">session.stopped → summarizer</span>
+              <span class="spacer"></span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="wit">
+              <div class="wit__row" data-od-id="rule-when">
+                <span class="wit__k">When</span>
+                <span class="wit__v">
+                  <span class="wit__event"><i data-lucide="circle-dot"></i><b>A session stops</b><span class="pill" data-mono="true">session.stopped</span></span>
+                  <span class="sub">In workspace checkout-api</span>
+                </span>
+              </div>
+              <div class="wit__row" data-od-id="rule-if">
+                <span class="wit__k">If</span>
+                <span class="wit__v">
+                  <span class="wit__if"><i data-lucide="filter"></i><span>Stop reason is <span class="bindbadge">error</span></span></span>
+                  <span class="sub">Exact match on <span class="mono" style="font-size:11px;color:var(--faint)">data.stop_reason</span></span>
+                </span>
+              </div>
+              <div class="wit__row" data-od-id="rule-then">
+                <span class="wit__k">Then</span>
+                <span class="wit__v">
+                  <span class="agent-id"><span class="agent-chip" aria-hidden="true">s</span><b>summarizer</b></span>
+                  <span class="sub">The agent receives a prompt built from the event.</span>
+                  <div class="prompt" id="promptPreview" data-open="false">Session <span class="bindbadge">{{ .Data.session_id }}</span> (agent <span class="bindbadge">{{ .Data.agent_name }}</span>) stopped with reason "<span class="bindbadge">{{ .Data.stop_reason }}</span>".
+
+Read the transcript, summarize what went wrong, the likely root cause, and one suggested next step.</div>
+                  <button class="prompt-toggle" type="button" id="promptToggle" aria-expanded="false">Show full prompt</button>
+                </span>
+              </div>
+            </div>
+          </details>
+
+          <details class="sec" open data-od-id="section-runs">
+            <!-- production: GET /api/automation/triggers/{id}/runs?limit=10 -->
+            <summary>
+              <i class="si" data-lucide="history"></i>
+              <span class="st">Recent runs</span>
+              <span class="count">3</span>
+              <span class="ssum">last 10 from the daemon</span>
+              <span class="spacer"></span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="panelbox">
+              <button class="runrow" type="button" data-od-id="run-r1" aria-expanded="false" aria-controls="draw-r1">
+                <span class="pill" data-tone="success"><span class="dot"></span>Completed</span>
+                <span class="rmeta"><i data-lucide="bot"></i><span>Session <span class="mono">sess_9f2a1c</span></span></span>
+                <span class="rcell">18s</span>
+                <span class="rchev" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+              </button>
+              <div class="rundraw" id="draw-r1">
+                <p>summarizer finished. Open the session to read the summary.</p>
+                <div class="actrow">
+                  <button class="btn btn--sm" type="button" data-toast="Opens session sess_9f2a1c"><i data-lucide="arrow-right"></i>Open session</button>
+                </div>
+              </div>
+
+              <button class="runrow" type="button" data-od-id="run-r2" aria-expanded="false" aria-controls="draw-r2">
+                <span class="pill" data-tone="danger"><span class="dot"></span>Failed</span>
+                <span class="rmeta"><i data-lucide="bot-off"></i><span>Agent summarizer was not available</span></span>
+                <span class="rcell">0s</span>
+                <span class="rchev" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+              </button>
+              <div class="rundraw" id="draw-r2">
+                <p class="err">The agent was not running when this event matched. The trigger retried once, then stopped.</p>
+                <div class="actrow">
+                  <button class="btn btn--sm" type="button" data-toast="Opens session sess_7c11e0"><i data-lucide="arrow-right"></i>Open session</button>
+                </div>
+              </div>
+
+              <button class="runrow" type="button" data-od-id="run-r3" aria-expanded="false" aria-controls="draw-r3">
+                <span class="pill" data-tone="success"><span class="dot"></span>Completed</span>
+                <span class="rmeta"><i data-lucide="bot"></i><span>Session <span class="mono">sess_4b80d2</span></span></span>
+                <span class="rcell">24s</span>
+                <span class="rchev" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+              </button>
+              <div class="rundraw" id="draw-r3">
+                <p>summarizer finished. Open the session to read the summary.</p>
+                <div class="actrow">
+                  <button class="btn btn--sm" type="button" data-toast="Opens session sess_4b80d2"><i data-lucide="arrow-right"></i>Open session</button>
+                </div>
+              </div>
+            </div>
+          </details>
+        </main>
+
+        <aside data-od-id="trigger-rail">
+          <details class="rsec" open>
+            <summary>
+              <i class="si" data-lucide="info"></i>
+              <span class="rt">Properties</span>
+              <span class="rsum">This workspace · Session stopped</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body">
+              <div class="prow"><span class="prow__k">Scope</span><span class="prow__v">This workspace</span></div>
+              <div class="prow"><span class="prow__k">Event</span><span class="prow__v">Session stopped</span></div>
+              <div class="prow"><span class="prow__k">Target</span><span class="prow__v">Agent · summarizer</span></div>
+              <div class="prow"><span class="prow__k">Source</span><span class="prow__v">You created this</span></div>
+            </div>
+          </details>
+          <details class="rsec">
+            <summary>
+              <i class="si" data-lucide="gauge"></i>
+              <span class="rt">Reliability</span>
+              <span class="rsum">Backoff · 4 / hour</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body">
+              <div class="prow"><span class="prow__k">Retry</span><span class="prow__v">Backoff · 2 times</span></div>
+              <div class="prow"><span class="prow__k">At most</span><span class="prow__v">4 times / hour</span></div>
+            </div>
+          </details>
+          <details class="rsec">
+            <summary>
+              <i class="si" data-lucide="hash"></i>
+              <span class="rt">Identity</span>
+              <span class="rsum">8d ago</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body">
+              <div class="prow"><span class="prow__k">Created</span><span class="prow__v"><time datetime="2026-08-04T11:20:00-03:00">8d ago</time></span></div>
+              <div class="prow">
+                <span class="prow__k">Trigger id</span>
+                <span class="prow__v mono">
+                  <span>summarize-failures</span>
+                  <button class="copybtn" type="button" data-copy="summarize-failures" aria-label="Copy trigger id">
+                    <i data-lucide="copy"></i>
+                  </button>
+                </span>
+              </div>
+            </div>
+          </details>
+          <div class="rail-foot">
+            <button class="act" type="button" id="openInspect" data-od-id="rail-inspect">
+              <i data-lucide="search"></i>
+              Inspect
+            </button>
+            <span class="cli">compozy automation triggers get</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="inspectSheet" role="dialog" aria-modal="true" aria-labelledby="inspectTitle" data-od-id="inspect-drawer">
+  <header class="sheet__head">
+    <span class="sheet__well" aria-hidden="true">
+      <i data-lucide="search"></i>
+    </span>
+    <div>
+      <div class="eyebrow">Operator</div>
+      <div class="sheet__title" id="inspectTitle">Inspect</div>
+      <div class="sheet__desc">Runtime fields for this trigger. Envelope matches the create-flow sample for <span class="mono" style="font-size:11px">session.stopped</span>.</div>
+    </div>
+    <button class="sheet__close" type="button" data-close aria-label="Close">
+      <i data-lucide="x"></i>
+    </button>
+  </header>
+  <nav class="lane-tabs" role="tablist" aria-label="Inspect views" style="padding:0 20px">
+    <button class="lane-tab is-on" type="button" role="tab" id="tab-diag" aria-selected="true" aria-controls="insp-diag" data-insp="diag">Diagnostics</button>
+    <button class="lane-tab" type="button" role="tab" id="tab-env" aria-selected="false" aria-controls="insp-env" data-insp="env">Envelope</button>
+  </nav>
+  <div class="sheet__body">
+    <div class="inspane" id="insp-diag" role="tabpanel" aria-labelledby="tab-diag">
+      <div class="tiles">
+        <div class="tile"><div class="tile__l">Id</div><div class="tile__v"><span class="mono">summarize-failures</span></div></div>
+        <div class="tile"><div class="tile__l">Source</div><div class="tile__v"><span class="mono">DYNAMIC</span></div></div>
+        <div class="tile"><div class="tile__l">Scope</div><div class="tile__v"><span class="mono">WORKSPACE</span></div></div>
+        <div class="tile"><div class="tile__l">Kind</div><div class="tile__v"><span class="mono">session.stopped</span></div></div>
+        <div class="tile"><div class="tile__l">Target</div><div class="tile__v"><span class="mono">agent · summarizer</span></div></div>
+        <div class="tile"><div class="tile__l">Retry</div><div class="tile__v"><span class="mono">backoff · 2 · 5s</span></div></div>
+      </div>
+      <p class="app-note" style="margin-top:8px">Filter path <span class="mono">data.stop_reason = error</span>. Fire limit <span class="mono">4 / 1h</span>. Target kind is immutable after create.</p>
+    </div>
+    <div class="inspane" id="insp-env" role="tabpanel" aria-labelledby="tab-env" hidden>
+      <div class="code-block">{
+  "kind": "session.stopped",
+  "scope": "workspace",
+  "workspace_id": "ws_checkout_api",
+  "data": {
+    "session_id": "sess_9f2a1c",
+    "agent_name": "reviewer",
+    "stop_reason": "error"
+  }
+}</div>
+    </div>
+  </div>
+</aside>
+
+<div class="dlg-scrim" id="deleteScrim" role="presentation">
+  <div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="delTitle" aria-describedby="delDesc" data-od-id="delete-dialog">
+    <h2 id="delTitle">Delete summarize-failures?</h2>
+    <p id="delDesc">This removes the trigger. Matching events will stop running summarizer. Run history stays in the log.</p>
+    <div class="dlg__foot">
+      <button class="btn" type="button" id="delCancel">Cancel</button>
+      <button class="btn btn--destructive" type="button" id="delConfirm" data-href="../empty-states/triggers-empty-suggestions.html" data-od-id="delete-confirm">Delete trigger</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<span class="sr-only" id="live" aria-live="polite"></span>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="triggers.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

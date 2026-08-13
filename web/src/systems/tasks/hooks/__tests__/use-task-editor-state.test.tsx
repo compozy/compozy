@@ -7,7 +7,8 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const editorMocks = vi.hoisted(() => ({
-  activeWorkspaceId: "ws_alpha",
+  activeWorkspaceId: "ws_alpha" as string | null,
+  scope: "workspace" as "global" | "workspace",
   detail: undefined as unknown,
   detailOptions: undefined as unknown,
   profile: undefined as unknown,
@@ -16,7 +17,6 @@ const editorMocks = vi.hoisted(() => ({
   createChild: vi.fn(),
   enqueue: vi.fn(),
   activeWorkspaceOptions: undefined as unknown,
-  userHomeDirOptions: undefined as unknown,
   update: vi.fn(),
 }));
 
@@ -56,16 +56,11 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: (options: unknown) => {
     editorMocks.activeWorkspaceOptions = options;
     return {
+      scope: editorMocks.scope,
+      activeWorkspaceId: editorMocks.activeWorkspaceId,
       activeWorkspace: editorWorkspaces.find(item => item.id === editorMocks.activeWorkspaceId),
       workspaces: editorWorkspaces,
     };
-  },
-}));
-
-vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({
-  useUserHomeDir: (options: unknown) => {
-    editorMocks.userHomeDirOptions = options;
-    return "/Users/operator";
   },
 }));
 
@@ -88,6 +83,7 @@ function buildEditorDetail(id: string, title: string, updatedAt: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   editorMocks.activeWorkspaceId = "ws_alpha";
+  editorMocks.scope = "workspace";
   editorMocks.detail = buildEditorDetail("task_alpha", "Alpha source", "2026-07-25T10:00:00Z");
   editorMocks.profile = buildTaskExecutionProfileFixture({
     task_id: "task_alpha",
@@ -96,7 +92,6 @@ beforeEach(() => {
   editorMocks.detailOptions = undefined;
   editorMocks.profileOptions = undefined;
   editorMocks.activeWorkspaceOptions = undefined;
-  editorMocks.userHomeDirOptions = undefined;
 });
 
 describe("task editor state identity", () => {
@@ -106,8 +101,18 @@ describe("task editor state identity", () => {
     );
 
     expect(editorMocks.activeWorkspaceOptions).toEqual({ enabled: false });
-    expect(editorMocks.userHomeDirOptions).toEqual({ enabled: false });
     expect(result.current.draft.workspaceId).toBe("ws_alpha");
+  });
+
+  it("Should keep an unresolved workspace draft out of Global scope and block submission", async () => {
+    editorMocks.activeWorkspaceId = null;
+    const { result } = renderHook(() => useTaskCreateState({}, vi.fn()));
+    const draft = { ...result.current.draft, title: "Wait for workspace" };
+
+    expect(result.current.isScopeResolving).toBe(true);
+    expect(result.current.draft).toMatchObject({ scope: "workspace", workspaceId: null });
+    await expect(result.current.handleSubmit(draft, true)).resolves.toBeNull();
+    expect(editorMocks.create).not.toHaveBeenCalled();
   });
 
   it("Should preserve create edits across template changes and reset before rendering a new workspace", () => {

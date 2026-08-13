@@ -49,8 +49,8 @@ export function useSendNetworkMessage(
   options: { workspaceId?: string | null } = {}
 ): UseSendNetworkMessageResult {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = options.workspaceId ?? activeWorkspaceId;
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const mutation = useMutation<SendNetworkMessageResult, Error, ScopedSendNetworkMessageInput>({
     mutationFn: async input => {
       const clientMessageId = input.clientMessageId ?? generateClientMessageId();

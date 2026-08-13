@@ -8,18 +8,15 @@ type Phase = "editing" | "creating-secret" | "installing" | "failed";
 export interface MCPInstallDialogState {
   phase: Phase;
   requestId: number;
-  scope: Scope;
   bindings: Record<string, MCPFieldBinding>;
   installError: string | null;
 }
 
 export interface MCPInstallDialogInput {
-  scope: Scope;
   bindings: Record<string, MCPFieldBinding>;
 }
 
 type Events = {
-  scopeSelected: { scope: Scope };
   bindingChanged: { name: string; binding: MCPFieldBinding };
   secretCreationRequested: {
     createSecret: (ref: string, value: string) => Promise<void>;
@@ -30,6 +27,8 @@ type Events = {
   secretCreationSucceeded: { requestId: number; name: string; ref: string };
   secretCreationFailed: { requestId: number; name: string; error: string };
   installationRequested: {
+    /** Landing scope is menubar-derived at request time, never stored dialog state. */
+    scope: Scope;
     install: (bindings: Record<string, MCPFieldBinding>, scope: Scope) => Promise<void>;
   };
   installationSucceeded: { requestId: number };
@@ -48,10 +47,6 @@ export const mcpInstallDialogLogic = createStoreLogic<
 >({
   context: input => ({ ...input, phase: "editing", requestId: 0, installError: null }),
   on: {
-    scopeSelected: (context, event) => {
-      if (context.phase === "installing" || context.phase === "creating-secret") return;
-      return { ...context, phase: "editing", scope: event.scope, installError: null };
-    },
     bindingChanged: (context, event) => {
       if (context.phase === "installing") return;
       return {
@@ -118,7 +113,7 @@ export const mcpInstallDialogLogic = createStoreLogic<
       const requestId = context.requestId + 1;
       enqueue.effect(async ({ trigger }) => {
         try {
-          await event.install(context.bindings, context.scope);
+          await event.install(context.bindings, event.scope);
           trigger.installationSucceeded({ requestId });
         } catch (error) {
           trigger.installationFailed({

@@ -10,7 +10,7 @@ import {
   triggerBrowserBridgeIngress,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const bridgeIngressFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -52,7 +52,7 @@ test("@nightly operator can follow a bridge-created route into the shipped sessi
   const bridgeUI = bridgeOperatorSelectors(appPage);
   const seeded = await seedBrowserBridgeOperatorFlow(runtime);
 
-  await useGlobalWorkspaceIfPrompted(bridgeUI);
+  await completeOnboardingIfPrompted(bridgeUI);
 
   await expect(bridgeUI.osDesktop).toBeVisible();
   const bridgesWin = await openAppWindow(appPage, "Bridges", "bridges");

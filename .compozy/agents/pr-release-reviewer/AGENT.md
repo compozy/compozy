@@ -1,8 +1,8 @@
 ---
 name: pr-release-reviewer
 provider: codex
-model: gpt-5.6-sol
-reasoning_effort: max
+model: gpt-5.6-terra
+reasoning_effort: medium
 permissions: approve-all
 category_path:
   - CompozyOS

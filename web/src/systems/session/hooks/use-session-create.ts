@@ -16,20 +16,20 @@ export function useSessionCreateStore(): SessionCreateStore {
 
 export function useSessionCreateActions() {
   const store = useSessionCreateStore();
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const openForAgent = (agentName: string) => {
-    if (activeWorkspaceId === null) {
+    if (runtimeWorkspaceId === null) {
       toast.error("Select an active workspace before starting a session.");
       return;
     }
-    store.trigger.dialogOpened({ agentName, workspaceId: activeWorkspaceId });
+    store.trigger.dialogOpened({ agentName, workspaceId: runtimeWorkspaceId });
   };
 
   return { openForAgent };
 }
 
 export function useSessionCreateHasActiveWorkspace(): boolean {
-  return useActiveWorkspace().activeWorkspaceId !== null;
+  return useActiveWorkspace().runtimeWorkspaceId !== null;
 }
 
 export function useSessionCreateIsCreating(): boolean {

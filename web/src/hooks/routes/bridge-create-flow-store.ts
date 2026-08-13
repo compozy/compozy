@@ -158,13 +158,6 @@ export function createBridgeCreateFlowLogic() {
             enqueue
           );
         }
-        if (context.draft.scope === "workspace" && !event.activeWorkspaceId) {
-          return fail(
-            context,
-            "Select an active workspace before creating a workspace-scoped bridge.",
-            enqueue
-          );
-        }
         const request = buildBridgeCreateRequest(
           context.draft,
           event.provider,

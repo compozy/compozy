@@ -22,6 +22,8 @@ interface MarketplaceActionDialogsProps {
   trustError: string | null;
   trustPending: boolean;
   workspaceId?: string | null;
+  scope?: "global" | "workspace";
+  workspaceName?: string | null;
 }
 
 function MarketplaceActionDialogs({
@@ -37,19 +39,23 @@ function MarketplaceActionDialogs({
   trustError,
   trustPending,
   workspaceId,
+  scope,
+  workspaceName,
 }: MarketplaceActionDialogsProps) {
   return (
     <>
       {mcpDetail ? (
         <MCPInstallDialog
           data={mcpDetail}
-          key={mcpDetail.entry.entry_id}
+          key={`${mcpDetail.entry.entry_id}:${scope ?? "derived"}:${workspaceId ?? "none"}`}
           onInstall={onInstallMCP}
           onOpenChange={open => {
             if (!open) onMCPClose();
           }}
           open
+          scope={scope}
           workspaceId={workspaceId}
+          workspaceName={workspaceName}
         />
       ) : null}
       {trustEntry ? (

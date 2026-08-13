@@ -58,7 +58,7 @@ function cancelActiveWindowGesture(): void {
  */
 export function useOsWindowDeck(frame: OsWindowFrameModel): OsWindowDeckModel {
   const { manager, coordinator } = useOsShell();
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const memberIds = new Set(frame.members);
   const hasSessionMember = useDesktop(state =>
     frame.members.some(member => state.windows[member]?.app === "session")
@@ -69,8 +69,8 @@ export function useOsWindowDeck(frame: OsWindowFrameModel): OsWindowDeckModel {
         win => win.desktopId === frame.desktopId && !memberIds.has(win.id)
       ).length
   );
-  const sessions = useSessions(activeWorkspaceId, {
-    enabled: hasSessionMember && activeWorkspaceId !== null,
+  const sessions = useSessions(runtimeWorkspaceId, {
+    enabled: hasSessionMember && runtimeWorkspaceId !== null,
   });
   const sessionById = new Map<string, SessionPayload>();
   for (const session of sessions.data ?? []) sessionById.set(session.id, session);

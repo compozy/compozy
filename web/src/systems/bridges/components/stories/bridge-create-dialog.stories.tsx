@@ -43,7 +43,7 @@ function BridgeCreateDialogHarness({
   supportsManifest?: boolean;
   providers?: typeof bridgeProvidersFixture;
 }) {
-  const [draft, setDraft] = useState(createBridgeCreateDraft(providers, storyDefaultWorkspaceId));
+  const [draft, setDraft] = useState(createBridgeCreateDraft(providers));
   const [mode, setMode] = useState<EntityMode>(initialMode);
 
   return (
@@ -62,7 +62,6 @@ function BridgeCreateDialogHarness({
       providers={providers}
       secretRecovery={secretRecovery ?? null}
       supportsManifest={supportsManifest}
-      userHomeDir={undefined}
     />
   );
 }

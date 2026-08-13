@@ -17,6 +17,7 @@ interface UseMCPInstallDialogOptions {
   onInstall: (request: MCPInstallRequest) => Promise<MCPInstallResponse>;
   onOpenChange: (open: boolean) => void;
   workspaceId?: string | null;
+  scope?: "global" | "workspace";
 }
 
 export function useMCPInstallDialog({
@@ -24,15 +25,15 @@ export function useMCPInstallDialog({
   onInstall,
   onOpenChange,
   workspaceId,
+  scope: requestedScope,
 }: UseMCPInstallDialogOptions) {
   const { entry, mcp } = data;
   const fields = mcp?.inputs ?? [];
   const remote = mcp?.launch?.type === "remote";
-  const defaultScope = mcp?.default_scope === "global" ? "global" : "workspace";
+  const resolvedScope = requestedScope ?? (workspaceId ? "workspace" : "global");
   const vaultQuery = useVaultSecrets({ namespace: "mcp" });
   const putVault = usePutVaultSecret();
   const store = useStore(mcpInstallDialogLogic, {
-    scope: defaultScope,
     bindings: createInitialMCPBindings(fields),
   });
   const state = useSelector(store, snapshot => snapshot.context);
@@ -49,7 +50,7 @@ export function useMCPInstallDialog({
   });
   const canonicalRef = (field: MCPInputField) => {
     const server = entry.install_slug?.trim() || entry.entry_id;
-    return state.scope === "workspace" && workspaceId
+    return resolvedScope === "workspace" && workspaceId
       ? `vault:mcp/ws/${workspaceId}/${server}/inputs/${field.id}`
       : `vault:mcp/global/${server}/inputs/${field.id}`;
   };
@@ -72,6 +73,7 @@ export function useMCPInstallDialog({
     fields,
     install: () =>
       store.trigger.installationRequested({
+        scope: resolvedScope,
         install: (bindings, scope) =>
           onInstall(buildMCPInstallRequest(data, scope, workspaceId, bindings)).then(
             () => undefined
@@ -81,9 +83,8 @@ export function useMCPInstallDialog({
     installing: state.phase === "installing",
     putVault,
     remote,
-    requiredComplete: requiredComplete && (state.scope === "global" || Boolean(workspaceId)),
-    scope: state.scope,
-    setScope: (scope: "global" | "workspace") => store.trigger.scopeSelected({ scope }),
+    requiredComplete: requiredComplete && (resolvedScope === "global" || Boolean(workspaceId)),
+    scope: resolvedScope,
     updateBinding: (name: string, binding: MCPFieldBinding) =>
       store.trigger.bindingChanged({ name, binding }),
     vaultQuery,

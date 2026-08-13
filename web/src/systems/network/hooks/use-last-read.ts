@@ -140,8 +140,8 @@ export interface UseLastReadResult {
 }
 
 export function useLastRead(options: { workspaceId?: string | null } = {}): UseLastReadResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = options.workspaceId ?? activeWorkspaceId;
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const workspaceReads = useSelector(networkLastReadStore, snapshot =>
     workspaceId ? (snapshot.context.byWorkspace[workspaceId] ?? EMPTY_LAST_READS) : EMPTY_LAST_READS
   );

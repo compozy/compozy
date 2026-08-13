@@ -30,6 +30,7 @@ interface ShortcutRow {
 const SHELL_ROWS: readonly ShortcutRow[] = [
   { id: "palette.open", label: "Command palette", keys: "⌘K" },
   { id: "session.new", label: "New session", keys: "⌘N" },
+  { id: "scope.global", label: "Global scope", keys: "⇧⌘G" },
   { id: "overlay.close", label: "Close overlay", keys: "Esc" },
 ];
 

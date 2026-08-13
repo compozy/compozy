@@ -87,13 +87,13 @@ describe("RootComponent", () => {
     expect(screen.getByRole("link", { name: "Go home" })).toHaveAttribute("href", "/");
   });
 
-  it("renders a root-level error fallback that resets and invalidates the router", () => {
+  it("Should retry without forcing the root shell into a blank pending state", () => {
     renderRoot(<RootErrorBoundary error={new Error("route failed")} reset={mockReset} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    expect(mockReset).toHaveBeenCalledTimes(1);
-    expect(mockInvalidate).toHaveBeenCalledWith({ forcePending: true });
+    expect(mockReset).not.toHaveBeenCalled();
+    expect(mockInvalidate).toHaveBeenCalledWith();
     expect(screen.getByText("route failed")).toBeInTheDocument();
   });
 

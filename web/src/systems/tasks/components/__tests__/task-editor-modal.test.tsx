@@ -227,17 +227,13 @@ describe("TaskEditorModal", () => {
     expect(screen.getByTestId("task-priority-high")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("Should select a workspace through the shared scope selector", async () => {
-    const user = userEvent.setup();
-    const { onDraftChange } = renderModal();
+  it("Should show a read-only destination statement for the workspace draft", () => {
+    renderModal();
 
-    await user.click(screen.getByTestId("task-workspace-select"));
-    await user.click(screen.getByTestId("task-workspace-item-ws_beta"));
-
-    expect(onDraftChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: "workspace", workspaceId: "ws_beta" })
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
+      "Creates in launch-hq"
     );
-    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("risk-ops");
+    expect(screen.queryByTestId("task-workspace-select")).toBeNull();
   });
 
   it("Should select a template card and emit onTemplateChange", () => {

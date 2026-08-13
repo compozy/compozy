@@ -23,10 +23,13 @@ const paletteMocks = vi.hoisted(() => ({
   desktop: null as OsDesktopRuntimeStore | null,
   isWaiting: vi.fn<(sessionId: string) => boolean>(() => false),
   openForAgent: vi.fn(),
+  pending: false,
   paletteIntent: null as { kind: "destination"; windowId: string } | null,
   paletteIntentCleared: vi.fn(),
   paletteIntentRequested: vi.fn(),
   sessions: [] as Array<{ id: string; name: string | null; agent_name: string; badge: string }>,
+  sessionsWorkspaceId: vi.fn(),
+  toggleLocked: false,
   windowCommands: {
     arrangeCommands: [],
     commandsAvailable: true,
@@ -50,14 +53,23 @@ vi.mock("@/systems/session/hooks/use-session-create", () => ({
 }));
 
 vi.mock("@/systems/session/hooks/use-sessions", () => ({
-  useSessions: () => ({ data: paletteMocks.sessions }),
+  useSessions: (workspaceId: string | null) => {
+    paletteMocks.sessionsWorkspaceId(workspaceId);
+    return { data: paletteMocks.sessions };
+  },
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: paletteMocks.activeWorkspaceId,
+    runtimeWorkspaceId: paletteMocks.activeWorkspaceId,
     setActiveWorkspaceId: vi.fn(),
     workspaces: paletteMocks.workspaces,
+    scope: "workspace" as const,
+    pending: paletteMocks.pending,
+    toggleLocked: paletteMocks.toggleLocked,
+    canDisableGlobal: true,
+    toggleGlobalScope: vi.fn(),
   }),
 }));
 
@@ -201,7 +213,10 @@ describe("useOsCommandPalette", () => {
     paletteMocks.paletteIntent = null;
     paletteMocks.paletteIntentCleared.mockClear();
     paletteMocks.paletteIntentRequested.mockClear();
+    paletteMocks.pending = false;
     paletteMocks.sessions = [];
+    paletteMocks.sessionsWorkspaceId.mockClear();
+    paletteMocks.toggleLocked = false;
     paletteMocks.windowSlots.clear();
     paletteMocks.windowCommands.commandsAvailable = true;
     paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
@@ -277,6 +292,18 @@ describe("useOsCommandPalette", () => {
     });
 
     expect(paletteMocks.coordinator.userActivateWindow).toHaveBeenCalledWith("window:deep-task");
+  });
+
+  it("Should use the runtime workspace and lock the Global toggle while scope resolves", () => {
+    paletteMocks.pending = true;
+
+    render(<OsCommandPalette open onOpenChange={vi.fn()} />);
+
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenCalledWith("workspace:alpha");
+    expect(screen.getByTestId("os-palette-toggle-global-scope")).toHaveAttribute(
+      "data-disabled",
+      "true"
+    );
   });
 
   it("Should render contextual Go to tab results, attention, and no empty group [UT-100]", () => {

@@ -1,10 +1,17 @@
 import type { SessionOwnerDialogState } from "@/systems/session";
-import { setActiveWorkspaceId } from "@/systems/workspace";
+import { enableGlobalScope, setActiveWorkspaceId } from "@/systems/workspace";
 
 export function confirmSessionWorkspaceSwitch(
   owner: SessionOwnerDialogState,
+  options: { isGlobal: boolean },
   reenterDeepLink: () => void
 ): void {
-  setActiveWorkspaceId(owner.workspaceId);
+  // The home row is never a selectable workspace — writing its id into the
+  // store would poison the remembered project selection.
+  if (options.isGlobal) {
+    enableGlobalScope();
+  } else {
+    setActiveWorkspaceId(owner.workspaceId);
+  }
   reenterDeepLink();
 }

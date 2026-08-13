@@ -22,7 +22,7 @@ describe("bridge create flow store", () => {
     const create = () => new Promise<typeof createBridgeFixture>(() => undefined);
     const bindSecrets = async () => ({ bound: [], clearedSlotNames: [], failures: {} });
     const navigate = async () => undefined;
-    const draft = createBridgeCreateDraft([provider], bridge.workspace_id);
+    const draft = createBridgeCreateDraft([provider]);
     store.trigger.createOpened({ draft });
     store.trigger.createSubmitted({
       activeWorkspaceId: bridge.workspace_id,
@@ -52,7 +52,7 @@ describe("bridge create flow store", () => {
   it("Should retain a committed bridge for secret recovery without retaining plaintext", () => {
     const store = createBridgeCreateFlowLogic().createStore();
     const draft = {
-      ...createBridgeCreateDraft([provider], bridge.workspace_id),
+      ...createBridgeCreateDraft([provider]),
       secretSlotValues: { api_key: "plaintext" },
     };
     let snapshot = store.getInitialSnapshot();
@@ -87,7 +87,7 @@ describe("bridge create flow store", () => {
   it("Should not offer create again after a committed bridge fails to open", () => {
     const store = createBridgeCreateFlowLogic().createStore();
     const directProvider = { ...provider, platform: "test" };
-    const draft = createBridgeCreateDraft([directProvider], bridge.workspace_id);
+    const draft = createBridgeCreateDraft([directProvider]);
     const create = () => new Promise<typeof createBridgeFixture>(() => undefined);
     const bindSecrets = async () => ({ bound: [], clearedSlotNames: [], failures: {} });
     const navigate = () => new Promise<void>(() => undefined);
@@ -130,7 +130,7 @@ describe("bridge create flow store", () => {
   it("Should not restore secret recovery after completed binding fails only to navigate", () => {
     const store = createBridgeCreateFlowLogic().createStore();
     const draft = {
-      ...createBridgeCreateDraft([provider], bridge.workspace_id),
+      ...createBridgeCreateDraft([provider]),
       secretSlotValues: { api_key: "plaintext" },
     };
     let snapshot = store.getInitialSnapshot();

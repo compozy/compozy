@@ -80,10 +80,27 @@ export async function switchWorkspace(
   const workspaceControl = page.locator('[data-slot="os-menubar-workspace"]');
   await workspaceControl.click();
   const option = page.getByTestId(`os-workspace-option-${workspaceId}`);
+  if (!(await option.isVisible().catch(() => false))) {
+    await page.keyboard.press("Escape");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("os-desktop")).toBeVisible();
+    await workspaceControl.click();
+  }
   await expect(option).toBeVisible();
   await expect(option).toContainText(workspaceName);
   await option.click();
   await expect(workspaceControl).toContainText(workspaceName);
+}
+
+/** Turn Global scope on or off from the menubar globe toggle. */
+export async function setGlobalScope(page: Page, on: boolean): Promise<void> {
+  const toggle = page.getByTestId("os-global-scope-toggle");
+  await expect(toggle).toBeVisible();
+  const pressed = (await toggle.getAttribute("aria-pressed")) === "true";
+  if (pressed !== on) {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute("aria-pressed", on ? "true" : "false");
 }
 
 /** The window's topbar title element (also carries `data-testid="topbar-title-text"`). */

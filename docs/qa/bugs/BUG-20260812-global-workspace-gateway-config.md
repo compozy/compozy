@@ -50,3 +50,19 @@ registered and the daemon reaches local readiness.
 - **Result:** The daemon started from the project workspace with the operator home still registered,
   structured status reported the global config as current, and a global `gateway.enabled=true` write
   applied live without a workspace-overlay error.
+
+## Regressed 2026-08-13
+
+With `COMPOZY_HOME` set to an isolated runtime home, startup again failed because the synthetic
+operator-home workspace loaded `~/.compozy/config.toml` as a project overlay and rejected its valid
+global `[gateway]` section. The daemon boot integration now keeps that synthetic workspace in global
+scope while preserving workspace-overlay validation for real project roots. Verification is pending
+the isolated CLI re-walk in `RT-compozy-home-isolation`.
+
+### Regression verification
+
+- **Retested:** 2026-08-13, Bruno / Garbage Tour · **Report:**
+  `docs/qa/reports/2026-08-13-compozy-home-isolation-regression.md`
+- **Result:** Two distinct runtime homes started with the same operator-home global Gateway config,
+  the first runtime survived a stop/restart cycle, and both registered only the synthetic operator
+  home. A real project workspace with a Gateway section remained rejected as global-only input.

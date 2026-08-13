@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "triggers/trigger-detail-webhook.html",
+  "entry": "triggers/trigger-detail-webhook.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-13T03:20:31.195Z",
+  "updatedAt": "2026-08-13T03:20:31.195Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

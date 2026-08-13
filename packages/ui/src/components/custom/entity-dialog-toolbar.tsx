@@ -8,12 +8,10 @@ export interface EntityDialogToolbarProps extends React.ComponentProps<"div"> {
   /** Leading control — the Simple/Advanced pills, when the surface has a tier. */
   leading?: React.ReactNode;
   /**
-   * Trailing domain control — typically the scope selector. A slot so this
-   * stays domain-free; consumers own which control belongs here.
+   * Trailing domain content — typically the read-only scope statement. A slot
+   * so this stays domain-free; consumers own what belongs here.
    */
   trailing?: React.ReactNode;
-  /** Label rendered before `trailing`. */
-  trailingLabel?: React.ReactNode;
 }
 
 /**
@@ -29,7 +27,6 @@ export interface EntityDialogToolbarProps extends React.ComponentProps<"div"> {
 function EntityDialogToolbar({
   leading,
   trailing,
-  trailingLabel,
   className,
   children,
   ...props
@@ -50,12 +47,7 @@ function EntityDialogToolbar({
           so it starts at the gutter instead of floating against the far edge. */}
       {leading || children ? <div className="flex-1" /> : null}
       {trailing ? (
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {trailingLabel ? (
-            <span className="text-form-hint text-subtle">{trailingLabel}</span>
-          ) : null}
-          {trailing}
-        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">{trailing}</div>
       ) : null}
     </div>
   );

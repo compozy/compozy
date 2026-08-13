@@ -37,9 +37,11 @@ travel with it.
 </OperatorNote>
 
 On a fresh install, daemon boot registers the operator home directory (`$HOME`) as the default
-workspace through the same resolver path. That gives first-run onboarding and `compozy workspace list`
-a usable workspace before any manual project registration. Use `compozy workspace add` for additional
-project roots that should have their own stable names, agents, skills, or config overlays.
+workspace through the same resolver path. That registration is a runtime default so sessions and
+`compozy workspace list` have a usable workspace before any project folder is added. The web UI
+does not show `$HOME` as a workspace row; first-run setup can skip project folders and start in
+Global scope. Use `compozy workspace add` for additional project roots that should have their own
+stable names, agents, skills, or config overlays.
 
 ## What Gets Stored
 

@@ -76,8 +76,10 @@
             <header class="menubar">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope">
+                  <svg data-lucide="globe"></svg>
+                </button>
                 <button class="ws-trigger" aria-expanded="true"><span class="ws-avatar">CO</span><span class="ws-name">compozy</span><svg class="chevrons" data-lucide="chevrons-up-down"></svg></button>
-                <button class="gw-toggle" aria-pressed="false" aria-label="Global scope"><svg data-lucide="house"></svg></button>
                 <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
               </div>
               <div class="mb-side mb-right">
@@ -116,12 +118,14 @@
             <header class="menubar">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="gw-toggle" aria-pressed="true" aria-label="Global scope">
+                  <svg data-lucide="globe"></svg>
+                </button>
                 <button class="ws-trigger" data-scope="global" aria-expanded="true">
-                  <span class="ws-avatar"><svg data-lucide="house"></svg></span>
+                  <span class="ws-avatar ws-avatar--path">~</span>
                   <span class="ws-name">Global</span>
                   <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
                 </button>
-                <button class="gw-toggle" aria-pressed="true" aria-label="Global scope"><svg data-lucide="house"></svg></button>
                 <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button></nav>
               </div>
               <div class="mb-side mb-right">
@@ -165,7 +169,7 @@
             <div class="palette-results">
               <div class="pal-group">Actions</div>
               <!-- gating: store.scope drives the verb (Turn on ↔ Turn off) -->
-              <button class="pal-item is-active" data-od-id="gw-pal-toggle"><svg data-lucide="house"></svg>Turn off Global scope<span class="pal-meta">⇧⌘G</span></button>
+              <button class="pal-item is-active" data-od-id="gw-pal-toggle"><svg data-lucide="toggle-right"></svg>Turn off Global scope<span class="pal-meta">⇧⌘G</span></button>
               <button class="pal-item"><svg data-lucide="refresh-ccw"></svg>Switch to compozy<span class="pal-meta">turns Global off</span></button>
               <button class="pal-item"><svg data-lucide="refresh-ccw"></svg>Switch to branas-site<span class="pal-meta">turns Global off</span></button>
             </div>

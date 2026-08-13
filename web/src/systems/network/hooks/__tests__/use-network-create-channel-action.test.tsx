@@ -42,8 +42,9 @@ vi.mock("@/systems/agent/hooks/use-agents", () => ({
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
-    activeWorkspace: { id: "ws_123", name: "polybot" },
-    activeWorkspaceId: "ws_123",
+    runtimeWorkspace: { id: "ws_123", name: "polybot" },
+    runtimeWorkspaceId: "ws_123",
+    workspaces: [{ id: "ws_123", name: "polybot" }],
   }),
 }));
 

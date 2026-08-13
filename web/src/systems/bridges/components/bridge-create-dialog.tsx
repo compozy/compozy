@@ -25,7 +25,7 @@ import {
   BridgeManifestHandoff,
   type BridgeManifestCommittedState,
 } from "./bridge-manifest-handoff";
-import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
+import { WorkspaceScopeStatement, destinationLabel } from "@/systems/workspace";
 
 /**
  * Phase-two state after `POST /api/bridges` committed: the bridge exists, so the
@@ -55,7 +55,6 @@ interface BridgeCreateDialogProps {
   providers: BridgeProvider[];
   secretRecovery?: BridgeSecretRecoveryState | null;
   supportsManifest?: boolean;
-  userHomeDir: string | undefined;
 }
 
 export function BridgeCreateDialog({
@@ -73,7 +72,6 @@ export function BridgeCreateDialog({
   providers,
   secretRecovery = null,
   supportsManifest = false,
-  userHomeDir,
 }: BridgeCreateDialogProps) {
   const committedManifestState = supportsManifest ? manifestState : null;
   const selectedProvider =
@@ -87,18 +85,13 @@ export function BridgeCreateDialog({
   const missingRequiredSlots = supportsManifest
     ? []
     : missingRequiredBridgeSecretSlots(selectedProvider?.secret_slots, draft.secretSlotValues);
-  const scopeReady = draft.scope === "global" || Boolean(activeWorkspaceId);
+  // The menubar owns scope; the dialog only states where the create lands.
+  const scope = activeWorkspaceId ? ("workspace" as const) : ("global" as const);
   const canSubmit =
     providerSelectable &&
-    scopeReady &&
     Boolean(draft.displayName.trim()) &&
     !providerConfigError &&
     missingRequiredSlots.length === 0;
-
-  const workspaceOptions: WorkspaceCommandSelectOption[] =
-    activeWorkspaceId && activeWorkspaceName
-      ? [{ id: activeWorkspaceId, name: activeWorkspaceName }]
-      : [];
 
   const handleOpenChange = (next: boolean) => {
     if (!next && isPending) return;
@@ -175,20 +168,6 @@ export function BridgeCreateDialog({
           mode={mode}
           onModeChange={onModeChange ?? (() => undefined)}
           testIdPrefix="bridge-create"
-          trailing={
-            <ScopeSelector
-              disabled={isPending || Boolean(secretRecovery)}
-              onScopeChange={scope => onDraftChange({ ...draft, scope })}
-              onWorkspaceChange={() => undefined}
-              scope={draft.scope}
-              testIdPrefix="bridge-create"
-              userHomeDir={userHomeDir}
-              workspaceDisabled={!activeWorkspaceId}
-              workspaceId={activeWorkspaceId ?? null}
-              workspaces={workspaceOptions}
-            />
-          }
-          trailingLabel="Scope"
         />
 
         <EntityDialogBody className="flex flex-col">
@@ -261,9 +240,16 @@ export function BridgeCreateDialog({
           cancelLabel={secretRecovery ? "Open bridge" : "Cancel"}
           cancelTestId="bridge-wizard-cancel"
           hint={
-            secretRecovery
-              ? "The bridge already exists — retrying only writes the missing credentials."
-              : "Provider and account are fixed after creation — create a new bridge to change them."
+            secretRecovery ? (
+              "The bridge already exists — retrying only writes the missing credentials."
+            ) : (
+              <WorkspaceScopeStatement
+                destination={destinationLabel(scope, activeWorkspaceName)}
+                kind="create"
+                scope={scope}
+                variant="note"
+              />
+            )
           }
           isSaving={isPending}
           onCancel={() => handleOpenChange(false)}

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Triggers · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<style>
+body{background:var(--canvas)}
+a{color:inherit;text-decoration:none}
+.page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+.lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:64ch}
+.lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+.grp{margin-top:36px}
+.grp__t{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);padding-bottom:10px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.card:hover{border-color:var(--line-strong);background:var(--elevated);color:var(--fg-strong)}
+.card__top{display:flex;align-items:center;gap:8px}
+.card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+.card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+.tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+.tag--final{background:var(--success-tint);color:var(--success)}
+.foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:66ch}
+.foot a{color:var(--muted)}
+.foot a:hover{color:var(--fg-strong)}
+@media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="triggers-index">
+  <h1>Triggers</h1>
+  <p class="lede">Event-driven automation. A trigger watches a runtime event and, when it matches, runs an <b>agent</b> or starts a <b>Loop</b>. Time-based runs belong to Jobs. Shared story: workspace <b>checkout-api</b> — <code>summarize-failures</code>, <code>rerun-delivery</code>, <code>deploy-webhook</code>. Start at the vocabulary sheet; every other surface reuses it via <code>triggers.css</code>.</p>
+
+  <div class="grp" data-od-id="triggers-index-anchor">
+    <div class="grp__t">Anchor · shared vocabulary</div>
+    <div class="cards">
+      <a class="card" href="trigger-vocabulary.html" data-od-id="card-vocabulary">
+        <span class="card__top"><span class="card__name">When / If / Then</span><span class="tag">lab</span><span class="card__file">trigger-vocabulary.html</span></span>
+        <span class="card__sub">Axes that change the page. Event families, empty vs AND filters, agent prompt vs loop mapping, six run statuses.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="triggers-index-final">
+    <div class="grp__t">Final pages</div>
+    <div class="cards">
+      <a class="card" href="trigger-detail.html" data-od-id="card-trigger-detail">
+        <span class="card__top"><span class="card__name">Agent · session stopped</span><span class="tag tag--final">final</span><span class="card__file">trigger-detail.html</span></span>
+        <span class="card__sub">summarize-failures — When → If → Then with prompt. Enable in the page head. Canonical seed.</span>
+      </a>
+      <a class="card" href="trigger-detail-loop.html" data-od-id="card-trigger-loop">
+        <span class="card__top"><span class="card__name">Loop · session stopped</span><span class="tag tag--final">final</span><span class="card__file">trigger-detail-loop.html</span></span>
+        <span class="card__sub">rerun-delivery — Then is software-delivery with input mapping. Runs are delegated + loop_run_id.</span>
+      </a>
+      <a class="card" href="trigger-detail-webhook.html" data-od-id="card-trigger-webhook">
+        <span class="card__top"><span class="card__name">Webhook · deploy</span><span class="tag tag--final">final</span><span class="card__file">trigger-detail-webhook.html</span></span>
+        <span class="card__sub">deploy-webhook — workspace POST path in When, public ingress on the rail, signing secret present.</span>
+      </a>
+      <a class="card" href="../empty-states/triggers-empty-suggestions.html" data-od-id="card-triggers-empty">
+        <span class="card__top"><span class="card__name">Triggers listing · empty</span><span class="tag tag--final">final</span><span class="card__file">triggers-empty-suggestions.html</span></span>
+        <span class="card__sub">Zero-inventory listing in the same window. Accept a suggestion or create from scratch.</span>
+      </a>
+      <a class="card" href="../_done/modals/create-trigger-redesign.html" data-od-id="card-trigger-create">
+        <span class="card__top"><span class="card__name">Create trigger</span><span class="tag tag--final">final</span><span class="card__file">create-trigger-redesign.html</span></span>
+        <span class="card__sub">Editor dialog: For / When / If / Then plus reliability. Loop Then is not in this modal yet.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="triggers-index-labs">
+    <div class="grp__t">Labs · states</div>
+    <div class="cards">
+      <a class="card" href="trigger-detail-states.html" data-od-id="card-trigger-states">
+        <span class="card__top"><span class="card__name">Detail states</span><span class="tag">lab</span><span class="card__file">trigger-detail-states.html</span></span>
+        <span class="card__sub">Disabled, enable pending, config/package lock, empty and failed runs, 503, workspace mismatch, unavailable, loading, ingress off/live/broken.</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">design-system/ds-core.css</span>; artboards layer <span class="mono">triggers.css</span>. Copy register per <span class="mono">COPY.md</span>. Shared story + locked decisions: <a href="DESIGN-NOTES.md">DESIGN-NOTES.md</a>. Content is illustrative; runtime truth owns final values.</p>
+</div>
+</body>
+</html>

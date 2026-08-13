@@ -30,10 +30,6 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   }),
 }));
 
-vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({
-  useUserHomeDir: () => "/Users/test",
-}));
-
 vi.mock("@/systems/workspace/lib/workspace-command-select-options", () => ({
   toWorkspaceCommandSelectOptions: () => [],
 }));

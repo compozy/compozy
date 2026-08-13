@@ -12,9 +12,9 @@
 
    Semantic contract (locked in DESIGN-NOTES.md):
      Global scope is ONE runtime state with ONE owner control — the
-     menubar toggle. Accent marks the active-global state on the
-     toggle only; the chip identity stays neutral (house monogram).
-     Every other surface DERIVES scope; none may re-select it.
+     menubar 28px Globe toggle. Accent inks the icon when pressed; the
+     chip stays neutral (path mark ~). Every other surface DERIVES
+     scope; none may re-select it.
    ============================================================ */
 
 /* ============ WINDOW SCAFFOLD (verbatim anatomy from worktree.css) ============ */
@@ -73,33 +73,41 @@
 .mb-drop{display:flex;gap:0;align-items:flex-start;padding:0 0 18px 46px;background:var(--rail)}
 .popover--demo{position:static;animation:none;width:280px}
 
-/* ============ THE CONTROL · GLOBAL-SCOPE TOGGLE (menubar, left cluster) ============
-   Sits directly after .ws-trigger. 28px like .mb-icon; pressed = the ONE
-   accent instance of the global-on state. Never rendered anywhere else. */
-.gw-toggle{position:relative;width:28px;height:28px;flex:none;border-radius:7px;
-  display:grid;place-items:center;color:var(--subtle);
+/* ============ THE CONTROL · GLOBAL-SCOPE GLOBE TOGGLE (menubar, after the mark) ============
+   28px icon Toggle (production Toggle + Lucide Globe 16px) between the logo and the
+   workspace chip. aria-pressed; accent inks the globe when on. Chip stays the destination. */
+.gw-toggle{position:relative;width:28px;height:28px;padding:0;flex:none;border-radius:7px;
+  display:grid;place-items:center;color:var(--muted);
   transition:background var(--dur) var(--ease),color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
-.gw-toggle svg{width:15px;height:15px}
+.gw-toggle svg{width:16px;height:16px}
 .gw-toggle:hover{background:var(--btn-fill);color:var(--fg-strong)}
-.gw-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.gw-toggle[aria-pressed="true"]{background:var(--accent-tint);color:var(--accent-strong);
-  box-shadow:inset 0 0 0 1px var(--accent-dim)}
-.gw-toggle[aria-pressed="true"]:hover{background:var(--accent-tint-strong,var(--accent-tint));color:var(--accent-strong)}
+.gw-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:1px;box-shadow:none}
+.gw-toggle[aria-pressed="true"]{background:var(--elevated);color:var(--accent);box-shadow:var(--highlight)}
+.gw-toggle[aria-pressed="true"]:hover{color:var(--accent)}
+.gw-toggle[aria-disabled="true"]{opacity:.45;cursor:default}
+.gw-toggle[aria-disabled="true"]:hover{background:transparent;color:var(--muted)}
+.gw-toggle[aria-disabled="true"][aria-pressed="true"]{color:var(--accent)}
+.gw-toggle[aria-disabled="true"][aria-pressed="true"]:hover{background:var(--elevated);color:var(--accent)}
+.gw-toggle[data-demo="hover"]{background:var(--btn-fill);color:var(--fg-strong)}
+.gw-toggle[data-demo="focus"]{outline:2px solid var(--accent);outline-offset:1px}
 /* menubar tooltip — dock .tip anatomy, anchored below the bar */
-.gw-toggle .tip{position:absolute;top:calc(100% + 10px);left:50%;translate:-50% -4px;
+.gw-toggle .tip{position:absolute;top:calc(100% + 10px);left:0;translate:0 -4px;
   padding:4px 9px;border-radius:7px;white-space:nowrap;z-index:950;
   background:var(--shell-glass-pop);border:1px solid var(--line-strong);
   font-size:11px;font-weight:500;color:var(--fg-strong);
   opacity:0;pointer-events:none;transition:opacity .14s,translate .14s var(--ease-spring)}
 .gw-toggle .tip .mono{color:var(--subtle);font-size:10px}
-.gw-toggle:hover .tip,.gw-toggle:focus-visible .tip,.gw-toggle .tip[data-show]{opacity:1;translate:-50% 0}
+.gw-toggle:hover .tip,.gw-toggle:focus-visible .tip,.gw-toggle .tip[data-show]{opacity:1;translate:0 0}
+@media (prefers-reduced-motion:reduce){
+  .gw-toggle,.gw-toggle .tip{transition:none}
+}
 
 /* ============ CHIP · GLOBAL STATE (ws-trigger identity swap, calm) ============
-   Toggle carries the accent; the chip stays neutral — house monogram
+   Globe toggle carries the accent; the chip stays neutral — path mark ~
    replaces the workspace initials, label reads "Global". */
 .ws-trigger[data-scope="global"] .ws-avatar{color:var(--fg)}
-.ws-trigger[data-scope="global"] .ws-avatar svg{width:11px;height:11px}
 .ws-trigger[data-scope="global"] .ws-name{color:var(--fg-strong)}
+.ws-avatar--path{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:0}
 
 /* ============ DERIVED-TARGET CHIP (modals · sheets · composer) ============
    Read-only statement of where the action lands. Never a control:

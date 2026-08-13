@@ -13,7 +13,7 @@ import {
   useSessions,
 } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
-import { useUserHomeDir, type WorkspacePayload } from "@/systems/workspace";
+import { useActiveWorkspace, type WorkspacePayload } from "@/systems/workspace";
 
 const ATTENTION_REFETCH_INTERVAL_MS = 5_000;
 
@@ -30,14 +30,14 @@ export interface OsAttentionModel {
 }
 
 export function useOsAttention(
-  activeWorkspace: WorkspacePayload | null | undefined,
+  runtimeWorkspace: WorkspacePayload | null | undefined,
   sessionCatalogStreamStatus: SessionCatalogStreamStatus
 ): OsAttentionModel {
-  const userHomeDir = useUserHomeDir();
+  const { scope, activeWorkspaceId } = useActiveWorkspace();
   const documentVisible = useDocumentVisible();
-  const workspaceId = activeWorkspace?.id ?? null;
+  const workspaceId = runtimeWorkspace?.id ?? null;
   const sessionsEnabled = workspaceId !== null;
-  const taskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
+  const taskScope = taskScopeForActiveWorkspace(scope, activeWorkspaceId);
   const tasksEnabled = taskScope !== null;
   const sessionsQuery = useSessions(workspaceId, {
     enabled: sessionsEnabled,

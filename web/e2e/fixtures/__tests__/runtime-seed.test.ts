@@ -1031,6 +1031,11 @@ describe("browser runtime seed helpers", () => {
   });
 
   it("uses a bundled bridge extension and creates deterministic disabled bridge prerequisites", async () => {
+    const resolveWorkspace = vi.fn(async (rootDir: string) => ({
+      id: "ws_browser_01",
+      name: "compozy-browser-workspace",
+      root_dir: rootDir,
+    }));
     const prepareExtension = vi.fn(async () => ({
       checksum: "bridge-checksum",
       extensionDir: "/tmp/telegram-reference",
@@ -1179,11 +1184,13 @@ describe("browser runtime seed helpers", () => {
     const seeded = await seedBrowserBridgeOperatorFlow(
       {
         requestJSON: requestJSON as BrowserRuntimeSeedClient["requestJSON"],
+        resolveWorkspace,
       },
-      { prepareExtension }
+      { prepareExtension, workspaceRootDir: "/tmp/compozy-browser-workspace" }
     );
 
     expect(prepareExtension).toHaveBeenCalledTimes(1);
+    expect(resolveWorkspace).toHaveBeenCalledWith("/tmp/compozy-browser-workspace");
     expect(requestJSON).toHaveBeenCalledWith("/api/extensions/telegram-reference", undefined);
     expect(requestJSON).not.toHaveBeenCalledWith(
       "/api/extensions",

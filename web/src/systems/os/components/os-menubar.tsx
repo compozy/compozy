@@ -5,14 +5,15 @@ import { Icon, Logo, Menubar, MenubarTrigger } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 /**
- * The desktop menubar: CompozyOS mark, workspace chip, app menus, the approvals bell,
- * the ⌘K palette chip, and Settings. Glass shell chrome (the sanctioned
- * carve-out).
+ * The desktop menubar: CompozyOS mark, Global globe toggle, workspace chip, app
+ * menus, the approvals bell, the ⌘K palette chip, and Settings. Glass shell
+ * chrome (the sanctioned carve-out).
  *
- * The mark, the workspace chip, and every app menu are menubar items, so one
- * `role="menubar"` covers them all — arrow keys traverse the whole bar and
- * hovering a sibling switches the open menu. The bell, the ⌘K chip, and the
- * settings cog stay outside it: they are controls, not menus.
+ * The mark and the workspace chip are separate `role="menubar"`s so the globe
+ * toggle can sit between them without becoming a menu item. App menus follow
+ * in a third menubar. Compact chrome can hide Session/Go/Window/Help without
+ * losing mark + toggle + chip. The bell, the ⌘K chip, and the settings cog
+ * stay outside all three: they are controls, not menus.
  *
  * The shell owns the menus themselves; a control renders as a real trigger only
  * when a menu owner is supplied, otherwise as truthful presentation.
@@ -24,7 +25,7 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   menus?: React.ReactNode;
   /** Approvals count from the bell aggregator; 0/undefined renders no badge. */
   notifications?: number;
-  /** Non-interactive system status rendered before the approvals bell. */
+  /** Non-interactive system status rendered in the trailing cluster, before the bell. */
   status?: React.ReactNode;
   onCommandClick?: () => void;
   onSettingsClick?: () => void;
@@ -32,6 +33,12 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   logoMenu?: (trigger: React.ReactNode) => React.ReactNode;
   /** Renders the workspace chip inside its menu owner (shell wiring). */
   workspaceMenu?: (trigger: React.ReactNode) => React.ReactNode;
+  /**
+   * Global-scope globe toggle. Lives between the mark and the workspace chip,
+   * outside `role="menubar"`, so compact chrome can hide app menus without
+   * losing mark + toggle + chip.
+   */
+  scopeControl?: React.ReactNode;
   /** Wraps the bell in its popover owner (shell wiring). */
   wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
 }
@@ -115,35 +122,36 @@ export function OsMenuBar({
   onSettingsClick,
   logoMenu,
   workspaceMenu,
+  scopeControl,
   wrapBellTrigger,
   className,
   ...props
 }: OsMenuBarProps) {
   // Compact (<960px, `OS_COMPACT_BREAKPOINT`): the shell stops passing `menus`;
-  // every action stays reachable through the palette (US-019.EC-3).
-  const bar = (
-    <>
-      <MenuControl
-        data-slot="os-menubar-logo"
-        aria-label="CompozyOS"
-        className="grid size-7 place-items-center rounded-menubar-control p-0"
-        menu={logoMenu}
-      >
-        <Logo variant="symbol" decorative className="size-menubar-logo" />
-      </MenuControl>
-      <MenuControl
-        data-slot="os-menubar-workspace"
-        className="flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2"
-        menu={workspaceMenu}
-      >
-        <span className="grid size-workspace-avatar place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
-          {workspace.monogram}
-        </span>
-        <span className="text-small-body font-semibold text-fg-strong">{workspace.name}</span>
-        <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
-      </MenuControl>
-      {menus}
-    </>
+  // mark, globe toggle, and chip stay leading. Hidden actions stay in the palette.
+  const wrapMenus = Boolean(logoMenu || workspaceMenu);
+  const logoControl = (
+    <MenuControl
+      data-slot="os-menubar-logo"
+      aria-label="CompozyOS"
+      className="grid size-7 place-items-center rounded-menubar-control p-0"
+      menu={logoMenu}
+    >
+      <Logo variant="symbol" decorative className="size-menubar-logo" />
+    </MenuControl>
+  );
+  const workspaceControl = (
+    <MenuControl
+      data-slot="os-menubar-workspace"
+      className="flex h-7 items-center gap-menubar-workspace-gap rounded-md px-2"
+      menu={workspaceMenu}
+    >
+      <span className="grid size-workspace-avatar place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold tracking-mono text-fg">
+        {workspace.monogram}
+      </span>
+      <span className="text-small-body font-semibold text-fg-strong">{workspace.name}</span>
+      <Icon as={ChevronsUpDown} size="sm" className="text-subtle" />
+    </MenuControl>
   );
 
   return (
@@ -156,15 +164,30 @@ export function OsMenuBar({
       )}
       {...props}
     >
-      {logoMenu || workspaceMenu || menus ? (
-        <Menubar data-slot="os-menubar-menus" aria-label="System menus" className="gap-1">
-          {bar}
-        </Menubar>
-      ) : (
-        <div data-slot="os-menubar-menus" className="flex items-center gap-1">
-          {bar}
+      <div className="flex min-w-0 items-center gap-1">
+        <div data-slot="os-menubar-identity" className="flex items-center gap-1">
+          {wrapMenus ? (
+            <Menubar aria-label="System menu" className="gap-1">
+              {logoControl}
+            </Menubar>
+          ) : (
+            logoControl
+          )}
+          {scopeControl}
+          {wrapMenus ? (
+            <Menubar aria-label="Workspace" className="gap-1">
+              {workspaceControl}
+            </Menubar>
+          ) : (
+            workspaceControl
+          )}
         </div>
-      )}
+        {menus ? (
+          <Menubar data-slot="os-menubar-menus" aria-label="App menus" className="gap-1">
+            {menus}
+          </Menubar>
+        ) : null}
+      </div>
 
       <div className="flex items-center gap-2">
         {status}
