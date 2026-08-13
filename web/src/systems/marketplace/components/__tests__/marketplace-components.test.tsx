@@ -145,12 +145,24 @@ vi.mock("@tanstack/react-router", async () => {
   };
 });
 
-vi.mock("@/systems/workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
+function mockActiveWorkspace() {
+  return {
+    activeWorkspace: mocks.activeWorkspaceId
+      ? { id: mocks.activeWorkspaceId, name: "launch-hq" }
+      : undefined,
+    activeWorkspaceId: mocks.activeWorkspaceId,
+    pending: false,
+    scope: mocks.activeWorkspaceId ? ("workspace" as const) : ("global" as const),
+  };
+}
+
+vi.mock("@/systems/workspace", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace")>()),
+  useActiveWorkspace: mockActiveWorkspace,
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: mocks.activeWorkspaceId }),
+  useActiveWorkspace: mockActiveWorkspace,
 }));
 
 vi.mock("@/systems/vault", async () => {
@@ -279,7 +291,6 @@ vi.mock("../use-marketplace-action-controller", () => ({
 function renderKindPage(
   kind: "skill" | "mcp" | "extension" = "skill",
   search: {
-    config_scope?: "global" | "workspace";
     tab?: "market";
     q?: string;
   } = {},

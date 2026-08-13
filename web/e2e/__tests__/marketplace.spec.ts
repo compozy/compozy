@@ -37,7 +37,7 @@ import {
   sensitiveArtifactPattern,
 } from "../fixtures/scenario-contracts";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 test.describe("Marketplace acquisition", () => {
   const skillEntryID = "browser-marketplace-skill";
@@ -161,7 +161,7 @@ test.describe("Marketplace acquisition", () => {
   }) => {
     await ensureGlobalWorkspace(runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    await useGlobalWorkspaceIfPrompted(appPage);
+    await completeOnboardingIfPrompted(appPage);
 
     await appPage.goto(runtime.url("/marketplace/bundles"), {
       waitUntil: "domcontentloaded",
@@ -212,7 +212,7 @@ test.describe("Marketplace acquisition", () => {
 
     await ensureGlobalWorkspace(runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    await useGlobalWorkspaceIfPrompted(appPage);
+    await completeOnboardingIfPrompted(appPage);
 
     await appPage.goto(runtime.url("/marketplace"), { waitUntil: "domcontentloaded" });
     const marketplaceWin = appWindow(appPage, "marketplace");
@@ -776,7 +776,7 @@ test.describe("Skills marketplace management", () => {
     await ensureGlobalWorkspace(runtime);
     const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    await useGlobalWorkspaceIfPrompted(appPage);
+    await completeOnboardingIfPrompted(appPage);
 
     await appPage.goto(runtime.url("/marketplace/skills"), {
       waitUntil: "domcontentloaded",
@@ -1374,7 +1374,7 @@ test.describe("MCP marketplace authorization", () => {
       });
 
       await ensureGlobalWorkspace(runtime);
-      await useGlobalWorkspaceIfPrompted(sessionUI);
+      await completeOnboardingIfPrompted(sessionUI);
 
       await appPage.goto(runtime.url("/marketplace/mcps"), {
         waitUntil: "domcontentloaded",
@@ -1469,7 +1469,7 @@ test.describe("MCP marketplace authorization", () => {
       });
 
       await ensureGlobalWorkspace(runtime);
-      await useGlobalWorkspaceIfPrompted(sessionUI);
+      await completeOnboardingIfPrompted(sessionUI);
       await appPage.goto(runtime.url("/marketplace/mcps"), {
         waitUntil: "domcontentloaded",
       });
@@ -1670,7 +1670,7 @@ test.describe("Extension marketplace runtime", () => {
       .filter({ hasText: extensionName })
       .first();
 
-    await useGlobalWorkspaceIfPrompted(appPage);
+    await completeOnboardingIfPrompted(appPage);
 
     const installed = await runBrowserRuntimeCLIJSON<ExtensionPayload>(runtime, [
       "extension",
@@ -2322,7 +2322,7 @@ test.describe("Extension marketplace runtime", () => {
   ): Promise<WorkspacePayload> {
     const workspace = await runtime.resolveWorkspace(runtime.paths?.homeDir ?? process.cwd());
     await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-    await useGlobalWorkspaceIfPrompted(page);
+    await completeOnboardingIfPrompted(page);
     return workspace;
   }
 
@@ -2584,7 +2584,7 @@ test.describe("Extension update affordance", () => {
     expect(installed.version).toBe("0.1.0");
     expect(installed.provenance?.slug).toBe(repository);
 
-    await useGlobalWorkspaceIfPrompted(appPage);
+    await completeOnboardingIfPrompted(appPage);
     await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {
       waitUntil: "domcontentloaded",
     });

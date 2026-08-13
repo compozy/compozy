@@ -22,6 +22,8 @@ interface MarketplaceActionDialogsProps {
   trustError: string | null;
   trustPending: boolean;
   workspaceId?: string | null;
+  scope?: "global" | "workspace";
+  workspaceName?: string | null;
 }
 
 function MarketplaceActionDialogs({
@@ -37,6 +39,8 @@ function MarketplaceActionDialogs({
   trustError,
   trustPending,
   workspaceId,
+  scope,
+  workspaceName,
 }: MarketplaceActionDialogsProps) {
   return (
     <>
@@ -49,7 +53,9 @@ function MarketplaceActionDialogs({
             if (!open) onMCPClose();
           }}
           open
+          scope={scope}
           workspaceId={workspaceId}
+          workspaceName={workspaceName}
         />
       ) : null}
       {trustEntry ? (

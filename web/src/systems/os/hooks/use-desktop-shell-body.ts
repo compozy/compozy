@@ -67,7 +67,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const desktopRef = useRef<HTMLDivElement>(null);
   const desktop = useDesktopShellState();
   const overlays = useDesktopOverlays();
-  const attention = useOsAttention(model.activeWorkspace, model.sessionCatalogStreamStatus);
+  const attention = useOsAttention(model.runtimeWorkspace, model.sessionCatalogStreamStatus);
   const managerSurfaces = useDesktopManagerSurfaces();
   const winLayer = useOsWinLayer();
   const reducedMotion = useOsReducedMotion();
@@ -96,6 +96,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       onPalette: () => overlays.toggleOverlay("palette"),
       onNewSession: options.onNewSession,
       onDesktops: () => overlays.toggleOverlay("desktops"),
+      onToggleGlobalScope: model.toggleGlobalScope,
       onEscape: () => {
         if (overlays.activeOverlay !== null) return;
         if (document.querySelector('[data-slot="dialog-content"]')) return;

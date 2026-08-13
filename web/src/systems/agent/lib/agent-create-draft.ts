@@ -54,7 +54,6 @@ export const AGENT_CREATE_ADVANCED_FIELDS: readonly AgentCreateFieldKey[] = [
 
 export type AgentCreateFieldKey =
   | "name"
-  | "scope"
   | "categoryPath"
   | "provider"
   | "reasoningEffort"
@@ -169,10 +168,6 @@ export function validateAgentCreateDraft(
     fields.name = "Enter an agent name.";
   } else if (name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
     fields.name = "Agent names cannot be . or .. and cannot contain path separators.";
-  }
-
-  if (draft.scope === "workspace" && !context.hasActiveWorkspace) {
-    fields.scope = "Select an active workspace or switch scope to global.";
   }
 
   const category = parseAgentCreateCategoryPath(draft.categoryPath);

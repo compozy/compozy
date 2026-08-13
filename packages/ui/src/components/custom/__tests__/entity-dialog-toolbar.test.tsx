@@ -5,15 +5,9 @@ import { describe, expect, it } from "vitest";
 import { EntityDialogToolbar } from "../entity-dialog-toolbar";
 
 describe("EntityDialogToolbar", () => {
-  it("Should render a trailing control with its label", () => {
-    render(
-      <EntityDialogToolbar
-        trailing={<button type="button">launch-hq</button>}
-        trailingLabel="Scope"
-      />
-    );
+  it("Should render its trailing control", () => {
+    render(<EntityDialogToolbar trailing={<button type="button">launch-hq</button>} />);
 
-    expect(screen.getByText("Scope")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "launch-hq" })).toBeInTheDocument();
   });
 

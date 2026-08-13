@@ -15,13 +15,31 @@ import { HelpMenu } from "./menubar/help-menu";
 import { SessionMenu } from "./menubar/session-menu";
 import { WindowMenu } from "./menubar/window-menu";
 import { WorkspaceMenu } from "./menubar/workspace-menu";
-import type { WorkspacePayload } from "@/systems/workspace";
+import {
+  GLOBAL_SCOPE_COPY,
+  globalScopeTooltipOn,
+  workspaceMonogram,
+  type WorkspaceChipIdentity,
+  type WorkspacePayload,
+  type WorkspaceScopeMode,
+} from "@/systems/workspace";
+
+import { GlobalScopeToggle } from "./global-scope-toggle";
 
 export interface DesktopMenubarProps {
   /** Extra classes on the bar itself (first-run dimming). */
   className?: string;
   workspaces: WorkspacePayload[];
   activeWorkspace: WorkspacePayload | undefined;
+  chip?: WorkspaceChipIdentity;
+  scope?: WorkspaceScopeMode;
+  /** True while workspace/scope resolution is still loading — mutes locked-state claims. */
+  scopePending?: boolean;
+  toggleLocked?: boolean;
+  canDisableGlobal?: boolean;
+  deletionNotice?: string | null;
+  rememberedWorkspaceName?: string | null;
+  onToggleGlobalScope?: () => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onAddWorkspace: () => void;
   onNewSession: () => void;
@@ -34,13 +52,6 @@ export interface DesktopMenubarProps {
   attention: OsAttentionModel;
 }
 
-function workspaceMonogram(name: string): string {
-  return name.trim().slice(0, 2).toUpperCase() || "WS";
-}
-
-/** Nothing is bound yet — the slot says so instead of showing an empty dash. */
-const UNBOUND_WORKSPACE = { name: "No workspace", monogram: "··" } as const;
-
 /**
  * The wired menubar: the CompozyOS system menu, the workspace switcher, the static
  * Session / Go / Window / Help set, the bell aggregator, the ⌘K chip, and the
@@ -51,6 +62,14 @@ export function DesktopMenubar({
   className,
   workspaces,
   activeWorkspace,
+  chip,
+  scope = activeWorkspace ? "workspace" : "global",
+  scopePending = false,
+  toggleLocked = false,
+  canDisableGlobal = Boolean(activeWorkspace),
+  deletionNotice = null,
+  rememberedWorkspaceName = activeWorkspace?.name ?? null,
+  onToggleGlobalScope,
   onSelectWorkspace,
   onAddWorkspace,
   onNewSession,
@@ -65,10 +84,29 @@ export function DesktopMenubar({
   const { coordinator } = useOsShell();
   const hydration = useDesktop(state => state.hydration);
   const actions = useMenubarActions();
-  const bound = activeWorkspace !== undefined;
-  const workspaceSlot = bound
-    ? { name: activeWorkspace.name, monogram: workspaceMonogram(activeWorkspace.name) }
-    : UNBOUND_WORKSPACE;
+  const globalOn = scope === "global";
+  const workspaceSlot =
+    chip ??
+    (activeWorkspace
+      ? { name: activeWorkspace.name, monogram: workspaceMonogram(activeWorkspace.name) }
+      : { name: GLOBAL_SCOPE_COPY.chipLabel, monogram: GLOBAL_SCOPE_COPY.chipMonogram });
+  // While resolution is pending nothing is claimable — neutral tooltip, no reason.
+  const toggleTooltip = scopePending
+    ? GLOBAL_SCOPE_COPY.tooltipOff
+    : toggleLocked
+      ? GLOBAL_SCOPE_COPY.tooltipLocked
+      : globalOn
+        ? rememberedWorkspaceName
+          ? globalScopeTooltipOn(rememberedWorkspaceName)
+          : GLOBAL_SCOPE_COPY.tooltipPickWorkspace
+        : GLOBAL_SCOPE_COPY.tooltipOff;
+  const toggleLockedReason = scopePending
+    ? undefined
+    : toggleLocked
+      ? GLOBAL_SCOPE_COPY.tooltipLocked
+      : globalOn && !canDisableGlobal
+        ? GLOBAL_SCOPE_COPY.tooltipPickWorkspace
+        : undefined;
   const overlay = (id: DesktopOverlay) => ({
     open: activeOverlay === id,
     onOpenChange: (open: boolean) => onOverlayOpenChange(id, open),
@@ -98,7 +136,7 @@ export function DesktopMenubar({
       className={className}
       workspace={workspaceSlot}
       // No workspace means no layout stream — there is nothing to be out of sync with.
-      status={bound ? <OsHydrationStatus hydration={hydration} /> : null}
+      status={<OsHydrationStatus hydration={hydration} />}
       notifications={attention.notificationCount}
       onCommandClick={onOpenPalette}
       onSettingsClick={actions.openSettings}
@@ -113,12 +151,23 @@ export function DesktopMenubar({
           onLayouts={actions.openLayouts}
         />
       )}
+      scopeControl={
+        <GlobalScopeToggle
+          checked={globalOn}
+          locked={scopePending || toggleLocked || (globalOn && !canDisableGlobal)}
+          lockedReason={toggleLockedReason}
+          onCheckedChange={() => onToggleGlobalScope?.()}
+          tooltip={toggleTooltip}
+        />
+      }
       workspaceMenu={trigger => (
         <WorkspaceMenu
           trigger={trigger}
           {...overlay("workspace-menu")}
           workspaces={workspaces}
-          activeWorkspaceId={activeWorkspace?.id}
+          activeWorkspaceId={globalOn ? undefined : activeWorkspace?.id}
+          globalScopeOn={globalOn}
+          deletionNotice={deletionNotice}
           monogram={workspaceMonogram}
           onSelectWorkspace={onSelectWorkspace}
           onOpenWorkspaces={onOpenWorkspaces}

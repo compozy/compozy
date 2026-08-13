@@ -23,11 +23,10 @@ import { TriggerPreview } from "./trigger-form/preview/trigger-preview";
 import { ReliabilitySection } from "./trigger-form/reliability-section";
 import { TriggerTargetStep } from "./trigger-form/target-step";
 import type { AgentPayload } from "@/systems/agent";
-import { ScopeSelector } from "@/systems/workspace";
+import { WorkspaceScopeStatement, destinationLabel } from "@/systems/workspace";
 
 interface AutomationTriggerFormProps {
   activeWorkspaceId?: string | null;
-  userHomeDir: string | undefined;
   draft: CreateAutomationTriggerRequest;
   isPending: boolean;
   mode: "create" | "edit";
@@ -47,7 +46,6 @@ const EMPTY_AGENTS: AgentPayload[] = [];
 
 export function AutomationTriggerForm({
   activeWorkspaceId,
-  userHomeDir,
   draft,
   isPending,
   mode,
@@ -75,6 +73,11 @@ export function AutomationTriggerForm({
   // Held above the view swap: the preview unmounts the form body, and a
   // disclosure someone opened must survive a look at the preview.
   const [reliabilityOpen, setReliabilityOpen] = useState(form.reliabilityDefaultOpen);
+  const scope = form.isWebhook ? "global" : draft.scope;
+  const destination = destinationLabel(
+    scope,
+    form.resolvedWorkspaces.find(workspace => workspace.id === draft.workspace_id)?.name
+  );
 
   return (
     <form
@@ -84,20 +87,13 @@ export function AutomationTriggerForm({
     >
       <EntityDialogToolbar
         trailing={
-          <ScopeSelector
-            ariaLabel="Trigger scope"
-            disabled={mode === "edit"}
-            onScopeChange={form.onScopeChange}
-            onWorkspaceChange={form.onWorkspaceChange}
-            scope={draft.scope}
-            testIdPrefix="trigger"
-            userHomeDir={userHomeDir}
-            workspaceDisabled={form.isWebhook}
-            workspaceId={draft.workspace_id}
-            workspaces={form.resolvedWorkspaces}
+          <WorkspaceScopeStatement
+            destination={destination}
+            kind={mode === "edit" ? "edit" : "create"}
+            scope={scope}
+            variant="chip"
           />
         }
-        trailingLabel="Scope"
       />
 
       <EntityDialogBody data-testid="automation-trigger-form-body">

@@ -271,7 +271,7 @@ The web UI presents as a desktop environment. These terms are runtime-true — e
 - `tiled group`: one non-overlapping arrangement tree inside a desktop. A desktop may contain multiple tiled groups alongside floating windows.
 - `desktop pager`: the minimal lower-left horizontal dot control for switching desktops, aligned with the Dock centerline. Full create, rename, reorder, transfer, and delete actions live in Desktops Overview.
 - `dock`: the bottom strip of app launchers, with running/minimized indicators and badges bound to runtime projections.
-- `menubar`: the top bar — workspace trigger, app menus, the approvals bell, the ⌘K palette, Settings.
+- `menubar`: the top bar — CompozyOS mark, Global scope globe, workspace trigger, app menus, the approvals bell, the ⌘K palette, Settings. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. Chip identity is the project name when scoped down, or **Global** (`~`) when Global scope is on.
 - `window manager`: the daemon-authoritative, workspace-scoped topology and command surface for desktops and windows. Browser focus and the active desktop are client-local projections. This presentation data never contains agent `memory`.
 
 ### Burned-Out Marketing Phrases

@@ -58,6 +58,9 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
     activeWorkspaceId: paletteMocks.activeWorkspaceId,
     setActiveWorkspaceId: vi.fn(),
     workspaces: paletteMocks.workspaces,
+    scope: "workspace" as const,
+    canDisableGlobal: true,
+    toggleGlobalScope: vi.fn(),
   }),
 }));
 

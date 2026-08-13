@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "triggers/trigger-detail-loop.html",
+  "entry": "triggers/trigger-detail-loop.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-13T03:20:30.387Z",
+  "updatedAt": "2026-08-13T03:20:30.387Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -86,6 +86,17 @@ export async function switchWorkspace(
   await expect(workspaceControl).toContainText(workspaceName);
 }
 
+/** Turn Global scope on or off from the menubar globe toggle. */
+export async function setGlobalScope(page: Page, on: boolean): Promise<void> {
+  const toggle = page.getByTestId("os-global-scope-toggle");
+  await expect(toggle).toBeVisible();
+  const pressed = (await toggle.getAttribute("aria-pressed")) === "true";
+  if (pressed !== on) {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute("aria-pressed", on ? "true" : "false");
+}
+
 /** The window's topbar title element (also carries `data-testid="topbar-title-text"`). */
 export function windowTitle(win: Locator): Locator {
   return win.locator('[data-slot="topbar-title"]');

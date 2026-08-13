@@ -28,7 +28,7 @@ const STEP_META: Record<number, OnboardingStepMeta> = {
   },
   2: {
     title: "Pick where agents can work",
-    lead: "A workspace is a folder CompozyOS is allowed to open, read and write inside. Every session runs in one — add at least one to finish.",
+    lead: "A workspace is a folder CompozyOS is allowed to open, read and write inside. Add project folders now, or skip and start in Global scope.",
   },
 };
 
@@ -61,8 +61,7 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
   const complete = useCompleteOnboarding();
   const [commitError, setCommitError] = useState<string | null>(null);
 
-  const canContinue =
-    step === 1 ? defaultModel.isValid : step === 2 ? workspaces.workspaces.length > 0 : true;
+  const canContinue = step === 1 ? defaultModel.isValid : true;
 
   const goToStep = (next: number) => {
     if (next < 1 || next > ONBOARDING_STEP_COUNT || next > maxStep) return;

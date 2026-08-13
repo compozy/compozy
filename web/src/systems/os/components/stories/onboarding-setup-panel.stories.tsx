@@ -30,7 +30,7 @@ function FirstRunDesktop({ children }: { children: ReactNode }) {
           dockItems={buildDeskItems({ badges: {} })}
           dockClassName={DORMANT_DOCK}
           menubarClassName="opacity-68"
-          workspace={{ name: "No workspace", monogram: "··" }}
+          workspace={{ name: "Global", monogram: "~" }}
           notifications={0}
         />
       </div>

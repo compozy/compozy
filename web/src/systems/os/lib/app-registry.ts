@@ -63,9 +63,9 @@ const MarketplaceWindow = lazy(() =>
 const NewTabWindow = lazy(() =>
   import("../apps/new-tab/new-tab-window").then(m => ({ default: m.NewTabWindow }))
 );
-async function preloadDashboard(qc: QueryClient, ctx: { workspaceId: string }): Promise<void> {
+async function preloadDashboard(qc: QueryClient): Promise<void> {
   const { preloadHomeWorkspace } = await import("@/routes/_app/-home-preload");
-  await preloadHomeWorkspace(qc, ctx.workspaceId);
+  await preloadHomeWorkspace(qc);
 }
 
 async function preloadSettings(qc: QueryClient): Promise<void> {

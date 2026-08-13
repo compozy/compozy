@@ -7,47 +7,33 @@ import { primaryAgentFixture } from "@/systems/agent/mocks";
 
 import { useWorkspaceSetupContent } from "../../hooks/use-workspace-setup-content";
 import type { WorkspaceSetupDefaultsModel } from "../../lib/workspace-setup-defaults";
-import { WorkspaceOnboarding, WorkspaceSetupDialog } from "../workspace-setup";
+import { WorkspaceSetupDialog } from "../workspace-setup";
 
-const {
-  mockResolveMutateAsync,
-  mockCreateMutateAsync,
-  mockToastSuccess,
-  mockToastError,
-  mockDaemonStatusState,
-  mockBrowseState,
-} = vi.hoisted(() => ({
-  mockResolveMutateAsync: vi.fn(),
-  mockCreateMutateAsync: vi.fn(),
-  mockToastSuccess: vi.fn(),
-  mockToastError: vi.fn(),
-  mockDaemonStatusState: {
-    data: { user_home_dir: "/Users/pedro" } as { user_home_dir: string } | undefined,
-    isLoading: false,
-  },
-  mockBrowseState: {
-    data: {
-      path: "/Users/pedro/Dev",
-      parent: "/Users/pedro",
-      home: "/Users/pedro",
-      roots: ["/"],
-      entries: [
-        { name: "checkout-platform", path: "/Users/pedro/Dev/checkout-platform", is_dir: true },
-        { name: "billing", path: "/Users/pedro/Dev/billing", is_dir: true },
-      ],
-    } as unknown,
-    isLoading: false,
-    isFetching: false,
-    error: null as Error | null,
-  },
-}));
+const { mockCreateMutateAsync, mockToastSuccess, mockToastError, mockBrowseState } = vi.hoisted(
+  () => ({
+    mockCreateMutateAsync: vi.fn(),
+    mockToastSuccess: vi.fn(),
+    mockToastError: vi.fn(),
+    mockBrowseState: {
+      data: {
+        path: "/Users/pedro/Dev",
+        parent: "/Users/pedro",
+        home: "/Users/pedro",
+        roots: ["/"],
+        entries: [
+          { name: "checkout-platform", path: "/Users/pedro/Dev/checkout-platform", is_dir: true },
+          { name: "billing", path: "/Users/pedro/Dev/billing", is_dir: true },
+        ],
+      } as unknown,
+      isLoading: false,
+      isFetching: false,
+      error: null as Error | null,
+    },
+  })
+);
 
 vi.mock("sonner", () => ({
   toast: { success: mockToastSuccess, error: mockToastError },
-}));
-
-vi.mock("@/systems/status/hooks/use-daemon-status", () => ({
-  useDaemonStatus: () => mockDaemonStatusState,
 }));
 
 vi.mock("@/systems/onboarding/hooks/use-directory-browser", () => ({
@@ -55,7 +41,6 @@ vi.mock("@/systems/onboarding/hooks/use-directory-browser", () => ({
 }));
 
 vi.mock("../../hooks/use-workspaces", () => ({
-  useResolveWorkspace: () => ({ mutateAsync: mockResolveMutateAsync }),
   useCreateWorkspace: () => ({ mutateAsync: mockCreateMutateAsync }),
 }));
 
@@ -69,17 +54,6 @@ const createdWorkspace = {
 };
 
 let mockDefaults: WorkspaceSetupDefaultsModel;
-
-function WorkspaceOnboardingHarness({
-  defaults,
-  onWorkspaceResolved,
-}: {
-  defaults: WorkspaceSetupDefaultsModel;
-  onWorkspaceResolved: (workspaceId: string) => void;
-}) {
-  const setup = useWorkspaceSetupContent({ onWorkspaceResolved });
-  return <WorkspaceOnboarding model={{ defaults, setup }} />;
-}
 
 function WorkspaceSetupDialogHarness({
   defaults,
@@ -98,17 +72,6 @@ function WorkspaceSetupDialogHarness({
   });
   return (
     <WorkspaceSetupDialog model={{ defaults, setup }} onOpenChange={onOpenChange} open={open} />
-  );
-}
-
-function renderOnboarding(
-  onWorkspaceResolved = vi.fn(),
-  defaults: WorkspaceSetupDefaultsModel = mockDefaults
-) {
-  return render(
-    <UIProvider reducedMotion="always">
-      <WorkspaceOnboardingHarness defaults={defaults} onWorkspaceResolved={onWorkspaceResolved} />
-    </UIProvider>
   );
 }
 
@@ -143,8 +106,6 @@ function resetMocks() {
     agents: { state: "ready", entries: [] },
     sandboxes: { state: "ready", entries: [] },
   };
-  mockDaemonStatusState.data = { user_home_dir: "/Users/pedro" };
-  mockDaemonStatusState.isLoading = false;
   mockBrowseState.isLoading = false;
   mockBrowseState.isFetching = false;
   mockBrowseState.error = null;
@@ -157,103 +118,21 @@ function resetMocks() {
       { name: "billing", path: "/Users/pedro/Dev/billing", is_dir: true },
     ],
   };
-  mockResolveMutateAsync.mockReset();
   mockCreateMutateAsync.mockReset();
   mockToastSuccess.mockReset();
   mockToastError.mockReset();
 }
 
-describe("WorkspaceOnboarding", () => {
+describe("WorkspaceSetupDialog", () => {
   beforeEach(resetMocks);
 
-  it("renders onboarding hero, the global card, and the directory browser", () => {
-    renderOnboarding();
-
-    expect(screen.getByTestId("workspace-onboarding")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", {
-        name: "Register a workspace to start.",
-      })
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-setup-global-card")).toBeInTheDocument();
-    expect(screen.getByTestId("workspace-setup-browser")).toBeInTheDocument();
-  });
-
-  it("resolves the global workspace from daemon user_home_dir", async () => {
-    const user = userEvent.setup();
-    const onWorkspaceResolved = vi.fn();
-    mockResolveMutateAsync.mockResolvedValue({ ...createdWorkspace, id: "ws_home", name: "pedro" });
-
-    renderOnboarding(onWorkspaceResolved);
-    await user.click(screen.getByTestId("workspace-use-global"));
-
-    await waitFor(() => {
-      expect(mockResolveMutateAsync).toHaveBeenCalledWith({ path: "/Users/pedro" });
-    });
-    expect(onWorkspaceResolved).toHaveBeenCalledWith("ws_home");
-    expect(mockToastSuccess).toHaveBeenCalledWith("Workspace ready: pedro");
-  });
-
-  it("disables the global workspace CTA when daemon status is unavailable", () => {
-    mockDaemonStatusState.data = undefined;
-
-    renderOnboarding();
-
-    expect(screen.getByTestId("workspace-use-global")).toBeDisabled();
-    expect(screen.getByTestId("workspace-global-meta").textContent).toContain(
-      "Daemon status unavailable"
-    );
-  });
-
   it("offers no plain path input for root selection", () => {
-    renderOnboarding();
+    renderDialog({ open: true });
 
     expect(screen.queryByLabelText("Workspace path")).not.toBeInTheDocument();
     expect(screen.queryByTestId("workspace-manual-path-input")).not.toBeInTheDocument();
     expect(screen.queryByTestId("workspace-register-manual")).not.toBeInTheDocument();
   });
-
-  it("registers a browsed root and returns the created workspace to the caller", async () => {
-    const user = userEvent.setup();
-    const onWorkspaceResolved = vi.fn();
-    mockCreateMutateAsync.mockResolvedValue(createdWorkspace);
-
-    renderOnboarding(onWorkspaceResolved);
-
-    await user.click(
-      screen.getByRole("button", { name: "Use checkout-platform as the workspace root" })
-    );
-    await user.click(screen.getByTestId("workspace-setup-onboarding-submit"));
-
-    await waitFor(() => {
-      expect(mockCreateMutateAsync).toHaveBeenCalledTimes(1);
-    });
-    expect(mockCreateMutateAsync).toHaveBeenCalledWith({
-      root_dir: "/Users/pedro/Dev/checkout-platform",
-      name: "checkout-platform",
-    });
-    expect(onWorkspaceResolved).toHaveBeenCalledWith("ws_project");
-    expect(mockToastSuccess).toHaveBeenCalledWith("Workspace ready: checkout-platform");
-  });
-
-  it("reports a failed registration inline and keeps the draft", async () => {
-    const user = userEvent.setup();
-    mockCreateMutateAsync.mockRejectedValue(new Error("root is already registered"));
-
-    renderOnboarding();
-
-    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
-    await user.click(screen.getByTestId("workspace-setup-onboarding-submit"));
-
-    expect(await screen.findByTestId("workspace-setup-error")).toHaveTextContent(
-      "root is already registered"
-    );
-    expect(screen.getByTestId("workspace-setup-name-input")).toHaveValue("Dev");
-  });
-});
-
-describe("WorkspaceSetupDialog", () => {
-  beforeEach(resetMocks);
 
   it("renders a portaled dialog when `open` is true", () => {
     renderDialog({ open: true });
@@ -290,7 +169,6 @@ describe("WorkspaceSetupDialog", () => {
 
     // Picking a root must not write anything — registration waits for submit.
     expect(mockCreateMutateAsync).not.toHaveBeenCalled();
-    expect(mockResolveMutateAsync).not.toHaveBeenCalled();
     expect(
       within(screen.getByTestId("workspace-setup-selected-root")).getByText(
         "/Users/pedro/Dev/checkout-platform"
@@ -490,20 +368,5 @@ describe("WorkspaceSetupDialog", () => {
     expect(screen.getByTestId("workspace-setup-browser-error")).toHaveTextContent(
       "permission denied"
     );
-  });
-
-  it("closes via onOpenChange after registering the global workspace", async () => {
-    const user = userEvent.setup();
-    mockResolveMutateAsync.mockResolvedValue({ ...createdWorkspace, id: "ws_home", name: "pedro" });
-    const { onOpenChange, onWorkspaceResolved } = renderDialog({ open: true });
-
-    await user.click(screen.getByTestId("workspace-use-global"));
-
-    await waitFor(() => {
-      expect(onWorkspaceResolved).toHaveBeenCalledWith("ws_home");
-    });
-    await waitFor(() => {
-      expect(onOpenChange).toHaveBeenCalledWith(false);
-    });
   });
 });

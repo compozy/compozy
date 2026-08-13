@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
-import type { WorkspacePayload } from "@/systems/workspace";
+import type { WorkspacePayload, WorkspaceScopeMode } from "@/systems/workspace";
 
 import { OsShellContext } from "../../contexts/os-shell-context";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
@@ -22,7 +22,7 @@ const meta: Meta<typeof OsMenuBar> = {
     docs: {
       description: {
         component:
-          'The desktop menubar: the CompozyOS system menu, the workspace switcher, the static Session / Go / Window / Help set, the approvals bell, the ⌘K chip, and Settings. The mark, the workspace chip, and every app menu sit in one `role="menubar"`, so arrow keys traverse the whole bar and hovering a sibling switches the open menu.',
+          'The desktop menubar: the CompozyOS system menu, the Global scope globe, the workspace switcher, the static Session / Go / Window / Help set, the approvals bell, the ⌘K chip, and Settings. The mark and the workspace chip are separate `role="menubar"`s so the globe can sit between them without becoming a menu item. Compact chrome keeps mark + globe + chip after the app menus hide.',
       },
     },
   },
@@ -65,9 +65,17 @@ const ATTENTION: OsAttentionModel = {
 function MenubarFixture({
   overlay = null,
   live = true,
+  scope,
+  chip,
+  onToggleGlobalScope,
+  toggleLocked,
 }: {
   overlay?: DesktopOverlay | null;
   live?: boolean;
+  scope?: WorkspaceScopeMode;
+  chip?: { name: string; monogram: string };
+  onToggleGlobalScope?: () => void;
+  toggleLocked?: boolean;
 }) {
   const [shell] = useState(() => (live ? createLiveStoryShell() : createStoryShell()));
   const [active, setActive] = useState<DesktopOverlay | null>(overlay);
@@ -78,6 +86,10 @@ function MenubarFixture({
           <DesktopMenubar
             workspaces={WORKSPACES}
             activeWorkspace={WORKSPACES[0]}
+            chip={chip}
+            scope={scope}
+            toggleLocked={toggleLocked}
+            onToggleGlobalScope={onToggleGlobalScope}
             onSelectWorkspace={fn()}
             onAddWorkspace={fn()}
             onNewSession={fn()}
@@ -101,6 +113,19 @@ function MenubarFixture({
 export const Populated: Story = {
   args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => <MenubarFixture />,
+};
+
+/** Global scope on: the chip reads Global and the menubar toggle is armed. */
+export const GlobalScopeOn: Story = {
+  args: { workspace: { name: "Global", monogram: "~" } },
+  render: () => (
+    <MenubarFixture
+      chip={{ name: "Global", monogram: "~" }}
+      onToggleGlobalScope={fn()}
+      scope="global"
+      toggleLocked={false}
+    />
+  ),
 };
 
 /** The system menu on the mark: identity plus the settings surfaces. */
@@ -140,6 +165,20 @@ export const HelpMenuOpen: Story = {
 export const WorkspaceMenuOpen: Story = {
   args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => <MenubarFixture overlay="workspace-menu" />,
+};
+
+/** Global on: the menu lists project folders with no check, plus the scope notice. */
+export const WorkspaceMenuOpenWhileGlobal: Story = {
+  args: { workspace: { name: "Global", monogram: "~" } },
+  render: () => (
+    <MenubarFixture
+      overlay="workspace-menu"
+      chip={{ name: "Global", monogram: "~" }}
+      onToggleGlobalScope={fn()}
+      scope="global"
+      toggleLocked={false}
+    />
+  ),
 };
 
 /** Presentation-only — no menu owners, so the bar renders as inert chrome. */

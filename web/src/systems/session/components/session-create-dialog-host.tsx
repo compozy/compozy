@@ -4,24 +4,35 @@ import {
 } from "../hooks/use-session-create-dialog";
 import { SessionCreateDialog } from "./session-create-dialog";
 import type { AgentPayload } from "@/systems/agent";
-import type { WorkspacePayload } from "@/systems/workspace";
+import type { WorkspacePayload, WorkspaceScopeMode } from "@/systems/workspace";
 
 interface SessionCreateDialogHostProps extends SessionCreateDialogController {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
+  scope: WorkspaceScopeMode;
+  projectWorkspaceId: string | null;
+  homeWorkspaceId: string | undefined;
 }
 
 /** Isolates session-create selectors from the desktop chrome. */
 export function SessionCreateDialogHost({
   agents,
   activeWorkspace,
+  scope,
+  projectWorkspaceId,
+  homeWorkspaceId,
   store,
 }: SessionCreateDialogHostProps) {
-  const sessionCreate = useSessionCreateDialogViewModel({ agents, activeWorkspace }, store);
+  const sessionCreate = useSessionCreateDialogViewModel(
+    { agents, activeWorkspace, scope, projectWorkspaceId, homeWorkspaceId },
+    store
+  );
 
   return (
     <SessionCreateDialog
       agents={sessionCreate.agents}
+      destinationLabel={sessionCreate.destinationLabel}
+      destinationReady={sessionCreate.destinationReady}
       isSubmitting={sessionCreate.isSubmitting}
       mode={sessionCreate.mode}
       networkParticipation={sessionCreate.networkParticipation}
@@ -31,16 +42,13 @@ export function SessionCreateDialogHost({
       onOpenChange={sessionCreate.onOpenChange}
       onSessionNameChange={sessionCreate.onSessionNameChange}
       onSubmit={sessionCreate.submit}
-      onWorkspaceChange={sessionCreate.onWorkspaceChange}
       open={sessionCreate.open}
       restoreFocusOnClose={sessionCreate.restoreFocusOnClose}
+      scope={sessionCreate.scope}
       selectedAgentName={sessionCreate.selectedAgentName}
       sessionName={sessionCreate.sessionName}
+      sessionRoot={sessionCreate.sessionRoot}
       submitError={sessionCreate.submitError}
-      userHomeDir={sessionCreate.userHomeDir}
-      workspace={sessionCreate.workspace}
-      workspaceId={sessionCreate.workspaceId}
-      workspaces={sessionCreate.workspaces}
     />
   );
 }

@@ -28,6 +28,7 @@ node_modules/
 coverage/
 .claude/skills
 .compozy/runs
+.compozy/memory
 .compoz/runs
 $COMPOZY_HOME
 COMPOZY_HOME

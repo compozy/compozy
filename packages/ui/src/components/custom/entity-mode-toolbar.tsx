@@ -14,12 +14,10 @@ export interface EntityModeToolbarProps extends Omit<React.ComponentProps<"div">
   mode: EntityMode;
   onModeChange: (mode: EntityMode) => void;
   /**
-   * Trailing domain control — typically the scope selector. Kept as a slot so
-   * this stays domain-free; consumers own which control belongs here.
+   * Trailing domain content — typically the read-only scope statement. Kept as
+   * a slot so this stays domain-free; consumers own what belongs here.
    */
   trailing?: React.ReactNode;
-  /** Label rendered before `trailing`. */
-  trailingLabel?: React.ReactNode;
   /** Accessible name for the mode group. */
   ariaLabel?: string;
   /** Prefixes the `-mode-simple` / `-mode-advanced` test ids. */
@@ -63,7 +61,6 @@ function EntityModeToolbar({
   mode,
   onModeChange,
   trailing,
-  trailingLabel,
   ariaLabel = "Editor mode",
   testIdPrefix = "entity",
   className,
@@ -85,7 +82,6 @@ function EntityModeToolbar({
         />
       }
       trailing={trailing}
-      trailingLabel={trailingLabel}
       {...props}
     />
   );

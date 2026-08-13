@@ -1,11 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
-import { useCreateWorkspace, useResolveWorkspace } from "./use-workspaces";
+import { useCreateWorkspace } from "./use-workspaces";
 import { useDirectoryBrowser } from "@/systems/onboarding";
-import { useDaemonStatus } from "@/systems/status";
 
-type SubmissionMode = "global" | "create" | null;
+type SubmissionMode = "create" | null;
 
 interface UseWorkspaceSetupContentOptions {
   onSuccessClose?: () => void;
@@ -32,18 +31,6 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function getGlobalUnavailableReason(isLoading: boolean, userHomeDir: string): string | null {
-  if (isLoading) {
-    return "Loading daemon status...";
-  }
-
-  if (!userHomeDir) {
-    return "Daemon status unavailable. Connect CompozyOS to use your global workspace.";
-  }
-
-  return null;
-}
-
 /** Folder name of an absolute path, used to autofill the display name. */
 function workspaceNameFromPath(path: string): string {
   const trimmed = path.trim().replace(/[\\/]+$/, "");
@@ -55,9 +42,7 @@ export function useWorkspaceSetupContent({
   onWorkspaceResolved,
   onSuccessClose,
 }: UseWorkspaceSetupContentOptions) {
-  const resolveWorkspace = useResolveWorkspace();
   const createWorkspace = useCreateWorkspace();
-  const statusQuery = useDaemonStatus();
   const [browsePath, setBrowsePath] = useState("");
   const [draft, setDraft] = useState<WorkspaceSetupDraft>(emptyDraft);
   const [submissionMode, setSubmissionMode] = useState<SubmissionMode>(null);
@@ -65,9 +50,6 @@ export function useWorkspaceSetupContent({
 
   const browse = useDirectoryBrowser({ path: browsePath || undefined, dirsOnly: true });
   const browseData = browse.data;
-
-  const userHomeDir = statusQuery.data?.user_home_dir ?? "";
-  const globalUnavailableReason = getGlobalUnavailableReason(statusQuery.isLoading, userHomeDir);
 
   /**
    * Picking a root only updates the draft. Registration happens once, on the
@@ -146,22 +128,6 @@ export function useWorkspaceSetupContent({
     setSubmissionMode(null);
   };
 
-  const handleUseGlobalWorkspace = async () => {
-    setSubmissionMode("global");
-    setCreateError(null);
-    try {
-      const workspace = await resolveWorkspace.mutateAsync({ path: userHomeDir });
-      onWorkspaceResolved(workspace.id);
-      toast.success(`Workspace ready: ${workspace.name}`);
-      onSuccessClose?.();
-    } catch (error) {
-      const message = getErrorMessage(error, "Failed to register workspace");
-      setCreateError(message);
-      toast.error(message);
-    }
-    setSubmissionMode(null);
-  };
-
   return {
     browse: {
       currentPath: browseData?.path ?? browsePath,
@@ -184,9 +150,7 @@ export function useWorkspaceSetupContent({
     canSubmit,
     createError,
     draft,
-    globalUnavailableReason,
     handleCreateSubmit,
-    handleUseGlobalWorkspace,
     addDir,
     removeDir,
     resetDraft,
@@ -195,7 +159,6 @@ export function useWorkspaceSetupContent({
     setName,
     setSandboxRef,
     submissionMode,
-    userHomeDir,
   };
 }
 

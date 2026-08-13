@@ -17,7 +17,6 @@ import {
   Input,
   MetadataList,
   Pill,
-  RadioCard,
   SecretField,
   Spinner,
   Switch,
@@ -27,11 +26,14 @@ import type { MarketplaceEntryResponse, MCPInstallRequest, MCPInstallResponse } 
 import { bindingValuePresent, type MCPFieldBinding, type MCPInputField } from "./mcp-install-model";
 import { formatMarketplaceMCPLaunch, marketplaceErrorMessage } from "./marketplace-ui";
 import { useMCPInstallDialog } from "./use-mcp-install-dialog";
+import { WorkspaceScopeStatement, destinationLabel } from "@/systems/workspace";
 
 interface MCPInstallDialogProps {
   data: MarketplaceEntryResponse;
   open: boolean;
   workspaceId?: string | null;
+  scope?: "global" | "workspace";
+  workspaceName?: string | null;
   onInstall: (request: MCPInstallRequest) => Promise<MCPInstallResponse>;
   onOpenChange: (open: boolean) => void;
 }
@@ -40,6 +42,8 @@ function MCPInstallDialog({
   data,
   open,
   workspaceId,
+  scope: requestedScope,
+  workspaceName,
   onInstall,
   onOpenChange,
 }: MCPInstallDialogProps) {
@@ -56,10 +60,9 @@ function MCPInstallDialog({
     remote,
     requiredComplete,
     scope,
-    setScope,
     updateBinding,
     vaultQuery,
-  } = useMCPInstallDialog({ data, onInstall, onOpenChange, workspaceId });
+  } = useMCPInstallDialog({ data, onInstall, onOpenChange, workspaceId, scope: requestedScope });
 
   if (!mcp) return null;
 
@@ -80,8 +83,8 @@ function MCPInstallDialog({
               <p className="eyebrow text-muted">MCP · curated</p>
               <DialogTitle>Install {entry.name}</DialogTitle>
               <DialogDescription id="mcp-install-description">
-                Choose a scope and provide the configuration required by this server. After
-                installation, use the Authorize action when the catalog requires it.
+                Provide the configuration required by this server. After installation, use the
+                Authorize action when the catalog requires it.
               </DialogDescription>
             </div>
           </div>
@@ -115,35 +118,6 @@ function MCPInstallDialog({
               </MetadataList>
             </div>
           ) : null}
-
-          <FormSection description="The catalog chooses this server's default." title="Scope">
-            <div
-              aria-label="MCP install scope"
-              className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-              role="radiogroup"
-            >
-              <RadioCard
-                className="bg-canvas ring-1 ring-line ring-inset data-[selected]:bg-elevated data-[selected]:ring-line-strong"
-                description="Available only in this workspace."
-                disabled={!workspaceId}
-                onSelect={() => setScope("workspace")}
-                selected={scope === "workspace"}
-                title="Workspace"
-              />
-              <RadioCard
-                className="bg-canvas ring-1 ring-line ring-inset data-[selected]:bg-elevated data-[selected]:ring-line-strong"
-                description="Available in every workspace."
-                onSelect={() => setScope("global")}
-                selected={scope === "global"}
-                title="Global"
-              />
-            </div>
-            {scope === "workspace" && !workspaceId ? (
-              <p className="text-form-hint text-warning" role="alert">
-                Select a workspace before installing this workspace-scoped server.
-              </p>
-            ) : null}
-          </FormSection>
 
           {fields.length > 0 ? (
             <FormSection title="Required configuration">
@@ -189,6 +163,14 @@ function MCPInstallDialog({
         </div>
 
         <DialogFooter variant="ruled">
+          <p className="min-w-0 flex-1 text-form-hint text-muted">
+            <WorkspaceScopeStatement
+              destination={destinationLabel(scope, workspaceName)}
+              kind="install"
+              scope={scope}
+              variant="note"
+            />
+          </p>
           <Button
             disabled={installing}
             onClick={() => onOpenChange(false)}

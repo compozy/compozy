@@ -20,6 +20,7 @@ import {
 } from "@compozy/ui";
 
 import type { MemoryType } from "@/systems/knowledge/types";
+import { WorkspaceScopeStatement } from "@/systems/workspace";
 
 interface KnowledgeCreateInput {
   type: MemoryType;
@@ -32,6 +33,7 @@ interface KnowledgeCreateDialogProps {
   open: boolean;
   onOpenChange: (next: boolean) => void;
   scope: string;
+  destinationLabel: string;
   defaultType: MemoryType;
   isPending: boolean;
   error?: string | null;
@@ -76,6 +78,7 @@ function KnowledgeCreateDialog({
   open,
   onOpenChange,
   scope,
+  destinationLabel,
   defaultType,
   isPending,
   error,
@@ -126,7 +129,7 @@ function KnowledgeCreateDialog({
         unframed
       >
         <EntityDialogHeader
-          description={`Add knowledge in the ${scope} scope. The entry is recorded as a decision and becomes available to matching future recall.`}
+          description="The entry is recorded as a decision and becomes available to matching future recall."
           eyebrow="Catalog · Knowledge"
           icon={BookOpen}
           onClose={() => updateDialogOpen(false)}
@@ -219,7 +222,14 @@ function KnowledgeCreateDialog({
         ) : null}
         <EntityDialogFooter
           cancelTestId="cancel-create-memory-btn"
-          hint={`Stays scoped to ${scope} — other scopes never retrieve it.`}
+          hint={
+            <WorkspaceScopeStatement
+              destination={destinationLabel}
+              kind="create"
+              scope={scope === "global" ? "global" : "workspace"}
+              variant="note"
+            />
+          }
           isSaving={isPending}
           onCancel={() => updateDialogOpen(false)}
           onPrimary={handleSubmit}

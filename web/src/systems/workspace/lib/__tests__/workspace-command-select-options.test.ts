@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { toWorkspaceCommandSelectOptions } from "../workspace-command-select-options";
 
 describe("toWorkspaceCommandSelectOptions", () => {
-  it("Should preserve root_dir so home workspace detection can match user_home_dir", () => {
+  it("Should preserve root_dir so operator-home row detection can match user_home_dir", () => {
     const options = toWorkspaceCommandSelectOptions([
       {
         id: "ws_home",

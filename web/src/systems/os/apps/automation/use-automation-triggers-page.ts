@@ -27,7 +27,6 @@ export function useAutomationTriggersPage(
 
   const editor = useAutomationTriggerEditor({
     activeWorkspaceId: page.activeWorkspaceId,
-    userHomeDir: page.userHomeDir,
     workspaces: page.workspaces,
     onSaved: trigger =>
       void navigate({ to: "/triggers/$triggerId", params: { triggerId: trigger.id } }),

@@ -164,12 +164,14 @@
             <header class="menubar">
               <div class="mb-side">
                 <button class="mb-logo" aria-label="CompozyOS"><svg data-lucide="hexagon"></svg></button>
+                <button class="gw-toggle" aria-pressed="true" aria-disabled="true" aria-label="Global scope — add a workspace to scope down">
+                  <svg data-lucide="globe"></svg>
+                </button>
                 <button class="ws-trigger" data-scope="global">
-                  <span class="ws-avatar"><svg data-lucide="house"></svg></span>
+                  <span class="ws-avatar ws-avatar--path">~</span>
                   <span class="ws-name">Global</span>
                   <svg class="chevrons" data-lucide="chevrons-up-down"></svg>
                 </button>
-                <button class="gw-toggle" aria-pressed="true" aria-disabled="true" aria-label="Global scope — add a workspace to scope down" style="cursor:default"><svg data-lucide="house"></svg></button>
                 <nav class="mb-menus"><button class="mb-menu">Session</button><button class="mb-menu">View</button><button class="mb-menu">Help</button></nav>
               </div>
               <div class="mb-side mb-right">

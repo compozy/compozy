@@ -1,8 +1,15 @@
-import { Check } from "lucide-react";
+import { Check, Info } from "lucide-react";
 
-import { MenubarContent, MenubarItem, MenubarMenu, MenubarSeparator } from "@compozy/ui";
+import {
+  Alert,
+  AlertDescription,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarSeparator,
+} from "@compozy/ui";
 
-import type { WorkspacePayload } from "@/systems/workspace";
+import { GLOBAL_SCOPE_COPY, type WorkspacePayload } from "@/systems/workspace";
 
 export interface WorkspaceMenuProps {
   /** The workspace chip, already built as a `MenubarTrigger` by the chrome. */
@@ -11,6 +18,8 @@ export interface WorkspaceMenuProps {
   onOpenChange: (open: boolean) => void;
   workspaces: WorkspacePayload[];
   activeWorkspaceId: string | undefined;
+  globalScopeOn?: boolean;
+  deletionNotice?: string | null;
   monogram: (name: string) => string;
   onSelectWorkspace: (workspaceId: string) => void;
   onOpenWorkspaces: () => void;
@@ -24,15 +33,30 @@ export function WorkspaceMenu({
   onOpenChange,
   workspaces,
   activeWorkspaceId,
+  globalScopeOn = false,
+  deletionNotice = null,
   monogram,
   onSelectWorkspace,
   onOpenWorkspaces,
   onAddWorkspace,
 }: WorkspaceMenuProps) {
+  const notice = deletionNotice ?? (globalScopeOn ? GLOBAL_SCOPE_COPY.menuNotice : null);
+
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
       {trigger}
       <MenubarContent align="start" data-testid="os-workspace-menu">
+        {notice ? (
+          <Alert
+            className="mx-1.5 mb-1 px-2.5 py-2"
+            data-testid="os-workspace-global-notice"
+            role="note"
+            variant="info"
+          >
+            <Info aria-hidden="true" className="size-3.5" />
+            <AlertDescription className="text-form-hint">{notice}</AlertDescription>
+          </Alert>
+        ) : null}
         {workspaces.map(workspace => (
           <MenubarItem
             key={workspace.id}
@@ -43,7 +67,7 @@ export function WorkspaceMenu({
               {monogram(workspace.name)}
             </span>
             {workspace.name}
-            {workspace.id === activeWorkspaceId ? (
+            {!globalScopeOn && workspace.id === activeWorkspaceId ? (
               <Check className="ml-auto size-3 text-accent" />
             ) : null}
           </MenubarItem>

@@ -25,7 +25,7 @@ import {
   triggerBrowserBridgeIngress,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const bridgeIngressFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -101,7 +101,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   const shellUI = bridgeOperatorSelectors(appPage);
   const seeded = await seedBrowserBridgeOperatorFlow(runtime);
 
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
 
   await expect(shellUI.osDesktop).toBeVisible();
   const bridgesWin = await openAppWindow(appPage, "Bridges", "bridges");
@@ -280,7 +280,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   const providerKey = `${seeded.provider.extension_name}::${seeded.provider.platform}`;
   const createdName = "Telegram Browser Lifecycle";
 
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
   const bridgesWin = await openAppWindow(appPage, "Bridges", "bridges");
   const bridgeUI = bridgeOperatorSelectors(bridgesWin);
   const bridgeStatus = bridgesWin.locator('[data-slot="topbar-status"]');
@@ -309,8 +309,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
     )
   );
   await bridgeUI.createDisplayNameInput.fill(createdName);
-  await bridgeUI.createScopeWorkspace.click();
-  await expect(bridgeUI.createScopeWorkspace).toHaveAttribute("aria-pressed", "true");
+  await expect(appPage.getByTestId("workspace-scope-statement")).toBeVisible();
   await bridgeUI.createDeliveryModeSelect.selectOption("direct-send");
   await bridgeUI.createDeliveryPeerInput.fill("telegram-peer-lifecycle");
   await bridgeUI.createDeliveryThreadInput.fill("777");

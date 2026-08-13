@@ -20,8 +20,9 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 	ctx context.Context,
 	state *bootState,
 	cleanup *bootCleanup,
+	operatorHome string,
 ) error {
-	if err := d.ensureDefaultWorkspace(ctx, state); err != nil {
+	if err := d.ensureDefaultWorkspace(ctx, state, operatorHome); err != nil {
 		return err
 	}
 	resolver, err := newWindowManagerStoreWorkspaceResolver(state.workspaceResolver, state.logger)

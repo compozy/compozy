@@ -86,6 +86,5 @@ export function useTaskEditState(
     isSubmitting: submissionPhase === "submitting" || updateMutation.isPending,
     setDraft,
     task,
-    workspaceName: task?.scope === "workspace" ? (task.workspace_id ?? null) : null,
   };
 }

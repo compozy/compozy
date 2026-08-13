@@ -19,7 +19,7 @@
                             check on active item, "Add workspace" footer after separator,
                             "No workspaces match your search." empty copy); home workspace
                             pinned first + Home icon avatar + "Home workspace" badge per
-                            home-workspace.ts:18-32 and workspace-command-select.tsx:134-137,186-196
+                            project-workspaces.ts (isOperatorHomeWorkspace/partitionProjectWorkspaces) and workspace-command-select.tsx
     spec worktree-support — nested worktree projection per workspace (indent + rail, S5 row
                             vocabulary at 30px), "New worktree" riding the workspace row context,
                             selecting a worktree scopes context (US-011); state coverage §S1
@@ -107,7 +107,7 @@
             <div class="cs-pop__list" role="listbox">
               <div class="cs-group">
                 <div class="cs-group__h">Workspaces</div>
-                <!-- gating: GET /api/workspaces → items[]; home pinned first per home-workspace.ts:18-32 -->
+                <!-- gating: GET /api/workspaces → items[]; operator-home row hidden per project-workspaces.ts partition -->
                 <div class="cs-item" aria-selected="true" data-od-id="cs-ws-compozy">
                   <span class="command-select__avatar home-avatar"><svg data-lucide="house"></svg></span>
                   <span class="cs-item__label">compozy<span class="sub">~/dev/compozy</span></span>

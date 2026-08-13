@@ -13,41 +13,65 @@ import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
 export function useDesktopShellModel() {
   const {
     workspaces,
+    registeredWorkspaces,
     hasWorkspaces,
     activeWorkspace,
     activeWorkspaceId,
+    runtimeWorkspace,
+    runtimeWorkspaceId,
+    homeWorkspace,
+    scope,
+    pending,
+    chip,
+    toggleLocked,
+    canDisableGlobal,
+    deletionNotice,
+    rememberedWorkspace,
     setActiveWorkspaceId,
+    toggleGlobalScope,
     isLoading: areWorkspacesLoading,
     isError: workspacesError,
   } = useActiveWorkspace();
-  const { data: agents } = useAgents(activeWorkspaceId, {
+  const { data: agents } = useAgents(runtimeWorkspaceId, {
+    enabled: runtimeWorkspaceId !== null,
+  });
+  const projectWorkspaceDetail = useWorkspace(activeWorkspaceId ?? "", {
     enabled: activeWorkspaceId !== null,
   });
-  const activeWorkspaceDetail = useWorkspace(activeWorkspaceId ?? "", {
-    enabled: activeWorkspaceId !== null,
-  });
-  const workspaceAgents = activeWorkspaceId === null ? undefined : agents;
+  const workspaceAgents = runtimeWorkspaceId === null ? undefined : agents;
   const [isWorkspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
-  const sessionCatalogStreamStatus = useSessionCatalogStreams(workspaces, {
-    enabled: hasWorkspaces,
+  const sessionCatalogStreamStatus = useSessionCatalogStreams(registeredWorkspaces, {
+    enabled: registeredWorkspaces.length > 0,
   });
   const sessionCreate = useSessionCreateDialogController();
   const agentCreate = useAgentCreateDialog({
     activeWorkspace,
-    workspaceProviders: activeWorkspaceDetail.data?.providers ?? [],
-    workspaceProvidersLoading: activeWorkspaceId !== null && activeWorkspaceDetail.isLoading,
-    workspaceProvidersError: activeWorkspaceDetail.error
-      ? describeWorkspaceProviderError(activeWorkspaceDetail.error)
+    workspaceProviders: projectWorkspaceDetail.data?.providers ?? [],
+    workspaceProvidersLoading: activeWorkspaceId !== null && projectWorkspaceDetail.isLoading,
+    workspaceProvidersError: projectWorkspaceDetail.error
+      ? describeWorkspaceProviderError(projectWorkspaceDetail.error)
       : null,
   });
 
   return {
     workspaces,
+    registeredWorkspaces,
     hasWorkspaces,
     activeWorkspace,
     activeWorkspaceId,
+    runtimeWorkspace,
+    runtimeWorkspaceId,
+    homeWorkspace,
+    scope,
+    pending,
+    chip,
+    toggleLocked,
+    canDisableGlobal,
+    deletionNotice,
+    rememberedWorkspace,
     workspaceAgents,
     setActiveWorkspaceId,
+    toggleGlobalScope,
     areWorkspacesLoading,
     workspacesError,
     sessionCatalogStreamStatus,

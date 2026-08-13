@@ -21,7 +21,7 @@ import {
 import { SessionCreateAdvancedSection } from "./session-create-advanced-section";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
 import type { AgentPayload } from "@/systems/agent";
-import type { WorkspaceCommandSelectOption, WorkspacePayload } from "@/systems/workspace";
+import { WorkspaceScopeStatement, type WorkspaceScopeMode } from "@/systems/workspace";
 
 export interface SessionCreateDialogProps {
   open: boolean;
@@ -30,11 +30,10 @@ export interface SessionCreateDialogProps {
   mode: EntityMode;
   onModeChange: (mode: EntityMode) => void;
   agents: AgentPayload[];
-  workspace: WorkspacePayload | undefined;
-  workspaces: WorkspaceCommandSelectOption[];
-  workspaceId: string | null;
-  userHomeDir: string | undefined;
-  onWorkspaceChange: (workspaceId: string) => void;
+  scope: WorkspaceScopeMode;
+  destinationLabel: string;
+  sessionRoot: string;
+  destinationReady: boolean;
   sessionName: string;
   onSessionNameChange: (next: string) => void;
   selectedAgentName: string;
@@ -53,11 +52,10 @@ function SessionCreateDialog({
   mode,
   onModeChange,
   agents,
-  workspace,
-  workspaces,
-  workspaceId,
-  userHomeDir,
-  onWorkspaceChange,
+  scope,
+  destinationLabel,
+  sessionRoot,
+  destinationReady,
   sessionName,
   onSessionNameChange,
   selectedAgentName,
@@ -74,12 +72,11 @@ function SessionCreateDialog({
   }, [restoreFocusOnClose]);
 
   const trimmedSelectedAgentName = selectedAgentName.trim();
-  const workspaceSelected = workspace !== undefined;
   const hasAgents = agents.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
   const canSubmit =
     !isSubmitting &&
-    workspaceSelected &&
+    destinationReady &&
     hasAgents &&
     hasSelectedAgent &&
     isNetworkParticipationDraftValid(networkParticipation, ["named"]);
@@ -109,11 +106,7 @@ function SessionCreateDialog({
         unframed
       >
         <EntityDialogHeader
-          description={
-            workspaceSelected
-              ? "Start a durable session. Choose its runtime when you send the first message."
-              : "Choose an active workspace before starting a session."
-          }
+          description="Start a durable session. Choose its runtime when you send the first message."
           eyebrow="Operate · Session"
           icon={Play}
           onClose={isSubmitting ? undefined : () => handleOpenChange(false)}
@@ -129,7 +122,7 @@ function SessionCreateDialog({
               isSubmitting={isSubmitting}
               onAgentChange={onAgentChange}
               selectedAgentName={selectedAgentName}
-              workspaceSelected={workspaceSelected}
+              workspaceSelected={destinationReady}
             />
 
             {mode === "advanced" ? (
@@ -138,11 +131,7 @@ function SessionCreateDialog({
                 networkParticipation={networkParticipation}
                 onNetworkParticipationChange={onNetworkParticipationChange}
                 onSessionNameChange={onSessionNameChange}
-                onWorkspaceChange={onWorkspaceChange}
                 sessionName={sessionName}
-                userHomeDir={userHomeDir}
-                workspaceId={workspaceId}
-                workspaces={workspaces}
               />
             ) : null}
 
@@ -168,7 +157,15 @@ function SessionCreateDialog({
           </EntityDialogBody>
 
           <EntityDialogFooter
-            hint="Choose a runtime when you send the first message."
+            hint={
+              <WorkspaceScopeStatement
+                destination={destinationLabel}
+                kind="session"
+                root={sessionRoot}
+                scope={scope}
+                variant="note"
+              />
+            }
             isSaving={isSubmitting}
             onCancel={() => handleOpenChange(false)}
             primaryDisabled={!canSubmit}

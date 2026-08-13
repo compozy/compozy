@@ -15,12 +15,17 @@ import type { Locator, Page } from "@playwright/test";
 import type { OperationResponse } from "@/lib/api-contract";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
-import { ensureAppWindow, openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import {
+  ensureAppWindow,
+  openAppWindow,
+  setGlobalScope,
+  switchWorkspace,
+} from "../fixtures/os-navigation";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { waitForSeedSessionActive } from "../fixtures/runtime";
 import { sessionLifecycleTestIds } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const homeAgentAlpha = "home-agent-alpha";
@@ -90,7 +95,7 @@ test("operator sees truthful Home overview, navigation, artifacts, and transport
   runtime,
 }) => {
   const workspace = await prepareHomeRuntime(runtime);
-  await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
+  await completeOnboardingIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   const home = await ensureAppWindow(appPage, "Home", "dashboard");
   const snapshot = await captureHomeSnapshot(runtime, workspace);
@@ -175,7 +180,7 @@ test("Home reports an overview failure without misreporting daemon connectivity"
   });
 
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(workspaceShell(page));
+  await completeOnboardingIfPrompted(workspaceShell(page));
   const home = await ensureAppWindow(page, "Home", "dashboard");
 
   await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
@@ -194,7 +199,7 @@ test("Home preserves its loaded overview and recovers when health requests resum
 }) => {
   await prepareHomeRuntime(runtime);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(workspaceShell(page));
+  await completeOnboardingIfPrompted(workspaceShell(page));
   const home = await ensureAppWindow(page, "Home", "dashboard");
   await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
@@ -228,7 +233,7 @@ test("Home recovers after a daemon restart without retaining a stale overview", 
   runtime,
 }) => {
   await prepareHomeRuntime(runtime);
-  await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
+  await completeOnboardingIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   const home = await ensureAppWindow(appPage, "Home", "dashboard");
   const beforeRestart = await requestOverview(runtime);
@@ -265,11 +270,11 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
     throw new Error("Home workspace switching requires launch-mode runtime paths.");
   }
 
-  const alpha = await prepareHomeRuntime(runtime);
+  await prepareHomeRuntime(runtime);
   const betaRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-home-workspace-beta-"));
   const beta = await runtime.resolveWorkspace(betaRoot);
 
-  await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
+  await completeOnboardingIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   let home = await ensureAppWindow(appPage, "Home", "dashboard");
   await switchWorkspace(appPage, beta.id, beta.name);
@@ -280,7 +285,7 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
   );
   await expect(homeMetricValue(home, "Working now")).toHaveText("0");
 
-  await switchWorkspace(appPage, alpha.id, alpha.name);
+  await setGlobalScope(appPage, true);
   home = await ensureAppWindow(appPage, "Home", "dashboard");
   await expect(home.locator('[data-slot="home-page-meta"]')).not.toContainText("workspace");
   await expect
@@ -437,8 +442,6 @@ async function pollRestartStatus(runtime: BrowserRuntime, statusURL: string): Pr
 function workspaceShell(page: Page) {
   return {
     osDesktop: page.getByTestId(sessionLifecycleTestIds.osDesktop),
-    workspaceOnboarding: page.getByTestId(sessionLifecycleTestIds.workspaceOnboarding),
-    workspaceUseGlobal: page.getByTestId(sessionLifecycleTestIds.workspaceUseGlobal),
   };
 }
 

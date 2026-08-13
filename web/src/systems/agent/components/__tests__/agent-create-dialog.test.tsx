@@ -68,7 +68,6 @@ function makeProps(overrides: Partial<AgentCreateDialogProps> = {}): AgentCreate
     hasActiveWorkspace: true,
     workspaceId: "ws_alpha",
     workspaceName: "alpha",
-    userHomeDir: undefined,
     ...overrides,
   };
 }
@@ -211,16 +210,13 @@ describe("AgentCreateDialog", () => {
     expect(screen.getByTestId("agent-create-category-path")).toHaveValue("operations/incident");
   });
 
-  it("Should surface provider errors inline after switching scope", async () => {
-    const user = userEvent.setup();
+  it("Should surface provider errors inline after switching scope", () => {
     renderStatefulDialog({
+      draft: validDraft({ scope: "global" }),
       providerOptions: [],
       providersLoading: false,
       providersError: "Unable to load global provider settings.",
     });
-
-    await user.click(screen.getByTestId("agent-create-scope-global"));
-    await user.type(screen.getByTestId("agent-create-name"), "global-reviewer");
 
     expect(screen.getByTestId("agent-create-provider-error")).toHaveTextContent(
       "Unable to load global provider settings."
@@ -228,19 +224,16 @@ describe("AgentCreateDialog", () => {
     expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
   });
 
-  it("Should keep the active workspace read-only while allowing scope changes", async () => {
-    const user = userEvent.setup();
-    renderStatefulDialog({ draft: validDraft({ scope: "workspace" }) });
+  it("Should show a read-only destination statement for workspace and Global drafts", () => {
+    const { unmount } = renderStatefulDialog({ draft: validDraft({ scope: "workspace" }) });
 
-    expect(screen.getByTestId("agent-create-scope-global")).toBeEnabled();
-    expect(screen.getByTestId("agent-create-scope-workspace")).toBeEnabled();
-    expect(screen.getByTestId("agent-create-workspace-select")).toBeDisabled();
-
-    await user.click(screen.getByTestId("agent-create-scope-global"));
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in alpha");
+    expect(screen.queryByTestId("agent-create-scope-global")).toBeNull();
     expect(screen.queryByTestId("agent-create-workspace-select")).toBeNull();
+    unmount();
 
-    await user.click(screen.getByTestId("agent-create-scope-workspace"));
-    expect(screen.getByTestId("agent-create-workspace-select")).toBeDisabled();
+    renderStatefulDialog({ draft: validDraft({ scope: "global" }) });
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in Global");
   });
 
   it("Should fail closed on an off-contract reasoning effort", () => {

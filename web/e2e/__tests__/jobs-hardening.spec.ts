@@ -15,7 +15,7 @@ import { appWindow, sessionWindow, switchWorkspace, windowTitle } from "../fixtu
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const automationFixture = path.resolve(
@@ -174,7 +174,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   const jobStatus = jobsWin.locator('[data-slot="topbar-status"]');
   const workspace = await createWorkspace(runtime);
   const workspaceJob = await createJob(runtime, workspaceJobRequest(workspace));
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
   await switchWorkspace(appPage, workspace.id, workspace.name);
 
   await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
@@ -352,7 +352,7 @@ test("scheduled job survives daemon restart and does not duplicate fire ids", as
       schedule: { mode: "every", interval: "1s" },
     })
   );
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
   await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
   await expect(ui.jobsListRows).toBeVisible();
   await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
@@ -419,7 +419,7 @@ test("failed job run is diagnosable from browser and CLI without leaking secrets
       prompt: "trigger crash mid-stream",
     })
   );
-  await useGlobalWorkspaceIfPrompted(shellUI);
+  await completeOnboardingIfPrompted(shellUI);
   await appPage.goto(runtime.url("/jobs"), { waitUntil: "domcontentloaded" });
   await expect(ui.item(job.id)).toBeVisible();
   await ui.itemLink(job.id).click();

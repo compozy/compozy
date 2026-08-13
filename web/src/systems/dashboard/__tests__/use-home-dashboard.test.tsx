@@ -49,6 +49,7 @@ vi.mock("@/systems/status/adapters/daemon-api", async importOriginal => {
 const activeWorkspaceState = {
   activeWorkspace: { id: "ws-home", root_dir: "/Users/tester", name: "home" } as unknown,
   activeWorkspaceId: "ws-home",
+  scope: "global" as "global" | "workspace",
   isLoading: false,
 };
 
@@ -84,8 +85,6 @@ describe("useHomeDashboard", () => {
     useHomeWorkingNow.mockReset();
     getHomeActivity.mockResolvedValue([]);
     fetchStatus.mockReset();
-    // Full status payload (useHomeSystem reads health/automation/memory) with the
-    // home dir aligned to the active workspace root so scope resolves to global.
     fetchStatus.mockResolvedValue({
       ...statusFixture,
       daemon: { ...statusFixture.daemon, user_home_dir: "/Users/tester" },
@@ -96,10 +95,11 @@ describe("useHomeDashboard", () => {
       name: "home",
     };
     activeWorkspaceState.activeWorkspaceId = "ws-home";
+    activeWorkspaceState.scope = "global";
     activeWorkspaceState.isLoading = false;
   });
 
-  it("Should resolve the home workspace to the global scope and expose the overview", async () => {
+  it("Should resolve Global menubar scope to the empty workspace param", async () => {
     getHomeOverview.mockResolvedValue(makeHomeOverview());
 
     const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
@@ -141,6 +141,7 @@ describe("useHomeDashboard", () => {
       name: "proj",
     };
     activeWorkspaceState.activeWorkspaceId = "ws-proj";
+    activeWorkspaceState.scope = "workspace";
     getHomeOverview.mockResolvedValue(makeHomeOverview());
 
     const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
@@ -155,8 +156,8 @@ describe("useHomeDashboard", () => {
   });
 
   it("Should never issue a global overview or activity read for a project workspace on first mount", async () => {
-    // Workspace-isolation guard: the queries stay disabled until the awaited home
-    // dir settles the scope to the project, so the daemon never sees an
+    // Workspace-isolation guard: the queries stay disabled until menubar
+    // workspace scope has a project id, so the daemon never sees an
     // undefined-workspace (whole-system) overview/activity read during mount.
     activeWorkspaceState.activeWorkspace = {
       id: "ws-proj",
@@ -164,6 +165,7 @@ describe("useHomeDashboard", () => {
       name: "proj",
     };
     activeWorkspaceState.activeWorkspaceId = "ws-proj";
+    activeWorkspaceState.scope = "workspace";
     getHomeOverview.mockResolvedValue(makeHomeOverview());
 
     const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });

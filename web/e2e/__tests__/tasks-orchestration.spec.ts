@@ -5,7 +5,7 @@ import { tasksOperatorSelectors } from "../fixtures/selectors";
 import { openAppWindow } from "../fixtures/os-navigation";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -44,7 +44,7 @@ test("operator uses the three-tab task detail, setup, inspect, and run review su
     sessionAgentName: tasksSessionAgentName,
   });
 
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
 
   const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
   const tasksUI = tasksOperatorSelectors(tasksWin, appPage);

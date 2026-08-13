@@ -968,6 +968,7 @@ describe("useOsShortcuts", () => {
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
       onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
     };
     renderHook(() => useOsShortcuts(handlers), { wrapper });
 
@@ -980,6 +981,27 @@ describe("useOsShortcuts", () => {
     expect(handlers.onEscape).toHaveBeenCalledOnce();
   });
 
+  it("Should toggle Global scope on ⇧⌘G and skip editable targets", () => {
+    const { wrapper } = createShell({ live: false });
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
+    };
+    renderHook(() => useOsShortcuts(handlers), { wrapper });
+
+    fireEvent.keyDown(document, { key: "g", code: "KeyG", metaKey: true, shiftKey: true });
+    expect(handlers.onToggleGlobalScope).toHaveBeenCalledOnce();
+
+    const input = document.createElement("input");
+    document.body.append(input);
+    fireEvent.keyDown(input, { key: "g", code: "KeyG", metaKey: true, shiftKey: true });
+    expect(handlers.onToggleGlobalScope).toHaveBeenCalledOnce();
+    input.remove();
+  });
+
   it("Should leave a prevented Escape to the nested control", () => {
     const { wrapper } = createShell({ live: false });
     const handlers: OsShortcutHandlers = {
@@ -987,6 +1009,7 @@ describe("useOsShortcuts", () => {
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
       onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
     };
     renderHook(() => useOsShortcuts(handlers), { wrapper });
 
@@ -1010,6 +1033,7 @@ describe("useOsShortcuts", () => {
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
       onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
     };
     const unavailable = renderHook(() => useOsShortcuts(handlers), {
       wrapper: unavailableShell.wrapper,
@@ -1039,6 +1063,7 @@ describe("useOsShortcuts", () => {
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
       onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
     };
     act(() => {
       shell.setRuntimeState({
@@ -1065,6 +1090,7 @@ describe("useOsShortcuts", () => {
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
       onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
     };
     act(() => {
       shell.setRuntimeState({ frames: { "desktop:main": [stackedFrame()] } });
@@ -1132,6 +1158,7 @@ describe("useOsShortcuts", () => {
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
       onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
     };
     act(() => {
       shell.setRuntimeState({ frames: { "desktop:main": [stackedFrame()] } });
@@ -1157,6 +1184,7 @@ describe("useOsShortcuts", () => {
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
       onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
     };
     renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
     const editable = document.createElement("div");
@@ -1181,6 +1209,7 @@ describe("useOsShortcuts", () => {
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
       onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
     };
     renderHook(() => useOsShortcuts(handlers, { enabled: false }), { wrapper });
 

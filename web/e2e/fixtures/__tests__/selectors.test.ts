@@ -43,12 +43,6 @@ describe("session lifecycle selectors", () => {
     });
 
     expect(selectors.osDesktop).toBe(`locator:${sessionLifecycleTestIds.osDesktop}`);
-    expect(selectors.workspaceOnboarding).toBe(
-      `locator:${sessionLifecycleTestIds.workspaceOnboarding}`
-    );
-    expect(selectors.workspaceUseGlobal).toBe(
-      `locator:${sessionLifecycleTestIds.workspaceUseGlobal}`
-    );
     expect(selectors.workspaceManualPathInput).toBe(
       `locator:${sessionLifecycleTestIds.workspaceManualPathInput}`
     );
@@ -259,12 +253,6 @@ describe("bridge operator selectors", () => {
     expect(selectors.createModeAdvanced).toBe(
       `locator:${bridgeOperatorTestIds.createBridgeModeAdvanced}`
     );
-    expect(selectors.createScopeGlobal).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeScopeGlobal}`
-    );
-    expect(selectors.createScopeWorkspace).toBe(
-      `locator:${bridgeOperatorTestIds.createBridgeScopeWorkspace}`
-    );
     expect(selectors.createDeliveryModeSelect).toBe(
       `locator:${bridgeOperatorTestIds.createBridgeDeliveryModeSelect}`
     );
@@ -458,12 +446,6 @@ describe("settings operator selectors", () => {
 
     expect(selectors.mcpServers.page).toBe(`locator:${settingsMCPServersTestIds.page}`);
     expect(selectors.mcpServers.create).toBe(`locator:${settingsMCPServersTestIds.create}`);
-    expect(selectors.mcpServers.scopeGlobal).toBe(
-      `locator:${settingsMCPServersTestIds.scopeGlobal}`
-    );
-    expect(selectors.mcpServers.scopeWorkspace).toBe(
-      `locator:${settingsMCPServersTestIds.scopeWorkspace}`
-    );
     expect(selectors.mcpServers.row("browser-global-mcp")).toBe(
       "locator:marketplace-installed-card-browser-global-mcp"
     );
@@ -523,14 +505,6 @@ describe("tasks operator selectors", () => {
     expect(selectors.createDescription).toBe(`locator:${tasksOperatorTestIds.createDescription}`);
     expect(selectors.createModeAdvanced).toBe(`locator:${tasksOperatorTestIds.createModeAdvanced}`);
     expect(selectors.createModeSimple).toBe(`locator:${tasksOperatorTestIds.createModeSimple}`);
-    expect(selectors.createScopeGlobal).toBe(`locator:${tasksOperatorTestIds.createScopeGlobal}`);
-    expect(selectors.createScopeWorkspace).toBe(
-      `locator:${tasksOperatorTestIds.createScopeWorkspace}`
-    );
-    expect(selectors.createWorkspaceSelect).toBe(
-      `locator:${tasksOperatorTestIds.createWorkspaceSelect}`
-    );
-    expect(selectors.createWorkspaceOption("ws_beta")).toBe("locator:task-workspace-item-ws_beta");
     expect(selectors.createSaveDraft).toBe(`locator:${tasksOperatorTestIds.createSaveDraft}`);
     expect(selectors.createSubmit).toBe(`locator:${tasksOperatorTestIds.createSubmit}`);
     expect(selectors.createTemplate("one_shot")).toBe("locator:task-template-one_shot");

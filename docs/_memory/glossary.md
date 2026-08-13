@@ -386,7 +386,7 @@ The bottom strip of app launchers. It mirrors the app inventory and carries runn
 
 ### Menubar
 
-The top bar across the desktop: workspace trigger, app menus, the approvals bell, the ⌘K palette, and Settings.
+The top bar across the desktop: CompozyOS mark, Global scope globe, workspace trigger, app menus, the approvals bell, the ⌘K palette, and Settings. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. The chip reads the project name when scoped down, or **Global** (`~`) when Global scope is on.
 
 ### Window manager
 

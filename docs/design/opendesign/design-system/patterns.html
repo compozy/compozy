@@ -164,9 +164,9 @@ body{background:var(--canvas);overflow-y:auto}
       <tr><th>Need</th><th>Component</th><th>Geometry anchor</th></tr>
       <tr><td>Provider · model · reasoning</td><td>RuntimeSelector</td><td>segmented trigger 34px (30px compact) · popover 528px: 44px search · 52px provider rail (2px accent bar on active) · model rows (selected = accent-tint) · reasoning footer with Default + 7 effort pills each carrying a 7-bar <code>.im</code>. Accent only on: meter fill, pressed pill, selected row, rail bar. The reasoning control stays a quiet footer — never a banner.</td></tr>
       <tr><td>Agent picking</td><td>AgentCommandSelect / MultiSelect</td><td>command popover with search; provider + category visible in every result; multi shows count + identity summary</td></tr>
-      <tr><td>Workspace picking</td><td>WorkspaceCommandSelect</td><td>trigger 36px (32–36 by density) · 22px monogram · popover 256px with 32px search · Home badge · Add workspace footer</td></tr>
+      <tr><td>Workspace picking</td><td>WorkspaceCommandSelect</td><td>trigger 36px (32–36 by density) · 22px monogram · popover 256px with 32px search · project workspaces only (operator-home row hidden) · Add workspace footer</td></tr>
       <tr><td>Directory picking</td><td>DirectoryBrowser</td><td>min-height 220 · toolbar home/up + mono path + “Use this folder” · hover-revealed pick per row · selected root card · never a plain path input</td></tr>
-      <tr><td>Scope</td><td>ScopeSelector</td><td>Global/Workspace pill-group; workspace select appears only when Workspace is pressed</td></tr>
+      <tr><td>Scope</td><td>GlobalScopeToggle + WorkspaceScopeStatement</td><td>the menubar Globe toggle owns scope; surfaces render a read-only landing statement (&ldquo;Creates in <b>compozy</b>.&rdquo; / &ldquo;Creates in <b>Global</b> &mdash; visible to every workspace.&rdquo;) &mdash; scope pill-groups, radios and selects are retired</td></tr>
     </table>
   </section>
 

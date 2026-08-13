@@ -4,7 +4,7 @@ area: ET
 title: Authorize an MCP server from Installed scope
 persona: Bruno
 journey: J-mcp-authorize-repair
-expected: An installed OAuth MCP server that needs login exposes Authorize in the MCP Installed scope and detail, reuses the scoped daemon authorization flow, and reports success only after authenticated status and token presence are both confirmed.
+expected: An installed OAuth MCP server that needs login exposes Authorize in the MCP Installed scope and detail, reuses the scoped daemon authorization flow, and reports success only after authenticated status and token presence are both confirmed. Install destination follows the menubar Global switch (no `config_scope` search param and no destination pills in the install dialog).
 entry_points: /marketplace/mcps; /marketplace/mcp/<entry-id>
 qa_status: blocked-verify
 bug_ids:
@@ -39,3 +39,7 @@ success only after the refreshed status is authenticated with a token present.
 QA result 2026-07-30: the installed Linear surface exposed the exact target's authorization handoff
 and remained unauthenticated. Human consent and the post-exchange token-present confirmation remain
 `blocked-verify`.
+
+2026-08-12 qa-impact: MCP install destination is derived from the menubar Global switch; `config_scope` was deleted. Reset to untested.
+
+2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.

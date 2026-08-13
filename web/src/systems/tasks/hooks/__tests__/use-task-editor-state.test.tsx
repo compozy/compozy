@@ -16,7 +16,6 @@ const editorMocks = vi.hoisted(() => ({
   createChild: vi.fn(),
   enqueue: vi.fn(),
   activeWorkspaceOptions: undefined as unknown,
-  userHomeDirOptions: undefined as unknown,
   update: vi.fn(),
 }));
 
@@ -56,16 +55,11 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: (options: unknown) => {
     editorMocks.activeWorkspaceOptions = options;
     return {
+      scope: "workspace" as const,
+      activeWorkspaceId: editorMocks.activeWorkspaceId,
       activeWorkspace: editorWorkspaces.find(item => item.id === editorMocks.activeWorkspaceId),
       workspaces: editorWorkspaces,
     };
-  },
-}));
-
-vi.mock("@/systems/workspace/hooks/use-user-home-dir", () => ({
-  useUserHomeDir: (options: unknown) => {
-    editorMocks.userHomeDirOptions = options;
-    return "/Users/operator";
   },
 }));
 
@@ -96,7 +90,6 @@ beforeEach(() => {
   editorMocks.detailOptions = undefined;
   editorMocks.profileOptions = undefined;
   editorMocks.activeWorkspaceOptions = undefined;
-  editorMocks.userHomeDirOptions = undefined;
 });
 
 describe("task editor state identity", () => {
@@ -106,7 +99,6 @@ describe("task editor state identity", () => {
     );
 
     expect(editorMocks.activeWorkspaceOptions).toEqual({ enabled: false });
-    expect(editorMocks.userHomeDirOptions).toEqual({ enabled: false });
     expect(result.current.draft.workspaceId).toBe("ws_alpha");
   });
 

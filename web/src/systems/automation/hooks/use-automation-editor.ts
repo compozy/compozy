@@ -44,7 +44,6 @@ type TriggerEditorState =
 
 interface JobEditorParams {
   activeWorkspaceId?: string | null;
-  userHomeDir?: string;
   onSaved?: (job: AutomationJob) => void;
   workspaces?: ReadonlyArray<WorkspaceOption>;
 }
@@ -82,7 +81,6 @@ function agentCatalogErrorMessage(error: unknown): string | null {
  */
 export function useAutomationJobEditor({
   activeWorkspaceId,
-  userHomeDir,
   onSaved,
   workspaces,
 }: JobEditorParams) {
@@ -144,7 +142,6 @@ export function useAutomationJobEditor({
 
   const editorDialogProps = {
     activeWorkspaceId,
-    userHomeDir,
     agents: agentsQuery.data ?? [],
     agentsError: agentCatalogErrorMessage(agentsQuery.error),
     agentsLoading: agentsQuery.isLoading,
@@ -168,7 +165,6 @@ export function useAutomationJobEditor({
 
 interface TriggerEditorParams {
   activeWorkspaceId?: string | null;
-  userHomeDir?: string;
   onSaved?: (trigger: AutomationTrigger) => void;
   workspaces?: ReadonlyArray<WorkspaceOption>;
 }
@@ -179,7 +175,6 @@ interface TriggerEditorParams {
  */
 export function useAutomationTriggerEditor({
   activeWorkspaceId,
-  userHomeDir,
   onSaved,
   workspaces,
 }: TriggerEditorParams) {
@@ -244,7 +239,6 @@ export function useAutomationTriggerEditor({
 
   const editorDialogProps = {
     activeWorkspaceId,
-    userHomeDir,
     agents: agentsQuery.data ?? [],
     agentsError: agentCatalogErrorMessage(agentsQuery.error),
     agentsLoading: agentsQuery.isLoading,

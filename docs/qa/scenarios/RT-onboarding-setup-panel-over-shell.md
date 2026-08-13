@@ -4,7 +4,7 @@ area: RT
 title: First-run setup renders over an inert desktop shell
 persona: Lea
 journey: J-19
-expected: With onboarding incomplete the desktop chrome renders behind a blocking setup panel — wallpaper, a menu bar whose workspace slot reads "No workspace" with no sync-status pill, and a dimmed dormant dock — while the panel owns focus; Esc and outside-press do not dismiss it, ⌘K and ⌘N do nothing, nothing behind the scrim is clickable or tabbable, the runtime popover still opens above the panel, and finishing setup wakes the same desktop (menu bar names the first workspace) without a full reload.
+expected: With onboarding incomplete the desktop chrome renders behind a blocking setup panel — wallpaper, a menu bar whose workspace slot reads Global (`~`) with the Global switch on (locked until a project folder exists) and no sync-status pill, and a dimmed dormant dock — while the panel owns focus; Esc and outside-press do not dismiss it, ⌘K and ⌘N do nothing, nothing behind the scrim is clickable or tabbable, the runtime popover still opens above the panel, and finishing setup wakes the same desktop (menu bar stays Global (`~`) when no folder was added, or names the first project workspace when one was) without a full reload.
 entry_points: web `/_app/` first-run against a fresh `COMPOZY_HOME`; `desktop-gate.tsx`, `desktop-shell.tsx`, `onboarding-setup-panel.tsx`
 qa_status: blocked-verify
 bug_ids:
@@ -24,3 +24,7 @@ Checks that only a browser pass can confirm: focus containment across Tab/Shift+
 
 QA impact 2026-07-25 (deep-review remediation): setup step navigation is now inert while a step is
 busy. Flag only; the next QA cycle owns pointer and keyboard attempts during pending transitions.
+
+2026-08-12 qa-impact: first-run menubar chip reads Global (`~`), not "No workspace". Reset to untested.
+
+2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.

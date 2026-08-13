@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Trigger vocabulary · Lab · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="triggers.css">
+<!--
+  trigger-vocabulary · lab — the When / If / Then / run-row grammar every trigger surface reuses.
+  Contract: DESIGN-NOTES.md · shared story: checkout-api.
+  Provenance:
+    production        — event kinds trigger_event_validate.go; target_kind agent|loop only;
+                        run statuses types.go:70-86; filter AND of map[string]string.
+    authorized delta  — fragments, not windows. No LOOP/DYNAMIC/WEBHOOK taxonomy pills.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="tr-vocab-head">
+    <a class="w2-back" href="index.html" aria-label="Back to Triggers"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Triggers</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">When / If / Then vocabulary</span>
+    </nav>
+    <span class="tag">lab</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="trigger-detail.html">Agent detail →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page-lab">
+
+    <section class="lab-sec" data-od-id="lab-matrix">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">What actually changes the page</h2>
+        <span class="lab-sec__gist">axes, not a combinatorial explosion</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Contract</b>A trigger is <code>source × scope × event × target_kind</code>. Only event=webhook and target=loop change layout. Source changes chrome (Edit/Delete). Reliability never changes layout.</div>
+        <div class="spec__demo">
+          <table class="mtx" data-od-id="tr-axis-table">
+            <thead><tr><th>Axis</th><th>Values</th><th>What the page does</th></tr></thead>
+            <tbody>
+              <tr><td>target_kind</td><td class="mono">agent · loop</td><td>Then: prompt vs name + mapping. Runs: session vs loop_run_id.</td></tr>
+              <tr><td>event</td><td class="mono">session.* · memory · hook.* · ext.* · webhook</td><td>When copy + pill. Webhook adds local POST path.</td></tr>
+              <tr><td>scope</td><td class="mono">workspace · global</td><td>When subtitle. Webhook path family.</td></tr>
+              <tr><td>source</td><td class="mono">dynamic · config · package</td><td>Edit/Delete present or gone. Dashed lockbar. Enable still works.</td></tr>
+              <tr><td>filter</td><td>empty · ≥1 AND keys</td><td>If: “Any event of this kind” vs value badges.</td></tr>
+              <tr><td>enabled</td><td>on · off · pending</td><td>Switch + pause line. Rule unchanged.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-when">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">When — event families</h2>
+        <span class="lab-sec__gist">plain sentence + mono pill · webhook is the only extra chrome</span></div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Observer events</b>Same When layout. Hook and ext names live <i>in the event string</i>, not as extra fields.</div>
+        <div class="spec__demo">
+          <div class="wit">
+            <div class="wit__row">
+              <span class="wit__k">When</span>
+              <span class="wit__v">
+                <span class="wit__event"><i data-lucide="circle-dot"></i><b>A session starts</b><span class="pill" data-mono="true">session.created</span></span>
+                <span class="sub">In workspace checkout-api</span>
+              </span>
+            </div>
+            <div class="wit__row">
+              <span class="wit__k">When</span>
+              <span class="wit__v">
+                <span class="wit__event"><i data-lucide="circle-dot"></i><b>A session stops</b><span class="pill" data-mono="true">session.stopped</span></span>
+                <span class="sub">In workspace checkout-api</span>
+              </span>
+            </div>
+            <div class="wit__row">
+              <span class="wit__k">When</span>
+              <span class="wit__v">
+                <span class="wit__event"><i data-lucide="database"></i><b>Memory consolidated</b><span class="pill" data-mono="true">memory.consolidated</span></span>
+                <span class="sub">Open <span class="mono" style="font-size:11px;color:var(--faint)">data.*</span> payload</span>
+              </span>
+            </div>
+            <div class="wit__row">
+              <span class="wit__k">When</span>
+              <span class="wit__v">
+                <span class="wit__event"><i data-lucide="unplug"></i><b>Hook deploy completed</b><span class="pill" data-mono="true">hook.deploy.completed</span></span>
+                <span class="sub">Hook name is in the event id</span>
+              </span>
+            </div>
+            <div class="wit__row">
+              <span class="wit__k">When</span>
+              <span class="wit__v">
+                <span class="wit__event"><i data-lucide="puzzle"></i><b>Extension event</b><span class="pill" data-mono="true">ext.release.deploy-started</span></span>
+                <span class="sub">Across the runtime</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <div class="spec__note"><b>Webhook</b>Adds the local POST path. Daemon allows workspace <i>and</i> global. Create-modal “always global” is a form restriction, not this page.</div>
+        <div class="spec__demo">
+          <div class="wit">
+            <div class="wit__row">
+              <span class="wit__k">When</span>
+              <span class="wit__v">
+                <span class="wit__event"><i data-lucide="webhook"></i><b>Incoming webhook</b><span class="pill" data-mono="true">webhook</span></span>
+                <span class="sub">Workspace path</span>
+                <div class="endpoint">
+                  <div class="endpoint__row">
+                    <span class="endpoint__m">POST</span>
+                    <span class="endpoint__url">/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123</span>
+                  </div>
+                </div>
+              </span>
+            </div>
+            <div class="wit__row">
+              <span class="wit__k">When</span>
+              <span class="wit__v">
+                <span class="wit__event"><i data-lucide="webhook"></i><b>Incoming webhook</b><span class="pill" data-mono="true">webhook</span></span>
+                <span class="sub">Global path</span>
+                <div class="endpoint">
+                  <div class="endpoint__row">
+                    <span class="endpoint__m">POST</span>
+                    <span class="endpoint__url">/api/webhooks/global/inbox--wbh_9f2a1c</span>
+                  </div>
+                </div>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-if">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">If — filters</h2>
+        <span class="lab-sec__gist">empty is a real state · keys AND · exact match</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>None</b>Production: “No filters”. Prototype sentence: any event of this kind. Machine path stays a quiet sub line when a filter exists.</div>
+        <div class="spec__demo">
+          <div class="wit">
+            <div class="wit__row">
+              <span class="wit__k">If</span>
+              <span class="wit__v">
+                <span class="wit__if"><i data-lucide="filter"></i><span>Any event of this kind</span></span>
+              </span>
+            </div>
+            <div class="wit__row">
+              <span class="wit__k">If</span>
+              <span class="wit__v">
+                <span class="wit__if"><i data-lucide="filter"></i><span>Stop reason is <span class="bindbadge">error</span></span></span>
+                <span class="sub">Exact match on <span class="mono" style="font-size:11px;color:var(--faint)">data.stop_reason</span></span>
+              </span>
+            </div>
+            <div class="wit__row">
+              <span class="wit__k">If</span>
+              <span class="wit__v">
+                <span class="wit__if"><i data-lucide="filter"></i>
+                  <span>Action is <span class="bindbadge">deploy</span></span>
+                  <span>and branch is <span class="bindbadge">main</span></span>
+                </span>
+                <span class="sub">AND of two keys</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-then">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Then — agent vs loop</h2>
+        <span class="lab-sec__gist">two kinds, immutable after create · no task target</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Agent</b>Chip + prompt template. Go <code>text/template</code> vs envelope: <code>{{ .Data.session_id }}</code>, never <code>{{event.*}}</code>.</div>
+        <div class="spec__demo">
+          <div class="wit">
+            <div class="wit__row">
+              <span class="wit__k">Then</span>
+              <span class="wit__v">
+                <span class="agent-id"><span class="agent-chip">s</span><b>summarizer</b></span>
+                <span class="sub">The agent receives a prompt built from the event.</span>
+                <div class="prompt" data-open="true">Session <span class="bindbadge">{{ .Data.session_id }}</span> stopped with reason "<span class="bindbadge">{{ .Data.stop_reason }}</span>".</div>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Loop</b>Name is the value (link to the loop page). Mapping rows: <code>←</code> from event, <code>=</code> static. No LOOP accent pill. See <a href="trigger-detail-loop.html" style="color:var(--muted);text-decoration:underline">rerun-delivery</a>.</div>
+        <div class="spec__demo">
+          <div class="wit">
+            <div class="wit__row">
+              <span class="wit__k">Then</span>
+              <span class="wit__v">
+                <span class="agent-id">
+                  <span class="agent-chip"><i data-lucide="workflow"></i></span>
+                  <b>software-delivery</b>
+                  <span class="tag">Built-in</span>
+                </span>
+                <div class="map">
+                  <div class="map__row"><span class="map__k">slug</span><span class="map__op">←</span><span class="bindbadge">data.session_name</span><span class="map__kind">from event</span></div>
+                  <div class="map__row"><span class="map__k">implementer</span><span class="map__op">=</span><span class="bindbadge">code_implementer</span><span class="map__kind">static</span></div>
+                </div>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-runs">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Run rows</h2>
+        <span class="lab-sec__gist">six daemon statuses · link only when an id exists</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Tones</b><code>running/delegated</code> info · <code>scheduled</code> warning · <code>completed</code> success · <code>failed</code> danger · <code>canceled</code> neutral. Open session requires <code>session_id</code>. Open loop run requires <code>loop_run_id</code>.</div>
+        <div class="spec__demo">
+          <div class="panelbox">
+            <div class="runrow" style="pointer-events:none"><span class="pill" data-tone="warning"><span class="dot"></span>Scheduled</span><span class="rmeta"><i data-lucide="clock"></i><span>Accepted · not started</span></span><span class="rcell">—</span><span></span></div>
+            <div class="runrow" style="pointer-events:none"><span class="pill" data-tone="info"><span class="dot"></span>Running</span><span class="rmeta"><i data-lucide="bot"></i><span>Session <span class="mono">sess_aa19b2</span></span></span><span class="rcell">12s</span><span></span></div>
+            <div class="runrow" style="pointer-events:none"><span class="pill" data-tone="info"><span class="dot"></span>Delegated</span><span class="rmeta"><i data-lucide="workflow"></i><span>Loop run <span class="mono">r-8f3a2b</span></span></span><span class="rcell">—</span><span></span></div>
+            <div class="runrow" style="pointer-events:none"><span class="pill" data-tone="success"><span class="dot"></span>Completed</span><span class="rmeta"><i data-lucide="bot"></i><span>Session <span class="mono">sess_9f2a1c</span></span></span><span class="rcell">18s</span><span></span></div>
+            <div class="runrow" style="pointer-events:none"><span class="pill" data-tone="danger"><span class="dot"></span>Failed</span><span class="rmeta"><i data-lucide="bot-off"></i><span>Agent summarizer was not available</span></span><span class="rcell">0s</span><span></span></div>
+            <div class="runrow" style="pointer-events:none"><span class="pill"><span class="dot"></span>Canceled</span><span class="rmeta"><i data-lucide="ban"></i><span>Canceled</span></span><span class="rcell">—</span><span></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">
+      Vocabulary of the triggers set. Finals:
+      <a href="trigger-detail.html">agent</a> ·
+      <a href="trigger-detail-loop.html">loop</a> ·
+      <a href="trigger-detail-webhook.html">webhook</a>.
+      Page states in <a href="trigger-detail-states.html">states lab</a>.
+      Contract: <span class="mono">DESIGN-NOTES.md</span>.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

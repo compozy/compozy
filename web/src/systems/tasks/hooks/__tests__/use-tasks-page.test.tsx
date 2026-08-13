@@ -55,6 +55,8 @@ const workspaceMockState = vi.hoisted(() => ({
   error: null as Error | null,
   hasHydrated: true,
   isLoading: false,
+  pending: false,
+  scope: "workspace" as "workspace" | "global",
   selectedWorkspaceId: "ws_alpha" as string | null,
 }));
 
@@ -85,37 +87,22 @@ const workspaceFixtures = vi.hoisted(() => [
   },
 ]);
 
-const daemonStatusMockState = vi.hoisted(
-  (): {
-    data: { user_home_dir: string } | undefined;
-    error: Error | null;
-    isLoading: boolean;
-    isPending: boolean;
-    options: unknown;
-  } => ({
-    data: { user_home_dir: "/Users/operator" },
-    error: null,
-    isLoading: false,
-    isPending: false,
-    options: undefined,
-  })
-);
-
-vi.mock("@/systems/status/hooks/use-daemon-status", () => ({
-  useDaemonStatus: (options: unknown) => {
-    daemonStatusMockState.options = options;
-    return daemonStatusMockState;
-  },
-}));
-
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  // Mirrors resolveActiveWorkspace: the home row is never a project, a missing
+  // remembered id coerces to Global, and `pending` claims nothing.
   useActiveWorkspace: (options: unknown) => {
     workspaceMockState.options = options;
-    const activeWorkspace = workspaceMockState.hasHydrated
-      ? (workspaceFixtures.find(
-          workspace => workspace.id === workspaceMockState.selectedWorkspaceId
-        ) ?? workspaceFixtures[0])
-      : undefined;
+    const projectWorkspaces = workspaceFixtures.filter(workspace => workspace.id !== "ws_home");
+    const remembered = projectWorkspaces.find(
+      workspace => workspace.id === workspaceMockState.selectedWorkspaceId
+    );
+    const pending = workspaceMockState.pending;
+    const scope = pending
+      ? workspaceMockState.scope
+      : workspaceMockState.scope === "workspace" && remembered
+        ? "workspace"
+        : "global";
+    const activeWorkspace = !pending && scope === "workspace" ? remembered : undefined;
     return {
       activeWorkspace,
       activeWorkspaceId: activeWorkspace?.id ?? null,
@@ -123,7 +110,9 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
       hasHydrated: workspaceMockState.hasHydrated,
       isLoading: workspaceMockState.isLoading,
       isPending: workspaceMockState.isLoading,
-      workspaces: workspaceFixtures,
+      pending,
+      scope,
+      workspaces: projectWorkspaces,
     };
   },
 }));
@@ -223,15 +212,12 @@ function taskListPage(tasks = taskFixtures, total = 21): TaskListPage {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  daemonStatusMockState.data = { user_home_dir: "/Users/operator" };
-  daemonStatusMockState.error = null;
-  daemonStatusMockState.isLoading = false;
-  daemonStatusMockState.isPending = false;
-  daemonStatusMockState.options = undefined;
   workspaceMockState.error = null;
   workspaceMockState.hasHydrated = true;
   workspaceMockState.isLoading = false;
   workspaceMockState.options = undefined;
+  workspaceMockState.pending = false;
+  workspaceMockState.scope = "workspace";
   workspaceMockState.selectedWorkspaceId = "ws_alpha";
   vi.mocked(listTasks).mockImplementation((filters: TaskListFilter = {}) => {
     if (filters.query === "Fix") {
@@ -268,7 +254,6 @@ describe("useTasksPage", () => {
     });
 
     expect(workspaceMockState.options).toEqual({ enabled: false });
-    expect(daemonStatusMockState.options).toEqual({ enabled: false });
     expect(result.current.activeWorkspaceName).toBe("Alpha");
     expect(listTasks).not.toHaveBeenCalled();
     expect(getTaskInbox).not.toHaveBeenCalled();
@@ -342,8 +327,8 @@ describe("useTasksPage", () => {
     );
   });
 
-  it("maps the home workspace to global task queries", async () => {
-    workspaceMockState.selectedWorkspaceId = "ws_home";
+  it("maps Global scope to global task queries", async () => {
+    workspaceMockState.scope = "global";
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
     await waitFor(() => {
@@ -353,13 +338,11 @@ describe("useTasksPage", () => {
     const [listFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
     expect(listFilters?.scope).toBe("global");
     expect(listFilters?.workspace).toBeUndefined();
-    expect(result.current.activeWorkspaceName).toBe("Home");
+    expect(result.current.activeWorkspaceName).toBeNull();
   });
 
-  it("waits for daemon status before issuing any task-scoped read", async () => {
-    daemonStatusMockState.data = undefined;
-    daemonStatusMockState.isLoading = true;
-    daemonStatusMockState.isPending = true;
+  it("withholds task-scoped reads until scope resolution settles", async () => {
+    workspaceMockState.pending = true;
 
     const { result, rerender } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
@@ -370,9 +353,7 @@ describe("useTasksPage", () => {
     expect(getTaskInbox).not.toHaveBeenCalled();
     expect(getTaskDashboard).not.toHaveBeenCalled();
 
-    daemonStatusMockState.data = { user_home_dir: "/Users/operator" };
-    daemonStatusMockState.isLoading = false;
-    daemonStatusMockState.isPending = false;
+    workspaceMockState.pending = false;
     rerender();
 
     await waitFor(() => {
@@ -384,9 +365,9 @@ describe("useTasksPage", () => {
     });
   });
 
-  it("surfaces daemon status failure without rendering an empty or zero catalog", () => {
-    daemonStatusMockState.data = undefined;
-    daemonStatusMockState.error = new Error("daemon status unavailable");
+  it("surfaces scope-source failure without rendering an empty or zero catalog", () => {
+    workspaceMockState.pending = true;
+    workspaceMockState.error = new Error("daemon status unavailable");
 
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
@@ -488,8 +469,8 @@ describe("useTasksPage", () => {
     );
   });
 
-  it("maps the home workspace into global dashboard and backlog queries", async () => {
-    workspaceMockState.selectedWorkspaceId = "ws_home";
+  it("maps Global scope into global dashboard and backlog queries", async () => {
+    workspaceMockState.scope = "global";
     renderHook(() => useTasksPage({ search: { mode: "dashboard" } }), {
       wrapper: createWrapper(),
     });

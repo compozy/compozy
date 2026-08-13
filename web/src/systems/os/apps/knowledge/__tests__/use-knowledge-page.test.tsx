@@ -39,6 +39,11 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
       updated_at: "2026-04-25T12:00:00Z",
     },
     activeWorkspaceId: "ws_signalforge",
+    homeWorkspace: undefined,
+    pending: false,
+    runtimeWorkspaceId: "ws_signalforge",
+    scope: "workspace",
+    userHomeDir: "/Users/operator",
   }),
 }));
 

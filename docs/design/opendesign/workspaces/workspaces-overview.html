@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Workspaces overview · Command-Tab switcher · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="workspaces.css">
+<!--
+  workspaces-overview · FINAL — Command-Tab workspace switcher.
+  Spec: DESIGN-NOTES.md · story: ws composy · ~ = /Users/pedro.
+  Provenance:
+    production            — content model from os-workspaces-overview.tsx
+                            (name, monogram, agents · sessions, root_dir, Current,
+                            New workspace); shell from ds-shell.css / composy-os-v2.html
+    authorized delta      — full-screen overlay stays; 264px dossier cards → 80px
+                            tiles in a centered glass strip; chip opens this overlay
+                            (not the left popover); Current = check, not accent border;
+                            New workspace is a trailing dashed tile; many workspaces
+                            stay ONE ROW with a fluid horizontal track + edge fades
+                            (never wrap)
+-->
+</head>
+<body data-wallpaper="ember" data-motion="full">
+<!--
+  THESIS: Workspace switching is a Command-Tab overlay — a centered glass strip of compact tiles in a single scrolling row — not a left menu, not a wrap, not a 264px dossier grid.
+  OWN-WORLD: AGH dark tokens, Geist, shell glass, 14px chrome radius on the strip and icon wells; type 12.5 / 11.5; accent only on Global track and empty-state New.
+  STORY: Operator scans monograms across a dozen project folders; the strip never breaks. Arrows, trackpad, or a drag flick the row; edge fades say there is more. Enter lands. Current is a check.
+  FIRST VIEWPORT: Lived-in desktop (Dashboard, session, Tasks, Agents) dimmed; centered strip of 12 tiles + add in one row, right fade on; caption under; menubar chip still visible through the scrim.
+  FORM: Operate / Command-Tab switcher. Code-led.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+-->
+<div class="os" id="os" data-od-id="workspaces-os">
+
+  <header class="menubar" data-od-id="menu-bar" aria-label="System bar">
+    <div class="mb-side">
+      <button class="mb-logo" aria-label="CompozyOS" data-od-id="menu-logo">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="currentColor"/><circle cx="8" cy="8" r="2.6" class="mb-logo-dot"/></svg>
+      </button>
+      <!-- gating: store.scope · Globe toggle between mark and chip (global-workspace DESIGN-NOTES) -->
+      <button class="gw-toggle" id="gwToggle" data-od-id="gw-toggle" aria-pressed="false" aria-label="Global scope">
+        <svg data-lucide="globe"></svg>
+      </button>
+      <button class="ws-trigger" id="wsTrigger" data-od-id="workspace-trigger" aria-haspopup="dialog" aria-expanded="true" aria-controls="wsov">
+        <span class="ws-avatar mono" id="wsAvatar">CO</span>
+        <span class="ws-name" id="wsName">compozy</span>
+        <svg class="chevrons" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.2 8 3.4l3 2.8M5 9.8l3 2.8 3-2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <nav class="mb-menus" aria-label="Menus">
+        <button class="mb-menu">Session</button>
+        <button class="mb-menu">View</button>
+        <button class="mb-menu">Help</button>
+      </nav>
+    </div>
+    <div class="mb-side mb-right">
+      <button class="mb-icon" aria-label="Approvals" data-od-id="menu-approvals">
+        <svg data-lucide="bell"></svg>
+        <span class="badge">2</span>
+      </button>
+      <button class="mb-chip mb-cmdk" data-od-id="menu-command" title="Command palette">
+        <span class="mono">⌘K</span>
+      </button>
+      <button class="mb-icon" aria-label="Settings" data-od-id="menu-settings" title="Settings">
+        <svg data-lucide="settings"></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="desktop" id="desktop" data-od-id="desktop">
+    <div class="win-layer">
+      <section class="win is-focused" style="left:56px;top:28px;width:560px;height:340px" data-od-id="win-dashboard">
+        <header class="win-head">
+          <div class="win-controls">
+            <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+            <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+            <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+          </div>
+          <div class="w2-id">
+            <span class="w2-glyph" aria-hidden="true"><svg data-lucide="layout-dashboard"></svg></span>
+            <span class="w2-title">Dashboard</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail"><span class="livebadge"><span class="d d--run d--pulse"></span>live</span></div>
+        </header>
+        <div class="win-body">
+          <div class="app">
+            <div class="tiles" style="grid-template-columns:repeat(3,1fr)">
+              <div class="tile"><div class="tile__l">Runs today</div><div class="tile__v mono" style="font-size:22px;font-weight:600;letter-spacing:-.03em;color:var(--fg-strong)">34</div></div>
+              <div class="tile"><div class="tile__l">Success</div><div class="tile__v mono" style="font-size:22px;font-weight:600;letter-spacing:-.03em;color:var(--fg-strong)">92%</div></div>
+              <div class="tile"><div class="tile__l">Sessions</div><div class="tile__v mono" style="font-size:22px;font-weight:600;letter-spacing:-.03em;color:var(--fg-strong)">5</div></div>
+            </div>
+            <section class="panel" style="margin-top:10px">
+              <header class="panel-h">
+                <h3>Working now</h3>
+                <span class="livebadge"><span class="d d--run d--pulse"></span>live</span>
+              </header>
+              <p style="font-size:15px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)">Fix payment retries</p>
+              <p class="mono" style="font-size:10.5px;color:var(--faint);margin-top:4px">claude · composy</p>
+            </section>
+          </div>
+        </div>
+      </section>
+      <section class="win" style="left:640px;top:44px;width:420px;height:280px" data-od-id="win-session">
+        <header class="win-head">
+          <div class="win-controls">
+            <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+            <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+            <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+          </div>
+          <div class="w2-id">
+            <span class="d d--run d--pulse" style="margin-left:2px"></span>
+            <span class="w2-title">Fix payment retries</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+        </header>
+        <div class="win-body">
+          <div class="app">
+            <p style="font-size:13px;color:var(--fg);max-width:46ch">Retry the failed Stripe webhook with the same idempotency key, then confirm the ledger row.</p>
+            <p class="mono" style="font-size:10.5px;color:var(--faint);margin-top:8px">~/dev/compozy · claude</p>
+          </div>
+        </div>
+      </section>
+      <section class="win" style="left:88px;top:300px;width:480px;height:260px" data-od-id="win-tasks">
+        <header class="win-head">
+          <div class="win-controls">
+            <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+            <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+            <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+          </div>
+          <div class="w2-id">
+            <span class="w2-glyph" aria-hidden="true"><svg data-lucide="list-todo"></svg></span>
+            <span class="w2-title">Tasks</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+        </header>
+        <div class="win-body" style="padding:0">
+          <div class="panelbox">
+            <div class="srow">
+              <div class="srow__main"><div class="srow__label">Fix payment retries</div><div class="srow__desc">claude · running</div></div>
+              <span class="livebadge"><span class="d d--run d--pulse"></span>live</span>
+            </div>
+            <div class="srow">
+              <div class="srow__main"><div class="srow__label">Regen OpenAPI types</div><div class="srow__desc">codex · queued</div></div>
+              <span class="srow__value">2m</span>
+            </div>
+            <div class="srow">
+              <div class="srow__main"><div class="srow__label">Docs: workspace resolver</div><div class="srow__desc">claude · done</div></div>
+              <span class="srow__value">ok</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="win" style="left:600px;top:340px;width:400px;height:220px" data-od-id="win-agents">
+        <header class="win-head">
+          <div class="win-controls">
+            <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+            <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+            <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+          </div>
+          <div class="w2-id">
+            <span class="w2-glyph" aria-hidden="true"><svg data-lucide="bot"></svg></span>
+            <span class="w2-title">Agents</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+        </header>
+        <div class="win-body" style="padding:0">
+          <div class="panelbox">
+            <div class="srow">
+              <div class="srow__main"><div class="srow__label">claude</div><div class="srow__desc">3 sessions</div></div>
+              <span class="livebadge"><span class="d d--run d--pulse"></span>live</span>
+            </div>
+            <div class="srow">
+              <div class="srow__main"><div class="srow__label">codex</div><div class="srow__desc">1 session</div></div>
+              <span class="srow__value">idle</span>
+            </div>
+            <div class="srow">
+              <div class="srow__main"><div class="srow__label">hermes</div><div class="srow__desc">1 session</div></div>
+              <span class="srow__value">idle</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="dock-zone" data-od-id="dock-zone">
+    <span class="dock-flex dock-flex-l" aria-hidden="true"></span>
+    <nav class="dock-seg dock" aria-label="Dock" data-od-id="dock">
+      <button class="dock-item is-open" tabindex="-1"><svg data-lucide="layout-dashboard"></svg><span class="run-dot"></span><span class="tip">Dashboard</span></button>
+      <button class="dock-item is-open" tabindex="-1"><svg data-lucide="message-square"></svg><span class="run-dot"></span><span class="tip">Sessions</span></button>
+      <button class="dock-item is-open" tabindex="-1"><svg data-lucide="list-todo"></svg><span class="run-dot"></span><span class="tip">Tasks</span></button>
+      <button class="dock-item is-open" tabindex="-1"><svg data-lucide="bot"></svg><span class="run-dot"></span><span class="tip">Agents</span></button>
+      <button class="dock-item" tabindex="-1"><svg data-lucide="repeat"></svg><span class="tip">Loops</span></button>
+      <span class="dock-sep"></span>
+      <button class="dock-item" tabindex="-1"><svg data-lucide="store"></svg><span class="tip">Marketplace</span></button>
+      <button class="dock-item" tabindex="-1"><svg data-lucide="book-open"></svg><span class="tip">Knowledge</span></button>
+    </nav>
+    <div class="dock-seg dock-actions">
+      <button class="dock-new" tabindex="-1" aria-label="New session" title="New session">
+        <svg data-lucide="plus"></svg>
+      </button>
+    </div>
+    <span class="dock-flex dock-flex-r" aria-hidden="true"></span>
+  </div>
+
+  <!-- ============ WORKSPACES OVERVIEW ============
+       gating: OsWorkspacesOverview open · GET /api/workspaces project items
+       many items: one row, horizontal track, edge fades — never wrap -->
+  <div class="overlay wsov" id="wsov" data-od-id="workspaces-overview" role="dialog" aria-modal="true" aria-labelledby="wsovTitle" aria-describedby="wsovSub">
+    <div class="wsov-stage">
+      <h1 class="wsov-title" id="wsovTitle">Workspaces</h1>
+      <p class="wsov-sub" id="wsovSub">12 workspaces · 18 agents</p>
+      <p class="wsov-notice" id="wsovNotice" hidden>Global scope is on — picking a workspace turns it off.</p>
+      <div class="wsov-strip" id="wsovStrip" data-od-id="wsov-strip" data-overflow="end">
+        <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+        <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+        <div class="wsov-track" id="wsovTrack" data-od-id="wsov-track">
+          <div class="wsov-row" id="wsovRow" role="listbox" aria-label="Workspaces" aria-activedescendant="tile-compozy">
+            <button class="wsov-tile is-on" role="option" id="tile-compozy" data-od-id="tile-compozy" data-id="compozy" data-current aria-selected="true" tabindex="0"><span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">compozy</span></button>
+            <button class="wsov-tile" role="option" id="tile-branas-site" data-od-id="tile-branas-site" data-id="branas-site" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">B</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">branas-site</span></button>
+            <button class="wsov-tile" role="option" id="tile-notes" data-od-id="tile-notes" data-id="notes" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">N</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">notes</span></button>
+            <button class="wsov-tile" role="option" id="tile-agh-docs" data-od-id="tile-agh-docs" data-id="agh-docs" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">AG</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">agh-docs</span></button>
+            <button class="wsov-tile" role="option" id="tile-payments" data-od-id="tile-payments" data-id="payments" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">PA</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">payments</span></button>
+            <button class="wsov-tile" role="option" id="tile-infra" data-od-id="tile-infra" data-id="infra" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">IN</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">infra</span></button>
+            <button class="wsov-tile" role="option" id="tile-design-system" data-od-id="tile-design-system" data-id="design-system" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">DS</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">design-system</span></button>
+            <button class="wsov-tile" role="option" id="tile-sandbox" data-od-id="tile-sandbox" data-id="sandbox" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">SA</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">sandbox</span></button>
+            <button class="wsov-tile" role="option" id="tile-branas-ia" data-od-id="tile-branas-ia" data-id="branas-ia" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">IA</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">branas-ia</span></button>
+            <button class="wsov-tile" role="option" id="tile-compozy-ext" data-od-id="tile-compozy-ext" data-id="compozy-ext" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">CE</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">compozy-ext</span></button>
+            <button class="wsov-tile" role="option" id="tile-site" data-od-id="tile-site" data-id="site" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">SI</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">site</span></button>
+            <button class="wsov-tile" role="option" id="tile-cli" data-od-id="tile-cli" data-id="cli" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">CL</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">cli</span></button>
+            <button class="wsov-tile wsov-tile--add" role="option" id="tileAdd" data-od-id="tile-add" aria-selected="false" tabindex="-1"><span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span><span class="wsov-name">New</span></button>
+          </div>
+        </div>
+      </div>
+      <div class="wsov-caption" id="wsovCaption" data-od-id="wsov-caption">
+        <b>compozy</b>
+        <span class="meta">3 agents · 5 sessions</span>
+        <span class="path">~/dev/compozy</span>
+      </div>
+      <p class="wsov-hint" data-od-id="wsov-hint">
+        <span>scroll or <kbd class="mono">←</kbd> <kbd class="mono">→</kbd></span>
+        <span><kbd class="mono">a–z</kbd> jump</span>
+        <span><kbd class="mono">↵</kbd> switch</span>
+        <span><kbd class="mono">esc</kbd> close</span>
+        <span><kbd class="mono">⇧⌘W</kbd> open</span>
+        <span><kbd class="mono">⇧⌘G</kbd> global</span>
+      </p>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" data-od-id="notifications" aria-live="polite"></div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function () {
+  /* gating: GET /api/workspaces → project items; meta from use-workspace-details */
+  const WORKSPACES = [
+    { id: "compozy", name: "compozy", mono: "CO", path: "~/dev/compozy", agents: 3, sessions: 5 },
+    { id: "branas-site", name: "branas-site", mono: "B", path: "~/dev/branas/site", agents: 1, sessions: 2 },
+    { id: "notes", name: "notes", mono: "N", path: "~/notes", agents: 1, sessions: 1 },
+    { id: "agh-docs", name: "agh-docs", mono: "AG", path: "~/dev/agh/docs", agents: 2, sessions: 3 },
+    { id: "payments", name: "payments", mono: "PA", path: "~/dev/payments", agents: 2, sessions: 4 },
+    { id: "infra", name: "infra", mono: "IN", path: "~/dev/infra", agents: 2, sessions: 2 },
+    { id: "design-system", name: "design-system", mono: "DS", path: "~/dev/compozy/packages/ui", agents: 1, sessions: 1 },
+    { id: "sandbox", name: "sandbox", mono: "SA", path: "~/dev/sandbox", agents: 1, sessions: 0 },
+    { id: "branas-ia", name: "branas-ia", mono: "IA", path: "~/dev/branas/ia", agents: 2, sessions: 1 },
+    { id: "compozy-ext", name: "compozy-ext", mono: "CE", path: "~/dev/compozy-extensions", agents: 1, sessions: 2 },
+    { id: "site", name: "site", mono: "SI", path: "~/dev/compozy/packages/site", agents: 1, sessions: 1 },
+    { id: "cli", name: "cli", mono: "CL", path: "~/dev/compozy/cmd", agents: 1, sessions: 0 }
+  ];
+
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const overlay = $("#wsov");
+  const strip = $("#wsovStrip");
+  const track = $("#wsovTrack");
+  const row = $("#wsovRow");
+  const addBtn = $("#tileAdd");
+  const trigger = $("#wsTrigger");
+  const toggle = $("#gwToggle");
+  const menubar = $(".menubar");
+  const desktop = $("#desktop");
+  const dock = $(".dock-zone");
+
+  let currentId = "compozy";
+  let remembered = "compozy";
+  let scope = "workspace";
+  let open = true;
+  let focusIndex = 0;
+  let typeBuf = "";
+  let typeTimer = 0;
+  let scrollingFromFocus = false;
+  let scrollEndTimer = 0;
+  let scrollLockTimer = 0;
+  let drag = null;
+
+  function reducedMotion() {
+    return matchMedia("(prefers-reduced-motion: reduce)").matches
+      || document.body.dataset.motion === "reduced";
+  }
+  function items() {
+    return $$(".wsov-tile", row);
+  }
+  function metaLine(ws) {
+    const parts = [];
+    if (ws.agents) parts.push(ws.agents === 1 ? "1 agent" : ws.agents + " agents");
+    if (ws.sessions) parts.push(ws.sessions === 1 ? "1 session" : ws.sessions + " sessions");
+    return parts.join(" · ");
+  }
+  function totalAgents() {
+    return WORKSPACES.reduce((n, w) => n + w.agents, 0);
+  }
+  function toast(html) {
+    const el = document.createElement("div");
+    el.className = "wsov-toast";
+    el.innerHTML = html;
+    $("#toasts").appendChild(el);
+    setTimeout(() => el.remove(), 2400);
+  }
+  function setInert(on) {
+    [menubar, desktop, dock].forEach((n) => {
+      if (on) n.setAttribute("inert", "");
+      else n.removeAttribute("inert");
+    });
+  }
+  function captionFor(el) {
+    const cap = $("#wsovCaption");
+    let html;
+    if (el === addBtn) {
+      html = "<b>New workspace</b><span class=\"meta\">Register a project folder</span><span class=\"path\">directory picker</span>";
+    } else {
+      const ws = WORKSPACES.find((w) => w.id === el.dataset.id);
+      if (!ws) return;
+      html = "<b>" + ws.name + "</b><span class=\"meta\">" + metaLine(ws) + "</span><span class=\"path\">" + ws.path + "</span>";
+    }
+    if (cap.innerHTML === html) return;
+    cap.innerHTML = html;
+    if (!reducedMotion()) {
+      cap.classList.remove("is-swap");
+      void cap.offsetWidth;
+      cap.classList.add("is-swap");
+    }
+  }
+  function paintOverflow() {
+    const max = track.scrollWidth - track.clientWidth;
+    if (max <= 2) {
+      strip.dataset.overflow = "none";
+      return;
+    }
+    const bits = [];
+    if (track.scrollLeft > 2) bits.push("start");
+    if (track.scrollLeft < max - 2) bits.push("end");
+    strip.dataset.overflow = bits.length ? bits.join(" ") : "none";
+  }
+  function keepInView(el, instant) {
+    const pad = 56;
+    const r = el.getBoundingClientRect();
+    const t = track.getBoundingClientRect();
+    let delta = 0;
+    if (r.left < t.left + pad) delta = r.left - (t.left + pad);
+    else if (r.right > t.right - pad) delta = r.right - (t.right - pad);
+    if (Math.abs(delta) < 1) {
+      paintOverflow();
+      return;
+    }
+    scrollingFromFocus = true;
+    const jump = instant || reducedMotion();
+    track.scrollTo({ left: track.scrollLeft + delta, behavior: jump ? "auto" : "smooth" });
+    window.clearTimeout(scrollLockTimer);
+    scrollLockTimer = window.setTimeout(() => {
+      scrollingFromFocus = false;
+      paintOverflow();
+    }, jump ? 40 : 320);
+  }
+  function nearestIndex() {
+    const box = track.getBoundingClientRect();
+    const mid = box.left + box.width / 2;
+    let best = 0;
+    let dist = Infinity;
+    items().forEach((el, i) => {
+      const r = el.getBoundingClientRect();
+      const d = Math.abs(r.left + r.width / 2 - mid);
+      if (d < dist) {
+        dist = d;
+        best = i;
+      }
+    });
+    return best;
+  }
+  function paintFocus(opts) {
+    const skipScroll = opts && opts.skipScroll;
+    const instant = opts && opts.instant;
+    const list = items();
+    list.forEach((el, i) => {
+      const on = i === focusIndex;
+      el.classList.toggle("is-on", on);
+      el.tabIndex = on ? 0 : -1;
+      el.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    const active = list[focusIndex];
+    row.setAttribute("aria-activedescendant", active.id);
+    captionFor(active);
+    if (open) active.focus({ preventScroll: true });
+    if (!skipScroll) keepInView(active, instant);
+    else paintOverflow();
+  }
+  function paintChrome() {
+    const n = WORKSPACES.length;
+    $("#wsovSub").textContent = n + " workspace" + (n === 1 ? "" : "s") + " · " + totalAgents() + " agents";
+    overlay.dataset.scope = scope;
+    const notice = $("#wsovNotice");
+    notice.hidden = scope !== "global";
+    $$(".wsov-tile[data-id]", row).forEach((el) => {
+      if (el.dataset.id === currentId && scope === "workspace") el.setAttribute("data-current", "");
+      else el.removeAttribute("data-current");
+    });
+    const avatar = $("#wsAvatar");
+    const name = $("#wsName");
+    if (scope === "global") {
+      trigger.dataset.scope = "global";
+      avatar.textContent = "~";
+      avatar.classList.add("ws-avatar--path");
+      name.textContent = "Global";
+    } else {
+      trigger.dataset.scope = "workspace";
+      avatar.classList.remove("ws-avatar--path");
+      const ws = WORKSPACES.find((w) => w.id === currentId);
+      avatar.textContent = ws.mono;
+      name.textContent = ws.name;
+    }
+    toggle.setAttribute("aria-pressed", scope === "global" ? "true" : "false");
+  }
+  function openOverlay() {
+    open = true;
+    overlay.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    setInert(true);
+    const idx = Math.max(0, WORKSPACES.findIndex((w) => w.id === currentId));
+    focusIndex = scope === "global" ? 0 : idx;
+    paintChrome();
+    paintFocus();
+    requestAnimationFrame(() => requestAnimationFrame(paintOverflow));
+  }
+  function closeOverlay() {
+    open = false;
+    overlay.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+    setInert(false);
+    trigger.focus({ preventScroll: true });
+  }
+  function toggleScope() {
+    if (scope === "global") {
+      scope = "workspace";
+      currentId = remembered;
+    } else {
+      remembered = currentId;
+      scope = "global";
+    }
+    paintChrome();
+    if (open) paintFocus();
+  }
+  function activate() {
+    const el = items()[focusIndex];
+    if (el === addBtn) {
+      toast("Add workspace opens the directory picker — the existing product flow.");
+      return;
+    }
+    const id = el.dataset.id;
+    if (scope === "global") {
+      scope = "workspace";
+    }
+    currentId = id;
+    remembered = id;
+    paintChrome();
+    closeOverlay();
+  }
+  function move(dir) {
+    const list = items();
+    const next = (focusIndex + dir + list.length) % list.length;
+    const wrapping = (dir > 0 && next < focusIndex) || (dir < 0 && next > focusIndex);
+    focusIndex = next;
+    paintFocus({ instant: wrapping });
+  }
+  /* type-to-jump — listbox typeahead: prefix match on workspace names;
+     repeating one letter cycles its matches. No visible UI. */
+  function typeJump(ch) {
+    window.clearTimeout(typeTimer);
+    typeTimer = window.setTimeout(() => { typeBuf = ""; }, 650);
+    const list = items();
+    const names = list.map((el) => (el === addBtn ? "new" : el.dataset.id.toLowerCase()));
+    const sameChar = typeBuf.length > 0 && typeBuf.split("").every((c) => c === ch);
+    typeBuf += ch;
+    const prefix = sameChar ? ch : typeBuf;
+    const start = sameChar ? focusIndex + 1 : focusIndex;
+    for (let s = 0; s < list.length; s++) {
+      const i = (start + s) % list.length;
+      if (names[i].startsWith(prefix)) {
+        if (i !== focusIndex) { focusIndex = i; paintFocus(); }
+        return;
+      }
+    }
+  }
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) closeOverlay();
+  });
+  overlay.addEventListener("keydown", (e) => {
+    if (!open) return;
+    if (e.key === "Escape") { e.preventDefault(); closeOverlay(); return; }
+    if (e.key === "ArrowRight") { e.preventDefault(); move(1); return; }
+    if (e.key === "ArrowLeft") { e.preventDefault(); move(-1); return; }
+    if (e.key === "Home") { e.preventDefault(); focusIndex = 0; paintFocus({ instant: true }); return; }
+    if (e.key === "End") { e.preventDefault(); focusIndex = items().length - 1; paintFocus({ instant: true }); return; }
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); return; }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      move(e.shiftKey ? -1 : 1);
+      return;
+    }
+    if (e.key.length === 1 && /[a-z0-9-]/i.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      typeJump(e.key.toLowerCase());
+    }
+  });
+  row.addEventListener("click", (e) => {
+    if (track.dataset.dragged) return;
+    const tile = e.target.closest(".wsov-tile");
+    if (!tile) return;
+    focusIndex = items().indexOf(tile);
+    paintFocus();
+    activate();
+  });
+  row.addEventListener("mousemove", (e) => {
+    if (drag && drag.moved) return;
+    const tile = e.target.closest(".wsov-tile");
+    if (!tile || tile === items()[focusIndex]) return;
+    focusIndex = items().indexOf(tile);
+    paintFocus({ skipScroll: true });
+  });
+
+  track.addEventListener("scroll", () => {
+    paintOverflow();
+    if (scrollingFromFocus) return;
+    window.clearTimeout(scrollEndTimer);
+    scrollEndTimer = window.setTimeout(() => {
+      const i = nearestIndex();
+      if (i !== focusIndex) {
+        focusIndex = i;
+        paintFocus({ skipScroll: true });
+      }
+    }, 90);
+  }, { passive: true });
+
+  function scrubWheel(e) {
+    if (strip.dataset.overflow === "none") return;
+    const dominant = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (dominant === 0) return;
+    e.preventDefault();
+    track.scrollLeft += dominant;
+  }
+  overlay.addEventListener("wheel", scrubWheel, { passive: false });
+
+  track.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    drag = { pid: e.pointerId, x: e.clientX, sl: track.scrollLeft, moved: false };
+  });
+  track.addEventListener("pointermove", (e) => {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) < 6) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      track.classList.add("is-dragging");
+      try { track.setPointerCapture(e.pointerId); }
+      catch (err) { console.warn("workspace strip pointer capture skipped", err); }
+    }
+    track.scrollLeft = drag.sl - dx;
+  });
+  function endDrag(e) {
+    if (!drag || (e && e.pointerId !== drag.pid)) return;
+    const moved = drag.moved;
+    drag = null;
+    track.classList.remove("is-dragging");
+    if (!moved) return;
+    track.dataset.dragged = "1";
+    requestAnimationFrame(() => { delete track.dataset.dragged; });
+    const i = nearestIndex();
+    focusIndex = i;
+    paintFocus();
+  }
+  track.addEventListener("pointerup", endDrag);
+  track.addEventListener("pointercancel", endDrag);
+
+  trigger.addEventListener("click", () => {
+    if (open) closeOverlay();
+    else openOverlay();
+  });
+  toggle.addEventListener("click", toggleScope);
+  window.addEventListener("keydown", (e) => {
+    const meta = e.metaKey || e.ctrlKey;
+    if (!e.shiftKey || !meta) return;
+    if (e.key === "w" || e.key === "W") {
+      e.preventDefault();
+      if (open) closeOverlay();
+      else openOverlay();
+      return;
+    }
+    if (e.key === "g" || e.key === "G") {
+      e.preventDefault();
+      toggleScope();
+    }
+  });
+  window.addEventListener("resize", paintOverflow);
+
+  lucide.createIcons();
+  setInert(true);
+  paintChrome();
+  paintFocus({ skipScroll: true });
+  requestAnimationFrame(() => requestAnimationFrame(paintOverflow));
+})();
+</script>
+</body>
+</html>

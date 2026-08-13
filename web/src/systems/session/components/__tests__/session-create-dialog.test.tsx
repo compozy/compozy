@@ -60,11 +60,10 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     mode: "simple",
     onModeChange: vi.fn(),
     agents,
-    workspace,
-    workspaces: [{ id: workspace.id, name: workspace.name, root_dir: workspace.root_dir }],
-    workspaceId: workspace.id,
-    userHomeDir: undefined,
-    onWorkspaceChange: vi.fn(),
+    scope: "workspace",
+    destinationLabel: workspace.name,
+    sessionRoot: workspace.root_dir,
+    destinationReady: true,
     sessionName: "",
     onSessionNameChange: vi.fn(),
     selectedAgentName: "claude-agent",
@@ -139,13 +138,16 @@ describe("SessionCreateDialog", () => {
     expect(screen.queryByTestId("session-create-runtime-select")).not.toBeInTheDocument();
   });
 
-  it("Should reveal workspace and launch details in Advanced mode", () => {
+  it("Should reveal name and launch details in Advanced mode", () => {
     renderDialog({ mode: "advanced" });
 
     expect(screen.getByTestId("session-create-agent-select")).toBeInTheDocument();
-    expect(screen.getByTestId("session-create-workspace-select")).toBeInTheDocument();
     expect(screen.getByTestId("session-create-name-input")).toBeInTheDocument();
     expect(screen.getByTestId("session-create-participation-mode")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
+      "Runs in alpha — /workspace/alpha"
+    );
+    expect(screen.queryByTestId("session-create-workspace-select")).not.toBeInTheDocument();
   });
 
   it("Should report mode changes through the shared toolbar", async () => {
@@ -208,8 +210,8 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-participation-channel")).toBeRequired();
   });
 
-  it("Should disable the agent picker until a workspace is selected", () => {
-    renderDialog({ workspace: undefined, workspaceId: null });
+  it("Should disable the agent picker until a destination is ready", () => {
+    renderDialog({ destinationReady: false });
 
     expect(screen.getByTestId("session-create-agent-select")).toBeDisabled();
     expect(screen.getByTestId("session-create-agent-select")).toHaveTextContent(

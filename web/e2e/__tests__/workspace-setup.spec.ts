@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -26,7 +26,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
 
   await appPage.locator('[data-slot="os-menubar-workspace"]').click();

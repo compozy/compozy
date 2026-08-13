@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Trigger detail states · Lab · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="triggers.css">
+<!--
+  trigger-detail-states · lab — page-level states of the detail surface.
+  Shared story: summarize-failures / deploy-webhook in checkout-api.
+  Provenance:
+    production        — automation-detail-panel.tsx loading/error/empty;
+                        lock copy config vs package (449-457);
+                        workspace-access.ts mismatch;
+                        PATCH {enabled} pending; 503 automation manager not configured;
+                        run history empty / error (automation-run-history.tsx).
+    authorized delta  — enable opposite the sentence (not overflow-only);
+                        lockbar dashed, Edit/Delete absent (not disabled);
+                        fragments, not 8 cloned windows.
+-->
+<style>
+  .sk-lede{height:22px;width:min(520px,90%);margin-bottom:10px}
+  .sk-sub{height:12px;width:280px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+
+  <header class="w2head" data-od-id="tr-states-head">
+    <a class="w2-back" href="index.html" aria-label="Back to Triggers"><i data-lucide="chevron-left"></i></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Triggers</a>
+      <span class="w2-sep">/</span>
+      <span class="w2-title">Detail states</span>
+    </nav>
+    <span class="tag">lab</span>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn" href="trigger-vocabulary.html">← Vocabulary</a>
+      <a class="btn" href="trigger-detail.html">Agent detail →</a>
+    </div>
+  </header>
+
+  <div class="scroll"><div class="page-lab">
+
+    <section class="lab-sec" data-od-id="lab-disabled">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Disabled</h2>
+        <span class="lab-sec__gist">pause line · rule unchanged · enable still the control</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Off</b>Matching events will not run. History may still exist. <code>PATCH { enabled: false }</code>.</div>
+        <div class="spec__demo">
+          <div class="frame is-paused" data-od-id="state-disabled">
+            <div class="page">
+              <div class="lede" style="margin-bottom:0;border-bottom:0;padding-bottom:0">
+                <div class="lede__row">
+                  <div class="lede__copy">
+                    <h1 class="lede__s" style="font-size:16px">When a session stops in <em>checkout-api</em>, if the stop reason is error, run <em>summarizer</em>.</h1>
+                    <p class="lede__pause">Matching events will not run the agent until this trigger is enabled.</p>
+                  </div>
+                  <button class="lede-enable" type="button" role="switch" aria-checked="false" aria-label="Enable trigger" tabindex="-1" style="pointer-events:none">
+                    <span class="lede-enable__lab">Disabled</span>
+                    <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-pending">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Enable pending</h2>
+        <span class="lab-sec__gist">PATCH in flight · do not flip the track until it returns</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Busy</b><code>aria-busy</code> · label “Enabling…” · switch stays in the previous visual state. Production <code>isTogglePending</code>.</div>
+        <div class="spec__demo">
+          <button class="lede-enable" type="button" role="switch" aria-checked="false" aria-busy="true" aria-label="Enable trigger, pending" data-od-id="state-pending">
+            <span class="lede-enable__lab">Enabling…</span>
+            <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-lock">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Config / package lock</h2>
+        <span class="lab-sec__gist">enable-only · Edit and Delete gone, not disabled</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Config</b>Copy from <code>automation-detail-panel.tsx:453</code>. Enable still PATCHes the overlay. Path is a quiet note, not a pill.</div>
+        <div class="spec__demo">
+          <div class="frame" data-od-id="state-config-lock">
+            <header class="w2head">
+              <span class="w2-back" aria-hidden="true"><i data-lucide="chevron-left"></i></span>
+              <nav class="w2-crumbs"><span class="w2-crumb">Triggers</span><span class="w2-sep">/</span><span class="w2-title">deploy-webhook</span></nav>
+              <span class="w2-flex"></span>
+              <div class="w2-actions">
+                <button class="btn btn--icon" type="button" aria-label="More" tabindex="-1" style="pointer-events:none"><i data-lucide="ellipsis"></i></button>
+              </div>
+            </header>
+            <div class="page">
+              <div class="lockbar">
+                <i data-lucide="lock"></i>
+                <span>This automation is defined in configuration files. Only its enabled state can be changed here.</span>
+              </div>
+              <div class="quiet-note">
+                <i data-lucide="file-code"></i>
+                <span>Lives in <b>config.toml</b> — <span class="mono">[[automation.triggers]] name = "deploy-webhook"</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Package</b>Same chrome. Different sentence — do not invent a third lock copy.</div>
+        <div class="spec__demo">
+          <div class="lockbar" data-od-id="state-package-lock">
+            <i data-lucide="lock"></i>
+            <span>This automation is provided by an installed package. Only its enabled state can be changed here.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-runs-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Empty runs</h2>
+        <span class="lab-sec__gist">healthy zero · no Run now</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Copy</b>Production emptyTitle “No runs recorded yet” · emptyDescription “after the first matching activation.” Count omitted (zero renders nothing).</div>
+        <div class="spec__demo">
+          <details class="sec" open>
+            <summary>
+              <i class="si" data-lucide="history"></i>
+              <span class="st">Recent runs</span>
+              <span class="ssum">no runs yet</span>
+              <span class="spacer"></span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="panelbox">
+              <div class="empty empty--panel" data-od-id="state-runs-empty">
+                <i data-lucide="history"></i>
+                <b>No runs recorded yet</b>
+                <p>Runs will appear here after the first matching activation.</p>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-runs-error">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Runs failed to load</h2>
+        <span class="lab-sec__gist">definition still shows · only the history panel errors</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Partial</b>The rule stays. Retry re-fetches <code>GET …/runs?limit=10</code>.</div>
+        <div class="spec__demo">
+          <div class="panelbox">
+            <div class="empty empty--panel" data-od-id="state-runs-error">
+              <i data-lucide="alert-circle"></i>
+              <b>Unable to load runs</b>
+              <p>Failed to load automation runs.</p>
+              <button class="btn" type="button" data-toast="Would refetch GET /api/automation/triggers/{id}/runs">Retry</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-page-error">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Page cannot load</h2>
+        <span class="lab-sec__gist">503 · mismatch · unavailable — three empties, one shell</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>503</b>Automation manager is not configured. Title “Unable to load details”. Switch gone.</div>
+        <div class="spec__demo">
+          <div class="frame" data-od-id="state-503">
+            <header class="w2head">
+              <a class="w2-back" href="index.html" aria-label="Back"><i data-lucide="chevron-left"></i></a>
+              <nav class="w2-crumbs"><span class="w2-crumb">Triggers</span><span class="w2-sep">/</span><span class="w2-title">summarize-failures</span></nav>
+            </header>
+            <div class="empty" style="min-height:240px">
+              <i data-lucide="alert-circle"></i>
+              <b>Unable to load details</b>
+              <p>Failed to fetch automation trigger “summarize-failures” — automation manager is not configured.</p>
+              <button class="btn" type="button" data-toast="Would refetch GET /api/automation/triggers/summarize-failures">Retry</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Workspace mismatch</b><code>This workspace-scoped trigger belongs to another workspace.</code> Global triggers never hit this.</div>
+        <div class="spec__demo">
+          <div class="empty empty--panel" data-od-id="state-mismatch">
+            <i data-lucide="unplug"></i>
+            <b>Unable to load details</b>
+            <p>This workspace-scoped trigger belongs to another workspace.</p>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Gone</b>404 / missing item, no error object. Back is the recovery.</div>
+        <div class="spec__demo">
+          <div class="empty empty--panel" data-od-id="state-unavailable">
+            <i data-lucide="search"></i>
+            <b>Trigger unavailable</b>
+            <p>This trigger is no longer available.</p>
+            <a class="btn" href="index.html">Back to Triggers</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-loading">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Loading</h2>
+        <span class="lab-sec__gist">skeleton in the lede · no invented sentence</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Skeleton</b>Production <code>AutomationDetailSkeleton</code>. Preserve layout width. No spinner in the middle of the page.</div>
+        <div class="spec__demo">
+          <div class="frame" data-od-id="state-loading">
+            <header class="w2head">
+              <span class="w2-back" aria-hidden="true"><i data-lucide="chevron-left"></i></span>
+              <nav class="w2-crumbs"><span class="w2-crumb">Triggers</span><span class="w2-sep">/</span><span class="sk" style="width:120px;height:12px"></span></nav>
+            </header>
+            <div class="page">
+              <div class="sk sk-lede"></div>
+              <div class="sk sk-sub"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="lab-ingress">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Webhook public ingress</h2>
+        <span class="lab-sec__gist">orthogonal to the local path · URL without reachability is a lie</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Copy</b>From <code>INGRESS_REACHABILITY_COPY</code>. Off has no URL. Live shows URL + durability note. Broken is danger.</div>
+        <div class="spec__demo" style="display:flex;flex-direction:column;gap:12px">
+          <div class="rsec" style="margin:0" data-od-id="ingress-off">
+            <div style="padding:12px 14px" class="ing">
+              <div class="ing__row"><span class="pill">Off</span><span>Public delivery ingress is off, so this trigger has no public delivery URL.</span></div>
+              <p class="app-note">Open Gateway settings to publish one. Local POST path still answers on this machine.</p>
+            </div>
+          </div>
+          <div class="rsec" style="margin:0" data-od-id="ingress-live">
+            <div style="padding:12px 14px" class="ing">
+              <div class="ing__row"><span class="pill" data-tone="success">Live</span><span>Confirmed against the verified public address.</span></div>
+              <span class="ing__url">https://&lt;public-host&gt;/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123</span>
+            </div>
+          </div>
+          <div class="rsec" style="margin:0" data-od-id="ingress-broken">
+            <div style="padding:12px 14px" class="ing">
+              <div class="ing__row"><span class="pill" data-tone="danger">Broken</span><span>The public address is no longer reachable.</span></div>
+            </div>
+          </div>
+          <div class="rsec" style="margin:0" data-od-id="ingress-reconfirm">
+            <div style="padding:12px 14px" class="ing">
+              <div class="ing__row"><span class="pill" data-tone="warning">Reconfirm</span><span>The public address changed. Confirm again before senders use this URL.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">
+      Page-state lab. Vocabulary in <a href="trigger-vocabulary.html">When / If / Then</a>.
+      Finals: <a href="trigger-detail.html">agent</a> ·
+      <a href="trigger-detail-loop.html">loop</a> ·
+      <a href="trigger-detail-webhook.html">webhook</a>.
+    </p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+lucide.createIcons();
+(function () {
+  var t = document.createElement("div");
+  t.className = "toast";
+  t.setAttribute("role", "status");
+  document.body.appendChild(t);
+  var timer;
+  document.querySelectorAll("[data-toast]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      t.textContent = btn.getAttribute("data-toast");
+      t.classList.add("is-on");
+      clearTimeout(timer);
+      timer = setTimeout(function () { t.classList.remove("is-on"); }, 2000);
+    });
+  });
+})();
+</script>
+</body>
+</html>

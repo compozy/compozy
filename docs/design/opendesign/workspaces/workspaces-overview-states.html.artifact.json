@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "workspaces/workspaces-overview-states.html",
+  "entry": "workspaces/workspaces-overview-states.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-13T01:04:26.801Z",
+  "updatedAt": "2026-08-13T01:04:26.801Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

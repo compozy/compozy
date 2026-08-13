@@ -32,7 +32,6 @@ import {
 import { useSettingsSandboxes } from "@/systems/settings";
 import {
   useWorkspaceSetupContent,
-  WorkspaceOnboarding,
   type WorkspaceSetupCollection,
   type WorkspaceSetupDefaultsModel,
   WorkspaceSetupDialog,
@@ -58,7 +57,7 @@ export function DesktopShell() {
 
 function DesktopChrome({ firstRun }: { firstRun: boolean }) {
   const model = useDesktopShellModel();
-  const chrome = useDesktopChrome(model.activeWorkspaceId);
+  const chrome = useDesktopChrome(model.runtimeWorkspaceId);
   const agentsQuery = useAgents();
   const sandboxesQuery = useSettingsSandboxes();
   const workspaceSetupDefaults: WorkspaceSetupDefaultsModel = {
@@ -79,16 +78,8 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
     ),
   };
 
-  // First run legitimately has no workspace yet — setup is the one that adds it.
-  // The post-setup workspace-less state still routes to workspace onboarding.
-  if (!firstRun && !model.areWorkspacesLoading && !model.workspacesError && !model.hasWorkspaces) {
-    return (
-      <WorkspaceOnboardingBoundary
-        defaults={workspaceSetupDefaults}
-        onWorkspaceResolved={model.setActiveWorkspaceId}
-      />
-    );
-  }
+  // Zero project workspaces boots Global-on; the home registration is not a
+  // project workspace and must not replace the shell with setup.
 
   return (
     <OsShellContext.Provider value={chrome.shell}>
@@ -103,8 +94,11 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
             workspaceSetupDefaults={workspaceSetupDefaults}
           />
           <SessionCreateDialogHost
-            activeWorkspace={model.activeWorkspace}
+            activeWorkspace={model.runtimeWorkspace}
             agents={model.workspaceAgents}
+            homeWorkspaceId={model.homeWorkspace?.id}
+            projectWorkspaceId={model.activeWorkspaceId}
+            scope={model.scope}
             store={model.sessionCreate.store}
           />
         </AgentCreateHostProvider>
@@ -123,7 +117,7 @@ function DesktopShellBody({
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
 }) {
   const sessionCreate = useSessionCreateActions();
-  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.activeWorkspaceId });
+  const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
   const openNewSession = () => {
     sessionCreate.openForAgent("");
   };
@@ -171,6 +165,14 @@ function DesktopShellBody({
         )}
         workspaces={model.workspaces}
         activeWorkspace={model.activeWorkspace}
+        chip={model.chip}
+        scope={model.scope}
+        scopePending={model.pending}
+        toggleLocked={model.toggleLocked}
+        canDisableGlobal={model.canDisableGlobal}
+        deletionNotice={model.deletionNotice}
+        rememberedWorkspaceName={model.rememberedWorkspace?.name ?? null}
+        onToggleGlobalScope={model.toggleGlobalScope}
         onSelectWorkspace={model.setActiveWorkspaceId}
         onAddWorkspace={model.openWorkspaceSetup}
         onNewSession={openNewSession}
@@ -202,7 +204,8 @@ function DesktopShellBody({
           model={managerSurfaces}
           // The window manager binds to the active workspace, not to the catalog
           // being non-empty — a loaded catalog with no selection is still unbound.
-          unbound={model.activeWorkspaceId === null}
+          // While resolution is pending nothing is claimable either way.
+          unbound={!model.pending && model.runtimeWorkspaceId === null}
           onCreateDesktop={() => manager.createDesktop()}
           onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
           onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}
@@ -320,21 +323,9 @@ function DesktopShellBody({
         submitError={model.agentCreate.submitError}
         workspaceId={model.agentCreate.workspaceId}
         workspaceName={model.agentCreate.workspaceName}
-        userHomeDir={model.agentCreate.userHomeDir}
       />
     </div>
   );
-}
-
-function WorkspaceOnboardingBoundary({
-  defaults,
-  onWorkspaceResolved,
-}: {
-  defaults: WorkspaceSetupDefaultsModel;
-  onWorkspaceResolved: (workspaceId: string) => void;
-}) {
-  const setup = useWorkspaceSetupContent({ onWorkspaceResolved });
-  return <WorkspaceOnboarding model={{ defaults, setup }} />;
 }
 
 function WorkspaceSetupDialogBoundary({

@@ -14,7 +14,7 @@ import {
   tasksOperatorSelectors,
 } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleAgent = "os-shell-agent";
@@ -669,7 +669,7 @@ test("E2E-012: blocked window-manager stream degrades without blocking work and 
   const degradedPage = await appPage.context().newPage();
   const stream = await routeWindowManagerStream(degradedPage, true);
   await degradedPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(degradedPage);
+  await completeOnboardingIfPrompted(degradedPage);
 
   const degradedStatus = degradedPage
     .getByRole("status")
@@ -1699,7 +1699,7 @@ test("E2E-020: compact keeps deep links, truthful badges, and the rail overlay w
   await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(detailTask.id)}`), {
     waitUntil: "domcontentloaded",
   });
-  await useGlobalWorkspaceIfPrompted(appPage);
+  await completeOnboardingIfPrompted(appPage);
 
   // Deep link lands focused in the stack.
   const tasksWindow = appWindow(appPage, "tasks");
@@ -2853,7 +2853,7 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
 });
 
 async function prepareShell(page: Page, runtime: BrowserRuntime): Promise<WorkspacePayload> {
-  await useGlobalWorkspaceIfPrompted(page);
+  await completeOnboardingIfPrompted(page);
   await expect(page.getByTestId("os-desktop")).toBeVisible();
   const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>("/api/workspaces");
   const workspace = payload.workspaces[0];
@@ -2865,7 +2865,7 @@ async function openPeerPage(browser: Browser, runtime: BrowserRuntime): Promise<
   const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const page = await context.newPage();
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(page);
+  await completeOnboardingIfPrompted(page);
   return page;
 }
 

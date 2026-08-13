@@ -33,7 +33,6 @@ import {
 import { useTasksDashboardPage } from "./use-tasks-dashboard-page";
 import { useTasksPageActions } from "./use-tasks-page-actions";
 import { taskScopeForActiveWorkspace } from "../lib/workspace-scope";
-import { useDaemonStatus } from "@/systems/status";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 type InboxLaneFilter = InboxLaneFilterId;
@@ -55,21 +54,17 @@ interface UseTasksPageOptions {
 function resolveTaskScopeError(
   hasActiveTaskScope: boolean,
   scopeLoading: boolean,
-  scopeSourceError: Error | null,
-  userHomeDir: string | undefined
+  scopeSourceError: Error | null
 ): Error | null {
   if (hasActiveTaskScope || scopeLoading) return null;
   if (scopeSourceError) return scopeSourceError;
-  if (!userHomeDir) return new Error("Daemon status did not provide a user home directory.");
   return new Error("No active workspace is available for task scope.");
 }
 
 function useTasksPage(options: UseTasksPageOptions = {}) {
   const liveDataEnabled = options.liveDataEnabled ?? true;
   const workspace = useActiveWorkspace({ enabled: liveDataEnabled });
-  const daemonStatus = useDaemonStatus({ enabled: liveDataEnabled });
-  const { activeWorkspace } = workspace;
-  const userHomeDir = daemonStatus.data?.user_home_dir;
+  const { activeWorkspace, activeWorkspaceId, scope } = workspace;
   const routeSearch = options.search ?? {};
   const mode: TaskViewMode = parseTasksSurfaceMode(routeSearch);
   const statusFilter = routeSearch.status ?? null;
@@ -101,22 +96,13 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     onCommit: query => updateSearch({ inboxQuery: query.trim() ? query : undefined }),
   });
 
-  const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
+  const activeTaskScope = taskScopeForActiveWorkspace(scope, activeWorkspaceId);
   const hasActiveTaskScope = activeTaskScope !== null;
   const scopeSourceError =
-    (!userHomeDir ? daemonStatus.error : null) ??
-    (!activeWorkspace ? workspace.error : null) ??
-    null;
+    scope === "workspace" && !activeWorkspaceId ? (workspace.error ?? null) : null;
   const scopeLoading =
-    !hasActiveTaskScope &&
-    !scopeSourceError &&
-    (!workspace.hasHydrated || workspace.isPending || daemonStatus.isPending);
-  const scopeError = resolveTaskScopeError(
-    hasActiveTaskScope,
-    scopeLoading,
-    scopeSourceError,
-    userHomeDir
-  );
+    !hasActiveTaskScope && !scopeSourceError && (!workspace.hasHydrated || workspace.pending);
+  const scopeError = resolveTaskScopeError(hasActiveTaskScope, scopeLoading, scopeSourceError);
   const listFilters: TaskListFilter = activeTaskScope
     ? taskListFilterFromRouteSearch(activeTaskScope, {
         ...routeSearch,

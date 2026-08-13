@@ -28,11 +28,9 @@ const baseArgs = {
   mode: "simple" as const,
   onModeChange: fn(),
   agents: agentFixtures,
-  workspace,
-  workspaces: [{ id: workspace.id, name: workspace.name, root_dir: workspace.root_dir }],
-  workspaceId: workspace.id,
-  userHomeDir: undefined,
-  onWorkspaceChange: fn(),
+  destinationLabel: workspace.name,
+  sessionRoot: workspace.root_dir,
+  destinationReady: true,
   sessionName: "Investigate checkout latency",
   onSessionNameChange: fn(),
   selectedAgentName: agentFixtures[0]?.name ?? "",
@@ -52,7 +50,7 @@ const meta: Meta<typeof SessionCreateDialog> = {
     docs: {
       description: {
         component:
-          "Session creation starts durable work without fabricating a first message. Simple selects the agent; Advanced reveals workspace and launch details. Runtime choices belong to the session composer.",
+          "Session creation starts durable work without fabricating a first message. Simple selects the agent; Advanced reveals name and Network participation. Runtime choices belong to the session composer.",
       },
     },
   },
@@ -64,7 +62,7 @@ type Story = StoryObj<typeof meta>;
 /** VC-01: the common path exposes the agent and one clear durable-start action. */
 export const Simple: Story = { args: baseArgs };
 
-/** VC-02: the sole disclosure tier contains workspace, name, and Network participation. */
+/** VC-02: the sole disclosure tier contains name and Network participation. */
 export const Advanced: Story = {
   args: {
     ...baseArgs,
@@ -104,6 +102,7 @@ export const AdvancedKeyboard: Story = {
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(await body.findByTestId("session-create-mode-advanced"));
-    await expect(await body.findByTestId("session-create-workspace-select")).toBeVisible();
+    await expect(await body.findByTestId("session-create-name-input")).toBeVisible();
+    await expect(await body.findByTestId("workspace-scope-statement")).toBeVisible();
   },
 };

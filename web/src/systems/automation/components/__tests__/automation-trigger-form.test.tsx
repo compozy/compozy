@@ -4,7 +4,6 @@
 // Boundary OUT: HTTP submission and persisted reads, owned by route and detail suites.
 import { agentFixtures } from "@/systems/agent/mocks";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -66,7 +65,6 @@ function renderTriggerForm({
           setCurrentDraft(nextDraft);
         }}
         onSubmit={onSubmit}
-        userHomeDir={undefined}
         workspaces={workspaces}
       />
     );
@@ -212,34 +210,22 @@ describe("AutomationTriggerForm", () => {
     expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
   });
 
-  it("toggles scope between workspace and global for non-webhook events", () => {
-    const { onChange } = renderTriggerForm();
+  it("Should show a workspace destination statement for a workspace draft", () => {
+    renderTriggerForm();
 
-    fireEvent.click(screen.getByTestId("trigger-scope-global"));
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: "global", workspace_id: undefined })
-    );
-
-    fireEvent.click(screen.getByTestId("trigger-scope-workspace"));
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: "workspace", workspace_id: "ws_alpha" })
-    );
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in alpha");
+    expect(screen.queryByTestId("trigger-scope-global")).toBeNull();
+    expect(screen.queryByTestId("trigger-workspace-select")).toBeNull();
   });
 
-  it("selects a different workspace from the command selector", async () => {
-    const user = userEvent.setup();
-    const { onChange } = renderTriggerForm();
+  it("Should show a Global destination statement for a global draft", () => {
+    renderTriggerForm({ draft: createAutomationTriggerDraft(null) });
 
-    await user.click(screen.getByTestId("trigger-workspace-select"));
-    await user.click(screen.getByTestId("trigger-workspace-item-ws_beta"));
-
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: "workspace", workspace_id: "ws_beta" })
-    );
-    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("beta");
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in Global");
+    expect(screen.queryByTestId("trigger-workspace-select")).toBeNull();
   });
 
-  it("Should keep scope immutable and omit it from the Trigger edit preview", () => {
+  it("Should keep destination immutable and omit scope from the Trigger edit preview", () => {
     const { onChange } = renderTriggerForm({
       draft: {
         ...createAutomationTriggerDraft("ws_alpha"),
@@ -248,10 +234,12 @@ describe("AutomationTriggerForm", () => {
       mode: "edit",
     });
 
-    expect(screen.getByTestId("trigger-scope-global")).toBeDisabled();
-    expect(screen.getByTestId("trigger-scope-workspace")).toBeDisabled();
-    expect(screen.getByTestId("trigger-workspace-select")).toBeDisabled();
-    fireEvent.click(screen.getByTestId("trigger-scope-global"));
+    const statement = screen.getByTestId("workspace-scope-statement");
+    expect(statement).toHaveTextContent("Lives in alpha");
+    expect(screen.queryByTestId("trigger-scope-global")).toBeNull();
+    expect(screen.queryByTestId("trigger-scope-workspace")).toBeNull();
+    expect(screen.queryByTestId("trigger-workspace-select")).toBeNull();
+    fireEvent.click(statement);
     expect(onChange).not.toHaveBeenCalled();
 
     showPreview();
@@ -437,14 +425,15 @@ describe("AutomationTriggerForm", () => {
     );
   });
 
-  it("Should bind a non-webhook Loop target to the selected workspace after leaving webhook", () => {
-    const { onChange, onSubmit } = renderTriggerForm();
+  it("Should bind a non-webhook Loop target to the active workspace", () => {
+    const { onChange, onSubmit } = renderTriggerForm({
+      activeWorkspaceId: "ws_beta",
+      draft: createAutomationTriggerDraft("ws_beta"),
+    });
 
     fireEvent.change(screen.getByTestId("trigger-name-input"), {
       target: { value: "review-on-stop" },
     });
-    fireEvent.click(screen.getByTestId("trigger-event-webhook"));
-    fireEvent.click(screen.getByTestId("trigger-event-session.stopped"));
     fireEvent.click(screen.getByTestId("target-mode-loop"));
     fireEvent.change(screen.getByTestId("loop-target-select"), {
       target: { value: "review-and-fix" },
@@ -452,9 +441,6 @@ describe("AutomationTriggerForm", () => {
     fireEvent.change(screen.getByTestId("loop-input-field-pr"), {
       target: { value: "2" },
     });
-    fireEvent.click(screen.getByTestId("trigger-scope-workspace"));
-    fireEvent.click(screen.getByTestId("trigger-workspace-select"));
-    fireEvent.click(screen.getByTestId("trigger-workspace-item-ws_beta"));
 
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({

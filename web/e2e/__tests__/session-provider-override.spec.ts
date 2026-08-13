@@ -18,7 +18,7 @@ import {
   sessionWindowSelectors,
 } from "../fixtures/selectors";
 import { expect, test as base } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -169,7 +169,7 @@ test("operator can create a provider/model override session and attach without l
   );
 
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
   await switchWorkspace(appPage, workspace.id, workspace.name);
   const agentsWin = await openAppWindow(appPage, "Agents", "agents");
@@ -322,7 +322,7 @@ test("operator persists an advertised model and non-empty reasoning effort on th
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
-  await useGlobalWorkspaceIfPrompted(ui);
+  await completeOnboardingIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
   const agentsWin = await openAppWindow(appPage, "Agents", "agents");
   const fleet = sessionLifecycleSelectors(agentsWin);

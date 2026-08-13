@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>deploy-webhook · Triggers · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="triggers.css">
+<!--
+  trigger-detail-webhook · final — When is a signed HTTP ingress, not a runtime observer event.
+  Shared story: workspace checkout-api · trigger deploy-webhook · agent deployer.
+  Provenance:
+    production        — packages/site/content/docs/automation/webhooks.mdx (workspace webhook example);
+                        WebhookEndpointCard + AutomationTriggerIngressCard;
+                        webhook_secret_present (never the secret); ingress.reachability live|off|…
+    authorized delta  — local POST path lives in When; public reachability is a rail card (orthogonal).
+                        Workspace webhook is daemon-real (create UI forces global — that is not this page).
+-->
+</head>
+<body class="tr-stage" data-target-kind="agent" data-target-name="deployer">
+<section class="win is-focused" id="win" data-od-id="trigger-webhook-window" aria-label="Triggers window">
+  <header class="win-head" data-od-id="trigger-webhook-head">
+    <div class="win-controls">
+      <button class="wc wc-close" type="button" aria-label="Close"></button>
+      <button class="wc wc-min" type="button" aria-label="Minimize"></button>
+      <button class="wc wc-zoom" type="button" aria-label="Zoom"></button>
+    </div>
+    <a class="w2-back" href="../empty-states/triggers-empty-suggestions.html" aria-label="Back to Triggers">
+      <i data-lucide="chevron-left"></i>
+    </a>
+    <nav class="w2-crumbs" aria-label="Breadcrumb">
+      <a class="w2-crumb" href="../empty-states/triggers-empty-suggestions.html">Triggers</a>
+      <span class="w2-sep" aria-hidden="true">/</span>
+      <span class="w2-title" data-od-id="trigger-title">deploy-webhook</span>
+    </nav>
+    <span class="w2-flex" aria-hidden="true"></span>
+    <div class="w2-actions" data-od-id="trigger-actions">
+      <a class="btn" data-od-id="action-edit" href="../_done/modals/create-trigger-redesign.html"><i data-lucide="pencil"></i>Edit</a>
+      <button class="btn btn--icon" id="moreBtn" type="button" aria-label="More" aria-haspopup="menu" aria-expanded="false">
+        <i data-lucide="ellipsis"></i>
+      </button>
+      <div class="menu" id="moreMenu" role="menu">
+        <button class="menu__item" type="button" role="menuitem" data-copy="deploy-webhook" data-od-id="action-copy-id">
+          <i data-lucide="copy"></i>
+          Copy trigger id
+        </button>
+        <button class="menu__item" type="button" role="menuitem" id="menuToggle" data-od-id="action-disable">
+          <i data-lucide="power"></i>
+          <span id="menuToggleLabel">Disable</span>
+        </button>
+        <div class="menu__sep"></div>
+        <button class="menu__item" type="button" role="menuitem" data-tone="danger" id="menuDelete" data-od-id="action-delete">
+          <i data-lucide="trash-2"></i>
+          Delete trigger…
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="win-body">
+    <div class="page">
+      <div class="lede" data-od-id="trigger-lede">
+        <div class="lede__row">
+          <div class="lede__copy">
+            <h1 class="lede__s" id="ledeSentence">When a signed POST arrives at <em>deploy</em> in checkout-api, if action is deploy and branch is main, run <em>deployer</em>.</h1>
+            <p class="lede__pause" id="ledePause">Matching deliveries will not run the agent until this trigger is enabled.</p>
+          </div>
+          <button class="lede-enable" id="enableSwitch" type="button" role="switch" aria-checked="true" aria-label="Enable trigger" data-od-id="trigger-enable">
+            <span class="lede-enable__lab" id="enableLab" aria-hidden="true">Enabled</span>
+            <span class="switch is-on" id="enableTrack" aria-hidden="true"><span class="knob"></span></span>
+          </button>
+        </div>
+        <div class="subhead" data-od-id="trigger-subhead">
+          <span class="pill" data-tone="info" data-od-id="trigger-event-pill">Incoming webhook</span>
+          <span>Workspace <b>checkout-api</b></span><span class="dotsep"></span>
+          <span>Last ran <time datetime="2026-08-12T23:40:00-03:00" title="12 Aug 2026, 23:40">12m ago</time></span><span class="dotsep"></span>
+          <span>Updated <time datetime="2026-08-08T11:00:00-03:00" title="8 Aug 2026, 11:00">5d ago</time></span>
+        </div>
+      </div>
+
+      <div class="layout">
+        <main data-od-id="trigger-main">
+          <details class="sec" open data-od-id="section-rule">
+            <summary>
+              <i class="si" data-lucide="zap"></i>
+              <span class="st">Rule</span>
+              <span class="ssum">webhook · deploy → deployer</span>
+              <span class="spacer"></span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="wit">
+              <div class="wit__row" data-od-id="rule-when">
+                <span class="wit__k">When</span>
+                <span class="wit__v">
+                  <span class="wit__event"><i data-lucide="webhook"></i><b>Incoming webhook</b><span class="pill" data-mono="true">webhook</span></span>
+                  <span class="sub">Workspace path — always answers on this daemon. Public URL is a separate fact.</span>
+                  <!-- production: POST /api/webhooks/workspaces/{workspace_id}/{slug}--{wbh_} -->
+                  <div class="endpoint" data-od-id="webhook-endpoint">
+                    <div class="endpoint__row">
+                      <span class="endpoint__m">POST</span>
+                      <span class="endpoint__url">/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123</span>
+                      <button class="copybtn" type="button" data-copy="/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123" aria-label="Copy webhook path">
+                        <i data-lucide="copy"></i>
+                      </button>
+                    </div>
+                    <pre class="endpoint__curl">curl -sS -X POST "$COMPOZY_BASE/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123" \
+  -H "Content-Type: application/json" \
+  -H "X-Compozy-Timestamp: &lt;unix&gt;" \
+  -H "X-Compozy-Signature: sha256=&lt;hmac&gt;" \
+  -d '{"action":"deploy","branch":"main","sha":"9ec3d15"}'</pre>
+                  </div>
+                </span>
+              </div>
+              <div class="wit__row" data-od-id="rule-if">
+                <span class="wit__k">If</span>
+                <span class="wit__v">
+                  <span class="wit__if"><i data-lucide="filter"></i>
+                    <span>Action is <span class="bindbadge">deploy</span></span>
+                    <span>and branch is <span class="bindbadge">main</span></span>
+                  </span>
+                  <span class="sub">AND of <span class="mono" style="font-size:11px;color:var(--faint)">data.action</span> · <span class="mono" style="font-size:11px;color:var(--faint)">data.branch</span></span>
+                </span>
+              </div>
+              <div class="wit__row" data-od-id="rule-then">
+                <span class="wit__k">Then</span>
+                <span class="wit__v">
+                  <span class="agent-id"><span class="agent-chip" aria-hidden="true">d</span><b>deployer</b></span>
+                  <span class="sub">The agent receives a prompt built from the delivery.</span>
+                  <!-- production: docs/automation/webhooks.mdx prompt example -->
+                  <div class="prompt" id="promptPreview" data-open="false">Validate deployment <span class="bindbadge">{{ index .Data "sha" }}</span> on <span class="bindbadge">{{ index .Data "branch" }}</span>.</div>
+                  <button class="prompt-toggle" type="button" id="promptToggle" aria-expanded="false">Show full prompt</button>
+                </span>
+              </div>
+            </div>
+          </details>
+
+          <details class="sec" open data-od-id="section-runs">
+            <summary>
+              <i class="si" data-lucide="history"></i>
+              <span class="st">Recent runs</span>
+              <span class="count">3</span>
+              <span class="ssum">last 10 from the daemon</span>
+              <span class="spacer"></span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="panelbox">
+              <button class="runrow" type="button" data-od-id="run-wh-1" aria-expanded="false" aria-controls="draw-w1">
+                <span class="pill" data-tone="success"><span class="dot"></span>Completed</span>
+                <span class="rmeta"><i data-lucide="bot"></i><span>Session <span class="mono">sess_c41e08</span></span></span>
+                <span class="rcell">41s</span>
+                <span class="rchev" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+              </button>
+              <div class="rundraw" id="draw-w1">
+                <p>deployer finished. Delivery <span class="mono">webhook:9ec3d15</span>.</p>
+                <div class="actrow">
+                  <button class="btn btn--sm" type="button" data-toast="Opens session sess_c41e08"><i data-lucide="arrow-right"></i>Open session</button>
+                </div>
+              </div>
+
+              <button class="runrow" type="button" data-od-id="run-wh-2" aria-expanded="false" aria-controls="draw-w2">
+                <span class="pill" data-tone="info"><span class="dot"></span>Running</span>
+                <span class="rmeta"><i data-lucide="bot"></i><span>Session <span class="mono">sess_aa19b2</span></span></span>
+                <span class="rcell">12s</span>
+                <span class="rchev" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+              </button>
+              <div class="rundraw" id="draw-w2">
+                <p>deployer is still working on this delivery.</p>
+                <div class="actrow">
+                  <button class="btn btn--sm" type="button" data-toast="Opens session sess_aa19b2"><i data-lucide="arrow-right"></i>Open session</button>
+                </div>
+              </div>
+
+              <button class="runrow" type="button" data-od-id="run-wh-3" aria-expanded="false" aria-controls="draw-w3">
+                <span class="pill" data-tone="warning"><span class="dot"></span>Scheduled</span>
+                <span class="rmeta"><i data-lucide="clock"></i><span>Accepted · not started</span></span>
+                <span class="rcell">—</span>
+                <span class="rchev" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+              </button>
+              <div class="rundraw" id="draw-w3">
+                <p>The delivery was accepted. No session yet — Open session stays off until <span class="mono">session_id</span> exists.</p>
+              </div>
+            </div>
+          </details>
+        </main>
+
+        <aside data-od-id="trigger-rail">
+          <details class="rsec" open>
+            <summary>
+              <i class="si" data-lucide="info"></i>
+              <span class="rt">Properties</span>
+              <span class="rsum">This workspace · Webhook</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body">
+              <div class="prow"><span class="prow__k">Scope</span><span class="prow__v">This workspace</span></div>
+              <div class="prow"><span class="prow__k">Event</span><span class="prow__v">Incoming webhook</span></div>
+              <div class="prow"><span class="prow__k">Target</span><span class="prow__v">Agent · deployer</span></div>
+              <div class="prow"><span class="prow__k">Endpoint</span><span class="prow__v mono">deploy</span></div>
+              <div class="prow">
+                <span class="prow__k">Webhook id</span>
+                <span class="prow__v mono">
+                  <span>wbh_abc123</span>
+                  <button class="copybtn" type="button" data-copy="wbh_abc123" aria-label="Copy webhook id"><i data-lucide="copy"></i></button>
+                </span>
+              </div>
+              <!-- production: webhook_secret_present; secret value is write-only -->
+              <div class="prow"><span class="prow__k">Signing secret</span><span class="prow__v">Set</span></div>
+              <div class="prow"><span class="prow__k">Source</span><span class="prow__v">You created this</span></div>
+            </div>
+          </details>
+          <details class="rsec" open>
+            <summary>
+              <i class="si" data-lucide="globe"></i>
+              <span class="rt">Public delivery</span>
+              <span class="rsum">Live</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body" style="padding:10px 14px 12px">
+              <!-- production: ingress.reachability live · copy from gateway-copy.ts INGRESS_REACHABILITY_COPY -->
+              <div class="ing" data-od-id="webhook-ingress">
+                <div class="ing__row">
+                  <span class="pill" data-tone="success">Live</span>
+                  <span>Confirmed against the verified public address.</span>
+                </div>
+                <span class="ing__url">https://&lt;public-host&gt;/api/webhooks/workspaces/ws_checkout_api/deploy--wbh_abc123</span>
+                <p class="app-note">Deliveries reach CompozyOS only while the daemon and its connectivity provider are running. There is no queue for messages sent while it is offline — configure retries at the sender.</p>
+              </div>
+            </div>
+          </details>
+          <details class="rsec">
+            <summary>
+              <i class="si" data-lucide="gauge"></i>
+              <span class="rt">Reliability</span>
+              <span class="rsum">Backoff · 6 / hour</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body">
+              <!-- production: docs example retry backoff:2:5s · fire_limit 6 / 1h -->
+              <div class="prow"><span class="prow__k">Retry</span><span class="prow__v">Backoff · 2 times</span></div>
+              <div class="prow"><span class="prow__k">At most</span><span class="prow__v">6 times / hour</span></div>
+            </div>
+          </details>
+          <details class="rsec">
+            <summary>
+              <i class="si" data-lucide="hash"></i>
+              <span class="rt">Identity</span>
+              <span class="rsum">5d ago</span>
+              <i class="chev" data-lucide="chevron-down"></i>
+            </summary>
+            <div class="rsec__body">
+              <div class="prow"><span class="prow__k">Created</span><span class="prow__v"><time datetime="2026-08-08T11:00:00-03:00">5d ago</time></span></div>
+              <div class="prow">
+                <span class="prow__k">Trigger id</span>
+                <span class="prow__v mono">
+                  <span>deploy-webhook</span>
+                  <button class="copybtn" type="button" data-copy="deploy-webhook" aria-label="Copy trigger id">
+                    <i data-lucide="copy"></i>
+                  </button>
+                </span>
+              </div>
+            </div>
+          </details>
+          <div class="rail-foot">
+            <button class="act" type="button" id="openInspect" data-od-id="rail-inspect">
+              <i data-lucide="search"></i>
+              Inspect
+            </button>
+            <span class="cli">compozy automation triggers get</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="inspectSheet" role="dialog" aria-modal="true" aria-labelledby="inspectTitle" data-od-id="inspect-drawer">
+  <header class="sheet__head">
+    <span class="sheet__well" aria-hidden="true"><i data-lucide="search"></i></span>
+    <div>
+      <div class="eyebrow">Operator</div>
+      <div class="sheet__title" id="inspectTitle">Inspect</div>
+      <div class="sheet__desc">Runtime fields. The signing secret is write-only — this read shows present, never the value.</div>
+    </div>
+    <button class="sheet__close" type="button" data-close aria-label="Close"><i data-lucide="x"></i></button>
+  </header>
+  <nav class="lane-tabs" role="tablist" aria-label="Inspect views" style="padding:0 20px">
+    <button class="lane-tab is-on" type="button" role="tab" id="tab-diag" aria-selected="true" aria-controls="insp-diag" data-insp="diag">Diagnostics</button>
+    <button class="lane-tab" type="button" role="tab" id="tab-env" aria-selected="false" aria-controls="insp-env" data-insp="env">Envelope</button>
+  </nav>
+  <div class="sheet__body">
+    <div class="inspane" id="insp-diag" role="tabpanel" aria-labelledby="tab-diag">
+      <div class="tiles">
+        <div class="tile"><div class="tile__l">Id</div><div class="tile__v"><span class="mono">deploy-webhook</span></div></div>
+        <div class="tile"><div class="tile__l">Source</div><div class="tile__v"><span class="mono">DYNAMIC</span></div></div>
+        <div class="tile"><div class="tile__l">Scope</div><div class="tile__v"><span class="mono">WORKSPACE</span></div></div>
+        <div class="tile"><div class="tile__l">Kind</div><div class="tile__v"><span class="mono">webhook</span></div></div>
+        <div class="tile"><div class="tile__l">Target</div><div class="tile__v"><span class="mono">agent · deployer</span></div></div>
+        <div class="tile"><div class="tile__l">Secret</div><div class="tile__v"><span class="mono">present</span></div></div>
+      </div>
+      <p class="app-note" style="margin-top:8px">Slug <span class="mono">deploy</span> · id <span class="mono">wbh_abc123</span>. Ingress <span class="mono">live</span>. Filter <span class="mono">data.action=deploy</span> AND <span class="mono">data.branch=main</span>. Fire limit <span class="mono">6 / 1h</span>.</p>
+    </div>
+    <div class="inspane" id="insp-env" role="tabpanel" aria-labelledby="tab-env" hidden>
+      <div class="code-block">{
+  "kind": "webhook",
+  "scope": "workspace",
+  "workspace_id": "ws_checkout_api",
+  "source": "webhook",
+  "data": {
+    "action": "deploy",
+    "branch": "main",
+    "sha": "9ec3d15",
+    "endpoint_slug": "deploy",
+    "webhook_id": "wbh_abc123"
+  }
+}</div>
+    </div>
+  </div>
+</aside>
+
+<div class="dlg-scrim" id="deleteScrim" role="presentation">
+  <div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="delTitle" aria-describedby="delDesc" data-od-id="delete-dialog">
+    <h2 id="delTitle">Delete deploy-webhook?</h2>
+    <p id="delDesc">This removes the trigger. Matching deliveries will stop running deployer. Run history stays in the log.</p>
+    <div class="dlg__foot">
+      <button class="btn" type="button" id="delCancel">Cancel</button>
+      <button class="btn btn--destructive" type="button" id="delConfirm" data-href="../empty-states/triggers-empty-suggestions.html" data-od-id="delete-confirm">Delete trigger</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<span class="sr-only" id="live" aria-live="polite"></span>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="triggers.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

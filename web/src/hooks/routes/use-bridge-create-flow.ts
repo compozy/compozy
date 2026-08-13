@@ -41,7 +41,7 @@ export function useBridgeCreateFlow({
   const store = useStore(bridgeCreateFlowLogic);
   const flow = useSelector(store, snapshot => snapshot.context);
 
-  const draft = hasDraft(flow) ? flow.draft : createBridgeCreateDraft(providers, activeWorkspaceId);
+  const draft = hasDraft(flow) ? flow.draft : createBridgeCreateDraft(providers);
   const mode = hasDraft(flow) ? flow.mode : "simple";
   const committedBridge = flow.phase === "manifest" ? flow.bridge : null;
   const secretRecovery =
@@ -140,7 +140,7 @@ export function useBridgeCreateFlow({
       supportsManifest,
     },
     openCreateDialog: () =>
-      store.trigger.createOpened({ draft: createBridgeCreateDraft(providers, activeWorkspaceId) }),
+      store.trigger.createOpened({ draft: createBridgeCreateDraft(providers) }),
   };
 }
 

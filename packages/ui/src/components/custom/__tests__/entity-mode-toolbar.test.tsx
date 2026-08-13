@@ -37,14 +37,14 @@ describe("EntityModeToolbar", () => {
     expect(screen.queryByTestId("entity-mode-simple")).not.toBeInTheDocument();
   });
 
-  it("Should omit the trailing slot when the entity carries no scope control", () => {
-    const { container } = renderToolbar({ trailingLabel: "Scope" });
+  it("Should omit the trailing slot when the entity carries no scope statement", () => {
+    const { container } = renderToolbar();
 
     expect(container.querySelector('[data-slot="entity-mode-toolbar"]')).toHaveAttribute(
       "data-mode",
       "simple"
     );
-    expect(screen.queryByText("Scope")).not.toBeInTheDocument();
+    expect(screen.queryByText("Creates in")).not.toBeInTheDocument();
   });
 
   it("Should raise the mode segments to the touch target below 760px", () => {
@@ -65,13 +65,11 @@ describe("EntityModeToolbar", () => {
     expect(screen.getByTestId("entity-mode-advanced")).toHaveFocus();
   });
 
-  it("Should render the trailing slot with its label", () => {
+  it("Should render the trailing slot", () => {
     renderToolbar({
       trailing: <button type="button">Workspace</button>,
-      trailingLabel: "Scope",
     });
 
-    expect(screen.getByText("Scope")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Workspace" })).toBeInTheDocument();
   });
 });

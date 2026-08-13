@@ -1,17 +1,14 @@
-import { Layers, Plus, Sparkles } from "lucide-react";
+import { Layers } from "lucide-react";
 
 import {
   Alert,
   AlertDescription,
-  Button,
   Dialog,
   DialogContent,
   dialogShellClass,
   EntityDialogBody,
   EntityDialogFooter,
   EntityDialogHeader,
-  Eyebrow,
-  Spinner,
 } from "@compozy/ui";
 
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
@@ -25,21 +22,16 @@ interface WorkspaceSetupModel {
   setup: WorkspaceSetupContent;
 }
 
-interface WorkspaceSetupSharedProps {
+interface WorkspaceSetupDialogProps {
   model: WorkspaceSetupModel;
-}
-
-interface WorkspaceSetupDialogProps extends WorkspaceSetupSharedProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type WorkspaceOnboardingProps = WorkspaceSetupSharedProps;
-
 function WorkspaceSetupDialog({ open, onOpenChange, model }: WorkspaceSetupDialogProps) {
   const { setup, defaults } = model;
   const isSubmitting = setup.submissionMode !== null;
-  const location = <WorkspaceSetupLocationPane setup={setup} size="compact" />;
+  const location = <WorkspaceSetupLocationPane setup={setup} />;
   const defaultsPane = <WorkspaceSetupDefaultsPane defaults={defaults} setup={setup} />;
 
   return (
@@ -89,68 +81,5 @@ function WorkspaceSetupDialog({ open, onOpenChange, model }: WorkspaceSetupDialo
   );
 }
 
-function WorkspaceOnboarding({ model }: WorkspaceOnboardingProps) {
-  const copy = WORKSPACE_SETUP_COPY.onboarding;
-  const { setup, defaults } = model;
-  const location = <WorkspaceSetupLocationPane setup={setup} size="comfortable" />;
-  const defaultsPane = <WorkspaceSetupDefaultsPane defaults={defaults} setup={setup} />;
-
-  return (
-    <div
-      className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto bg-background p-6 lg:items-center lg:py-10"
-      data-testid="workspace-onboarding"
-    >
-      <div className="w-full max-w-5xl rounded-xl border border-line bg-canvas p-6 sm:p-8 lg:p-10">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,24rem)] lg:gap-8 xl:gap-10">
-          <div className="flex flex-col justify-between gap-6">
-            <div className="space-y-4">
-              <span
-                aria-hidden="true"
-                data-testid="workspace-onboarding-hero-icon"
-                className="inline-flex size-14 items-center justify-center rounded-icon-well bg-surface-glaze text-accent"
-              >
-                <Sparkles className="size-6" />
-              </span>
-              <Eyebrow className="text-muted">{copy.eyebrow}</Eyebrow>
-              <div className="space-y-3">
-                <h1
-                  data-testid="workspace-onboarding-hero-title"
-                  className="max-w-xl text-detail-h1 font-medium tracking-detail-h1 text-fg"
-                >
-                  {copy.title}
-                </h1>
-                <p className="max-w-xl text-item-title leading-7 text-muted">{copy.description}</p>
-              </div>
-            </div>
-          </div>
-
-          <form
-            className="flex w-full flex-col gap-4"
-            data-testid="workspace-setup-options"
-            onSubmit={event => void setup.handleCreateSubmit(event)}
-          >
-            {location}
-            {defaultsPane}
-            {setup.createError ? (
-              <Alert data-testid="workspace-setup-error" variant="danger">
-                <AlertDescription>{setup.createError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <Button
-              className="w-full"
-              data-testid="workspace-setup-onboarding-submit"
-              disabled={!setup.canSubmit}
-              type="submit"
-            >
-              {setup.submissionMode === "create" ? <Spinner /> : <Plus className="size-3.5" />}
-              {WORKSPACE_SETUP_COPY.dialog.title}
-            </Button>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export { WorkspaceOnboarding, WorkspaceSetupDialog };
+export { WorkspaceSetupDialog };
 export type { WorkspaceSetupModel };

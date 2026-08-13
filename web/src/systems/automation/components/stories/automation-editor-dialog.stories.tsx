@@ -77,7 +77,6 @@ function AutomationEditorJobHarness({ mode }: { mode: "create" | "edit" }) {
     <AutomationEditorDialog
       agents={agentFixtures}
       activeWorkspaceId={ACTIVE_WORKSPACE_ID}
-      userHomeDir={undefined}
       editor={{
         draft,
         isPending: false,
@@ -99,7 +98,6 @@ function AutomationEditorTriggerHarness({ mode }: { mode: "create" | "edit" }) {
     <AutomationEditorDialog
       agents={agentFixtures}
       activeWorkspaceId={ACTIVE_WORKSPACE_ID}
-      userHomeDir={undefined}
       editor={{
         draft,
         isPending: false,

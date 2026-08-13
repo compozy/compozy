@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Box, Globe } from "lucide-react";
 
 import { EntityDialogToolbar, PillGroup } from "@compozy/ui";
 
@@ -27,42 +26,20 @@ const meta: Meta<typeof EntityDialogToolbar> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const scopePills = (
-  <PillGroup
-    aria-label="Scope"
-    items={[
-      {
-        value: "global",
-        label: (
-          <span className="flex items-center gap-1.5">
-            <Globe className="size-3" />
-            Global
-          </span>
-        ),
-      },
-      {
-        value: "workspace",
-        label: (
-          <span className="flex items-center gap-1.5">
-            <Box className="size-3" />
-            Workspace
-          </span>
-        ),
-      },
-    ]}
-    onChange={() => undefined}
-    size="md"
-    value="workspace"
-  />
+/** Stand-in for the domain-owned scope statement chip that fills this slot in production. */
+const scopeStatement = (
+  <span className="inline-flex h-7 items-center rounded-md border border-line bg-canvas-tint px-2.5 text-form-hint text-muted">
+    Creates in <span className="ml-1 font-medium text-fg-strong">launch-hq</span>
+  </span>
 );
 
 /**
  * Scope only — the automation editors, which have no disclosure tier. With
- * nothing on the leading edge the scope starts at the gutter.
+ * nothing on the leading edge the statement starts at the gutter.
  */
 export const TrailingOnly: Story = {
   args: {},
-  render: () => <EntityDialogToolbar trailing={scopePills} trailingLabel="Scope" />,
+  render: () => <EntityDialogToolbar trailing={scopeStatement} />,
 };
 
 /** With a leading control the trailing one is pushed to the far edge. */
@@ -82,8 +59,7 @@ export const LeadingAndTrailing: Story = {
           value="simple"
         />
       }
-      trailing={scopePills}
-      trailingLabel="Scope"
+      trailing={scopeStatement}
     />
   ),
 };

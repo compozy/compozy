@@ -4,9 +4,9 @@ area: ET
 title: Read the keyboard reference and installation identity from the shell
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: Help → Keyboard shortcuts opens a shell-scoped dialog listing Shell, Window, Layout, and Desktops sections from the live window-manager registry — every action present, an unbound action shown with an em dash rather than omitted, live config overrides reflected — with a footer that opens Settings → Layouts; Compozy → About Compozy opens a dialog showing only fields `/api/status` publishes (version, status, started, pid, HTTP host:port, socket, user home dir, config file) and degrades honestly while the status query is pending or failing; both dialogs are keyboard-reachable, scroll within a capped height, close on Esc, and return focus to the desktop.
+expected: Help → Keyboard shortcuts opens a shell-scoped dialog listing Shell (including Global scope ⇧⌘G), Window, Layout, and Desktops sections from the live window-manager registry — every action present, an unbound action shown with an em dash rather than omitted, live config overrides reflected — with a footer that opens Settings → Layouts; Compozy → About Compozy opens a dialog showing only fields `/api/status` publishes (version, status, started, pid, HTTP host:port, socket, user home dir, config file) and degrades honestly while the status query is pending or failing; both dialogs are keyboard-reachable, scroll within a capped height, close on Esc, and return focus to the desktop.
 entry_points: web desktop menubar Help menu; web desktop menubar Compozy menu
-qa_status: pass
+qa_status: blocked-verify
 bug_ids:
 fix_status:
 retest_status:
@@ -31,3 +31,7 @@ listed all 27 live actions across four sections, including four em-dash unbound 
 the enabled Layouts footer under the available command fence. About matched all eight `/api/status`
 fields, invented no unpublished build metadata, retained the last snapshot during an induced poll
 failure, closed on Escape, and returned focus to each owning menu trigger.
+
+2026-08-12 qa-impact: Shell section now lists Global scope ⇧⌘G. Reset to untested.
+
+2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.

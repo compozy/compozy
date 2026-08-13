@@ -53,6 +53,8 @@ import { useRemoveSkillMarketplace } from "@/systems/skill";
 interface MarketplaceActionControllerOptions {
   onViewInstalled?: () => void;
   installedItems?: readonly MarketplaceInstalledItem[];
+  mcpScope?: "global" | "workspace";
+  workspaceName?: string | null;
 }
 
 interface MarketplaceActionController {
@@ -419,7 +421,9 @@ function useMarketplaceActionController(
         trustEntry={trustEntry(phase)}
         trustError={trustError(phase)}
         trustPending={phase.status === "extensionTrustSubmitting"}
+        scope={options.mcpScope ?? (workspaceId ? "workspace" : "global")}
         workspaceId={workspaceId}
+        workspaceName={options.workspaceName}
       />
       {networkConfirm ? (
         <ExtensionNetworkConfirmDialog

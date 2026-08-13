@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronsUpDown, Home, Plus } from "lucide-react";
+import { ChevronsUpDown, Plus } from "lucide-react";
 
 import {
   cn,
@@ -13,8 +13,7 @@ import {
   CommandSeparator,
 } from "@compozy/ui";
 
-import { useScopeSelectorContext } from "../hooks/use-scope-selector-context";
-import { isHomeWorkspace, splitHomeWorkspace } from "../lib/home-workspace";
+import { partitionProjectWorkspaces } from "../lib/project-workspaces";
 
 function workspaceInitial(name: string): string {
   return name.charAt(0).toUpperCase() || "·";
@@ -27,7 +26,7 @@ export interface WorkspaceCommandSelectOption {
 }
 
 export interface WorkspaceCommandSelectProps {
-  userHomeDir: string | undefined;
+  userHomeDir?: string;
   workspaces: ReadonlyArray<WorkspaceCommandSelectOption> | undefined;
   value: string | null;
   onChange: (id: string) => void;
@@ -57,26 +56,16 @@ export function WorkspaceCommandSelect({
   onOpenChange,
   size = "default",
 }: WorkspaceCommandSelectProps) {
-  const scopeSelector = useScopeSelectorContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = openProp ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
-  const selected = workspaces?.find(workspace => workspace.id === value) ?? null;
-  const { homeWorkspace, projectWorkspaces } = splitHomeWorkspace(workspaces, userHomeDir);
-  const orderedWorkspaces = homeWorkspace
-    ? [homeWorkspace, ...projectWorkspaces]
-    : projectWorkspaces;
-  const selectedIsHome = Boolean(selected && isHomeWorkspace(selected, userHomeDir));
+  const { projectWorkspaces } = partitionProjectWorkspaces(workspaces, userHomeDir);
+  const selected = projectWorkspaces.find(workspace => workspace.id === value) ?? null;
   const label = selected?.name ?? "No workspace";
-  const hasWorkspaces = (workspaces?.length ?? 0) > 0;
+  const hasWorkspaces = projectWorkspaces.length > 0;
   const isDisabled = disabled || !hasWorkspaces;
 
   const handleSelect = (workspace: WorkspaceCommandSelectOption) => {
-    if (scopeSelector && isHomeWorkspace(workspace, userHomeDir)) {
-      scopeSelector.selectGlobalScope();
-      setOpen(false);
-      return;
-    }
     onChange(workspace.id);
     setOpen(false);
   };
@@ -92,25 +81,14 @@ export function WorkspaceCommandSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-labelledby={ariaLabelledBy}
-        aria-label={
-          hasWorkspaces
-            ? selectedIsHome
-              ? `Home workspace: ${label}`
-              : `Workspace: ${label}`
-            : "No workspace"
-        }
+        aria-label={hasWorkspaces ? `Workspace: ${label}` : "No workspace"}
         data-size={size}
         data-testid={triggerTestId}
         disabled={isDisabled}
         selected={Boolean(selected)}
         className={cn(
           size === "compact"
-            ? // Ghost, not a button: this sits inline beside the borderless scope
-              // PillGroup, and a bordered filled trigger reads as a second, taller
-              // control on that line. `border-transparent` rather than `border-0`
-              // — the border is inside the 28 px box, so dropping it would shrink
-              // the trigger to 26 px and re-break the alignment.
-              "h-[calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))] min-w-0 gap-1.5 rounded-md border-transparent bg-transparent px-(--space-pill-group-segment-md-x) py-0 text-subtle shadow-none hover:bg-row-hover hover:text-fg-strong focus-visible:border-transparent focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
+            ? "h-[calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))] min-w-0 gap-1.5 rounded-md border-transparent bg-transparent px-(--space-pill-group-segment-md-x) py-0 text-subtle shadow-none hover:bg-row-hover hover:text-fg-strong focus-visible:border-transparent focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
             : "h-12 w-full gap-2.5 border-0 bg-transparent px-2 py-0 shadow-none hover:bg-hover focus-visible:border-0 focus-visible:shadow-none [&>svg:last-child]:hidden",
           className
         )}
@@ -124,18 +102,12 @@ export function WorkspaceCommandSelect({
           <span
             aria-hidden="true"
             data-testid="workspace-switcher-avatar"
-            data-home={selectedIsHome ? "true" : undefined}
             className={cn(
               "inline-flex shrink-0 items-center justify-center rounded-sm font-mono text-eyebrow font-medium tracking-mono text-fg",
-              // A ghost trigger holds no filled sub-surface.
               size === "compact" ? "size-4 bg-canvas-tint" : "size-button-icon-xs bg-elevated"
             )}
           >
-            {selectedIsHome ? (
-              <Home aria-hidden="true" className={size === "compact" ? "size-3" : "size-3.5"} />
-            ) : (
-              workspaceInitial(label)
-            )}
+            {workspaceInitial(label)}
           </span>
           <span
             data-testid="workspace-switcher-name"
@@ -165,35 +137,25 @@ export function WorkspaceCommandSelect({
             No workspaces match your search.
           </CommandEmpty>
           <CommandSelectGroup heading="Workspaces" data-testid={`${testIdPrefix}-group`}>
-            {orderedWorkspaces.map(workspace => {
+            {projectWorkspaces.map(workspace => {
               const isActive = workspace.id === value;
-              const isHome = isHomeWorkspace(workspace, userHomeDir);
               return (
                 <CommandItem
                   key={workspace.id}
-                  value={isHome ? `home workspace ${workspace.name}` : workspace.name}
+                  value={workspace.name}
                   onSelect={() => handleSelect(workspace)}
                   data-checked={isActive ? "true" : "false"}
-                  data-home={isHome ? "true" : undefined}
                   data-testid={`${testIdPrefix}-item-${workspace.id}`}
                 >
                   <span
                     aria-hidden="true"
-                    data-home={isHome ? "true" : undefined}
                     data-testid={`${testIdPrefix}-item-avatar-${workspace.id}`}
                     className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg"
                   >
-                    {isHome ? (
-                      <Home aria-hidden="true" className="size-3.5" />
-                    ) : (
-                      workspaceInitial(workspace.name)
-                    )}
+                    {workspaceInitial(workspace.name)}
                   </span>
                   <span className="flex min-w-0 flex-1 items-center gap-2">
                     <span className="truncate text-small-body text-fg">{workspace.name}</span>
-                    {isHome ? (
-                      <span className="shrink-0 text-badge text-muted">Home workspace</span>
-                    ) : null}
                   </span>
                 </CommandItem>
               );

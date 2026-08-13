@@ -1,4 +1,4 @@
-import { Bot, Box, Globe } from "lucide-react";
+import { Bot } from "lucide-react";
 import { type FormEvent } from "react";
 
 import {
@@ -11,11 +11,10 @@ import {
   EntityDialogFooter,
   EntityDialogHeader,
   EntityModeToolbar,
-  PillGroup,
   type EntityMode,
 } from "@compozy/ui";
 
-import { updateAgentCreateScope, type AgentCreateDialogDraft } from "../lib/agent-create-draft";
+import { type AgentCreateDialogDraft } from "../lib/agent-create-draft";
 import { useAgentCreateDialogViewState } from "../hooks/use-agent-create-dialog-view-state";
 import { AgentCreateDefinitionSection } from "./agent-create-definition-section";
 import { AgentCreatePermissionsSection } from "./agent-create-permissions-section";
@@ -23,7 +22,7 @@ import { AgentCreateRuntimeDetailsSection } from "./agent-create-runtime-details
 import { AgentCreateRuntimeFields } from "./agent-create-runtime-fields";
 import { AgentCreateToolsSection } from "./agent-create-tools-section";
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
-import { WorkspaceCommandSelect, type WorkspaceCommandSelectOption } from "@/systems/workspace";
+import { WorkspaceScopeStatement, destinationLabel } from "@/systems/workspace";
 
 interface AgentCreateDialogProps {
   open: boolean;
@@ -45,7 +44,6 @@ interface AgentCreateDialogProps {
   hasActiveWorkspace: boolean;
   workspaceId: string | null;
   workspaceName: string | null;
-  userHomeDir: string | undefined;
   initialMode?: EntityMode;
 }
 
@@ -74,9 +72,7 @@ function AgentCreateDialog({
   submitError,
   isSubmitting,
   hasActiveWorkspace,
-  workspaceId,
   workspaceName,
-  userHomeDir,
   initialMode = "simple",
 }: AgentCreateDialogProps) {
   const { handleOpenChange, mode, revealAdvancedWhenBlocked, setMode, validation, visibleErrors } =
@@ -90,12 +86,6 @@ function AgentCreateDialog({
       providersError,
       providersLoading,
     });
-
-  // The write target is the active workspace: the hook resolves workspace
-  // providers from it, so the selector reports where the definition lands
-  // rather than offering a retarget the create path cannot honour.
-  const workspaceOptions: WorkspaceCommandSelectOption[] =
-    workspaceId && workspaceName ? [{ id: workspaceId, name: workspaceName }] : [];
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -128,61 +118,7 @@ function AgentCreateDialog({
           title="Create agent"
         />
 
-        <EntityModeToolbar
-          mode={mode}
-          onModeChange={setMode}
-          testIdPrefix="agent-create"
-          trailing={
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <PillGroup
-                aria-label="Scope"
-                data-testid="agent-create-scope-group"
-                items={[
-                  {
-                    value: "global",
-                    label: (
-                      <span className="flex items-center gap-1.5">
-                        <Globe aria-hidden="true" className="size-3" />
-                        Global
-                      </span>
-                    ),
-                    disabled: isSubmitting,
-                    testId: "agent-create-scope-global",
-                  },
-                  {
-                    value: "workspace",
-                    label: (
-                      <span className="flex items-center gap-1.5">
-                        <Box aria-hidden="true" className="size-3" />
-                        Workspace
-                      </span>
-                    ),
-                    disabled: isSubmitting || !hasActiveWorkspace,
-                    testId: "agent-create-scope-workspace",
-                  },
-                ]}
-                onChange={next => onDraftChange(updateAgentCreateScope(draft, next))}
-                size="md"
-                value={draft.scope}
-              />
-              {draft.scope === "workspace" && hasActiveWorkspace ? (
-                <div className="min-w-40 w-auto max-w-xs shrink-0">
-                  <WorkspaceCommandSelect
-                    disabled
-                    onChange={() => undefined}
-                    size="compact"
-                    testIdPrefix="agent-create-workspace"
-                    triggerTestId="agent-create-workspace-select"
-                    userHomeDir={userHomeDir}
-                    value={workspaceId ?? null}
-                    workspaces={workspaceOptions}
-                  />
-                </div>
-              ) : null}
-            </div>
-          }
-          trailingLabel="Scope"
-        />
+        <EntityModeToolbar mode={mode} onModeChange={setMode} testIdPrefix="agent-create" />
 
         <form className="contents" onSubmit={handleSubmit}>
           <EntityDialogBody className="flex flex-col">
@@ -228,7 +164,14 @@ function AgentCreateDialog({
           <EntityDialogFooter
             cancelDisabled={isSubmitting}
             cancelTestId="agent-create-cancel"
-            hint="The definition is validated by the daemon before sessions can launch from it."
+            hint={
+              <WorkspaceScopeStatement
+                destination={destinationLabel(draft.scope, workspaceName)}
+                kind="create"
+                scope={draft.scope}
+                variant="note"
+              />
+            }
             isSaving={isSubmitting}
             onCancel={() => handleOpenChange(false)}
             primaryDisabled={

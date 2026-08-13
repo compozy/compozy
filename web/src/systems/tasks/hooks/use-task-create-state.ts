@@ -24,11 +24,7 @@ import {
 } from "@/systems/tasks/lib/task-templates";
 
 import { taskScopeForActiveWorkspace } from "../lib/workspace-scope";
-import {
-  toWorkspaceCommandSelectOptions,
-  useActiveWorkspace,
-  useUserHomeDir,
-} from "@/systems/workspace";
+import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
 
 interface TaskCreateLocation {
   pathname: string;
@@ -41,15 +37,16 @@ export function useTaskCreateState(
   options: { liveDataEnabled?: boolean } = {}
 ) {
   const liveDataEnabled = options.liveDataEnabled ?? true;
-  const { activeWorkspace, workspaces } = useActiveWorkspace({ enabled: liveDataEnabled });
-  const userHomeDir = useUserHomeDir({ enabled: liveDataEnabled });
+  const { activeWorkspaceId, scope, workspaces } = useActiveWorkspace({
+    enabled: liveDataEnabled,
+  });
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();
   const submissionStore = useStore(taskEditorSubmissionLogic);
 
   const templateId = search.template ?? DEFAULT_TASK_TEMPLATE_ID;
-  const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
+  const activeTaskScope = taskScopeForActiveWorkspace(scope, activeWorkspaceId);
   const createDraftWorkspaceId =
     activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
   const workspaceKey = createDraftWorkspaceId ?? "global";
@@ -164,7 +161,6 @@ export function useTaskCreateState(
     setDraft,
     template: getTaskTemplate(templateId),
     templateId,
-    userHomeDir,
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   };
 }
