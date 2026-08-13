@@ -18,6 +18,7 @@ describe("useTaskFanOutDialog", () => {
     [snapshot] = store.transition(snapshot, {
       type: "submitRequested",
       execute: vi.fn().mockResolvedValue(undefined),
+      idempotencyKey: "fan-out-attempt-1",
       setOpen,
     });
     [snapshot] = store.transition(snapshot, {
@@ -52,6 +53,7 @@ describe("useTaskFanOutDialog", () => {
     [snapshot] = store.transition(snapshot, {
       type: "submitRequested",
       execute: vi.fn().mockResolvedValue(response),
+      idempotencyKey: "fan-out-attempt-1",
       setOpen,
     });
     [snapshot] = store.transition(snapshot, {
@@ -76,7 +78,11 @@ describe("useTaskFanOutDialog", () => {
       const execute = vi.fn().mockResolvedValue(undefined);
       store.trigger.designationsChanged({ value: "One\nTwo" });
       if (isolate) store.trigger.worktreePerRunChanged({ value: true });
-      store.trigger.submitRequested({ execute, setOpen: vi.fn() });
+      store.trigger.submitRequested({
+        execute,
+        idempotencyKey: "fan-out-attempt-1",
+        setOpen: vi.fn(),
+      });
       return execute.mock.calls[0][0] as Record<string, unknown>;
     }
 
@@ -118,6 +124,7 @@ describe("useTaskFanOutDialog", () => {
 
     expect(onFanOut).toHaveBeenCalledWith({
       designations: [{ brief: "Investigate checkout" }, { brief: "Validate staging" }],
+      idempotency_key: expect.any(String),
       network_participation: { mode: "local" },
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -135,6 +142,23 @@ describe("useTaskFanOutDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
     expect(result.current.designationsText).toBe("Investigate checkout");
     expect(result.current.formError).toBe("Task already has an open run");
+  });
+
+  it("Should retry one unchanged intent with the same idempotency key", async () => {
+    const onFanOut = vi.fn().mockRejectedValue(new Error("Temporary failure"));
+    const { result } = renderHook(() => useTaskFanOutDialog({ onOpenChange: vi.fn(), onFanOut }));
+
+    act(() => result.current.setDesignationsText("Investigate checkout"));
+    await act(async () => result.current.handleSubmit(submitEvent));
+    await act(async () => result.current.handleSubmit(submitEvent));
+
+    const firstKey = onFanOut.mock.calls[0][0].idempotency_key;
+    expect(firstKey).toEqual(expect.any(String));
+    expect(onFanOut.mock.calls[1][0].idempotency_key).toBe(firstKey);
+
+    act(() => result.current.setDesignationsText("Validate staging"));
+    await act(async () => result.current.handleSubmit(submitEvent));
+    expect(onFanOut.mock.calls[2][0].idempotency_key).not.toBe(firstKey);
   });
 
   it("Should execute only one fan-out for two synchronous submissions", async () => {

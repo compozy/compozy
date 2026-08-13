@@ -1,6 +1,8 @@
 import { useSelector, useStore } from "@xstate/store-react";
 import { type FormEvent } from "react";
 
+import { createClientId } from "@/lib/client-id";
+
 import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
 import { createTaskFanOutDialogLogic } from "./task-fan-out-dialog-store";
 
@@ -23,7 +25,11 @@ export function useTaskFanOutDialog({ onOpenChange, onFanOut }: UseTaskFanOutDia
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    store.trigger.submitRequested({ execute: onFanOut, setOpen: onOpenChange });
+    store.trigger.submitRequested({
+      execute: onFanOut,
+      idempotencyKey: createClientId(),
+      setOpen: onOpenChange,
+    });
   };
 
   return {

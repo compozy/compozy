@@ -15,6 +15,7 @@ interface FanOutDialogState {
   attemptId: number;
   designationsText: string;
   formError: string | null;
+  idempotencyKey: string | null;
   networkParticipation: NetworkParticipationDraft;
   phase: "editing" | "submitting";
   /** One fresh worktree per designated run. Off by default — isolation is opt-in. */
@@ -35,6 +36,7 @@ type FanOutDialogEvents = {
   submitFailed: { attemptId: number; error: string };
   submitRequested: {
     execute: (data: FanOutTaskRunsRequest) => Promise<FanOutTaskRunsResponse | void>;
+    idempotencyKey: string;
     setOpen: (open: boolean) => void;
   };
   submitSucceeded: {
@@ -52,15 +54,18 @@ export function createTaskFanOutDialogLogic() {
         ...context,
         designationsText: event.value,
         formError: null,
+        idempotencyKey: null,
       }),
       networkParticipationChanged: (context, event) => ({
         ...context,
         formError: null,
+        idempotencyKey: null,
         networkParticipation: event.value,
       }),
       worktreePerRunChanged: (context, event) => ({
         ...context,
         formError: null,
+        idempotencyKey: null,
         worktreePerRun: event.value,
       }),
       openChanged: (context, event, enqueue) => {
@@ -76,7 +81,8 @@ export function createTaskFanOutDialogLogic() {
       },
       submitRequested: (context, event, enqueue) => {
         if (context.phase === "submitting") return;
-        const payload = toPayload(context);
+        const idempotencyKey = context.idempotencyKey ?? event.idempotencyKey;
+        const payload = toPayload(context, idempotencyKey);
         if (payload instanceof Error) return { ...context, formError: payload.message };
         const attemptId = context.attemptId + 1;
         enqueue.effect(async ({ trigger }) => {
@@ -87,7 +93,13 @@ export function createTaskFanOutDialogLogic() {
             trigger.submitFailed({ attemptId, error: fanOutErrorMessage(error) });
           }
         });
-        return { ...context, attemptId, formError: null, phase: "submitting" };
+        return {
+          ...context,
+          attemptId,
+          formError: null,
+          idempotencyKey,
+          phase: "submitting",
+        };
       },
       submitSucceeded: (context, event, enqueue) => {
         if (context.phase !== "submitting" || context.attemptId !== event.attemptId) return;
@@ -113,6 +125,7 @@ function initialState(): Omit<FanOutDialogState, "attemptId"> {
   return {
     designationsText: "",
     formError: null,
+    idempotencyKey: null,
     networkParticipation: { ...DEFAULT_NETWORK_PARTICIPATION_DRAFT },
     phase: "editing",
     result: null,
@@ -126,7 +139,10 @@ function fanOutErrorMessage(error: unknown): string {
     : "Failed to fan out task runs.";
 }
 
-function toPayload(context: FanOutDialogState): FanOutTaskRunsRequest | Error {
+function toPayload(
+  context: FanOutDialogState,
+  idempotencyKey: string
+): FanOutTaskRunsRequest | Error {
   const designations = context.designationsText
     .split(/\r?\n/u)
     .map(line => line.trim())
@@ -137,6 +153,7 @@ function toPayload(context: FanOutDialogState): FanOutTaskRunsRequest | Error {
   if (error) return new Error(error);
   return {
     designations,
+    idempotency_key: idempotencyKey,
     network_participation: serializeNetworkParticipation(context.networkParticipation),
     // Sent only when requested: the daemon's default is shared-root execution,
     // and an explicit `false` would read as a policy the operator never set.
