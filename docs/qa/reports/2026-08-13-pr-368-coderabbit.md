@@ -130,5 +130,7 @@ None.
 
 The later GitHub E2E runtime-binding regression was also fixed and re-walked. Global agent creation and runtime-bound Global views now pass against the production daemon and production Web bundle.
 
+The final CodeRabbit pass found two edge cases. Commit `da635f5` prevents a Global loop run from displaying an unrelated project workspace name and treats an empty session runtime workspace ID as unavailable. The focused controller suites passed 9/9, React Doctor found no issues, and the daemon-served loop suite passed 5/5 on the final build.
+
 - **Final make verify evidence:** `/Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/logs/final-make-verify.log`
 - **Teardown evidence:** `/Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/teardown.json`
