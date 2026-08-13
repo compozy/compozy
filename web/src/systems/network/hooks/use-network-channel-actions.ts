@@ -29,8 +29,8 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 export function useCreateNetworkChannel(options: { workspaceId?: string | null } = {}) {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const requestedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const requestedWorkspaceId = options.workspaceId ?? runtimeWorkspaceId;
   return useMutation({
     mutationFn: (data: CreateNetworkChannelRequest) => {
       const workspaceId = requestedWorkspaceId ?? data.workspace_id;

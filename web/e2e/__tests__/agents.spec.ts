@@ -239,8 +239,7 @@ test.describe("seeded agent detail", () => {
     const createRequest = await createRequestPromise;
     const createResponse = await createResponsePromise;
     expect(createRequest.postDataJSON()).toMatchObject({
-      scope: "workspace",
-      workspace: workspace.id,
+      scope: "global",
       agent: {
         name: "reasoning-default-agent",
         provider: mockAgentProvider,

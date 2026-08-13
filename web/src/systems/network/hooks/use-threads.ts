@@ -28,9 +28,9 @@ export function useNetworkThreads(
   channel: string | null | undefined,
   options: UseNetworkThreadsOptions = {}
 ): UseNetworkThreadsResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useNetworkLiveDataEnabled();
-  const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
+  const selectedWorkspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
   const enabled =
     liveDataEnabled &&
@@ -74,9 +74,9 @@ export function useNetworkThreadDetail(
   threadId: string | null | undefined,
   options: { enabled?: boolean; workspaceId?: string | null } = {}
 ): UseNetworkThreadDetailResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useNetworkLiveDataEnabled();
-  const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
+  const selectedWorkspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
   const enabled =
     liveDataEnabled &&

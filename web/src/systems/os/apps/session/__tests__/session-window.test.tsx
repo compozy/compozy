@@ -47,7 +47,7 @@ vi.mock("@/systems/session/lib/query-options", () => ({
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "ws-1" }),
+  useActiveWorkspace: () => ({ activeWorkspaceId: "ws-1", runtimeWorkspaceId: "ws-1" }),
 }));
 
 vi.mock("../../../hooks/use-desktop", () => ({

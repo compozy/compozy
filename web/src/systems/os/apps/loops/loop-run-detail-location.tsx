@@ -23,9 +23,9 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 export function LoopRunDetailLocation({ runId }: { runId: string }) {
   const navigate = useNavigate();
-  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const workspaceId = activeWorkspaceId ?? "";
+  const workspaceId = runtimeWorkspaceId ?? "";
   const backToRuns = () => {
     void navigate({ to: "/loop-runs" });
   };

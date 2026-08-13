@@ -19,6 +19,7 @@ const { jobsCatalog, jobsPage, suggestionPanel, workspaceContext } = vi.hoisted(
         | { id: string; name: string }
         | undefined,
       activeWorkspaceId: "ws_test" as string | null,
+      runtimeWorkspaceId: "ws_test" as string | null,
     },
   },
 }));
@@ -59,6 +60,7 @@ beforeEach(() => {
   workspaceContext.current = {
     activeWorkspace: { id: "ws_test", name: "Test workspace" },
     activeWorkspaceId: "ws_test",
+    runtimeWorkspaceId: "ws_test",
   };
   jobsPage.current = {
     clearFilters: vi.fn(),
@@ -91,7 +93,7 @@ beforeEach(() => {
 });
 
 describe("JobsCatalogLocation", () => {
-  it("Should show suggestions only for an active workspace in a non-global catalog", () => {
+  it("Should show runtime-workspace suggestions unless the catalog filter is Global", () => {
     const { rerender } = render(<JobsCatalogLocation search={{}} />);
 
     expect(screen.getByTestId("automation-suggestions-panel")).toBeInTheDocument();
@@ -100,9 +102,13 @@ describe("JobsCatalogLocation", () => {
     rerender(<JobsCatalogLocation search={{ scope: "global" }} />);
     expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
 
-    workspaceContext.current = { activeWorkspace: undefined, activeWorkspaceId: null };
+    workspaceContext.current = {
+      activeWorkspace: undefined,
+      activeWorkspaceId: null,
+      runtimeWorkspaceId: "ws_home",
+    };
     rerender(<JobsCatalogLocation search={{}} />);
-    expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
+    expect(suggestionPanel).toHaveBeenLastCalledWith("ws_home");
   });
 
   it("Should delegate card-mode loading geometry to the automation catalog", () => {

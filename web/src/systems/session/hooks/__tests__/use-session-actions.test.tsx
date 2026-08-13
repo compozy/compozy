@@ -52,7 +52,7 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha" }),
+  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha", runtimeWorkspaceId: "ws_alpha" }),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));

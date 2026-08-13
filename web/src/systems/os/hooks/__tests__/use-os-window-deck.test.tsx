@@ -33,10 +33,10 @@ vi.mock("@/systems/session/hooks/use-sessions", () => ({
   useSessions: () => ({ data: [] }),
 }));
 vi.mock("@/systems/workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "workspace:test" }),
+  useActiveWorkspace: () => ({ runtimeWorkspaceId: "workspace:test" }),
 }));
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "workspace:test" }),
+  useActiveWorkspace: () => ({ runtimeWorkspaceId: "workspace:test" }),
 }));
 vi.mock("../use-desktop", () => ({
   useDesktop: (selector: (state: OsDesktopRuntimeStore) => unknown) => selector(runtime.state!),

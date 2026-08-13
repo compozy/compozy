@@ -18,8 +18,8 @@ export function useResolveNetworkDirectRoom(
   options: { workspaceId?: string | null } = {}
 ): UseResolveNetworkDirectRoomResult {
   const queryClient = useQueryClient();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = options.workspaceId ?? activeWorkspaceId;
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const mutation = useMutation({
     mutationFn: (input: ResolveNetworkDirectRoomInput & { workspaceId: string }) =>
       resolveNetworkDirectRoom(input.workspaceId, input.channel, input.body),

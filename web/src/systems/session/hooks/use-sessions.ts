@@ -39,8 +39,8 @@ export function useSessions(workspace: string | null = null, options?: UseSessio
 }
 
 export function useSession(id: string, workspace?: string | null) {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = workspace ?? activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = workspace ?? runtimeWorkspaceId ?? "";
   return useQuery(sessionDetailOptions(workspaceId, id));
 }
 
@@ -71,14 +71,14 @@ export function useSessionLedger(
   workspace?: string | null,
   options?: UseSessionLedgerOptions
 ) {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = workspace ?? activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = workspace ?? runtimeWorkspaceId ?? "";
   return useQuery(sessionLedgerOptions(workspaceId, id, options));
 }
 
 export function useSessionRecap(id: string, workspace?: string | null, limit?: number) {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = workspace ?? activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = workspace ?? runtimeWorkspaceId ?? "";
   return useQuery(sessionRecapOptions(workspaceId, id, limit));
 }
 
@@ -88,8 +88,8 @@ export function useSessionUsage(
   sessionState?: SessionState | null,
   options?: { enabled?: boolean }
 ) {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = workspace ?? activeWorkspaceId ?? "";
+  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = workspace ?? runtimeWorkspaceId ?? "";
   return useQuery({
     ...sessionUsageOptions(workspaceId, id, sessionState),
     enabled: Boolean(workspaceId) && Boolean(id) && (options?.enabled ?? true),

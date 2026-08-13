@@ -47,9 +47,9 @@ export function useActiveNetworkSession(
   channel: string | null | undefined,
   options?: { enabled?: boolean; workspaceId?: string | null }
 ): UseActiveNetworkSessionResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId } = useActiveWorkspace();
   const liveDataEnabled = useNetworkLiveDataEnabled();
-  const workspaceId = options?.workspaceId ?? activeWorkspaceId ?? "";
+  const workspaceId = options?.workspaceId ?? runtimeWorkspaceId ?? "";
   const enabled =
     liveDataEnabled && (options?.enabled ?? true) && Boolean(channel) && workspaceId !== "";
   const detailQuery = useQuery(networkChannelDetailOptions(workspaceId, channel ?? "", enabled));

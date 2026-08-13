@@ -14,11 +14,13 @@ const { mockNavigate, mockSetActiveWorkspaceId, mockUseNetworkPage } = vi.hoiste
 }));
 
 let mockActiveWorkspaceId: string | null = "ws_alpha";
+let mockRuntimeWorkspaceId: string | null = "ws_alpha";
 let mockSelectedWorkspaceId: string | null = "ws_alpha";
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: mockActiveWorkspaceId,
+    runtimeWorkspaceId: mockRuntimeWorkspaceId,
     selectedWorkspaceId: mockSelectedWorkspaceId,
     setActiveWorkspaceId: mockSetActiveWorkspaceId,
   }),
@@ -45,6 +47,7 @@ import { useNetworkRouteShell } from "../use-network-route-shell";
 describe("useNetworkRouteShell", () => {
   beforeEach(() => {
     mockActiveWorkspaceId = "ws_alpha";
+    mockRuntimeWorkspaceId = "ws_alpha";
     mockSelectedWorkspaceId = "ws_alpha";
     mockNavigate.mockReset();
     mockSetActiveWorkspaceId.mockReset();
@@ -53,6 +56,7 @@ describe("useNetworkRouteShell", () => {
 
   it("Should parse a nested thread location from WM state and adopt its deep-linked workspace", async () => {
     mockActiveWorkspaceId = "ws_beta";
+    mockRuntimeWorkspaceId = "ws_beta";
     mockSelectedWorkspaceId = null;
 
     const { result } = renderHook(() =>
@@ -99,6 +103,7 @@ describe("useNetworkRouteShell", () => {
 
   it("Should not let a stale detail location overwrite an explicit workspace switch", async () => {
     mockActiveWorkspaceId = "ws_beta";
+    mockRuntimeWorkspaceId = "ws_beta";
     mockSelectedWorkspaceId = "ws_beta";
 
     renderHook(() =>
@@ -116,7 +121,11 @@ describe("useNetworkRouteShell", () => {
     expect(mockSetActiveWorkspaceId).not.toHaveBeenCalledWith("ws_alpha");
   });
 
-  it("Should deepen the root location into the active workspace first channel", async () => {
+  it("Should deepen a Global root location into the hidden home workspace first channel", async () => {
+    mockActiveWorkspaceId = null;
+    mockRuntimeWorkspaceId = "ws_home";
+    mockSelectedWorkspaceId = null;
+
     renderHook(() =>
       useNetworkRouteShell({
         active: true,
@@ -127,10 +136,28 @@ describe("useNetworkRouteShell", () => {
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith({
-        pathname: "/network/ws_alpha/copy/threads",
+        pathname: "/network/ws_home/copy/threads",
         search: {},
       });
     });
+  });
+
+  it("Should keep a hidden-home Network route live while Global remembers a project", () => {
+    mockActiveWorkspaceId = null;
+    mockRuntimeWorkspaceId = "ws_home";
+    mockSelectedWorkspaceId = "ws_project";
+
+    renderHook(() =>
+      useNetworkRouteShell({
+        active: true,
+        location: { pathname: "/network/ws_home/copy/threads", search: {} },
+        navigation: { push: mockNavigate },
+      })
+    );
+
+    expect(mockUseNetworkPage).toHaveBeenCalledWith("ws_home", { enabled: true });
+    expect(mockSetActiveWorkspaceId).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("Should leave a background root location inert when its channels resolve", async () => {
