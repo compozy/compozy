@@ -439,7 +439,11 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		rejectedMeta := readMeta(t, active.MetaPath())
 		rejectedSelection, rejectedRevision := store.SessionRuntimeSelectionStateValues(rejectedMeta.RuntimeSelection)
 		if rejectedSelection != nil || rejectedRevision != 0 {
-			t.Fatalf("rejected Cursor selection = %#v at revision %d, want no persisted selection", rejectedSelection, rejectedRevision)
+			t.Fatalf(
+				"rejected Cursor selection = %#v at revision %d, want no persisted selection",
+				rejectedSelection,
+				rejectedRevision,
+			)
 		}
 
 		updated, err := h.manager.SetRuntimeSelection(

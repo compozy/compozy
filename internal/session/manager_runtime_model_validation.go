@@ -94,10 +94,10 @@ func (m *Manager) validateCursorCatalogModel(ctx context.Context, modelID string
 
 func (m *Manager) validateExplicitStartModel(
 	ctx context.Context,
-	runtime sessionStartRuntime,
+	runtime *sessionStartRuntime,
 	spec *sessionStartSpec,
 ) error {
-	if spec == nil {
+	if runtime == nil || spec == nil {
 		return nil
 	}
 	providerID := strings.TrimSpace(runtime.agent.RuntimeProvider)

@@ -38,7 +38,7 @@ func (m *Manager) acceptSessionStart(
 		)
 		return nil, fmt.Errorf("session: resolve %s runtime for %q: %w", spec.startAction, spec.sessionID, err)
 	}
-	if err := m.validateExplicitStartModel(acceptCtx, runtime, spec); err != nil {
+	if err := m.validateExplicitStartModel(acceptCtx, &runtime, spec); err != nil {
 		return nil, err
 	}
 	if spec.creationIdentityPinned {

@@ -18,6 +18,7 @@ const (
 	liveDiscoveryHTTP    liveDiscoveryKind = "http"
 	liveDiscoveryCommand liveDiscoveryKind = "command"
 	liveDiscoveryACP     liveDiscoveryKind = "acp"
+	cursorACPCommand                       = "cursor-agent acp"
 )
 
 type liveAuthScheme string
@@ -110,7 +111,7 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 	},
 	liveSourcesCursorKey: {
 		defaultKind:     liveDiscoveryACP,
-		defaultCommand:  "cursor-agent acp",
+		defaultCommand:  cursorACPCommand,
 		bootstrapOnList: true,
 	},
 	"openclaw": {
@@ -138,7 +139,10 @@ func (s *LiveProviderSource) discoveryTarget(
 		if hasConfiguredPath {
 			return liveDiscoveryTarget{}, ErrSourceDisabled
 		}
-		return liveDiscoveryTarget{}, fmt.Errorf("model catalog: provider %q has no configured model discovery path", s.providerID)
+		return liveDiscoveryTarget{}, fmt.Errorf(
+			"model catalog: provider %q has no configured model discovery path",
+			s.providerID,
+		)
 	}
 	timeout, err := s.discoveryTimeout(discovery.Timeout)
 	if err != nil {

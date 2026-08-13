@@ -262,7 +262,10 @@ func TestLiveProviderSources(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels() error = %v", err)
 		}
-		if got, want := rowModelIDs(rows), []string{"composer-2.5", "grok-4.5[effort=high,fast=true]"}; !slices.Equal(got, want) {
+		if got, want := rowModelIDs(rows), []string{
+			"composer-2.5",
+			"grok-4.5[effort=high,fast=true]",
+		}; !slices.Equal(got, want) {
 			t.Fatalf("row ids = %#v, want %#v", got, want)
 		}
 		if rows[0].DisplayName != "Composer 2.5" || rows[1].DisplayName != "Grok 4.5" {
@@ -272,8 +275,8 @@ func TestLiveProviderSources(t *testing.T) {
 			t.Fatal("BootstrapOnList() = false, want true")
 		}
 		req := probe.singleRequest(t)
-		if req.Command != "cursor-agent acp" {
-			t.Fatalf("command = %q, want cursor-agent acp", req.Command)
+		if req.Command != cursorACPCommand {
+			t.Fatalf("command = %q, want %s", req.Command, cursorACPCommand)
 		}
 		if got := envValue(req.Env, "HOME"); got != "/Users/operator" {
 			t.Fatalf("HOME = %q, want operator home", got)
@@ -409,7 +412,7 @@ func TestLiveProviderSources(t *testing.T) {
 		if status.RefreshState != RefreshStateFailed {
 			t.Fatalf("RefreshState = %q, want failed", status.RefreshState)
 		}
-		if !strings.Contains(status.LastError, "no configured side-effect-free") {
+		if !strings.Contains(status.LastError, "no configured model discovery") {
 			t.Fatalf("LastError = %q, want no configured discovery path", status.LastError)
 		}
 	})
@@ -732,7 +735,7 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 		if targetErr != nil {
 			t.Fatalf("Cursor discoveryTarget() error = %v", targetErr)
 		}
-		if target.kind != liveDiscoveryACP || target.command != "cursor-agent acp" {
+		if target.kind != liveDiscoveryACP || target.command != cursorACPCommand {
 			t.Fatalf("Cursor discovery target = %#v, want cursor-agent ACP command", target)
 		}
 	})
