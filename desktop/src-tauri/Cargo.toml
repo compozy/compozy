@@ -68,3 +68,7 @@ strip = true
 [[bin]]
 name = "compozyos-desktop"
 path = "src/main.rs"
+
+[[bin]]
+name = "compozy-runtime-manifest-check"
+path = "src/bin/runtime_manifest_check.rs"

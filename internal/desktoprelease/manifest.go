@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -242,15 +241,4 @@ func digestFile(path string) (string, int64, error) {
 		return "", 0, fmt.Errorf("close artifact: %w", closeErr)
 	}
 	return hex.EncodeToString(digest.Sum(nil)), size, nil
-}
-
-func writeCanonicalJSON(path string, value any) error {
-	contents, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Errorf("desktop release: encode canonical JSON: %w", err)
-	}
-	if err := os.WriteFile(path, contents, 0o600); err != nil {
-		return fmt.Errorf("desktop release: write %s: %w", filepath.Base(path), err)
-	}
-	return nil
 }

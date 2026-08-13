@@ -542,6 +542,34 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_API_ISSUER")
 		assertNotContainsText(t, "desktop release workflow", workflow, "APPLE_API_KEY")
 	})
+
+	t.Run("Should verify the signed runtime manifest with the desktop consumer before publication", func(t *testing.T) {
+		t.Parallel()
+
+		signManifest := strings.Index(workflow, "scripts/sign-runtime-manifest.sh")
+		verifyManifest := strings.Index(workflow, "--bin compozy-runtime-manifest-check")
+		publishFeed := strings.Index(workflow, "scripts/publish-desktop-release.sh")
+		if signManifest == -1 || verifyManifest == -1 || publishFeed == -1 {
+			t.Fatal(
+				"desktop release workflow is missing candidate manifest signing, " +
+					"consumer verification, or publication",
+			)
+		}
+		if signManifest > verifyManifest || verifyManifest > publishFeed {
+			t.Fatal("desktop release workflow must verify signed candidate manifest bytes before publication")
+		}
+		verification := workflow[signManifest:publishFeed]
+		for _, required := range []string{
+			"TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}",
+			".artifacts/feed/runtime.json.minisig",
+			`"${RELEASE_VERSION}"`,
+			"darwin-aarch64",
+			"darwin-x86_64",
+			"linux-x86_64",
+		} {
+			assertContainsText(t, "runtime manifest consumer verification", verification, required)
+		}
+	})
 }
 
 func TestDesktopReleaseScriptsRefuseUnsafeOperatorInputs(t *testing.T) {
