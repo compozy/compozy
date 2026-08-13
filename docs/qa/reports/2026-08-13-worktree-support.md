@@ -26,8 +26,8 @@
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
 | 1 | CH-worktree-lifecycle-surface-parity | J-worktree-management / RT-worktree-cli-lifecycle | Ada | Feature | Pending | | |
-| 2 | CH-worktree-lifecycle-surface-parity | J-worktree-management / RT-worktree-api-surface-parity | Ada | Feature | Pending | | |
-| 3 | CH-worktree-lifecycle-surface-parity | J-worktree-management / RT-worktree-web-create-adopt | Ada | Feature | Pending | BUG-20260813-pending-worktree-marked-missing | pending |
+| 2 | CH-worktree-lifecycle-surface-parity | J-worktree-management / RT-worktree-api-surface-parity | Ada | Feature | Pending | BUG-20260813-base-ref-accepted-before-validation | pending |
+| 3 | CH-worktree-lifecycle-surface-parity | J-worktree-management / RT-worktree-web-create-adopt | Ada | Feature | Pending | BUG-20260813-pending-worktree-marked-missing; BUG-20260813-base-ref-accepted-before-validation | b6eb94d; pending |
 | 4 | CH-worktree-lifecycle-surface-parity | J-worktree-management / RT-worktree-web-nested-navigation | Ada | Feature | Pending | BUG-20260813-desktop-shell-context-order; BUG-20260813-pending-worktree-marked-missing | 8ec45d75; pending |
 | 5 | CH-worktree-binding-containment | J-worktree-management / RT-session-worktree-lifecycle | Théo | Garbage | Pending | | |
 | 6 | CH-worktree-binding-containment | J-worktree-management / RT-session-worktree-resume-refusal | Théo | Garbage | Pending | | |
@@ -79,6 +79,9 @@ Pending execution.
 - `BUG-20260813-worktree-config-paths-not-mutable` — the shared CLI/native typed mutation policy now
   includes every `[worktrees]` lifecycle setting. Public set/unset applied live and browser
   cancellation removed a checkout while its configured setup command was still running.
+- `BUG-20260813-base-ref-accepted-before-validation` — branch/base identity now resolves before
+  pending persistence. HTTP returns the canonical refusal synchronously and the Web maps it to the
+  Base ref field without leaving a phantom creation.
 
 ## Paper Cuts
 

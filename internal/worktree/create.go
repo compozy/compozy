@@ -122,7 +122,7 @@ func (s *Service) create(ctx context.Context, workspaceID string, options Create
 	}
 	defer release()
 
-	if err := s.insertPendingUnderLock(ctx, workspace, commonDir, item, options); err != nil {
+	if err := s.insertPendingUnderLock(ctx, workspace, commonDir, &item, options); err != nil {
 		return nil, err
 	}
 	if err := s.materializePending(ctx, workspace, &item, options); err != nil {
@@ -171,19 +171,22 @@ func (s *Service) insertPendingUnderLock(
 	ctx context.Context,
 	workspace Workspace,
 	commonDir string,
-	item Worktree,
+	item *Worktree,
 	options CreateOptions,
 ) error {
-	if err := s.validateCreateUnderLock(ctx, workspace, commonDir, item, options); err != nil {
+	if err := s.validateCreateUnderLock(ctx, workspace, commonDir, *item, options); err != nil {
 		return err
 	}
-	if err := s.dispatchGate(ctx, EventPreCreate, eventPayloadFromWorktree(item, workspace.Root)); err != nil {
+	if err := s.resolvePendingBranch(ctx, workspace.Root, item, options); err != nil {
 		return err
 	}
-	if err := s.store.Insert(ctx, item); err != nil {
-		return mapInsertError(err, item)
+	if err := s.dispatchGate(ctx, EventPreCreate, eventPayloadFromWorktree(*item, workspace.Root)); err != nil {
+		return err
 	}
-	s.publishCatalogEvent(CatalogEventUpserted, item)
+	if err := s.store.Insert(ctx, *item); err != nil {
+		return mapInsertError(err, *item)
+	}
+	s.publishCatalogEvent(CatalogEventUpserted, *item)
 	return nil
 }
 
@@ -319,9 +322,6 @@ func (s *Service) materializePending(
 ) error {
 	_, placementRoot := s.worktreeSettings(workspace)
 	explicitPath := options.Path != ""
-	if err := s.resolvePendingBranch(ctx, workspace.Root, item, options); err != nil {
-		return err
-	}
 	if err := s.setPending(ctx, item, PhaseBranch); err != nil {
 		return err
 	}

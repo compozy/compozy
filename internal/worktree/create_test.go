@@ -649,6 +649,16 @@ func TestServiceCreate(t *testing.T) {
 		}); !errors.Is(err, ErrBaseRefNotFound) {
 			t.Fatalf("Create(missing base) error = %v, want ErrBaseRefNotFound", err)
 		}
+		if item, err := baseFixture.service.CreateAccepted(
+			context.Background(),
+			baseFixture.workspace.ID,
+			CreateOptions{Name: "Missing Accepted Base", BaseRef: "missing"},
+		); !errors.Is(err, ErrBaseRefNotFound) || item != nil {
+			t.Fatalf("CreateAccepted(missing base) = %#v, %v, want nil ErrBaseRefNotFound", item, err)
+		}
+		if rows, err := baseFixture.store.List(context.Background(), baseFixture.workspace.ID); err != nil || len(rows) != 0 {
+			t.Fatalf("List() after rejected acceptance = %#v, %v, want no durable row", rows, err)
+		}
 
 		unbornFixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		unbornRun := unbornFixture.runner.run

@@ -98,7 +98,7 @@ func (s *Service) startAcceptedCreation(
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := s.insertPendingUnderLock(ctx, workspace, commonDir, item, options); err != nil {
+	if err := s.insertPendingUnderLock(ctx, workspace, commonDir, &item, options); err != nil {
 		release()
 		return nil, nil, err
 	}
