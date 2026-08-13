@@ -807,15 +807,14 @@ jobs:
           git push origin "refs/tags/${RELEASE_TAG}" "refs/tags/${sdk_go_tag}"
 
       - uses: goreleaser/goreleaser-action@v7
-        name: Prepare release artifacts without publication
-        if: |
-          steps.publication.outputs.stage_release == 'true' ||
-          steps.publication.outputs.cli_state == 'missing'
+        name: Prepare npm CLI package without publication
+        if: steps.publication.outputs.cli_state == 'missing'
         with:
           distribution: goreleaser-pro
           version: v2.17.1
           args: >-
             release --clean --prepare
+            --dist=.release-dist/npm
             --config=${{ runner.temp }}/.goreleaser.yml
             --release-notes=${{ runner.temp }}/RELEASE_BODY.md
             --release-header-tmpl=.goreleaser.release-header.md.tmpl
@@ -833,12 +832,38 @@ jobs:
           HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}
 
       - uses: goreleaser/goreleaser-action@v7
+        name: Prepare GitHub artifacts without npm publisher
+        if: steps.publication.outputs.stage_release == 'true'
+        with:
+          distribution: goreleaser-pro
+          version: v2.17.1
+          args: >-
+            release --clean --prepare
+            --dist=.release-dist/github
+            --config=${{ runner.temp }}/.goreleaser.yml
+            --release-notes=${{ runner.temp }}/RELEASE_BODY.md
+            --release-header-tmpl=.goreleaser.release-header.md.tmpl
+            --release-footer-tmpl=.goreleaser.release-footer.md.tmpl
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+          GORELEASER_CURRENT_TAG: ${{ needs.release-plan.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
+          NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
+          HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}
+          GORELEASER_PUBLISH_NPM: "false"
+
+      - uses: goreleaser/goreleaser-action@v7
         name: Stage GitHub draft without publishing npm
         if: steps.publication.outputs.stage_release == 'true'
         with:
           distribution: goreleaser-pro
           version: v2.17.1
-          args: publish
+          args: publish --dist=.release-dist/github
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
@@ -849,14 +874,13 @@ jobs:
           GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}
           NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}
           HOMEBREW_SKIP_UPLOAD: ${{ needs.release-plan.outputs.homebrew_skip_upload }}
-          GORELEASER_PUBLISH_NPM: "false"
 
       - name: Upload prepared npm CLI package
         if: steps.publication.outputs.cli_state == 'missing'
         uses: actions/upload-artifact@v7
         with:
           name: npm-cli-${{ needs.release-plan.outputs.release_version }}
-          path: dist/npm/@compozy/cli/*
+          path: .release-dist/npm/npm/@compozy/cli/*
           if-no-files-found: error
           retention-days: 14
 

@@ -685,8 +685,21 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		}
 		assertContainsText(t, "GoReleaser npm custody", workflow, `GORELEASER_PUBLISH_NPM: "false"`)
 		assertContainsText(t, "public CLI installation", workflow, "smoke-public-cli-package.sh")
-		assertContainsText(t, "GoReleaser staged publication", workflow, "args: publish")
+		assertContainsText(t, "isolated npm preparation", workflow, "name: Prepare npm CLI package without publication")
+		assertContainsText(t, "isolated npm preparation", workflow, "--dist=.release-dist/npm")
+		assertContainsText(t, "isolated npm artifact", workflow, ".release-dist/npm/npm/@compozy/cli/*")
+		assertContainsText(t, "isolated GitHub preparation", workflow, "name: Prepare GitHub artifacts without npm publisher")
+		assertContainsText(t, "isolated GitHub preparation", workflow, "--dist=.release-dist/github")
+		assertContainsText(t, "GoReleaser staged publication", workflow, "args: publish --dist=.release-dist/github")
 		assertNotContainsText(t, "GoReleaser staged publication", workflow, "publish --config")
+
+		githubPreparationStart := strings.Index(workflow, "name: Prepare GitHub artifacts without npm publisher")
+		githubPreparationEnd := strings.Index(workflow, "name: Stage GitHub draft without publishing npm")
+		githubPreparation := workflow[githubPreparationStart:githubPreparationEnd]
+		assertContainsText(t, "isolated GitHub preparation", githubPreparation, `GORELEASER_PUBLISH_NPM: "false"`)
+		if got := strings.Count(workflow, `GORELEASER_PUBLISH_NPM: "false"`); got != 1 {
+			t.Fatalf("deferred npm switch count = %d, want exactly one GitHub preparation context", got)
+		}
 
 		finalizer := workflow[publishDraft:verifyPublished]
 		for _, required := range []string{
