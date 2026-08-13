@@ -822,15 +822,16 @@ func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
 		t.Parallel()
 
 		operatorHome := filepath.Join(t.TempDir(), "operator-home")
-		if err := os.MkdirAll(operatorHome, 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(operatorHome, compozyconfig.DirName), 0o755); err != nil {
 			t.Fatalf("os.MkdirAll(%q) error = %v", operatorHome, err)
 		}
 		writeDaemonFile(
 			t,
 			filepath.Join(operatorHome, compozyconfig.DirName, compozyconfig.ConfigName),
-			"[gateway]\nenabled = true\n",
+			"[gateway]\nenabled = true\nprivate_port = 5252\n",
 		)
 		homePaths := testHomePaths(t)
+		writeDaemonFile(t, homePaths.ConfigFile, "[gateway]\nprivate_port = 4242\n")
 		cfg := testConfig(t, homePaths)
 		cfg.Network.Enabled = false
 
@@ -884,6 +885,9 @@ func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
 		}
 		if resolved.ID != workspaces[0].ID {
 			t.Fatalf("Resolve(operator home) ID = %q, want %q", resolved.ID, workspaces[0].ID)
+		}
+		if got, want := resolved.Config.Gateway.PrivatePort, 4242; got != want {
+			t.Fatalf("Resolve(operator home) Gateway.PrivatePort = %d, want isolated global %d", got, want)
 		}
 
 		again, err := d.workspaceResolver.ResolveOrRegister(testutil.Context(t), operatorHome)

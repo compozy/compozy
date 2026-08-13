@@ -122,11 +122,12 @@ func (d *Daemon) bootRegistryState(
 		workspacepkg.WithHomePaths(d.homePaths),
 		workspacepkg.WithLogger(state.logger),
 		workspacepkg.WithConfigLoader(func(rootDir string) (compozyconfig.Config, error) {
-			// The synthetic operator-home workspace is global scope, not a project overlay.
+			loadOptions := []compozyconfig.LoadOption{compozyconfig.WithWorkspaceRoot(rootDir)}
+			// The synthetic operator-home workspace keeps its environment but has no project overlays.
 			if rootDir == operatorHome {
-				return compozyconfig.LoadForHome(d.homePaths)
+				loadOptions = append(loadOptions, compozyconfig.WithoutWorkspaceOverlayFiles())
 			}
-			return compozyconfig.LoadForHome(d.homePaths, compozyconfig.WithWorkspaceRoot(rootDir))
+			return compozyconfig.LoadForHome(d.homePaths, loadOptions...)
 		}),
 		workspacepkg.WithChangeHook(func(changeCtx context.Context) error {
 			return syncWorkspaceDerivedResources(changeCtx, state)

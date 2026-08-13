@@ -24,7 +24,7 @@ const (
 
 // LoadGlobalConfig loads only the user-global Compozy config from the resolved home.
 func LoadGlobalConfig(homePaths HomePaths) (Config, error) {
-	return loadWithHome(homePaths, "", false, processEnvLookup)
+	return loadWithHome(homePaths, "", false, false, processEnvLookup)
 }
 
 // ResolveAgentName resolves an explicit session agent name or falls back to config defaults.

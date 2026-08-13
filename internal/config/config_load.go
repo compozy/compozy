@@ -7,9 +7,10 @@ import (
 )
 
 type loadOptions struct {
-	workspaceRoot string
-	skipDotEnv    bool
-	skipValidate  bool
+	workspaceRoot             string
+	skipDotEnv                bool
+	skipValidate              bool
+	skipWorkspaceOverlayFiles bool
 }
 
 type envLookup func(string) (string, bool)
@@ -40,6 +41,13 @@ type LoadOption func(*loadOptions)
 func WithWorkspaceRoot(root string) LoadOption {
 	return func(opts *loadOptions) {
 		opts.workspaceRoot = root
+	}
+}
+
+// WithoutWorkspaceOverlayFiles keeps workspace environment lookup while omitting workspace config files.
+func WithoutWorkspaceOverlayFiles() LoadOption {
+	return func(opts *loadOptions) {
+		opts.skipWorkspaceOverlayFiles = true
 	}
 }
 
@@ -84,7 +92,13 @@ func Load(opts ...LoadOption) (Config, error) {
 		return Config{}, err
 	}
 
-	return loadWithHome(homePaths, workspaceRoot, options.skipValidate, lookup)
+	return loadWithHome(
+		homePaths,
+		workspaceRoot,
+		options.skipWorkspaceOverlayFiles,
+		options.skipValidate,
+		lookup,
+	)
 }
 
 // LoadForHome reads the default config, the optional global config, and the optional workspace
@@ -111,10 +125,22 @@ func LoadForHome(homePaths HomePaths, opts ...LoadOption) (Config, error) {
 		lookup = layeredEnvLookup(processEnvLookup, dotenvLookup)
 	}
 
-	return loadWithHome(homePaths, workspaceRoot, options.skipValidate, lookup)
+	return loadWithHome(
+		homePaths,
+		workspaceRoot,
+		options.skipWorkspaceOverlayFiles,
+		options.skipValidate,
+		lookup,
+	)
 }
 
-func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool, lookup envLookup) (Config, error) {
+func loadWithHome(
+	homePaths HomePaths,
+	workspaceRoot string,
+	skipWorkspaceOverlayFiles bool,
+	skipValidate bool,
+	lookup envLookup,
+) (Config, error) {
 	cfg := DefaultWithHome(homePaths)
 	if err := ApplyConfigOverlayFile(homePaths.ConfigFile, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global config: %w", err)
@@ -122,7 +148,7 @@ func loadWithHome(homePaths HomePaths, workspaceRoot string, skipValidate bool, 
 	if err := applyConfigMCPSidecarFile(globalMCPJSONFile(homePaths), &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}
-	if hasDistinctWorkspaceOverlay(homePaths, workspaceRoot) {
+	if !skipWorkspaceOverlayFiles && hasDistinctWorkspaceOverlay(homePaths, workspaceRoot) {
 		if err := applyWorkspaceConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace config: %w", err)
 		}
