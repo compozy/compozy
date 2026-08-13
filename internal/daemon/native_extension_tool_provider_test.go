@@ -18,6 +18,34 @@ import (
 func TestDaemonExtensionToolProvider(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should project callable extension tools during the hosted session bootstrap", func(t *testing.T) {
+		t.Parallel()
+
+		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
+		provider := newDaemonScopedExtensionToolProvider(inner, &daemonExtensionWorkspaceResolverStub{})
+		registry, err := toolspkg.NewRegistry(
+			toolspkg.WithProviders(provider),
+			toolspkg.WithPolicyInputs(toolspkg.PolicyInputs{
+				SystemPermissionMode: toolspkg.PermissionModeApproveAll,
+				ExternalDefault:      toolspkg.ExternalDefaultEnabled,
+			}, toolspkg.ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		views, err := registry.BootstrapSessionProjection(t.Context(), toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("BootstrapSessionProjection() error = %v", err)
+		}
+		if got, want := len(views), 1; got != want {
+			t.Fatalf("len(bootstrap tools) = %d, want %d: %#v", got, want, views)
+		}
+		if got, want := views[0].Descriptor.ID, devCycleImportTasksToolID; got != want {
+			t.Fatalf("bootstrap tool = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should canonicalize workspace scope and attach authority to arbitrary extension tools", func(t *testing.T) {
 		t.Parallel()
 

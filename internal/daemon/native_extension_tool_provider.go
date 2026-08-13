@@ -25,11 +25,6 @@ type daemonExtensionToolProvider struct {
 var _ toolspkg.Provider = (*daemonExtensionToolProvider)(nil)
 var _ toolspkg.ProjectionGenerationProvider = (*daemonExtensionToolProvider)(nil)
 
-// DeferInitialDiscovery keeps extension subprocess discovery out of the hosted MCP handshake.
-func (*daemonExtensionToolProvider) DeferInitialDiscovery() bool {
-	return true
-}
-
 func newDaemonScopedExtensionToolProvider(
 	inner toolspkg.Provider,
 	workspaceResolver workspacepkg.RuntimeResolver,
