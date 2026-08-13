@@ -8,7 +8,7 @@ type ProviderModelsConfig struct {
 	Reasoning ProviderReasoningConfig       `toml:"reasoning,omitempty"`
 }
 
-// ProviderModelsDiscoveryConfig describes optional side-effect-free model discovery.
+// ProviderModelsDiscoveryConfig describes optional provider model discovery.
 type ProviderModelsDiscoveryConfig struct {
 	Enabled  *bool  `toml:"enabled,omitempty"`
 	Command  string `toml:"command,omitempty"`

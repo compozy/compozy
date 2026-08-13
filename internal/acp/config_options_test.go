@@ -159,4 +159,23 @@ func TestConfigOptionMatching(t *testing.T) {
 			t.Fatal("configOptionAllowsValue() accepted boolean option as select")
 		}
 	})
+
+	t.Run("Should require an exact advertised model value", func(t *testing.T) {
+		t.Parallel()
+
+		advertised := "grok-4.5[effort=high,fast=true]"
+		options := []SessionConfigOption{{
+			ID:       "model",
+			Kind:     SessionConfigOptionKindSelect,
+			Values:   []SessionConfigOptionValue{{Value: advertised}},
+			Current:  advertised,
+			Category: string(acpsdk.SessionConfigOptionCategoryModel),
+		}}
+		if err := ValidateModelConfigValue(options, advertised); err != nil {
+			t.Fatalf("ValidateModelConfigValue(advertised) error = %v", err)
+		}
+		if err := ValidateModelConfigValue(options, "cursor-grok-4.5-high"); err == nil {
+			t.Fatal("ValidateModelConfigValue(alias) error = nil, want exact-membership rejection")
+		}
+	})
 }

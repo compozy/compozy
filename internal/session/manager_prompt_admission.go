@@ -136,6 +136,9 @@ func (m *Manager) resolvePromptAdmissionTarget(
 	if err != nil {
 		return promptAdmissionTarget{}, err
 	}
+	if err := m.validateRuntimeModelAtAdmission(ctx, nil, *resolved); err != nil {
+		return promptAdmissionTarget{}, err
+	}
 	return promptAdmissionTarget{workspaceID: meta.WorkspaceID, runtime: resolved}, nil
 }
 
@@ -360,6 +363,9 @@ func (m *Manager) submitAdmittedGoalPrompt(
 		return *replayed, nil
 	}
 	preparation.request = bindPromptAdmissionRequest(preparation.request, admission)
+	if err := m.validateActiveCursorRuntimeModel(session, preparation.request.runtime); err != nil {
+		return SendPromptResult{}, err
+	}
 	if err := m.commitPromptAdmissionDispatch(ctx, admission); err != nil {
 		return SendPromptResult{}, err
 	}

@@ -43,11 +43,12 @@ Higher-priority non-empty fields win; lower-priority sources fill missing fields
 fresher `refreshed_at`, then ascending `source_id`. `models.dev` and `builtin` rows can enrich
 metadata but never prove account-level availability.
 
-Cursor registers `provider_live:cursor` with the native `cursor-agent models` command. The first
-catalog read with no recorded Cursor discovery status runs that command under the provider's resolved
-home policy, preserves each returned ID and display name, and stores the rows before returning the
-projection. Later reads use the stored result. A failed first attempt is also stored as source status;
-use the normal refresh surfaces to retry or update the account catalog.
+Cursor registers `provider_live:cursor` with `cursor-agent acp`. The first catalog read with no
+recorded Cursor discovery status starts a short-lived ACP inspection under the provider's resolved home
+policy, reads the exact values in Cursor's advertised `model` option, and stores those rows before
+returning the projection. The human-readable `cursor-agent models` aliases are not used. Later reads use
+the stored result. A failed first attempt is also stored as source status; use the normal refresh surfaces
+to retry or update the account catalog.
 
 Input, output, cache-read, cache-write, and reasoning prices merge independently and retain the
 source of the winning field. A cost estimate is available only when every nonzero usage bucket has
@@ -381,9 +382,10 @@ a recorded source status (with redacted error) instead of corrupting the project
 - Refreshes for different providers can run concurrently.
 - The daemon joins outstanding refresh workers during shutdown.
 
-Discovery never creates an ACP session. Live provider sources fail closed by recording source
-status; session creation is never blocked on a successful network refresh. Stale rows remain
-available as a fallback while the catalog labels them stale.
+Most discovery paths never create an ACP session. Cursor uses a short-lived ACP inspection because its
+CLI aliases are not transport values. Live provider sources fail closed by recording source status; an
+explicit Cursor model is accepted only when a fresh Cursor ACP catalog entry advertises its exact value.
+Stale rows remain visible as fallback metadata but cannot authorize that explicit Cursor selection.
 
 ## Observability
 

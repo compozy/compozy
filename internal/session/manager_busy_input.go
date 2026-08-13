@@ -93,6 +93,9 @@ func (m *Manager) resolvePromptRuntimeAtAdmission(
 	if err != nil {
 		return nil, err
 	}
+	if err := m.validateRuntimeModelAtAdmission(ctx, session, plan.selection); err != nil {
+		return nil, err
+	}
 	return &plan.selection, nil
 }
 

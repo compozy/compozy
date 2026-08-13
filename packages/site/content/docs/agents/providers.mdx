@@ -201,12 +201,14 @@ deltas, including the five pricing fields, without copying unchanged catalog enr
 `config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
 change is limited to `hidden`, `featured`, `deprecated`, or a default reasoning effort.
 
-Discovery uses the resolved provider auth, env, and home policy and never creates an ACP session.
-When a discovery path is unavailable or fails, the model catalog records a source status and falls
-back to stale or lower-priority rows; session creation never depends on a successful discovery.
-Cursor has a built-in safe path: `cursor-agent models` runs once on the first catalog read when no
-Cursor discovery status exists. It uses the operator home required by Cursor's native login, caches
-the exact account model IDs, and runs again only through an explicit catalog refresh.
+Discovery uses the resolved provider auth, env, and home policy. Most adapters do not create an ACP
+session. Cursor is the exception: `cursor-agent acp` starts a short-lived inspection session that reads
+the exact values advertised by Cursor's `model` option. The human-readable `cursor-agent models` aliases
+are not model IDs for CompozyOS. When a discovery path is unavailable or fails, the model catalog records
+a source status and falls back to stale or lower-priority rows. An explicit Cursor model refreshes this
+catalog before creation and must match a fresh advertised value; leaving the model blank preserves
+Cursor's native default. Cursor uses the operator home required by its native login and runs again only
+through an explicit catalog refresh.
 Changes under `models.discovery` apply live: CompozyOS atomically rebinds and refreshes only the changed
 provider source. Model metadata edits do not invoke provider discovery, and a failed live refresh
 keeps prior rows stale instead of rejecting the config write.

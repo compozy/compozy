@@ -63,6 +63,7 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 	}
 	process.setCaps(captureCaps(
 		process.CapsSnapshot().SupportsLoadSession,
+		process.CapsSnapshot().SupportsCloseSession,
 		loadResponse.Modes,
 		loadResponse.ConfigOptions,
 	))
@@ -102,6 +103,7 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 	}
 	process.setCaps(captureCaps(
 		process.CapsSnapshot().SupportsLoadSession,
+		process.CapsSnapshot().SupportsCloseSession,
 		newResponse.Modes,
 		newResponse.ConfigOptions,
 	))
@@ -113,6 +115,9 @@ func (d *Driver) applySessionConfiguration(
 	process *AgentProcess,
 	normalized StartOpts,
 ) error {
+	if normalized.Inspection {
+		return nil
+	}
 	stageStartedAt := time.Now()
 	applied, err := d.applySessionMode(ctx, process, normalized.Permissions)
 	d.logStartStage(normalized, process, "set_mode", stageOutcome(err, !applied), stageStartedAt)

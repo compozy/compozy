@@ -4,15 +4,15 @@ area: RT
 title: Choose an exact provider model ID in the runtime selector
 persona: Bruno
 journey: J-17
-expected: The exact-model action stays visible during catalog loading, opens a focused labelled field with an empty disabled confirmation, preserves the typed ID exactly, and persists it for the selected provider through a public readback.
+expected: The exact-model action stays visible during catalog loading, opens a focused labelled field with an empty disabled confirmation, preserves an exact live Cursor ID, rejects a non-advertised Cursor alias without persisting it, and exposes the selected value through a public readback.
 entry_points: web session composer Next prompt selector; web agent runtime selector; HTTP+UDS session runtime readback
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-312-cursor-models-20260805-200518-943803-lab/qa-artifacts/qa/issue-312-evidence.md;/Users/pedronauck/dev/qa-labs/compozy-issue-312-cursor-models-20260805-200518-943803-lab/qa-artifacts/qa/screenshots/issue-312-web-exact-model-empty.png;/Users/pedronauck/dev/qa-labs/compozy-issue-312-cursor-models-20260805-200518-943803-lab/qa-artifacts/qa/screenshots/issue-312-web-exact-model-filled.png;/Users/pedronauck/dev/qa-labs/compozy-issue-312-cursor-models-20260805-200518-943803-lab/qa-artifacts/qa/screenshots/issue-312-web-exact-model-selected.png;/Users/pedronauck/dev/qa-labs/compozy-issue-312-review-remediation-final-20260805-230015-520918-lab/qa-artifacts/qa/issue-312-review-evidence.md;/Users/pedronauck/dev/qa-labs/compozy-issue-312-review-remediation-final-20260805-230015-520918-lab/qa-artifacts/qa/screenshots/exact-empty.png;/Users/pedronauck/dev/qa-labs/compozy-issue-312-review-remediation-final-20260805-230015-520918-lab/qa-artifacts/qa/screenshots/exact-enter-committed.png;/Users/pedronauck/dev/qa-labs/compozy-issue-312-review-remediation-final-20260805-230015-520918-lab/qa-artifacts/qa/screenshots/exact-pointer-committed.png
-last_report: docs/qa/reports/2026-08-05-issue-312-review-remediation.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-web-network.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-web-config.toml;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-web-provider-settings.json;docs/qa/reports/2026-08-13-issue-389-cursor-model.md
+last_report: docs/qa/reports/2026-08-13-issue-389-cursor-model.md
 overlaps: RT-session-runtime-selection-continuity;ET-web-session-prompt-runtime-and-create-navigation
 ---
 

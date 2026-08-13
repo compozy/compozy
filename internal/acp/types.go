@@ -72,6 +72,7 @@ type StartOpts struct {
 	ProviderConfig       *compozyconfig.ProviderConfig
 	ProviderAuthEnv      *authproviders.ProbeEnv
 	ActivateMCPServers   func(context.Context) error
+	Inspection           bool
 
 	launchIdentity *preparedLaunchIdentity
 }
@@ -168,19 +169,21 @@ type PromptActivityReport struct {
 
 // Caps captures the usable capabilities exposed by an ACP agent.
 type Caps struct {
-	SupportsLoadSession bool
-	SupportedModes      []string
-	ConfigOptions       []SessionConfigOption
-	SpeedResolution     *speedpkg.Resolution
+	SupportsLoadSession  bool
+	SupportsCloseSession bool
+	SupportedModes       []string
+	ConfigOptions        []SessionConfigOption
+	SpeedResolution      *speedpkg.Resolution
 }
 
 // CloneCaps returns a deep copy of ACP caps.
 func CloneCaps(caps Caps) Caps {
 	return Caps{
-		SupportsLoadSession: caps.SupportsLoadSession,
-		SupportedModes:      append([]string(nil), caps.SupportedModes...),
-		ConfigOptions:       CloneSessionConfigOptions(caps.ConfigOptions),
-		SpeedResolution:     speedpkg.CloneResolution(caps.SpeedResolution),
+		SupportsLoadSession:  caps.SupportsLoadSession,
+		SupportsCloseSession: caps.SupportsCloseSession,
+		SupportedModes:       append([]string(nil), caps.SupportedModes...),
+		ConfigOptions:        CloneSessionConfigOptions(caps.ConfigOptions),
+		SpeedResolution:      speedpkg.CloneResolution(caps.SpeedResolution),
 	}
 }
 

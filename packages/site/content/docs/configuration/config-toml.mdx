@@ -1360,9 +1360,9 @@ metadata, never an allowlist.
 | `models.curated[].featured`                     | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Adds a current row to curated candidates. Explicit `false` clears a lower-source flag.                                 |
 | `models.curated[].release_date`                 | string  | empty.                             | `YYYY-MM` or `YYYY-MM-DD`.                                                             | Optional release metadata used for curated ordering; unknown dates stay empty.                                         |
 | `models.reasoning.apply`                        | string  | `none` unless a built-in opts in.  | `acp_option`, `none`.                                                                  | Applies effort through an advertised ACP option or exposes no selectable strategy.                                     |
-| `models.discovery.enabled`                      | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                       | Enables the side-effect-free model discovery adapter for this provider.                                                |
-| `models.discovery.command`                      | string  | empty.                             | Shell-style command string.                                                            | Side-effect-free discovery command. Mutually exclusive with `endpoint` unless the adapter documents both.              |
-| `models.discovery.endpoint`                     | string  | empty.                             | Absolute HTTP(S) URL.                                                                  | Side-effect-free discovery endpoint URL. Mutually exclusive with `command` unless the adapter documents both.          |
+| `models.discovery.enabled`                      | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                       | Enables model discovery for this provider. Cursor uses a short-lived ACP inspection.                                   |
+| `models.discovery.command`                      | string  | empty.                             | Shell-style command string.                                                            | Discovery command. For Cursor, this must start an ACP server such as `cursor-agent acp`.                               |
+| `models.discovery.endpoint`                     | string  | empty.                             | Absolute HTTP(S) URL.                                                                  | Discovery endpoint URL. Cursor does not support an endpoint because its model values come from ACP.                    |
 | `models.discovery.timeout`                      | string  | model catalog source timeout.      | Positive duration (`10s`, `45s`, `2m`).                                                | Per-discovery timeout.                                                                                                 |
 
 Rate changes apply to subsequent usage updates and do not reprice persisted token statistics.
@@ -1370,12 +1370,14 @@ Agent-reported actual cost remains authoritative over catalog estimation. Estima
 finite, non-negative rate for every nonzero token bucket; missing cache-read, cache-write, or
 reasoning rates do not fall back to input or output rates.
 
-Discovery adapters use the resolved provider auth, env, and home policy. Discovery never creates an
-ACP session; if discovery is unavailable or fails, the catalog records source status and falls back
-to stale or lower-priority rows. Session creation never depends on a successful discovery refresh.
-The built-in Cursor adapter uses `cursor-agent models` with the operator home. Its first catalog read
-records either the exact account rows or a failed status; later reads use that stored state until an
-explicit refresh runs.
+Discovery adapters use the resolved provider auth, env, and home policy. Most discovery paths do not
+create an ACP session. Cursor is the exception: it starts a short-lived `cursor-agent acp` inspection and
+uses only the exact values advertised by its `model` option. If discovery is unavailable or fails, the
+catalog records source status and falls back to stale or lower-priority rows. An explicit Cursor model
+refreshes that ACP catalog before session creation and must be one of its fresh advertised values. A blank
+Cursor model still lets Cursor choose its native default. The built-in Cursor adapter uses the operator
+home and stores either the advertised ACP rows or a failed status; later reads use that stored state until
+an explicit refresh runs.
 Writes under `providers.<id>.models.discovery` apply live. A changed discovery source refreshes
 immediately; provider model metadata changes do not rerun discovery.
 
@@ -1489,7 +1491,7 @@ explicit deadline, and joins outstanding refresh workers during shutdown.
 Live provider discovery is configured per provider through `[providers.<id>.models.discovery]`.
 Discovery refresh is serialized per `provider_id` before any subprocess or provider-home work, and
 concurrent refresh requests for the same provider coalesce behind the in-flight refresh.
-Cursor's default command is `cursor-agent models`; setting `command` overrides that discovery path.
+Cursor's default command is `cursor-agent acp`; setting `command` overrides that ACP discovery path.
 
 ## `[marketplace.catalog]`
 

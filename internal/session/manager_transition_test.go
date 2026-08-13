@@ -392,6 +392,71 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist only an advertised Cursor runtime selection", func(t *testing.T) {
+		t.Parallel()
+
+		const advertisedModel = "grok-4.5[effort=high,fast=true]"
+		h := newHarness(t)
+		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for index := range resolvedWorkspace.Agents {
+			if resolvedWorkspace.Agents[index].Name == "coder" {
+				resolvedWorkspace.Agents[index].Provider = "cursor"
+				resolvedWorkspace.Agents[index].Model = ""
+			}
+		}
+		h.resolver.upsert(&resolvedWorkspace)
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-cursor-runtime-selection")
+			proc.handle.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
+				ID:       "model",
+				Category: "model",
+				Kind:     acp.SessionConfigOptionKindSelect,
+				Current:  advertisedModel,
+				Values:   []acp.SessionConfigOptionValue{{Value: advertisedModel}},
+			}}})
+			return proc, nil
+		}
+		active := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
+				t.Errorf("Stop() cleanup error = %v", err)
+			}
+		})
+
+		_, err = h.manager.SetRuntimeSelection(
+			testutil.Context(t),
+			active.ID,
+			RuntimeSelection{Provider: "cursor", Model: "cursor-grok-4.5-high"},
+			0,
+		)
+		negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
+		if !ok || negotiationErr.Code != acp.NegotiationCodeModelUnavailable {
+			t.Fatalf("SetRuntimeSelection(alias) error = %v, want model_unavailable NegotiationError", err)
+		}
+		rejectedMeta := readMeta(t, active.MetaPath())
+		rejectedSelection, rejectedRevision := store.SessionRuntimeSelectionStateValues(rejectedMeta.RuntimeSelection)
+		if rejectedSelection != nil || rejectedRevision != 0 {
+			t.Fatalf("rejected Cursor selection = %#v at revision %d, want no persisted selection", rejectedSelection, rejectedRevision)
+		}
+
+		updated, err := h.manager.SetRuntimeSelection(
+			testutil.Context(t),
+			active.ID,
+			RuntimeSelection{Provider: "cursor", Model: advertisedModel},
+			0,
+		)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection(advertised model) error = %v", err)
+		}
+		if updated.SelectedRuntime == nil || updated.SelectedRuntime.Model != advertisedModel ||
+			updated.RuntimeSelectionRevision != 1 {
+			t.Fatalf("SetRuntimeSelection(advertised model) info = %#v, want exact persisted model at revision 1", updated)
+		}
+	})
+
 	t.Run("Should update selected runtime while stopped without starting ACP", func(t *testing.T) {
 		t.Parallel()
 

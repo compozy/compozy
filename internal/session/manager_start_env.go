@@ -31,7 +31,7 @@ func (m *Manager) sessionStartOpts(
 		MCPServers:      mcpServers,
 		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
 		SystemPrompt:    resolved.Prompt,
-		PreferredModel:  preferredACPModel(resolved, strings.TrimSpace(s.model) != ""),
+		PreferredModel:  preferredACPModel(resolved, startModelSelectionIsExplicit(s, resolved)),
 		ReasoningEffort: strings.TrimSpace(s.reasoningEffort),
 		Speed:           s.speed,
 		ResumeSessionID: s.acpSessionID,
@@ -41,6 +41,17 @@ func (m *Manager) sessionStartOpts(
 			mcpServers,
 		),
 	}
+}
+
+func startModelSelectionIsExplicit(s *sessionStartSpec, resolved compozyconfig.ResolvedAgent) bool {
+	if s != nil && strings.TrimSpace(s.model) != "" {
+		return true
+	}
+	runtimeProvider := strings.TrimSpace(resolved.RuntimeProvider)
+	if runtimeProvider == "" {
+		runtimeProvider = strings.TrimSpace(resolved.Provider)
+	}
+	return runtimeProvider == cursorRuntimeProvider && strings.TrimSpace(resolved.Model) != ""
 }
 
 func startSpecPermissions(s *sessionStartSpec, fallback string) string {

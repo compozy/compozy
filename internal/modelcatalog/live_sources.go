@@ -148,6 +148,7 @@ type LiveProviderSourcesConfig struct {
 	SecretResolver  ProviderSecretResolver
 	HTTPClient      *http.Client
 	CommandExecutor DiscoveryCommandExecutor
+	CursorACPProbe  CursorACPModelProbe
 	DefaultTimeout  time.Duration
 }
 
@@ -199,6 +200,10 @@ func NewLiveProviderSource(
 	if executor == nil {
 		executor = ExecDiscoveryCommandExecutor{}
 	}
+	cursorACPProbe := cfg.CursorACPProbe
+	if cursorACPProbe == nil {
+		cursorACPProbe = ACPModelProbe{}
+	}
 	secretResolver := cfg.SecretResolver
 	if secretResolver == nil {
 		secretResolver = EnvSecretResolver{}
@@ -213,6 +218,7 @@ func NewLiveProviderSource(
 		secretResolver:  secretResolver,
 		httpClient:      cfg.HTTPClient,
 		commandExecutor: executor,
+		cursorACPProbe:  cursorACPProbe,
 		defaultTimeout:  timeout,
 	}, nil
 }
@@ -222,7 +228,7 @@ func SourceKindProviderLiveID(providerID string) string {
 	return string(SourceKindProviderLive) + ":" + strings.TrimSpace(providerID)
 }
 
-// LiveProviderSource performs side-effect-free model discovery for one provider.
+// LiveProviderSource performs provider model discovery for one provider.
 type LiveProviderSource struct {
 	providerID      string
 	adapter         liveProviderAdapter
@@ -232,6 +238,7 @@ type LiveProviderSource struct {
 	secretResolver  ProviderSecretResolver
 	httpClient      *http.Client
 	commandExecutor DiscoveryCommandExecutor
+	cursorACPProbe  CursorACPModelProbe
 	defaultTimeout  time.Duration
 
 	providerMu sync.RWMutex
@@ -290,6 +297,7 @@ func (s *LiveProviderSource) CloneWithProvider(
 		SecretResolver:  s.secretResolver,
 		HTTPClient:      s.httpClient,
 		CommandExecutor: s.commandExecutor,
+		CursorACPProbe:  s.cursorACPProbe,
 		DefaultTimeout:  s.defaultTimeout,
 	})
 	if err != nil {
@@ -317,7 +325,8 @@ func (s *LiveProviderSource) providerSnapshot() compozyconfig.ProviderConfig {
 	return compozyconfig.CloneProviderConfig(s.provider)
 }
 
-// ListModels discovers live provider models without touching ACP sessions.
+// ListModels discovers live provider models. Cursor uses a short-lived ACP session
+// because its CLI aliases are not ACP model values.
 func (s *LiveProviderSource) ListModels(ctx context.Context, opts ListOptions) ([]ModelRow, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("model catalog: live provider context is required")
@@ -355,7 +364,13 @@ func (s *LiveProviderSource) ListModels(ctx context.Context, opts ListOptions) (
 			return nil, err
 		}
 		return rows, nil
+	case liveDiscoveryACP:
+		rows, err := s.listCursorACP(runCtx, target.command, env, timeout, now)
+		if err != nil {
+			return nil, err
+		}
+		return rows, nil
 	default:
-		return nil, fmt.Errorf("model catalog: provider %q has no side-effect-free model discovery path", s.providerID)
+		return nil, fmt.Errorf("model catalog: provider %q has no model discovery path", s.providerID)
 	}
 }

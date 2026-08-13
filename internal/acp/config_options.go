@@ -155,6 +155,11 @@ func findModelConfigOption(options []SessionConfigOption) (SessionConfigOption, 
 	return findSelectConfigOptionByCategory(options, string(acpsdk.SessionConfigOptionCategoryModel))
 }
 
+// ModelConfigOption returns the ACP select option that controls the session model.
+func ModelConfigOption(options []SessionConfigOption) (SessionConfigOption, bool) {
+	return findModelConfigOption(options)
+}
+
 func findReasoningConfigOption(options []SessionConfigOption) (SessionConfigOption, bool) {
 	if option, ok := findSelectConfigOption(options, "reasoning_effort", "effort"); ok {
 		return option, true

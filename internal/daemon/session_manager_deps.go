@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/session"
@@ -43,6 +44,7 @@ type SessionManagerDeps struct {
 	ProcessRegistry        *toolruntime.Registry
 	HostedMCP              session.HostedMCPLauncher
 	ProviderSecrets        session.ProviderSecretResolver
+	ModelCatalog           modelcatalog.Service
 	SoulStore              session.SoulSnapshotStore
 	SoulRunChecker         session.SoulRunActivityChecker
 	SessionHealthStore     session.HealthStore
@@ -91,6 +93,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		ProcessRegistry:        state.processRegistry,
 		HostedMCP:              hostedMCPLauncher(state.hostedMCP),
 		ProviderSecrets:        sessionProviderVaultDependency(state.providerVault),
+		ModelCatalog:           state.modelCatalog,
 		SoulStore:              soulSnapshotStoreDependency(state.registry),
 		SoulRunChecker:         soulRunActivityCheckerDependency(state.registry),
 		SessionHealthStore:     sessionHealthStoreDependency(state.registry),

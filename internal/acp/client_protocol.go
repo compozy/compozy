@@ -62,10 +62,11 @@ func toSDKMCPServers(servers []compozyconfig.MCPServer) []acpsdk.McpServer {
 
 func captureCaps(
 	loadSession bool,
+	closeSession bool,
 	modes *acpsdk.SessionModeState,
 	configOptions []acpsdk.SessionConfigOption,
 ) Caps {
-	caps := Caps{SupportsLoadSession: loadSession}
+	caps := Caps{SupportsLoadSession: loadSession, SupportsCloseSession: closeSession}
 	if modes != nil {
 		caps.SupportedModes = make([]string, 0, len(modes.AvailableModes))
 		for _, mode := range modes.AvailableModes {

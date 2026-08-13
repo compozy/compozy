@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/session/inputqueue"
@@ -166,6 +167,7 @@ type Manager struct {
 	sandbox                      *sandbox.Registry
 	agentResolver                AgentResolver
 	providerSecrets              ProviderSecretResolver
+	modelCatalog                 modelcatalog.Service
 	skillRegistry                SkillRegistry
 	toolsetCatalog               toolspkg.ToolsetCatalog
 	mcpResolver                  MCPResolver
