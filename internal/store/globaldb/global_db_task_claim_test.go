@@ -6585,6 +6585,8 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 		tokensUsed       int64
 		wantOutputStatus string
 		wantOutputRef    string
+		wantChildLoopID  string
+		wantChannelMsg   bool
 		wantFailureCode  string
 		wantFailureCause string
 		wantRecovery     string
@@ -6597,11 +6599,25 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			tokensUsed:       3,
 			wantOutputStatus: "succeeded",
 			wantOutputRef:    `{"message":"approved compozy_claim_[REDACTED]"}`,
+			wantChannelMsg:   true,
 			wantEvents: []string{
 				loopRunEventStatusChanged,
 				loopRunEventNodeRunning,
 				loopRunEventNodeSucceeded,
 				loopRunEventChannelMsg,
+				loopRunEventTokenTick,
+			},
+		},
+		{
+			name:             "await-mode run-loop records child liveness",
+			complete:         true,
+			result:           json.RawMessage(`{"loop_run_id":"looprun-child-await","status":"awaiting_child"}`),
+			wantOutputStatus: "awaiting_child",
+			wantOutputRef:    `{"loop_run_id":"looprun-child-await","status":"awaiting_child"}`,
+			wantChildLoopID:  "looprun-child-await",
+			wantEvents: []string{
+				loopRunEventStatusChanged,
+				loopRunEventNodeRunning,
 				loopRunEventTokenTick,
 			},
 		},
@@ -6662,7 +6678,19 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				t.Fatalf("CreateTask() error = %v", err)
 			}
 			runID := "run-node-terminal-" + strings.ReplaceAll(tc.name, " ", "-")
-			metadata := json.RawMessage(`{"generation":1,"node_id":"load","item_index":0,"attempt":1,"epoch":0}`)
+			nodeKind := "transform"
+			if tc.wantChildLoopID != "" {
+				nodeKind = "run-loop"
+				child := testLoopRun(tc.wantChildLoopID, now, looppkg.StatusRunning)
+				child.ParentLoopRunID = loopRun.ID
+				if _, err := globalDB.CreateLoopRunForStart(ctx, child, dsl.ConcurrencyAllow); err != nil {
+					t.Fatalf("CreateLoopRunForStart(awaited child) error = %v", err)
+				}
+			}
+			metadata := json.RawMessage(fmt.Sprintf(
+				`{"generation":1,"node_id":"load","node_kind":%q,"item_index":0,"attempt":1,"epoch":0}`,
+				nodeKind,
+			))
 			reservation := queuedRunReservationForTest(
 				taskRecord.ID,
 				runID,
@@ -6731,17 +6759,21 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			}
 			var status string
 			var outputRef sql.NullString
+			var childLoopRunID sql.NullString
 			if err := globalDB.db.QueryRowContext(
 				ctx,
-				`SELECT status, output_ref
+				`SELECT status, output_ref, child_loop_run_id
 				 FROM loop_generation_outputs
 				 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'load' AND item_index = 0`,
 				string(loopRun.ID),
-			).Scan(&status, &outputRef); err != nil {
+			).Scan(&status, &outputRef, &childLoopRunID); err != nil {
 				t.Fatalf("query generation output error = %v", err)
 			}
 			if status != tc.wantOutputStatus {
 				t.Fatalf("output status = %q, want %q", status, tc.wantOutputStatus)
+			}
+			if childLoopRunID.String != tc.wantChildLoopID {
+				t.Fatalf("child_loop_run_id = %q, want %q", childLoopRunID.String, tc.wantChildLoopID)
 			}
 			if tc.wantFailureCode != "" {
 				var failure struct {
@@ -6791,7 +6823,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			if got := int64(tick["tokens_used"].(float64)); got != tc.tokensUsed {
 				t.Fatalf("token_tick.tokens_used = %d, want %d", got, tc.tokensUsed)
 			}
-			if tc.complete {
+			if tc.wantChannelMsg {
 				channel := loopEventPayloadForKind(t, events, loopRunEventChannelMsg)
 				text := channel["text"].(string)
 				if strings.Contains(text, "compozy_claim_SECRET123") {
@@ -6805,6 +6837,9 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 	}
 }
 
+// Invariant: a completed Loop worker changes only its durable output boundary;
+// awaited-child output remains live across coordinator recovery and no worker is
+// submitted again. The GlobalDB task-claim suite owns this transaction-to-recovery path.
 func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSuccess(t *testing.T) {
 	t.Run("Should reject a coordinator control output fenced by a newer epoch", func(t *testing.T) {
 		t.Parallel()
@@ -7124,6 +7159,344 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 		}
 		if len(replayed) != 0 {
 			t.Fatalf("replayed coordinators = %#v, want none after settlement", replayed)
+		}
+	})
+
+	t.Run("Should retain awaited children through boot recovery without resubmitting them", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 13, 14, 0, 0, 0, time.UTC)
+		definition := dsl.Definition{
+			APIVersion: dsl.APIVersion,
+			Kind:       dsl.KindLoop,
+			Meta:       dsl.Meta{Name: "awaited-child-recovery", Version: 1},
+			Contract: dsl.Contract{
+				Goal:             "Run children in order",
+				DefinitionOfDone: "Both awaited children finish",
+				IterationCap:     1,
+				NoProgress:       dsl.NoProgress{Window: 1},
+			},
+			Graph: dsl.Graph{
+				Nodes: []dsl.Node{
+					{
+						ID: "first_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+						Params: dsl.NodeParams{"loop": "child-hold", "mode": string(dsl.RunLoopAwait)},
+					},
+					{
+						ID: "second_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+						Params: dsl.NodeParams{"loop": "child-hold", "mode": string(dsl.RunLoopAwait)},
+					},
+				},
+				Edges: []dsl.Edge{{From: "first_child", To: "second_child"}},
+			},
+		}
+		resolved, err := looppkg.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile(await parent definition) error = %v", err)
+		}
+		effective, err := looppkg.ResolveEffectiveConfig(
+			resolved,
+			looppkg.DefaultLoopDefaults(),
+			nil,
+			looppkg.LoopConfig{},
+		)
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig(await parent definition) error = %v", err)
+		}
+		snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(resolved, effective)
+		if err != nil {
+			t.Fatalf("BuildExecutedDefinitionSnapshot(await parent definition) error = %v", err)
+		}
+		parentSeed := testLoopRun("looprun-await-parent-recovery", now, looppkg.StatusRunning)
+		parentSeed.Generation = 0
+		parentSeed.DefinitionVersion = resolved.DefinitionVersion
+		parentSeed.DefinitionDigest = digest
+		parentSeed.DefinitionSnapshot = snapshot
+		parent, err := globalDB.CreateLoopRunForStart(ctx, parentSeed, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart(parent) error = %v", err)
+		}
+
+		createChild := func(id string) looppkg.Run {
+			t.Helper()
+			seed := testLoopRun(id, now, looppkg.StatusRunning)
+			seed.ParentLoopRunID = parent.ID
+			child, createErr := globalDB.CreateLoopRunForStart(ctx, seed, dsl.ConcurrencyAllow)
+			if createErr != nil {
+				t.Fatalf("CreateLoopRunForStart(%s) error = %v", id, createErr)
+			}
+			return child
+		}
+		firstChild := createChild("looprun-await-child-first")
+
+		firstTask := taskRecordForTest("loop." + string(parent.ID) + ".g1.node.first_child.0")
+		firstTask.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, firstTask); err != nil {
+			t.Fatalf("CreateTask(first child action) error = %v", err)
+		}
+		secondTask := taskRecordForTest("loop." + string(parent.ID) + ".g1.node.second_child.0")
+		secondTask.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, secondTask); err != nil {
+			t.Fatalf("CreateTask(second child action) error = %v", err)
+		}
+		firstWorkerRunID := "run.loop." + string(parent.ID) + ".g1.node.first_child.0"
+		firstReservation := queuedRunReservationForTest(
+			firstTask.ID,
+			firstWorkerRunID,
+			"await-child-first",
+			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+			json.RawMessage(
+				`{"generation":1,"node_id":"first_child","node_kind":"run-loop","item_index":0,"attempt":1,"epoch":0}`,
+			),
+			now,
+		)
+		firstReservation.RunKind = taskpkg.RunKindWorker
+		firstReservation.LoopRunID = string(parent.ID)
+		if _, _, _, err := globalDB.ReserveQueuedRun(ctx, firstReservation); err != nil {
+			t.Fatalf("ReserveQueuedRun(first child action) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, task_run_id, attempt, epoch
+			) VALUES (?, 1, 'first_child', 0, 'enqueued', ?, 1, 0),
+			          (?, 1, 'second_child', 0, 'pending', NULL, 1, 0)`,
+			string(parent.ID),
+			firstWorkerRunID,
+			string(parent.ID),
+		); err != nil {
+			t.Fatalf("insert parent generation outputs error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation = 1 WHERE id = ?`,
+			parent.ID,
+		); err != nil {
+			t.Fatalf("advance parent generation fixture error = %v", err)
+		}
+
+		claimWorker := func(runID string, scope taskpkg.Scope, at time.Time) *taskpkg.ClaimResult {
+			t.Helper()
+			criteria := taskpkg.ClaimCriteria{
+				RunID:            runID,
+				Scope:            scope,
+				RunKind:          taskpkg.RunKindWorker,
+				ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "worker"},
+				ClaimerSessionID: "worker-" + runID,
+				LeaseDuration:    time.Minute,
+				Now:              at,
+			}
+			if scope == taskpkg.ScopeWorkspace {
+				criteria.WorkspaceID = string(parent.WorkspaceID)
+			}
+			claim, claimErr := globalDB.ClaimNextRun(ctx, criteria)
+			if claimErr != nil {
+				t.Fatalf("ClaimNextRun(%s) error = %v", runID, claimErr)
+			}
+			return &claim
+		}
+		completeAwaitedWorker := func(claim *taskpkg.ClaimResult, child looppkg.Run, at time.Time) {
+			t.Helper()
+			result, marshalErr := json.Marshal(map[string]string{
+				"loop_run_id": string(child.ID), "status": "awaiting_child",
+			})
+			if marshalErr != nil {
+				t.Fatalf("json.Marshal(awaited child result) error = %v", marshalErr)
+			}
+			if _, completeErr := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+				Actor:      coordinatorActorContextForTest(),
+				RunID:      claim.Run.ID,
+				ClaimToken: claim.ClaimToken,
+				Result:     taskpkg.RunResult{Value: result},
+				Now:        at,
+			}); completeErr != nil {
+				t.Fatalf("CompleteRunLease(%s) error = %v", claim.Run.ID, completeErr)
+			}
+		}
+		firstClaim := claimWorker(firstWorkerRunID, taskpkg.ScopeGlobal, now.Add(time.Second))
+		completeAwaitedWorker(firstClaim, firstChild, now.Add(2*time.Second))
+
+		outputs, err := globalDB.ListGenerationOutputs(ctx, parent.WorkspaceID, parent.ID, 1)
+		if err != nil {
+			t.Fatalf("ListGenerationOutputs(first await) error = %v", err)
+		}
+		if len(outputs) != 2 || outputs[0].NodeID != "first_child" ||
+			outputs[0].Status != "awaiting_child" || outputs[0].ChildLoopRunID != string(firstChild.ID) ||
+			outputs[1].NodeID != "second_child" || outputs[1].Status != "pending" {
+			t.Fatalf("first await outputs = %#v", outputs)
+		}
+
+		runner, err := looppkg.NewCoordinatorRunner(globalDB, globalDB, globalDB, slog.Default())
+		if err != nil {
+			t.Fatalf("NewCoordinatorRunner() error = %v", err)
+		}
+		runCoordinator := func(runID string, at time.Time) taskpkg.CoordinatorCompletionPlan {
+			t.Helper()
+			claim, claimErr := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID:            runID,
+				Scope:            taskpkg.ScopeWorkspace,
+				WorkspaceID:      string(parent.WorkspaceID),
+				RunKind:          taskpkg.RunKindCoordinator,
+				ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "coordinator"},
+				ClaimerSessionID: "coordinator-" + runID,
+				LeaseDuration:    time.Minute,
+				Now:              at,
+			})
+			if claimErr != nil {
+				t.Fatalf("ClaimNextRun(coordinator %s) error = %v", runID, claimErr)
+			}
+			plan, runErr := runner.Run(ctx, taskpkg.RunID(claim.Run.ID))
+			if runErr != nil {
+				t.Fatalf("Run(coordinator %s) error = %v", runID, runErr)
+			}
+			if _, completeErr := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+				RunID:      claim.Run.ID,
+				ClaimToken: claim.ClaimToken,
+				Actor:      coordinatorActorContextForTest(),
+				Plan:       plan,
+				Now:        at.Add(time.Second),
+			}, looppkg.NewStoreFinalizer()); completeErr != nil {
+				t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = %v", runID, completeErr)
+			}
+			return plan
+		}
+		recoverParentCoordinator := func(at time.Time) taskpkg.Run {
+			t.Helper()
+			recovered, reconcileErr := globalDB.ReconcileLoopCoordinatorsOnBoot(
+				ctx,
+				taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "boot-await-child"},
+				at,
+			)
+			if reconcileErr != nil {
+				t.Fatalf("ReconcileLoopCoordinatorsOnBoot() error = %v", reconcileErr)
+			}
+			replayed, replayErr := globalDB.ReconcileLoopCoordinatorsOnBoot(
+				ctx,
+				taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "boot-await-child"},
+				at.Add(time.Second),
+			)
+			if replayErr != nil {
+				t.Fatalf("ReconcileLoopCoordinatorsOnBoot(replay) error = %v", replayErr)
+			}
+			for _, replayedRun := range replayed {
+				if replayedRun.LoopRunID == string(parent.ID) {
+					t.Fatalf("replayed parent coordinator = %#v, want no duplicate", replayedRun)
+				}
+			}
+			active, activeErr := globalDB.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{
+				taskpkg.TaskRunStatusQueued,
+				taskpkg.TaskRunStatusClaimed,
+				taskpkg.TaskRunStatusStarting,
+				taskpkg.TaskRunStatusRunning,
+			})
+			if activeErr != nil {
+				t.Fatalf("ListTaskRunsByStatus(active coordinators) error = %v", activeErr)
+			}
+			matches := make([]taskpkg.Run, 0, 1)
+			for _, activeRun := range active {
+				if activeRun.LoopRunID == string(parent.ID) &&
+					activeRun.RunKind.Normalize() == taskpkg.RunKindCoordinator {
+					matches = append(matches, activeRun)
+				}
+			}
+			if len(matches) != 1 {
+				t.Fatalf(
+					"active parent coordinators after recovery = %#v (new=%#v), want exactly one",
+					matches,
+					recovered,
+				)
+			}
+			return matches[0]
+		}
+
+		initialPlan := runCoordinator(loopCoordinatorRunID(parent.ID, 1), now.Add(3*time.Second))
+		if !initialPlan.GenerationInFlight || !initialPlan.Yield || initialPlan.Terminal != nil ||
+			len(initialPlan.NodeRuns) != 0 {
+			t.Fatalf("initial await coordinator plan = %#v", initialPlan)
+		}
+		storedParent, err := globalDB.GetLoopRunByID(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID(parent after first await) error = %v", err)
+		}
+		if storedParent.Status != looppkg.StatusRunning {
+			t.Fatalf("parent status after live first child = %q, want running", storedParent.Status)
+		}
+
+		firstRecovery := recoverParentCoordinator(now.Add(5 * time.Second))
+		recoveryPlan := runCoordinator(firstRecovery.ID, now.Add(7*time.Second))
+		if !recoveryPlan.GenerationInFlight || !recoveryPlan.Yield || recoveryPlan.Terminal != nil ||
+			len(recoveryPlan.NodeRuns) != 0 {
+			t.Fatalf("recovered await coordinator plan = %#v", recoveryPlan)
+		}
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			firstChild.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			now.Add(9*time.Second),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(first child done) error = %v", err)
+		}
+
+		secondCoordinator := recoverParentCoordinator(now.Add(10 * time.Second))
+		secondPlan := runCoordinator(secondCoordinator.ID, now.Add(12*time.Second))
+		if secondPlan.Terminal != nil || len(secondPlan.NodeRuns) != 1 ||
+			secondPlan.NodeRuns[0].LoopRunID != string(parent.ID) {
+			t.Fatalf("first child terminal coordinator plan = %#v", secondPlan)
+		}
+		secondChild := createChild("looprun-await-child-second")
+		secondClaim := claimWorker(secondPlan.NodeRuns[0].RunID, taskpkg.ScopeWorkspace, now.Add(14*time.Second))
+		completeAwaitedWorker(secondClaim, secondChild, now.Add(15*time.Second))
+
+		secondRecovery := recoverParentCoordinator(now.Add(16 * time.Second))
+		secondAwaitPlan := runCoordinator(secondRecovery.ID, now.Add(18*time.Second))
+		if !secondAwaitPlan.GenerationInFlight || !secondAwaitPlan.Yield || secondAwaitPlan.Terminal != nil ||
+			len(secondAwaitPlan.NodeRuns) != 0 {
+			t.Fatalf("second live child coordinator plan = %#v", secondAwaitPlan)
+		}
+		storedParent, err = globalDB.GetLoopRunByID(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID(parent after second await) error = %v", err)
+		}
+		if storedParent.Status != looppkg.StatusRunning {
+			t.Fatalf("parent status after live second child = %q, want running", storedParent.Status)
+		}
+
+		if err := globalDB.CompareAndSwapLoopRunStatus(
+			ctx,
+			secondChild.ID,
+			looppkg.StatusRunning,
+			looppkg.StatusDone,
+			looppkg.TransitionCauseContract,
+			now.Add(20*time.Second),
+		); err != nil {
+			t.Fatalf("CompareAndSwapLoopRunStatus(second child done) error = %v", err)
+		}
+		finalCoordinator := recoverParentCoordinator(now.Add(21 * time.Second))
+		finalPlan := runCoordinator(finalCoordinator.ID, now.Add(23*time.Second))
+		if finalPlan.Terminal == nil || finalPlan.Terminal.Status != string(looppkg.StatusDone) {
+			t.Fatalf("final coordinator plan = %#v, want done terminal", finalPlan)
+		}
+		storedParent, err = globalDB.GetLoopRunByID(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID(final parent) error = %v", err)
+		}
+		if storedParent.Status != looppkg.StatusDone {
+			t.Fatalf("final parent status = %q, want done", storedParent.Status)
+		}
+		var workerCount int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM task_runs WHERE loop_run_id = ? AND run_kind = 'worker'`,
+			parent.ID,
+		).Scan(&workerCount); err != nil {
+			t.Fatalf("count parent worker runs error = %v", err)
+		}
+		if workerCount != 2 {
+			t.Fatalf("parent worker runs = %d, want exactly two without restart duplicates", workerCount)
 		}
 	})
 }
@@ -8015,6 +8388,7 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 			string(loopRun.ID),
 			loopNodeOutputSucceeded,
 			`{"stale":true}`,
+			"",
 		)
 		if err != nil {
 			t.Fatalf("updateLoopNodeOutputStatusWithExecutor(stale) error = %v", err)
@@ -8051,6 +8425,7 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 			string(loopRun.ID),
 			loopNodeOutputSucceeded,
 			`{"ok":true}`,
+			"",
 		)
 		if err != nil {
 			t.Fatalf("updateLoopNodeOutputStatusWithExecutor(current) error = %v", err)

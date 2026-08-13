@@ -679,6 +679,9 @@ func TestCoordinatorRunnerShouldKeepHealthyLaneRunningWhenTargetIsUnavailable(t 
 	})
 }
 
+// Invariant: an await-mode run-loop output keeps its parent generation live and
+// blocks authored dependents until the referenced child reaches a terminal outcome.
+// The coordinator suite owns this graph scheduling boundary.
 func TestCoordinatorRunnerShouldYieldWhileAwaitingChildLoop(t *testing.T) {
 	t.Run("Should yield while awaiting child loop", func(t *testing.T) {
 		t.Parallel()
@@ -705,14 +708,29 @@ func TestCoordinatorRunnerShouldYieldWhileAwaitingChildLoop(t *testing.T) {
 			LoopRunID: string(loopRun.ID),
 			Status:    task.TaskRunStatusClaimed,
 		}
-		runner := newCoordinatorRunnerForTest(t, loopRun, coordinatorRun, map[string]task.Run{
-			coordinatorRun.ID: coordinatorRun,
-		}, coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
-			Generation:     1,
-			NodeID:         "load",
-			Status:         generationOutputAwaitingChild,
-			ChildLoopRunID: string(childRun.ID),
-		}}}})
+		runner := newCoordinatorRunnerForTestWithGraph(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+				Generation:     1,
+				NodeID:         "z_first_child",
+				Status:         generationOutputAwaitingChild,
+				ChildLoopRunID: string(childRun.ID),
+			}, {
+				Generation: 1,
+				NodeID:     "a_second_child",
+				Status:     generationOutputPending,
+			}}}},
+			dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "z_first_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop)},
+					{ID: "a_second_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop)},
+				},
+				Edges: []dsl.Edge{{From: "z_first_child", To: "a_second_child"}},
+			},
+		)
 		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{
 			loopRun.ID:  loopRun,
 			childRun.ID: childRun,
@@ -722,11 +740,20 @@ func TestCoordinatorRunnerShouldYieldWhileAwaitingChildLoop(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
-		if !plan.Yield {
-			t.Fatal("Yield = false, want true while child loop is live")
+		if !plan.GenerationInFlight || !plan.Yield {
+			t.Fatalf(
+				"GenerationInFlight/Yield = %t/%t, want true/true while child loop is live",
+				plan.GenerationInFlight,
+				plan.Yield,
+			)
 		}
-		if len(plan.RunStops) != 0 || plan.Terminal != nil {
-			t.Fatalf("RunStops/Terminal = %#v/%#v, want none", plan.RunStops, plan.Terminal)
+		if len(plan.NodeRuns) != 0 || len(plan.RunStops) != 0 || plan.Terminal != nil {
+			t.Fatalf(
+				"NodeRuns/RunStops/Terminal = %#v/%#v/%#v, want none",
+				plan.NodeRuns,
+				plan.RunStops,
+				plan.Terminal,
+			)
 		}
 	})
 }
@@ -756,18 +783,29 @@ func TestCoordinatorRunnerShouldResolveAwaitingChildCoordinatorTerminal(t *testi
 			LoopRunID: string(loopRun.ID),
 			Status:    task.TaskRunStatusClaimed,
 		}
-		runner := newCoordinatorRunnerForTest(t, loopRun, coordinatorRun, map[string]task.Run{
-			coordinatorRun.ID: coordinatorRun,
-		}, coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
-			Generation:     1,
-			NodeID:         "load",
-			Status:         generationOutputAwaitingChild,
-			ChildLoopRunID: string(childRun.ID),
-		}, {
-			Generation: 1,
-			NodeID:     "agent",
-			Status:     generationOutputPending,
-		}}}})
+		runner := newCoordinatorRunnerForTestWithGraph(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {{
+				Generation:     1,
+				NodeID:         "z_first_child",
+				Status:         generationOutputAwaitingChild,
+				ChildLoopRunID: string(childRun.ID),
+			}, {
+				Generation: 1,
+				NodeID:     "a_second_child",
+				Status:     generationOutputPending,
+			}}}},
+			dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "z_first_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop)},
+					{ID: "a_second_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop)},
+				},
+				Edges: []dsl.Edge{{From: "z_first_child", To: "a_second_child"}},
+			},
+		)
 		setCoordinatorRunnerRunsForTest(t, runner, map[RunID]Run{
 			loopRun.ID:  loopRun,
 			childRun.ID: childRun,
@@ -785,19 +823,19 @@ func TestCoordinatorRunnerShouldResolveAwaitingChildCoordinatorTerminal(t *testi
 		for _, output := range payload.Outputs {
 			statuses[output.NodeID] = output.Status
 		}
-		if got, want := statuses["load"], generationOutputSucceeded; got != want {
-			t.Fatalf("load status = %q, want %q", got, want)
+		if got, want := statuses["z_first_child"], generationOutputSucceeded; got != want {
+			t.Fatalf("z_first_child status = %q, want %q", got, want)
 		}
-		if got, want := statuses["agent"], generationOutputPending; got != want {
-			t.Fatalf("agent status = %q, want %q before reservation", got, want)
+		if got, want := statuses["a_second_child"], generationOutputPending; got != want {
+			t.Fatalf("a_second_child status = %q, want %q before reservation", got, want)
 		}
 		postReserve := coordinatorPostReservePayloadForTest(t, plan)
 		postStatuses := map[string]string{}
 		for _, output := range postReserve.Outputs {
 			postStatuses[output.NodeID] = output.Status
 		}
-		if got, want := postStatuses["agent"], generationOutputEnqueued; got != want {
-			t.Fatalf("agent status = %q, want %q", got, want)
+		if got, want := postStatuses["a_second_child"], generationOutputEnqueued; got != want {
+			t.Fatalf("a_second_child status = %q, want %q", got, want)
 		}
 	})
 }

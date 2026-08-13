@@ -10,6 +10,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -18,6 +19,7 @@ import (
 type loopNodeRunMetadata struct {
 	Generation int    `json:"generation"`
 	NodeID     string `json:"node_id"`
+	NodeKind   string `json:"node_kind"`
 	ItemIndex  int    `json:"item_index"`
 	Attempt    int    `json:"attempt"`
 	Epoch      int64  `json:"epoch"`
@@ -47,7 +49,7 @@ func recordLoopNodeTerminalWithExecutor(
 	if outcome == loopNodeOutcomeFailure {
 		status = loopNodeOutputFailed
 	}
-	recorded, err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, outputRef)
+	recorded, err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, outputRef, "")
 	if err != nil {
 		return err
 	}
@@ -123,6 +125,7 @@ func updateLoopNodeOutputStatusWithExecutor(
 	loopRunID string,
 	status string,
 	outputRef string,
+	childLoopRunID string,
 ) (bool, error) {
 	metadata, ok, err := loopNodeMetadataFromTaskRun(run.Metadata)
 	if err != nil {
@@ -140,12 +143,15 @@ func updateLoopNodeOutputStatusWithExecutor(
 		`UPDATE loop_generation_outputs
 		 SET status = ?,
 		     output_ref = CASE WHEN ? = '' THEN output_ref ELSE ? END,
+		     child_loop_run_id = CASE WHEN ? = '' THEN child_loop_run_id ELSE ? END,
 		     task_run_id = ?
 		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
 		   AND task_run_id = ? AND epoch = ?`,
 		status,
 		strings.TrimSpace(outputRef),
 		strings.TrimSpace(outputRef),
+		strings.TrimSpace(childLoopRunID),
+		strings.TrimSpace(childLoopRunID),
 		run.ID,
 		loopRunID,
 		metadata.Generation,
@@ -228,11 +234,16 @@ func loopNodeMetadataFromTaskRun(raw json.RawMessage) (loopNodeRunMetadata, bool
 		)
 	}
 	metadata.NodeID = strings.TrimSpace(metadata.NodeID)
+	metadata.NodeKind = strings.TrimSpace(metadata.NodeKind)
 	if metadata.Generation <= 0 || metadata.NodeID == "" || metadata.ItemIndex < 0 ||
 		metadata.Attempt < 1 || metadata.Epoch < 0 {
 		return loopNodeRunMetadata{}, false, nil
 	}
 	return metadata, true, nil
+}
+
+func loopNodeIsRunLoopAction(metadata loopNodeRunMetadata) bool {
+	return dsl.ActionKind(metadata.NodeKind) == dsl.ActionRunLoop
 }
 
 func loopFailureOutputRef(failure taskpkg.RunFailure) string {

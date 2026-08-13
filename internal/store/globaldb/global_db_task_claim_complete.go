@@ -154,6 +154,7 @@ func recordCompletedRunLoopOutput(
 			strings.TrimSpace(current.LoopRunID),
 			looppkg.GenerationOutputStatusControlPending,
 			"",
+			"",
 		)
 		if err != nil {
 			return err
@@ -166,6 +167,20 @@ func recordCompletedRunLoopOutput(
 			)
 		}
 		return nil
+	}
+	childLoopRunID, awaitingChild, err := awaitedChildLoopRunID(current, resultPayload)
+	if err != nil {
+		return err
+	}
+	if awaitingChild {
+		return recordAwaitingChildLoopOutputWithExecutor(
+			ctx,
+			exec,
+			current,
+			childLoopRunID,
+			loopNodeTerminalOutputRef(outputRef, resultPayload),
+			completion.Now,
+		)
 	}
 	return recordLoopNodeTerminalWithExecutor(
 		ctx,
