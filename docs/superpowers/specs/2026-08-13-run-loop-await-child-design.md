@@ -4,9 +4,100 @@
 
 **Issue:** [#386](https://github.com/compozy/compozy/issues/386)
 
-## Confirmed Reproduction
+## Minimal Generic Reproduction
 
-At 2026-08-13 15:06 America/Sao_Paulo, an installed resource extension started a delivery Loop from an extension-published agent session. The executed graph was:
+The defect requires no extension, agent session, provider, skill, or imported task. It can be reproduced with two workspace-authored Loops and the public CLI.
+
+The child Loop contains only a durable wait, keeping it live long enough to inspect the parent:
+
+```yaml
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: await-child-hold
+  description: Generic child Loop that stays live long enough to inspect its parent.
+concurrency: allow
+contract:
+  goal: Hold a child run in a live state.
+  definition_of_done: The durable wait finishes.
+  stop_when: "nodes.hold.status == 'succeeded'"
+  verification: []
+  terminal_states: [done, failed, blocked, exhausted, stalled]
+  iteration_cap: 1
+  no_progress: { window: 2, hash_fields: ["nodes.hold.status"] }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+graph:
+  nodes:
+    - id: hold
+      class: control
+      kind: wait
+      params: { for: 10m }
+  edges: []
+start: [{ kind: manual }]
+```
+
+The parent starts that child twice, with an authored edge requiring strict order:
+
+```yaml
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: await-parent-probe
+  description: Generic parent with two sequential awaited child Loops.
+concurrency: allow
+contract:
+  goal: Run two child Loops in strict sequence.
+  definition_of_done: Both awaited child Loops finish in authored order.
+  stop_when: "nodes.second_child.status == 'succeeded'"
+  verification: []
+  terminal_states: [done, failed, blocked, exhausted, stalled]
+  iteration_cap: 1
+  no_progress: { window: 2, hash_fields: ["nodes.first_child.status", "nodes.second_child.status"] }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+graph:
+  nodes:
+    - id: first_child
+      class: action
+      kind: run-loop
+      params: { loop: await-child-hold, mode: await }
+    - id: second_child
+      class: action
+      kind: run-loop
+      params: { loop: await-child-hold, mode: await }
+  edges:
+    - { from: first_child, to: second_child }
+start: [{ kind: manual }]
+```
+
+After saving the files as `await-child-hold.yaml` and `await-parent-probe.yaml`, validate, publish, run, and inspect them:
+
+```bash
+WORKSPACE=/path/to/workspace
+
+compozy loop validate --workspace "$WORKSPACE" --file await-child-hold.yaml -o json
+compozy loop validate --workspace "$WORKSPACE" --file await-parent-probe.yaml -o json
+compozy loop create --workspace "$WORKSPACE" --file await-child-hold.yaml -o json
+compozy loop create --workspace "$WORKSPACE" --file await-parent-probe.yaml -o json
+
+PARENT_RUN_ID="$(compozy loop run \
+  --workspace "$WORKSPACE" \
+  --name await-parent-probe \
+  -o json | jq -r '.run.id')"
+
+compozy loop status --workspace "$WORKSPACE" --run-id "$PARENT_RUN_ID" -o json
+compozy loop runs --workspace "$WORKSPACE" -o json \
+  | jq '.runs[] | select(.loop_name == "await-child-hold")'
+```
+
+On the affected runtime, both child runs start and remain live while the parent becomes `done`. Its generation records `first_child` and `second_child` as `succeeded`, even though each structured output says `status: "awaiting_child"`. The second child therefore starts before the first child terminates.
+
+The corrected behavior is one live child, a live parent whose `first_child` node is `awaiting_child`, and no `second_child` run until the first child reaches an accepted terminal outcome.
+
+Both standalone definitions were checked with `compozy loop validate` before publication of the reproduction.
+
+## Real-World Discovery Evidence
+
+The generic defect was originally exposed at 2026-08-13 15:06 America/Sao_Paulo by an installed resource extension. An extension-published agent session started this delivery graph:
 
 ```text
 input -> import_tasks -> implement(run-loop, await) -> review(run-loop, await)
@@ -28,7 +119,7 @@ compozy loop status --run-id looprun-9205fd25577f44e2 -o json
 compozy loop runs --workspace /home/franciscpd/Projects/batuta-smoke-lab -o json
 ```
 
-The promoted build and its predecessor have no diff under `internal/loop`, so the smoke exposed a pre-existing runtime defect rather than a regression from the extension-session changes.
+The extension is discovery evidence, not a reproduction dependency. The promoted build and its predecessor have no diff under `internal/loop`, so the smoke exposed a pre-existing runtime defect rather than a regression from the extension-session changes.
 
 ## Root Cause
 
@@ -46,7 +137,7 @@ The existing `refreshAwaitingChildOutput` logic is correct once a snapshot alrea
 4. Restore the wait from durable task and generation state after daemon restart without submitting another child.
 5. Propagate accepted child terminal outcomes before scheduling dependents.
 6. Fail closed when the completed `run-loop` result is malformed or inconsistent with the authored mode.
-7. Document a reproducible extension-driven flow without making the fix specific to Batuta.
+7. Keep the primary reproduction independent of any extension while preserving the extension-driven discovery evidence.
 
 ## Non-Goals
 
@@ -139,11 +230,11 @@ Tests use conditions and durable reads, never sleeps as synchronization.
 
 ## Documentation And QA
 
-Issue #386 carries the real extension-driven sequence, run IDs, executed graph, observed output, expected contract, and impact. The PR will link that issue and include the executable regression commands.
+Issue #386 leads with the standalone authored-Loop reproduction and keeps the real extension-driven sequence as secondary discovery evidence. It carries the run IDs, executed graph, observed output, expected contract, and impact. The PR will link that issue and include the executable regression commands.
 
 The official Compozy Loop skill will be checked against the corrected behavior. It already states that `awaiting_child` is node-level and live; it needs no wording change unless implementation review finds a mismatch.
 
-A fresh isolated QA lab will reproduce the extension flow with unique `COMPOZY_HOME`, ports, and UDS path. Evidence will include the ordered run timeline, exact parent/child IDs, restart boundary, absence of duplicate children, terminal states, and clean teardown.
+A fresh isolated QA lab will first reproduce the standalone two-Loop flow with unique `COMPOZY_HOME`, ports, and UDS path, then use an installed extension as a compatibility canary. Evidence will include the ordered run timeline, exact parent/child IDs, restart boundary, absence of duplicate children, terminal states, and clean teardown.
 
 ## Compozy Impact Audit
 
