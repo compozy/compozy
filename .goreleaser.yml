@@ -47,7 +47,7 @@ builds:
       - -s -w
       - -X github.com/compozy/compozy/internal/version.Version={{ .Version }}
       - -X github.com/compozy/compozy/internal/version.Commit={{ .ShortCommit }}
-      - -X github.com/compozy/compozy/internal/version.BuildDate={{ .Date }}
+      - -X github.com/compozy/compozy/internal/version.BuildDate={{ .CommitDate }}
     env:
       - CGO_ENABLED=0
     flags:
@@ -68,6 +68,30 @@ archives:
       - goos: windows
         formats:
           - zip
+    builds_info:
+      owner: root
+      group: root
+      mode: 0755
+      mtime: "{{ .CommitDate }}"
+    files:
+      - src: CHANGELOG.md
+        info:
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "{{ .CommitDate }}"
+      - src: LICENSE
+        info:
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "{{ .CommitDate }}"
+      - src: README.md
+        info:
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "{{ .CommitDate }}"
 
 nfpms:
   - id: compozy-linux-packages

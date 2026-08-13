@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -348,6 +349,8 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 		ldflags,
 		"github.com/compozy/compozy/internal/version.Version",
 	)
+	assertContainsText(t, "reproducible build date", ldflags, "BuildDate={{ .CommitDate }}")
+	assertNotContainsText(t, "nondeterministic build date", ldflags, "BuildDate={{ .Date }}")
 	assertNotContainsText(t, "GoReleaser ldflags", ldflags, "github.com/pedronauck/compozy")
 
 	archive := firstMapAt(t, goreleaser, "archives")
@@ -367,6 +370,25 @@ func TestGoReleaserArchivesStayAlignedWithPublicInstaller(t *testing.T) {
 	}
 	if !strings.Contains(installScript, `ARCHIVE_NAME="compozy_${OS}_${ARCH}.tar.gz"`) {
 		t.Fatalf("install.sh archive naming must stay aligned with GoReleaser template")
+	}
+	buildsInfo := mapAt(t, archive, "builds_info")
+	assertEqualString(t, "archive binary owner", stringAt(t, buildsInfo, "owner"), "root")
+	assertEqualString(t, "archive binary group", stringAt(t, buildsInfo, "group"), "root")
+	assertEqualInt(t, "archive binary mode", intAt(t, buildsInfo, "mode"), 0o755)
+	assertEqualString(t, "archive binary mtime", stringAt(t, buildsInfo, "mtime"), "{{ .CommitDate }}")
+
+	archiveFiles := sliceAt(t, archive, "files")
+	if len(archiveFiles) != 3 {
+		t.Fatalf("archives[0].files length = %d, want 3", len(archiveFiles))
+	}
+	for index, wantSource := range []string{"CHANGELOG.md", "LICENSE", "README.md"} {
+		file := asMap(t, archiveFiles[index], fmt.Sprintf("archives[0].files[%d]", index))
+		assertEqualString(t, "archive file source", stringAt(t, file, "src"), wantSource)
+		info := mapAt(t, file, "info")
+		assertEqualString(t, "archive file owner", stringAt(t, info, "owner"), "root")
+		assertEqualString(t, "archive file group", stringAt(t, info, "group"), "root")
+		assertEqualInt(t, "archive file mode", intAt(t, info, "mode"), 0o644)
+		assertEqualString(t, "archive file mtime", stringAt(t, info, "mtime"), "{{ .CommitDate }}")
 	}
 
 	goos := stringsFromSlice(t, sliceAt(t, build, "goos"), "builds[0].goos")
@@ -685,6 +707,18 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		}
 		assertContainsText(t, "GoReleaser npm custody", workflow, `GORELEASER_PUBLISH_NPM: "false"`)
 		assertContainsText(t, "public CLI installation", workflow, "smoke-public-cli-package.sh")
+		assertContainsText(
+			t,
+			"public CLI recovery scheduling",
+			workflow,
+			"always() &&\n      needs.release-plan.result == 'success' &&\n      needs.release.result == 'success' &&\n      needs.desktop-finalize.result == 'success'",
+		)
+		assertContainsText(
+			t,
+			"npm recovery scheduling",
+			workflow,
+			"always() &&\n      needs.release-plan.result == 'success' &&\n      needs.release.result == 'success' &&\n      needs.cli-public-install-smoke.result == 'success'",
+		)
 		assertContainsText(t, "isolated npm preparation", workflow, "name: Prepare npm CLI package without publication")
 		assertContainsText(t, "isolated npm preparation", workflow, "--dist=.release-dist/npm")
 		assertContainsText(t, "isolated npm artifact", workflow, ".release-dist/npm/npm/@compozy/cli/*")
@@ -2020,6 +2054,28 @@ func stringAt(t *testing.T, src map[string]any, key string) string {
 		t.Fatalf("%s type = %T, want string", key, value)
 	}
 	return text
+}
+
+func intAt(t *testing.T, src map[string]any, key string) int {
+	t.Helper()
+
+	value, ok := src[key]
+	if !ok {
+		t.Fatalf("%s missing", key)
+	}
+	number, ok := value.(int)
+	if !ok {
+		t.Fatalf("%s type = %T, want int", key, value)
+	}
+	return number
+}
+
+func assertEqualInt(t *testing.T, label string, got int, want int) {
+	t.Helper()
+
+	if got != want {
+		t.Fatalf("%s = %d, want %d", label, got, want)
+	}
 }
 
 func stringSliceContains(values []any, want string) bool {

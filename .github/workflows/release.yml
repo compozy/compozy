@@ -1353,7 +1353,11 @@ jobs:
   cli-public-install-smoke:
     name: Install Public CLI Assets ${{ matrix.name }}
     needs: [release-plan, release, desktop-finalize]
-    if: needs.desktop-finalize.result == 'success'
+    if: |
+      always() &&
+      needs.release-plan.result == 'success' &&
+      needs.release.result == 'success' &&
+      needs.desktop-finalize.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -1399,7 +1403,11 @@ jobs:
   npm-publish:
     name: Publish Package Manager Artifacts
     needs: [release-plan, release, cli-public-install-smoke]
-    if: needs.cli-public-install-smoke.result == 'success'
+    if: |
+      always() &&
+      needs.release-plan.result == 'success' &&
+      needs.release.result == 'success' &&
+      needs.cli-public-install-smoke.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
