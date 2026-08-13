@@ -23,6 +23,7 @@ vi.mock("@/systems/session", () => ({
 vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({
     workspaces: [],
+    registeredWorkspaces: [],
     hasWorkspaces: false,
     activeWorkspace: null,
     activeWorkspaceId: null,

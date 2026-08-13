@@ -149,6 +149,8 @@ export const NonGitWorkspaceFieldAbsent: Story = {
     return (
       <SessionCreateDialog
         agents={agentFixtures}
+        destinationLabel={workspace.name}
+        destinationReady
         environmentListingState="unsupported"
         firstMessage=""
         isAwaitingEnvironment={false}
@@ -165,16 +167,13 @@ export const NonGitWorkspaceFieldAbsent: Story = {
         onOpenChange={fn()}
         onSessionNameChange={fn()}
         onSubmit={fn()}
-        onWorkspaceChange={fn()}
         open
         restoreFocusOnClose
+        scope="workspace"
         selectedAgentName={agentFixtures[0]?.name ?? ""}
         sessionName="Investigate checkout latency"
+        sessionRoot={workspace.root_dir}
         submitError={null}
-        userHomeDir={undefined}
-        workspace={workspace}
-        workspaceId={workspace.id}
-        workspaces={[{ id: workspace.id, name: workspace.name, root_dir: workspace.root_dir }]}
       />
     );
   },
