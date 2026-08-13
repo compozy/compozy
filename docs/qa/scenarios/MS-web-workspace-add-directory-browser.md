@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-03;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-open-issues-20260812-002435-338441-lab/qa-artifacts/web-workspace-root-pass.png
-last_report: docs/qa/reports/2026-08-11-open-issues.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/web-onboarding-status.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/web-onboarding-complete.json
+last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: MS-web-entity-modal-shell
 ---
 

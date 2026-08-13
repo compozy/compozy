@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-isolated-task-loop-execution
 expected: Fan-out requires an idempotency identity before enqueue; with worktree-per-run it creates one attributable run branch and ready worktree per designation, keeps sibling identities distinct, and lets one failed or canceled run leave the other runs unaffected.
 entry_points: compozy task fan-out --idempotency-key <stable-key> --worktree-per-run; HTTP/UDS POST /api/tasks/:id/runs/fan-out; compozy__task_fanout_runs.worktree_per_run
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260813-native-claim-skips-run-start
+fix_status: fixed
+retest_status: pass
+fix_commits: e59a03b6
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/native-handoff-fixed-task.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-native-handoff-fixed.png; internal/daemon/daemon_worktree_e2e_integration_test.go
+last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps:
 ---
 

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-worktree-management
 expected: Explicit pre_create and pre_remove denials block with the hook name and reason, hook execution errors fail open, adopted worktrees skip pre_create, observe-only consumers cannot block transitions, and every durable worktree event is ordered, workspace-attributed, correlated, and redacted on replay.
 entry_points: worktree.pre_create|pre_remove hooks; worktree.created|adopted|removed observations; HTTP/UDS worktree mutations; per-worktree SSE; worktree catalog SSE; compozy hooks list|info|events|runs -o json
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/native-worktree-create.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/native-worktree-remove.json; internal/daemon/daemon_worktree_e2e_integration_test.go
+last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: RT-worktree-api-surface-parity; TA-task-per-run-worktree-isolation
 ---
 

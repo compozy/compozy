@@ -32,7 +32,7 @@ its cancellation fail with `worktree_not_found`.
 
 - **Root cause:** Branch/base identity resolution ran inside asynchronous materialization, after
   pending persistence and acceptance.
-- **Fix commit:** pending Task 10 QA remediation commit
+- **Fix commit:** `0d54b6fe`
 - **Regression test:** `internal/worktree/create_test.go` — `TestServiceCreate`, missing refs case
 
 ## Verification

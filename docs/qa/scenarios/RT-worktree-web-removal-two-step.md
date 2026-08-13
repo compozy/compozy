@@ -6,13 +6,13 @@ persona: Ada
 journey: J-worktree-management
 expected: A clean worktree removes after one confirm that quotes the record label and states the branch is not deleted. A dirty or unpushed worktree refuses with quantified risk rows (changed files, ± lines, unpushed commits) and offers the assisted exit as the primary; force is a ghost-danger doorway after Cancel that leads to a second confirm re-stating the quantities. A bound idle session is reported as stopping; a session mid-turn blocks removal outright. A branch that also exists on a remote downgrades to an informational note and single-step removal.
 entry_points: S15 Workspaces overview → worktree nest → Remove
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/cli-worktree-dirty-exit-remove.jsonl; web/e2e/__tests__/worktrees.spec.ts
+last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: RT-worktree-cli-lifecycle
 ---
 

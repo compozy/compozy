@@ -29,6 +29,7 @@ window-manager projection through `useDesktop` before `DesktopShell` mounted its
 - Keep workspace and worktree catalog reads in `useDesktopShellModel`; they do not depend on the OS
   shell context.
 - Regression suite: `web/src/systems/os/hooks/__tests__/use-desktop-shell-model.test.tsx`.
+- **Fix commit:** `8ec45d75`
 
 ## Verification
 

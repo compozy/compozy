@@ -6,13 +6,13 @@ persona: Ada
 journey: J-worktree-management
 expected: Creating, cancelling, adopting, listing, inspecting, refreshing status, executing or cancelling an assisted exit, refusing an unsafe removal, forcing removal, and dismissing a worktree through `compozy worktree` returns truthful structured output, deterministic exit codes, and never falls back to the workspace root.
 entry_points: compozy worktree list|create|cancel|adopt|inspect|status|exit|commit|push|pr|exit-cancel|remove|dismiss -o json|jsonl
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/cli-worktree-create.jsonl; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/cli-worktree-dirty-exit-remove.jsonl; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/cli-worktree-force-remove.json; internal/daemon/daemon_worktree_e2e_integration_test.go
+last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: RT-worktree-api-surface-parity
 ---
 

@@ -29,6 +29,8 @@ retain their domain state until their owning operation changes it.
 
 Regression suite: `internal/worktree.TestServiceDiscovery`.
 
+- **Fix commit:** `b6eb94d0`
+
 ## Verification
 
 - `go test -race ./internal/worktree -count=1`: 196 passed.

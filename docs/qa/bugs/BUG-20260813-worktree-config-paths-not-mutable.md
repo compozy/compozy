@@ -34,7 +34,7 @@ surface.
 
 - **Root cause:** `WorktreesConfig` was present in the config schema and validators but its six
   scalar paths were omitted from the shared CLI/native mutable-path policy.
-- **Fix commit:** pending Task 10 config lifecycle remediation commit
+- **Fix commit:** `a216668f`
 - **Regression tests:** `internal/config/tool_surface_test.go` — `TestToolConfigPathPolicy`;
   `internal/cli/config_test.go` — `TestConfigSetSupportsWorktreeLifecyclePaths`
 

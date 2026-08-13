@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-worktree-management
 expected: HTTP, UDS, CLI, native tools, and both worktree streams preserve workspace isolation, canonical payloads, deterministic error codes, risk and approval metadata, ordered replay, redacted events, and repository capability diagnostics for the same runtime state.
 entry_points: HTTP/UDS GET|POST /api/workspaces/:workspace_id/worktrees; POST .../adopt; GET .../:worktree_id; GET .../status|exit|stream; POST .../cancel|dismiss|exit/actions|exit/cancel; DELETE .../:worktree_id; GET /api/worktrees/catalog-stream; compozy__worktree_list|inspect|create|remove
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260813-base-ref-accepted-before-validation
 fix_status: fixed
-retest_status: passed
-fix_commits: pending Task 10 QA remediation commit
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/base-ref-refusal-fixed.json
-last_report:
+retest_status: pass
+fix_commits: 0d54b6fe
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/http-worktree-inspect.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/uds-worktree-inspect.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/native-worktree-inspect.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/base-ref-refusal-fixed.json
+last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: RT-worktree-cli-lifecycle
 ---
 

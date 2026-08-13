@@ -43,7 +43,7 @@ home workspace without reclassifying another global config as a workspace overla
   isolated runtime home it is also distinct from the active global config, so path deduplication
   alone could not protect it. The daemon and CLI display/management paths each selected overlays
   independently and both needed the same operator-home classification.
-- **Fix commit:** `2e741d9d` plus the pending Task 10 config lifecycle remediation commit
+- **Fix commit:** `2e741d9d`; `a216668f`
 - **Regression test:** `internal/config/config_test.go` — `TestLoadForHomeSkipsDuplicateWorkspaceOverlay`;
   `internal/daemon/daemon_test.go` — `TestBootRegistersOperatorHomeAsDefaultWorkspace`;
   `internal/cli/config_test.go` — `TestConfigCommandsResolveContextBeforeSelectingOverlays`
