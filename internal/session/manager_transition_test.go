@@ -457,7 +457,10 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 		if updated.SelectedRuntime == nil || updated.SelectedRuntime.Model != advertisedModel ||
 			updated.RuntimeSelectionRevision != 1 {
-			t.Fatalf("SetRuntimeSelection(advertised model) info = %#v, want exact persisted model at revision 1", updated)
+			t.Fatalf(
+				"SetRuntimeSelection(advertised model) info = %#v, want exact persisted model at revision 1",
+				updated,
+			)
 		}
 	})
 

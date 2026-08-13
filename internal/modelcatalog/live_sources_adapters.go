@@ -184,7 +184,10 @@ func (s *LiveProviderSource) discoveryTarget(
 			timeout: timeout,
 		}, nil
 	default:
-		return liveDiscoveryTarget{}, fmt.Errorf("model catalog: provider %q has no configured model discovery path", s.providerID)
+		return liveDiscoveryTarget{}, fmt.Errorf(
+			"model catalog: provider %q has no configured model discovery path",
+			s.providerID,
+		)
 	}
 }
 
