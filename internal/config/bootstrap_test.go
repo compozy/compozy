@@ -27,13 +27,21 @@ func TestResolveAgentNameFallsBackToDefaults(t *testing.T) {
 func TestDefaultsAgentNameValidation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should allow an empty default agent as no override", func(t *testing.T) {
+	t.Run("Should reject an empty default agent", func(t *testing.T) {
 		t.Parallel()
 
-		if err := (DefaultsConfig{}).Validate(); err != nil {
-			t.Fatalf("DefaultsConfig.Validate() error = %v, want nil", err)
+		err := (DefaultsConfig{}).Validate()
+		var validationErr ValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("DefaultsConfig.Validate() error = %T, want ValidationError", err)
 		}
-		_, err := ResolveAgentName("", DefaultsConfig{})
+		if got, want := validationErr.Path, "defaults.agent"; got != want {
+			t.Fatalf("DefaultsConfig.Validate() path = %q, want %q", got, want)
+		}
+		if got, want := validationErr.Message, "is required"; got != want {
+			t.Fatalf("DefaultsConfig.Validate() message = %q, want %q", got, want)
+		}
+		_, err = ResolveAgentName("", DefaultsConfig{})
 		const wantErr = "agent name is required; run `compozy install` or set defaults.agent"
 		if err == nil || err.Error() != wantErr {
 			t.Fatalf("ResolveAgentName() error = %v, want %q", err, wantErr)
