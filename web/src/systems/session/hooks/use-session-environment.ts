@@ -35,6 +35,8 @@ export interface SessionEnvironmentModel {
   /** The id to bind the session to, once one genuinely exists. */
   worktreeId: string | undefined;
   status: WorktreeMaterializationStatus;
+  listingState: "loading" | "ready" | "error" | "unsupported";
+  listingError?: string;
   /** Starts creation if the target needs it, and reports what the submit may do. */
   ensureReady: () => SessionEnvironmentReadiness;
   /** Abandons an in-flight creation and restores the supplied prior target. */
@@ -61,6 +63,43 @@ export function useSessionEnvironment({
   const materialization = useWorktreeMaterialization(workspaceId);
   const listing = worktrees.data;
 
+  if (!enabled || workspaceId === "") {
+    return {
+      field: undefined,
+      worktreeId: undefined,
+      status: "idle",
+      listingState: "unsupported",
+      ensureReady: () => "blocked",
+      cancelPending: () => {},
+    };
+  }
+
+  if (worktrees.isPending === true || (worktrees.isFetching === true && !listing)) {
+    return {
+      field: undefined,
+      worktreeId: undefined,
+      status: "idle",
+      listingState: "loading",
+      ensureReady: () => "blocked",
+      cancelPending: () => {},
+    };
+  }
+
+  if (worktrees.error) {
+    return {
+      field: undefined,
+      worktreeId: undefined,
+      status: "idle",
+      listingState: "error",
+      listingError:
+        worktrees.error instanceof Error
+          ? worktrees.error.message
+          : "Environments could not be loaded.",
+      ensureReady: () => "blocked",
+      cancelPending: () => {},
+    };
+  }
+
   const cancelPending = (restoreTarget = ROOT_ENVIRONMENT_TARGET) => {
     if (materialization.status === "idle") return;
     // `cancel` rolls the daemon's artifacts back once a row exists. When the 202
@@ -76,6 +115,7 @@ export function useSessionEnvironment({
       field: undefined,
       worktreeId: undefined,
       status: "idle",
+      listingState: "unsupported",
       ensureReady: () => "ready",
       cancelPending: () => {},
     };
@@ -114,6 +154,7 @@ export function useSessionEnvironment({
     },
     worktreeId,
     status: materialization.status,
+    listingState: "ready",
     ensureReady,
     cancelPending,
   };

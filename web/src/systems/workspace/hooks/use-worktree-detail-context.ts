@@ -24,6 +24,9 @@ export interface WorktreeDetailModel {
   status: WorktreeGitStatus | undefined;
   forgeStatus: WorktreeForgeStatus | undefined;
   ladder: WorktreeExitLadder | undefined;
+  state: "loading" | "ready" | "missing" | "error";
+  error?: string;
+  retry?: () => void;
   staleLabel?: string;
   isRunning: boolean;
   onAction: (row: WorktreeExitLadderRow) => void;
@@ -94,9 +97,26 @@ export function useWorktreeDetailContext({
   const forgeFetchedAt = status.data?.forge?.fetched_at;
   const staleLabel =
     ladder?.cleanup.stale && forgeFetchedAt ? formatRelativeTime(forgeFetchedAt) : undefined;
+  const detailError = worktrees.error ?? status.error ?? exit.error;
+  const detailLoading = worktrees.isPending || status.isPending || exit.isLoading;
+  const state: WorktreeDetailModel["state"] = detailError
+    ? "error"
+    : detailLoading
+      ? "loading"
+      : worktree
+        ? "ready"
+        : "missing";
+  const retry = () => {
+    void worktrees.refetch();
+    void status.refetch();
+    exit.refetch();
+  };
 
   return {
     worktree,
+    state,
+    error: detailError instanceof Error ? detailError.message : undefined,
+    retry,
     sessionTitle: staging.session?.name ?? staging.session?.id,
     status: status.data?.status,
     forgeStatus: status.data?.forge ?? undefined,
@@ -120,7 +140,10 @@ export function useWorktreeDetailContext({
       dialog === "commit" && ladder && worktree
         ? {
             open: true,
-            onOpenChange: open => setDialog(open ? "commit" : null),
+            onOpenChange: open => {
+              setDialog(open ? "commit" : null);
+              if (!open) staging.reset();
+            },
             worktreeName: worktree.name,
             branch: status.data?.status.branch ?? undefined,
             scope: ladder.commitScope,
@@ -132,6 +155,7 @@ export function useWorktreeDetailContext({
             promptStaged: staging.staged,
             onCommit: (row, message) => {
               run.mutate({ action: row.action, ...(message.trim() ? { message } : {}) });
+              staging.reset();
               setDialog(null);
             },
           }

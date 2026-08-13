@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
 import type { ComponentProps } from "react";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { StorySurface, StoryTopbarHost } from "@/storybook/story-layout";
@@ -15,8 +15,25 @@ import {
   readOnlySourceDetail,
   waitWarningDetail,
 } from "../../mocks/fixture-editor-lifecycle";
-import { loopDetailByName } from "../../mocks/fixtures";
+import {
+  loopConfigFixture,
+  loopDetailByName,
+  loopEffectiveConfigFixture,
+} from "../../mocks/fixtures";
 import type { LoopDetail } from "../../types";
+import {
+  nodeEnvironmentDetail,
+  RETIRED_CWD_ISSUES,
+  retiredCwdDetail,
+  revealNodeEnvironment,
+} from "./loop-editor-environment-story-helpers";
+
+import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
+import {
+  worktreeBehindFixture,
+  worktreeHandlers,
+  worktreeListingFixture,
+} from "@/systems/workspace/mocks";
 
 const WS = "ws_default";
 const delivery = loopDetailByName.get("implement-tasks")!;
@@ -297,5 +314,119 @@ export const PublishRejected: Story = {
     const publish = await canvas.findByTestId("loop-editor-publish");
     await userEvent.click(publish);
     await canvas.findByTestId("loop-editor-publish-error");
+  },
+};
+
+/**
+ * VC-31 — the one environment control on an agent-executing node, at the
+ * workspace root. Non-agent nodes get no control at all, which is why the
+ * inspector is opened on `execute_task` rather than the fan-out above it.
+ */
+export const NodeEnvironmentRoot: Story = {
+  args: { workspaceId: WS, name: "implement-tasks" },
+  parameters: { msw: { handlers: editorHandlers(nodeEnvironmentDetail({ mode: "root" })) } },
+  play: async ({ canvasElement }) => {
+    const canvas = await revealNodeEnvironment(canvasElement);
+    await canvas.findByText("Runs at the workspace root. Part of the session binding key.");
+  },
+};
+
+/** VC-32 — Named worktree: the mode brings its ready worktree picker with it. */
+export const NodeEnvironmentWorktree: Story = {
+  args: { workspaceId: storyWorkspaceIds.hq, name: "implement-tasks" },
+  parameters: {
+    msw: {
+      handlers: [
+        // Story-level `handlers` arrays replace preview groups, so the git-backed
+        // listing must be served here — otherwise the picker resolves as missing.
+        compozyApiMock.get("/api/workspaces/{workspace_id}/worktrees", () =>
+          HttpResponse.json(worktreeListingFixture)
+        ),
+        ...worktreeHandlers,
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", () =>
+          HttpResponse.json({
+            config: { ...loopConfigFixture, environment: { mode: "root" } },
+            effective_config: { ...loopEffectiveConfigFixture, environment: { mode: "root" } },
+          })
+        ),
+        ...editorHandlers(
+          nodeEnvironmentDetail({ mode: "worktree", worktree_ref: worktreeBehindFixture.id })
+        ),
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = await revealNodeEnvironment(canvasElement, ["loop-field-environment-ref"]);
+    await canvas.findByText("Overrides the loop default (Workspace root) for this node.");
+    const picker = canvas.getByTestId("loop-field-environment-ref");
+    await waitFor(() => {
+      expect(picker).not.toHaveAttribute("data-missing");
+    });
+    expect(picker).toHaveTextContent(worktreeBehindFixture.name);
+    expect(picker).not.toHaveTextContent(worktreeBehindFixture.id);
+    expect(within(picker).queryByText("missing")).not.toBeInTheDocument();
+  },
+};
+
+/** VC-33 — Directory, the escape hatch, holding a value templated over the namespace. */
+export const NodeEnvironmentDirectory: Story = {
+  args: { workspaceId: WS, name: "implement-tasks" },
+  parameters: {
+    msw: {
+      handlers: editorHandlers(
+        nodeEnvironmentDetail({ mode: "directory", directory: "packages/{{ .inputs.slug }}" })
+      ),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = await revealNodeEnvironment(canvasElement, ["loop-field-environment-directory"]);
+    await canvas.findByRole("combobox", { name: "Directory" });
+    await expect(canvas.getByTestId("loop-field-environment-directory")).toHaveValue(
+      "packages/{{ .inputs.slug }}"
+    );
+  },
+};
+
+/**
+ * VC-34 — the effective environment read back on the node card.
+ *
+ * The node declares nothing, so the card names the loop default it inherits and
+ * marks the readout as coming from there rather than from the node.
+ */
+export const NodeEnvironmentReadout: Story = {
+  args: { workspaceId: WS, name: "implement-tasks" },
+  parameters: {
+    msw: {
+      handlers: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", () =>
+          HttpResponse.json({
+            config: { ...loopConfigFixture, environment: { mode: "per_run" } },
+            effective_config: { ...loopEffectiveConfigFixture, environment: { mode: "per_run" } },
+          })
+        ),
+        ...editorHandlers(nodeEnvironmentDetail(null)),
+      ],
+    },
+  },
+};
+
+/** VC-35 — a definition still carrying the retired `params.cwd`: the daemon refuses it. */
+export const RetiredCwdRejected: Story = {
+  args: { workspaceId: WS, name: "implement-tasks" },
+  parameters: {
+    msw: {
+      handlers: [
+        compozyApiMock.post("/api/workspaces/{workspace_id}/loops/{name}/validate", () =>
+          HttpResponse.json({ valid: false, errors: RETIRED_CWD_ISSUES }, { status: 422 })
+        ),
+        ...editorHandlers(retiredCwdDetail()),
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByTestId("loop-linter-error-count");
+    await selectNode("execute_task")({ canvasElement });
+    await userEvent.click(canvas.getByTestId("loop-linter-toggle"));
   },
 };

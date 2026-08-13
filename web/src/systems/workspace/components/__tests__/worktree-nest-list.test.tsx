@@ -1,7 +1,7 @@
 // Suite: worktree nest list rendering
 // Invariant (UT-134, component half): rows render in the locked order, truncate at five behind an
 // adopted-only overflow row, keyboard order matches visual order, discovered rows are selectable as
-// the adoption gesture, and pending/missing rows are inert with their reason in a visible lane.
+// the adoption gesture, and pending/missing/error rows are inert with their reason in a visible lane.
 // Owning layer: workspace domain components. Canonical suite: this component test.
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -12,6 +12,7 @@ import { adoptedWorktreeCount, sortWorktreeNestEntries } from "../../lib/worktre
 import {
   discoveredWorktreeFixture,
   manyWorktreesListingFixture,
+  worktreeErrorFixture,
   worktreeMissingFixture,
   worktreePendingFixture,
   worktreeReadyDirtyRunningFixture,
@@ -24,7 +25,12 @@ import { WorktreeNestList } from "../worktree-nest-list";
  * are asserted on rendered rows rather than on rows the limit cut away.
  */
 const untruncatedListing = {
-  worktrees: [worktreeReadyDirtyRunningFixture, worktreePendingFixture, worktreeMissingFixture],
+  worktrees: [
+    worktreeReadyDirtyRunningFixture,
+    worktreePendingFixture,
+    worktreeMissingFixture,
+    worktreeErrorFixture,
+  ],
   discovered: [discoveredWorktreeFixture],
   repo: worktreeListingFixture.repo,
 };
@@ -51,13 +57,15 @@ describe("WorktreeNestList", () => {
   it("Should label the nest by its parent workspace", () => {
     renderNest();
 
-    expect(screen.getByRole("listbox", { name: "Worktrees in launch-hq" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Worktrees in launch-hq" })).toBeInTheDocument();
   });
 
   it("Should render rows in the locked order", () => {
     const { entries } = renderNest();
 
-    const rendered = screen.getAllByRole("option").map(node => node.textContent ?? "");
+    const rendered = screen
+      .getAllByTestId(/worktree-nest-item-/)
+      .map(node => node.textContent ?? "");
     // DOM order is the sorted order, which is also the keyboard order.
     entries.slice(0, 5).forEach((entry, index) => {
       expect(rendered[index]).toContain(entry.name);
@@ -69,7 +77,7 @@ describe("WorktreeNestList", () => {
     const onShowAll = vi.fn();
     renderNest(manyWorktreesListingFixture, { onShowAll });
 
-    expect(screen.getAllByRole("option")).toHaveLength(5);
+    expect(screen.getAllByTestId(/worktree-nest-item-/)).toHaveLength(5);
     // 9 adopted records + 1 discovered → the count says 9, never 10.
     const overflow = screen.getByTestId("worktree-nest-overflow");
     expect(overflow).toHaveTextContent(
@@ -106,21 +114,25 @@ describe("WorktreeNestList", () => {
     );
   });
 
-  it("Should keep pending and missing rows inert with a visible reason", async () => {
+  it("Should keep pending, missing, and error rows inert with a visible reason", async () => {
     const user = userEvent.setup();
     const { onSelectWorktree } = renderNest(untruncatedListing);
 
     const pending = screen.getByTestId("worktree-nest-item-wt_docs_refresh");
     const missing = screen.getByTestId("worktree-nest-item-wt_hotfix_cors");
+    const error = screen.getByTestId("worktree-nest-item-wt_bench_harness");
 
     expect(pending).toHaveAttribute("aria-disabled", "true");
     expect(missing).toHaveAttribute("aria-disabled", "true");
+    expect(error).toHaveAttribute("aria-disabled", "true");
     // The reason sits in its own lane, not behind a hover.
     expect(within(pending).getByText("materializing")).toBeVisible();
     expect(within(missing).getByText("directory missing")).toBeVisible();
+    expect(within(error).getByText("status read failed")).toBeVisible();
 
     await user.click(pending);
     await user.click(missing);
+    await user.click(error);
     expect(onSelectWorktree).not.toHaveBeenCalled();
   });
 

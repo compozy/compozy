@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 
 import { StorySurface } from "@/storybook/story-layout";
 import type { WorkspacePayload } from "@/systems/workspace";
@@ -55,9 +55,18 @@ const meta: Meta<typeof OsWorkspacesOverview> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const expandLaunchHqWorktrees: Story["play"] = async ({ canvasElement }) => {
+  const body = within(canvasElement.ownerDocument.body);
+  await userEvent.click(
+    await body.findByTestId(`os-workspace-worktrees-toggle-${GIT_WORKSPACE.id}`)
+  );
+};
+
 /** VC-19 — a workspace card with its worktree count and expandable nest. */
 export const WithWorktrees: Story = {
   args: {},
+  tags: ["play-fn"],
+  play: expandLaunchHqWorktrees,
   render: () => (
     <StorySurface>
       <OsWorkspacesOverview
@@ -106,6 +115,8 @@ export const WithoutWorktrees: Story = {
 /** VC-21 — a discovered external keeps its foreign path and enters no count. */
 export const DiscoveredExternal: Story = {
   args: {},
+  tags: ["play-fn"],
+  play: expandLaunchHqWorktrees,
   render: () => (
     <StorySurface>
       <OsWorkspacesOverview

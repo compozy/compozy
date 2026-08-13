@@ -101,6 +101,7 @@ export type {
   UpdateTaskRequest,
 } from "./types";
 
+// prettier-ignore
 export {
   TasksApiError,
   addTaskDependency,
@@ -158,7 +159,7 @@ export {
   updateTask,
 } from "./adapters/tasks-api";
 
-export { tasksKeys } from "./lib/query-keys";
+export { tasksKeys } from "./query-api";
 export {
   agentContextOptions,
   taskBridgeNotificationSubscriptionOptions,
@@ -176,7 +177,7 @@ export {
   taskTimelineOptions,
   taskTreeOptions,
   tasksListOptions,
-} from "./lib/query-options";
+} from "./query-api";
 
 export type { BlockedReasonChip, TaskStatusSignal } from "./lib/task-formatters";
 export {
@@ -398,5 +399,43 @@ export type {
   InboxFilterState,
   InboxLaneCount,
 } from "./lib/inbox-filters";
-export * from "./components/public-api";
-export * from "./worktree-public-api";
+// prettier-ignore
+export {
+  TaskActivityItem, TaskActivityPanel, TaskAutoEnqueueSwitch, TaskBridgeSubscriptionsPane,
+  TaskCard, TaskDeleteAction, TaskDependenciesSection, TaskEditorModal, TaskFanOutDialog,
+  TaskGroup, TaskInspectDrawer, TaskLinkedRow, TaskNowStrip, TaskOverviewPanel, TaskPageActions,
+  TaskPageOverflow, TaskPageStatus, TaskPauseDialog, TaskPriorityEditor, TaskPropertiesRail,
+  TaskRawPane, TaskResultSection, TaskRunActivitySection, TaskRunForceFailDialog,
+  TaskRunInspectDrawer, TaskRunOutcome, TaskRunPageActions, TaskRunPageOverflow,
+  TaskRunPageStatus, TaskRunRail, TaskRunReviewCard, TaskRunSubhead, TaskRunsPanel,
+  TaskSetupSheet, TaskStateBand, TaskSubtasksSection, TasksDashboardActiveRuns,
+  TasksDashboardCards, TasksDashboardQueueHealth, TasksDashboardStatusBreakdown,
+  TasksDashboardView, TasksDetailSubhead, TasksEmptyState, TasksInboxItem, TasksInboxView,
+  TasksKanbanBoard, TasksListFilters, TasksListRow, TasksListSort, TasksListSurface,
+  TasksListToolbar, TASK_RESULT_ANCHOR_ID,
+} from "./components-api";
+// prettier-ignore
+export type {
+  TaskActivityPanelProps, TaskBridgeSubscriptionsPaneProps, TaskCardProps, TaskEditorModalMode,
+  TaskEditorModalProps, TaskEditorModalStatus, TaskFanOutDialogProps, TaskGroupProps,
+  TaskInspectDrawerProps, TaskInspectDrawerTab, TaskLinkedRowProps, TaskLinkedRowState,
+  TaskNowStripHandlers, TaskNowStripProps, TaskOverviewPanelProps, TaskPageActionHandlers,
+  TaskPageActionsProps, TaskPageOverflowProps, TaskPauseDialogProps, TaskPropertiesRailProps,
+  TaskResultSectionProps, TaskRunActivitySectionProps, TaskRunForceFailDialogProps,
+  TaskRunInspectDrawerProps, TaskRunPageActionsProps, TaskRunPageOverflowProps, TaskRunRailProps,
+  TaskRunsPanelProps, TaskSetupSheetProps, TaskStateBandProps, TasksDashboardActiveRunsProps,
+  TasksDashboardCardsProps, TasksDashboardQueueHealthProps, TasksDashboardStatusBreakdownProps,
+  TasksDashboardViewProps, TasksEmptyStateProps, TasksInboxItemProps, TasksInboxViewProps,
+  TasksKanbanBoardProps, TasksListFiltersProps, TasksListRowProps, TasksListSortProps,
+  TasksListSurfaceProps, TasksListToolbarProps,
+} from "./components-api";
+export {
+  setTaskWorktreePolicy,
+  TaskFanOutIsolationRow,
+  TaskFanOutRunResults,
+  TaskWorktreePolicyFields,
+  TaskWorktreePolicyReadRow,
+  useSetTaskWorktreePolicy,
+  useTaskWorktreePolicyControl,
+} from "./worktree-public-api";
+export type { TaskWorktreePolicyControl } from "./worktree-public-api";

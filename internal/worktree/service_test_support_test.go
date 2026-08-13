@@ -57,11 +57,7 @@ func (r *recordingGitRunner) invocations() []gitInvocation {
 }
 
 func readyCapabilityGate() *CapabilityGate {
-	gate := &CapabilityGate{}
-	gate.once.Do(func() {
-		gate.result = CapabilityDiagnostic{Available: true}
-	})
-	return gate
+	return &CapabilityGate{cached: true, result: CapabilityDiagnostic{Available: true}}
 }
 
 type staticWorkspaceResolver struct {
@@ -197,6 +193,9 @@ func (s *memoryWorktreeStore) ListRecoverable(context.Context) ([]Worktree, erro
 			items = append(items, item)
 		}
 	}
+	slices.SortFunc(items, func(first, second Worktree) int {
+		return strings.Compare(first.ID, second.ID)
+	})
 	return items, nil
 }
 

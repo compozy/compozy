@@ -1457,6 +1457,32 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 		}
 	})
 
+	t.Run("Should reject worktree execution for a global task", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{ID: "task-global-worktree", Scope: taskpkg.ScopeGlobal},
+			Run: taskpkg.Run{
+				ID: "run-global-worktree", TaskID: "task-global-worktree",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
+				Status:           taskpkg.TaskRunStatusStarting, Attempt: 1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 29, 0, 0, time.UTC),
+			},
+		})
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("StartTaskSession(global worktree) error = %v, want ErrValidation", err)
+		}
+		if len(sessions.createCalls) != 0 {
+			t.Fatalf("Create() calls = %d, want zero", len(sessions.createCalls))
+		}
+	})
+
 	t.Run("Should select the immutable ref snapshot for session creation", func(t *testing.T) {
 		t.Parallel()
 
@@ -1763,6 +1789,25 @@ func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 		}, "sess-worktree")
 		if !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
 			t.Fatalf("AttachTaskRunSession() error = %v, want ErrSessionAttachNotAllowed", err)
+		}
+	})
+
+	t.Run("Should reject a session from a different workspace", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{infos: []*session.Info{{
+			ID: "sess-foreign", State: session.StateActive, WorkspaceID: "ws-foreign",
+		}}}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		_, err = bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
+			ID: "run-root", WorkspaceID: "ws-owning",
+			RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModeNone},
+		}, "sess-foreign")
+		if !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
+			t.Fatalf("AttachTaskRunSession(foreign workspace) error = %v, want ErrSessionAttachNotAllowed", err)
 		}
 	})
 

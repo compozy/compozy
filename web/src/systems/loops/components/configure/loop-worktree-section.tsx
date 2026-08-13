@@ -1,12 +1,14 @@
-import { FormSection, PillGroup } from "@compozy/ui";
+import { Field, FieldError, FieldLabel, FormSection, Input, PillGroup } from "@compozy/ui";
 
 import { WorktreeRefSelect, type WorktreePayload } from "@/systems/workspace";
 
 import {
-  LOOP_ENVIRONMENT_MODE_LABELS,
-  LOOP_ENVIRONMENT_MODES,
-} from "../../lib/loop-node-schema-types";
-import type { LoopEnvironmentMode, LoopEnvironmentSpec } from "../../types";
+  environmentSpecForChoice,
+  INHERIT_ENVIRONMENT,
+  loopEnvironmentItems,
+  type LoopEnvironmentChoice,
+} from "../../lib/loop-environment-choice";
+import type { LoopEnvironmentSpec } from "../../types";
 
 interface LoopWorktreeSectionProps {
   value: LoopEnvironmentSpec | null;
@@ -16,11 +18,8 @@ interface LoopWorktreeSectionProps {
   onChange: (next: LoopEnvironmentSpec | null) => void;
 }
 
-const INHERIT_VALUE = "__inherit__";
-type EnvironmentChoice = LoopEnvironmentMode | typeof INHERIT_VALUE;
-
-const MODE_HINTS: Partial<Record<EnvironmentChoice, string>> = {
-  [INHERIT_VALUE]: "No loop default declared — nodes choose their own environment.",
+const MODE_HINTS: Partial<Record<LoopEnvironmentChoice, string>> = {
+  [INHERIT_ENVIRONMENT]: "No loop default declared — nodes choose their own environment.",
   per_run: "Fresh worktree per run.",
 };
 
@@ -38,26 +37,13 @@ export function LoopWorktreeSection({
   disabled = false,
   onChange,
 }: LoopWorktreeSectionProps) {
-  const mode: EnvironmentChoice = value?.mode ?? INHERIT_VALUE;
-  const items = [
-    { value: INHERIT_VALUE as EnvironmentChoice, label: "Inherit", disabled },
-    ...LOOP_ENVIRONMENT_MODES.map(entry => ({
-      value: entry as EnvironmentChoice,
-      label: LOOP_ENVIRONMENT_MODE_LABELS[entry],
-      disabled: disabled || (!gitBacked && (entry === "worktree" || entry === "per_run")),
-    })),
-  ];
+  const mode: LoopEnvironmentChoice = value?.mode ?? INHERIT_ENVIRONMENT;
+  const items = loopEnvironmentItems(gitBacked, disabled);
   const hint = MODE_HINTS[mode];
+  const invalidDirectory = value?.mode === "directory" && !value.directory?.trim();
 
-  function handleModeChange(next: EnvironmentChoice) {
-    if (next === INHERIT_VALUE) return onChange(null);
-    if (next === "worktree") {
-      return onChange({ mode: "worktree", worktree_ref: value?.worktree_ref ?? "" });
-    }
-    if (next === "directory") {
-      return onChange({ mode: "directory", directory: value?.directory ?? "" });
-    }
-    return onChange({ mode: next });
+  function handleModeChange(next: LoopEnvironmentChoice) {
+    onChange(environmentSpecForChoice(next, value));
   }
 
   return (
@@ -82,6 +68,21 @@ export function LoopWorktreeSection({
               worktrees={worktrees}
             />
           </div>
+        ) : null}
+        {value?.mode === "directory" ? (
+          <Field className="mt-3" data-invalid={invalidDirectory ? "" : undefined}>
+            <FieldLabel htmlFor="loop-configure-environment-directory">Directory</FieldLabel>
+            <Input
+              disabled={disabled}
+              id="loop-configure-environment-directory"
+              onChange={event => onChange({ mode: "directory", directory: event.target.value })}
+              placeholder="packages/api"
+              value={value.directory ?? ""}
+            />
+            {invalidDirectory ? (
+              <FieldError>Enter a directory inside the workspace.</FieldError>
+            ) : null}
+          </Field>
         ) : null}
         {hint ? <p className="mt-2 text-form-hint leading-relaxed text-subtle">{hint}</p> : null}
       </div>

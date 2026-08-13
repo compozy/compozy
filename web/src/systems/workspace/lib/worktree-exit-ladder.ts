@@ -96,9 +96,12 @@ export function toWorktreeExitLadder(plan: WorktreeExitPlanPayload): WorktreeExi
   };
 }
 
-/** Total files the commit action would stage: tracked changes plus untracked additions. */
+/**
+ * Porcelain dirty total from the daemon. Untracked names are listed separately;
+ * they are already counted in `changed_files`.
+ */
 export function commitScopeTotal(scope: WorktreeExitCommitScope): number {
-  return scope.changed_files + scope.untracked_total;
+  return scope.changed_files;
 }
 
 export function isCommitScopeEmpty(scope: WorktreeExitCommitScope): boolean {

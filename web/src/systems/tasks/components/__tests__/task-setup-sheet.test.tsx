@@ -1,12 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { worktreeBehindFixture, worktreeMissingFixture } from "@/systems/workspace/mocks";
+
+import type { TaskProfileEditor } from "../../hooks/use-profile-editor";
 import {
   buildTaskExecutionProfileFixture,
   taskExecutionProfileFixture,
 } from "../../mocks/fixtures";
-import type { TaskProfileEditor } from "../../hooks/use-profile-editor";
-import { worktreeMissingFixture } from "@/systems/workspace/mocks";
 import { TaskSetupSheet } from "../task-setup-sheet";
 
 const runtime = {
@@ -45,12 +46,24 @@ describe("TaskSetupSheet", () => {
         open
         profile={taskExecutionProfileFixture}
         runtime={runtime}
+        worktreePolicy={{
+          locked: true,
+          onChange: vi.fn(),
+          pending: false,
+          value: { mode: "ref", worktree_ref: worktreeBehindFixture.id },
+          worktrees: [worktreeBehindFixture],
+        }}
       />
     );
 
     expect(screen.getByTestId("tasks-setup-locked")).toHaveTextContent(
-      "Run run_active_42 is active. Editing is locked until that run ends or is canceled."
+      "Editing is locked while run run_active_42 is active. Cancel the current run before changing the setup."
     );
+    expect(screen.getByTestId("tasks-setup-form")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("tasks-setup-form")).getByRole("button", { name: "Named worktree" })
+    ).toBeDisabled();
+    expect(screen.queryByTestId("tasks-setup-editor-save")).toBeNull();
     expect(screen.queryByTestId("tasks-setup-edit")).toBeNull();
     expect(screen.queryByTestId("tasks-setup-clear")).toBeNull();
   });
@@ -103,7 +116,7 @@ describe("TaskSetupSheet", () => {
       />
     );
 
-    expect(screen.getByText(/is not ready/)).toBeInTheDocument();
+    expect(screen.getByText(/is missing/)).toBeInTheDocument();
     expect(screen.getByTestId("tasks-setup-editor-save")).toBeDisabled();
   });
 

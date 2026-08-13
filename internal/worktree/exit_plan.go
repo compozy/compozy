@@ -10,16 +10,6 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
-type ExitAction string
-
-const (
-	ExitActionCommit     ExitAction = "commit"
-	ExitActionCommitPush ExitAction = "commit_push"
-	ExitActionPush       ExitAction = "push"
-	ExitActionOpenPR     ExitAction = "open_pr"
-	ExitActionViewPR     ExitAction = "view_pr"
-)
-
 const (
 	reasonNoChanges        = "No uncommitted changes to commit."
 	reasonCommitFirst      = "Commit changes before pushing branches."
@@ -37,55 +27,6 @@ const (
 	exitOpenPRLabel        = "Open PR"
 	defaultBaseBranch      = "main"
 )
-
-type ExitActionPlan struct {
-	Action        ExitAction `json:"action"`
-	Label         string     `json:"label"`
-	Enabled       bool       `json:"enabled"`
-	BlockedReason string     `json:"blocked_reason,omitempty"`
-	Publish       bool       `json:"publish,omitempty"`
-	URL           string     `json:"url,omitempty"`
-	PRNumber      int        `json:"pr_number,omitempty"`
-}
-
-type ExitCommitScope struct {
-	ChangedFiles       int      `json:"changed_files"`
-	Insertions         int      `json:"insertions"`
-	Deletions          int      `json:"deletions"`
-	UntrackedFiles     []string `json:"untracked_files"`
-	UntrackedTotal     int      `json:"untracked_total"`
-	UntrackedTruncated bool     `json:"untracked_truncated,omitempty"`
-}
-
-type ExitCleanupEvidence struct {
-	ForgeState string `json:"forge_state,omitempty"`
-	Stale      bool   `json:"stale,omitempty"`
-	Safe       bool   `json:"safe"`
-	Source     string `json:"source,omitempty"`
-	Summary    string `json:"summary,omitempty"`
-	Blocker    string `json:"blocker,omitempty"`
-	Downgraded bool   `json:"downgraded,omitempty"`
-}
-
-type ExitPRPrefill struct {
-	Title string `json:"title,omitempty"`
-	Body  string `json:"body,omitempty"`
-}
-
-type ExitPlan struct {
-	WorktreeID       string              `json:"worktree_id"`
-	Primary          ExitAction          `json:"primary,omitempty"`
-	Actions          []ExitActionPlan    `json:"actions"`
-	GlobalPauseCause string              `json:"global_pause_cause,omitempty"`
-	CommitScope      ExitCommitScope     `json:"commit_scope"`
-	BrowserURL       string              `json:"browser_url,omitempty"`
-	Forge            *ForgeCapabilities  `json:"forge,omitempty"`
-	ForgeStatus      *ForgeStatus        `json:"forge_status,omitempty"`
-	PRPrefill        *ExitPRPrefill      `json:"pr_prefill,omitempty"`
-	Cleanup          ExitCleanupEvidence `json:"cleanup"`
-	Base             string              `json:"base,omitempty"`
-	RemoteURLs       []string            `json:"remote_urls,omitempty"`
-}
 
 func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPlan, error) {
 	item, err := s.store.Get(ctx, workspaceID, id)
@@ -464,7 +405,10 @@ func (s *Service) countCommitsAhead(ctx context.Context, path, base string) int 
 func (s *Service) readExitCommitScope(ctx context.Context, item Worktree, status *Status) (ExitCommitScope, error) {
 	stdout, stderr, err := s.runner.Run(ctx, item.Path, "status", "--porcelain=v2", "-z", "--untracked-files=all")
 	if err != nil {
-		return ExitCommitScope{}, refusal(ErrStatusUnreadable, strings.TrimSpace(string(stderr)))
+		return ExitCommitScope{}, refusal(
+			ErrStatusUnreadable,
+			diagnostics.RedactAndBound(strings.TrimSpace(string(stderr)), 2048),
+		)
 	}
 	untracked, err := ParseUntrackedStatusV2(stdout)
 	if err != nil {

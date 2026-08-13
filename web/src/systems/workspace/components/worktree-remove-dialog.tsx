@@ -1,4 +1,4 @@
-import { History, Trash2, TriangleAlert } from "lucide-react";
+import { Trash2, TriangleAlert } from "lucide-react";
 
 import { Alert, AlertDescription, Button, ConfirmDialog, MetadataList, MonoId } from "@compozy/ui";
 
@@ -115,10 +115,6 @@ export function WorktreeRemoveDialog({
               </Button>
             </div>
           ) : null}
-          <p className="inline-flex items-center gap-1.5 text-form-hint text-subtle">
-            <History className="size-3.5 shrink-0" />
-            {REMOVE_HISTORY_NOTE}
-          </p>
         </div>
       }
       confirmLabel={

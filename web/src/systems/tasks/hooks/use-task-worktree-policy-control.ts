@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useWorktrees, type WorktreePayload } from "@/systems/workspace";
 
@@ -27,6 +27,16 @@ export interface TaskWorktreePolicyControl {
 
 const INHERIT: TaskExecutionProfileWorktree = { mode: "inherit" };
 
+interface PolicyDraft {
+  taskId: string;
+  serverKey: string;
+  value: TaskExecutionProfileWorktree;
+}
+
+function policyKey(value: TaskExecutionProfileWorktree): string {
+  return `${value.mode}\u0000${value.worktree_ref ?? ""}`;
+}
+
 /**
  * The policy control's view model, or `undefined` when there is nothing to
  * choose from — no workspace resolved yet, or a workspace git cannot back.
@@ -46,11 +56,12 @@ export function useTaskWorktreePolicyControl({
   });
   const mutation = useSetTaskWorktreePolicy();
   const serverValue = profile?.worktree ?? INHERIT;
-  const [draft, setDraft] = useState<TaskExecutionProfileWorktree>(serverValue);
-
-  useEffect(() => {
-    if (!enabled || !mutation.isPending) setDraft(serverValue);
-  }, [enabled, mutation.isPending, serverValue]);
+  const serverKey = policyKey(serverValue);
+  const [optimisticDraft, setOptimisticDraft] = useState<PolicyDraft | null>(null);
+  const draft =
+    enabled && optimisticDraft?.taskId === taskId && optimisticDraft.serverKey === serverKey
+      ? optimisticDraft.value
+      : serverValue;
 
   if (!workspaceId || !worktrees.data?.repo.git_backed) return undefined;
 
@@ -68,7 +79,7 @@ export function useTaskWorktreePolicyControl({
     pending: mutation.isPending,
     valid: !invalid,
     onChange: next => {
-      setDraft(next);
+      setOptimisticDraft({ taskId, serverKey, value: next });
       if (next.mode === "ref" && !next.worktree_ref?.trim()) return;
       mutation.mutate(
         {
@@ -78,7 +89,10 @@ export function useTaskWorktreePolicyControl({
               ? { mode: "ref", worktree_ref: next.worktree_ref }
               : { mode: next.mode },
         },
-        { onError: () => setDraft(serverValue) }
+        {
+          onError: () =>
+            setOptimisticDraft(current => (current?.taskId === taskId ? null : current)),
+        }
       );
     },
   };

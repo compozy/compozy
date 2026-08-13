@@ -90,7 +90,9 @@ export function WorktreeRow({
             data-slot="worktree-row-name"
             className={cn(
               "min-w-0 truncate font-[550] tracking-tight",
-              entry.displayState === "missing" || entry.displayState === "failed"
+              entry.displayState === "missing" ||
+                entry.displayState === "failed" ||
+                entry.displayState === "error"
                 ? "text-muted"
                 : "text-fg-strong",
               isNest ? "text-form-label" : "text-small-body"

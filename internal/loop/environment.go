@@ -13,6 +13,12 @@ func ResolveActionEnvironment(
 	loopDefault dsl.EnvironmentSpec,
 ) (dsl.EnvironmentSpec, error) {
 	resolved := normalizeEnvironmentSpec(node)
+	if resolved.Mode == "" && (resolved.WorktreeRef != "" || resolved.Directory != "") {
+		return dsl.EnvironmentSpec{}, fmt.Errorf(
+			"%w: node environment fields require an explicit mode",
+			ErrValidation,
+		)
+	}
 	if resolved.Mode == "" {
 		resolved = normalizeEnvironmentSpec(loopDefault)
 	}

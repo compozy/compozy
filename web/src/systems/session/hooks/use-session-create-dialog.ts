@@ -56,6 +56,8 @@ export interface SessionCreateDialogState {
   userHomeDir: string | undefined;
   /** Absent when the workspace is not git-backed. */
   environment: SessionEnvironmentModel["field"];
+  environmentListingState: SessionEnvironmentModel["listingState"];
+  environmentListingError?: string;
   firstMessage: string;
   /** True while a submit the operator already asked for waits on its worktree. */
   isAwaitingEnvironment: boolean;
@@ -268,6 +270,8 @@ export function useSessionCreateDialogViewModel(
     pendingWorkspaceId,
     userHomeDir,
     environment: scope === "workspace" ? environment.field : undefined,
+    environmentListingState: environment.listingState,
+    environmentListingError: environment.listingError,
     firstMessage: draft.firstMessage,
     isAwaitingEnvironment: pendingSubmit !== null,
     onCancelEnvironment: () => {

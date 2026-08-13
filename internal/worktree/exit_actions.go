@@ -281,10 +281,13 @@ func (s *Service) runExitPush(
 	if step.Upstream == "" {
 		step.Upstream = "origin/" + item.Branch
 	}
-	sha, _, shaErr := s.runner.Run(ctx, item.Path, "rev-parse", "HEAD")
-	if shaErr == nil {
-		step.SHA = strings.TrimSpace(string(sha))
+	sha, shaStderr, shaErr := s.runner.Run(ctx, item.Path, "rev-parse", "HEAD")
+	if shaErr != nil {
+		step.State = exitStepFailed
+		step.Output = exitCommandOutput(sha, shaStderr, shaErr)
+		return step, fmt.Errorf("worktree: read pushed HEAD: %w", shaErr)
 	}
+	step.SHA = strings.TrimSpace(string(sha))
 	return step, nil
 }
 

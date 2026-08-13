@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -241,6 +242,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		t.Parallel()
 		forced := newRemovalTestFixture(t)
 		forced.dirty.Store(true)
+		forced.failFirstForcedRemoval.Store(true)
 		if refusalResult, err := forced.service.Remove(
 			context.Background(), forced.workspace.ID, forced.item.ID, true,
 		); err != nil || refusalResult != nil {
@@ -251,6 +253,13 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 			"--git-dir "+forced.commonDir+" worktree remove --force ",
 		) {
 			t.Fatal("forced removal omitted the explicit --force flag")
+		}
+		commands := invocationCommands(forced.runner.invocations())
+		if !slices.Contains(
+			commands,
+			"--git-dir "+forced.commonDir+" worktree remove --force --force "+forced.item.Path,
+		) {
+			t.Fatalf("forced removal calls = %#v, want Git's double-force locked-worktree retry", commands)
 		}
 
 		failed := newRemovalTestFixture(t)
@@ -495,17 +504,19 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 }
 
 type removalTestFixture struct {
-	service        *Service
-	store          *memoryWorktreeStore
-	runner         *recordingGitRunner
-	events         *recordingEventSink
-	workspace      Workspace
-	item           Worktree
-	commonDir      string
-	dirty          atomicBool
-	uniqueCommits  atomicInt
-	remoteContains atomicBool
-	removeFails    atomicBool
+	service                *Service
+	store                  *memoryWorktreeStore
+	runner                 *recordingGitRunner
+	events                 *recordingEventSink
+	workspace              Workspace
+	item                   Worktree
+	commonDir              string
+	dirty                  atomicBool
+	uniqueCommits          atomicInt
+	remoteContains         atomicBool
+	removeFails            atomicBool
+	failFirstForcedRemoval atomicBool
+	removeCalls            atomicInt
 }
 
 type lostStateFenceStore struct {
@@ -621,7 +632,9 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 			}
 			return gitResponse{}
 		case strings.HasPrefix(command, "--git-dir "+commonDir+" worktree remove "):
-			if fixture.removeFails.Load() {
+			fixture.removeCalls.Store(fixture.removeCalls.Load() + 1)
+			if fixture.removeFails.Load() ||
+				(fixture.failFirstForcedRemoval.Load() && fixture.removeCalls.Load() == 1) {
 				return gitResponse{stderr: []byte("resource busy"), err: errors.New("exit 1")}
 			}
 			if err := os.RemoveAll(path); err != nil {

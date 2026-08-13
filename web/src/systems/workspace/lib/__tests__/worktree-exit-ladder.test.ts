@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isCommitScopeEmpty, toWorktreeExitLadder } from "../worktree-exit-ladder";
+import {
+  commitScopeTotal,
+  isCommitScopeEmpty,
+  toWorktreeExitLadder,
+} from "../worktree-exit-ladder";
 import type { WorktreeExitPlanPayload } from "../../types";
 
 /**
@@ -136,27 +140,27 @@ describe("toWorktreeExitLadder", () => {
 });
 
 describe("isCommitScopeEmpty", () => {
-  it("Should count untracked additions as scope", () => {
-    expect(
-      isCommitScopeEmpty({
-        changed_files: 0,
-        insertions: 0,
-        deletions: 0,
-        untracked_files: ["a.ts"],
-        untracked_total: 1,
-      })
-    ).toBe(false);
+  it("Should treat porcelain changed_files as the total, including untracked", () => {
+    const scope = {
+      changed_files: 6,
+      insertions: 142,
+      deletions: 18,
+      untracked_files: ["docs/notes.md", "internal/worktree/probe_test.go"],
+      untracked_total: 2,
+    };
+    expect(commitScopeTotal(scope)).toBe(6);
+    expect(isCommitScopeEmpty(scope)).toBe(false);
   });
 
   it("Should be empty only when nothing at all would stage", () => {
-    expect(
-      isCommitScopeEmpty({
-        changed_files: 0,
-        insertions: 0,
-        deletions: 0,
-        untracked_files: [],
-        untracked_total: 0,
-      })
-    ).toBe(true);
+    const scope = {
+      changed_files: 0,
+      insertions: 0,
+      deletions: 0,
+      untracked_files: [],
+      untracked_total: 0,
+    };
+    expect(commitScopeTotal(scope)).toBe(0);
+    expect(isCommitScopeEmpty(scope)).toBe(true);
   });
 });

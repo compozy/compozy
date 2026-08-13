@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: web/src/systems/loops/components/__tests__/loop-editor.test.tsx; web/src/systems/loops/components/__tests__/loop-run-form.test.tsx
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/screenshots/loop-node-named-worktree.png; web/src/systems/loops/components/__tests__/loop-editor.test.tsx
 last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: LP-loop-environment-resolution
 ---

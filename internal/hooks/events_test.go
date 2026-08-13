@@ -100,27 +100,30 @@ func TestSyncEligibleClassification(t *testing.T) {
 func TestWorktreeHookEventsHaveExpectedContracts(t *testing.T) {
 	t.Parallel()
 
-	expected := map[HookEvent]bool{
-		HookWorktreePreCreate: true,
-		HookWorktreePreRemove: true,
-		HookWorktreeCreated:   false,
-		HookWorktreeAdopted:   false,
-		HookWorktreeRemoved:   false,
-	}
-	descriptors := FilterEventDescriptors(EventFilter{Family: HookEventFamilyWorktree})
-	if len(descriptors) != len(expected) {
-		t.Fatalf("worktree descriptors = %d, want %d", len(descriptors), len(expected))
-	}
-	for _, descriptor := range descriptors {
-		wantSync, ok := expected[descriptor.Event]
-		if !ok {
-			t.Fatalf("unexpected worktree descriptor %#v", descriptor)
+	t.Run("Should expose complete worktree hook contracts", func(t *testing.T) {
+		t.Parallel()
+		expected := map[HookEvent]bool{
+			HookWorktreePreCreate: true,
+			HookWorktreePreRemove: true,
+			HookWorktreeCreated:   false,
+			HookWorktreeAdopted:   false,
+			HookWorktreeRemoved:   false,
 		}
-		if descriptor.Family != HookEventFamilyWorktree || descriptor.SyncEligible != wantSync ||
-			descriptor.PayloadSchema == "" || descriptor.PatchSchema == "" {
-			t.Fatalf("worktree descriptor = %#v, want complete contract", descriptor)
+		descriptors := FilterEventDescriptors(EventFilter{Family: HookEventFamilyWorktree})
+		if len(descriptors) != len(expected) {
+			t.Fatalf("worktree descriptors = %d, want %d", len(descriptors), len(expected))
 		}
-	}
+		for _, descriptor := range descriptors {
+			wantSync, ok := expected[descriptor.Event]
+			if !ok {
+				t.Fatalf("unexpected worktree descriptor %#v", descriptor)
+			}
+			if descriptor.Family != HookEventFamilyWorktree || descriptor.SyncEligible != wantSync ||
+				descriptor.PayloadSchema == "" || descriptor.PatchSchema == "" {
+				t.Fatalf("worktree descriptor = %#v, want complete contract", descriptor)
+			}
+		}
+	})
 }
 
 func TestLoopHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {

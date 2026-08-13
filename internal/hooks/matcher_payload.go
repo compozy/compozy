@@ -69,7 +69,7 @@ func (m HookMatcher) MatchesPrompt(payload PromptPayload) bool {
 
 // MatchesEvent matches event-record-family hooks.
 func (m HookMatcher) MatchesEvent(payload EventRecordPayload) bool {
-	return matchStringField(m.AgentName, payload.AgentName) &&
+	return m.matchSessionContext(payload.SessionContext, false) &&
 		matchStringField(m.ACPEventType, payload.RecordType) &&
 		matchStringField(m.TurnID, payload.TurnID)
 }
@@ -98,7 +98,8 @@ func (m HookMatcher) MatchesTurn(payload TurnPayload) bool {
 
 // MatchesMessage matches message-family hooks.
 func (m HookMatcher) MatchesMessage(payload MessagePayload) bool {
-	return matchStringField(m.MessageRole, payload.Role) &&
+	return m.matchSessionContext(payload.SessionContext, false) &&
+		matchStringField(m.MessageRole, payload.Role) &&
 		matchStringField(m.MessageDeltaType, payload.DeltaType)
 }
 
@@ -135,7 +136,8 @@ func (m HookMatcher) MatchesPermissionResolution(payload PermissionResolutionPay
 // MatchesContextCompact matches context-compaction hooks.
 func (m HookMatcher) MatchesContextCompact(payload ContextCompactPayload) bool {
 	compaction := m.compaction()
-	return matchStringField(compaction.Reason, payload.Reason) &&
+	return m.matchSessionContext(payload.SessionContext, false) &&
+		matchStringField(compaction.Reason, payload.Reason) &&
 		matchStringField(compaction.Strategy, payload.Strategy)
 }
 

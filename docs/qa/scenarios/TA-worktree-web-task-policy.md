@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/web-fanout-fixed-task.json; web/src/systems/tasks/components/__tests__/task-setup-dialog.test.tsx
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/screenshots/task-named-worktree-saved.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/task-profile-named.json
 last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: TA-task-per-run-worktree-isolation; TA-task-fanout-worktree-isolation
 ---

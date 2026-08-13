@@ -252,16 +252,16 @@ func TestExitPlan(t *testing.T) {
 			{
 				name:      "fresh merged forge verdict",
 				forge:     &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
-				responses: []gitResponse{{stdout: []byte("2026-08-12T11:00:00Z\n")}},
+				responses: []gitResponse{{stdout: []byte("  origin/feature\n")}},
 				want: ExitCleanupEvidence{
 					ForgeState: "merged", Safe: true, Source: "forge", Summary: "Merged on github",
 				},
 			},
 			{
-				name:  "local commit newer than merged verdict",
+				name:  "current head absent from every remote",
 				forge: &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
 				responses: []gitResponse{
-					{stdout: []byte("2026-08-12T13:00:00Z\n")}, {stdout: []byte("1\n")}, {},
+					{}, {stdout: []byte("1\n")}, {},
 				},
 				want: ExitCleanupEvidence{
 					ForgeState: "merged", Stale: true, Source: "local",
@@ -295,9 +295,9 @@ func TestExitPlan(t *testing.T) {
 				},
 			},
 			{
-				name:      "merged verdict with invalid local commit time",
+				name:      "merged verdict without remote containment",
 				forge:     &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
-				responses: []gitResponse{{stdout: []byte("not-a-time\n")}, {stdout: []byte("1\n")}, {}},
+				responses: []gitResponse{{}, {stdout: []byte("1\n")}, {}},
 				want: ExitCleanupEvidence{
 					ForgeState: "merged", Stale: true, Source: "local",
 					Blocker: "1 commits exist nowhere else.",

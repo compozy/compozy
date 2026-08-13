@@ -7,8 +7,15 @@ import type {
   ActiveWorktreeSelection,
   WorkspacePayload,
   WorkspaceScopeMode,
+  WorktreesResponse,
 } from "@/systems/workspace";
-import { worktreeListingFixture } from "@/systems/workspace/mocks";
+import {
+  discoveredWorktreeFixture,
+  worktreeListingFixture,
+  worktreeMissingFixture,
+  worktreePendingFixture,
+  worktreeReadyDirtyRunningFixture,
+} from "@/systems/workspace/mocks";
 
 import { OsShellContext } from "../../contexts/os-shell-context";
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
@@ -75,6 +82,7 @@ function MenubarFixture({
   onToggleGlobalScope,
   toggleLocked,
   worktreeSelection,
+  listing = MENUBAR_WORKTREE_LISTING,
 }: {
   overlay?: DesktopOverlay | null;
   live?: boolean;
@@ -83,6 +91,7 @@ function MenubarFixture({
   onToggleGlobalScope?: () => void;
   toggleLocked?: boolean;
   worktreeSelection?: ActiveWorktreeSelection;
+  listing?: WorktreesResponse;
 }) {
   const [shell] = useState(() => (live ? createLiveStoryShell() : createStoryShell()));
   const [active, setActive] = useState<DesktopOverlay | null>(overlay);
@@ -109,7 +118,7 @@ function MenubarFixture({
               setActive(current => (open ? id : current === id ? null : current))
             }
             attention={ATTENTION}
-            worktreesByWorkspace={{ [WORKSPACES[0].id]: MENUBAR_WORKTREE_LISTING }}
+            worktreesByWorkspace={{ [WORKSPACES[0].id]: listing }}
             userHomeDir="/Users/ada"
             worktreeSelection={worktreeSelection}
             onSelectWorktree={fn()}
@@ -121,12 +130,22 @@ function MenubarFixture({
   );
 }
 
-const MENUBAR_WORKTREE_LISTING = {
+function remapWorkspaceId<T extends { workspace_id?: string }>(entry: T): T {
+  return { ...entry, workspace_id: WORKSPACES[0].id };
+}
+
+const MENUBAR_WORKTREE_LISTING: WorktreesResponse = {
   ...worktreeListingFixture,
-  worktrees: worktreeListingFixture.worktrees.map(worktree => ({
-    ...worktree,
-    workspace_id: WORKSPACES[0].id,
-  })),
+  worktrees: worktreeListingFixture.worktrees.map(remapWorkspaceId),
+};
+
+/** ≤5 rows so discovered and missing survive the nest truncate. */
+const MENUBAR_NEST_LISTING: WorktreesResponse = {
+  ...worktreeListingFixture,
+  worktrees: [worktreeReadyDirtyRunningFixture, worktreePendingFixture, worktreeMissingFixture].map(
+    remapWorkspaceId
+  ),
+  discovered: [discoveredWorktreeFixture],
 };
 
 const READY_WORKTREE = MENUBAR_WORKTREE_LISTING.worktrees.find(
@@ -188,10 +207,13 @@ export const HelpMenuOpen: Story = {
   render: () => <MenubarFixture overlay="help-menu" />,
 };
 
-/** VC-15 — workspace menu with the shared nested worktree projection. */
+/**
+ * VC-15 — workspace menu with the shared nested worktree projection.
+ * Compact listing keeps discovered and missing inside the five-row nest.
+ */
 export const WorkspaceMenuOpen: Story = {
   args: { workspace: { name: "compozy", monogram: "CO" } },
-  render: () => <MenubarFixture overlay="workspace-menu" />,
+  render: () => <MenubarFixture overlay="workspace-menu" listing={MENUBAR_NEST_LISTING} />,
 };
 
 /** Global on: the menu lists project folders with no check, plus the scope notice. */
@@ -228,11 +250,16 @@ export const WorkspaceAndWorktreeChip: Story = {
   ),
 };
 
-/** VC-18 — a missing selection falls back to the parent and states why. */
+/**
+ * VC-18 — a missing selection falls back to the parent and states why.
+ * Menu stays open so the missing row and the bar notice are both capturable.
+ */
 export const MissingWorktreeFallback: Story = {
   args: { workspace: { name: "compozy", monogram: "CO" } },
   render: () => (
     <MenubarFixture
+      overlay="workspace-menu"
+      listing={MENUBAR_NEST_LISTING}
       worktreeSelection={{
         selectedWorktreeId: MISSING_WORKTREE.id,
         activeWorktree: null,

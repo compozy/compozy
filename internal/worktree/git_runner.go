@@ -16,7 +16,11 @@ import (
 	"golang.org/x/sys/execabs"
 )
 
-const defaultGitTimeout = 30 * time.Second
+const (
+	defaultGitTimeout      = 30 * time.Second
+	maxGitOutputBytes      = 1 << 20
+	maxGitStreamChunkBytes = 64 << 10
+)
 
 type GitRunner interface {
 	Run(context.Context, string, ...string) ([]byte, []byte, error)
@@ -52,13 +56,16 @@ type cappedBuffer struct {
 }
 
 type gitOutputWriter struct {
-	buffer   bytes.Buffer
+	buffer   *cappedBuffer
 	pending  []byte
 	stream   GitOutputStream
 	onOutput GitOutputHandler
 }
 
 func (w *gitOutputWriter) Write(value []byte) (int, error) {
+	if w.buffer == nil {
+		w.buffer = newCappedBuffer(maxGitOutputBytes)
+	}
 	written, err := w.buffer.Write(value)
 	if err != nil {
 		return written, err
@@ -71,6 +78,9 @@ func (w *gitOutputWriter) Write(value []byte) (int, error) {
 				break
 			}
 			w.emitPending(newline + 1)
+		}
+		for len(w.pending) >= maxGitStreamChunkBytes {
+			w.emitPending(maxGitStreamChunkBytes)
 		}
 	}
 	return written, nil
@@ -88,10 +98,16 @@ func (w *gitOutputWriter) emitPending(length int) {
 }
 
 func (w *gitOutputWriter) Bytes() []byte {
+	if w.buffer == nil {
+		return nil
+	}
 	return w.buffer.Bytes()
 }
 
 func (w *gitOutputWriter) String() string {
+	if w.buffer == nil {
+		return ""
+	}
 	return w.buffer.String()
 }
 
@@ -115,6 +131,10 @@ func (b *cappedBuffer) Write(value []byte) (int, error) {
 
 func (b *cappedBuffer) String() string {
 	return b.buffer.String()
+}
+
+func (b *cappedBuffer) Bytes() []byte {
+	return b.buffer.Bytes()
 }
 
 func NewRealGitRunner(timeout time.Duration) (*RealGitRunner, error) {

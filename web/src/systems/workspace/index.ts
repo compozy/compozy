@@ -238,6 +238,7 @@ export { WorktreeStateDot } from "./components/worktree-state-dot";
 export type { WorktreeDotState, WorktreeStateDotProps } from "./components/worktree-state-dot";
 export { WorktreeSignals } from "./components/worktree-signals";
 export type { WorktreeSignalsProps } from "./components/worktree-signals";
+export { WorktreeOriginSignal } from "./components/worktree-signal-parts";
 export { WorktreeRow } from "./components/worktree-row";
 export type { WorktreeRowProps } from "./components/worktree-row";
 export { WorktreeCreateDialog } from "./components/worktree-create-dialog";

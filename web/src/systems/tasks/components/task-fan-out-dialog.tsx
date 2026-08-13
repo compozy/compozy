@@ -17,6 +17,7 @@ import {
 
 import { useTaskFanOutDialog } from "../hooks/use-task-fan-out-dialog";
 import { useTaskFanOutRunResults } from "../hooks/use-task-fan-out-run-results";
+import { useRetryTaskRun } from "../hooks/use-task-run-actions";
 import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
 import type { WorktreePayload } from "@/systems/workspace";
 import { NetworkParticipationFields } from "@/systems/network";
@@ -50,6 +51,7 @@ export function TaskFanOutDialog({
 }: TaskFanOutDialogProps) {
   const state = useTaskFanOutDialog({ onOpenChange, onFanOut });
   const liveRuns = useTaskFanOutRunResults(taskId, state.result?.runs ?? []);
+  const retry = useRetryTaskRun();
 
   return (
     <Dialog onOpenChange={state.handleOpenChange} open={open}>
@@ -100,6 +102,8 @@ export function TaskFanOutDialog({
             {state.result ? (
               <TaskFanOutRunResults
                 liveRuns={liveRuns}
+                onRetry={runId => retry.mutate({ runId })}
+                retryPending={retry.isPending}
                 runs={state.result.runs}
                 worktrees={worktrees}
               />

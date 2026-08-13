@@ -54,7 +54,9 @@ export function TaskWorktreePolicyFields({
   const disabled = locked || pending;
   const selectedRef = value.worktree_ref ?? "";
   const referenced = worktrees.find(worktree => worktree.id === selectedRef);
+  const readyWorktrees = worktrees.filter(worktree => worktree.state === "ready");
   const invalidRef = isTaskWorktreeRefInvalid(value.mode, selectedRef, worktrees);
+  const missingRef = invalidRef && (referenced === undefined || referenced.state === "missing");
   const hint =
     value.mode === "none" && workspacePath
       ? `Runs at the workspace root ${workspacePath} regardless of other defaults.`
@@ -83,10 +85,12 @@ export function TaskWorktreePolicyFields({
         <WorktreeRefSelect
           ariaLabel="Task worktree"
           disabled={disabled}
+          displayValue={referenced?.name}
+          invalid={invalidRef}
           onChange={worktreeRef => onChange({ mode: "ref", worktree_ref: worktreeRef })}
           testId="tasks-setup-worktree-ref"
           value={selectedRef}
-          worktrees={worktrees}
+          worktrees={readyWorktrees}
         />
       ) : null}
       {hint ? <FieldDescription>{hint}</FieldDescription> : null}
@@ -94,7 +98,9 @@ export function TaskWorktreePolicyFields({
         <FieldError>
           {selectedRef === ""
             ? "Pick a ready worktree before saving this policy."
-            : `Worktree ${referenced?.name ?? selectedRef} is not ready — runs will fail until you pick another.`}
+            : missingRef
+              ? `Worktree ${referenced?.name ?? selectedRef} is missing — runs will fail until you pick another.`
+              : `Worktree ${referenced?.name ?? selectedRef} is not ready — runs will fail until you pick another.`}
         </FieldError>
       ) : null}
     </Field>

@@ -27,6 +27,20 @@ func TestHookMatcherMatchesSession(t *testing.T) {
 	}
 }
 
+func TestHookMatcherMatchesSessionBackedWorktree(t *testing.T) {
+	t.Parallel()
+
+	matcher := HookMatcher{WorktreeID: "wt-1"}
+	payload := SessionContext{SessionRuntimeContext: NewSessionRuntimeContext("wt-1", "")}
+	if !matcher.MatchesSession(payload) || !MatcherFieldAllowedForEvent(HookToolPreCall, matcherWorktreeIDKey) {
+		t.Fatal("worktree matcher should be valid and match session-backed hook families")
+	}
+	payload.SessionRuntimeContext = NewSessionRuntimeContext("wt-2", "")
+	if matcher.MatchesSession(payload) {
+		t.Fatal("MatchesSession() = true for a different worktree")
+	}
+}
+
 func TestHookMatcherMatchesToolWithWildcard(t *testing.T) {
 	t.Parallel()
 

@@ -1963,6 +1963,14 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 				t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
 			}
 		}
+		fanout := taskRunForTest("run-task-worktree-alpha-1-beta", "task-worktree-alpha-1")
+		fanout.WorkspaceID = workspaceID
+		fanout.Attempt = 2
+		fanout.QueuedAt = now.Add(time.Hour)
+		fanout.SetWorktreeState(worktrees[1].ID, taskpkg.WorktreeModeRef, worktrees[1].Name)
+		if err := globalDB.CreateTaskRun(ctx, fanout); err != nil {
+			t.Fatalf("CreateTaskRun(fanout) error = %v", err)
+		}
 
 		query := taskpkg.CatalogQuery{
 			Scope:         taskpkg.CatalogScopeWorkspace,
@@ -1978,12 +1986,8 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 		if first.Total != 2 || !first.HasMore || first.NextCursor == "" || len(first.Tasks) != 1 {
 			t.Fatalf("ListTaskCatalog(first) = %#v, want one of two filtered tasks with continuation", first)
 		}
-		if first.Tasks[0].ActiveRun == nil || first.Tasks[0].ActiveRun.WorktreeID != worktrees[0].ID {
-			t.Fatalf(
-				"ListTaskCatalog(first).ActiveRun = %#v, want worktree %q",
-				first.Tasks[0].ActiveRun,
-				worktrees[0].ID,
-			)
+		if first.Tasks[0].ActiveRun == nil {
+			t.Fatalf("ListTaskCatalog(first).ActiveRun = nil")
 		}
 		facetTotal := 0
 		for _, facet := range first.StatusFacets {
@@ -2001,12 +2005,12 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 		if second.Total != 2 || second.HasMore || second.NextCursor != "" || len(second.Tasks) != 1 {
 			t.Fatalf("ListTaskCatalog(second) = %#v, want final filtered task", second)
 		}
-		if second.Tasks[0].ActiveRun == nil || second.Tasks[0].ActiveRun.WorktreeID != worktrees[0].ID {
-			t.Fatalf(
-				"ListTaskCatalog(second).ActiveRun = %#v, want worktree %q",
-				second.Tasks[0].ActiveRun,
-				worktrees[0].ID,
-			)
+		if second.Tasks[0].ActiveRun == nil {
+			t.Fatalf("ListTaskCatalog(second).ActiveRun = nil")
+		}
+		seenTaskIDs := map[string]bool{first.Tasks[0].ID: true, second.Tasks[0].ID: true}
+		if !seenTaskIDs["task-worktree-alpha-1"] || !seenTaskIDs["task-worktree-alpha-2"] {
+			t.Fatalf("worktree-filtered task ids = %#v, want both alpha tasks including fan-out", seenTaskIDs)
 		}
 
 		mismatch := query

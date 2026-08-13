@@ -211,7 +211,7 @@ export const RemoveRemoteDowngrade: Story = {
   ),
 };
 
-/** VC-34 — missing resolution: dismiss the record or restore it. */
+/** VC-34 — missing resolution, choice view: dismiss the record, or say it's back. */
 export const MissingResolution: Story = {
   args: {},
   render: () => (
@@ -230,7 +230,7 @@ export const MissingResolution: Story = {
   ),
 };
 
-/** VC-34 — the idempotent no-op outcome, rendered verbatim. */
+/** VC-34 — missing resolution, outcome view: the idempotent no-op, rendered verbatim. */
 export const MissingResolutionIdempotentOutcome: Story = {
   args: {},
   render: () => (

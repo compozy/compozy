@@ -174,7 +174,6 @@ func (s *Service) scanDiscoveryEntries(
 	s.cacheMu.Lock()
 	epoch := s.cacheEpoch
 	s.cacheMu.Unlock()
-	now := s.now().UTC()
 	entries, err := s.readWorktreeList(ctx, root, commonDir)
 	diagnostic := ""
 	if err != nil {
@@ -184,7 +183,7 @@ func (s *Service) scanDiscoveryEntries(
 	if s.cacheEpoch == epoch {
 		s.discovery[workspaceID] = discoveryCacheEntry{
 			entries: append([]GitWorktree(nil), entries...), diagnostic: diagnostic,
-			expiresAt: now.Add(ttl),
+			expiresAt: s.now().UTC().Add(ttl),
 		}
 	}
 	s.cacheMu.Unlock()

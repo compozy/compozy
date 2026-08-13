@@ -27,9 +27,9 @@ function plan(overrides: Partial<WorktreeExitPlanPayload> = {}): WorktreeExitPla
 
 const FORGE = {
   provider: "github",
-  request_noun: "Pull request",
-  open_action_label: "Open pull request",
-  view_action_label: "View pull request",
+  request_noun: "PR",
+  open_action_label: "Open PR",
+  view_action_label: "View PR",
   supports_draft: true,
 } as WorktreeExitPlanPayload["forge"];
 
@@ -39,13 +39,13 @@ describe("toWorktreePrDialogModel", () => {
       toWorktreeExitLadder(
         plan({
           forge: FORGE,
-          actions: [{ action: "open_pr", label: "Open pull request", enabled: true }],
+          actions: [{ action: "open_pr", label: "Open PR", enabled: true }],
         })
       )
     );
     expect(model.mode).toBe("create");
     expect(model.rows.map(row => row.key)).toEqual(["draft", "create"]);
-    expect(model.rows[0]?.label).toBe("Open pull request (draft)");
+    expect(model.rows[0]?.label).toBe("Open PR (draft)");
     expect(model.rows.find(row => row.key === "create")?.primary).toBe(true);
   });
 
@@ -54,7 +54,7 @@ describe("toWorktreePrDialogModel", () => {
       toWorktreeExitLadder(
         plan({
           forge: { ...FORGE, supports_draft: false } as WorktreeExitPlanPayload["forge"],
-          actions: [{ action: "open_pr", label: "Open pull request", enabled: true }],
+          actions: [{ action: "open_pr", label: "Open PR", enabled: true }],
         })
       )
     );
@@ -69,7 +69,7 @@ describe("toWorktreePrDialogModel", () => {
           actions: [
             {
               action: "view_pr",
-              label: "View pull request",
+              label: "View PR",
               enabled: true,
               pr_number: 412,
               url: "https://example.test/pr/412",
@@ -102,7 +102,7 @@ describe("toWorktreePrDialogModel", () => {
           actions: [
             {
               action: "open_pr",
-              label: "Open pull request",
+              label: "Open PR",
               enabled: false,
               blocked_reason: reason,
             },

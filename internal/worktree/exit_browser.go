@@ -15,10 +15,15 @@ func browserCompareURL(remotes []string, base, head string, forge *ForgeCapabili
 		return ""
 	}
 	if forge != nil && strings.TrimSpace(forge.CompareURLTemplate) != "" {
-		return strings.NewReplacer(
+		candidate := strings.NewReplacer(
 			"{base}", url.PathEscape(base),
 			"{head}", url.PathEscape(head),
 		).Replace(forge.CompareURLTemplate)
+		sanitized, err := sanitizeForgeWebURL(candidate)
+		if err != nil {
+			return ""
+		}
+		return sanitized
 	}
 	remote, ok := parseRemoteWebURL(remotes[0])
 	if !ok {
@@ -84,6 +89,9 @@ func parseRemoteWebURL(raw string) (*url.URL, bool) {
 	}
 	if parsed.Scheme == "ssh" || parsed.Scheme == "git" {
 		parsed.Scheme = "https"
+	}
+	if parsed.Scheme != httpsScheme && parsed.Scheme != httpScheme {
+		return nil, false
 	}
 	parsed.User = nil
 	parsed.Path = strings.TrimSuffix(parsed.Path, ".git")

@@ -1,10 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, type HttpHandler } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TopbarSlotValue } from "@compozy/ui";
 
+import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
+import { worktreeBehindFixture } from "@/systems/workspace/mocks";
+import { worktreeHandlers } from "@/systems/workspace/mocks/worktree-handlers";
 import { createMswFetch } from "@/test/msw-fetch";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 import { LoopEditor } from "../editor/loop-editor";
@@ -26,6 +29,23 @@ import {
 const deliveryDetail = loopDetailByName.get("quality-gate-demo")!;
 
 const WS = "ws_default";
+
+function withExecuteTaskParams(params: Record<string, unknown>): LoopDetail {
+  const graph = deliveryDetail.definition.graph as unknown as {
+    nodes: Record<string, unknown>[];
+    edges: unknown;
+  };
+  return {
+    ...deliveryDetail,
+    definition: {
+      ...deliveryDetail.definition,
+      graph: {
+        ...graph,
+        nodes: graph.nodes.map(node => (node.id === "execute_task" ? { ...node, params } : node)),
+      } as LoopDetail["definition"]["graph"],
+    },
+  };
+}
 
 /** Serves one detail fixture while keeping the real linter/publish handlers behind it. */
 function detailHandler(detail: LoopDetail) {
@@ -73,19 +93,20 @@ function publishedNode(captured: { definition: PatchedDefinition | null }, id: s
 
 function renderEditor(
   name = "quality-gate-demo",
-  extraHandlers: ReturnType<typeof http.post>[] = [],
-  topbarIdentity?: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">
+  extraHandlers: HttpHandler[] = [],
+  topbarIdentity?: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack">,
+  workspaceId = WS
 ) {
   vi.stubGlobal(
     "fetch",
-    createMswFetch(() => [...extraHandlers, ...handlers])
+    createMswFetch(() => [...extraHandlers, ...worktreeHandlers, ...handlers])
   );
   const onPublished = vi.fn<(loop: LoopDetail) => void>();
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   renderWithTopbar(
     <QueryClientProvider client={queryClient}>
       <LoopEditor
-        workspaceId={WS}
+        workspaceId={workspaceId}
         name={name}
         onPublished={onPublished}
         topbarIdentity={topbarIdentity}
@@ -695,5 +716,88 @@ describe("LoopEditor", () => {
       })
     );
     expect(onPublished.mock.calls[0][0].version).toBe(1);
+  });
+
+  it("Should show per-mode environment hints and the directory companion in the inspector", async () => {
+    renderEditor();
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
+    fireEvent.click(nodeCard("execute_task"));
+    await screen.findByTestId("loop-field-environment");
+    expect(
+      screen.queryByText("Runs at the workspace root. Part of the session binding key.")
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Workspace root" }));
+    expect(
+      screen.getByText("Runs at the workspace root. Part of the session binding key.")
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Directory" }));
+    expect(
+      screen.getByText("Resolved when the run starts. Type {{ to autocomplete references.")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("loop-field-environment-directory")).toBeInTheDocument();
+  });
+
+  it("Should pick a ready worktree for a node environment override", async () => {
+    renderEditor(
+      "quality-gate-demo",
+      [
+        configEnvironmentHandler("root"),
+        detailHandler(
+          withExecuteTaskParams({
+            environment: { mode: "worktree", worktree_ref: worktreeBehindFixture.id },
+          })
+        ),
+      ],
+      undefined,
+      storyWorkspaceIds.hq
+    );
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
+    fireEvent.click(nodeCard("execute_task"));
+    await screen.findByTestId("loop-field-environment-ref");
+    expect(
+      screen.getByText("Overrides the loop default (Workspace root) for this node.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("auth-refresh")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("loop-field-environment-ref"));
+    await waitFor(() => expect(screen.getAllByText("payments-retry").length).toBeGreaterThan(0));
+    expect(screen.queryByText("hotfix-cors")).not.toBeInTheDocument();
+    expect(screen.queryByText("docs-refresh")).not.toBeInTheDocument();
+  });
+
+  it("Should mark a retired cwd node invalid with the daemon's message", async () => {
+    const cwdHandler = http.post("/api/workspaces/:workspaceId/loops/:name/validate", () =>
+      HttpResponse.json(
+        {
+          valid: false,
+          errors: [
+            {
+              node_id: "execute_task",
+              code: "environment_cwd_removed",
+              message: "params.cwd is retired; use params.environment.directory",
+              severity: "error",
+            },
+          ],
+        },
+        { status: 422 }
+      )
+    );
+    renderEditor("quality-gate-demo", [
+      cwdHandler,
+      detailHandler(withExecuteTaskParams({ cwd: "packages/api" })),
+    ]);
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getByTestId("loop-linter-error-count")).toBeInTheDocument());
+    fireEvent.click(nodeCard("execute_task"));
+    const field = (await screen.findByTestId("loop-field-environment")).closest(
+      '[data-slot="loop-node-environment-field"]'
+    );
+    expect(field).toHaveAttribute("data-invalid", "");
+    expect(field).not.toHaveAttribute("data-mode");
+    expect(field).toHaveTextContent("params.cwd is retired; use params.environment.directory");
   });
 });

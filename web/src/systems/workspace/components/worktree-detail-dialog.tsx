@@ -1,4 +1,12 @@
-import { Dialog, DialogContent, dialogShellClass, Spinner } from "@compozy/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Dialog,
+  DialogContent,
+  dialogShellClass,
+  Spinner,
+} from "@compozy/ui";
 
 import type { WorktreeDetailModel } from "../hooks/use-worktree-detail-context";
 import { WorktreeCommitDialog } from "./worktree-commit-dialog";
@@ -25,7 +33,7 @@ export function WorktreeDetailDialog({ open, onOpenChange, model }: WorktreeDeta
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className={dialogShellClass("md")} data-slot="worktree-detail-dialog">
-        {model.worktree ? (
+        {model.state === "ready" && model.worktree ? (
           <div className="p-4">
             <WorktreeDetailHeader
               onRemove={model.onRemove}
@@ -57,9 +65,26 @@ export function WorktreeDetailDialog({ open, onOpenChange, model }: WorktreeDeta
               </div>
             ) : null}
           </div>
-        ) : (
+        ) : model.state === "loading" ? (
           <div className="flex items-center justify-center p-8">
             <Spinner className="size-4" />
+          </div>
+        ) : model.state === "error" ? (
+          <div className="p-4">
+            <Alert variant="danger">
+              <AlertDescription>
+                {model.error || "Worktree details could not be loaded."}
+              </AlertDescription>
+            </Alert>
+            {model.retry ? (
+              <Button className="mt-3" onClick={model.retry} size="sm" variant="outline">
+                Retry
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="p-4 text-small-body text-subtle">
+            This worktree is no longer available.
           </div>
         )}
       </DialogContent>

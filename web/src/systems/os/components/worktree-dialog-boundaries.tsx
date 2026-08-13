@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { isSessionRunning, useSessions } from "@/systems/session";
 import {
@@ -136,15 +136,27 @@ export function WorktreeContextDialogBoundary({
     onCleanUp,
   });
   const [open, setOpen] = useState(true);
-
-  useEffect(() => {
-    if (!open && !model.isRunning && !model.progress) onClose();
-  }, [model.isRunning, model.progress, onClose, open]);
+  const progressModel = {
+    ...model,
+    onDismissProgress: () => {
+      model.onDismissProgress();
+      if (!open) onClose();
+    },
+  };
 
   return (
     <>
-      <WorktreeDetailDialog model={model} onOpenChange={setOpen} open={open} />
-      <WorktreeExitProgressSurface model={model} />
+      <WorktreeDetailDialog
+        model={model}
+        onOpenChange={nextOpen => {
+          if (nextOpen) return setOpen(true);
+          if (model.isRunning && !model.progress) return;
+          if (model.progress) return setOpen(false);
+          onClose();
+        }}
+        open={open}
+      />
+      <WorktreeExitProgressSurface model={progressModel} />
     </>
   );
 }

@@ -76,6 +76,27 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bound captured and unterminated streaming output", func(t *testing.T) {
+		t.Parallel()
+		var outputs []GitOutput
+		writer := &gitOutputWriter{onOutput: func(output GitOutput) { outputs = append(outputs, output) }}
+		input := []byte(strings.Repeat("x", maxGitOutputBytes+maxGitStreamChunkBytes))
+		written, err := writer.Write(input)
+		if err != nil || written != len(input) {
+			t.Fatalf("Write(large) = %d, %v; want %d bytes", written, err, len(input))
+		}
+		capturedWithinLimit := len(writer.Bytes()) == maxGitOutputBytes
+		pendingWithinLimit := len(writer.pending) < maxGitStreamChunkBytes
+		if !capturedWithinLimit || !pendingWithinLimit || len(outputs) == 0 {
+			t.Fatalf(
+				"bounded writer captured=%d pending=%d outputs=%d",
+				len(writer.Bytes()),
+				len(writer.pending),
+				len(outputs),
+			)
+		}
+	})
+
 	t.Run("Should report a missing Git executable", func(t *testing.T) {
 		t.Parallel()
 		gate := NewCapabilityGateWithLookPath(&scriptedGitRunner{}, func(string) (string, error) {
@@ -174,6 +195,26 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retry a capability probe canceled by its caller", func(t *testing.T) {
+		t.Parallel()
+		runner := &scriptedGitRunner{stdout: []byte("git version 2.45.0\n")}
+		gate := NewCapabilityGateWithLookPath(runner, func(string) (string, error) { return "/usr/bin/git", nil })
+		canceled, cancel := context.WithCancel(context.Background())
+		cancel()
+		if _, err := gate.Check(canceled); err == nil {
+			t.Fatal("Check(canceled) error = nil")
+		}
+		diagnostic, err := gate.Check(context.Background())
+		if err != nil || !diagnostic.Available || runner.callCount() != 2 {
+			t.Fatalf(
+				"Check(retry) = (%#v, %v), calls = %d; want available after two probes",
+				diagnostic,
+				err,
+				runner.callCount(),
+			)
+		}
+	})
+
 	t.Run("Should preserve user environment and replace only unsafe Git process keys", func(t *testing.T) {
 		t.Parallel()
 		parent := []string{
@@ -235,6 +276,28 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		var unavailable *RealGitRunner
 		if _, _, err := unavailable.Run(context.Background(), "", "--version"); !errors.Is(err, ErrGitUnavailable) {
 			t.Fatalf("nil Run() error = %v, want ErrGitUnavailable", err)
+		}
+	})
+
+	t.Run("Should bound output captured by the real runner", func(t *testing.T) {
+		t.Parallel()
+		runner := &RealGitRunner{executable: "/bin/sh", timeout: time.Second, environ: os.Environ}
+		stdout, stderr, err := runner.Run(
+			context.Background(),
+			"",
+			"-c",
+			"yes x | head -c 1100000; yes e | head -c 1100000 >&2",
+		)
+		if err != nil {
+			t.Fatalf("Run(large output) error = %v", err)
+		}
+		if len(stdout) != maxGitOutputBytes || len(stderr) != maxGitOutputBytes {
+			t.Fatalf(
+				"Run(large output) captured stdout=%d stderr=%d, want %d each",
+				len(stdout),
+				len(stderr),
+				maxGitOutputBytes,
+			)
 		}
 	})
 

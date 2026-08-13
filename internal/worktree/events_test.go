@@ -98,6 +98,9 @@ func TestServiceLifecycleHooks(t *testing.T) {
 		hooks := &recordingPayloadHooks{}
 		service := NewService(
 			newMemoryWorktreeStore(), &recordingGitRunner{}, WithEvents(events), WithHooks(hooks),
+			WithWorkspaceResolver(staticWorkspaceResolver{workspaces: map[string]Workspace{
+				"ws-event-redaction": {ID: "ws-event-redaction", Root: "/workspace/" + secret},
+			}}),
 		)
 		item := Worktree{
 			ID: "wt-event-redaction", WorkspaceID: "ws-event-redaction",

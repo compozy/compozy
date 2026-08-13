@@ -606,20 +606,23 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			{"session", "new", "--worktree", "wt-ready", "--new-worktree"},
 		}
 		for _, args := range tests {
-			createCalls := 0
-			deps := newWorkspaceTestDeps(t, &stubClient{
-				createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
-					createCalls++
-					return SessionRecord{}, nil
-				},
+			t.Run("Should reject "+strings.Join(args[2:], " "), func(t *testing.T) {
+				t.Parallel()
+				createCalls := 0
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+						createCalls++
+						return SessionRecord{}, nil
+					},
+				})
+				_, _, err := executeRootCommand(t, deps, args...)
+				if err == nil || !strings.Contains(err.Error(), "if any flags in the group") {
+					t.Fatalf("executeRootCommand(%v) error = %v, want flag conflict", args, err)
+				}
+				if createCalls != 0 {
+					t.Fatalf("CreateSession() calls = %d, want 0 for %v", createCalls, args)
+				}
 			})
-			_, _, err := executeRootCommand(t, deps, args...)
-			if err == nil {
-				t.Fatalf("executeRootCommand(%v) error = nil, want flag conflict", args)
-			}
-			if createCalls != 0 {
-				t.Fatalf("CreateSession() calls = %d, want 0 for %v", createCalls, args)
-			}
 		}
 	})
 

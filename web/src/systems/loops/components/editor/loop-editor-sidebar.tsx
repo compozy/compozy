@@ -1,11 +1,18 @@
 import { LaneTabs, TabsContent, type LaneTabsItem } from "@compozy/ui";
 
-import type { EditableLoopContractField } from "../../lib/loop-editor-definition";
+import type { WorktreePayload } from "@/systems/workspace";
+
+import type { LoopEditorSidebarTab } from "../../hooks/use-loop-editor-state";
 import type { EditorEdge, EditorNode } from "../../lib/codec";
+import type { EditableLoopContractField } from "../../lib/loop-editor-definition";
 import type { NodeFieldEdit } from "../../lib/loop-editor-draft";
 import type { FieldPath, FieldSpec } from "../../lib/loop-node-schema";
-import type { LoopEditorSidebarTab } from "../../hooks/use-loop-editor-state";
-import type { LoopContract, LoopDefinition } from "../../types";
+import type {
+  LoopContract,
+  LoopDefinition,
+  LoopEnvironmentSpec,
+  LoopValidationIssue,
+} from "../../types";
 import { LoopEditorContract } from "./loop-editor-contract";
 import { LoopEditorInspector } from "./loop-editor-inspector";
 
@@ -30,6 +37,10 @@ interface LoopEditorSidebarProps {
   onChangeFields: (edits: NodeFieldEdit[]) => void;
   sidebarTab: LoopEditorSidebarTab;
   onSidebarTabChange: (tab: LoopEditorSidebarTab) => void;
+  worktrees?: readonly WorktreePayload[];
+  gitBacked?: boolean;
+  loopDefaultEnvironment?: LoopEnvironmentSpec;
+  lintByNode?: ReadonlyMap<string, LoopValidationIssue[]>;
 }
 
 /** Right-rail inspector: Contract outcome vs selected-node fields, one lane at a time. */
@@ -49,6 +60,10 @@ export function LoopEditorSidebar({
   onChangeFields,
   sidebarTab,
   onSidebarTabChange,
+  worktrees,
+  gitBacked,
+  loopDefaultEnvironment,
+  lintByNode,
 }: LoopEditorSidebarProps) {
   return (
     <aside
@@ -74,15 +89,19 @@ export function LoopEditorSidebar({
           </TabsContent>
           <TabsContent value="node" className="mt-0 h-full">
             <LoopEditorInspector
-              node={node}
-              fields={fields}
-              nodes={nodes}
-              edges={edges}
-              selectionKey={selectionKey}
               definition={definition}
               disabled={inspectorDisabled}
+              edges={edges}
+              fields={fields}
+              gitBacked={gitBacked}
+              lintIssues={node ? (lintByNode?.get(node.id) ?? []) : []}
+              loopDefaultEnvironment={loopDefaultEnvironment}
+              node={node}
+              nodes={nodes}
               onChange={onChangeField}
               onChangeFields={onChangeFields}
+              selectionKey={selectionKey}
+              worktrees={worktrees}
             />
           </TabsContent>
         </div>

@@ -1,11 +1,13 @@
 import { Empty } from "@compozy/ui";
 import { MousePointerClick } from "lucide-react";
 
+import type { WorktreePayload } from "@/systems/workspace";
+
 import type { EditorEdge, EditorNode } from "../../lib/codec";
 import type { NodeFieldEdit } from "../../lib/loop-editor-draft";
 import { buildReferenceNamespace } from "../../lib/loop-references";
 import type { FieldPath, FieldSpec } from "../../lib/loop-node-schema";
-import type { LoopDefinition } from "../../types";
+import type { LoopDefinition, LoopEnvironmentSpec, LoopValidationIssue } from "../../types";
 import { MonoTag } from "../mono-tag";
 import { LoopEditorField } from "./loop-editor-field";
 
@@ -22,6 +24,10 @@ interface LoopEditorInspectorProps {
   onChange: (path: FieldPath, value: unknown) => void;
   /** Atomic multi-key edits (the `wait` discriminator) — one draft transition, one store event. */
   onChangeFields: (edits: NodeFieldEdit[]) => void;
+  worktrees?: readonly WorktreePayload[];
+  gitBacked?: boolean;
+  loopDefaultEnvironment?: LoopEnvironmentSpec;
+  lintIssues?: readonly LoopValidationIssue[];
 }
 
 /**
@@ -83,6 +89,10 @@ export function LoopEditorInspector({
   disabled,
   onChange,
   onChangeFields,
+  worktrees,
+  gitBacked,
+  loopDefaultEnvironment,
+  lintIssues,
 }: LoopEditorInspectorProps) {
   const branchIds = fanoutBranchNodeIds(nodes, edges);
   const suggestions = node
@@ -138,12 +148,16 @@ export function LoopEditorInspector({
         {fields.map(field => (
           <LoopEditorField
             key={field.key}
-            field={field}
-            raw={raw}
-            suggestions={suggestions}
             disabled={disabled}
+            field={field}
+            gitBacked={gitBacked}
+            lintIssues={lintIssues}
+            loopDefaultEnvironment={loopDefaultEnvironment}
             onChange={onChange}
             onChangeFields={onChangeFields}
+            raw={raw}
+            suggestions={suggestions}
+            worktrees={worktrees}
           />
         ))}
       </div>

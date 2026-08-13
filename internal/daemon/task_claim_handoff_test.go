@@ -96,6 +96,28 @@ func TestTaskClaimHandoffRuntime(t *testing.T) {
 			t.Fatalf("StopWithCause() calls = %d, want 2", got)
 		}
 	})
+
+	t.Run("Should reserve the bootstrap before prompting and release it when prompting fails", func(t *testing.T) {
+		t.Parallel()
+		sessions := &taskClaimHandoffSessionsStub{promptErr: errors.New("prompt failed")}
+		runtime, err := newTaskClaimHandoffRuntime(t.Context(), sessions, nil)
+		if err != nil {
+			t.Fatalf("newTaskClaimHandoffRuntime() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := runtime.shutdown(context.Background()); err != nil {
+				t.Fatalf("shutdown() error = %v", err)
+			}
+		})
+
+		run := taskpkg.Run{ID: "run-1", TaskID: "task-1", SessionID: "sess-bound"}
+		if err := runtime.Activate(t.Context(), "sess-bootstrap", run); err == nil {
+			t.Fatal("Activate(prompt failure) error = nil")
+		}
+		if runtime.HasPending("sess-bootstrap") {
+			t.Fatal("HasPending(prompt failure) = true, want released reservation")
+		}
+	})
 }
 
 type taskClaimHandoffPromptCall struct {
@@ -115,6 +137,7 @@ type taskClaimHandoffSessionsStub struct {
 	prompts      []taskClaimHandoffPromptCall
 	stops        []taskClaimHandoffStopCall
 	stopErr      error
+	promptErr    error
 }
 
 func (s *taskClaimHandoffSessionsStub) PromptSynthetic(
@@ -125,8 +148,9 @@ func (s *taskClaimHandoffSessionsStub) PromptSynthetic(
 	s.mu.Lock()
 	s.prompts = append(s.prompts, taskClaimHandoffPromptCall{sessionID: id, opts: opts})
 	events := s.promptEvents
+	err := s.promptErr
 	s.mu.Unlock()
-	return events, nil
+	return events, err
 }
 
 func (s *taskClaimHandoffSessionsStub) StopWithCause(

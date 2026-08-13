@@ -3,10 +3,12 @@ import { Field, FieldError, FieldLabel, FormSection, Input, PillGroup } from "@c
 import { WorktreeRefSelect, type WorktreePayload } from "@/systems/workspace";
 
 import {
-  LOOP_ENVIRONMENT_MODE_LABELS,
-  LOOP_ENVIRONMENT_MODES,
-} from "../../lib/loop-node-schema-types";
-import type { LoopEnvironmentMode, LoopEnvironmentSpec } from "../../types";
+  environmentSpecForChoice,
+  INHERIT_ENVIRONMENT,
+  loopEnvironmentItems,
+  type LoopEnvironmentChoice,
+} from "../../lib/loop-environment-choice";
+import type { LoopEnvironmentSpec } from "../../types";
 
 interface LoopRunEnvironmentProps {
   value: LoopEnvironmentSpec | null;
@@ -16,9 +18,6 @@ interface LoopRunEnvironmentProps {
   onChange: (next: LoopEnvironmentSpec | null) => void;
 }
 
-const INHERIT_VALUE = "__inherit__";
-type EnvironmentChoice = LoopEnvironmentMode | typeof INHERIT_VALUE;
-
 /** One explicit environment override for this run; `Inherit` emits no override. */
 export function LoopRunEnvironment({
   value,
@@ -27,27 +26,13 @@ export function LoopRunEnvironment({
   disabled = false,
   onChange,
 }: LoopRunEnvironmentProps) {
-  const choice = value?.mode ?? INHERIT_VALUE;
+  const choice = value?.mode ?? INHERIT_ENVIRONMENT;
   const invalidWorktree = value?.mode === "worktree" && !value.worktree_ref?.trim();
   const invalidDirectory = value?.mode === "directory" && !value.directory?.trim();
-  const items = [
-    { value: INHERIT_VALUE as EnvironmentChoice, label: "Inherit", disabled },
-    ...LOOP_ENVIRONMENT_MODES.map(mode => ({
-      value: mode as EnvironmentChoice,
-      label: LOOP_ENVIRONMENT_MODE_LABELS[mode],
-      disabled: disabled || (!gitBacked && (mode === "worktree" || mode === "per_run")),
-    })),
-  ];
+  const items = loopEnvironmentItems(gitBacked, disabled);
 
-  function handleModeChange(next: EnvironmentChoice) {
-    if (next === INHERIT_VALUE) return onChange(null);
-    if (next === "worktree") {
-      return onChange({ mode: next, worktree_ref: value?.worktree_ref ?? "" });
-    }
-    if (next === "directory") {
-      return onChange({ mode: next, directory: value?.directory ?? "" });
-    }
-    return onChange({ mode: next });
+  function handleModeChange(next: LoopEnvironmentChoice) {
+    onChange(environmentSpecForChoice(next, value));
   }
 
   return (

@@ -34,6 +34,8 @@ export function SessionCreateDialogHost({
       destinationLabel={sessionCreate.destinationLabel}
       destinationReady={sessionCreate.destinationReady}
       environment={sessionCreate.environment}
+      environmentListingError={sessionCreate.environmentListingError}
+      environmentListingState={sessionCreate.environmentListingState}
       firstMessage={sessionCreate.firstMessage}
       isAwaitingEnvironment={sessionCreate.isAwaitingEnvironment}
       isSubmitting={sessionCreate.isSubmitting}

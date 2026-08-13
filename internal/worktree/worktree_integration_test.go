@@ -738,11 +738,11 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		service := leftover.newService(failingRunner)
 		if refusalResult, err := service.Remove(
 			context.Background(), leftover.workspace.ID, item.ID, true,
-		); err != nil || refusalResult != nil {
-			t.Fatalf("Remove(matching leftover) = (%#v, %v), want verified cleanup", refusalResult, err)
+		); !errors.Is(err, ErrRemovalFailed) || refusalResult != nil {
+			t.Fatalf("Remove(matching leftover) = (%#v, %v), want ErrRemovalFailed", refusalResult, err)
 		}
-		if _, err := os.Stat(item.Path); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("Stat(matching leftover) error = %v, want not-exist", err)
+		if _, err := os.Stat(item.Path); err != nil {
+			t.Fatalf("Stat(matching leftover) error = %v, want preserved", err)
 		}
 
 		foreign := newRealGitFixture(t)

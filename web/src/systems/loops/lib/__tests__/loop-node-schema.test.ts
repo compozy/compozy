@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { EditorNode, RawLoopNode } from "../codec";
 import { setNodeFields } from "../loop-editor-draft";
+import { environmentHint, environmentModeEdits } from "../loop-node-environment-fields";
 import { buildNodeFields, type FieldSpec } from "../loop-node-schema";
-import { waitMode, waitModeEdits } from "../loop-node-wait-fields";
 import type { LoopWaitMode } from "../loop-node-schema-types";
+import { waitMode, waitModeEdits } from "../loop-node-wait-fields";
 
 function keys(fields: FieldSpec[]): string[] {
   return fields.map(field => ("key" in field ? field.key : "hint"));
@@ -102,7 +103,7 @@ describe("loop node schema", () => {
     }
   });
 
-  it("Should reveal only the companion input the selected environment mode allows", () => {
+  it("Should carry the selected environment mode on the descriptor without companion FieldSpecs", () => {
     const worktreeNode = flatten(
       buildNodeFields({
         id: "x",
@@ -111,7 +112,11 @@ describe("loop node schema", () => {
         params: { environment: { mode: "worktree", worktree_ref: "payments-retry" } },
       })
     );
-    expect(hasKey(worktreeNode, "environment_worktree_ref")).toBe(true);
+    expect(fieldByKey(worktreeNode, "environment")).toMatchObject({
+      type: "environment",
+      mode: "worktree",
+    });
+    expect(hasKey(worktreeNode, "environment_worktree_ref")).toBe(false);
     expect(hasKey(worktreeNode, "environment_directory")).toBe(false);
 
     const directoryNode = flatten(
@@ -122,7 +127,8 @@ describe("loop node schema", () => {
         params: { environment: { mode: "directory", directory: "packages/api" } },
       })
     );
-    expect(hasKey(directoryNode, "environment_directory")).toBe(true);
+    expect(fieldByKey(directoryNode, "environment")).toMatchObject({ mode: "directory" });
+    expect(hasKey(directoryNode, "environment_directory")).toBe(false);
     expect(hasKey(directoryNode, "environment_worktree_ref")).toBe(false);
 
     const perRunNode = flatten(
@@ -133,8 +139,39 @@ describe("loop node schema", () => {
         params: { environment: { mode: "per_run" } },
       })
     );
+    expect(fieldByKey(perRunNode, "environment")).toMatchObject({ mode: "per_run" });
     expect(hasKey(perRunNode, "environment_worktree_ref")).toBe(false);
     expect(hasKey(perRunNode, "environment_directory")).toBe(false);
+  });
+
+  it("Should name each environment mode's inspector hint without inventing a loop default", () => {
+    expect(environmentHint("root")).toBe(
+      "Runs at the workspace root. Part of the session binding key."
+    );
+    expect(environmentHint("worktree")).toBeUndefined();
+    expect(environmentHint("worktree", { mode: "root" })).toBe(
+      "Overrides the loop default (Workspace root) for this node."
+    );
+    expect(environmentHint("per_run")).toBe(
+      "Name and branch are generated at run start — run/<task-slug>."
+    );
+    expect(environmentHint("directory")).toBe(
+      "Resolved when the run starts. Type {{ to autocomplete references."
+    );
+    expect(environmentHint(null)).toBeUndefined();
+  });
+
+  it("Should drop retired cwd when an environment mode is chosen", () => {
+    const raw: RawLoopNode = {
+      id: "x",
+      class: "action",
+      kind: "run-agent",
+      params: { cwd: "packages/api" },
+    };
+    const next = setNodeFields([editorNode(raw)], raw.id, environmentModeEdits(raw, "root"));
+    const params = next[0].data.raw.params as Record<string, unknown>;
+    expect(params.cwd).toBeUndefined();
+    expect(params.environment).toEqual({ mode: "root" });
   });
 
   it("Should keep the Environment descriptor off nodes that cannot start agents", () => {

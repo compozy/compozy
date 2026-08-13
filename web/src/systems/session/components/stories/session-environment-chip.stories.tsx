@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyWorkspacePaths } from "@/storybook/fintech-scenario";
 import { StorySurface } from "@/storybook/story-layout";
 
 import { SessionEnvironmentChip } from "../session-environment-chip";
+
+const ROOT_LABEL = storyWorkspacePaths.hq;
 
 const meta: Meta<typeof SessionEnvironmentChip> = {
   title: "systems/session/components/SessionEnvironmentChip",
@@ -21,11 +24,16 @@ const meta: Meta<typeof SessionEnvironmentChip> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/**
+ * VC-07 — the workspace root, stated rather than offered.
+ *
+ * Production passes `session.workspace_path` as the label and never sets `mono`.
+ */
 export const RootBinding: Story = {
-  args: { state: "root", label: "compozy", mono: "root" },
+  args: { state: "root", label: ROOT_LABEL },
 };
 
-/** Bound, with the daemon refusing the fork right now and saying why. */
+/** VC-08 — bound, with the daemon refusing the fork right now and saying why. */
 export const WorktreeBindingForkUnavailable: Story = {
   args: {
     state: "worktree",
@@ -34,28 +42,29 @@ export const WorktreeBindingForkUnavailable: Story = {
   },
 };
 
+/** VC-12 — the binding is locked for a live session, so the chip leads to a fork. */
 export const WorktreeBindingForkAvailable: Story = {
   args: { state: "worktree", label: "payments-retry", onFork: () => {} },
 };
 
 /**
- * UNWIRED — presentational only.
+ * VC-09 — the new-worktree target. Presentational only (D-07/D-08).
  *
- * A persisted session cannot be rebound and there is no draft-session state, so
- * nothing in the composer can reach this. It ships so the chip's vocabulary is
- * complete and so the materialization flow has a rendering target the day the
- * daemon offers one. See the Task 07 report, blocker B1.
+ * A persisted session cannot be rebound, so the live composer never reaches
+ * `new`, `pending`, or `failed`. Those states exist so the chip vocabulary is
+ * complete. Creation phases and the three recovery exits are captured on
+ * `SessionEnvironmentField` (VC-10, VC-11).
  */
 export const Presentational_New: Story = {
   args: { state: "new", label: "new: docs-refresh", presentational: true },
 };
 
-/** UNWIRED — presentational only (see `Presentational_New`). */
+/** Presentational only (D-07/D-08). See `Presentational_New`. */
 export const Presentational_Pending: Story = {
-  args: { state: "pending", label: "docs-refresh", mono: "bootstrap", presentational: true },
+  args: { state: "pending", label: "docs-refresh", presentational: true },
 };
 
-/** UNWIRED — presentational only (see `Presentational_New`). */
+/** Presentational only (D-07/D-08). See `Presentational_New`. */
 export const Presentational_Failed: Story = {
   args: { state: "failed", label: "docs-refresh", presentational: true },
 };
@@ -64,7 +73,7 @@ export const AllStates: Story = {
   args: RootBinding.args,
   render: () => (
     <StorySurface className="flex flex-wrap items-center gap-3 p-6">
-      <SessionEnvironmentChip label="compozy" mono="root" state="root" />
+      <SessionEnvironmentChip label={ROOT_LABEL} state="root" />
       <SessionEnvironmentChip
         forkUnavailableReason="Start or resume the session before forking it."
         label="payments-retry"

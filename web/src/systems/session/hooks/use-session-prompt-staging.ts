@@ -19,6 +19,7 @@ export interface SessionPromptStaging {
   /** Opens session create bound to this worktree, for when nothing is bound yet. */
   startSession: (() => void) | undefined;
   staged: boolean;
+  reset: () => void;
 }
 
 /**
@@ -49,6 +50,7 @@ export function useSessionPromptStaging({
       stagePrompt: undefined,
       startSession: undefined,
       staged: false,
+      reset: () => setStaged(false),
     };
   }
 
@@ -58,6 +60,7 @@ export function useSessionPromptStaging({
       stagePrompt: undefined,
       startSession: () => openForWorktree(workspaceId, worktreeId),
       staged: false,
+      reset: () => setStaged(false),
     };
   }
 
@@ -69,5 +72,6 @@ export function useSessionPromptStaging({
     },
     startSession: undefined,
     staged,
+    reset: () => setStaged(false),
   };
 }

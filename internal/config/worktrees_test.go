@@ -98,8 +98,18 @@ func TestWorktreesConfig(t *testing.T) {
 				key:    "worktrees.run_branch_namespace",
 			},
 			{
+				name:   "Git-invalid namespace",
+				mutate: func(cfg *WorktreesConfig) { cfg.RunBranchNamespace = "feature..run/" },
+				key:    "worktrees.run_branch_namespace",
+			},
+			{
 				name:   "empty copy pattern",
 				mutate: func(cfg *WorktreesConfig) { cfg.CopyList = []string{" "} },
+				key:    "worktrees.copy_list",
+			},
+			{
+				name:   "copy pattern outside the repository",
+				mutate: func(cfg *WorktreesConfig) { cfg.CopyList = []string{"../secret"} },
 				key:    "worktrees.copy_list",
 			},
 			{

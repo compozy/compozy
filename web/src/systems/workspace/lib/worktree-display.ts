@@ -60,6 +60,7 @@ const INERT_REASONS: Partial<Record<WorktreeDisplayState, string>> = {
   pending: "materializing",
   missing: "directory missing",
   failed: "creation failed",
+  error: "status read failed",
 };
 
 function worktreeEntry(worktree: WorktreePayload): WorktreeNestEntry {

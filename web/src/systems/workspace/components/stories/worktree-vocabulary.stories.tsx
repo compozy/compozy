@@ -15,7 +15,6 @@ import {
 } from "@/systems/workspace/mocks";
 
 import { toWorktreeNestEntries } from "../../lib/worktree-display";
-import { WorktreeDetachedPin } from "../worktree-signal-parts";
 import { WorktreeRow } from "../worktree-row";
 import { WorktreeSignals } from "../worktree-signals";
 import { WorktreeStateChip } from "../worktree-state-chip";
@@ -49,7 +48,10 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** VC-01 — the state chip inventory. Ready carries no chip at all. */
+/**
+ * VC-01 — the state chip inventory. Ready carries no chip at all.
+ * `failed` is the N-004 lifecycle chip (authorized delta vs the five-state artboard).
+ */
 export const StateChips: Story = {
   args: {},
   render: () => (
@@ -179,7 +181,13 @@ export const Signals: Story = {
   ),
 };
 
-/** VC-03 — the busiest realistic full row: ready, dirty, and running. */
+/**
+ * VC-03 — the busiest realistic list row: ready, dirty, and running.
+ * Full-row budget is two (agent → dirty → ahead-behind → merged), so ahead drops.
+ * List payloads have no insertion/deletion counts, so dirty reads "uncommitted".
+ * activityAt sorts the nest; the row does not paint a relative clock
+ * (authorized delta vs artboard §03 — see task-06-authorized-deltas.md).
+ */
 export const RowReadyDirtyRunning: Story = {
   args: {},
   render: () => {
@@ -195,7 +203,10 @@ export const RowReadyDirtyRunning: Story = {
   },
 };
 
-/** VC-04 — discovered, pending, missing, and error rows side by side. */
+/**
+ * VC-04 — discovered, pending, missing, and error rows side by side.
+ * Error is inert with the functional reason "status read failed".
+ */
 export const RowStates: Story = {
   args: {},
   render: () => {
@@ -229,12 +240,20 @@ export const RowStates: Story = {
   },
 };
 
-/** VC-05 — nested state dots plus the detached "pinned at <sha>" label. */
+/**
+ * VC-05 — nested state dots plus a full detached row ("pinned at <sha>").
+ * `failed` stays in the inventory (N-004). Production nests use chip + folder
+ * well, not the dot — the sheet still captures the shape source of truth.
+ */
 export const NestDotsAndDetached: Story = {
   args: {},
   render: () => {
-    const [entry] = toWorktreeNestEntries({
+    const [nested] = toWorktreeNestEntries({
       worktrees: [worktreeReadyDirtyRunningFixture],
+      discovered: [],
+    });
+    const [detached] = toWorktreeNestEntries({
+      worktrees: [worktreeBehindFixture],
       discovered: [],
     });
     return (
@@ -245,11 +264,11 @@ export const NestDotsAndDetached: Story = {
             <WorktreeStateChip state={state} />
           </Row>
         ))}
-        <Row label="detached">
-          <WorktreeDetachedPin sha="9ec3d15aa1b2" />
-        </Row>
+        {detached ? <WorktreeRow entry={detached} detachedSha="9ec3d15aa1b2" /> : null}
         <Row label="nested density">
-          <div className="w-96">{entry ? <WorktreeRow entry={entry} density="nest" /> : null}</div>
+          <div className="w-96">
+            {nested ? <WorktreeRow entry={nested} density="nest" /> : null}
+          </div>
         </Row>
       </StorySurface>
     );

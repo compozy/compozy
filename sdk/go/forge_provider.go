@@ -85,8 +85,45 @@ func typedForgeHandler[Request any, Response any](
 		if err := json.Unmarshal(raw, &request); err != nil {
 			return nil, NewInvalidParamsError("forge request is invalid", map[string]any{"error": err.Error()})
 		}
+		if err := validateForgeProviderRequest(any(request)); err != nil {
+			return nil, err
+		}
 		return handler(ctx, extensionContext, request)
 	}
+}
+
+func validateForgeProviderRequest(request any) error {
+	requireRemotes := func(remotes []string) error {
+		if len(remotes) == 0 {
+			return NewInvalidParamsError("forge remote_urls are required", nil)
+		}
+		for _, remote := range remotes {
+			if strings.TrimSpace(remote) == "" {
+				return NewInvalidParamsError("forge remote_urls cannot contain empty values", nil)
+			}
+		}
+		return nil
+	}
+	switch value := request.(type) {
+	case ForgeCapabilitiesRequest:
+		return requireRemotes(value.RemoteURLs)
+	case ForgeStatusRequest:
+		if err := requireRemotes(value.RemoteURLs); err != nil {
+			return err
+		}
+		if strings.TrimSpace(value.Branch) == "" {
+			return NewInvalidParamsError("forge branch is required", nil)
+		}
+	case ForgePRCreateRequest:
+		if err := requireRemotes(value.RemoteURLs); err != nil {
+			return err
+		}
+		if strings.TrimSpace(value.Head) == "" || strings.TrimSpace(value.Base) == "" ||
+			strings.TrimSpace(value.Title) == "" {
+			return NewInvalidParamsError("forge head, base, and title are required", nil)
+		}
+	}
+	return nil
 }
 
 func isForgeProviderMethod(method string) bool {

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { fn } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 
 import { StorySurface } from "@/storybook/story-layout";
 import { buildWorktreeFixture, worktreeListingFixture } from "@/systems/workspace/mocks";
@@ -102,9 +102,18 @@ type Story = StoryObj<typeof meta>;
 /** VC-22 — simple: one field plus the generated-name placeholder. */
 export const Simple: Story = { args: {}, render: () => <Harness /> };
 
-/** VC-23 — advanced expanded: branch, base ref, and the held-branch picker. */
+/**
+ * VC-23 — advanced expanded: branch, base ref, and the held-branch picker.
+ * Play opens the real existing-branch CommandSelect so free and held groups
+ * are both capturable.
+ */
 export const AdvancedExpanded: Story = {
   args: {},
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByTestId("worktree-create-existing-branch"));
+  },
   render: () => (
     <Harness
       advancedOpen
@@ -114,6 +123,11 @@ export const AdvancedExpanded: Story = {
         baseRef: "main",
         existingBranch: "",
       }}
+      branchCandidates={[
+        { branch: "main", heldBy: null },
+        { branch: "pedro/docs-refresh", heldBy: null },
+        { branch: "pedro/payments-retry", heldBy: "payments-retry" },
+      ]}
     />
   ),
 };

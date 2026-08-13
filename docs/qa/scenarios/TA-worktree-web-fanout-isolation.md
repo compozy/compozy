@@ -11,7 +11,7 @@ bug_ids: BUG-20260813-web-fanout-missing-intent-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: 207bc4a7
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-fanout-accepted.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-fanout-accepted-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/web-fanout-fixed-task.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/screenshots/task-fanout-isolation.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/task-fanout-two-runs.json
 last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: TA-task-fanout-worktree-isolation
 ---

@@ -122,8 +122,6 @@ export interface WorktreeNestListProps {
   adoptedCount: number;
   limit?: number;
   testIdPrefix?: string;
-  /** `menu` renders `menuitemradio` rows for a `role="menu"` host. */
-  variant?: "listbox" | "menu";
 }
 
 /**
@@ -144,15 +142,13 @@ export function WorktreeNestList({
   adoptedCount,
   limit = WORKTREE_NEST_VISIBLE_LIMIT,
   testIdPrefix = "worktree-nest",
-  variant = "listbox",
 }: WorktreeNestListProps) {
   const { visible, overflowCount } = truncateWorktreeNest(entries, limit);
-  const rowRole = variant === "menu" ? "menuitemradio" : "option";
 
   return (
     <div
       data-slot="worktree-nest"
-      role={variant === "menu" ? "group" : "listbox"}
+      role="group"
       aria-label={`Worktrees in ${workspaceName}`}
       // 15px indent + 1px rail: nesting reads structurally without box-drawing
       // glyphs, which screen readers announce as noise.
@@ -160,38 +156,41 @@ export function WorktreeNestList({
     >
       {visible.map(entry => {
         const selected = entry.worktree !== null && entry.worktree.id === selectedWorktreeId;
-        return (
-          <WorktreeRow
-            key={entry.key}
+        const actions = (
+          <NestRowActions
             entry={entry}
-            density="nest"
-            selected={selected}
-            role={rowRole}
-            data-testid={`${testIdPrefix}-item-${entry.key}`}
-            aria-checked={variant === "menu" ? selected : undefined}
-            aria-selected={variant === "listbox" ? selected : undefined}
-            aria-disabled={entry.selectable ? undefined : true}
-            tabIndex={entry.selectable ? 0 : -1}
-            onClick={entry.selectable ? () => onSelectWorktree(entry) : undefined}
-            onKeyDown={
-              entry.selectable
-                ? event => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    onSelectWorktree(entry);
-                  }
-                : undefined
-            }
-            trailing={
-              <NestRowActions
-                entry={entry}
-                testIdPrefix={testIdPrefix}
-                onRemoveWorktree={onRemoveWorktree}
-                onResolveMissing={onResolveMissing}
-                onOpenContext={onOpenContext}
-              />
-            }
+            testIdPrefix={testIdPrefix}
+            onRemoveWorktree={onRemoveWorktree}
+            onResolveMissing={onResolveMissing}
+            onOpenContext={onOpenContext}
           />
+        );
+        return (
+          <div className="flex min-w-0 items-center" key={entry.key}>
+            <WorktreeRow
+              entry={entry}
+              density="nest"
+              selected={selected}
+              role={entry.selectable ? "button" : undefined}
+              className="min-w-0 flex-1"
+              data-testid={`${testIdPrefix}-item-${entry.key}`}
+              aria-pressed={entry.selectable ? selected : undefined}
+              aria-disabled={entry.selectable ? undefined : true}
+              tabIndex={entry.selectable ? 0 : -1}
+              onClick={entry.selectable ? () => onSelectWorktree(entry) : undefined}
+              onKeyDown={
+                entry.selectable
+                  ? event => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      onSelectWorktree(entry);
+                    }
+                  : undefined
+              }
+              trailing={entry.adoptable ? actions : undefined}
+            />
+            {entry.adoptable ? null : actions}
+          </div>
         );
       })}
 

@@ -18,22 +18,29 @@ func TestRepositoryLocks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Acquire(first) error = %v", err)
 		}
-		acquired := make(chan func(), 1)
+		type acquireResult struct {
+			release func()
+			err     error
+		}
+		acquired := make(chan acquireResult, 1)
 		go func() {
 			release, acquireErr := locks.Acquire(context.Background(), commonDir)
-			if acquireErr == nil {
-				acquired <- release
-			}
+			acquired <- acquireResult{release: release, err: acquireErr}
 		}()
 		select {
-		case release := <-acquired:
-			release()
+		case result := <-acquired:
+			if result.release != nil {
+				result.release()
+			}
 			t.Fatal("second caller acquired before the first released")
 		default:
 		}
 		releaseFirst()
-		releaseSecond := <-acquired
-		releaseSecond()
+		result := <-acquired
+		if result.err != nil {
+			t.Fatalf("Acquire(second) error = %v", result.err)
+		}
+		result.release()
 	})
 
 	t.Run("Should refuse callers beyond the bounded waiter limit", func(t *testing.T) {

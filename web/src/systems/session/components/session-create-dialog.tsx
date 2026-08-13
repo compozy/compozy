@@ -46,6 +46,8 @@ export interface SessionCreateDialogProps {
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
   /** Absent when the selected workspace is not git-backed. */
   environment?: React.ComponentProps<typeof SessionEnvironmentField>;
+  environmentListingState?: "loading" | "ready" | "error" | "unsupported";
+  environmentListingError?: string;
   onSubmit: () => void;
   isSubmitting: boolean;
   /** A submit is waiting on its worktree; Cancel stops that, not the dialog. */
@@ -74,6 +76,8 @@ function SessionCreateDialog({
   onAgentChange,
   onNetworkParticipationChange,
   environment,
+  environmentListingState = "unsupported",
+  environmentListingError,
   onSubmit,
   isSubmitting,
   isAwaitingEnvironment,
@@ -154,6 +158,8 @@ function SessionCreateDialog({
             {mode === "advanced" ? (
               <SessionCreateAdvancedSection
                 environment={environment}
+                environmentListingError={environmentListingError}
+                environmentListingState={environmentListingState}
                 isSubmitting={isSubmitting || isAwaitingEnvironment}
                 networkParticipation={networkParticipation}
                 onNetworkParticipationChange={onNetworkParticipationChange}

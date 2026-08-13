@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -44,6 +45,7 @@ func TestManagerForgeProvider(t *testing.T) {
 			return nil
 		}
 		github := newFakeProcess(5102)
+		fetchedAt := time.Unix(1, 0).UTC()
 		github.callFn = func(_ context.Context, method string, params, result any) error {
 			record("github:" + method)
 			switch method {
@@ -56,7 +58,8 @@ func TestManagerForgeProvider(t *testing.T) {
 				}
 				state, merged, number := "open", false, 7
 				*result.(*extensioncontract.ForgeStatusResponse) = extensioncontract.ForgeStatusResponse{
-					PRNumber: &number, PRState: &state, PRURL: "https://github.com/acme/repo/pull/7", Merged: &merged,
+					PRNumber: &number, PRState: &state, PRURL: "https://github.com/acme/repo/pull/7",
+					Merged: &merged, FetchedAt: fetchedAt,
 				}
 			case string(extensionprotocol.ExtensionServiceMethodForgePRCreate):
 				request := params.(extensioncontract.ForgePRCreateRequest)
@@ -117,8 +120,8 @@ func TestManagerForgeProvider(t *testing.T) {
 		manager := NewManager(nil)
 		installForgeTestProvider(manager, "broken", process, time.Unix(1, 0))
 		_, err := manager.ForgeCapabilities(context.Background(), []string{"https://github.com/acme/repo"})
-		if err == nil {
-			t.Fatal("ForgeCapabilities() error = nil, want incomplete response failure")
+		if err == nil || !strings.Contains(err.Error(), "served forge capabilities are incomplete") {
+			t.Fatalf("ForgeCapabilities() error = %v, want incomplete served capabilities", err)
 		}
 	})
 
@@ -141,8 +144,38 @@ func TestManagerForgeProvider(t *testing.T) {
 		_, err := manager.ForgeCreatePR(context.Background(), extensioncontract.ForgePRCreateRequest{
 			RemoteURLs: []string{"https://github.com/acme/repo"}, Head: "feature", Base: "main", Title: "Feature",
 		})
-		if err == nil {
-			t.Fatal("ForgeCreatePR(incomplete) error = nil")
+		if err == nil || !strings.Contains(err.Error(), "returned an invalid pull request") {
+			t.Fatalf("ForgeCreatePR(incomplete) error = %v, want invalid pull request", err)
+		}
+	})
+
+	t.Run("Should reject incomplete forge status evidence", func(t *testing.T) {
+		t.Parallel()
+		state := "open"
+		number := 7
+		merged := false
+		for _, test := range []struct {
+			response extensioncontract.ForgeStatusResponse
+			want     string
+		}{
+			{
+				response: extensioncontract.ForgeStatusResponse{
+					Provider: "github", FetchedAt: time.Unix(1, 0), PRNumber: &number, PRState: &state,
+				},
+				want: "must be returned together",
+			},
+			{
+				response: extensioncontract.ForgeStatusResponse{
+					Provider: "github", FetchedAt: time.Unix(1, 0), PRNumber: &number, PRState: &state,
+					PRURL: "javascript://host/pr/7", Merged: &merged,
+				},
+				want: "credential-free HTTP(S) URL",
+			},
+		} {
+			err := validateForgeStatusResponse(test.response)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validateForgeStatusResponse(%#v) error = %v, want %q", test.response, err, test.want)
+			}
 		}
 	})
 

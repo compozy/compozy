@@ -2,15 +2,12 @@ package daemon
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -52,55 +49,8 @@ func (n *daemonNativeTools) autonomyClaimNext(
 		return toolspkg.ToolResult{}, errors.New("daemon: task-run claim returned an empty result")
 	}
 	if nativeClaimStartsWorker(result.Run) {
-		started, startErr := n.deps.Tasks.StartRun(ctx, result.Run.ID, taskpkg.StartRun{
-			IdempotencyKey: "native-start:" + strings.TrimSpace(result.Run.ID),
-			ClaimToken:     result.ClaimToken,
-		}, actor)
-		if startErr != nil {
-			failErr := redactTaskClaimCleanupError(n.failNativeTaskClaim(
-				ctx,
-				result,
-				actor,
-				"task execution start failed",
-			))
-			bootstrapErr := n.scheduleTaskClaimBootstrapStop(sessionID, result.Run.ID, "")
-			return toolspkg.ToolResult{}, nativeAutonomyToolError(
-				req.ToolID,
-				errors.Join(startErr, failErr, bootstrapErr),
-			)
-		}
-		if started == nil {
-			emptyErr := errors.New("daemon: task-run start returned an empty result")
-			failErr := redactTaskClaimCleanupError(n.failNativeTaskClaim(
-				ctx,
-				result,
-				actor,
-				"task execution start failed",
-			))
-			bootstrapErr := n.scheduleTaskClaimBootstrapStop(sessionID, result.Run.ID, "")
-			return toolspkg.ToolResult{}, nativeAutonomyToolError(
-				req.ToolID,
-				errors.Join(emptyErr, failErr, bootstrapErr),
-			)
-		}
-		result.Run = *started
-		if strings.TrimSpace(started.SessionID) != sessionID {
-			if n.deps.TaskClaimHandoff == nil {
-				handoffErr := errors.New("daemon: task claim handoff is unavailable")
-				abortErr := redactTaskClaimCleanupError(n.abortTaskClaimHandoff(ctx, result, actor))
-				return toolspkg.ToolResult{}, nativeAutonomyToolError(
-					req.ToolID,
-					errors.Join(handoffErr, abortErr),
-				)
-			}
-			if handoffErr := n.deps.TaskClaimHandoff.Activate(ctx, sessionID, *started); handoffErr != nil {
-				abortErr := redactTaskClaimCleanupError(n.abortTaskClaimHandoff(ctx, result, actor))
-				bootstrapErr := n.scheduleTaskClaimBootstrapStop(sessionID, result.Run.ID, "")
-				return toolspkg.ToolResult{}, nativeAutonomyToolError(
-					req.ToolID,
-					errors.Join(handoffErr, abortErr, bootstrapErr),
-				)
-			}
+		if err := n.startNativeClaimedRun(ctx, sessionID, result, actor); err != nil {
+			return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 		}
 	}
 	payload := core.AgentTaskClaimPayloadFromResult(result)
@@ -116,6 +66,62 @@ func (n *daemonNativeTools) autonomyClaimNext(
 		map[string]any{nativeToolsClaimedKey: true, "claim": payload},
 		summary,
 	)
+}
+
+func (n *daemonNativeTools) startNativeClaimedRun(
+	ctx context.Context,
+	bootstrapSessionID string,
+	result *taskpkg.ClaimResult,
+	actor taskpkg.ActorContext,
+) error {
+	started, err := n.deps.Tasks.StartRun(ctx, result.Run.ID, taskpkg.StartRun{
+		IdempotencyKey: "native-start:" + strings.TrimSpace(result.Run.ID),
+		ClaimToken:     result.ClaimToken,
+	}, actor)
+	if err != nil {
+		return n.cleanupNativeClaimStart(ctx, bootstrapSessionID, result, actor, err)
+	}
+	if started == nil {
+		return n.cleanupNativeClaimStart(
+			ctx,
+			bootstrapSessionID,
+			result,
+			actor,
+			errors.New("daemon: task-run start returned an empty result"),
+		)
+	}
+	result.Run = *started
+	if strings.TrimSpace(started.SessionID) == bootstrapSessionID {
+		return nil
+	}
+	if n.deps.TaskClaimHandoff == nil {
+		handoffErr := errors.New("daemon: task claim handoff is unavailable")
+		abortErr := redactTaskClaimCleanupError(n.abortTaskClaimHandoff(ctx, result, actor))
+		return errors.Join(handoffErr, abortErr)
+	}
+	if err := n.deps.TaskClaimHandoff.Activate(ctx, bootstrapSessionID, *started); err != nil {
+		abortErr := redactTaskClaimCleanupError(n.abortTaskClaimHandoff(ctx, result, actor))
+		bootstrapErr := n.scheduleTaskClaimBootstrapStop(bootstrapSessionID, result.Run.ID, "")
+		return errors.Join(err, abortErr, bootstrapErr)
+	}
+	return nil
+}
+
+func (n *daemonNativeTools) cleanupNativeClaimStart(
+	ctx context.Context,
+	bootstrapSessionID string,
+	result *taskpkg.ClaimResult,
+	actor taskpkg.ActorContext,
+	cause error,
+) error {
+	failErr := redactTaskClaimCleanupError(n.failNativeTaskClaim(
+		ctx,
+		result,
+		actor,
+		"task execution start failed",
+	))
+	bootstrapErr := n.scheduleTaskClaimBootstrapStop(bootstrapSessionID, result.Run.ID, "")
+	return errors.Join(cause, failErr, bootstrapErr)
 }
 
 func (n *daemonNativeTools) scheduleTaskClaimBootstrapStop(

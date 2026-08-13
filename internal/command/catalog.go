@@ -260,10 +260,11 @@ func SetBuiltinAvailability(catalog Catalog, name string, available bool, reason
 			continue
 		}
 		commands[index].Available = available
-		commands[index].UnavailableReason = strings.TrimSpace(reason)
 		if available {
+			commands[index].UnavailableReason = ""
 			delete(unavailable, commands[index].CanonicalToken)
 		} else {
+			commands[index].UnavailableReason = strings.TrimSpace(reason)
 			unavailable[commands[index].CanonicalToken] = struct{}{}
 		}
 		break

@@ -365,8 +365,11 @@ test("operator isolates each fan-out run in its own worktree", async ({ appPage,
   await expect(results.locator('[data-slot="task-fan-out-run-result"]')).toHaveCount(2);
   for (const row of await results.locator('[data-slot="task-fan-out-run-result"]').all()) {
     await expect(row).toHaveAttribute("data-unattributed", "");
-    await expect(row.locator('[data-slot="task-fan-out-run-attribution"]')).toContainText(
+    await expect(row.locator('[data-slot="task-fan-out-run-attribution"]')).not.toContainText(
       "Worktree pending"
+    );
+    await expect(row.locator('[data-slot="task-fan-out-run-attribution"]')).not.toContainText(
+      "Worktree unavailable"
     );
   }
 });

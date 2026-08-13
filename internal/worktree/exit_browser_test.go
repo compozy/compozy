@@ -49,4 +49,15 @@ func TestExitBrowserURL(t *testing.T) {
 			t.Fatalf("browserCompareURL(unknown) = %q", got)
 		}
 	})
+
+	t.Run("Should reject unsafe remote and provider URL schemes", func(t *testing.T) {
+		t.Parallel()
+		if got := browserCompareURL([]string{"javascript://host/payload"}, "main", "feature", nil); got != "" {
+			t.Fatalf("browserCompareURL(javascript remote) = %q, want empty", got)
+		}
+		forge := &ForgeCapabilities{CompareURLTemplate: "javascript://host/{base}/{head}"}
+		if got := browserCompareURL([]string{"https://github.com/acme/repo"}, "main", "feature", forge); got != "" {
+			t.Fatalf("browserCompareURL(javascript provider template) = %q, want empty", got)
+		}
+	})
 }

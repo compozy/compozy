@@ -287,8 +287,8 @@ func TestWorktreeExitCommands(t *testing.T) {
 			t, newWorkspaceTestDeps(t, client),
 			"worktree", "exit-cancel", "wt-a", "--workspace", "workspace-a",
 		)
-		if err == nil || called {
-			t.Fatalf("exit-cancel error/called = %v/%t", err, called)
+		if err == nil || !strings.Contains(err.Error(), "--op is required") || called {
+			t.Fatalf("exit-cancel error/called = %v/%t, want missing --op", err, called)
 		}
 	})
 }

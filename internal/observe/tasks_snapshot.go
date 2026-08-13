@@ -50,6 +50,7 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 	}
 
 	tasksByID, taskIDs := taskSummaryIndex(tasks)
+	runs = filterRunsByWorktree(runs, query.WorktreeID)
 	taskChannels := taskParticipationChannels(tasks, runs)
 	tasks = filterTasksByNetworkChannel(tasks, taskChannels, query.ParticipationChannel)
 
@@ -65,12 +66,11 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		runsByID[runID] = item
 	}
 	runs = filterRuns(runs, taskIDs, query)
-
 	events, err := o.registry.ListTaskEvents(ctx, taskpkg.EventQuery{})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list task events for summary: %w", err)
 	}
-	events = filterEventsForTasks(events, taskIDs)
+	events = filterEventsForTasks(events, taskIDs, runsByID, query.WorktreeID)
 
 	workspaceID := strings.TrimSpace(query.WorkspaceID)
 	audits, err := o.registry.ListNetworkAudit(ctx, store.NetworkAuditQuery{

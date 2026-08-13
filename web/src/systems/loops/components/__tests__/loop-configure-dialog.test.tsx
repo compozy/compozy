@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMswFetch } from "@/test/msw-fetch";
 import { LoopConfigureDialog } from "../configure/loop-configure-dialog";
 import { handlers } from "../../mocks";
+import { worktreeHandlers } from "@/systems/workspace/mocks/worktree-handlers";
 import {
   loopConfigFixture,
   loopDetailByName,
@@ -31,6 +32,7 @@ function captureHandlers() {
       return HttpResponse.json({ config: body.config });
     }),
     ...handlers,
+    ...worktreeHandlers,
   ];
 }
 
@@ -40,6 +42,7 @@ function failingHandlers() {
       HttpResponse.json({ error: "boom" }, { status: 500 })
     ),
     ...handlers,
+    ...worktreeHandlers,
   ];
 }
 
@@ -194,6 +197,23 @@ describe("LoopConfigureDialog", () => {
     expect(screen.getByTestId("loop-configure-limit-input-iteration_cap")).toHaveValue(16);
   });
 
+  it("Should collect the directory required by the loop environment default", async () => {
+    renderSheet({ config: null });
+    const modes = await screen.findByTestId("loop-configure-environment-mode");
+
+    fireEvent.click(within(modes).getByRole("button", { name: "Directory" }));
+    const directory = screen.getByLabelText("Directory");
+    expect(directory).toHaveValue("");
+
+    fireEvent.change(directory, { target: { value: "packages/api" } });
+    fireEvent.click(screen.getByTestId("loop-configure-save"));
+
+    await waitFor(() => expect(putBodies).toHaveLength(1));
+    expect(putBodies[0].config).toMatchObject({
+      environment: { mode: "directory", directory: "packages/api" },
+    });
+  });
+
   it("Should close without saving via the header close and Cancel", () => {
     const { onOpenChange } = renderSheet({ config: null });
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -228,6 +248,7 @@ describe("LoopConfigureDialog", () => {
           return HttpResponse.json({ config: {} });
         }),
         ...handlers,
+        ...worktreeHandlers,
       ])
     );
     renderSheet({ config: null });

@@ -8,7 +8,7 @@
 // Boundary OUT: resolution (lib/active-workspace) and persistence envelope (use-workspaces suite).
 
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useActiveWorktree } from "../../hooks/use-active-worktree";
 import {
@@ -124,6 +124,20 @@ describe("active workspace store v3", () => {
     expect(window.localStorage.getItem("compozy:active-workspace:v4")).toContain(WORKSPACE);
     // v2 is a hard cut: nothing reads it and nothing writes it.
     expect(window.localStorage.getItem("compozy:active-workspace:v3")).toBeNull();
+  });
+
+  it("Should ignore a seeded v2 selection during store initialization", async () => {
+    window.localStorage.setItem(
+      "compozy:active-workspace:v2",
+      JSON.stringify({ selectedWorkspaceId: "ws_legacy" })
+    );
+    vi.resetModules();
+
+    const isolatedModule = await import("../active-workspace-store");
+
+    expect(
+      isolatedModule.activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId
+    ).toBeNull();
   });
 
   it("Should keep two window scopes independently selectable", () => {

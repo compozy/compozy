@@ -1912,6 +1912,39 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() => expect(composerText()).toBe(" keep this draft"));
   });
 
+  it("Should remove the selected action token without deleting an earlier mention", async () => {
+    const user = userEvent.setup();
+    const onCommandAction = vi.fn((token: string) => token === "/worktree");
+    renderComposer({
+      onCommandAction,
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "built-in",
+            label: "Built-in",
+            commands: [
+              {
+                id: "worktree",
+                token: "/worktree",
+                label: "Worktree",
+                lane: "builtin" as const,
+              },
+            ],
+          },
+        ],
+        inlineSkills: [],
+      },
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("/ keep the existing /worktree mention");
+    await placeComposerCursor(1);
+    const menu = await screen.findByTestId("composer-command-menu");
+    await user.click(within(menu).getByRole("option", { name: /Worktree/i }));
+
+    await waitFor(() => expect(composerText()).toBe(" keep the existing /worktree mention"));
+  });
+
   it("Should preserve hook order when the command menu closes and reopens", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 

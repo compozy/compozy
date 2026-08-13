@@ -1,8 +1,17 @@
 import { CheckIcon, CircleAlertIcon, LoaderCircleIcon } from "lucide-react";
 
-import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle, MonoId } from "@compozy/ui";
+import {
+  Button,
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+  MonoId,
+} from "@compozy/ui";
 
-import type { WorktreePayload } from "@/systems/workspace";
+import { WorktreeOriginSignal, type WorktreePayload } from "@/systems/workspace";
 
 import type { FanOutTaskRunsResponse, TaskRun } from "../types";
 
@@ -14,6 +23,8 @@ interface TaskFanOutRunResultsProps {
   liveRuns?: readonly TaskRun[];
   /** Used only to resolve a name for an id the response already attributed. */
   worktrees?: readonly WorktreePayload[];
+  onRetry?: (runId: string) => void;
+  retryPending?: boolean;
 }
 
 function isFailed(run: FanOutRun): boolean {
@@ -27,15 +38,16 @@ function isCompleted(run: FanOutRun): boolean {
 /**
  * Per-run outcomes, attributed from the response and nothing else.
  *
- * The daemon reports a fan-out request as a whole; these rows describe the runs
- * it actually created. A run with no worktree attribution says that the
- * worktree is still pending — a name is never inferred from the isolation
- * setting.
+ * A run without a worktree id is shown as that run id alone — a name is never
+ * inferred from the isolation setting, and the row never invents a pending or
+ * unavailable worktree.
  */
 export function TaskFanOutRunResults({
   runs,
   liveRuns = [],
   worktrees,
+  onRetry,
+  retryPending = false,
 }: TaskFanOutRunResultsProps) {
   if (runs.length === 0) return null;
 
@@ -76,14 +88,27 @@ export function TaskFanOutRunResults({
             <ItemContent>
               <ItemTitle>{run.designation?.brief ?? run.id}</ItemTitle>
               <ItemDescription
-                className="flex items-center gap-1.5"
+                className="flex flex-wrap items-center gap-1.5"
                 data-slot="task-fan-out-run-attribution"
               >
                 <MonoId preserveCase size="sm" value={run.id} />
-                <span aria-hidden="true" className="text-faint">
-                  →
-                </span>
-                <span>{attribution ?? (failed ? "Worktree unavailable" : "Worktree pending")}</span>
+                {attribution ? (
+                  <>
+                    <span aria-hidden="true" className="text-faint">
+                      →
+                    </span>
+                    <span>{attribution}</span>
+                    {worktree?.branch ? (
+                      <>
+                        <span aria-hidden="true" className="text-faint">
+                          ·
+                        </span>
+                        <MonoId preserveCase size="sm" value={worktree.branch} />
+                      </>
+                    ) : null}
+                    {!failed && worktree ? <WorktreeOriginSignal origin={worktree.origin} /> : null}
+                  </>
+                ) : null}
               </ItemDescription>
               {run.error ? (
                 <p
@@ -94,6 +119,20 @@ export function TaskFanOutRunResults({
                 </p>
               ) : null}
             </ItemContent>
+            {failed && onRetry ? (
+              <ItemActions>
+                <Button
+                  data-testid="tasks-fan-out-run-retry"
+                  disabled={retryPending}
+                  onClick={() => onRetry(run.id)}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Retry run
+                </Button>
+              </ItemActions>
+            ) : null}
           </Item>
         );
       })}

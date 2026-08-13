@@ -94,8 +94,9 @@ export function TaskSetupSheet({
               <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
               {activeRunId ? (
                 <span>
-                  Run <span className="font-mono text-fg">{activeRunId}</span> is active. Editing is
-                  locked until that run ends or is canceled.
+                  Editing is locked while run{" "}
+                  <span className="font-mono text-fg">{activeRunId}</span> is active. Cancel the
+                  current run before changing the setup.
                 </span>
               ) : (
                 "Editing is locked while a run is active. Cancel the current run before changing the setup."
@@ -119,7 +120,7 @@ export function TaskSetupSheet({
             </p>
           )}
 
-          {editor.open && editor.value ? (
+          {editor.open && editor.value && !hasActiveRun ? (
             <div className="mt-2 flex flex-col gap-2" data-testid="tasks-setup-editor">
               <TaskSetupForm
                 onChange={editor.setValue}
@@ -148,6 +149,16 @@ export function TaskSetupSheet({
                   {saving ? "Saving…" : "Save setup"}
                 </Button>
               </div>
+            </div>
+          ) : hasActiveRun && profile ? (
+            <div className="mt-2 flex flex-col gap-2" data-testid="tasks-setup-editor">
+              <TaskSetupForm
+                disabled
+                onChange={editor.setValue}
+                runtime={runtime}
+                value={{ ...profile, task_id: profile.task_id }}
+                worktreePolicy={worktreePolicy ? { ...worktreePolicy, locked: true } : undefined}
+              />
             </div>
           ) : showJson && profile ? (
             <div className="mt-2" data-testid="tasks-setup-json">

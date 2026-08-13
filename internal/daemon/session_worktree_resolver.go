@@ -44,11 +44,15 @@ func (r daemonSessionWorktreeResolver) ResolveSessionWorktree(
 	}
 	switch item.State {
 	case worktree.StateReady:
-		if _, statErr := os.Stat(item.Path); statErr != nil {
+		info, statErr := os.Stat(item.Path)
+		if statErr != nil {
 			if errors.Is(statErr, os.ErrNotExist) {
 				return "", "", worktree.ErrMissing
 			}
 			return "", "", fmt.Errorf("daemon: inspect worktree root: %w", statErr)
+		}
+		if !info.IsDir() {
+			return "", "", worktree.ErrMissing
 		}
 		return item.ID, item.Path, nil
 	case worktree.StateMissing, worktree.StateRemoved, worktree.StateDismissed:

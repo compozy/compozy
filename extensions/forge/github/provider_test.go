@@ -125,6 +125,7 @@ func TestRunProviderForgeProtocolConformanceIT035(t *testing.T) {
 			name: "pull request create", method: "forge/pr_create",
 			params: extensioncontract.ForgePRCreateRequest{
 				RemoteURLs: []string{"https://gitlab.com/acme/repo.git"}, Head: "feature/exit", Base: "main",
+				Title: "Exit feature worktree",
 			},
 		},
 	} {
@@ -396,8 +397,9 @@ func TestProvider(t *testing.T) {
 			w.WriteHeader(http.StatusCreated)
 		})
 		defer closeServer()
-		if got, err := provider.CreatePR(context.Background(), createRequest()); err == nil {
-			t.Fatalf("CreatePR(empty success) = %#v, nil error", got)
+		if got, err := provider.CreatePR(context.Background(), createRequest()); err == nil ||
+			!strings.Contains(err.Error(), "invalid created pull request") {
+			t.Fatalf("CreatePR(empty success) = %#v, %v; want invalid created pull request", got, err)
 		}
 	})
 

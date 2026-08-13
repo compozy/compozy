@@ -235,7 +235,14 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 		activationRequest(req, key, prepared),
 	)
 	if err != nil {
-		return looppkg.ActionSessionBinding{}, err
+		finalizeErr := b.stopAndRollbackLoopActionEnvironment(
+			ctx,
+			req,
+			prepared.SessionID,
+			materialized,
+			err,
+		)
+		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts)), finalizeErr
 	}
 	if stopped {
 		stoppedErr := fmt.Errorf(

@@ -378,6 +378,14 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if resolved != (dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot}) {
 			t.Fatalf("implicit environment = %#v, want workspace root", resolved)
 		}
+
+		_, err = loop.ResolveActionEnvironment(
+			dsl.EnvironmentSpec{Directory: "packages/delivery"},
+			loopDefault,
+		)
+		if !errors.Is(err, loop.ErrValidation) {
+			t.Fatalf("ResolveActionEnvironment(node directory without mode) error = %v, want ErrValidation", err)
+		}
 	})
 
 	t.Run("Should reject unsupported harvest kinds before sync output", func(t *testing.T) {

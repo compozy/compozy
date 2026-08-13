@@ -199,8 +199,20 @@ func (s *Service) runFencedRemoval(
 	case !stillPresent:
 		return true, nil
 	case force:
-		if cleanupErr := s.removeVerifiedLeftover(ctx, item.Path, commonDir, item.GitDir); cleanupErr != nil {
-			return false, fmt.Errorf("%w: %s: %v: %v", ErrRemovalFailed, detail, removeErr, cleanupErr)
+		// Git documents a second --force as the explicit override for a locked
+		// linked worktree. Keep deletion inside Git so its admin record and the
+		// checkout directory are removed as one operation.
+		retryArgs := append([]string(nil), args...)
+		forceIndex := len(retryArgs) - 2
+		retryArgs = append(retryArgs[:forceIndex], append([]string{"--force"}, retryArgs[forceIndex:]...)...)
+		_, retryStderr, retryErr := s.runner.Run(ctx, workspaceRoot, retryArgs...)
+		if retryErr != nil {
+			return false, fmt.Errorf(
+				"%w: forced removal retry: %s: %v",
+				ErrRemovalFailed,
+				diagnostics.RedactAndBound(string(retryStderr), 2048),
+				retryErr,
+			)
 		}
 		return false, nil
 	default:
@@ -348,13 +360,6 @@ func (s *Service) removalRisk(ctx context.Context, item Worktree) (RemovalRisk, 
 	return risk, nil
 }
 
-func valueOrZero(value *int) int {
-	if value == nil {
-		return 0
-	}
-	return *value
-}
-
 func (s *Service) validateRemovalIdentity(
 	ctx context.Context,
 	item Worktree,
@@ -373,23 +378,4 @@ func (s *Service) validateRemovalIdentity(
 		return true, refusal(ErrRemovalFailed, "worktree Git identity changed")
 	}
 	return true, nil
-}
-
-func (s *Service) removeVerifiedLeftover(
-	ctx context.Context,
-	path string,
-	commonDir string,
-	expectedGitDir string,
-) error {
-	identity, err := s.validateAdoptionIdentity(ctx, path, commonDir)
-	if err != nil {
-		return err
-	}
-	if identity.adminGitDir != filepath.Clean(expectedGitDir) {
-		return refusal(ErrRemovalFailed, "leftover Git identity changed")
-	}
-	if err := os.RemoveAll(path); err != nil {
-		return fmt.Errorf("worktree: remove verified leftover: %w", err)
-	}
-	return nil
 }

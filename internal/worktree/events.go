@@ -133,16 +133,18 @@ func (s *Service) emit(ctx context.Context, name string, item Worktree) {
 		}
 	}
 	if s.hooks != nil && (name == EventCreated || name == EventAdopted || name == EventRemoved) {
-		workspaceRoot := ""
-		if workspace, err := s.resolveWorkspace(ctx, item.WorkspaceID); err == nil {
-			workspaceRoot = workspace.Root
-		}
-		if _, err := s.hooks.DispatchWorktreeHook(ctx, HookRequest{
-			Event: name, Payload: eventPayloadFromWorktree(item, workspaceRoot),
-		}); err != nil {
+		workspace, err := s.resolveWorkspace(ctx, item.WorkspaceID)
+		if err != nil {
+			s.logger.WarnContext(
+				ctx, "worktree observation hook workspace resolution failed", "hook_event", name,
+				"error", redact.String(err.Error()),
+			)
+		} else if _, dispatchErr := s.hooks.DispatchWorktreeHook(ctx, HookRequest{
+			Event: name, Payload: eventPayloadFromWorktree(item, workspace.Root),
+		}); dispatchErr != nil {
 			s.logger.WarnContext(
 				ctx, "worktree observation hook failed open", "hook_event", name,
-				"error", redact.String(err.Error()),
+				"error", redact.String(dispatchErr.Error()),
 			)
 		}
 	}

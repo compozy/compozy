@@ -32,7 +32,7 @@ function Harness({
   workspaces?: typeof ALL_WORKSPACES;
   selectedWorktreeId?: string | null;
 }) {
-  const [value, setValue] = useState<string | null>(GIT_WORKSPACE.id);
+  const [value, setValue] = useState<string | null>(workspaces[0]?.id ?? null);
   return (
     <CenteredSurface className="w-[420px] border border-line bg-canvas-soft p-0">
       <WorkspaceCommandSelect
@@ -156,7 +156,12 @@ export const TruncationWithOverflow: Story = {
   ),
 };
 
-/** VC-12 — the aggregate signal a collapsed parent keeps; zero renders nothing. */
+/**
+ * VC-12 — the parent aggregate the switcher actually keeps. Production has no
+ * fold: the git-backed nest stays open beside the quiet "N active" signal
+ * (authorized delta vs artboard §08 — see task-06-authorized-deltas.md).
+ * Zero activity renders nothing, never "0".
+ */
 export const CollapsedAggregate: Story = {
   args: {},
   render: () => (

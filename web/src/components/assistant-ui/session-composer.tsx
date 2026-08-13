@@ -36,9 +36,41 @@ export type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-act
 
 const EMPTY_QUEUED_PROMPTS: QueuedPrompt[] = [];
 
-function removeActionToken(text: string, token: string): string {
-  const at = text.indexOf(token);
-  if (at < 0) return text;
+function removeSelectedActionToken(beforeSelection: string, text: string, token: string): string {
+  let changedStart = 0;
+  while (
+    changedStart < beforeSelection.length &&
+    changedStart < text.length &&
+    beforeSelection[changedStart] === text[changedStart]
+  ) {
+    changedStart += 1;
+  }
+
+  let unchangedSuffix = 0;
+  while (
+    unchangedSuffix < beforeSelection.length - changedStart &&
+    unchangedSuffix < text.length - changedStart &&
+    beforeSelection[beforeSelection.length - unchangedSuffix - 1] ===
+      text[text.length - unchangedSuffix - 1]
+  ) {
+    unchangedSuffix += 1;
+  }
+
+  const changedEnd = text.length - unchangedSuffix;
+  const candidates: number[] = [];
+  let searchFrom = 0;
+  while (searchFrom <= text.length - token.length) {
+    const candidate = text.indexOf(token, searchFrom);
+    if (candidate < 0) break;
+    if (candidate < changedEnd && candidate + token.length > changedStart) {
+      candidates.push(candidate);
+    }
+    searchFrom = candidate + token.length;
+  }
+  const at = candidates.sort(
+    (left, right) => Math.abs(left - changedStart) - Math.abs(right - changedStart)
+  )[0];
+  if (at === undefined) return text;
   const before = text.slice(0, at);
   const after = text.slice(at + token.length);
   return `${before}${before.endsWith(" ") && after.startsWith(" ") ? after.slice(1) : after}`;
@@ -197,8 +229,15 @@ export function SessionComposer({
                   onDirectiveSelect: item => {
                     const token = commandItemPresentation(item).token;
                     if (!onCommandAction?.(token)) return;
+                    const beforeSelection = composerText;
                     window.setTimeout(() => {
-                      setComposerText(removeActionToken(aui.composer.getState().text, token));
+                      setComposerText(
+                        removeSelectedActionToken(
+                          beforeSelection,
+                          aui.composer.getState().text,
+                          token
+                        )
+                      );
                     }, 0);
                   },
                 }}

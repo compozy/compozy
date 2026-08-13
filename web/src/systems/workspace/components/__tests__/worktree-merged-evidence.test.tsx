@@ -5,19 +5,14 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { cleanupStaleRemoteFixture } from "../../mocks/worktree-exit-progress-fixtures";
 import { WorktreeMergedEvidence } from "../worktree-merged-evidence";
 
 describe("WorktreeMergedEvidence", () => {
   it("Should mark stale forge evidence without exposing cleanup", () => {
     render(
       <WorktreeMergedEvidence
-        cleanup={{
-          forge_state: "merged",
-          stale: true,
-          safe: false,
-          source: "local",
-          blocker: "1 commits exist nowhere else.",
-        }}
+        cleanup={cleanupStaleRemoteFixture}
         onCleanUp={vi.fn()}
         staleLabel="5 minutes ago"
       />

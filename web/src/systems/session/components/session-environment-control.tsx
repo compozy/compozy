@@ -50,7 +50,7 @@ export function SessionEnvironmentControl({
           currentWorktreeId={binding.bound ? binding.worktreeId : undefined}
           isPending={control.isPending}
           onConfirm={control.confirm}
-          onNewWorktree={() => control.materialization.start("")}
+          onNewWorktree={control.startNewWorktree}
           onOpenChange={control.setOpen}
           onTargetChange={control.setTarget}
           open

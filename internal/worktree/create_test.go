@@ -656,7 +656,8 @@ func TestServiceCreate(t *testing.T) {
 		); !errors.Is(err, ErrBaseRefNotFound) || item != nil {
 			t.Fatalf("CreateAccepted(missing base) = %#v, %v, want nil ErrBaseRefNotFound", item, err)
 		}
-		if rows, err := baseFixture.store.List(context.Background(), baseFixture.workspace.ID); err != nil || len(rows) != 0 {
+		rows, err := baseFixture.store.List(context.Background(), baseFixture.workspace.ID)
+		if err != nil || len(rows) != 0 {
 			t.Fatalf("List() after rejected acceptance = %#v, %v, want no durable row", rows, err)
 		}
 

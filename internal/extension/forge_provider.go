@@ -17,6 +17,11 @@ import (
 const (
 	forgeStatusCreated     = "created"
 	forgeCredentialBinding = "binding"
+	forgePRStateOpen       = "open"
+	forgePRStateClosed     = "closed"
+	forgePRStateMerged     = "merged"
+	forgeURLSchemeHTTP     = "http"
+	forgeURLSchemeHTTPS    = "https"
 )
 
 type ForgeRuntime interface {
@@ -326,12 +331,44 @@ func validForgeProviderCause(value string) bool {
 }
 
 func validateForgeStatusResponse(value extensioncontract.ForgeStatusResponse) error {
-	if value.PRState != nil {
-		switch *value.PRState {
-		case "open", "closed", "merged":
-		default:
-			return errors.New("invalid pull request state")
-		}
+	if strings.TrimSpace(value.Provider) == "" || value.FetchedAt.IsZero() {
+		return errors.New("provider and fetched_at are required")
+	}
+	if forgeStatusHasNoPR(value) {
+		return nil
+	}
+	if !forgeStatusHasCompletePR(value) {
+		return errors.New("pull request number, state, URL, and merged state must be returned together")
+	}
+	if !validForgePRState(*value.PRState) {
+		return errors.New("invalid pull request state")
+	}
+	if !validForgePRURL(value.PRURL) {
+		return errors.New("pull request URL must be an absolute credential-free HTTP(S) URL")
+	}
+	if (*value.PRState == forgePRStateMerged) != *value.Merged {
+		return errors.New("pull request state and merged flag disagree")
 	}
 	return nil
+}
+
+func forgeStatusHasNoPR(value extensioncontract.ForgeStatusResponse) bool {
+	return value.PRNumber == nil && value.PRState == nil &&
+		strings.TrimSpace(value.PRURL) == "" && value.Merged == nil
+}
+
+func forgeStatusHasCompletePR(value extensioncontract.ForgeStatusResponse) bool {
+	return value.PRNumber != nil && *value.PRNumber > 0 && value.PRState != nil &&
+		strings.TrimSpace(value.PRURL) != "" && value.Merged != nil
+}
+
+func validForgePRState(value string) bool {
+	return value == forgePRStateOpen || value == forgePRStateClosed || value == forgePRStateMerged
+}
+
+func validForgePRURL(value string) bool {
+	parsedURL, err := url.ParseRequestURI(strings.TrimSpace(value))
+	return err == nil && parsedURL.Host != "" &&
+		(parsedURL.Scheme == forgeURLSchemeHTTPS || parsedURL.Scheme == forgeURLSchemeHTTP) &&
+		parsedURL.User == nil && parsedURL.RawQuery == "" && parsedURL.Fragment == ""
 }

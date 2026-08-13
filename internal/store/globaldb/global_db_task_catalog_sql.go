@@ -346,11 +346,20 @@ func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 }
 
 func taskCatalogFilter(query taskpkg.CatalogQuery) ([]string, []any) {
-	return store.BuildClauses(
+	where, args := store.BuildClauses(
 		store.StringClause("status", string(query.Status)),
-		store.StringClause("active_run_worktree_id", query.WorktreeID),
 		store.StringClause("network_channel", query.ParticipationChannel),
 	)
+	if query.WorktreeID != "" {
+		where = append(where, `EXISTS (
+			SELECT 1 FROM base_runs worktree_run
+			WHERE worktree_run.task_id = catalog.id
+				AND worktree_run.worktree_id = ?
+				AND worktree_run.status IN ('queued', 'claimed', 'starting', 'running')
+		)`)
+		args = append(args, query.WorktreeID)
+	}
+	return where, args
 }
 
 func taskCatalogPageFilter(

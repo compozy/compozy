@@ -112,9 +112,9 @@ function openWorktreeCatalogStream(
 }
 
 /**
- * Reconciles live worktree catalog frames into the query cache. It never writes
- * cache data — TanStack Query stays the only owner of the remote snapshot; this
- * effect only invalidates workspace-qualified keys.
+ * Reconciles live worktree catalog frames into the query cache. TanStack Query
+ * owns the remote snapshot: the stream invalidates workspace-qualified keys and
+ * stores only the daemon's terminal materialization failure handoff.
  */
 export function useWorktreeCatalogStream(
   workspaces: ReadonlyArray<{ id: string }>,

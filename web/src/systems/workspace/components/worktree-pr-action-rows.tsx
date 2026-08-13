@@ -53,7 +53,7 @@ export function WorktreePrActionRows({ rows, submittingKey, onSelect }: Worktree
           data-blocked={row.blocked ? "" : undefined}
           data-primary={row.primary ? "" : undefined}
           data-slot="worktree-pr-action"
-          disabled={submittingKey !== undefined}
+          disabled={row.blocked || submittingKey !== undefined}
           key={row.key}
           onClick={() => {
             if (!row.blocked) onSelect(row);

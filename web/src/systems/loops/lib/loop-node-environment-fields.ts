@@ -1,7 +1,8 @@
-import type { LoopEnvironmentMode } from "../types";
+import type { LoopEnvironmentMode, LoopEnvironmentSpec } from "../types";
 import type { RawLoopNode } from "./codec";
 import { getAtPath, type NodeFieldEdit } from "./loop-editor-draft";
 import {
+  LOOP_ENVIRONMENT_MODE_LABELS,
   LOOP_ENVIRONMENT_MODES,
   type EnvironmentFieldSpec,
   type FieldSpec,
@@ -16,6 +17,11 @@ import {
 
 const ENVIRONMENT_BASE_PATH = ["params", "environment"] as const;
 
+/** Daemon `environment_cwd_removed` payload. Web authors nothing here. */
+export const ENVIRONMENT_CWD_REMOVED_CODE = "environment_cwd_removed";
+export const ENVIRONMENT_CWD_REMOVED_MESSAGE =
+  "params.cwd is retired; use params.environment.directory";
+
 function environmentPath(key: string): (string | number)[] {
   return [...ENVIRONMENT_BASE_PATH, key];
 }
@@ -27,19 +33,27 @@ export function environmentMode(raw: RawLoopNode): LoopEnvironmentMode | null {
   return LOOP_ENVIRONMENT_MODES.find(mode => mode === value) ?? null;
 }
 
+export function hasRetiredCwd(raw: RawLoopNode): boolean {
+  const params = raw.params;
+  if (typeof params !== "object" || params === null) return false;
+  return (params as Record<string, unknown>).cwd !== undefined;
+}
+
 /**
  * Writes the chosen mode and clears whichever companion key the daemon forbids
  * for it, in one edit. `root` and `per_run` carry neither companion; `worktree`
- * carries only `worktree_ref`; `directory` carries only `directory`.
+ * carries only `worktree_ref`; `directory` carries only `directory`. Choosing
+ * any environment also drops retired `params.cwd`.
  */
 export function environmentModeEdits(
   raw: RawLoopNode,
   mode: LoopEnvironmentMode | null
 ): NodeFieldEdit[] {
+  const clearCwd: NodeFieldEdit = { path: ["params", "cwd"], value: undefined };
   if (mode === null) {
     // Clearing the whole descriptor is what "inherit the loop default" means —
     // an empty object would still be a declaration.
-    return [{ path: [...ENVIRONMENT_BASE_PATH], value: undefined }];
+    return [{ path: [...ENVIRONMENT_BASE_PATH], value: undefined }, clearCwd];
   }
   const carriedRef = getAtPath(raw, environmentPath("worktree_ref"));
   const carriedDirectory = getAtPath(raw, environmentPath("directory"));
@@ -53,44 +67,32 @@ export function environmentModeEdits(
       path: environmentPath("directory"),
       value: mode === "directory" ? (carriedDirectory ?? "") : undefined,
     },
+    clearCwd,
   ];
 }
 
-function environmentModeInputs(mode: LoopEnvironmentMode | null): FieldSpec[] {
+/** Mode-specific inspector hint. Inherit has none. */
+export function environmentHint(
+  mode: LoopEnvironmentMode | null,
+  loopDefault?: LoopEnvironmentSpec
+): string | undefined {
+  if (mode === "root") {
+    return "Runs at the workspace root. Part of the session binding key.";
+  }
   if (mode === "worktree") {
-    return [
-      {
-        type: "text",
-        key: "environment_worktree_ref",
-        label: "environment.worktree_ref",
-        path: environmentPath("worktree_ref"),
-        mono: true,
-        required: true,
-        reference: true,
-        placeholder: "worktree name or id",
-        hint: "One ready worktree in the loop's workspace. The run fails before session start if it cannot be resolved.",
-      },
-    ];
+    if (!loopDefault) return undefined;
+    return `Overrides the loop default (${LOOP_ENVIRONMENT_MODE_LABELS[loopDefault.mode]}) for this node.`;
+  }
+  if (mode === "per_run") {
+    return "Name and branch are generated at run start — run/<task-slug>.";
   }
   if (mode === "directory") {
-    return [
-      {
-        type: "text",
-        key: "environment_directory",
-        label: "environment.directory",
-        path: environmentPath("directory"),
-        mono: true,
-        required: true,
-        reference: true,
-        placeholder: "packages/api",
-        hint: "A contained directory under the selected root, interpolable over the loop namespace.",
-      },
-    ];
+    return "Resolved when the run starts. Type {{ to autocomplete references.";
   }
-  return [];
+  return undefined;
 }
 
-/** The Environment descriptor plus whichever companion input its mode requires. */
+/** The Environment descriptor. Companion inputs belong to the environment renderer. */
 export function environmentFields(raw: RawLoopNode, inheritLabel: string): FieldSpec[] {
   const mode = environmentMode(raw);
   const descriptor: EnvironmentFieldSpec = {
@@ -100,7 +102,6 @@ export function environmentFields(raw: RawLoopNode, inheritLabel: string): Field
     basePath: [...ENVIRONMENT_BASE_PATH],
     mode,
     inheritLabel,
-    hint: "Where this node's agent runs. Leave it inheriting to follow the loop default.",
   };
-  return [descriptor, ...environmentModeInputs(mode)];
+  return [descriptor];
 }

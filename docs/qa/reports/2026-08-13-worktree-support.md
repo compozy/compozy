@@ -2,8 +2,8 @@
 
 - **Scope:** Native Git worktree lifecycle, bound sessions, per-run task and Loop isolation, assisted exit, Forge degradation, configuration, hooks, and the adjacent workspace-add canary.
 - **Cadence tier:** targeted
-- **Build:** `e59a03b6` + QA verdict docs · **Environment:** fresh isolated macOS arm64 labs with unique runtime homes, ports, and sockets; operator `HOME` retained for native CLI provider login.
-- **Started:** 2026-08-13T07:55:22Z · **Status:** QA complete; terminal review and full gate pending
+- **Build:** `d7869a8` + terminal review batch · **Environment:** fresh isolated macOS arm64 labs with unique runtime homes, ports, and sockets; operator `HOME` retained for native CLI provider login.
+- **Started:** 2026-08-13T07:55:22Z · **Status:** PASS
 
 ## Personas
 
@@ -54,7 +54,7 @@
 | 27 | CH-worktree-fanout-exit-removal | J-isolated-task-loop-execution / LP-loop-environment-resolution | Bruno | Multi-Tab | Pass | | |
 | 28 | CH-worktree-fanout-exit-removal | J-isolated-task-loop-execution / LP-worktree-web-loop-environment | Bruno | Multi-Tab | Pass | | |
 | 29 | CH-worktree-fanout-exit-removal | J-worktree-management / RT-worktree-web-exit-ladder | Bruno | Multi-Tab | Pass | | |
-| 30 | CH-worktree-fanout-exit-removal | J-worktree-management / RT-worktree-web-exit-commit-pr | Bruno | Multi-Tab | Pass | | |
+| 30 | CH-worktree-fanout-exit-removal | J-worktree-management / RT-worktree-web-exit-commit-pr | Bruno | Multi-Tab | Fixed | BUG-20260813-worktree-exit-menu-crash | d7869a8 |
 | 31 | CH-worktree-fanout-exit-removal | J-worktree-management / RT-worktree-web-exit-progress | Bruno | Multi-Tab | Pass | | |
 | 32 | CH-worktree-fanout-exit-removal | J-worktree-management / RT-worktree-web-removal-two-step | Bruno | Multi-Tab | Pass | | |
 | 33 | CH-worktree-forge-credential-boundary | J-worktree-management / ET-worktree-forge-provider-boundary | Dora | Garbage | Pass | | |
@@ -104,6 +104,13 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Bugs filed/updated:** BUG-20260813-web-fanout-missing-intent-identity; BUG-20260813-native-claim-skips-run-start
 - **Scenarios settled:** task policy, fan-out, per-run, Loop environment, and shared exit/removal rows → pass after retest
 
+### Terminal current-tree re-walk — Ada and Bruno
+
+- **Ran:** 2026-08-13T15:10Z → 15:39Z (box respected: yes)
+- **Findings:** A fresh isolated fixture confirmed nested selection, named task policy, Loop node environment, a two-run per-run fan-out, commit scope, and the zero-credential browser exit tier. Opening Git actions after the commit exposed one new route crash, fixed and re-walked in the same lab.
+- **Bugs filed/updated:** BUG-20260813-worktree-exit-menu-crash
+- **Scenarios settled:** all five scenarios reset by the terminal review batch → pass
+
 ### CH-worktree-forge-credential-boundary — Dora
 
 - **Ran:** 2026-08-13T08:43Z → 10:01Z (box respected: yes)
@@ -135,6 +142,9 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - `BUG-20260813-native-claim-skips-run-start` — native worker claims now perform the run-start
   transition and hand execution to the materialized bound session. Two live workers completed in
   separate run branches and worktrees while their bootstrap sessions stayed out of task execution.
+- `BUG-20260813-worktree-exit-menu-crash` — the exit menu now places its label inside the Base UI
+  group it requires. The exact clean-branch menu that crashed before now opens, and the same
+  worktree's HTTP plan exposes the expected zero-credential compare URL.
 
 ## Paper Cuts
 
@@ -154,6 +164,9 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - One live native-tool descriptor projection returned a transient `502` while a worker process was
   still establishing its hosted MCP bind; the bind completed milliseconds later and both workers
   proceeded. No task or binding state was lost.
+- The terminal current-tree re-walk found `MenuGroupContext is missing` when opening Git actions.
+  The issue was product code, not the lab: a red component regression test reproduced it before
+  `d7869a8`, and the same browser journey passed after the fix.
 
 ## Human Verifications Needed
 
@@ -177,9 +190,9 @@ None identified yet.
 ## Final Status
 
 - **Required E2E lanes:** `make test-e2e-runtime` and `make test-e2e-web` — PASS on 2026-08-13.
-- **Exit gate (full automated suite):** pending after the terminal deep-review/CodeRabbit remediation batch.
-- **Strict real-scenario audit:** all behavioral checks pass; only C14 (terminal full-gate evidence) remains until the post-review gate.
-- **Teardown:** PASS — `teardown.json` records `clean: true`, zero survivors, and the daemon, Web server, and lab process stopped.
-- **Issues by user impact:** Blocks-Completion 7 · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0; all seven fixed and re-walked.
+- **Exit gate (full automated suite):** PASS — terminal `make gate-full` on the frozen tree. Final verify evidence: `/Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/final-make-verify.log`.
+- **Strict real-scenario audit:** PASS — the terminal strict audit accepted the behavioral evidence and final verify log with zero blockers.
+- **Teardown:** PASS — `/Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/teardown.json` records `clean: true`, zero survivors, and the daemon and Web server stopped.
+- **Issues by user impact:** Blocks-Completion 8 · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0; all eight fixed and re-walked.
 - **Coverage:** 39/39 matrix rows terminal; 33 distinct in-scope scenarios pass; no skipped or blocked rows.
-- **Verdict:** functionally ready, pending only the terminal review, strict audit, full gate, and clean teardown evidence.
+- **Verdict:** PASS — ready to ship; terminal review, behavioral re-walks, strict audit, full gate, and teardown are complete.

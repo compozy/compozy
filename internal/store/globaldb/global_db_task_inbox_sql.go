@@ -148,8 +148,16 @@ func taskInboxFilter(query taskpkg.InboxQuery) ([]string, []any) {
 	where, args := store.BuildClauses(
 		store.StringClause("status", string(query.Status)),
 		store.StringClause("lane", string(query.Lane)),
-		store.StringClause("active_run_worktree_id", query.WorktreeID),
 	)
+	if query.WorktreeID != "" {
+		where = append(where, `EXISTS (
+			SELECT 1 FROM base_runs worktree_run
+			WHERE worktree_run.task_id = inbox.id
+				AND worktree_run.worktree_id = ?
+				AND worktree_run.status IN ('queued', 'claimed', 'starting', 'running')
+		)`)
+		args = append(args, query.WorktreeID)
+	}
 	if query.Unread != nil {
 		where = append(where, "is_unread = ?")
 		args = append(args, *query.Unread)

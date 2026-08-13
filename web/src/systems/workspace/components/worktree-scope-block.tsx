@@ -2,6 +2,7 @@ import { FilesIcon } from "lucide-react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger, Eyebrow, MonoId } from "@compozy/ui";
 
+import { commitScopeTotal } from "../lib/worktree-exit-ladder";
 import type { WorktreeExitCommitScope } from "../types";
 import { WorktreeDirtySignal } from "./worktree-signal-parts";
 
@@ -30,7 +31,7 @@ export function WorktreeScopeBlock({ scope }: WorktreeScopeBlockProps) {
         data-slot="worktree-scope-head"
       >
         <FilesIcon aria-hidden="true" />
-        {`${scope.changed_files} files`}
+        {`${commitScopeTotal(scope)} files`}
         <span className="ml-auto">
           <WorktreeDirtySignal deletions={scope.deletions} dirty insertions={scope.insertions} />
         </span>

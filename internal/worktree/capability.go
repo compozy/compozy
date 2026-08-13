@@ -28,7 +28,8 @@ var minimumGitVersion = gitVersion{major: 2, minor: 37}
 type CapabilityGate struct {
 	runner   GitRunner
 	lookPath func(string) (string, error)
-	once     sync.Once
+	mu       sync.Mutex
+	cached   bool
 	result   CapabilityDiagnostic
 	err      error
 }
@@ -45,8 +46,17 @@ func (g *CapabilityGate) Check(ctx context.Context) (CapabilityDiagnostic, error
 	if g == nil {
 		return CapabilityDiagnostic{Code: ErrGitUnavailable.Error()}, ErrGitUnavailable
 	}
-	g.once.Do(func() { g.result, g.err = g.probe(ctx) })
-	return g.result, g.err
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.cached {
+		return g.result, g.err
+	}
+	result, err := g.probe(ctx)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return result, ctxErr
+	}
+	g.result, g.err, g.cached = result, err, true
+	return result, err
 }
 
 func (g *CapabilityGate) probe(ctx context.Context) (CapabilityDiagnostic, error) {

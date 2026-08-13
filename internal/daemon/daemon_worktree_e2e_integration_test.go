@@ -899,23 +899,26 @@ func TestDaemonWorktreeStreamsAndIsolationIT034IT038(t *testing.T) {
 		transport := transport
 		t.Run("Should isolate "+transport.name+" worktree lists by workspace", func(t *testing.T) {
 			for _, target := range []struct {
+				name        string
 				workspaceID string
 				wantID      string
 				rejectID    string
 			}{
-				{workspaceID: workspaceA, wantID: itemA.ID, rejectID: itemB.ID},
-				{workspaceID: workspaceB, wantID: itemB.ID, rejectID: itemA.ID},
+				{name: "workspace A", workspaceID: workspaceA, wantID: itemA.ID, rejectID: itemB.ID},
+				{name: "workspace B", workspaceID: workspaceB, wantID: itemB.ID, rejectID: itemA.ID},
 			} {
-				var listing compozycontract.WorktreesResponse
-				path := "/api/workspaces/" + url.PathEscape(target.workspaceID) + "/worktrees"
-				if err := transport.get(ctx, http.MethodGet, path, nil, &listing); err != nil {
-					t.Fatalf("%s list(%s) error = %v", transport.name, target.workspaceID, err)
-				}
-				assertWorktreeE2EListIsolation(t, listing, target.wantID, target.rejectID)
-				if err := transport.get(ctx, http.MethodGet, path, nil, &listing); err != nil {
-					t.Fatalf("%s cached list(%s) error = %v", transport.name, target.workspaceID, err)
-				}
-				assertWorktreeE2EListIsolation(t, listing, target.wantID, target.rejectID)
+				t.Run("Should isolate "+target.name, func(t *testing.T) {
+					var listing compozycontract.WorktreesResponse
+					path := "/api/workspaces/" + url.PathEscape(target.workspaceID) + "/worktrees"
+					if err := transport.get(ctx, http.MethodGet, path, nil, &listing); err != nil {
+						t.Fatalf("%s list(%s) error = %v", transport.name, target.workspaceID, err)
+					}
+					assertWorktreeE2EListIsolation(t, listing, target.wantID, target.rejectID)
+					if err := transport.get(ctx, http.MethodGet, path, nil, &listing); err != nil {
+						t.Fatalf("%s cached list(%s) error = %v", transport.name, target.workspaceID, err)
+					}
+					assertWorktreeE2EListIsolation(t, listing, target.wantID, target.rejectID)
+				})
 			}
 		})
 	}

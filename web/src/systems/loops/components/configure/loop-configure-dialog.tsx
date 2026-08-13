@@ -11,6 +11,7 @@ import {
   EntityDialogFooter,
   EntityDialogHeader,
   FormSection,
+  Spinner,
 } from "@compozy/ui";
 
 import { useWorktrees } from "@/systems/workspace";
@@ -130,7 +131,32 @@ export function LoopConfigureDialog({
             />
           </FormSection>
 
-          {worktrees.data ? (
+          {worktrees.isPending ? (
+            <FormSection title="Environment default">
+              <div aria-busy="true" className="flex min-h-8 items-center" role="status">
+                <Spinner className="size-4" />
+              </div>
+            </FormSection>
+          ) : worktrees.error ? (
+            <FormSection title="Environment default">
+              <Alert variant="danger">
+                <AlertDescription>
+                  {worktrees.error instanceof Error
+                    ? worktrees.error.message
+                    : "Environments could not be loaded."}
+                </AlertDescription>
+              </Alert>
+              <Button
+                className="mt-2"
+                onClick={() => void worktrees.refetch()}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Retry
+              </Button>
+            </FormSection>
+          ) : worktrees.data ? (
             <LoopWorktreeSection
               disabled={model.busy}
               gitBacked={worktrees.data.repo.git_backed}

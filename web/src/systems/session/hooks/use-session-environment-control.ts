@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useState, type Ref } from "react";
+import { useImperativeHandle, useState, type Ref } from "react";
 
 import { useWorktreeMaterialization } from "@/systems/workspace";
 
@@ -21,12 +21,7 @@ export function useSessionEnvironmentControl({
   const [target, setTarget] = useState("");
   const fork = useForkSessionToWorktree(workspaceId, sessionId);
   const materialization = useWorktreeMaterialization(workspaceId);
-
-  useEffect(() => {
-    if (materialization.status === "ready" && materialization.worktree) {
-      setTarget(materialization.worktree.id);
-    }
-  }, [materialization.status, materialization.worktree]);
+  const resolvedTarget = materialization.worktree?.id ?? target;
 
   useImperativeHandle(ref, () => ({ openFork: () => setForkOpen(true) }), []);
 
@@ -34,20 +29,28 @@ export function useSessionEnvironmentControl({
     setForkOpen(open);
     if (open) return;
     setTarget("");
+    materialization.cancel();
     materialization.reset();
   }
 
   return {
     confirm: async () => {
-      await fork.mutateAsync({ confirmed: true, worktree: target });
+      await fork.mutateAsync({ confirmed: true, worktree: resolvedTarget });
       setOpen(false);
     },
     forkOpen,
     isPending: fork.isPending,
     materialization,
+    startNewWorktree: () => {
+      setTarget("");
+      materialization.start("");
+    },
     open: () => setForkOpen(true),
     setOpen,
-    setTarget,
-    target,
+    setTarget: (nextTarget: string) => {
+      materialization.reset();
+      setTarget(nextTarget);
+    },
+    target: resolvedTarget,
   };
 }

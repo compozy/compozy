@@ -122,9 +122,12 @@ func TestDaemonForgeRuntimeErrorTranslation(t *testing.T) {
 	t.Run("Should classify transient provider causes as forge errors", func(t *testing.T) {
 		t.Parallel()
 		for _, cause := range []string{"rate_limited", "credential_expired"} {
-			if got := forgeFailureKind(cause); !errors.Is(got, worktree.ErrForge) {
-				t.Fatalf("forgeFailureKind(%q) = %v, want ErrForge", cause, got)
-			}
+			t.Run("Should classify "+cause, func(t *testing.T) {
+				t.Parallel()
+				if got := forgeFailureKind(cause); !errors.Is(got, worktree.ErrForge) {
+					t.Fatalf("forgeFailureKind(%q) = %v, want ErrForge", cause, got)
+				}
+			})
 		}
 	})
 }

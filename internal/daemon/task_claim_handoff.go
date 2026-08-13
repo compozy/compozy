@@ -14,7 +14,11 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-const taskClaimHandoffReason = "task_run_handoff"
+const (
+	taskClaimHandoffReason = "task_run_handoff"
+	taskClaimHandoffPrompt = "Task run %s is active in this session's bound execution target. " +
+		"Begin the assigned work now. Do not claim this run again."
+)
 
 type taskClaimHandoffCoordinator interface {
 	HasPending(sessionID string) bool
@@ -115,11 +119,12 @@ func (r *taskClaimHandoffRuntime) Activate(
 	if !admitted {
 		return errors.New("daemon: task claim handoff is stopping")
 	}
+	if err := r.ScheduleBootstrapStop(bootstrapID, run.ID, targetID); err != nil {
+		complete()
+		return err
+	}
 	events, err := r.sessions.PromptSynthetic(ctx, targetID, session.SyntheticPromptOpts{
-		Message: fmt.Sprintf(
-			"Task run %s is active in this session's bound execution target. Begin the assigned work now. Do not claim this run again.",
-			strings.TrimSpace(run.ID),
-		),
+		Message: fmt.Sprintf(taskClaimHandoffPrompt, strings.TrimSpace(run.ID)),
 		Metadata: acp.PromptSyntheticMeta{
 			TaskID:    strings.TrimSpace(run.TaskID),
 			TaskRunID: strings.TrimSpace(run.ID),
@@ -131,15 +136,23 @@ func (r *taskClaimHandoffRuntime) Activate(
 		InterruptIfAgentWaiting: false,
 	})
 	if err != nil {
+		r.cancelBootstrapStop(bootstrapID, run.ID, targetID)
 		complete()
 		return fmt.Errorf("daemon: prompt task claim target session %q: %w", targetID, err)
 	}
-	if err := r.ScheduleBootstrapStop(bootstrapID, run.ID, targetID); err != nil {
-		r.drainEvents(run, targetID, events, complete)
-		return err
-	}
 	r.drainEvents(run, targetID, events, complete)
 	return nil
+}
+
+func (r *taskClaimHandoffRuntime) cancelBootstrapStop(bootstrapSessionID, runID, targetSessionID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	bootstrapID := strings.TrimSpace(bootstrapSessionID)
+	pending, ok := r.pending[bootstrapID]
+	if ok && !pending.stopping && pending.runID == strings.TrimSpace(runID) &&
+		pending.targetSessionID == strings.TrimSpace(targetSessionID) {
+		delete(r.pending, bootstrapID)
+	}
 }
 
 func taskClaimHandoffTurnID(sessionID string, runID string) string {

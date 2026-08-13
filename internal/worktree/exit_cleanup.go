@@ -67,16 +67,9 @@ func forgeMergeIsCurrent(
 	if forge == nil || forge.PRState == nil || *forge.PRState != forgePRMergedState {
 		return false
 	}
-	if forge.FetchedAt == nil {
-		return false
-	}
-	stdout, _, err := runner.Run(ctx, path, "log", "-1", "--format=%cI", "HEAD")
+	stdout, _, err := runner.Run(ctx, path, "branch", "-r", "--contains", "HEAD")
 	if err != nil {
 		return false
 	}
-	committedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(string(stdout)))
-	if err != nil {
-		return false
-	}
-	return !committedAt.After(*forge.FetchedAt)
+	return strings.TrimSpace(string(stdout)) != ""
 }

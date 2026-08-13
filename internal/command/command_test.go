@@ -124,6 +124,12 @@ func TestBuildCatalog(t *testing.T) {
 		) {
 			t.Fatalf("ParseSkillInvocations(/worktree) error = %v, want ErrUnavailable", err)
 		}
+		catalog = commandpkg.SetBuiltinAvailability(catalog, "worktree", true, "stale reason")
+		for _, command := range catalog.Commands {
+			if command.CanonicalToken == "/worktree" && (!command.Available || command.UnavailableReason != "") {
+				t.Fatalf("re-enabled worktree descriptor = %#v, want available without refusal reason", command)
+			}
+		}
 	})
 }
 

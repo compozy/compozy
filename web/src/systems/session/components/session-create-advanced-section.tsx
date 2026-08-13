@@ -1,4 +1,12 @@
-import { Field, FieldContent, FieldDescription, FieldLabel, Input } from "@compozy/ui";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  Input,
+  Spinner,
+} from "@compozy/ui";
 
 import type { NetworkParticipationDraft } from "@/lib/network-participation";
 
@@ -14,6 +22,8 @@ interface SessionCreateAdvancedSectionProps {
   isSubmitting: boolean;
   /** Absent when the selected workspace is not git-backed — there is nothing to choose. */
   environment?: React.ComponentProps<typeof SessionEnvironmentField>;
+  environmentListingState: "loading" | "ready" | "error" | "unsupported";
+  environmentListingError?: string;
 }
 
 function SessionCreateAdvancedSection({
@@ -23,10 +33,24 @@ function SessionCreateAdvancedSection({
   onNetworkParticipationChange,
   isSubmitting,
   environment,
+  environmentListingState,
+  environmentListingError,
 }: SessionCreateAdvancedSectionProps) {
   return (
     <>
-      {environment ? <SessionEnvironmentField {...environment} /> : null}
+      {environment ? (
+        <SessionEnvironmentField {...environment} />
+      ) : environmentListingState === "loading" ? (
+        <Field aria-busy="true">
+          <FieldLabel>Environment</FieldLabel>
+          <Spinner className="size-4" />
+        </Field>
+      ) : environmentListingState === "error" ? (
+        <Field data-invalid="">
+          <FieldLabel>Environment</FieldLabel>
+          <FieldError>{environmentListingError || "Environments could not be loaded."}</FieldError>
+        </Field>
+      ) : null}
 
       <Field>
         <FieldContent>

@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
+
+const runMaterializationRollbackTimeout = 30 * time.Second
 
 // RollbackRunMaterialization removes the exact per-run worktree produced for a
 // session that could not be bound under its active task-run lease.
@@ -47,12 +50,16 @@ func (s *Service) RollbackRunMaterialization(
 		(current.State != StatePending && current.State != StateReady) {
 		return ErrNotFound
 	}
-	rollbackErr := s.rollbackCreate(context.WithoutCancel(ctx), workspace, commonDir, *current)
+	rollbackCtx, cancelRollback := context.WithTimeout(context.WithoutCancel(ctx), runMaterializationRollbackTimeout)
+	rollbackErr := s.rollbackCreate(rollbackCtx, workspace, commonDir, *current)
+	cancelRollback()
 	if rollbackErr != nil {
 		return rollbackErr
 	}
+	deleteCtx, cancelDelete := context.WithTimeout(context.WithoutCancel(ctx), runMaterializationRollbackTimeout)
+	defer cancelDelete()
 	deleteErr := s.store.DeleteRunMaterialization(
-		context.WithoutCancel(ctx),
+		deleteCtx,
 		workspaceID,
 		worktreeID,
 		runID,

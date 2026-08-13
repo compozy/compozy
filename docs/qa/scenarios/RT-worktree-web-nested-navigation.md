@@ -4,14 +4,14 @@ area: RT
 title: Navigate nested worktrees and scope work to one from the desktop shell
 persona: Ada
 journey: J-worktree-management
-expected: The command switcher, menubar workspace menu, workspaces overview, and shared row/status component render the same nested worktree tree from one query — same rows, locked order, full state vocabulary, adopted-only counts, discovered rows marked and selectable, and pending or missing rows inert with their reason. Keyboard-only traversal reaches nested entries. Selecting a worktree scopes session and task reads server-side, the menubar chip reads `workspace / worktree`, and two open windows hold independent selections.
+expected: The command switcher, menubar workspace menu, workspaces overview, and shared row/status component render the same nested worktree tree from one query — same rows, locked order, full state vocabulary, adopted-only counts, discovered rows marked and selectable, and pending, missing, or error rows inert with their reason. Keyboard-only traversal reaches nested entries. Selecting a worktree scopes session and task reads server-side, the menubar chip reads `workspace / worktree`, and two open windows hold independent selections.
 entry_points: S1 command switcher "Worktrees" group; S2 OS menubar workspace menu/chip; S3 Workspaces overview; S5 Worktree row/status chip
 qa_status: pass
 bug_ids: BUG-20260813-desktop-shell-context-order; BUG-20260813-pending-worktree-marked-missing
 fix_status: fixed
 retest_status: pass
 fix_commits: 8ec45d75; b6eb94d0
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-after-daemon-reload.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-stream-proof.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-bound-context.png
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/screenshots/nested-worktree-selected.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/worktree-list-ready.json
 last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: RT-worktree-web-create-adopt
 ---

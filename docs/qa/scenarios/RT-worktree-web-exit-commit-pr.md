@@ -7,13 +7,15 @@ journey: J-worktree-management
 expected: The commit dialog shows the scope it will stage with counts and untracked additions listed by name, states when that list was bounded, and offers an honest default-message placeholder with no generation promise. Nothing-to-commit replaces the scope with the daemon's reason. The PR dialog resolves its base from the plan, carries only daemon-supplied starting text, offers draft as a peer row, collapses to a single view row for an already-open request, and shows the browser row alone with zero credentials.
 entry_points: S14 Worktree context -> Commit / Open pull request
 qa_status: pass
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/cli-worktree-commit-forge.jsonl; web/e2e/__tests__/worktrees.spec.ts
+bug_ids: BUG-20260813-worktree-exit-menu-crash
+fix_status: fixed
+retest_status: pass
+fix_commits: d7869a8
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/screenshots/worktree-commit-scope.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/screenshots/worktree-exit-menu-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/api-worktree-exit-plan.json
 last_report: docs/qa/reports/2026-08-13-worktree-support.md
 overlaps: RT-worktree-exit-commit-scope; RT-worktree-exit-pr-idempotency; RT-worktree-exit-browser-fallback
 ---
 
 QA impact: Task 07 adds the commit and pull-request dialogs, including the zero-credential absence contract.
+
+Visible count is porcelain `changed_files`. Untracked additions are listed by name and are not added on top of that total.

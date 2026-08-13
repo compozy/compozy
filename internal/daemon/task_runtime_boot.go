@@ -21,37 +21,19 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		return nil
 	}
 
-	bridge, err := d.newBootTaskSessionBridge(state)
+	parts, err := d.newBootTaskRuntimeParts(ctx, state, store)
 	if err != nil {
 		return err
-	}
-	reentry, err := bootHarnessReentryBridge(ctx, state)
-	if err != nil {
-		return fmt.Errorf("daemon: create harness reentry bridge: %w", err)
-	}
-	wakeBridge, err := newTaskWakeBridge(ctx, state.sessions, state.logger)
-	if err != nil {
-		return fmt.Errorf("daemon: create task wake bridge: %w", err)
-	}
-	reviewRequests := newRunReviewRequestedForwarder()
-	eventObserver, bridgeNotifications, taskStatusProjection := d.composeTaskEventObserver(
-		state,
-		store,
-		reentry,
-	)
-	coordinatorRunner, loopJudges, err := newBootLoopCoordinatorRuntime(store, state, d.homePaths)
-	if err != nil {
-		return fmt.Errorf("daemon: create loop coordinator runner: %w", err)
 	}
 	manager, err := newTaskRuntimeManager(
 		ctx,
 		state,
 		store,
-		bridge,
-		wakeBridge,
-		eventObserver,
-		reviewRequests,
-		coordinatorRunner,
+		parts.bridge,
+		parts.wakeBridge,
+		parts.eventObserver,
+		parts.reviewRequests,
+		parts.coordinatorRunner,
 		&d.admission,
 		d.now,
 	)
@@ -65,7 +47,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 	if err := installLoopTaskObservers(ctx, state, manager, store, coordinatorBackstop, d.now); err != nil {
 		return err
 	}
-	loopActions, err := installLoopActionRuntime(state, manager, store, coordinatorRunner, d.now)
+	loopActions, err := installLoopActionRuntime(state, manager, store, parts.coordinatorRunner, d.now)
 	if err != nil {
 		return err
 	}
@@ -83,17 +65,61 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		manager,
 		store,
 		detached,
-		reentry,
-		wakeBridge,
+		parts.reentry,
+		parts.wakeBridge,
 		claimHandoff,
-		bridgeNotifications,
-		taskStatusProjection,
+		parts.bridgeNotifications,
+		parts.taskStatusProjection,
 		loopActions,
-		reviewRequests,
+		parts.reviewRequests,
 		coordinatorBackstop,
-		loopJudges,
+		parts.loopJudges,
 	)
-	return recoverInstalledTaskRuntime(ctx, state, manager, store, reentry)
+	return recoverInstalledTaskRuntime(ctx, state, manager, store, parts.reentry)
+}
+
+type bootTaskRuntimeParts struct {
+	bridge               *taskSessionBridge
+	reentry              *harnessReentryBridge
+	wakeBridge           *taskWakeBridge
+	eventObserver        taskpkg.EventObserver
+	reviewRequests       *runReviewRequestedForwarder
+	coordinatorRunner    *looppkg.CoordinatorRunner
+	loopJudges           *loopGateJudgeRunner
+	bridgeNotifications  *bridgeTerminalTaskNotificationObserver
+	taskStatusProjection *taskStatusProjectionObserver
+}
+
+func (d *Daemon) newBootTaskRuntimeParts(
+	ctx context.Context,
+	state *bootState,
+	store taskStore,
+) (bootTaskRuntimeParts, error) {
+	var parts bootTaskRuntimeParts
+	var err error
+	parts.bridge, err = d.newBootTaskSessionBridge(state)
+	if err != nil {
+		return parts, err
+	}
+	parts.reentry, err = bootHarnessReentryBridge(ctx, state)
+	if err != nil {
+		return parts, fmt.Errorf("daemon: create harness reentry bridge: %w", err)
+	}
+	parts.wakeBridge, err = newTaskWakeBridge(ctx, state.sessions, state.logger)
+	if err != nil {
+		return parts, fmt.Errorf("daemon: create task wake bridge: %w", err)
+	}
+	parts.reviewRequests = newRunReviewRequestedForwarder()
+	parts.eventObserver, parts.bridgeNotifications, parts.taskStatusProjection = d.composeTaskEventObserver(
+		state,
+		store,
+		parts.reentry,
+	)
+	parts.coordinatorRunner, parts.loopJudges, err = newBootLoopCoordinatorRuntime(store, state, d.homePaths)
+	if err != nil {
+		return parts, fmt.Errorf("daemon: create loop coordinator runner: %w", err)
+	}
+	return parts, nil
 }
 
 func (d *Daemon) newBootTaskSessionBridge(state *bootState) (*taskSessionBridge, error) {

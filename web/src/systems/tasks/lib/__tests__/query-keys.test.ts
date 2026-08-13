@@ -101,21 +101,15 @@ describe("tasksKeys", () => {
   });
 
   it("serializes dashboard and inbox filters stably", () => {
-    expect(tasksKeys.dashboard({ scope: "workspace", workspace: "ws_alpha" })).toEqual([
-      "tasks",
-      "dashboard",
-      "workspace",
-      "ws_alpha",
-      "",
-      "",
-      "",
-      "",
-    ]);
+    expect(
+      tasksKeys.dashboard({ scope: "workspace", workspace: "ws_alpha", worktree: "wt_alpha" })
+    ).toEqual(["tasks", "dashboard", "workspace", "ws_alpha", "wt_alpha", "", "", "", ""]);
 
     expect(
       tasksKeys.inbox({
         scope: "workspace",
         workspace: "ws_alpha",
+        worktree: "wt_alpha",
         lane: "approvals",
         status: "ready",
         priority: "urgent",
@@ -128,6 +122,7 @@ describe("tasksKeys", () => {
       "inbox",
       "workspace",
       "ws_alpha",
+      "wt_alpha",
       "",
       "",
       "approvals",
@@ -139,6 +134,12 @@ describe("tasksKeys", () => {
     ]);
     expect(tasksKeys.inbox({ lane: "approvals", cursor: "first" })).toEqual(
       tasksKeys.inbox({ lane: "approvals", cursor: "second" })
+    );
+    expect(tasksKeys.dashboard({ worktree: "wt_alpha" })).not.toEqual(
+      tasksKeys.dashboard({ worktree: "wt_beta" })
+    );
+    expect(tasksKeys.inbox({ worktree: "wt_alpha" })).not.toEqual(
+      tasksKeys.inbox({ worktree: "wt_beta" })
     );
   });
 

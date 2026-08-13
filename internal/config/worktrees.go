@@ -3,6 +3,7 @@ package config
 import (
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -62,11 +63,26 @@ func (c WorktreesConfig) Validate() error {
 			Message: "must be a lowercase slash-terminated namespace",
 		}
 	}
+	for segment := range strings.SplitSeq(strings.TrimSuffix(c.RunBranchNamespace, "/"), "/") {
+		if strings.HasPrefix(segment, ".") || strings.HasSuffix(segment, ".lock") || strings.Contains(segment, "..") {
+			return ValidationError{
+				Code: worktreeConfigInvalidCode, Path: worktreeNamespaceConfigPath,
+				Message: "must be a valid Git branch namespace",
+			}
+		}
+	}
 	for _, pattern := range c.CopyList {
-		if strings.TrimSpace(pattern) == "" {
+		trimmedPattern := strings.TrimSpace(pattern)
+		if trimmedPattern == "" {
 			return ValidationError{
 				Code: worktreeConfigInvalidCode, Path: worktreeCopyListConfigPath,
 				Message: "entries must not be empty",
+			}
+		}
+		if filepath.IsAbs(trimmedPattern) || copyPatternEscapesRoot(trimmedPattern) {
+			return ValidationError{
+				Code: worktreeConfigInvalidCode, Path: worktreeCopyListConfigPath,
+				Message: "entries must stay within the repository root",
 			}
 		}
 	}
@@ -85,4 +101,8 @@ func (c WorktreesConfig) Validate() error {
 		}
 	}
 	return nil
+}
+
+func copyPatternEscapesRoot(pattern string) bool {
+	return slices.Contains(strings.Split(filepath.ToSlash(pattern), "/"), "..")
 }

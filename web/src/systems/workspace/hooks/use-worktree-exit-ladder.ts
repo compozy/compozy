@@ -24,6 +24,7 @@ export interface WorktreeExitLadderModel {
   progress?: WorktreeExitProgress;
   streamStatus: WorktreeStreamStatus;
   dismissProgress: () => void;
+  refetch: () => void;
 }
 
 /**
@@ -41,9 +42,9 @@ export function useWorktreeExitLadder(
   const plan = useWorktreeExitPlan(workspaceID, worktreeID, { enabled });
   const [progress, setProgress] = useState<WorktreeExitProgress | undefined>(undefined);
 
-  function handleExitEvent(name: WorktreeExitEventName, payload: WorktreeExitEventPayload) {
+  const handleExitEvent = (name: WorktreeExitEventName, payload: WorktreeExitEventPayload) => {
     setProgress(current => reduceWorktreeExitEvent(current, name, payload));
-  }
+  };
 
   const streamStatus = useWorktreeStream(workspaceID, worktreeID, {
     enabled,
@@ -61,5 +62,8 @@ export function useWorktreeExitLadder(
     progress,
     streamStatus,
     dismissProgress: () => setProgress(undefined),
+    refetch: () => {
+      void plan.refetch();
+    },
   };
 }

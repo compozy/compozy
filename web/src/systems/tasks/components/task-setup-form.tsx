@@ -37,6 +37,8 @@ export interface TaskSetupFormProps {
    * workspace is not git-backed.
    */
   worktreePolicy?: React.ComponentProps<typeof TaskWorktreePolicyFields>;
+  /** Locked while a run is active — every control is visible and inert. */
+  disabled?: boolean;
 }
 
 function listValue(values?: string[]): string {
@@ -55,15 +57,25 @@ function runtimeValue(provider?: string, model?: string): RuntimeSelectorValue {
   return { provider: provider ?? "", model: model ?? "", reasoning_effort: "" };
 }
 
-export function TaskSetupForm({ value, onChange, runtime, worktreePolicy }: TaskSetupFormProps) {
+export function TaskSetupForm({
+  value,
+  onChange,
+  runtime,
+  worktreePolicy,
+  disabled = false,
+}: TaskSetupFormProps) {
   const update = <Key extends keyof TaskExecutionProfileSetRequest>(
     key: Key,
     next: TaskExecutionProfileSetRequest[Key]
   ) => onChange({ ...value, [key]: next });
 
   return (
-    <FieldGroup className="gap-5" data-testid="tasks-setup-form">
-      <fieldset className="flex flex-col gap-3">
+    <FieldGroup
+      className="gap-5"
+      data-locked={disabled ? "" : undefined}
+      data-testid="tasks-setup-form"
+    >
+      <fieldset className="flex flex-col gap-3" disabled={disabled}>
         <legend className="eyebrow mb-1 text-subtle">Worker</legend>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field>
@@ -100,6 +112,7 @@ export function TaskSetupForm({ value, onChange, runtime, worktreePolicy }: Task
           <FieldLabel id="tasks-setup-worker-runtime-label">Runtime</FieldLabel>
           <RuntimeSelector
             ariaLabelledby="tasks-setup-worker-runtime-label"
+            disabled={disabled}
             loading={runtime.catalogLoading}
             models={runtime.models}
             onChange={next =>
@@ -136,7 +149,7 @@ export function TaskSetupForm({ value, onChange, runtime, worktreePolicy }: Task
         </Field>
       </fieldset>
 
-      <fieldset className="flex flex-col gap-3 border-t border-line-soft pt-5">
+      <fieldset className="flex flex-col gap-3 border-t border-line-soft pt-5" disabled={disabled}>
         <legend className="eyebrow mb-1 text-subtle">Coordinator</legend>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field>
@@ -185,12 +198,13 @@ export function TaskSetupForm({ value, onChange, runtime, worktreePolicy }: Task
         </Field>
       </fieldset>
 
-      <fieldset className="flex flex-col gap-3 border-t border-line-soft pt-5">
+      <fieldset className="flex flex-col gap-3 border-t border-line-soft pt-5" disabled={disabled}>
         <legend className="eyebrow mb-1 text-subtle">Review</legend>
         <Field>
           <FieldLabel id="tasks-setup-review-runtime-label">Reviewer runtime</FieldLabel>
           <RuntimeSelector
             ariaLabelledby="tasks-setup-review-runtime-label"
+            disabled={disabled}
             loading={runtime.catalogLoading}
             models={runtime.models}
             onChange={next =>
@@ -224,7 +238,10 @@ export function TaskSetupForm({ value, onChange, runtime, worktreePolicy }: Task
         </Field>
       </fieldset>
 
-      <fieldset className="grid gap-3 border-t border-line-soft pt-5 sm:grid-cols-2">
+      <fieldset
+        className="grid gap-3 border-t border-line-soft pt-5 sm:grid-cols-2"
+        disabled={disabled}
+      >
         <legend className="eyebrow mb-1 text-subtle">Environment</legend>
         <Field>
           <FieldLabel htmlFor="tasks-setup-sandbox-mode">Sandbox</FieldLabel>
@@ -285,7 +302,10 @@ export function TaskSetupForm({ value, onChange, runtime, worktreePolicy }: Task
         </Field>
         {worktreePolicy ? (
           <div className="sm:col-span-2">
-            <TaskWorktreePolicyFields {...worktreePolicy} />
+            <TaskWorktreePolicyFields
+              {...worktreePolicy}
+              locked={disabled || worktreePolicy.locked}
+            />
           </div>
         ) : null}
       </fieldset>

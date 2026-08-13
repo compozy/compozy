@@ -148,106 +148,109 @@ func TestSessionSandboxStartPrepareSyncAndLaunchSequence(t *testing.T) {
 
 func TestSessionSandboxUsesBoundWorktreeRootAndParentWorkspaceBrain(t *testing.T) {
 	t.Parallel()
-
-	worktreeRoot := filepath.Join(t.TempDir(), "worktree")
-	if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
-		t.Fatalf("MkdirAll(worktree root) error = %v", err)
-	}
-	provider := &recordingSandboxProvider{}
-	resolver := &fakeSessionWorktreeResolver{id: "wt-sandbox", root: worktreeRoot}
-	var assembled StartupPromptContext
-	var assembledWorkspaceRoot string
-	h := newHarness(
-		t,
-		WithWorktreeResolver(resolver),
-		WithSandboxRegistry(newRegistryForProvider(t, provider)),
-		WithPromptAssembler(startupPromptAssemblerFunc(func(
-			_ context.Context,
-			startup StartupPromptContext,
-			agent compozyconfig.AgentDef,
-			resolved *workspacepkg.ResolvedWorkspace,
-		) (string, error) {
-			assembled = startup
-			if resolved != nil {
-				assembledWorkspaceRoot = resolved.RootDir
-			}
-			return agent.Prompt, nil
-		})),
-	)
-
-	created, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-sandbox",
-	})
-	if err != nil {
-		t.Fatalf("Create(bound sandbox) error = %v", err)
-	}
-	t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
-
-	if got, want := len(provider.prepareRequests), 1; got != want {
-		t.Fatalf("sandbox prepare calls = %d, want %d", got, want)
-	}
-	request := provider.prepareRequests[0]
-	if got := request.LocalRootDir; got != worktreeRoot {
-		t.Fatalf("PrepareRequest.LocalRootDir = %q, want %q", got, worktreeRoot)
-	}
-	if request.LocalAdditionalDirs != nil {
-		t.Fatalf("PrepareRequest.LocalAdditionalDirs = %#v, want nil", request.LocalAdditionalDirs)
-	}
-	canonicalWorktreeRoot, err := canonicalDirectory(worktreeRoot)
-	if err != nil {
-		t.Fatalf("canonicalDirectory(worktree root) error = %v", err)
-	}
-	if got := h.driver.startCalls[0].Cwd; got != canonicalWorktreeRoot {
-		t.Fatalf("StartOpts.Cwd = %q, want %q", got, canonicalWorktreeRoot)
-	}
-	if assembled.WorktreeID != "wt-sandbox" || assembled.WorkspaceID != h.workspaceID ||
-		assembled.Workspace != h.workspace {
-		t.Fatalf("startup context = %#v, want parent workspace plus wt-sandbox", assembled)
-	}
-	if assembledWorkspaceRoot != h.workspace {
-		t.Fatalf("prompt workspace root = %q, want parent root %q", assembledWorkspaceRoot, h.workspace)
-	}
-	if info := created.Info(); info.WorkspaceID != h.workspaceID || info.Workspace != h.workspace {
-		t.Fatalf(
-			"bound session parent workspace = (%q, %q), want (%q, %q)",
-			info.WorkspaceID,
-			info.Workspace,
-			h.workspaceID,
-			h.workspace,
-		)
-	}
-
-	t.Run("Should reject a pre-start hook cwd outside the bound sandbox root", func(t *testing.T) {
+	t.Run("Should use the bound worktree root and parent workspace brain", func(t *testing.T) {
 		t.Parallel()
-		boundRoot := filepath.Join(t.TempDir(), "bound-root")
-		if err := os.MkdirAll(boundRoot, 0o755); err != nil {
-			t.Fatalf("MkdirAll(bound root) error = %v", err)
+
+		worktreeRoot := filepath.Join(t.TempDir(), "worktree")
+		if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(worktree root) error = %v", err)
 		}
-		escapeRoot := t.TempDir()
-		hooks := &spyHookDispatcher{
-			dispatchAgentPreStartFn: func(
-				_ context.Context,
-				payload hookspkg.AgentPreStartPayload,
-			) (hookspkg.AgentPreStartPayload, error) {
-				payload.Cwd = escapeRoot
-				return payload, nil
-			},
-		}
-		escapeHarness := newHarness(
+		provider := &recordingSandboxProvider{}
+		resolver := &fakeSessionWorktreeResolver{id: "wt-sandbox", root: worktreeRoot}
+		var assembled StartupPromptContext
+		var assembledWorkspaceRoot string
+		h := newHarness(
 			t,
-			WithWorktreeResolver(&fakeSessionWorktreeResolver{id: "wt-hook", root: boundRoot}),
-			WithSandboxRegistry(newRegistryForProvider(t, &recordingSandboxProvider{})),
-			WithHookSet(fullHookSet(hooks)),
+			WithWorktreeResolver(resolver),
+			WithSandboxRegistry(newRegistryForProvider(t, provider)),
+			WithPromptAssembler(startupPromptAssemblerFunc(func(
+				_ context.Context,
+				startup StartupPromptContext,
+				agent compozyconfig.AgentDef,
+				resolved *workspacepkg.ResolvedWorkspace,
+			) (string, error) {
+				assembled = startup
+				if resolved != nil {
+					assembledWorkspaceRoot = resolved.RootDir
+				}
+				return agent.Prompt, nil
+			})),
 		)
-		_, err := escapeHarness.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder", Workspace: escapeHarness.workspaceID, Worktree: "wt-hook",
+
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-sandbox",
 		})
-		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "escapes sandbox root") {
-			t.Fatalf("Create(pre-start cwd escape) error = %v, want ErrValidation sandbox escape", err)
+		if err != nil {
+			t.Fatalf("Create(bound sandbox) error = %v", err)
 		}
-		if got := len(escapeHarness.driver.startCalls); got != 0 {
-			t.Fatalf("driver starts after pre-start cwd escape = %d, want 0", got)
+		t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+
+		if got, want := len(provider.prepareRequests), 1; got != want {
+			t.Fatalf("sandbox prepare calls = %d, want %d", got, want)
 		}
+		request := provider.prepareRequests[0]
+		if got := request.LocalRootDir; got != worktreeRoot {
+			t.Fatalf("PrepareRequest.LocalRootDir = %q, want %q", got, worktreeRoot)
+		}
+		if request.LocalAdditionalDirs != nil {
+			t.Fatalf("PrepareRequest.LocalAdditionalDirs = %#v, want nil", request.LocalAdditionalDirs)
+		}
+		canonicalWorktreeRoot, err := canonicalDirectory(worktreeRoot)
+		if err != nil {
+			t.Fatalf("canonicalDirectory(worktree root) error = %v", err)
+		}
+		if got := h.driver.startCalls[0].Cwd; got != canonicalWorktreeRoot {
+			t.Fatalf("StartOpts.Cwd = %q, want %q", got, canonicalWorktreeRoot)
+		}
+		if assembled.WorktreeID != "wt-sandbox" || assembled.WorkspaceID != h.workspaceID ||
+			assembled.Workspace != h.workspace {
+			t.Fatalf("startup context = %#v, want parent workspace plus wt-sandbox", assembled)
+		}
+		if assembledWorkspaceRoot != h.workspace {
+			t.Fatalf("prompt workspace root = %q, want parent root %q", assembledWorkspaceRoot, h.workspace)
+		}
+		if info := created.Info(); info.WorkspaceID != h.workspaceID || info.Workspace != h.workspace {
+			t.Fatalf(
+				"bound session parent workspace = (%q, %q), want (%q, %q)",
+				info.WorkspaceID,
+				info.Workspace,
+				h.workspaceID,
+				h.workspace,
+			)
+		}
+
+		t.Run("Should reject a pre-start hook cwd outside the bound sandbox root", func(t *testing.T) {
+			t.Parallel()
+			boundRoot := filepath.Join(t.TempDir(), "bound-root")
+			if err := os.MkdirAll(boundRoot, 0o755); err != nil {
+				t.Fatalf("MkdirAll(bound root) error = %v", err)
+			}
+			escapeRoot := t.TempDir()
+			hooks := &spyHookDispatcher{
+				dispatchAgentPreStartFn: func(
+					_ context.Context,
+					payload hookspkg.AgentPreStartPayload,
+				) (hookspkg.AgentPreStartPayload, error) {
+					payload.Cwd = escapeRoot
+					return payload, nil
+				},
+			}
+			escapeHarness := newHarness(
+				t,
+				WithWorktreeResolver(&fakeSessionWorktreeResolver{id: "wt-hook", root: boundRoot}),
+				WithSandboxRegistry(newRegistryForProvider(t, &recordingSandboxProvider{})),
+				WithHookSet(fullHookSet(hooks)),
+			)
+			_, err := escapeHarness.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName: "coder", Workspace: escapeHarness.workspaceID, Worktree: "wt-hook",
+			})
+			if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "escapes sandbox root") {
+				t.Fatalf("Create(pre-start cwd escape) error = %v, want ErrValidation sandbox escape", err)
+			}
+			if got := len(escapeHarness.driver.startCalls); got != 0 {
+				t.Fatalf("driver starts after pre-start cwd escape = %d, want 0", got)
+			}
+		})
 	})
 }
 
