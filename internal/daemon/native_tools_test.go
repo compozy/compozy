@@ -922,6 +922,41 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve non-not-found session agent skill errors", func(t *testing.T) {
+		t.Parallel()
+
+		registryErr := fmt.Errorf("%w: reviewer", skills.ErrAgentLocalInvalid)
+		skillRegistry := nativeExtensionAgentSkillsRegistry{
+			skills: []*skills.Skill{{
+				Meta:    skills.SkillMeta{Name: "cy-review-round", Description: "Review changes."},
+				Enabled: true,
+			}},
+			nameErr: registryErr,
+		}
+		manager := &nativeSessionAgentManager{
+			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
+			agent: compozyconfig.AgentDef{
+				Name:       "reviewer",
+				SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+			},
+		}
+		workspaceResolver := nativeNetworkTestWorkspaceService(t)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: workspaceResolver, WorkspaceResolver: workspaceResolver,
+			Skills: skillRegistry, AgentResolver: nativeExtensionAgentResolver{agent: manager.agent},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(t.Context(), toolspkg.Scope{
+			Operator: true, WorkspaceID: "ws-command", SessionID: "sess-command", AgentName: "reviewer",
+		}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSkillList})
+		if !errors.Is(err, registryErr) {
+			t.Fatalf("Registry.Call(extension skill_list) error = %v, want %v", err, registryErr)
+		}
+		if len(result.Content) != 0 || len(result.Structured) != 0 {
+			t.Fatalf("Registry.Call(extension skill_list) result = %#v, want empty result", result)
+		}
+	})
+
 	t.Run("Should list the same workspace-fenced session command catalog through the native tool", func(t *testing.T) {
 		t.Parallel()
 
@@ -2670,6 +2705,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.ErrToolNotFound,
 			toolspkg.ReasonConfigPathNotFound,
 		)
+		if !strings.Contains(err.Error(), fmt.Sprintf("config path %q not found", loopInputPath)) {
+			t.Fatalf("config_get missing path error = %v, want path-specific diagnostic", err)
+		}
 
 		_, err = registry.Call(
 			t.Context(),
