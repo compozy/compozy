@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "💬 Questions & support"
+    url: https://github.com/compozy/compozy/discussions/new?category=q-a
+    about: Ask and answer questions in GitHub Discussions — the issue tracker is for bugs and planned work.
+  - name: "🔐 Security vulnerability"
+    url: https://github.com/compozy/compozy/security/advisories/new
+    about: Report vulnerabilities privately through GitHub Security Advisories. Never in a public issue.
+  - name: "📖 Documentation"
+    url: https://compozy.com
+    about: Guides and reference for CompozyOS.

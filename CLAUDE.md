@@ -147,7 +147,7 @@ Web-local dev/build/format (`make web-dev`, `make web-build`, `make web-fmt`) ar
 
 ## Commit style
 
-- Format `<type>: <description>`; prefixes `feat|fix|refactor|docs|test|build`. Never `chore`/`style`/`ci`. Use `build:` for tooling/CI. PR-merged commits append `(#NN)`.
+- Format `<type>: <description>`; prefixes `feat|fix|refactor|perf|docs|test|build|ci`. Never `chore`/`style`; scopes are rejected (`fix(web):` fails the hook). PR-merged commits append `(#NN)`.
 - **One commit per remediation batch.** Each `cy-fix-reviews` round produces exactly one local commit.
 - If a pre-commit hook fails, do **not** `git commit --amend` — fix the issue and create a new commit.
 

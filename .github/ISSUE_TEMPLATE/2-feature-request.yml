@@ -1,0 +1,53 @@
+name: "🚀 Feature request"
+description: Suggest an idea or an improvement for CompozyOS
+type: Feature
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search [existing issues](https://github.com/compozy/compozy/issues) first — if the idea is already there, add a 👍 and comment instead of opening a duplicate. Still shaping the idea? Start a thread in [Ideas](https://github.com/compozy/compozy/discussions/new?category=ideas) and open an issue once it firms up.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation where CompozyOS falls short today. A concrete example beats an abstract one.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Pick every area this touches.
+      multiple: true
+      options:
+        - Core / daemon
+        - CLI
+        - Sessions
+        - Agents & providers
+        - Loops & tasks
+        - Workspaces
+        - Web UI
+        - Desktop app
+        - Extensions / MCP / skills
+        - Network
+        - SDKs
+        - Install / update
+        - Not sure
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Other approaches, workarounds you use today, or how other tools solve this.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to open a pull request for this.

@@ -1,0 +1,124 @@
+name: "🐛 Bug report"
+description: Something in CompozyOS is broken or behaves unexpectedly
+type: Bug
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Before you start:
+
+        - Search [existing issues](https://github.com/compozy/compozy/issues) — if yours is already there, add a 👍 instead of a duplicate.
+        - Just have a question? Ask in [Discussions](https://github.com/compozy/compozy/discussions/new?category=q-a) instead.
+        - Security problem? [Report it privately](https://github.com/compozy/compozy/security/advisories/new), never in a public issue.
+  - type: input
+    id: version
+    attributes:
+      label: CompozyOS version
+      description: Output of `compozy version`.
+      placeholder: compozy 0.3.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (x86_64)
+        - Linux (arm64)
+        - Windows (WSL2)
+        - Windows (native)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Where does the problem show up? Pick every area that applies.
+      multiple: true
+      options:
+        - Core / daemon
+        - CLI
+        - Sessions
+        - Agents & providers
+        - Loops & tasks
+        - Workspaces
+        - Web UI
+        - Desktop app
+        - Extensions / MCP / skills
+        - Network
+        - SDKs
+        - Install / update
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: ACP agent
+      description: Which agent were you running when the problem happened?
+      options:
+        - Claude Code
+        - Codex
+        - Gemini CLI
+        - OpenCode
+        - BLACKBOX AI
+        - Cline
+        - Cursor Agent
+        - GitHub Copilot CLI
+        - Goose
+        - Hermes
+        - Junie
+        - Kimi CLI
+        - Kiro CLI
+        - OpenClaw
+        - OpenHands
+        - Qoder CLI
+        - Qwen Code
+        - Other / custom agent
+        - Not agent-specific
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model / provider
+      description: If the problem involves a specific model or provider, name it.
+      placeholder: anthropic/claude-sonnet-4.5
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Step-by-step, ideally from a fresh workspace. Prefer text over screenshots — it keeps the report searchable.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Daemon logs live at `$COMPOZY_HOME/logs/compozy.log` (default `~/.compozy/logs/compozy.log`). For a full, secret-redacted diagnostics archive, run `compozy support bundle --yes` and attach the result.
+
+        ⚠️ Review pasted logs for API keys, tokens, and other secrets before posting.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Final checks
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I can reproduce this on the latest release.
+          required: true

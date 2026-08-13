@@ -1,0 +1,24 @@
+name: "📚 Docs issue"
+description: Report a mistake or a gap in the documentation
+type: Task
+labels: [documentation]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The compozy.com URL or repo file path. If the page doesn't exist yet, say where you looked for it.
+      placeholder: https://compozy.com/docs/...
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What's wrong or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix
+      description: Optional — a corrected sentence or an outline of what the page should cover.

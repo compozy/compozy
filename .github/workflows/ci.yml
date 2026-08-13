@@ -22,6 +22,33 @@ permissions:
   pull-requests: read
 
 jobs:
+  pr-title:
+    name: PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            perf
+            docs
+            test
+            build
+            ci
+          requireScope: false
+          disallowScopes: |
+            .*
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" must start with a lowercase letter.
+            Title format: <type>: <description> — e.g. "fix: drop stale session sockets on daemon restart"
+
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
