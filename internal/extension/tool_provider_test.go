@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -94,6 +95,76 @@ func TestExtensionToolProviderAvailability(t *testing.T) {
 func TestExtensionToolProviderProjectionGeneration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep projection tokens stable for equivalent runtime projection sets", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-generation-ordering", true)
+		primary := descriptor.RuntimeDescriptor
+		primary.Capabilities = []string{"capability.beta", "capability.alpha", "capability.beta"}
+		primary.InputSchema = json.RawMessage(`{
+			"type": "object",
+			"properties": {"query": {"type": "string"}}
+		}`)
+		primary.OutputSchema = json.RawMessage(`{
+			"properties": {"result": {"type": "string"}},
+			"type": "object"
+		}`)
+		secondary := primary
+		secondary.Handler = "secondary-handler"
+		secondary.Capabilities = []string{"capability.gamma", "capability.alpha", "capability.gamma"}
+		secondary.InputSchema = json.RawMessage(`{
+			"type": "object",
+			"properties": {"limit": {"type": "integer"}}
+		}`)
+		secondary.OutputSchema = json.RawMessage(`{
+			"properties": {"items": {"type": "array"}},
+			"type": "object"
+		}`)
+		runtime := newFakeExtensionToolRuntime(
+			t,
+			env.registry,
+			fixture.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{primary, secondary},
+		)
+		runtime.extension.InitializeResult.AcceptedCapabilities.Provides = []string{
+			extensionprotocol.CapabilityToolProvider,
+			"capability.bridge",
+			extensionprotocol.CapabilityToolProvider,
+		}
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime {
+			return runtime
+		})
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+
+		first, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || first == "" {
+			t.Fatalf("ProjectionGeneration(first) = %q, %t, want authoritative token", first, known)
+		}
+
+		primary.Capabilities = []string{"capability.alpha", "capability.beta"}
+		primary.InputSchema = json.RawMessage(`{"properties":{"query":{"type":"string"}},"type":"object"}`)
+		primary.OutputSchema = json.RawMessage(`{"type":"object","properties":{"result":{"type":"string"}}}`)
+		secondary.Capabilities = []string{"capability.alpha", "capability.gamma"}
+		secondary.InputSchema = json.RawMessage(`{"properties":{"limit":{"type":"integer"}},"type":"object"}`)
+		secondary.OutputSchema = json.RawMessage(`{"type":"object","properties":{"items":{"type":"array"}}}`)
+		runtime.descriptors = []toolspkg.ExtensionToolRuntimeDescriptor{secondary, primary}
+		runtime.extension.InitializeResult.AcceptedCapabilities.Provides = []string{
+			"capability.bridge",
+			extensionprotocol.CapabilityToolProvider,
+		}
+		second, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || second != first {
+			t.Fatalf(
+				"ProjectionGeneration(reordered equivalent runtime state) = %q, %t, want %q",
+				second,
+				known,
+				first,
+			)
+		}
+	})
+
 	t.Run("Should change when runtime descriptors change", func(t *testing.T) {
 		t.Parallel()
 
@@ -123,6 +194,304 @@ func TestExtensionToolProviderProjectionGeneration(t *testing.T) {
 				second,
 				known,
 				first,
+			)
+		}
+	})
+
+	t.Run("Should reflect manifest byte changes with preserved metadata", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-generation-manifest", true)
+		info, err := env.registry.Get(fixture.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", fixture.manifest.Name, err)
+		}
+		original, stat := readManifestContentAndMetadata(t, info.ManifestPath)
+		malformed := malformedManifestContent(original)
+		runtime := newFakeExtensionToolRuntime(
+			t,
+			env.registry,
+			fixture.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptor.RuntimeDescriptor},
+		)
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime {
+			return runtime
+		})
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+
+		validGeneration, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || validGeneration == "" {
+			t.Fatalf("ProjectionGeneration(valid) = %q, %t, want authoritative token", validGeneration, known)
+		}
+		replaceManifestContentPreservingMetadata(t, info.ManifestPath, malformed, stat)
+		invalidGeneration, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || invalidGeneration == validGeneration {
+			t.Fatalf(
+				"ProjectionGeneration(valid to invalid) = %q, %t, want token different from %q",
+				invalidGeneration,
+				known,
+				validGeneration,
+			)
+		}
+
+		replaceManifestContentPreservingMetadata(t, info.ManifestPath, original, stat)
+		repairedGeneration, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || repairedGeneration == invalidGeneration {
+			t.Fatalf(
+				"ProjectionGeneration(invalid to valid) = %q, %t, want token different from %q",
+				repairedGeneration,
+				known,
+				invalidGeneration,
+			)
+		}
+	})
+
+	t.Run("Should keep healthy partial projections for unchanged invalid manifests", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		healthy := createExtensionToolTestExtension(t, "healthy-generation", "fake-extension", nil, nil, true)
+		broken := createExtensionToolTestExtension(t, "broken-generation", "fake-extension", nil, nil, true)
+		installManagerFixture(t, env.registry, healthy, SourceUser, true)
+		installManagerFixture(t, env.registry, broken, SourceUser, true)
+		brokenInfo, err := env.registry.Get(broken.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", broken.manifest.Name, err)
+		}
+		original, stat := readManifestContentAndMetadata(t, brokenInfo.ManifestPath)
+		replaceManifestContentPreservingMetadata(
+			t,
+			brokenInfo.ManifestPath,
+			malformedManifestContent(original),
+			stat,
+		)
+		descriptors, err := ResolveManifestToolDescriptors(healthy.manifest)
+		if err != nil || len(descriptors) != 1 {
+			t.Fatalf("ResolveManifestToolDescriptors(healthy) = %#v, %v, want one descriptor", descriptors, err)
+		}
+		runtime := newFakeExtensionToolRuntime(
+			t,
+			env.registry,
+			healthy.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptors[0].RuntimeDescriptor},
+		)
+		var logs bytes.Buffer
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return runtime },
+			WithToolProviderLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+
+		first, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || first == "" {
+			t.Fatalf("ProjectionGeneration(first) = %q, %t, want authoritative token", first, known)
+		}
+		second, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || second != first {
+			t.Fatalf("ProjectionGeneration(repeated) = %q, %t, want unchanged token %q", second, known, first)
+		}
+		if got := strings.Count(logs.String(), "extension_name=broken-generation"); got != 1 {
+			t.Fatalf("invalid manifest warning count = %d, want 1; logs = %q", got, logs.String())
+		}
+	})
+
+	t.Run("Should keep deterministic projection tokens stable across workspace alternation", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		fixtureA := createExtensionToolTestExtension(t, "projection-workspace-a", "fake-extension", nil, nil, true)
+		fixtureB := createExtensionToolTestExtension(t, "projection-workspace-b", "fake-extension", nil, nil, true)
+		installManagerFixture(t, env.registry, fixtureA, SourceUser, true)
+		installManagerFixture(t, env.registry, fixtureB, SourceUser, true)
+		infoA, err := env.registry.Get(fixtureA.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", fixtureA.manifest.Name, err)
+		}
+		infoB, err := env.registry.Get(fixtureB.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", fixtureB.manifest.Name, err)
+		}
+		descriptorsA, err := ResolveManifestToolDescriptors(fixtureA.manifest)
+		if err != nil || len(descriptorsA) != 1 {
+			t.Fatalf("ResolveManifestToolDescriptors(workspace A) = %#v, %v, want one descriptor", descriptorsA, err)
+		}
+		descriptorsB, err := ResolveManifestToolDescriptors(fixtureB.manifest)
+		if err != nil || len(descriptorsB) != 1 {
+			t.Fatalf("ResolveManifestToolDescriptors(workspace B) = %#v, %v, want one descriptor", descriptorsB, err)
+		}
+		fakeA := newFakeExtensionToolRuntime(
+			t,
+			env.registry,
+			fixtureA.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptorsA[0].RuntimeDescriptor},
+		)
+		fakeB := newFakeExtensionToolRuntime(
+			t,
+			env.registry,
+			fixtureB.manifest.Name,
+			[]toolspkg.ExtensionToolRuntimeDescriptor{descriptorsB[0].RuntimeDescriptor},
+		)
+		keyA := GlobalInstanceKey(infoA.Name)
+		keyB := GlobalInstanceKey(infoB.Name)
+		runtime := &fakeScopedExtensionToolRuntime{
+			fakeExtensionToolRuntime: fakeA,
+			infosByWorkspace: map[string][]ExtensionInfo{
+				"workspace-a": {*infoA},
+				"workspace-b": {*infoB},
+			},
+			extensionsByInstance: map[InstanceKey]*Extension{
+				keyA: fakeA.extension,
+				keyB: fakeB.extension,
+			},
+			descriptorsByInstance: map[InstanceKey][]toolspkg.ExtensionToolRuntimeDescriptor{
+				keyA: fakeA.descriptors,
+				keyB: fakeB.descriptors,
+			},
+		}
+		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return runtime })
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+		generationFor := func(workspaceID string) string {
+			t.Helper()
+			generation, known := provider.ProjectionGeneration(
+				t.Context(),
+				toolspkg.Scope{WorkspaceID: workspaceID},
+			)
+			if !known || generation == "" {
+				t.Fatalf("ProjectionGeneration(%q) = %q, %t, want token", workspaceID, generation, known)
+			}
+			return generation
+		}
+
+		aFirst := generationFor("workspace-a")
+		bFirst := generationFor("workspace-b")
+		if aRepeated := generationFor("workspace-a"); aRepeated != aFirst {
+			t.Fatalf("ProjectionGeneration(A/B/A) = %q, want %q", aRepeated, aFirst)
+		}
+		if bRepeated := generationFor("workspace-b"); bRepeated != bFirst {
+			t.Fatalf("ProjectionGeneration(B/A/B) = %q, want %q", bRepeated, bFirst)
+		}
+
+		originalA, statA := readManifestContentAndMetadata(t, infoA.ManifestPath)
+		replaceManifestContentPreservingMetadata(t, infoA.ManifestPath, malformedManifestContent(originalA), statA)
+		if aChanged := generationFor("workspace-a"); aChanged == aFirst {
+			t.Fatalf("ProjectionGeneration(A manifest change) = %q, want token different from %q", aChanged, aFirst)
+		}
+		if bAfterManifestChange := generationFor("workspace-b"); bAfterManifestChange != bFirst {
+			t.Fatalf("ProjectionGeneration(B after A manifest change) = %q, want %q", bAfterManifestChange, bFirst)
+		}
+
+		replaceManifestContentPreservingMetadata(t, infoA.ManifestPath, originalA, statA)
+		if aRestored := generationFor("workspace-a"); aRestored != aFirst {
+			t.Fatalf("ProjectionGeneration(A manifest restored) = %q, want %q", aRestored, aFirst)
+		}
+		fakeB.extension.Status.Healthy = false
+		if bRuntimeChanged := generationFor("workspace-b"); bRuntimeChanged == bFirst {
+			t.Fatalf(
+				"ProjectionGeneration(B runtime change) = %q, want token different from %q",
+				bRuntimeChanged,
+				bFirst,
+			)
+		}
+		if aAfterRuntimeChange := generationFor("workspace-a"); aAfterRuntimeChange != aFirst {
+			t.Fatalf("ProjectionGeneration(A after B runtime change) = %q, want %q", aAfterRuntimeChange, aFirst)
+		}
+	})
+
+	t.Run("Should serialize manifest refreshes before publishing cached content", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, _ := createExtensionToolProviderFixture(t, "ext-generation-order", true)
+		info, err := env.registry.Get(fixture.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", fixture.manifest.Name, err)
+		}
+		original, stat := readManifestContentAndMetadata(t, info.ManifestPath)
+		releaseWarning := make(chan struct{})
+		logger := &blockingExtensionToolLogHandler{
+			started: make(chan struct{}),
+			release: releaseWarning,
+		}
+		t.Cleanup(logger.Release)
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return nil },
+			WithToolProviderLogger(slog.New(logger)),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+
+		replaceManifestContentPreservingMetadata(
+			t,
+			info.ManifestPath,
+			malformedManifestContent(original),
+			stat,
+		)
+		firstResult := make(chan extensionToolProviderListResult, 1)
+		go func() {
+			tools, listErr := provider.List(t.Context(), toolspkg.Scope{})
+			firstResult <- extensionToolProviderListResult{tools: tools, err: listErr}
+		}()
+		select {
+		case <-logger.started:
+		case first := <-firstResult:
+			t.Fatalf("Provider.List(earlier invalid content) completed before blocking warning: %#v", first)
+		}
+
+		replaceManifestContentPreservingMetadata(t, info.ManifestPath, original, stat)
+		waitBase, cancelWait := context.WithCancel(t.Context())
+		t.Cleanup(cancelWait)
+		waitContext := &manifestRefreshWaitContext{
+			Context: waitBase,
+			waiting: make(chan struct{}),
+		}
+		secondResult := make(chan extensionToolProviderListResult, 1)
+		go func() {
+			tools, listErr := provider.List(waitContext, toolspkg.Scope{})
+			secondResult <- extensionToolProviderListResult{tools: tools, err: listErr}
+		}()
+		select {
+		case <-waitContext.waiting:
+			cancelWait()
+		case second := <-secondResult:
+			t.Fatalf("Provider.List(newer content) completed before waiting for refresh: %#v", second)
+		}
+		second := <-secondResult
+		if !errors.Is(second.err, context.Canceled) {
+			t.Fatalf("Provider.List(waiting refresh) error = %v, want context canceled", second.err)
+		}
+
+		logger.Release()
+		first := <-firstResult
+		if first.err != nil {
+			t.Fatalf("Provider.List(earlier invalid content) error = %v", first.err)
+		}
+		if len(first.tools) != 0 {
+			t.Fatalf("Provider.List(earlier invalid content) = %#v, want invalid extension isolated", first.tools)
+		}
+
+		currentGeneration, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || currentGeneration == "" {
+			t.Fatalf(
+				"ProjectionGeneration(newer content) = %q, %t, want authoritative token",
+				currentGeneration,
+				known,
+			)
+		}
+		stableGeneration, known := provider.ProjectionGeneration(t.Context(), toolspkg.Scope{})
+		if !known || stableGeneration != currentGeneration {
+			t.Fatalf(
+				"ProjectionGeneration(unchanged newer content) = %q, %t, want %q",
+				stableGeneration,
+				known,
+				currentGeneration,
 			)
 		}
 	})
@@ -213,6 +582,8 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			env := newRegistryTestEnv(t)
 			healthy := createExtensionToolTestExtension(t, "healthy-tool", "fake-extension", nil, nil, true)
 			broken := createExtensionToolTestExtension(t, tc.logKey, "fake-extension", nil, nil, true)
@@ -267,7 +638,305 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 		})
 	}
 
-	t.Run("Should rediscover a repaired manifest with unchanged file metadata", func(t *testing.T) {
+	t.Run("Should cache healthy partial catalogs for unchanged invalid manifests", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		healthy := createExtensionToolTestExtension(t, "healthy-catalog", "fake-extension", nil, nil, true)
+		broken := createExtensionToolTestExtension(t, "broken-catalog", "fake-extension", nil, nil, true)
+		installManagerFixture(t, env.registry, healthy, SourceUser, true)
+		installManagerFixture(t, env.registry, broken, SourceUser, true)
+		brokenInfo, err := env.registry.Get(broken.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", broken.manifest.Name, err)
+		}
+		original, stat := readManifestContentAndMetadata(t, brokenInfo.ManifestPath)
+		malformed := malformedManifestContent(original)
+		replaceManifestContentPreservingMetadata(t, brokenInfo.ManifestPath, malformed, stat)
+		healthyDescriptors, err := ResolveManifestToolDescriptors(healthy.manifest)
+		if err != nil || len(healthyDescriptors) != 1 {
+			t.Fatalf(
+				"ResolveManifestToolDescriptors(healthy) = %#v, %v, want one descriptor",
+				healthyDescriptors,
+				err,
+			)
+		}
+		var logs bytes.Buffer
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return nil },
+			WithToolProviderLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+
+		for _, name := range []string{"first", "repeated"} {
+			catalog, listErr := provider.List(testutil.Context(t), toolspkg.Scope{})
+			if listErr != nil {
+				t.Fatalf("Provider.List(%s) error = %v", name, listErr)
+			}
+			if len(catalog) != 1 || catalog[0].ID != healthyDescriptors[0].Tool.ID {
+				t.Fatalf("Provider.List(%s) = %#v, want healthy tool %q", name, catalog, healthyDescriptors[0].Tool.ID)
+			}
+		}
+		if got := strings.Count(logs.String(), "extension_name=broken-catalog"); got != 1 {
+			t.Fatalf("unchanged invalid manifest warning count = %d, want 1; logs = %q", got, logs.String())
+		}
+
+		changedMalformed := slices.Clone(malformed)
+		changedMalformed[0] = '['
+		replaceManifestContentPreservingMetadata(t, brokenInfo.ManifestPath, changedMalformed, stat)
+		catalog, err := provider.List(testutil.Context(t), toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("Provider.List(changed invalid) error = %v", err)
+		}
+		if len(catalog) != 1 || catalog[0].ID != healthyDescriptors[0].Tool.ID {
+			t.Fatalf(
+				"Provider.List(changed invalid) = %#v, want healthy tool %q",
+				catalog,
+				healthyDescriptors[0].Tool.ID,
+			)
+		}
+		if got := strings.Count(logs.String(), "extension_name=broken-catalog"); got != 2 {
+			t.Fatalf("changed invalid manifest warning count = %d, want 2; logs = %q", got, logs.String())
+		}
+	})
+
+	t.Run("Should recover from a transient manifest read error without metadata changes", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, descriptor := createExtensionToolProviderFixture(t, "transient-read-error", true)
+		info, err := env.registry.Get(fixture.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", fixture.manifest.Name, err)
+		}
+		var logs bytes.Buffer
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return nil },
+			WithToolProviderLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+		readFile := provider.manifestReadFile
+		firstRead := true
+		provider.manifestReadFile = func(path string) ([]byte, error) {
+			if path == info.ManifestPath && firstRead {
+				firstRead = false
+				return nil, errors.New("transient manifest read error")
+			}
+			return readFile(path)
+		}
+
+		first, err := provider.List(testutil.Context(t), toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("Provider.List(transient read error) error = %v", err)
+		}
+		if len(first) != 0 {
+			t.Fatalf("Provider.List(transient read error) = %#v, want invalid extension isolated", first)
+		}
+		second, err := provider.List(testutil.Context(t), toolspkg.Scope{})
+		if err != nil {
+			t.Fatalf("Provider.List(recovered read) error = %v", err)
+		}
+		if len(second) != 1 || second[0].ID != descriptor.Tool.ID {
+			t.Fatalf("Provider.List(recovered read) = %#v, want healthy tool %q", second, descriptor.Tool.ID)
+		}
+		if got := strings.Count(logs.String(), "extension_name=transient-read-error"); got != 1 {
+			t.Fatalf("transient read error warning count = %d, want 1; logs = %q", got, logs.String())
+		}
+	})
+
+	t.Run("Should retain global snapshots behind workspace development overrides", func(t *testing.T) {
+		t.Parallel()
+
+		env := newRegistryTestEnv(t)
+		healthyA := createExtensionToolTestExtension(t, "workspace-healthy-a", "fake-extension", nil, nil, true)
+		healthyB := createExtensionToolTestExtension(t, "workspace-healthy-b", "fake-extension", nil, nil, true)
+		broken := createExtensionToolTestExtension(t, "workspace-broken", "fake-extension", nil, nil, true)
+		installManagerFixture(t, env.registry, healthyA, SourceUser, true)
+		installManagerFixture(t, env.registry, healthyB, SourceUser, true)
+		installManagerFixture(t, env.registry, broken, SourceUser, true)
+		healthyAInfo, err := env.registry.Get(healthyA.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", healthyA.manifest.Name, err)
+		}
+		healthyBInfo, err := env.registry.Get(healthyB.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", healthyB.manifest.Name, err)
+		}
+		brokenInfo, err := env.registry.Get(broken.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", broken.manifest.Name, err)
+		}
+		workspaceHealthyAInfo := cloneExtensionInfo(*healthyAInfo)
+		workspaceHealthyAInfo.Name = brokenInfo.Name
+		workspaceHealthyAInfo.Source = SourceWorkspace
+		workspaceHealthyBInfo := cloneExtensionInfo(*healthyBInfo)
+		workspaceHealthyBInfo.Name = brokenInfo.Name
+		workspaceHealthyBInfo.Source = SourceWorkspace
+		original, stat := readManifestContentAndMetadata(t, brokenInfo.ManifestPath)
+		replaceManifestContentPreservingMetadata(
+			t,
+			brokenInfo.ManifestPath,
+			malformedManifestContent(original),
+			stat,
+		)
+		healthyADescriptors, err := ResolveManifestToolDescriptors(healthyA.manifest)
+		if err != nil || len(healthyADescriptors) != 1 {
+			t.Fatalf(
+				"ResolveManifestToolDescriptors(workspace A) = %#v, %v, want one descriptor",
+				healthyADescriptors,
+				err,
+			)
+		}
+		healthyBDescriptors, err := ResolveManifestToolDescriptors(healthyB.manifest)
+		if err != nil || len(healthyBDescriptors) != 1 {
+			t.Fatalf(
+				"ResolveManifestToolDescriptors(workspace B) = %#v, %v, want one descriptor",
+				healthyBDescriptors,
+				err,
+			)
+		}
+		runtime := &fakeScopedExtensionToolRuntime{
+			fakeExtensionToolRuntime: newFakeExtensionToolRuntime(
+				t,
+				env.registry,
+				healthyA.manifest.Name,
+				nil,
+			),
+			infosByWorkspace: map[string][]ExtensionInfo{
+				"":            {*brokenInfo},
+				"workspace-a": {workspaceHealthyAInfo},
+				"workspace-b": {workspaceHealthyBInfo},
+			},
+		}
+		var logs bytes.Buffer
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return runtime },
+			WithToolProviderLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+
+		for _, testCase := range []struct {
+			workspaceID string
+			wantID      toolspkg.ToolID
+			wantEmpty   bool
+		}{
+			{workspaceID: "", wantEmpty: true},
+			{workspaceID: "workspace-a", wantID: healthyADescriptors[0].Tool.ID},
+			{workspaceID: "workspace-b", wantID: healthyBDescriptors[0].Tool.ID},
+			{workspaceID: "", wantEmpty: true},
+		} {
+			catalog, listErr := provider.List(testutil.Context(t), toolspkg.Scope{WorkspaceID: testCase.workspaceID})
+			if listErr != nil {
+				t.Fatalf("Provider.List(%q) error = %v", testCase.workspaceID, listErr)
+			}
+			if testCase.wantEmpty {
+				if len(catalog) != 0 {
+					t.Fatalf("Provider.List(%q) = %#v, want overridden invalid catalog", testCase.workspaceID, catalog)
+				}
+				continue
+			}
+			if len(catalog) != 1 || catalog[0].ID != testCase.wantID {
+				t.Fatalf(
+					"Provider.List(%q) = %#v, want only healthy tool %q",
+					testCase.workspaceID,
+					catalog,
+					testCase.wantID,
+				)
+			}
+		}
+		if got := strings.Count(logs.String(), "extension_name=workspace-broken"); got != 1 {
+			t.Fatalf("global invalid manifest warning count = %d, want 1; logs = %q", got, logs.String())
+		}
+	})
+
+	t.Run("Should name each invalid extension with identical bytes once", func(t *testing.T) {
+		t.Parallel()
+
+		env, fixture, _ := createExtensionToolProviderFixture(t, "invalid-json", true)
+		jsonInfo, err := env.registry.Get(fixture.manifest.Name)
+		if err != nil {
+			t.Fatalf("Registry.Get(%q) error = %v", fixture.manifest.Name, err)
+		}
+		tomlDir := t.TempDir()
+		tomlPath := filepath.Join(tomlDir, manifestTOMLFileName)
+		const invalidManifest = "{"
+		writeFile(t, jsonInfo.ManifestPath, invalidManifest)
+		writeFile(t, tomlPath, invalidManifest)
+		_, jsonParseErr := loadManifestContentAtPath(jsonInfo.ManifestPath, []byte(invalidManifest))
+		if jsonParseErr == nil {
+			t.Fatal("loadManifestContentAtPath(JSON) error = nil, want invalid manifest error")
+		}
+		_, tomlParseErr := loadManifestContentAtPath(tomlPath, []byte(invalidManifest))
+		if tomlParseErr == nil {
+			t.Fatal("loadManifestContentAtPath(TOML) error = nil, want invalid manifest error")
+		}
+		if !strings.Contains(jsonParseErr.Error(), "JSON") || !strings.Contains(tomlParseErr.Error(), "toml:") {
+			t.Fatalf("parser errors = %q, %q, want JSON and TOML parser errors", jsonParseErr, tomlParseErr)
+		}
+		tomlInfo := cloneExtensionInfo(*jsonInfo)
+		tomlInfo.Name = "invalid-toml"
+		tomlInfo.ManifestPath = tomlPath
+		runtime := &fakeScopedExtensionToolRuntime{
+			fakeExtensionToolRuntime: newFakeExtensionToolRuntime(
+				t,
+				env.registry,
+				fixture.manifest.Name,
+				nil,
+			),
+			infosByWorkspace: map[string][]ExtensionInfo{
+				"workspace-invalid": {*jsonInfo, tomlInfo},
+			},
+		}
+		var logs bytes.Buffer
+		provider, err := NewExtensionToolProvider(
+			env.registry,
+			func() ExtensionToolRuntime { return runtime },
+			WithToolProviderLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+		if err != nil {
+			t.Fatalf("NewExtensionToolProvider() error = %v", err)
+		}
+
+		for _, name := range []string{"first", "repeated"} {
+			catalog, listErr := provider.List(
+				testutil.Context(t),
+				toolspkg.Scope{WorkspaceID: "workspace-invalid"},
+			)
+			if listErr != nil {
+				t.Fatalf("Provider.List(%s) error = %v", name, listErr)
+			}
+			if len(catalog) != 0 {
+				t.Fatalf("Provider.List(%s) = %#v, want invalid extensions isolated", name, catalog)
+			}
+		}
+		for _, extensionName := range []string{"invalid-json", "invalid-toml"} {
+			if got := strings.Count(logs.String(), "extension_name="+extensionName); got != 1 {
+				t.Fatalf(
+					"warning count for %q = %d, want 1; logs = %q",
+					extensionName,
+					got,
+					logs.String(),
+				)
+			}
+		}
+		for _, parserMarker := range []string{"JSON", "toml:"} {
+			if !strings.Contains(logs.String(), parserMarker) {
+				t.Fatalf("provider logs = %q, want parser marker %q", logs.String(), parserMarker)
+			}
+		}
+	})
+
+	t.Run("Should reflect manifest byte changes with unchanged file metadata", func(t *testing.T) {
+		t.Parallel()
+
 		env := newRegistryTestEnv(t)
 		fixture := createExtensionToolTestExtension(t, "repaired-tool", "fake-extension", nil, nil, true)
 		installManagerFixture(t, env.registry, fixture, SourceUser, true)
@@ -275,22 +944,8 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Get(%q) error = %v", fixture.manifest.Name, err)
 		}
-		original, err := os.ReadFile(info.ManifestPath)
-		if err != nil {
-			t.Fatalf("os.ReadFile(%q) error = %v", info.ManifestPath, err)
-		}
-		stat, err := os.Stat(info.ManifestPath)
-		if err != nil {
-			t.Fatalf("os.Stat(%q) error = %v", info.ManifestPath, err)
-		}
-		malformed := bytes.Repeat([]byte{' '}, len(original))
-		malformed[0] = '{'
-		if err := os.WriteFile(info.ManifestPath, malformed, stat.Mode()); err != nil {
-			t.Fatalf("os.WriteFile(malformed) error = %v", err)
-		}
-		if err := os.Chtimes(info.ManifestPath, stat.ModTime(), stat.ModTime()); err != nil {
-			t.Fatalf("os.Chtimes(malformed) error = %v", err)
-		}
+		original, stat := readManifestContentAndMetadata(t, info.ManifestPath)
+		malformed := malformedManifestContent(original)
 
 		provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return nil })
 		if err != nil {
@@ -298,18 +953,22 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 		}
 		first, err := provider.List(testutil.Context(t), toolspkg.Scope{Operator: true})
 		if err != nil {
-			t.Fatalf("Provider.List(malformed) error = %v", err)
+			t.Fatalf("Provider.List(valid) error = %v", err)
 		}
-		if len(first) != 0 {
-			t.Fatalf("Provider.List(malformed) = %#v, want invalid extension isolated", first)
+		if len(first) != 1 {
+			t.Fatalf("Provider.List(valid) = %#v, want extension tool", first)
 		}
 
-		if err := os.WriteFile(info.ManifestPath, original, stat.Mode()); err != nil {
-			t.Fatalf("os.WriteFile(repaired) error = %v", err)
+		replaceManifestContentPreservingMetadata(t, info.ManifestPath, malformed, stat)
+		invalid, err := provider.List(testutil.Context(t), toolspkg.Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("Provider.List(valid to invalid) error = %v", err)
 		}
-		if err := os.Chtimes(info.ManifestPath, stat.ModTime(), stat.ModTime()); err != nil {
-			t.Fatalf("os.Chtimes(repaired) error = %v", err)
+		if len(invalid) != 0 {
+			t.Fatalf("Provider.List(valid to invalid) = %#v, want invalid extension isolated", invalid)
 		}
+
+		replaceManifestContentPreservingMetadata(t, info.ManifestPath, original, stat)
 		repaired, err := provider.List(testutil.Context(t), toolspkg.Scope{Operator: true})
 		if err != nil {
 			t.Fatalf("Provider.List(repaired) error = %v", err)
@@ -566,7 +1225,109 @@ type fakeExtensionToolRuntime struct {
 	callErr     error
 }
 
+type fakeScopedExtensionToolRuntime struct {
+	*fakeExtensionToolRuntime
+	infosByWorkspace      map[string][]ExtensionInfo
+	extensionsByInstance  map[InstanceKey]*Extension
+	descriptorsByInstance map[InstanceKey][]toolspkg.ExtensionToolRuntimeDescriptor
+}
+
+type extensionToolProviderListResult struct {
+	tools []toolspkg.Descriptor
+	err   error
+}
+
+type manifestRefreshWaitContext struct {
+	context.Context
+	waiting  chan struct{}
+	waitOnce sync.Once
+}
+
+func (c *manifestRefreshWaitContext) Done() <-chan struct{} {
+	c.waitOnce.Do(func() {
+		close(c.waiting)
+	})
+	return c.Context.Done()
+}
+
+type blockingExtensionToolLogHandler struct {
+	started     chan struct{}
+	release     chan struct{}
+	startedOnce sync.Once
+	releaseOnce sync.Once
+}
+
+var _ slog.Handler = (*blockingExtensionToolLogHandler)(nil)
+
+func (h *blockingExtensionToolLogHandler) Enabled(context.Context, slog.Level) bool {
+	return true
+}
+
+func (h *blockingExtensionToolLogHandler) Handle(ctx context.Context, record slog.Record) error {
+	if record.Message != "extension: skip invalid extension tool manifest" {
+		return nil
+	}
+	h.startedOnce.Do(func() {
+		close(h.started)
+	})
+	select {
+	case <-h.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (h *blockingExtensionToolLogHandler) WithAttrs([]slog.Attr) slog.Handler {
+	return h
+}
+
+func (h *blockingExtensionToolLogHandler) WithGroup(string) slog.Handler {
+	return h
+}
+
+func (h *blockingExtensionToolLogHandler) Release() {
+	h.releaseOnce.Do(func() {
+		close(h.release)
+	})
+}
+
 var _ ExtensionToolRuntime = (*fakeExtensionToolRuntime)(nil)
+var _ extensionScopedToolRuntime = (*fakeScopedExtensionToolRuntime)(nil)
+
+func (f *fakeScopedExtensionToolRuntime) GetForInstance(key InstanceKey) (*Extension, error) {
+	if extension := f.extensionsByInstance[key.Normalize()]; extension != nil {
+		return extension, nil
+	}
+	return f.extension, nil
+}
+
+func (f *fakeScopedExtensionToolRuntime) ListForWorkspace(workspaceID string) []ExtensionInfo {
+	infos := f.infosByWorkspace[workspaceID]
+	cloned := make([]ExtensionInfo, len(infos))
+	for i := range infos {
+		cloned[i] = cloneExtensionInfo(infos[i])
+	}
+	return cloned
+}
+
+func (f *fakeScopedExtensionToolRuntime) ProvideToolsForInstance(
+	ctx context.Context,
+	key InstanceKey,
+) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
+	if descriptors, ok := f.descriptorsByInstance[key.Normalize()]; ok {
+		return cloneRuntimeToolDescriptors(descriptors), nil
+	}
+	return f.ProvideTools(ctx, "")
+}
+
+func (f *fakeScopedExtensionToolRuntime) CallToolForInstance(
+	ctx context.Context,
+	_ InstanceKey,
+	req toolspkg.ExtensionToolCallRequest,
+) (toolspkg.ToolResult, error) {
+	return f.CallTool(ctx, "", req)
+}
 
 func (f *fakeExtensionToolRuntime) Get(string) (*Extension, error) {
 	return f.extension, nil
@@ -952,4 +1713,40 @@ func extensionToolManifestJSON(
 		panic(fmt.Sprintf("marshal extension tool manifest fixture: %v", err))
 	}
 	return string(data)
+}
+
+func readManifestContentAndMetadata(t *testing.T, path string) ([]byte, os.FileInfo) {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("os.Stat(%q) error = %v", path, err)
+	}
+	return content, info
+}
+
+func malformedManifestContent(original []byte) []byte {
+	malformed := bytes.Repeat([]byte{' '}, len(original))
+	malformed[0] = '{'
+	return malformed
+}
+
+func replaceManifestContentPreservingMetadata(
+	t *testing.T,
+	path string,
+	content []byte,
+	info os.FileInfo,
+) {
+	t.Helper()
+
+	if err := os.WriteFile(path, content, info.Mode()); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
+	if err := os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatalf("os.Chtimes(%q) error = %v", path, err)
+	}
 }

@@ -235,7 +235,10 @@ func loadManifestTOML(path string) (*Manifest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("extension: read manifest %q: %w", path, err)
 	}
+	return loadManifestTOMLContent(path, data)
+}
 
+func loadManifestTOMLContent(path string, data []byte) (*Manifest, error) {
 	var doc manifestDocument
 	meta, err := toml.Decode(string(data), &doc)
 	if err != nil {
@@ -260,7 +263,10 @@ func loadManifestJSON(path string) (*Manifest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("extension: read manifest %q: %w", path, err)
 	}
+	return loadManifestJSONContent(path, data)
+}
 
+func loadManifestJSONContent(path string, data []byte) (*Manifest, error) {
 	var doc manifestDocument
 	if err := rejectLegacyManifestJSON(data); err != nil {
 		return nil, err
@@ -280,6 +286,17 @@ func loadManifestJSON(path string) (*Manifest, error) {
 		return nil, err
 	}
 	return &manifest, nil
+}
+
+func loadManifestContentAtPath(path string, data []byte) (*Manifest, error) {
+	switch strings.ToLower(filepath.Ext(strings.TrimSpace(path))) {
+	case manifestFileExtTOML:
+		return loadManifestTOMLContent(path, data)
+	case manifestFileExtJSON:
+		return loadManifestJSONContent(path, data)
+	default:
+		return nil, fmt.Errorf("extension: unsupported manifest path %q", path)
+	}
 }
 
 func rejectUnsupportedManifestTOML(keys []toml.Key) error {
