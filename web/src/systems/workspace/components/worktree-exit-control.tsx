@@ -6,7 +6,13 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 
-import { DropdownMenuItem, DropdownMenuLabel, Eyebrow, SplitButton } from "@compozy/ui";
+import {
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  Eyebrow,
+  SplitButton,
+} from "@compozy/ui";
 
 import type { WorktreeExitLadder, WorktreeExitLadderRow } from "../lib/worktree-exit-ladder";
 
@@ -74,42 +80,44 @@ export function WorktreeExitControl({
         onAction={() => onAction(primary)}
         role="group"
       >
-        <DropdownMenuLabel className="px-2 pt-[5px] pb-1">
-          <Eyebrow>{MENU_LABEL}</Eyebrow>
-        </DropdownMenuLabel>
-        {ladder.menuRows.map(row => {
-          const blocked = ladder.blocked || !row.enabled;
-          const reason = ladder.blocked ? ladder.blockedReason : row.blockedReason;
-          return (
-            <DropdownMenuItem
-              className="flex w-full items-start gap-[9px] rounded-sm px-2 py-1.5 text-start [&_svg]:mt-0.5 [&_svg]:size-3 [&_svg]:shrink-0 [&_svg]:text-muted"
-              data-action={row.action}
-              data-blocked={blocked ? "" : undefined}
-              data-publish={row.publish ? "" : undefined}
-              data-slot="worktree-exit-action"
-              disabled={blocked}
-              key={row.action}
-              onClick={() => onAction(row)}
-              title={reason}
-            >
-              <ActionIcon action={row.action} />
-              <span
-                className="min-w-0 flex-1 text-small-body text-fg"
-                data-slot="worktree-exit-action-label"
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="px-2 pt-[5px] pb-1">
+            <Eyebrow>{MENU_LABEL}</Eyebrow>
+          </DropdownMenuLabel>
+          {ladder.menuRows.map(row => {
+            const blocked = ladder.blocked || !row.enabled;
+            const reason = ladder.blocked ? ladder.blockedReason : row.blockedReason;
+            return (
+              <DropdownMenuItem
+                className="flex w-full items-start gap-[9px] rounded-sm px-2 py-1.5 text-start [&_svg]:mt-0.5 [&_svg]:size-3 [&_svg]:shrink-0 [&_svg]:text-muted"
+                data-action={row.action}
+                data-blocked={blocked ? "" : undefined}
+                data-publish={row.publish ? "" : undefined}
+                data-slot="worktree-exit-action"
+                disabled={blocked}
+                key={row.action}
+                onClick={() => onAction(row)}
+                title={reason}
               >
-                {row.label}
-                {reason ? (
-                  <span
-                    className="mt-px block text-badge leading-[1.4] text-subtle"
-                    data-slot="worktree-exit-action-reason"
-                  >
-                    {reason}
-                  </span>
-                ) : null}
-              </span>
-            </DropdownMenuItem>
-          );
-        })}
+                <ActionIcon action={row.action} />
+                <span
+                  className="min-w-0 flex-1 text-small-body text-fg"
+                  data-slot="worktree-exit-action-label"
+                >
+                  {row.label}
+                  {reason ? (
+                    <span
+                      className="mt-px block text-badge leading-[1.4] text-subtle"
+                      data-slot="worktree-exit-action-reason"
+                    >
+                      {reason}
+                    </span>
+                  ) : null}
+                </span>
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuGroup>
       </SplitButton>
       {ladder.blockedReason ? (
         <span aria-live="polite" className="sr-only" role="status">
