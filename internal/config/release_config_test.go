@@ -722,7 +722,8 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"always() &&\n      needs.release-plan.result == 'success' &&\n      needs.release.result == 'success' &&\n      needs.cli-public-install-smoke.result == 'success'",
 		)
 		assertContainsText(t, "isolated npm preparation", workflow, "name: Prepare npm CLI package without publication")
-		assertContainsText(t, "isolated npm preparation", workflow, "--dist=.release-dist/npm")
+		assertContainsText(t, "isolated npm config", workflow, `render_goreleaser_config ".release-dist/npm"`)
+		assertContainsText(t, "isolated npm preparation", workflow, "--config=${{ runner.temp }}/.goreleaser-npm.yml")
 		assertContainsText(t, "isolated npm artifact", workflow, ".release-dist/npm/npm/@compozy/cli/*")
 		assertContainsText(
 			t,
@@ -730,9 +731,17 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			workflow,
 			"name: Prepare GitHub artifacts without npm publisher",
 		)
-		assertContainsText(t, "isolated GitHub preparation", workflow, "--dist=.release-dist/github")
+		assertContainsText(t, "isolated GitHub config", workflow, `render_goreleaser_config ".release-dist/github"`)
+		assertContainsText(
+			t,
+			"isolated GitHub preparation",
+			workflow,
+			"--config=${{ runner.temp }}/.goreleaser-github.yml",
+		)
+		assertNotContainsText(t, "GoReleaser prepare CLI", workflow, "release --clean --prepare\n            --dist=")
 		assertContainsText(t, "GoReleaser staged publication", workflow, "args: publish --dist=.release-dist/github")
 		assertNotContainsText(t, "GoReleaser staged publication", workflow, "publish --config")
+		assertContainsText(t, "GoReleaser CLI contract", workflow, "name: Validate production GoReleaser commands")
 
 		githubPreparationStart := strings.Index(workflow, "name: Prepare GitHub artifacts without npm publisher")
 		githubPreparationEnd := strings.Index(workflow, "name: Stage GitHub draft without publishing npm")

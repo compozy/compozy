@@ -164,6 +164,26 @@ jobs:
             -H "Accept: application/vnd.github.raw+json" \
             "repos/${GITHUB_REPOSITORY}/contents/.goreleaser.yml?ref=${WORKFLOW_COMMIT}" \
             >"${RUNNER_TEMP}/.goreleaser.yml"
+          if [[ "$(grep -c '^version: 2$' "${RUNNER_TEMP}/.goreleaser.yml")" != "1" ]] ||
+            grep -q '^dist:' "${RUNNER_TEMP}/.goreleaser.yml"; then
+            echo "::error::Canonical GoReleaser config must contain one version and no dist override"
+            exit 1
+          fi
+          render_goreleaser_config() {
+            local release_dist="$1"
+            local target="$2"
+            awk -v release_dist="${release_dist}" '
+              $0 == "version: 2" {
+                print
+                print "dist: " release_dist
+                next
+              }
+              { print }
+            ' "${RUNNER_TEMP}/.goreleaser.yml" >"${target}"
+            grep -Fxq "dist: ${release_dist}" "${target}"
+          }
+          render_goreleaser_config ".release-dist/npm" "${RUNNER_TEMP}/.goreleaser-npm.yml"
+          render_goreleaser_config ".release-dist/github" "${RUNNER_TEMP}/.goreleaser-github.yml"
 
       - name: Prepare Go temporary directory
         env:
@@ -182,6 +202,33 @@ jobs:
         with:
           install-playwright: "false"
 
+      - name: Setup Release Tools
+        uses: ./.github/actions/setup-release
+        with:
+          goreleaser-distribution: goreleaser-pro
+          goreleaser-version: v2.17.1
+          setup-docker: false
+          setup-docker-login: false
+          setup-qemu: false
+          cosign-version: ${{ env.COSIGN_VERSION }}
+
+      - name: Validate production GoReleaser commands
+        run: |
+          set -euo pipefail
+          goreleaser release --clean --prepare \
+            --config="${RUNNER_TEMP}/.goreleaser-npm.yml" \
+            --release-notes="${RUNNER_TEMP}/RELEASE_BODY.md" \
+            --release-header-tmpl=.goreleaser.release-header.md.tmpl \
+            --release-footer-tmpl=.goreleaser.release-footer.md.tmpl \
+            --help >/dev/null
+          goreleaser release --clean --prepare \
+            --config="${RUNNER_TEMP}/.goreleaser-github.yml" \
+            --release-notes="${RUNNER_TEMP}/RELEASE_BODY.md" \
+            --release-header-tmpl=.goreleaser.release-header.md.tmpl \
+            --release-footer-tmpl=.goreleaser.release-footer.md.tmpl \
+            --help >/dev/null
+          goreleaser publish --dist=.release-dist/github --help >/dev/null
+
       - name: Verify explicit release plan contract
         run: scripts/release-plan-contract.sh "${{ env.PR_RELEASE_MODULE }}"
 
@@ -195,16 +242,6 @@ jobs:
 
       - name: Validate TypeScript extension SDK package
         run: scripts/publish-extension-sdk.sh --dry-run 0.0.0-beta.0 beta
-
-      - name: Setup Release Tools
-        uses: ./.github/actions/setup-release
-        with:
-          goreleaser-distribution: goreleaser-pro
-          goreleaser-version: v2.17.1
-          setup-docker: false
-          setup-docker-login: false
-          setup-qemu: false
-          cosign-version: ${{ env.COSIGN_VERSION }}
 
       - name: Validate prospective beta release body
         env:
@@ -818,8 +855,7 @@ jobs:
           version: v2.17.1
           args: >-
             release --clean --prepare
-            --dist=.release-dist/npm
-            --config=${{ runner.temp }}/.goreleaser.yml
+            --config=${{ runner.temp }}/.goreleaser-npm.yml
             --release-notes=${{ runner.temp }}/RELEASE_BODY.md
             --release-header-tmpl=.goreleaser.release-header.md.tmpl
             --release-footer-tmpl=.goreleaser.release-footer.md.tmpl
@@ -843,8 +879,7 @@ jobs:
           version: v2.17.1
           args: >-
             release --clean --prepare
-            --dist=.release-dist/github
-            --config=${{ runner.temp }}/.goreleaser.yml
+            --config=${{ runner.temp }}/.goreleaser-github.yml
             --release-notes=${{ runner.temp }}/RELEASE_BODY.md
             --release-header-tmpl=.goreleaser.release-header.md.tmpl
             --release-footer-tmpl=.goreleaser.release-footer.md.tmpl
