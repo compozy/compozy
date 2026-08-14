@@ -27,18 +27,35 @@ func TestResolveAgentNameFallsBackToDefaults(t *testing.T) {
 func TestDefaultsAgentNameValidation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should allow an empty default agent as no override", func(t *testing.T) {
-		t.Parallel()
+	for _, test := range []struct {
+		name  string
+		agent string
+	}{
+		{name: "Should reject an empty default agent"},
+		{name: "Should reject a whitespace-only default agent", agent: " \t\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-		if err := (DefaultsConfig{}).Validate(); err != nil {
-			t.Fatalf("DefaultsConfig.Validate() error = %v, want nil", err)
-		}
-		_, err := ResolveAgentName("", DefaultsConfig{})
-		const wantErr = "agent name is required; run `compozy install` or set defaults.agent"
-		if err == nil || err.Error() != wantErr {
-			t.Fatalf("ResolveAgentName() error = %v, want %q", err, wantErr)
-		}
-	})
+			defaults := DefaultsConfig{Agent: test.agent}
+			err := defaults.Validate()
+			var validationErr ValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("DefaultsConfig.Validate() error = %T, want ValidationError", err)
+			}
+			if got, want := validationErr.Path, "defaults.agent"; got != want {
+				t.Fatalf("DefaultsConfig.Validate() path = %q, want %q", got, want)
+			}
+			if got, want := validationErr.Message, "is required"; got != want {
+				t.Fatalf("DefaultsConfig.Validate() message = %q, want %q", got, want)
+			}
+			_, err = ResolveAgentName("", defaults)
+			const wantErr = "agent name is required; run `compozy install` or set defaults.agent"
+			if err == nil || err.Error() != wantErr {
+				t.Fatalf("ResolveAgentName() error = %v, want %q", err, wantErr)
+			}
+		})
+	}
 
 	t.Run("Should reject an invalid explicit or default agent name", func(t *testing.T) {
 		t.Parallel()

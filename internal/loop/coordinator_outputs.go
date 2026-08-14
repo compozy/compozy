@@ -154,7 +154,12 @@ func (r *CoordinatorRunner) refreshGenerationOutputFromTaskRun(
 	if err != nil {
 		return GenerationOutput{}, false, nil, nil, err
 	}
-	return refreshGenerationOutputFromTaskStatus(parent, graph, output, run)
+	refreshed, live, stops, terminal, err := refreshGenerationOutputFromTaskStatus(parent, graph, output, run)
+	if err != nil || refreshed.Status != generationOutputAwaitingChild {
+		return refreshed, live, stops, terminal, err
+	}
+	refreshed, childLive, childStops, err := r.refreshAwaitingChildOutput(ctx, parent, graph, refreshed)
+	return refreshed, live || childLive, append(stops, childStops...), terminal, err
 }
 
 func (r *CoordinatorRunner) refreshRetryingGenerationOutput(
@@ -258,15 +263,19 @@ func refreshCompletedTaskRunOutput(
 		payload = json.RawMessage(runtimeRef)
 	}
 	node, found := graphNode(graph, dsl.NodeID(output.NodeID))
-	if found {
-		inspection := InspectPayloadFailure(payload, nodeResultContract(node))
-		if inspection.Failure != nil {
-			output.Status = generationOutputFailed
-			if failureRef, ok := ActionFailureOutputRef(*inspection.Failure); ok {
-				setGenerationOutputRef(&output, failureRef)
-			}
-			return output, false, nil, nil, nil
+	if !found {
+		return invalidCompletedActionOwnerOutput(output), false, nil, nil, nil
+	}
+	inspection := InspectPayloadFailure(payload, nodeResultContract(node))
+	if inspection.Failure != nil {
+		output.Status = generationOutputFailed
+		if failureRef, ok := ActionFailureOutputRef(*inspection.Failure); ok {
+			setGenerationOutputRef(&output, failureRef)
 		}
+		return output, false, nil, nil, nil
+	}
+	if refreshed, handled := refreshCompletedRunLoopOutput(node, output, payload); handled {
+		return refreshed, false, nil, nil, nil
 	}
 	output.Status = generationOutputSucceeded
 	return output, false, nil, nil, nil
@@ -300,15 +309,21 @@ func (r *CoordinatorRunner) refreshAwaitingChildOutput(
 	graph dsl.Graph,
 	output GenerationOutput,
 ) (GenerationOutput, bool, []task.CoordinatorStopSpec, error) {
-	childRunID := strings.TrimSpace(output.ChildLoopRunID)
+	childRunID := output.ChildLoopRunID
 	if childRunID == "" {
 		output.Status = generationOutputFailed
 		setGenerationOutputRef(&output, "child_loop_missing")
 		return output, false, nil, nil
 	}
+	if strings.TrimSpace(childRunID) != childRunID {
+		return invalidAwaitedChildIdentityOutput(output), false, nil, nil
+	}
 	child, err := r.store.GetLoopRunByID(ctx, RunID(childRunID))
 	if err != nil {
 		return GenerationOutput{}, false, nil, err
+	}
+	if child.WorkspaceID != parent.WorkspaceID || child.ParentLoopRunID != parent.ID {
+		return invalidAwaitedChildBoundaryOutput(output, child.ID), false, nil, nil
 	}
 	if child.Status.Terminal() {
 		switch child.Status {

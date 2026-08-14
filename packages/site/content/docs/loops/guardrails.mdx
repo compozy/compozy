@@ -50,6 +50,11 @@ resume. `paused` is operator-initiated; `needs-approval` is system-initiated by 
 generation) — they are never run states. `awaiting_child` marks a `run-loop` node in `await` mode
 parked until its child Loop terminates.
 
+While that child is live, the parent remains live, dependent nodes remain pending, and a daemon
+restart restores the same `child_loop_run_id` without submitting another child. A child ending
+`done` or `no-op` settles the node as `succeeded`; every other terminal child outcome settles it as
+`failed`. `mode: detach` remains immediate success and does not establish parent wait ownership.
+
 ## No-progress checks
 
 "Making progress" is measured from committed work, not elapsed wall time.
