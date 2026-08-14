@@ -893,6 +893,92 @@ func TestManagerPromptAdmissionReplay(t *testing.T) {
 		}
 	})
 
+	for _, test := range []struct {
+		name                 string
+		makeModelUnavailable func(t *testing.T, h *harness, session *Session)
+	}{
+		{
+			name: "Should replay a completed active Cursor prompt after its model becomes unavailable",
+			makeModelUnavailable: func(t *testing.T, _ *harness, session *Session) {
+				t.Helper()
+				session.mu.Lock()
+				defer session.mu.Unlock()
+				session.ACPCaps = acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
+					ID:       "model",
+					Category: "model",
+					Kind:     acp.SessionConfigOptionKindSelect,
+					Current:  "other-model",
+					Values:   []acp.SessionConfigOptionValue{{Value: "other-model"}},
+				}}}
+			},
+		},
+		{
+			name: "Should replay a completed stopped Cursor prompt after its model becomes unavailable",
+			makeModelUnavailable: func(t *testing.T, h *harness, session *Session) {
+				t.Helper()
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			queueStore := openManagerInputQueueStore(t)
+			h := newHarness(
+				t,
+				WithSessionInputQueueStore(queueStore),
+				WithModelCatalog(cursorModelCatalogStub{}),
+			)
+			registerManagerInputQueueWorkspace(t, queueStore, h)
+			session := createCursorPromptAdmissionSession(t, h)
+			registerManagerInputQueueSession(t, queueStore, h, session)
+			t.Cleanup(func() {
+				if _, active := h.manager.Get(session.ID); !active {
+					return
+				}
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+					t.Errorf("Stop() error = %v", err)
+				}
+			})
+
+			opts := SendPromptOpts{
+				Message: "one durable Cursor prompt", MessageID: "message-cursor-replay",
+				IdempotencyKey: "idem-cursor-replay",
+				Runtime: &RuntimeSelection{
+					Provider: "cursor", Model: cursorPromptAdmissionModel,
+				},
+			}
+			first, err := h.manager.SendPrompt(testutil.Context(t), session.ID, opts)
+			if err != nil {
+				t.Fatalf("SendPrompt(first) error = %v", err)
+			}
+			collectEvents(t, first.Events)
+
+			test.makeModelUnavailable(t, h, session)
+
+			replayed, err := h.manager.SendPrompt(testutil.Context(t), session.ID, opts)
+			if err != nil {
+				t.Fatalf("SendPrompt(replay) error = %v", err)
+			}
+			if !replayed.Replayed || replayed.Events != nil ||
+				replayed.Status != first.Status || replayed.MessageID != first.MessageID ||
+				replayed.IdempotencyKey != first.IdempotencyKey || replayed.NewTurnID != first.NewTurnID {
+				t.Fatalf("SendPrompt(replay) = %#v, want stable non-streaming replay of %#v", replayed, first)
+			}
+			if got := len(managerPromptCalls(h)); got != 1 {
+				t.Fatalf("len(promptCalls) = %d, want 1", got)
+			}
+			h.driver.mu.Lock()
+			startCalls := len(h.driver.startCalls)
+			h.driver.mu.Unlock()
+			if startCalls != 1 {
+				t.Fatalf("driver Start() calls = %d, want only initial create", startCalls)
+			}
+		})
+	}
+
 	t.Run("Should reject a Cursor alias before a retryable direct dispatch commit", func(t *testing.T) {
 		t.Parallel()
 

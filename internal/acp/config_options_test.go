@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"errors"
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -174,8 +175,10 @@ func TestConfigOptionMatching(t *testing.T) {
 		if err := ValidateModelConfigValue(options, advertised); err != nil {
 			t.Fatalf("ValidateModelConfigValue(advertised) error = %v", err)
 		}
-		if err := ValidateModelConfigValue(options, "cursor-grok-4.5-high"); err == nil {
-			t.Fatal("ValidateModelConfigValue(alias) error = nil, want exact-membership rejection")
+		err := ValidateModelConfigValue(options, "cursor-grok-4.5-high")
+		negotiationErr, ok := errors.AsType[*NegotiationError](err)
+		if !ok || negotiationErr.Code != NegotiationCodeModelUnavailable {
+			t.Fatalf("ValidateModelConfigValue(alias) error = %v, want model_unavailable NegotiationError", err)
 		}
 	})
 }

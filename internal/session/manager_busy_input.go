@@ -85,15 +85,27 @@ func (m *Manager) resolvePromptRuntimeAtAdmission(
 	session *Session,
 	requested *RuntimeSelection,
 ) (*RuntimeSelection, error) {
+	selection, err := m.preparePromptRuntimeSelection(ctx, session, requested)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.validateRuntimeModelAtAdmission(ctx, session, *selection); err != nil {
+		return nil, err
+	}
+	return selection, nil
+}
+
+func (m *Manager) preparePromptRuntimeSelection(
+	ctx context.Context,
+	session *Session,
+	requested *RuntimeSelection,
+) (*RuntimeSelection, error) {
 	selection, err := normalizePromptRuntimeSelection(session, requested)
 	if err != nil {
 		return nil, err
 	}
 	plan, err := m.preparePromptRuntimePlan(ctx, session, *selection)
 	if err != nil {
-		return nil, err
-	}
-	if err := m.validateRuntimeModelAtAdmission(ctx, session, plan.selection); err != nil {
 		return nil, err
 	}
 	return &plan.selection, nil
