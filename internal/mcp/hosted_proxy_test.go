@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/tools"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -505,6 +506,20 @@ func TestHostedProxyHelpers(t *testing.T) {
 		want := "workspace_access_denied: workspace denied: operator hint"
 		if got := hostedToolErrorMessage(transportErr); got != want {
 			t.Fatalf("hostedToolErrorMessage(transport) = %q, want reason and public message", got)
+		}
+
+		missingPathErr := tools.NewToolError(
+			tools.ErrorCodeNotFound,
+			tools.ToolIDConfigGet,
+			`config path "loops.inputs.extension-probe.preference" not found`,
+			tools.ErrToolNotFound,
+			tools.ReasonConfigPathNotFound,
+		)
+		status := core.StatusForToolError(missingPathErr)
+		missingPathResponse := core.ToolErrorResponseForError(missingPathErr, status, true)
+		got := hostedToolErrorMessage(hostedToolResponseError{response: missingPathResponse})
+		if want := "config_path_not_found: config path not found"; got != want {
+			t.Fatalf("hostedToolErrorMessage(missing config path) = %q, want %q", got, want)
 		}
 	})
 }

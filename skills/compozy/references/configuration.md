@@ -28,7 +28,7 @@ Settings changes surface lifecycle status, not just file writes. The public cont
 Use `compozy config reload -o json` to reconcile edited desired state with the active generation. Use `compozy config apply-history -o json` or `GET /api/settings/apply` to inspect persisted apply records. A settings write is incomplete until you can see whether it applied live, requires a daemon restart, affects only new sessions, or failed with retryable diagnostics.
 
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
-`compozy__config_get` reports an absent key as `config_path_not_found`; after `compozy__config_set`, read the same path again and confirm its structured value.
+`compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
 
 ## Gateway
 

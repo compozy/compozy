@@ -111,9 +111,9 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.Message = http.StatusText(status)
 	} else if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok {
 		payload.Code = toolErr.Code
-		payload.Message = safeToolErrorMessage(status, toolErr.Code)
 		payload.ToolID = toolErr.ToolID
 		payload.ReasonCodes = append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...)
+		payload.Message = safeToolErrorMessage(status, toolErr.Code, payload.ReasonCodes)
 		payload.Layer = toolErrorLayer(toolErr.ReasonCodes)
 		payload.Details = contract.ToolOperatorFailureDetails(toolErr.Operator)
 		if toolErr.PartialResult != nil {
@@ -122,11 +122,11 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		}
 	} else {
 		payload.Code = toolErrorCodeForStatus(status)
-		payload.Message = safeToolErrorMessage(status, payload.Code)
 		if reason, ok := toolspkg.ReasonOf(err); ok {
 			payload.ReasonCodes = []toolspkg.ReasonCode{reason}
 			payload.Layer = toolErrorLayer(payload.ReasonCodes)
 		}
+		payload.Message = safeToolErrorMessage(status, payload.Code, payload.ReasonCodes)
 	}
 	if maskInternal && status >= http.StatusInternalServerError &&
 		payload.Code != toolspkg.ErrorCodeResultPersistenceFailed {
@@ -138,7 +138,10 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 	return contract.ToolErrorResponse{Error: payload}
 }
 
-func safeToolErrorMessage(status int, code toolspkg.ErrorCode) string {
+func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) string {
+	if slices.Contains(reasons, toolspkg.ReasonConfigPathNotFound) {
+		return "config path not found"
+	}
 	switch code {
 	case toolspkg.ErrorCodeNotFound:
 		return "tool not found"

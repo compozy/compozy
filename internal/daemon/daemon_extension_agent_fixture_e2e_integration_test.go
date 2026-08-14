@@ -247,17 +247,23 @@ func assertExtensionHostedMCPTools(
 	if !ok {
 		t.Fatal("extension commands missing cy-review-round after exact-set assertion")
 	}
-	assertExtensionHostedToolReason(
+	missingConfigMessage := assertExtensionHostedToolReason(
 		t,
 		ctx,
 		client,
 		toolspkg.ToolIDConfigGet,
 		map[string]any{
-			"path":      "loops.inputs.batuta-deliver.auto_commit",
+			"path":      "loops.inputs.extension-probe.preference",
 			"workspace": harness.WorkspaceRoot,
 		},
 		toolspkg.ReasonConfigPathNotFound,
 	)
+	if want := "config_path_not_found: config path not found"; missingConfigMessage != want {
+		t.Fatalf("extension hosted config_get missing path message = %q, want %q", missingConfigMessage, want)
+	}
+	if strings.Contains(missingConfigMessage, "tool not found") {
+		t.Fatalf("extension hosted config_get missing path message = %q, must not identify the tool as missing", missingConfigMessage)
+	}
 
 	var foreign compozycontract.WorkspaceResponse
 	if err := harness.UDSJSON(
@@ -409,7 +415,7 @@ func assertExtensionHostedToolReason(
 	toolID toolspkg.ToolID,
 	arguments map[string]any,
 	want toolspkg.ReasonCode,
-) {
+) string {
 	t.Helper()
 	result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: toolID.String(), Arguments: arguments})
 	if err != nil {
@@ -425,6 +431,13 @@ func assertExtensionHostedToolReason(
 	if !strings.Contains(string(payload), string(want)) {
 		t.Fatalf("CallTool(%s) error result = %s, want reason %q", toolID, payload, want)
 	}
+	for _, content := range result.Content {
+		if text, ok := content.(*sdkmcp.TextContent); ok {
+			return text.Text
+		}
+	}
+	t.Fatalf("CallTool(%s) error result = %s, want text content", toolID, payload)
+	return ""
 }
 
 func assertPersistedExtensionSkillInvocation(

@@ -296,6 +296,30 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 func TestToolErrorResponses(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should describe a missing config path without reporting the tool missing", func(t *testing.T) {
+		t.Parallel()
+
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeNotFound,
+			toolspkg.ToolIDConfigGet,
+			`config path "loops.inputs.extension-probe.preference" not found`,
+			toolspkg.ErrToolNotFound,
+			toolspkg.ReasonConfigPathNotFound,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, true)
+
+		if status != http.StatusNotFound ||
+			payload.Error.Code != toolspkg.ErrorCodeNotFound ||
+			payload.Error.Message != "config path not found" ||
+			!slices.Equal(payload.Error.ReasonCodes, []toolspkg.ReasonCode{toolspkg.ReasonConfigPathNotFound}) {
+			t.Fatalf("missing config payload = %#v status=%d, want reason-aware 404", payload.Error, status)
+		}
+		if strings.Contains(payload.Error.Message, "tool not found") {
+			t.Fatalf("missing config message = %q, must not identify the tool as missing", payload.Error.Message)
+		}
+	})
+
 	t.Run("Should sanitize cross workspace denial details", func(t *testing.T) {
 		t.Parallel()
 
