@@ -774,6 +774,67 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		}
 	})
 
+	t.Run("Should invoke the installed CLI through its canonical version command", func(t *testing.T) {
+		t.Parallel()
+
+		const releaseVersion = "0.3.0-beta.16"
+		fixtureRoot := t.TempDir()
+		packageRoot := filepath.Join(fixtureRoot, "package")
+		binDir := filepath.Join(packageRoot, "bin")
+		if err := os.MkdirAll(binDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(bin) error = %v", err)
+		}
+
+		packageJSON := fmt.Sprintf(
+			`{"name":"@compozy/cli","version":%q,"bin":{"compozy":"bin/compozy"}}`,
+			releaseVersion,
+		)
+		if err := os.WriteFile(filepath.Join(packageRoot, "package.json"), []byte(packageJSON), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(package.json) error = %v", err)
+		}
+
+		fixtureCLI := `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >"${FAKE_COMPOZY_CALLS:?}"
+if [[ "$#" != "1" || "$1" != "version" ]]; then
+  printf 'error: unknown command: %s\n' "$*" >&2
+  exit 1
+fi
+printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
+`
+		if err := os.WriteFile(filepath.Join(binDir, "compozy"), []byte(fixtureCLI), 0o755); err != nil {
+			t.Fatalf("os.WriteFile(compozy fixture) error = %v", err)
+		}
+
+		callsPath := filepath.Join(fixtureRoot, "calls.txt")
+		cmd := exec.CommandContext(
+			t.Context(),
+			"bash",
+			filepath.Join(root, "scripts", "smoke-public-cli-package.sh"),
+			packageRoot,
+			releaseVersion,
+		)
+		cmd.Env = append(
+			os.Environ(),
+			"FAKE_COMPOZY_CALLS="+callsPath,
+			"FAKE_COMPOZY_VERSION="+releaseVersion,
+			"RUNNER_TEMP="+t.TempDir(),
+		)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("smoke-public-cli-package.sh error = %v, output = %s", err, output)
+		}
+		assertContainsText(t, "public CLI package smoke", string(output), "public CLI package smoke: PASS")
+
+		calls, err := os.ReadFile(callsPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(calls) error = %v", err)
+		}
+		if got := strings.TrimSpace(string(calls)); got != "version" {
+			t.Fatalf("CLI invocation = %q, want %q", got, "version")
+		}
+	})
+
 	t.Run("Should pin the shipping-platform matrix and Tauri v1 contract", func(t *testing.T) {
 		t.Parallel()
 

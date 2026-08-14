@@ -22,7 +22,7 @@ installed_version=$(node -e \
   exit 1
 }
 
-version_output=$("${prefix}/node_modules/.bin/compozy" --version)
+version_output=$("${prefix}/node_modules/.bin/compozy" version)
 if [[ "${version_output}" != *"${release_version}"* ]]; then
   echo "CLI binary version output does not contain ${release_version}: ${version_output}" >&2
   exit 1
