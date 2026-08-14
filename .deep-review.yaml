@@ -20,9 +20,7 @@ request_changes_workflow: true
 path_filters:
   # Prose, config, and data files — not line-reviewable source
   - "!docs/design/**/*"
-  - "!**/*.md"
   - "!**/*.mdc"
-  - "!**/*.mdx"
   - "!**/*.yaml"
   - "!**/*.yml"
   - "!**/*.json"
