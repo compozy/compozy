@@ -235,6 +235,84 @@ func TestControllerDecide(t *testing.T) {
 		}
 	})
 
+	t.Run("Should not update autonomous generated filename collisions", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		candidate := controllerTestCandidate(
+			"Cerne OS Specs Numbering Collision",
+			"Cerne OS has two specifications that use the same numeric prefix.\n",
+		)
+		candidate.Origin = memcontract.OriginExtractor
+		candidate.Entity = "cerne-os"
+		candidate.Attribute = "specs-numbering-collision"
+		candidate.Metadata = nil
+		candidate.Frontmatter.Filename = ""
+		target := controllerTestTarget(
+			"target-cerne-os",
+			"project_cerne_os.md",
+			"The release gate requires grounded, traceable answers.\n",
+		)
+		target.Entity = "cerne os"
+		target.Attribute = "project"
+
+		decision, err := New(fakeIndex{targets: []Target{target}}).Decide(ctx, candidate)
+		if err != nil {
+			t.Fatalf("Decide() error = %v", err)
+		}
+
+		if decision.Op != memcontract.OpNoop {
+			t.Fatalf("Decision.Op = %q, want noop", decision.Op.String())
+		}
+		if !slices.Equal(decision.Targets, []string{target.ID}) {
+			t.Fatalf("Decision.Targets = %#v, want %q", decision.Targets, target.ID)
+		}
+		if decision.PostContent != "" || decision.PriorContent != "" {
+			t.Fatalf(
+				"Decision replay material = post %q prior %q, want empty for noop",
+				decision.PostContent,
+				decision.PriorContent,
+			)
+		}
+	})
+
+	t.Run("Should not let a tiebreaker add over an autonomous generated filename collision", func(t *testing.T) {
+		t.Parallel()
+
+		candidate := controllerTestCandidate(
+			"Cerne OS Specs Numbering Collision",
+			"Cerne OS has two specifications that use the same numeric prefix.\n",
+		)
+		candidate.Origin = memcontract.OriginExtractor
+		candidate.Entity = "cerne-os"
+		candidate.Attribute = "specs-numbering-collision"
+		candidate.Metadata = nil
+		candidate.Frontmatter.Filename = ""
+		target := controllerTestTarget(
+			"target-cerne-os",
+			"project_cerne_os.md",
+			"The release gate requires grounded, traceable answers.\n",
+		)
+		target.Entity = "cerne os"
+		target.Attribute = "project"
+		tiebreaker := &fakeTiebreaker{result: TiebreakerResult{Op: memcontract.OpAdd}}
+
+		decision, err := New(
+			fakeIndex{targets: []Target{target}},
+			WithTiebreaker(tiebreaker),
+		).Decide(testutil.Context(t), candidate)
+		if err != nil {
+			t.Fatalf("Decide() error = %v", err)
+		}
+
+		if decision.Op != memcontract.OpNoop {
+			t.Fatalf("Decision.Op = %q, want noop", decision.Op.String())
+		}
+		if tiebreaker.calls != 0 {
+			t.Fatalf("Tiebreaker calls = %d, want 0", tiebreaker.calls)
+		}
+	})
+
 	t.Run("Should keep distinct non-ASCII names on separate generated filenames", func(t *testing.T) {
 		t.Parallel()
 

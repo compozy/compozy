@@ -71,6 +71,18 @@ func TestScanContent(t *testing.T) {
 			ruleID:  "policy_debugging_session",
 		},
 		{
+			name:    "Should reject memory controller operational chatter",
+			content: "The extractor rejected memory_propose because policy_repo_path matched the candidate.",
+			action:  ActionReject,
+			ruleID:  "policy_memory_operational_state",
+		},
+		{
+			name:    "Should reject native memory tool identifiers",
+			content: "The agent called compozy__memory_propose to update controller state.",
+			action:  ActionReject,
+			ruleID:  "policy_memory_operational_state",
+		},
+		{
 			name:    "Should reject already documented repository rules",
 			content: "This is already documented in AGENTS.md and should not be saved.",
 			action:  ActionReject,

@@ -230,6 +230,15 @@ var contentRules = []contentRule{
 		),
 	},
 	{
+		id:       "policy_memory_operational_state",
+		category: CategoryWhatNotToSave,
+		action:   ActionReject,
+		reason:   "matches WHAT_NOT_TO_SAVE memory operational-state policy",
+		pattern: regexp.MustCompile(
+			`(?i)\b(?:(?:compozy__)?memory_(?:propose|decisions_list|admin_history)|memory\.write\.(?:committed|rejected|shadowed)|policy_(?:repo_path|debugging_session|ephemeral_task_state))\b`,
+		),
+	},
+	{
 		id:       "policy_repository_documentation",
 		category: CategoryWhatNotToSave,
 		action:   ActionReject,
