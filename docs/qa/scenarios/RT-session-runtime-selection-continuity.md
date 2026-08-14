@@ -11,11 +11,14 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-durable-acp-sessions-20260804-164200-701355-lab/qa-artifacts/qa/evidence/01-selected-claude-fable-max.png;/Users/pedronauck/dev/qa-labs/compozy-durable-acp-sessions-20260804-164200-701355-lab/qa-artifacts/qa/evidence/03-stopped-promptable-selected-runtime.png;/Users/pedronauck/dev/qa-labs/compozy-durable-acp-sessions-20260804-164200-701355-lab/qa-artifacts/qa/evidence/runtime-selection-after-resume.json;/Users/pedronauck/dev/qa-labs/compozy-durable-acp-sessions-20260804-164200-701355-lab/qa-artifacts/qa/evidence/cli-runtime-set.json
-last_report: docs/qa/reports/2026-08-04-durable-acp-sessions.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-alias-prompt.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-exact-retry.json;docs/qa/reports/2026-08-13-issue-389-cursor-model.md
+last_report: docs/qa/reports/2026-08-13-issue-389-cursor-model.md
 overlaps: RT-072; ET-web-runtime-selector-minimal-slider
 ---
 
 Added by the 2026-08-04 durable ACP session fix. The selected runtime is session-scoped preference state; the effective runtime remains evidence of what the current or last ACP process actually used.
 
 QA 2026-08-04: Claude Fable 5 with Max reasoning survived manual stop, permalink reopen, browser reload, and daemon restart. HTTP readback and UDS CLI both addressed the same session and the next live prompt used the retained selection.
+
+QA impact 2026-08-13: a Cursor selection now persists only when its model is an exact live ACP value.
+Reset for a public selection readback and next-prompt continuity walk.

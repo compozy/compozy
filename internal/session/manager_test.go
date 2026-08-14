@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -405,8 +406,16 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Run("Should accept and persist an exact Cursor model id", func(t *testing.T) {
 		t.Parallel()
 
-		const cursorModel = "composer-2.5"
-		h := newHarness(t)
+		const cursorModel = "grok-4.5[effort=high,fast=true]"
+		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID:        "cursor",
+			ModelID:           cursorModel,
+			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			Sources: []modelcatalog.SourceRef{{
+				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+				SourceKind: modelcatalog.SourceKindProviderLive,
+			}},
+		}}}))
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName: "coder",
 			Provider:  "cursor",
@@ -429,11 +438,58 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve native default startup and persist the provider current model", func(t *testing.T) {
+	t.Run("Should reject an aliased Cursor agent default before session reservation", func(t *testing.T) {
 		t.Parallel()
 
-		const cursorModel = "cursor-grok-4.5-high"
-		h := newHarness(t)
+		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID:        "cursor",
+			ModelID:           "grok-4.5[effort=high,fast=true]",
+			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			Sources: []modelcatalog.SourceRef{{
+				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+				SourceKind: modelcatalog.SourceKindProviderLive,
+			}},
+		}}}))
+		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for index := range resolvedWorkspace.Agents {
+			if resolvedWorkspace.Agents[index].Name == "coder" {
+				resolvedWorkspace.Agents[index].Provider = "cursor"
+				resolvedWorkspace.Agents[index].Model = "cursor-grok-4.5-high"
+			}
+		}
+		h.resolver.upsert(&resolvedWorkspace)
+
+		_, err = h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		})
+		if err == nil || !strings.Contains(err.Error(), "not advertised by the live ACP catalog") {
+			t.Fatalf("Create() error = %v, want explicit Cursor catalog-membership rejection", err)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want no ACP launch", got)
+		}
+		if _, ok := h.manager.Get("sess-1"); ok {
+			t.Fatal("Create() registered an aliased Cursor session, want no active session")
+		}
+	})
+
+	t.Run("Should start an advertised Cursor agent default exactly", func(t *testing.T) {
+		t.Parallel()
+
+		const cursorModel = "grok-4.5[effort=high,fast=true]"
+		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID:        "cursor",
+			ModelID:           cursorModel,
+			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			Sources: []modelcatalog.SourceRef{{
+				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+				SourceKind: modelcatalog.SourceKindProviderLive,
+			}},
+		}}}))
 		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -442,6 +498,43 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			if resolvedWorkspace.Agents[index].Name == "coder" {
 				resolvedWorkspace.Agents[index].Provider = "cursor"
 				resolvedWorkspace.Agents[index].Model = cursorModel
+			}
+		}
+		h.resolver.upsert(&resolvedWorkspace)
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+		if got := h.driver.startCalls[0].PreferredModel; got != cursorModel {
+			t.Fatalf("StartOpts.PreferredModel = %q, want %q", got, cursorModel)
+		}
+		if got := readMeta(t, session.MetaPath()).Model; got != cursorModel {
+			t.Fatalf("meta.Model = %q, want %q", got, cursorModel)
+		}
+	})
+
+	t.Run("Should preserve native default startup and persist the provider current model", func(t *testing.T) {
+		t.Parallel()
+
+		const cursorModel = "grok-4.5[effort=high,fast=true]"
+		h := newHarness(t)
+		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for index := range resolvedWorkspace.Agents {
+			if resolvedWorkspace.Agents[index].Name == "coder" {
+				resolvedWorkspace.Agents[index].Provider = "cursor"
+				resolvedWorkspace.Agents[index].Model = ""
 			}
 		}
 		h.resolver.upsert(&resolvedWorkspace)
@@ -733,6 +826,31 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			t.Fatalf("driver start calls = %d, want 0", got)
 		}
 	})
+}
+
+type cursorModelCatalogStub struct {
+	models []modelcatalog.Model
+}
+
+func (s cursorModelCatalogStub) ListModels(
+	context.Context,
+	modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	return append([]modelcatalog.Model(nil), s.models...), nil
+}
+
+func (cursorModelCatalogStub) Refresh(
+	context.Context,
+	modelcatalog.RefreshOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	return nil, nil
+}
+
+func (cursorModelCatalogStub) ListSourceStatus(
+	context.Context,
+	string,
+) ([]modelcatalog.SourceStatus, error) {
+	return nil, nil
 }
 
 func TestCreateNotifiesSessionCreationBeforeImmediateExit(t *testing.T) {

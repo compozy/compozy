@@ -62,6 +62,15 @@ func (m *Manager) submitAdmittedGoalByTarget(
 	}
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
+	if replayed, err := m.replayPromptAdmission(ctx, admissionReq); err != nil || replayed != nil {
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		return *replayed, nil
+	}
+	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime); err != nil {
+		return SendPromptResult{}, err
+	}
 	return m.submitAdmittedGoalPrompt(ctx, target.session, preparation, opts, admissionReq)
 }
 
@@ -91,6 +100,9 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		}
 		return *replayed, nil
 	}
+	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime); err != nil {
+		return SendPromptResult{}, err
+	}
 	session := target.session
 	if session == nil {
 		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
@@ -117,7 +129,7 @@ func (m *Manager) resolvePromptAdmissionTarget(
 	requested *RuntimeSelection,
 ) (promptAdmissionTarget, error) {
 	if active, ok := m.Get(target); ok {
-		resolved, err := m.resolvePromptRuntimeAtAdmission(ctx, active, requested)
+		resolved, err := m.preparePromptRuntimeSelection(ctx, active, requested)
 		if err != nil {
 			return promptAdmissionTarget{}, err
 		}
@@ -360,6 +372,9 @@ func (m *Manager) submitAdmittedGoalPrompt(
 		return *replayed, nil
 	}
 	preparation.request = bindPromptAdmissionRequest(preparation.request, admission)
+	if err := m.validateActiveCursorRuntimeModel(session, preparation.request.runtime); err != nil {
+		return SendPromptResult{}, err
+	}
 	if err := m.commitPromptAdmissionDispatch(ctx, admission); err != nil {
 		return SendPromptResult{}, err
 	}

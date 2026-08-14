@@ -98,6 +98,10 @@ func (d *Driver) ApprovePermission(ctx context.Context, proc *AgentProcess, req 
 
 // Stop terminates the subprocess and waits for it to exit.
 func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
+	return d.stop(ctx, proc, false)
+}
+
+func (d *Driver) stop(ctx context.Context, proc *AgentProcess, inspection bool) error {
 	if ctx == nil {
 		return errors.New("acp: context is required")
 	}
@@ -129,7 +133,12 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 			d.logger.Warn("acp: checkpoint process interrupt", "pid", proc.PID, "error", err)
 		}
 	}
-	errs := d.cancelSessionForStop(ctx, proc)
+	var errs []error
+	if inspection {
+		errs = d.closeInspectedSession(ctx, proc)
+	} else {
+		errs = d.cancelSessionForStop(ctx, proc)
+	}
 	if proc.handle != nil {
 		return stopAgentProcessAndWait(ctx, proc, errs, proc.handle.Stop)
 	}
@@ -138,6 +147,24 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 	}
 
 	return d.stopExecCommand(ctx, proc, errs)
+}
+
+func (d *Driver) closeInspectedSession(ctx context.Context, proc *AgentProcess) []error {
+	if proc == nil || strings.TrimSpace(proc.SessionID) == "" || !proc.CapsSnapshot().SupportsCloseSession {
+		return nil
+	}
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
+	_, err := acpsdk.SendRequest[acpsdk.CloseSessionResponse](
+		proc.conn,
+		closeCtx,
+		acpsdk.AgentMethodSessionClose,
+		acpsdk.CloseSessionRequest{SessionId: acpsdk.SessionId(proc.SessionID)},
+	)
+	if err != nil && !errors.Is(err, context.Canceled) {
+		return []error{fmt.Errorf("acp: close inspected session: %w", err)}
+	}
+	return nil
 }
 
 func (d *Driver) cancelSessionForStop(ctx context.Context, proc *AgentProcess) []error {

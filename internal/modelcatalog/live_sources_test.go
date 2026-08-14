@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -235,20 +236,23 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should parse exact Cursor account model ids from the native CLI", func(t *testing.T) {
+	t.Run("Should use exact Cursor ACP model values instead of CLI aliases", func(t *testing.T) {
 		t.Parallel()
 
-		executor := &fakeDiscoveryExecutor{result: DiscoveryCommandResult{Stdout: `Available models
-
-auto - Auto (default)
-composer-2.5 - Composer 2.5
-
-Tip: use --model <id> to select a model
-`}}
+		probe := &fakeCursorACPModelProbe{options: []acp.SessionConfigOption{{
+			ID:       "model",
+			Category: "model",
+			Kind:     acp.SessionConfigOptionKindSelect,
+			Current:  "grok-4.5[effort=high,fast=true]",
+			Values: []acp.SessionConfigOptionValue{
+				{Value: "grok-4.5[effort=high,fast=true]", Label: "Grok 4.5"},
+				{Value: "composer-2.5", Label: "Composer 2.5"},
+			},
+		}}}
 		provider := compozyconfig.ProviderConfig{HomePolicy: compozyconfig.ProviderHomePolicyOperator}
 		source := newLiveSourceForTest(t, "cursor", provider, LiveProviderSourcesConfig{
-			BaseEnv:         []string{"PATH=/bin", "HOME=/Users/operator"},
-			CommandExecutor: executor,
+			BaseEnv:        []string{"PATH=/bin", "HOME=/Users/operator"},
+			CursorACPProbe: probe,
 		})
 
 		rows, err := source.ListModels(testutil.Context(t), ListOptions{
@@ -258,38 +262,56 @@ Tip: use --model <id> to select a model
 		if err != nil {
 			t.Fatalf("ListModels() error = %v", err)
 		}
-		if got, want := rowModelIDs(rows), []string{"auto", "composer-2.5"}; !slices.Equal(got, want) {
+		if got, want := rowModelIDs(rows), []string{
+			"composer-2.5",
+			"grok-4.5[effort=high,fast=true]",
+		}; !slices.Equal(got, want) {
 			t.Fatalf("row ids = %#v, want %#v", got, want)
 		}
-		if rows[0].DisplayName != "Auto (default)" || rows[1].DisplayName != "Composer 2.5" {
-			t.Fatalf("display names = %q/%q, want Cursor labels", rows[0].DisplayName, rows[1].DisplayName)
+		if rows[0].DisplayName != "Composer 2.5" || rows[1].DisplayName != "Grok 4.5" {
+			t.Fatalf("display names = %q/%q, want ACP labels", rows[0].DisplayName, rows[1].DisplayName)
 		}
 		if !source.BootstrapOnList() {
 			t.Fatal("BootstrapOnList() = false, want true")
 		}
-		req := executor.singleRequest(t)
-		if req.Command != "cursor-agent" || !slices.Equal(req.Args, []string{"models"}) {
-			t.Fatalf("command = %q %#v, want cursor-agent models", req.Command, req.Args)
+		req := probe.singleRequest(t)
+		if req.Command != cursorACPCommand {
+			t.Fatalf("command = %q, want %s", req.Command, cursorACPCommand)
 		}
 		if got := envValue(req.Env, "HOME"); got != "/Users/operator" {
 			t.Fatalf("HOME = %q, want operator home", got)
 		}
 	})
 
-	t.Run("Should reject Cursor command output without model rows", func(t *testing.T) {
+	t.Run("Should reject Cursor ACP sessions without advertised model values", func(t *testing.T) {
 		t.Parallel()
 
-		executor := &fakeDiscoveryExecutor{result: DiscoveryCommandResult{
-			Stdout: "Available models\n\nTip: sign in to list models\n",
-		}}
+		probe := &fakeCursorACPModelProbe{options: []acp.SessionConfigOption{{
+			ID: "model", Kind: acp.SessionConfigOptionKindSelect,
+		}}}
 		source := newLiveSourceForTest(t, "cursor", compozyconfig.ProviderConfig{}, LiveProviderSourcesConfig{
-			BaseEnv:         []string{"PATH=/bin"},
-			CommandExecutor: executor,
+			BaseEnv:        []string{"PATH=/bin"},
+			CursorACPProbe: probe,
 		})
 
 		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "cursor", Now: testTime(0)})
-		if err == nil || !strings.Contains(err.Error(), "returned no model rows") {
-			t.Fatalf("ListModels() error = %v, want no model rows", err)
+		if err == nil || !strings.Contains(err.Error(), "did not advertise model values") {
+			t.Fatalf("ListModels() error = %v, want missing ACP model values", err)
+		}
+	})
+
+	t.Run("Should reject a configured Cursor discovery endpoint", func(t *testing.T) {
+		t.Parallel()
+
+		provider := compozyconfig.ProviderConfig{}
+		provider.Models.Discovery.Endpoint = "https://models.example.test/cursor"
+		source := newLiveSourceForTest(t, "cursor", provider, LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=/bin"},
+		})
+
+		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "cursor", Now: testTime(0)})
+		if err == nil || !strings.Contains(err.Error(), "requires an ACP discovery command") {
+			t.Fatalf("ListModels() error = %v, want ACP discovery configuration rejection", err)
 		}
 	})
 
@@ -390,7 +412,7 @@ Tip: use --model <id> to select a model
 		if status.RefreshState != RefreshStateFailed {
 			t.Fatalf("RefreshState = %q, want failed", status.RefreshState)
 		}
-		if !strings.Contains(status.LastError, "no configured side-effect-free") {
+		if !strings.Contains(status.LastError, "no configured model discovery") {
 			t.Fatalf("LastError = %q, want no configured discovery path", status.LastError)
 		}
 	})
@@ -713,8 +735,8 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 		if targetErr != nil {
 			t.Fatalf("Cursor discoveryTarget() error = %v", targetErr)
 		}
-		if target.kind != liveDiscoveryCommand || target.command != "cursor-agent models" {
-			t.Fatalf("Cursor discovery target = %#v, want cursor-agent models command", target)
+		if target.kind != liveDiscoveryACP || target.command != cursorACPCommand {
+			t.Fatalf("Cursor discovery target = %#v, want cursor-agent ACP command", target)
 		}
 	})
 
@@ -945,6 +967,33 @@ type fakeDiscoveryExecutor struct {
 	result   DiscoveryCommandResult
 	err      error
 	requests []DiscoveryCommandRequest
+}
+
+type fakeCursorACPModelProbe struct {
+	mu       sync.Mutex
+	options  []acp.SessionConfigOption
+	err      error
+	requests []CursorACPModelProbeRequest
+}
+
+func (p *fakeCursorACPModelProbe) InspectCursorModels(
+	_ context.Context,
+	req CursorACPModelProbeRequest,
+) ([]acp.SessionConfigOption, error) {
+	p.mu.Lock()
+	p.requests = append(p.requests, req)
+	p.mu.Unlock()
+	return acp.CloneSessionConfigOptions(p.options), p.err
+}
+
+func (p *fakeCursorACPModelProbe) singleRequest(t *testing.T) CursorACPModelProbeRequest {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.requests) != 1 {
+		t.Fatalf("len(requests) = %d, want 1", len(p.requests))
+	}
+	return p.requests[0]
 }
 
 func (e *fakeDiscoveryExecutor) RunDiscoveryCommand(

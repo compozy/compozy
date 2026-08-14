@@ -892,6 +892,136 @@ func TestManagerPromptAdmissionReplay(t *testing.T) {
 			t.Fatalf("SendPrompt(reused message id) error = %v, want message identity conflict", err)
 		}
 	})
+
+	for _, test := range []struct {
+		name                 string
+		makeModelUnavailable func(t *testing.T, h *harness, session *Session)
+	}{
+		{
+			name: "Should replay a completed active Cursor prompt after its model becomes unavailable",
+			makeModelUnavailable: func(t *testing.T, _ *harness, session *Session) {
+				t.Helper()
+				session.mu.Lock()
+				defer session.mu.Unlock()
+				session.ACPCaps = acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
+					ID:       "model",
+					Category: "model",
+					Kind:     acp.SessionConfigOptionKindSelect,
+					Current:  "other-model",
+					Values:   []acp.SessionConfigOptionValue{{Value: "other-model"}},
+				}}}
+			},
+		},
+		{
+			name: "Should replay a completed stopped Cursor prompt after its model becomes unavailable",
+			makeModelUnavailable: func(t *testing.T, h *harness, session *Session) {
+				t.Helper()
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			queueStore := openManagerInputQueueStore(t)
+			h := newHarness(
+				t,
+				WithSessionInputQueueStore(queueStore),
+				WithModelCatalog(cursorModelCatalogStub{}),
+			)
+			registerManagerInputQueueWorkspace(t, queueStore, h)
+			session := createCursorPromptAdmissionSession(t, h)
+			registerManagerInputQueueSession(t, queueStore, h, session)
+			t.Cleanup(func() {
+				if _, active := h.manager.Get(session.ID); !active {
+					return
+				}
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+					t.Errorf("Stop() error = %v", err)
+				}
+			})
+
+			opts := SendPromptOpts{
+				Message: "one durable Cursor prompt", MessageID: "message-cursor-replay",
+				IdempotencyKey: "idem-cursor-replay",
+				Runtime: &RuntimeSelection{
+					Provider: "cursor", Model: cursorPromptAdmissionModel,
+				},
+			}
+			first, err := h.manager.SendPrompt(testutil.Context(t), session.ID, opts)
+			if err != nil {
+				t.Fatalf("SendPrompt(first) error = %v", err)
+			}
+			collectEvents(t, first.Events)
+
+			test.makeModelUnavailable(t, h, session)
+
+			replayed, err := h.manager.SendPrompt(testutil.Context(t), session.ID, opts)
+			if err != nil {
+				t.Fatalf("SendPrompt(replay) error = %v", err)
+			}
+			if !replayed.Replayed || replayed.Events != nil ||
+				replayed.Status != first.Status || replayed.MessageID != first.MessageID ||
+				replayed.IdempotencyKey != first.IdempotencyKey || replayed.NewTurnID != first.NewTurnID {
+				t.Fatalf("SendPrompt(replay) = %#v, want stable non-streaming replay of %#v", replayed, first)
+			}
+			if got := len(managerPromptCalls(h)); got != 1 {
+				t.Fatalf("len(promptCalls) = %d, want 1", got)
+			}
+			h.driver.mu.Lock()
+			startCalls := len(h.driver.startCalls)
+			h.driver.mu.Unlock()
+			if startCalls != 1 {
+				t.Fatalf("driver Start() calls = %d, want only initial create", startCalls)
+			}
+		})
+	}
+
+	t.Run("Should reject a Cursor alias before a retryable direct dispatch commit", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		sess := createCursorPromptAdmissionSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		_, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "use Cursor Grok", MessageID: "cursor-alias-direct",
+			IdempotencyKey: "cursor-alias-direct",
+			Runtime: &RuntimeSelection{
+				Provider: "cursor", Model: "cursor-grok-4.5-high",
+			},
+		})
+		assertCursorAliasRejectedBeforeDispatch(t, err)
+		assertManagerPromptAdmissionCount(t, queueStore, sess.ID, 0)
+		if calls := managerPromptCalls(h); len(calls) != 0 {
+			t.Fatalf("ACP prompt calls after alias rejection = %d, want 0", len(calls))
+		}
+
+		accepted, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "use Cursor Grok", MessageID: "cursor-alias-direct",
+			IdempotencyKey: "cursor-alias-direct",
+			Runtime: &RuntimeSelection{
+				Provider: "cursor", Model: cursorPromptAdmissionModel,
+			},
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(retry with advertised Cursor model) error = %v", err)
+		}
+		collectEvents(t, accepted.Events)
+		assertManagerPromptAdmissionCount(t, queueStore, sess.ID, 1)
+		if calls := managerPromptCalls(h); len(calls) != 1 {
+			t.Fatalf("ACP prompt calls after advertised retry = %d, want 1", len(calls))
+		}
+	})
 }
 
 func TestManagerBusyInputPromptAdmissionReplay(t *testing.T) {
@@ -1518,6 +1648,65 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		}
 	})
 
+	t.Run("Should reject a Cursor alias before a retryable Goal dispatch commit", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		handlerCalls := 0
+		h := newHarness(t,
+			WithSessionInputQueueStore(queueStore),
+			WithGoalCommandHandler(GoalCommandHandlerFunc(func(
+				context.Context,
+				string,
+				string,
+				PromptCaller,
+				GoalCommand,
+			) (GoalDispatchDecision, error) {
+				handlerCalls++
+				return GoalDispatchDecision{
+					Kind:   GoalDispatchRespond,
+					Result: &GoalCommandResult{Outcome: GoalOutcomeStatus},
+				}, nil
+			})),
+		)
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		sess := createCursorPromptAdmissionSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+		caller := PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+
+		_, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "/goal status", AllowCommands: true, Caller: caller,
+			MessageID: "cursor-alias-goal", IdempotencyKey: "cursor-alias-goal",
+			Runtime: &RuntimeSelection{Provider: "cursor", Model: "cursor-grok-4.5-high"},
+		})
+		assertCursorAliasRejectedBeforeDispatch(t, err)
+		assertManagerPromptAdmissionCount(t, queueStore, sess.ID, 0)
+		if handlerCalls != 0 {
+			t.Fatalf("Goal handler calls after alias rejection = %d, want 0", handlerCalls)
+		}
+
+		accepted, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "/goal status", AllowCommands: true, Caller: caller,
+			MessageID: "cursor-alias-goal", IdempotencyKey: "cursor-alias-goal",
+			Runtime: &RuntimeSelection{Provider: "cursor", Model: cursorPromptAdmissionModel},
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(retry advertised Goal model) error = %v", err)
+		}
+		if accepted.Goal == nil || accepted.Goal.Outcome != GoalOutcomeStatus {
+			t.Fatalf("Goal retry result = %#v, want status result", accepted)
+		}
+		assertManagerPromptAdmissionCount(t, queueStore, sess.ID, 1)
+		if handlerCalls != 1 {
+			t.Fatalf("Goal handler calls after advertised retry = %d, want 1", handlerCalls)
+		}
+	})
+
 	t.Run("Should return a structured command result without invoking ACP", func(t *testing.T) {
 		t.Parallel()
 
@@ -1859,6 +2048,71 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		releaseActiveOnce.Do(func() { close(releaseActive) })
 		collectEvents(t, active.Events)
 	})
+}
+
+const cursorPromptAdmissionModel = "grok-4.5[effort=high,fast=true]"
+
+func createCursorPromptAdmissionSession(t *testing.T, h *harness) *Session {
+	t.Helper()
+
+	resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	for index := range resolvedWorkspace.Agents {
+		if resolvedWorkspace.Agents[index].Name == "coder" {
+			resolvedWorkspace.Agents[index].Provider = "cursor"
+			resolvedWorkspace.Agents[index].Model = ""
+		}
+	}
+	h.resolver.upsert(&resolvedWorkspace)
+	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+		proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-cursor-prompt-admission")
+		proc.handle.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
+			ID:       "model",
+			Category: "model",
+			Kind:     acp.SessionConfigOptionKindSelect,
+			Current:  cursorPromptAdmissionModel,
+			Values:   []acp.SessionConfigOptionValue{{Value: cursorPromptAdmissionModel}},
+		}}})
+		return proc, nil
+	}
+	return createSession(t, h)
+}
+
+func assertCursorAliasRejectedBeforeDispatch(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("Cursor alias submission error = nil, want exact-membership rejection")
+	}
+	negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
+	if !ok || negotiationErr.Code != acp.NegotiationCodeModelUnavailable {
+		t.Fatalf("Cursor alias submission error = %v, want model_unavailable NegotiationError", err)
+	}
+	if errors.Is(err, store.ErrSessionPromptDispatchIndeterminate) {
+		t.Fatalf("Cursor alias submission error = %v, must remain retryable", err)
+	}
+}
+
+func assertManagerPromptAdmissionCount(
+	t *testing.T,
+	queueStore *globaldb.GlobalDB,
+	sessionID string,
+	want int,
+) {
+	t.Helper()
+
+	var count int
+	if err := queueStore.DB().QueryRowContext(
+		testutil.Context(t),
+		"SELECT COUNT(*) FROM session_prompt_admissions WHERE session_id = ?",
+		sessionID,
+	).Scan(&count); err != nil {
+		t.Fatalf("count session_prompt_admissions error = %v", err)
+	}
+	if count != want {
+		t.Fatalf("session_prompt_admissions = %d, want %d", count, want)
+	}
 }
 
 func TestManagerBusyInputManagedLifecycle(t *testing.T) {

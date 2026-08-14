@@ -189,7 +189,8 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 	}
 
 	process.setCaps(Caps{
-		SupportsLoadSession: initializeResponse.AgentCapabilities.LoadSession,
+		SupportsLoadSession:  initializeResponse.AgentCapabilities.LoadSession,
+		SupportsCloseSession: initializeResponse.AgentCapabilities.SessionCapabilities.Close != nil,
 	})
 	return nil
 }

@@ -17,6 +17,8 @@ const (
 	liveDiscoveryNone    liveDiscoveryKind = ""
 	liveDiscoveryHTTP    liveDiscoveryKind = "http"
 	liveDiscoveryCommand liveDiscoveryKind = "command"
+	liveDiscoveryACP     liveDiscoveryKind = "acp"
+	cursorACPCommand                       = "cursor-agent acp"
 )
 
 type liveAuthScheme string
@@ -108,10 +110,9 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		defaultCommand: "opencode models",
 	},
 	liveSourcesCursorKey: {
-		defaultKind:      liveDiscoveryCommand,
-		defaultCommand:   "cursor-agent models",
-		bootstrapOnList:  true,
-		parseCommandRows: parseCursorModelRows,
+		defaultKind:     liveDiscoveryACP,
+		defaultCommand:  cursorACPCommand,
+		bootstrapOnList: true,
 	},
 	"openclaw": {
 		defaultKind: liveDiscoveryNone,
@@ -139,7 +140,7 @@ func (s *LiveProviderSource) discoveryTarget(
 			return liveDiscoveryTarget{}, ErrSourceDisabled
 		}
 		return liveDiscoveryTarget{}, fmt.Errorf(
-			"model catalog: provider %q has no configured side-effect-free model discovery command or endpoint",
+			"model catalog: provider %q has no configured model discovery path",
 			s.providerID,
 		)
 	}
@@ -148,10 +149,20 @@ func (s *LiveProviderSource) discoveryTarget(
 		return liveDiscoveryTarget{}, err
 	}
 	if configuredEndpoint != "" {
+		if s.adapter.defaultKind == liveDiscoveryACP {
+			return liveDiscoveryTarget{}, fmt.Errorf(
+				"model catalog: provider %q requires an ACP discovery command, not an endpoint",
+				s.providerID,
+			)
+		}
 		return liveDiscoveryTarget{kind: liveDiscoveryHTTP, endpoint: configuredEndpoint, timeout: timeout}, nil
 	}
 	if configuredCommand != "" {
-		return liveDiscoveryTarget{kind: liveDiscoveryCommand, command: configuredCommand, timeout: timeout}, nil
+		kind := liveDiscoveryCommand
+		if s.adapter.defaultKind == liveDiscoveryACP {
+			kind = liveDiscoveryACP
+		}
+		return liveDiscoveryTarget{kind: kind, command: configuredCommand, timeout: timeout}, nil
 	}
 	switch s.adapter.defaultKind {
 	case liveDiscoveryHTTP:
@@ -166,9 +177,15 @@ func (s *LiveProviderSource) discoveryTarget(
 			command: s.adapter.defaultCommand,
 			timeout: timeout,
 		}, nil
+	case liveDiscoveryACP:
+		return liveDiscoveryTarget{
+			kind:    liveDiscoveryACP,
+			command: s.adapter.defaultCommand,
+			timeout: timeout,
+		}, nil
 	default:
 		return liveDiscoveryTarget{}, fmt.Errorf(
-			"model catalog: provider %q has no configured side-effect-free model discovery command or endpoint",
+			"model catalog: provider %q has no configured model discovery path",
 			s.providerID,
 		)
 	}

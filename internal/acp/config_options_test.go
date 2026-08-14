@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"errors"
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -157,6 +158,27 @@ func TestConfigOptionMatching(t *testing.T) {
 		}
 		if configOptionAllowsValue(options[0], "true") {
 			t.Fatal("configOptionAllowsValue() accepted boolean option as select")
+		}
+	})
+
+	t.Run("Should require an exact advertised model value", func(t *testing.T) {
+		t.Parallel()
+
+		advertised := "grok-4.5[effort=high,fast=true]"
+		options := []SessionConfigOption{{
+			ID:       "model",
+			Kind:     SessionConfigOptionKindSelect,
+			Values:   []SessionConfigOptionValue{{Value: advertised}},
+			Current:  advertised,
+			Category: string(acpsdk.SessionConfigOptionCategoryModel),
+		}}
+		if err := ValidateModelConfigValue(options, advertised); err != nil {
+			t.Fatalf("ValidateModelConfigValue(advertised) error = %v", err)
+		}
+		err := ValidateModelConfigValue(options, "cursor-grok-4.5-high")
+		negotiationErr, ok := errors.AsType[*NegotiationError](err)
+		if !ok || negotiationErr.Code != NegotiationCodeModelUnavailable {
+			t.Fatalf("ValidateModelConfigValue(alias) error = %v, want model_unavailable NegotiationError", err)
 		}
 	})
 }

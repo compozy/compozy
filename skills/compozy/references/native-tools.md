@@ -120,7 +120,11 @@ one-time secret must be issued.
 
 `compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and `default_effort`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found` and `reasoning_effort_unsupported` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
-Cursor's first catalog list discovers the signed-in account through `cursor-agent models`, stores the exact IDs under `provider_live:cursor`, and leaves subsequent discovery to `compozy__provider_models_refresh` or `compozy provider models refresh cursor`.
+Cursor catalog discovery starts a short-lived `cursor-agent acp` session and stores the exact values
+advertised by its `model` option under `provider_live:cursor`. Do not use the human-readable
+`cursor-agent models` aliases as model IDs. An explicit Cursor model refreshes and must match the
+live catalog; omitting it preserves Cursor's native default. Refresh through
+`compozy__provider_models_refresh` or `compozy provider models refresh cursor`.
 `providers.cursor.models.discovery.*` config writes apply live: changed discovery wiring refreshes the Cursor source, while model metadata-only writes do not invoke the provider.
 Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.
 

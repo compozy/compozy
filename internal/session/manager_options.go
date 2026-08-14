@@ -6,6 +6,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
@@ -99,6 +100,13 @@ func WithAgentResolver(resolver AgentResolver) Option {
 func WithProviderSecretResolver(resolver ProviderSecretResolver) Option {
 	return func(manager *Manager) {
 		manager.providerSecrets = resolver
+	}
+}
+
+// WithModelCatalog injects the live model catalog used to validate explicit runtime models.
+func WithModelCatalog(catalog modelcatalog.Service) Option {
+	return func(manager *Manager) {
+		manager.modelCatalog = catalog
 	}
 }
 

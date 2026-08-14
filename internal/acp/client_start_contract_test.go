@@ -425,6 +425,61 @@ func TestStartCapturesSessionConfigOptions(t *testing.T) {
 	}
 }
 
+func TestInspectSessionConfigOptionsDoesNotMutateTheACPNewSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inspect options without mutating the new ACP session", func(t *testing.T) {
+		t.Parallel()
+
+		captureFile := filepath.Join(t.TempDir(), "session-inspection.jsonl")
+		options, err := InspectSessionConfigOptions(testutil.Context(t), SessionInspectionRequest{
+			AgentName: "helper",
+			Command:   helperCommand(t),
+			Cwd:       t.TempDir(),
+			Env:       helperEnvWithCapture("config_options", "", captureFile),
+		})
+		if err != nil {
+			t.Fatalf("InspectSessionConfigOptions() error = %v", err)
+		}
+		assertConfigOption(t, options, "model", "new-model", "new-model", "loaded-model", "other-model")
+		if !captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionNew) {
+			t.Fatal("session/new was not sent during ACP inspection")
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetMode) {
+			t.Fatal("session/set_mode was sent during ACP inspection")
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("session/set_config_option was sent during ACP inspection")
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionCancel) {
+			t.Fatal("session/cancel was sent during ACP inspection")
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionClose) {
+			t.Fatal("session/close was sent without an advertised close capability")
+		}
+	})
+}
+
+func TestStopCancelsANonInspectionSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should cancel a non-inspection session", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-stop-cancel.jsonl")
+		proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+			Env: helperEnvWithCapture("config_options", "", captureFile),
+		})
+		if err := driver.Stop(testutil.Context(t), proc); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		if !captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionCancel) {
+			t.Fatal("session/cancel was not sent for a non-inspection session")
+		}
+	})
+}
+
 func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	t.Parallel()
 
@@ -450,6 +505,35 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 		t.Fatalf("set-config value = %q, want other-model", got)
 	}
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
+}
+
+func TestStartRejectsModelOutsideAdvertisedConfigOptionsBeforeSetConfigOption(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject an unadvertised model before applying config", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-set-config-model-rejected.jsonl")
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:      "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			PreferredModel: "cursor-grok-4.5-high",
+			Env:            helperEnvWithCapture("config_options", "", captureFile),
+		})
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+			t.Fatalf("Start() process = %#v, want nil after membership rejection", proc)
+		}
+		negotiationErr, ok := errors.AsType[*NegotiationError](err)
+		if !ok || negotiationErr.Code != NegotiationCodeModelUnavailable {
+			t.Fatalf("Start() error = %v, want model_unavailable NegotiationError", err)
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("session/set_config_option was sent for a model outside the advertised values")
+		}
+	})
 }
 
 func TestStartHandlesCurrentSessionConfigValues(t *testing.T) {

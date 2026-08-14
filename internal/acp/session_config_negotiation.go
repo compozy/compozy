@@ -63,37 +63,50 @@ func (d *Driver) applySessionModel(
 	}
 
 	caps := process.CapsSnapshot()
-	if option, ok := findModelConfigOption(caps.ConfigOptions); ok {
-		if !configOptionAllowsValue(option, modelID) {
-			return false, newNegotiationError(
-				NegotiationCodeModelUnavailable,
-				sessionConfigModelKey,
-				modelID,
-				option.ID,
-				configOptionChoices(option),
-				nil,
-			)
-		}
-		if err := d.applySessionConfigOption(ctx, process, option.ID, modelID); err != nil {
-			return true, newNegotiationError(
-				NegotiationCodeModelUnavailable,
-				sessionConfigModelKey,
-				modelID,
-				option.ID,
-				configOptionChoices(option),
-				err,
-			)
-		}
-		return true, nil
+	if err := ValidateModelConfigValue(caps.ConfigOptions, modelID); err != nil {
+		return false, err
 	}
+	option, _ := ModelConfigOption(caps.ConfigOptions)
+	if err := d.applySessionConfigOption(ctx, process, option.ID, modelID); err != nil {
+		return true, newNegotiationError(
+			NegotiationCodeModelUnavailable,
+			sessionConfigModelKey,
+			modelID,
+			option.ID,
+			configOptionChoices(option),
+			err,
+		)
+	}
+	return true, nil
+}
 
-	return false, newNegotiationError(
+// ValidateModelConfigValue verifies that modelID is an exact advertised ACP model value.
+func ValidateModelConfigValue(options []SessionConfigOption, modelID string) error {
+	modelID = strings.TrimSpace(modelID)
+	if modelID == "" {
+		return nil
+	}
+	option, ok := ModelConfigOption(options)
+	if !ok {
+		return newNegotiationError(
+			NegotiationCodeModelUnavailable,
+			sessionConfigModelKey,
+			modelID,
+			"",
+			nil,
+			errModelConfigOptionRequired,
+		)
+	}
+	if configOptionAllowsValue(option, modelID) {
+		return nil
+	}
+	return newNegotiationError(
 		NegotiationCodeModelUnavailable,
 		sessionConfigModelKey,
 		modelID,
-		"",
+		option.ID,
+		configOptionChoices(option),
 		nil,
-		errModelConfigOptionRequired,
 	)
 }
 

@@ -54,7 +54,17 @@ func (m *Manager) updateRuntimeSelection(
 		return nil, errors.New("session: session id is required")
 	}
 	if active, ok := m.Get(target); ok {
+		if selection != nil {
+			if err := m.validateRuntimeModelAtAdmission(ctx, active, *selection); err != nil {
+				return nil, err
+			}
+		}
 		return m.updateActiveRuntimeSelection(ctx, active, selection, expectedRevision)
+	}
+	if selection != nil {
+		if err := m.validateRuntimeModelAtAdmission(ctx, nil, *selection); err != nil {
+			return nil, err
+		}
 	}
 	return m.updateStoppedRuntimeSelection(ctx, target, selection, expectedRevision)
 }

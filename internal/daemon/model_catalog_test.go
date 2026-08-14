@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -58,19 +59,19 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		enabled := true
 		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
 			Enabled: &enabled,
-			Command: "cursor-old models",
+			Command: "cursor-old",
 			Timeout: "2s",
 		}
 		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
 
-		executor := &configReloadDiscoveryExecutor{}
+		probe := &configReloadCursorACPProbe{}
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
 			modelcatalog.LiveProviderSourcesConfig{
-				HomePaths:       homePaths,
-				CommandExecutor: executor,
-				DefaultTimeout:  5 * time.Second,
+				HomePaths:      homePaths,
+				CursorACPProbe: probe,
+				DefaultTimeout: 5 * time.Second,
 			},
 		)
 		if err != nil {
@@ -115,15 +116,15 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		next := cfg
 		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
 		provider = next.Providers["cursor"]
-		provider.Models.Discovery.Command = "cursor-new models"
+		provider.Models.Discovery.Command = "cursor-new"
 		provider.Models.Discovery.Timeout = "3s"
 		next.Providers["cursor"] = provider
 		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
 			t.Fatalf("ReconcileConfig(new discovery command) error = %v", err)
 		}
-		request := executor.LastRequest(t)
-		if request.Command != "cursor-new" || !slices.Equal(request.Args, []string{"models"}) {
-			t.Fatalf("discovery request = %#v, want cursor-new models", request)
+		request := probe.LastRequest(t)
+		if request.Command != "cursor-new" {
+			t.Fatalf("discovery request = %#v, want cursor-new", request)
 		}
 		if request.Timeout != 3*time.Second {
 			t.Fatalf("discovery timeout = %s, want 3s", request.Timeout)
@@ -141,7 +142,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatalf("ListModels(after live config) = %#v, want only new-model", models)
 		}
 
-		callsBeforeMetadata := executor.CallCount()
+		callsBeforeMetadata := probe.CallCount()
 		provider = next.Providers["cursor"]
 		provider.Models.Curated = append(provider.Models.Curated, compozyconfig.ProviderModelConfig{
 			ID: "metadata-only",
@@ -150,12 +151,12 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
 			t.Fatalf("ReconcileConfig(metadata only) error = %v", err)
 		}
-		if calls := executor.CallCount(); calls != callsBeforeMetadata {
+		if calls := probe.CallCount(); calls != callsBeforeMetadata {
 			t.Fatalf("discovery calls after metadata edit = %d, want %d", calls, callsBeforeMetadata)
 		}
 
 		provider = next.Providers["cursor"]
-		provider.Models.Discovery.Command = "cursor-offline models"
+		provider.Models.Discovery.Command = "cursor-offline"
 		next.Providers["cursor"] = provider
 		if err := runtime.ReconcileConfig(ctx, &next); err != nil {
 			t.Fatalf("ReconcileConfig(offline discovery) error = %v", err)
@@ -224,20 +225,20 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		provider.Models.Default = "config-a"
 		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
 			Enabled: &enabled,
-			Command: "cursor-a models",
+			Command: "cursor-a",
 			Timeout: "2s",
 		}
 		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
 
-		executor := newGenerationDiscoveryExecutor()
-		t.Cleanup(executor.releaseAll)
+		probe := newGenerationCursorACPProbe()
+		t.Cleanup(probe.releaseAll)
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
 			modelcatalog.LiveProviderSourcesConfig{
-				HomePaths:       homePaths,
-				CommandExecutor: executor,
-				DefaultTimeout:  5 * time.Second,
+				HomePaths:      homePaths,
+				CursorACPProbe: probe,
+				DefaultTimeout: 5 * time.Second,
 			},
 		)
 		if err != nil {
@@ -280,24 +281,24 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			})
 			refreshA <- refreshErr
 		}()
-		executor.waitForCommand(t, "cursor-a")
+		probe.waitForCommand(t, "cursor-a")
 
 		next := cfg
 		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
 		provider = next.Providers["cursor"]
 		provider.Models.Default = "config-b"
-		provider.Models.Discovery.Command = "cursor-b models"
+		provider.Models.Discovery.Command = "cursor-b"
 		next.Providers["cursor"] = provider
 		reconcileB := make(chan error, 1)
 		go func() {
 			reconcileB <- runtime.ReconcileConfig(ctx, &next)
 		}()
 
-		executor.release("cursor-a")
+		probe.release("cursor-a")
 		if refreshErr := waitForCatalogTestError(t, refreshA, "config A refresh"); refreshErr != nil {
 			t.Fatalf("Refresh(config A) error = %v", refreshErr)
 		}
-		executor.waitForCommand(t, "cursor-b")
+		probe.waitForCommand(t, "cursor-b")
 
 		type listResult struct {
 			models []modelcatalog.Model
@@ -322,7 +323,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		default:
 		}
 
-		executor.release("cursor-b")
+		probe.release("cursor-b")
 		if reconcileErr := waitForCatalogTestError(t, reconcileB, "config B reconcile"); reconcileErr != nil {
 			t.Fatalf("ReconcileConfig(config B) error = %v", reconcileErr)
 		}
@@ -336,7 +337,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			containsCatalogModel(result.models, "cursor", "live-a") {
 			t.Fatalf("ListModels(after config B) = %#v, want only generation B rows", result.models)
 		}
-		if got, want := executor.commands(), []string{"cursor-a", "cursor-b"}; !slices.Equal(got, want) {
+		if got, want := probe.commands(), []string{"cursor-a", "cursor-b"}; !slices.Equal(got, want) {
 			t.Fatalf("discovery commands = %#v, want %#v", got, want)
 		}
 	})
@@ -411,19 +412,19 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		enabled := true
 		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
 			Enabled: &enabled,
-			Command: "cursor-a models",
+			Command: "cursor-a",
 			Timeout: "2s",
 		}
 		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
-		executor := newGenerationDiscoveryExecutor()
-		t.Cleanup(executor.releaseAll)
+		probe := newGenerationCursorACPProbe()
+		t.Cleanup(probe.releaseAll)
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
 			modelcatalog.LiveProviderSourcesConfig{
-				HomePaths:       homePaths,
-				CommandExecutor: executor,
-				DefaultTimeout:  5 * time.Second,
+				HomePaths:      homePaths,
+				CursorACPProbe: probe,
+				DefaultTimeout: 5 * time.Second,
 			},
 		)
 		if err != nil {
@@ -460,13 +461,13 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		next := cfg
 		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
 		provider = next.Providers["cursor"]
-		provider.Models.Discovery.Command = "cursor-b models"
+		provider.Models.Discovery.Command = "cursor-b"
 		next.Providers["cursor"] = provider
 		reconcileResult := make(chan error, 1)
 		go func() {
 			reconcileResult <- runtime.ReconcileConfig(ctx, &next)
 		}()
-		executor.waitForCommand(t, "cursor-b")
+		probe.waitForCommand(t, "cursor-b")
 
 		type statusResult struct {
 			statuses []modelcatalog.SourceStatus
@@ -504,7 +505,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatal("ListSourceStatus(canceled context) waited for generation publication")
 		}
 
-		executor.release("cursor-b")
+		probe.release("cursor-b")
 		if reconcileErr := waitForCatalogTestError(
 			t,
 			reconcileResult,
@@ -626,19 +627,19 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		enabled := true
 		provider.Models.Discovery = compozyconfig.ProviderModelsDiscoveryConfig{
 			Enabled: &enabled,
-			Command: "cursor-old models",
+			Command: "cursor-old",
 			Timeout: "2s",
 		}
 		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
 
-		executor := &configReloadDiscoveryExecutor{}
+		probe := &configReloadCursorACPProbe{}
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
 			modelcatalog.LiveProviderSourcesConfig{
-				HomePaths:       homePaths,
-				CommandExecutor: executor,
-				DefaultTimeout:  5 * time.Second,
+				HomePaths:      homePaths,
+				CursorACPProbe: probe,
+				DefaultTimeout: 5 * time.Second,
 			},
 		)
 		if err != nil {
@@ -681,7 +682,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		next := cfg
 		next.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
 		provider = next.Providers["cursor"]
-		provider.Models.Discovery.Command = "cursor-offline models"
+		provider.Models.Discovery.Command = "cursor-offline"
 		next.Providers["cursor"] = provider
 		err = runtime.ReconcileConfig(ctx, &next)
 		if !errors.Is(err, persistErr) {
@@ -702,7 +703,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if len(rows) != 1 || rows[0].ModelID != "old-model" {
 			t.Fatalf("live source rows after failed reconcile = %#v, want old provider snapshot", rows)
 		}
-		if request := executor.LastRequest(t); request.Command != "cursor-old" {
+		if request := probe.LastRequest(t); request.Command != "cursor-old" {
 			t.Fatalf("live source command after failed reconcile = %q, want cursor-old", request.Command)
 		}
 	})
@@ -1278,33 +1279,33 @@ type recordingModelCatalogService struct {
 	lastList     modelcatalog.ListOptions
 }
 
-type configReloadDiscoveryExecutor struct {
+type configReloadCursorACPProbe struct {
 	mu       sync.Mutex
-	requests []modelcatalog.DiscoveryCommandRequest
+	requests []modelcatalog.CursorACPModelProbeRequest
 }
 
-type generationDiscoveryExecutor struct {
+type generationCursorACPProbe struct {
 	mu        sync.Mutex
-	requests  []modelcatalog.DiscoveryCommandRequest
-	started   chan modelcatalog.DiscoveryCommandRequest
+	requests  []modelcatalog.CursorACPModelProbeRequest
+	started   chan modelcatalog.CursorACPModelProbeRequest
 	releaseA  chan struct{}
 	releaseB  chan struct{}
 	releaseAO sync.Once
 	releaseBO sync.Once
 }
 
-func newGenerationDiscoveryExecutor() *generationDiscoveryExecutor {
-	return &generationDiscoveryExecutor{
-		started:  make(chan modelcatalog.DiscoveryCommandRequest, 2),
+func newGenerationCursorACPProbe() *generationCursorACPProbe {
+	return &generationCursorACPProbe{
+		started:  make(chan modelcatalog.CursorACPModelProbeRequest, 2),
 		releaseA: make(chan struct{}),
 		releaseB: make(chan struct{}),
 	}
 }
 
-func (e *generationDiscoveryExecutor) RunDiscoveryCommand(
+func (e *generationCursorACPProbe) InspectCursorModels(
 	ctx context.Context,
-	req modelcatalog.DiscoveryCommandRequest,
-) (modelcatalog.DiscoveryCommandResult, error) {
+	req modelcatalog.CursorACPModelProbeRequest,
+) ([]acp.SessionConfigOption, error) {
 	e.mu.Lock()
 	e.requests = append(e.requests, req)
 	e.mu.Unlock()
@@ -1320,20 +1321,17 @@ func (e *generationDiscoveryExecutor) RunDiscoveryCommand(
 		release = e.releaseB
 		modelID = "live-b"
 	default:
-		return modelcatalog.DiscoveryCommandResult{}, fmt.Errorf("unexpected discovery command %q", req.Command)
+		return nil, fmt.Errorf("unexpected discovery command %q", req.Command)
 	}
 	select {
 	case <-release:
 	case <-ctx.Done():
-		return modelcatalog.DiscoveryCommandResult{}, ctx.Err()
+		return nil, ctx.Err()
 	}
-	return modelcatalog.DiscoveryCommandResult{
-		Stdout:   modelID + " - " + modelID,
-		ExitCode: 0,
-	}, nil
+	return cursorModelOptions(modelID), nil
 }
 
-func (e *generationDiscoveryExecutor) waitForCommand(t *testing.T, want string) {
+func (e *generationCursorACPProbe) waitForCommand(t *testing.T, want string) {
 	t.Helper()
 	select {
 	case req := <-e.started:
@@ -1345,7 +1343,7 @@ func (e *generationDiscoveryExecutor) waitForCommand(t *testing.T, want string) 
 	}
 }
 
-func (e *generationDiscoveryExecutor) release(command string) {
+func (e *generationCursorACPProbe) release(command string) {
 	switch command {
 	case "cursor-a":
 		e.releaseAO.Do(func() { close(e.releaseA) })
@@ -1354,12 +1352,12 @@ func (e *generationDiscoveryExecutor) release(command string) {
 	}
 }
 
-func (e *generationDiscoveryExecutor) releaseAll() {
+func (e *generationCursorACPProbe) releaseAll() {
 	e.release("cursor-a")
 	e.release("cursor-b")
 }
 
-func (e *generationDiscoveryExecutor) commands() []string {
+func (e *generationCursorACPProbe) commands() []string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	commands := make([]string, 0, len(e.requests))
@@ -1402,31 +1400,26 @@ func (s *failingModelCatalogStore) ReplaceSourceRowsBatch(
 	return s.Store.ReplaceSourceRowsBatch(ctx, replacements)
 }
 
-func (e *configReloadDiscoveryExecutor) RunDiscoveryCommand(
+func (e *configReloadCursorACPProbe) InspectCursorModels(
 	_ context.Context,
-	req modelcatalog.DiscoveryCommandRequest,
-) (modelcatalog.DiscoveryCommandResult, error) {
+	req modelcatalog.CursorACPModelProbeRequest,
+) ([]acp.SessionConfigOption, error) {
 	e.mu.Lock()
 	e.requests = append(e.requests, req)
 	e.mu.Unlock()
 	if req.Command == "cursor-offline" {
-		return modelcatalog.DiscoveryCommandResult{}, errors.New("cursor discovery offline")
+		return nil, errors.New("cursor discovery offline")
 	}
 	modelID := "old-model"
-	displayName := "Old Model"
 	if req.Command == "cursor-new" {
 		modelID = "new-model"
-		displayName = "New Model"
 	}
-	return modelcatalog.DiscoveryCommandResult{
-		Stdout:   modelID + " - " + displayName,
-		ExitCode: 0,
-	}, nil
+	return cursorModelOptions(modelID), nil
 }
 
-func (e *configReloadDiscoveryExecutor) LastRequest(
+func (e *configReloadCursorACPProbe) LastRequest(
 	t *testing.T,
-) modelcatalog.DiscoveryCommandRequest {
+) modelcatalog.CursorACPModelProbeRequest {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -1436,10 +1429,22 @@ func (e *configReloadDiscoveryExecutor) LastRequest(
 	return e.requests[len(e.requests)-1]
 }
 
-func (e *configReloadDiscoveryExecutor) CallCount() int {
+func (e *configReloadCursorACPProbe) CallCount() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return len(e.requests)
+}
+
+func cursorModelOptions(modelID string) []acp.SessionConfigOption {
+	return []acp.SessionConfigOption{{
+		ID:       "model",
+		Category: "model",
+		Kind:     acp.SessionConfigOptionKindSelect,
+		Values: []acp.SessionConfigOptionValue{{
+			Value: modelID,
+			Label: modelID,
+		}},
+	}}
 }
 
 func (s *recordingModelCatalogService) ListModels(

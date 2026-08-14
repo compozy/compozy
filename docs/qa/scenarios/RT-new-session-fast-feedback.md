@@ -11,8 +11,8 @@ bug_ids: BUG-20260713-cursor-model-startup-contract; BUG-20260713-new-session-mo
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/new-session-modal-timing.json;/Users/pedronauck/dev/qa-labs/compozy-qa-rt-current-source-20260730-20260730-061631-252740-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/04-session-open-after-create.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md
-last_report: docs/qa/reports/2026-07-30-session-runtime-selector.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-live-create.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-native-default-unset.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-native-create.json;docs/qa/reports/2026-08-13-issue-389-cursor-model.md
+last_report: docs/qa/reports/2026-08-13-issue-389-cursor-model.md
 overlaps: RT-010
 ---
 
@@ -49,3 +49,7 @@ QA impact 2026-07-25: first-message creation is now atomic: the `201 starting` s
 QA impact 2026-07-29: stopping immediately after durable acceptance now waits for the event recorder
 and serializes the terminal transition with the immutable launch-identity commit. Reset remains
 `untested`; a fresh browser timing/failure-path replay owns the final verdict.
+
+QA impact 2026-08-13: an explicit Cursor model now has to match a fresh ACP-advertised catalog value
+before creation; an omitted Cursor model must still use Cursor's native default. Reset for a fresh
+create walk.
