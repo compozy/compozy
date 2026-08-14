@@ -202,30 +202,8 @@ func (c *Controller) writeDecision(
 	targets []Target,
 	trace []memcontract.RuleHit,
 ) (memcontract.Decision, error) {
-	if collision := exactFilenameTarget(normalized, targets); collision != nil {
-		if isAutonomousWriteOrigin(normalized.Origin) && !hasExplicitTargetFilename(normalized) {
-			return c.decision(
-				normalized,
-				memcontract.OpNoop,
-				[]Target{*collision},
-				collision.TargetFilename,
-				"",
-				append(
-					trace,
-					failedRule(
-						"autonomous_generated_slug_collision",
-						"generated filename does not establish update identity for autonomous writes",
-						[]string{collision.ID},
-					),
-				),
-				"autonomous generated filename collision requires an explicit target",
-				nil,
-			)
-		}
-		return c.updateDecision(normalized, *collision, append(
-			trace,
-			passedRule("exact_slug_collision", "target filename already exists", collision.ID),
-		))
+	if decision, matched, err := c.filenameCollisionDecision(normalized, targets, trace); matched {
+		return decision, err
 	}
 	slotMatches := entitySlotTargets(normalized, targets)
 	switch len(slotMatches) {

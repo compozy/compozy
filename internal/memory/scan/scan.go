@@ -55,6 +55,8 @@ type contentRule struct {
 	pattern  *regexp.Regexp
 }
 
+const memoryOperationalStateRuleID = "policy_memory_operational_state"
+
 type runeRule struct {
 	id     string
 	r      rune
@@ -230,12 +232,12 @@ var contentRules = []contentRule{
 		),
 	},
 	{
-		id:       "policy_memory_operational_state",
+		id:       memoryOperationalStateRuleID,
 		category: CategoryWhatNotToSave,
 		action:   ActionReject,
 		reason:   "matches WHAT_NOT_TO_SAVE memory operational-state policy",
 		pattern: regexp.MustCompile(
-			`(?i)\b(?:(?:compozy__)?memory_(?:propose|decisions_list|admin_history)|memory\.write\.(?:committed|rejected|shadowed)|policy_(?:repo_path|debugging_session|ephemeral_task_state))\b`,
+			`(?i)\b(?:(?:compozy__)?memory_[a-z][a-z0-9_]*|memory\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*|policy_(?:memory_[a-z][a-z0-9_]*|repo_path|debugging_session|ephemeral_task_state))\b`,
 		),
 	},
 	{
