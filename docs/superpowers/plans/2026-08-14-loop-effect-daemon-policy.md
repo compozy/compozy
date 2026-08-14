@@ -105,16 +105,17 @@ mise exec -- go test -race ./internal/daemon -count=1
    - no `agent not available` or session-ID authorization error occurs;
    - a foreign-workspace target remains denied;
    - no public `loop-effect` agent appears.
-4. Update the existing LP scenario/report with structured CLI/HTTP/UDS evidence and complete mandatory teardown with `"clean": true`.
-5. Run scoped format, lint, convention, and diff checks. Run `deslop`, review the complete diff, and resolve every real finding.
-6. After all writes are complete, run exactly once:
+4. Walk the same completed run in the Web UI and capture visual evidence that its terminal outcome and successful effect result agree with the structured CLI/HTTP/UDS reads.
+5. Update the existing LP scenario/report with visual and structured evidence, then complete mandatory teardown with `"clean": true`.
+6. Run scoped format, lint, convention, and diff checks. Run `deslop`, review the complete diff, and resolve every real finding.
+7. After all writes are complete, run exactly once:
 
 ```bash
 mise exec -- make gate-full
 make gate-status
 ```
 
-7. Create conventional local commits, rebase on the latest `upstream/main` if it advanced, push the feature branch, and open a PR titled:
+8. Create conventional local commits, rebase on the latest `upstream/main` if it advanced, push the feature branch, and open a PR titled:
 
 ```text
 fix: authorize daemon-owned loop tool effects
