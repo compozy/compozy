@@ -20,16 +20,25 @@ func piCredentialEnv(
 		targetEnv := strings.TrimSpace(slot.TargetEnv)
 		if strings.TrimSpace(slot.Kind) == providerRuntimeAPIKeyKey &&
 			injectedProviderTargetEnv(targetEnv, injectedTargetEnvs) {
-			return targetEnv
+			return piEnvInterpolationRef(targetEnv)
 		}
 	}
 	for _, slot := range slots {
 		targetEnv := strings.TrimSpace(slot.TargetEnv)
 		if injectedProviderTargetEnv(targetEnv, injectedTargetEnvs) {
-			return targetEnv
+			return piEnvInterpolationRef(targetEnv)
 		}
 	}
 	return ""
+}
+
+// piEnvInterpolationRef formats a credential slot target environment variable
+// as a Pi value-resolution reference. Pi treats models.json apiKey values
+// without a leading "$" as literals, so a bare env var name would be sent to
+// the provider as the bearer token itself instead of interpolating the value
+// CompozyOS injects into the subprocess environment.
+func piEnvInterpolationRef(targetEnv string) string {
+	return "$" + strings.TrimPrefix(targetEnv, "$")
 }
 
 func injectedProviderTargetEnv(targetEnv string, injectedTargetEnvs map[string]struct{}) bool {

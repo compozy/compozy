@@ -371,8 +371,8 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		assertProviderRuntimeFileMode(t, filepath.Join(runtimeDir, "settings.json"), 0o600)
 		models := readProviderJSON[piModelsFile](t, filepath.Join(runtimeDir, "models.json"))
 		provider := models.Providers["openrouter"]
-		if provider.APIKey != "OPENROUTER_API_KEY" {
-			t.Fatalf("models.json apiKey = %q, want injected env name", provider.APIKey)
+		if provider.APIKey != "$OPENROUTER_API_KEY" {
+			t.Fatalf("models.json apiKey = %q, want injected env interpolation ref", provider.APIKey)
 		}
 		if provider.BaseURL != "https://openrouter.ai/api/v1" || provider.API != "openai" {
 			t.Fatalf("models.json provider = %#v, want base URL and API transport", provider)
@@ -797,8 +797,14 @@ func assertPiRuntimeEnvContract(
 	if provider.APIKey == "" {
 		t.Fatalf("models.json providers[%q].apiKey = empty, want env var reference", providerName)
 	}
-	if got := envValue(opts.Env, provider.APIKey); got != wantSecret {
-		t.Fatalf("child env %s = %q, want resolved provider secret", provider.APIKey, got)
+	// Pi interpolates only values with a leading "$"; the bare env name would be
+	// sent as the literal bearer token.
+	if !strings.HasPrefix(provider.APIKey, "$") {
+		t.Fatalf("models.json providers[%q].apiKey = %q, want $ENV interpolation ref", providerName, provider.APIKey)
+	}
+	envName := strings.TrimPrefix(provider.APIKey, "$")
+	if got := envValue(opts.Env, envName); got != wantSecret {
+		t.Fatalf("child env %s = %q, want resolved provider secret", envName, got)
 	}
 }
 
