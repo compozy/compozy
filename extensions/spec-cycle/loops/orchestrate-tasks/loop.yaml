@@ -1,0 +1,89 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: orchestrate-tasks
+  description: Delegate every authored task for one slug to a dedicated worker session conducted by an orchestrator agent.
+  catalog:
+    use_when: "You have authored tasks under .compozy/tasks/<slug> and want one orchestrator agent to conduct them — spawning a bounded worker session per task and proving completion on disk — instead of the loop fanning out per task itself."
+    keywords: [tasks, orchestrate, sessions, engineering]
+    category: Engineering
+
+concurrency: forbid
+
+inputs:
+  slug:
+    type: string
+    required: true
+  orchestrator:
+    type: agent
+    default: general
+
+contract:
+  goal: >
+    Drive every authored task under .compozy/tasks/{{ .inputs.slug }} to completed by delegating
+    each task to its own worker session.
+  definition_of_done: >
+    Every task file for the slug carries status completed and no worker session created by the
+    orchestrator is still active.
+  iteration_cap: 3
+  no_progress:
+    window: 2
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: slug_input
+      class: source
+      kind: input
+      input_ref: slug
+
+    - id: orchestrate
+      class: action
+      kind: goal
+      session:
+        mode: continuous
+      params:
+        agent: "{{ .inputs.orchestrator }}"
+        objective: |
+          Activate the `cy-orchestrate-tasks` skill and follow it strictly for the spec
+          `.compozy/tasks/{{ .inputs.slug }}`.
+
+          Conduct only. Read the task graph and spawn one bounded worker session per task,
+          in dependency order. For each task: dispatch the briefing, wait for the turn to end,
+          re-read the task frontmatter as proof, and stop the worker session before advancing.
+          Implementation belongs to the workers — leave every code edit to them.
+
+          Return `status`, `summary`, and `tasks`, naming each task with the worker session id that
+          executed it. Use `completed` only when every task file carries `status: completed`.
+        judge:
+          - id: tasks_completed
+            type: command
+            check: >-
+              for f in .compozy/tasks/{{ .inputs.slug | shellQuote }}/task_*.md; do
+              grep -q '^status: completed' "$f" || exit 1; done
+        max_turns: 12
+        output_schema:
+          type: object
+          required: [status, summary]
+          properties:
+            status:
+              enum: [completed, blocked]
+            summary:
+              type: string
+            tasks:
+              type: array
+
+  edges:
+    - from: slug_input
+      to: orchestrate
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool

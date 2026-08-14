@@ -428,7 +428,7 @@ describe("loops-api (against MSW mock handlers)", () => {
       {
         id: "load_tasks",
         class: "action",
-        kind: "ext__dev_cycle__import_tasks",
+        kind: "ext__spec_cycle__import_tasks",
         depends_on: ["slug_input"],
       },
       {

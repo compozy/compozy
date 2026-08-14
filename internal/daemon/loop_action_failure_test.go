@@ -18,7 +18,7 @@ func TestLoopActionFailureMetadataShouldPreserveSafeOperatorDetail(t *testing.T)
 
 		cause := toolspkg.NewOperatorToolError(
 			toolspkg.ErrorCodeInvalidInput,
-			"ext__dev_cycle__import_tasks",
+			"ext__spec_cycle__import_tasks",
 			"task set missing",
 			toolspkg.ErrToolInvalidInput,
 			"No task set matched .compozy/tasks/launch/task_*.md; api_key=secret-value.",

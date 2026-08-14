@@ -100,7 +100,7 @@ Follow **inspect → validate → dry-run → publish (with `expected_version`) 
 5. **run** — `compozy__loop_run`. Only now does the Loop spend tokens.
 
 New Loops start as a fork (`compozy__loop_create` with `fork_from_name`); there is no blank-canvas
-authoring. Read-only sources — including the default `dev-cycle` Loops — must be forked before you
+authoring. Read-only sources — including the default `spec-cycle` Loops — must be forked before you
 adapt them; native mutation is `tool_denied`/`loop_source_immutable`.
 
 Deleting a workspace-authored Loop also removes its stored config override and editor annotations.
@@ -432,8 +432,25 @@ bounded before storage; reads are scoped to the run's workspace. The closed even
 A Loop with a `watch-source` node is a watch Loop. It holds `watching` between ticks, defaults to
 `iteration_cap: 0` (`∞`, never `exhausted`), ends a clean tick `no-op`, and ends on silence past its
 window `stalled` (reason `watch_source_silence`). Watch sources are extension-defined; the bundled
-`dev-cycle` extension does not publish one. Every `watch/poll` response must carry a stable
+`spec-cycle` extension does not publish one. Every `watch/poll` response must carry a stable
 `event_key`; missing, invalid UTF-8, or values over 256 bytes fail before admission, with no fallback.
+
+## Orchestrated Task Delivery
+
+The bundled `orchestrate-tasks` Loop delivers an authored spec by delegation instead of fan-out.
+Start it with `compozy loop run --workspace <workspace-id> --name orchestrate-tasks --input slug=<slug>`.
+The optional `orchestrator` input selects the conducting agent and defaults to `general`.
+
+Its single Goal node runs that agent continuously and instructs it to follow the `cy-orchestrate-tasks`
+skill: one `compozy spawn` worker session per task, in graph order, each dispatched with a blocking
+`compozy session prompt` and stopped with `compozy session stop` on every path out. The Loop pins no
+provider or model — workers inherit the runtime resolved for the agent they are spawned with, and
+operators own delivery-wide pinning through `[loops.defaults.delivery.runtime_defaults]`.
+
+A `type: command` judge runs from the workspace root and passes only when every
+`.compozy/tasks/<slug>/task_*.md` carries `status: completed`. The orchestrator's report never closes
+the Goal; the task files do. Use `implement-tasks` instead when the Loop itself should fan out over
+the same task files.
 
 ## Agent-Authored Review and Fix
 
@@ -441,11 +458,11 @@ The bundled `review-and-fix` Loop reviews a named task without a pull-request pr
 `compozy loop run --workspace <workspace-id> --name review-and-fix --input task_name=<task>`.
 Optional `reviewer` and `fixer` inputs select agents; `auto_commit` defaults to `false`.
 
-The reviewer returns source-agnostic structured issues. `ext__dev_cycle__write_review_artifacts`
+The reviewer returns source-agnostic structured issues. `ext__spec_cycle__write_review_artifacts`
 creates the next exclusive `.compozy/tasks/<task>/reviews-NNN/` round inside the authenticated
 workspace, validates file containment, and returns complete batches of issue-file paths. The fixer
 reads each batch and changes `status: pending` only to `valid` or `invalid`; it never creates,
-renames, timestamps, or resolves an issue file. `ext__dev_cycle__finalize_review_round` alone changes
+renames, timestamps, or resolves an issue file. `ext__spec_cycle__finalize_review_round` alone changes
 triaged statuses to `resolved` and returns structured `{resolved, invalid, pending}` counts. The next
 generation reviews the task again; an empty `issues` array ends the run. Neither artifact tool input
 accepts a workspace root.

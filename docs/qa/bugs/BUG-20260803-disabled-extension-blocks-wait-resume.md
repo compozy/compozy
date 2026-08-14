@@ -40,4 +40,4 @@ An operator could not resume an already-running Loop wait after disabling an ext
 ## Verification
 
 - **Retested:** 2026-08-03, same persona/journey · **Report:** docs/qa/reports/2026-08-03-loop-node-lifecycle-task08.md
-- **Result:** Pass. With `dev-cycle` still disabled, the rebuilt daemon returned HTTP 200 and consumed the open wait.
+- **Result:** Pass. With `spec-cycle` still disabled, the rebuilt daemon returned HTTP 200 and consumed the open wait.

@@ -64,7 +64,7 @@ export const implementTasksGraph = {
     {
       id: "load_tasks",
       class: "action",
-      kind: "ext__dev_cycle__import_tasks",
+      kind: "ext__spec_cycle__import_tasks",
       params: { pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md" },
       produces: { tasks: "array" },
     },

@@ -60,7 +60,7 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 		})
 		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
-		requireDevCycleExtensionEnabled(t, ctx, harness)
+		requireSpecCycleExtensionEnabled(t, ctx, harness)
 		configureExtensionAgentFixture(
 			t,
 			ctx,

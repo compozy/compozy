@@ -61,7 +61,7 @@ export const reviewAndFixDefinition: LoopDefinition = {
       {
         id: "write_artifacts",
         class: "action",
-        kind: "ext__dev_cycle__write_review_artifacts",
+        kind: "ext__spec_cycle__write_review_artifacts",
       },
       {
         id: "fix_batches",
@@ -77,7 +77,7 @@ export const reviewAndFixDefinition: LoopDefinition = {
       {
         id: "finalize_round",
         class: "action",
-        kind: "ext__dev_cycle__finalize_review_round",
+        kind: "ext__spec_cycle__finalize_review_round",
       },
     ],
     edges: [

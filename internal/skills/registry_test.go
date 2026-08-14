@@ -1959,7 +1959,7 @@ func TestRegistryLoadContent(t *testing.T) {
 		t.Fatalf("LoadContent(bundled) = %q, want %q", bundledContent, "Bundled body")
 	}
 
-	extensionSkillDir := filepath.Join(root, "extensions", "dev-cycle", "skills", "extension-bundled")
+	extensionSkillDir := filepath.Join(root, "extensions", "spec-cycle", "skills", "extension-bundled")
 	writeSkillFile(
 		t,
 		filepath.Dir(extensionSkillDir),
@@ -1979,7 +1979,7 @@ func TestRegistryLoadContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseSkillFileWithSource(extension bundled) error = %v", err)
 	}
-	extensionSkill.InstalledFromExtension = "dev-cycle"
+	extensionSkill.InstalledFromExtension = "spec-cycle"
 	extensionContent, err := registry.LoadContent(context.Background(), extensionSkill)
 	if err != nil {
 		t.Fatalf("LoadContent(extension bundled) error = %v", err)

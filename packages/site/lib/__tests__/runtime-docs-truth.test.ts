@@ -478,10 +478,11 @@ describe("runtime docs truth", () => {
     const loopExamples = [
       { page: "docs/examples/review-and-fix-loop.mdx", loop: "review-and-fix" },
       { page: "docs/examples/implement-tasks-loop.mdx", loop: "implement-tasks" },
+      { page: "docs/examples/orchestrate-tasks-loop.mdx", loop: "orchestrate-tasks" },
     ];
 
     for (const { page, loop } of loopExamples) {
-      const relativePath = `extensions/dev-cycle/loops/${loop}/loop.yaml`;
+      const relativePath = `extensions/spec-cycle/loops/${loop}/loop.yaml`;
       const shipped = readRepoFile(relativePath);
       const pageContent = readFileSync(resolve(contentRoot, page), "utf8");
       const fence = pageContent.match(

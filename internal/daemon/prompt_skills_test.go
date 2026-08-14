@@ -302,7 +302,7 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			agentResolver: func() session.AgentResolver { return resolver },
 		}
 		agent := compozyconfig.AgentDef{
-			Name: "reviewer", SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+			Name: "reviewer", SourcePath: "/extensions/spec-cycle/agents/reviewer/AGENT.md",
 		}
 		if _, err := augmenter.skillsForSessionAgent(
 			t.Context(), workspace, agent, "sess-extension",
@@ -316,7 +316,10 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			if name != "reviewer" || resolved.ID != "ws-extension" {
 				return compozyconfig.AgentDef{}, workspacepkg.ErrAgentNotAvailable
 			}
-			return compozyconfig.AgentDef{Name: name, SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md"}, nil
+			return compozyconfig.AgentDef{
+				Name:       name,
+				SourcePath: "/extensions/spec-cycle/agents/reviewer/AGENT.md",
+			}, nil
 		})
 
 		got, err := augmenter.skillsForSessionAgent(
@@ -447,7 +450,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		}
 		registry := &stubSessionCommandSkills{
 			candidates: []skillspkg.CommandCandidate{{
-				Skill: reviewSkill, SourceKind: "extension", SourceID: "dev-cycle", Available: true,
+				Skill: reviewSkill, SourceKind: "extension", SourceID: "spec-cycle", Available: true,
 			}},
 			nameErr: fmt.Errorf("%w: %q", skillspkg.ErrAgentNotFound, "reviewer"),
 		}
@@ -473,7 +476,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 			ID: "sess-extension", AgentName: "reviewer", WorkspaceID: "ws-extension", Workspace: "/workspace",
 		}
 		catalog, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{
-			Name: "reviewer", SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+			Name: "reviewer", SourcePath: "/extensions/spec-cycle/agents/reviewer/AGENT.md",
 		})
 		if err != nil {
 			t.Fatalf("Catalog() error = %v", err)
@@ -485,8 +488,8 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 				break
 			}
 		}
-		if found == nil || found.Source.Kind != "extension" || found.Source.ID != "dev-cycle" {
-			t.Fatalf("Catalog() commands = %+v, want extension dev-cycle review skill", catalog.Commands)
+		if found == nil || found.Source.Kind != "extension" || found.Source.ID != "spec-cycle" {
+			t.Fatalf("Catalog() commands = %+v, want extension spec-cycle review skill", catalog.Commands)
 		}
 	})
 
@@ -558,7 +561,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		reviewSkill := &skillspkg.Skill{Meta: skillspkg.SkillMeta{Name: "review"}}
 		registry := &stubSessionCommandSkills{
 			candidates: []skillspkg.CommandCandidate{{
-				Skill: reviewSkill, SourceKind: "extension", SourceID: "dev-cycle", Available: true,
+				Skill: reviewSkill, SourceKind: "extension", SourceID: "spec-cycle", Available: true,
 			}},
 			nameErr: skillspkg.ErrAgentNotFound,
 		}
@@ -590,13 +593,14 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		}
 		foundExtensionSkill := false
 		for _, descriptor := range catalog.Commands {
-			if descriptor.Skill != nil && descriptor.Source.Kind == "extension" && descriptor.Source.ID == "dev-cycle" {
+			if descriptor.Skill != nil && descriptor.Source.Kind == "extension" &&
+				descriptor.Source.ID == "spec-cycle" {
 				foundExtensionSkill = true
 				break
 			}
 		}
 		if !foundExtensionSkill {
-			t.Fatalf("Catalog(after resolver) commands = %+v, want extension dev-cycle skill", catalog.Commands)
+			t.Fatalf("Catalog(after resolver) commands = %+v, want extension spec-cycle skill", catalog.Commands)
 		}
 	})
 }

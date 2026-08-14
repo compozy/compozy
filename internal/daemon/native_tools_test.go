@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -868,8 +868,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		reviewSkill := &skills.Skill{
 			Meta:                   skills.SkillMeta{Name: "cy-review-round", Description: "Review changes."},
 			Source:                 skills.SourceBundled,
-			InstalledFromExtension: "dev-cycle",
-			FilePath:               "/extensions/dev-cycle/skills/cy-review-round/SKILL.md",
+			InstalledFromExtension: "spec-cycle",
+			FilePath:               "/extensions/spec-cycle/skills/cy-review-round/SKILL.md",
 			Enabled:                true,
 		}
 		skillRegistry := nativeExtensionAgentSkillsRegistry{
@@ -881,7 +881,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
 			agent: compozyconfig.AgentDef{
 				Name:       "reviewer",
-				SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+				SourcePath: "/extensions/spec-cycle/agents/reviewer/AGENT.md",
 			},
 		}
 		agentResolver := nativeExtensionAgentResolver{agent: manager.agent}
@@ -938,7 +938,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
 			agent: compozyconfig.AgentDef{
 				Name:       "reviewer",
-				SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+				SourcePath: "/extensions/spec-cycle/agents/reviewer/AGENT.md",
 			},
 		}
 		workspaceResolver := nativeNetworkTestWorkspaceService(t)
@@ -1169,12 +1169,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		reviewSkill := &skills.Skill{
 			Meta:                   skills.SkillMeta{Name: "review", Description: "Review changes."},
 			Source:                 skills.SourceBundled,
-			InstalledFromExtension: "dev-cycle",
-			FilePath:               "/extensions/dev-cycle/skills/review/SKILL.md",
+			InstalledFromExtension: "spec-cycle",
+			FilePath:               "/extensions/spec-cycle/skills/review/SKILL.md",
 		}
 		skillRegistry := nativeExtensionAgentSkillsRegistry{
 			candidates: []skills.CommandCandidate{{
-				Skill: reviewSkill, SourceKind: "extension", SourceID: "dev-cycle", Available: true,
+				Skill: reviewSkill, SourceKind: "extension", SourceID: "spec-cycle", Available: true,
 			}},
 			content: skillContent,
 		}
@@ -1183,7 +1183,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
 			agent: compozyconfig.AgentDef{
 				Name:       "reviewer",
-				SourcePath: "/extensions/dev-cycle/agents/reviewer/AGENT.md",
+				SourcePath: "/extensions/spec-cycle/agents/reviewer/AGENT.md",
 			},
 		}
 		agentResolver := nativeExtensionAgentResolver{agent: manager.agent}
@@ -9389,14 +9389,14 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		ctx := t.Context()
 		deps, extensionRegistry, _, _ := newNativeExtensionToolDeps(t)
 		cfg := testConfig(t, deps.HomePaths)
-		if err := devcycle.EnsureManagedInstall(deps.HomePaths, extensionRegistry); err != nil {
-			t.Fatalf("EnsureManagedInstall(dev-cycle) error = %v", err)
+		if err := speccycle.EnsureManagedInstall(deps.HomePaths, extensionRegistry); err != nil {
+			t.Fatalf("EnsureManagedInstall(spec-cycle) error = %v", err)
 		}
-		if err := extensionRegistry.Enable(devcycle.Name); err != nil {
-			t.Fatalf("registry.Enable(%q) error = %v", devcycle.Name, err)
+		if err := extensionRegistry.Enable(speccycle.Name); err != nil {
+			t.Fatalf("registry.Enable(%q) error = %v", speccycle.Name, err)
 		}
-		runtime := &nativeBundledDevCycleToolRuntime{
-			devCycleLoopSchemaRuntime: newDevCycleLoopSchemaRuntime(t, extensionRegistry),
+		runtime := &nativeBundledSpecCycleToolRuntime{
+			specCycleLoopSchemaRuntime: newSpecCycleLoopSchemaRuntime(t, extensionRegistry),
 		}
 		provider, err := extensionpkg.NewExtensionToolProvider(
 			extensionRegistry,
@@ -9427,8 +9427,8 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			t.Fatalf("NewRegistry() error = %v", err)
 		}
 		const (
-			importTasksToolID toolspkg.ToolID = "ext__dev_cycle__import_tasks"
-			writeReviewToolID toolspkg.ToolID = "ext__dev_cycle__write_review_artifacts"
+			importTasksToolID toolspkg.ToolID = "ext__spec_cycle__import_tasks"
+			writeReviewToolID toolspkg.ToolID = "ext__spec_cycle__write_review_artifacts"
 		)
 
 		views, err := registry.SessionProjection(ctx, toolspkg.Scope{})
@@ -9449,8 +9449,8 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if len(runtime.calls) != 1 {
 			t.Fatalf("runtime calls = %d, want 1", len(runtime.calls))
 		}
-		if got := runtime.calls[0].extensionID; got != devcycle.Name {
-			t.Fatalf("runtime extension id = %q, want %q", got, devcycle.Name)
+		if got := runtime.calls[0].extensionID; got != speccycle.Name {
+			t.Fatalf("runtime extension id = %q, want %q", got, speccycle.Name)
 		}
 		if got := runtime.calls[0].request.ToolID; got != importTasksToolID {
 			t.Fatalf("runtime tool id = %q, want %q", got, importTasksToolID)
@@ -9496,15 +9496,15 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve(bundled enabled) error = %v", err)
 		}
-		bundledGrant := toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: devcycle.Name}
+		bundledGrant := toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: speccycle.Name}
 		if !sourceGrantExists(inputs.TrustedSources, bundledGrant) {
 			t.Fatalf("enabled trusted sources = %#v, want %#v", inputs.TrustedSources, bundledGrant)
 		}
 		if !sourceGrantExists(inputs.AllowSources, bundledGrant) {
 			t.Fatalf("enabled allowed sources = %#v, want %#v", inputs.AllowSources, bundledGrant)
 		}
-		if err := extensionRegistry.Disable(devcycle.Name); err != nil {
-			t.Fatalf("Disable(dev-cycle) error = %v", err)
+		if err := extensionRegistry.Disable(speccycle.Name); err != nil {
+			t.Fatalf("Disable(spec-cycle) error = %v", err)
 		}
 		inputs, err = resolver.Resolve(ctx, toolspkg.Scope{})
 		if err != nil {
@@ -9516,8 +9516,8 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		if sourceGrantExists(inputs.AllowSources, bundledGrant) {
 			t.Fatalf("disabled allowed sources = %#v, want bundled grant removed", inputs.AllowSources)
 		}
-		if err := extensionRegistry.Enable(devcycle.Name); err != nil {
-			t.Fatalf("Enable(dev-cycle) error = %v", err)
+		if err := extensionRegistry.Enable(speccycle.Name); err != nil {
+			t.Fatalf("Enable(spec-cycle) error = %v", err)
 		}
 		inputs, err = resolver.Resolve(ctx, toolspkg.Scope{})
 		if err != nil {
@@ -9877,17 +9877,17 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 	})
 }
 
-type nativeBundledDevCycleToolRuntime struct {
-	*devCycleLoopSchemaRuntime
-	calls []nativeBundledDevCycleToolCall
+type nativeBundledSpecCycleToolRuntime struct {
+	*specCycleLoopSchemaRuntime
+	calls []nativeBundledSpecCycleToolCall
 }
 
-type nativeBundledDevCycleToolCall struct {
+type nativeBundledSpecCycleToolCall struct {
 	extensionID string
 	request     toolspkg.ExtensionToolCallRequest
 }
 
-func (r *nativeBundledDevCycleToolRuntime) CallTool(
+func (r *nativeBundledSpecCycleToolRuntime) CallTool(
 	ctx context.Context,
 	extensionID string,
 	req toolspkg.ExtensionToolCallRequest,
@@ -9895,12 +9895,12 @@ func (r *nativeBundledDevCycleToolRuntime) CallTool(
 	if err := ctx.Err(); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	r.calls = append(r.calls, nativeBundledDevCycleToolCall{
+	r.calls = append(r.calls, nativeBundledSpecCycleToolCall{
 		extensionID: extensionID,
 		request:     req,
 	})
 	structured := json.RawMessage(`{"tasks":[],"count":0}`)
-	if req.ToolID == "ext__dev_cycle__write_review_artifacts" {
+	if req.ToolID == "ext__spec_cycle__write_review_artifacts" {
 		structured = json.RawMessage(
 			`{"task_name":"review-policy","round":1,"files":[],"batches":[],"issues":[],"count":0}`,
 		)

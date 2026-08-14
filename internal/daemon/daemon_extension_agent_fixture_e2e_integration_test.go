@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -42,7 +42,7 @@ var (
 		`(?s)<current-available-skills>(.*?)</current-available-skills>`,
 	)
 	extensionPromptSkillNamePattern = regexp.MustCompile(`<skill name="([^"]+)">`)
-	reviewerSkillNames              = append([]string{"compozy"}, devCycleIntegrationSkillNames...)
+	reviewerSkillNames              = append([]string{"compozy"}, specCycleIntegrationSkillNames...)
 )
 
 func TestDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) {
@@ -70,7 +70,7 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	requireDevCycleExtensionEnabled(t, ctx, harness)
+	requireSpecCycleExtensionEnabled(t, ctx, harness)
 	diagnosticsPath := filepath.Join(harness.HomePaths.LogsDir, "extension-reviewer.jsonl")
 	configureExtensionAgentFixture(t, ctx, harness, extensionAgentFixtureConfig{
 		DriverPath:         driverPath,
@@ -112,7 +112,7 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 		t.Fatalf("HTTP extension session commands = %+v, want cy-review-round", catalog.Commands)
 	}
 	if strings.TrimSpace(extensionCommand.CanonicalToken) == "" {
-		t.Fatalf("dev-cycle command = %+v, want canonical token", extensionCommand)
+		t.Fatalf("spec-cycle command = %+v, want canonical token", extensionCommand)
 	}
 
 	plainStream, err := harness.PromptSessionHTTP(ctx, active.ID, "hello")
@@ -150,7 +150,7 @@ func assertExtensionPromptCatalog(t testing.TB, diagnosticsPath string) {
 			return
 		}
 	}
-	t.Fatalf("extension prompt diagnostics = %#v, want current complete dev-cycle catalog", records)
+	t.Fatalf("extension prompt diagnostics = %#v, want current complete spec-cycle catalog", records)
 }
 
 func assertExtensionHostedMCPTools(
@@ -314,7 +314,7 @@ func extensionSkillCommands(
 
 	byName := make(map[string]compozycontract.SessionCommandPayload)
 	for name, command := range commands {
-		if command.Source.Kind == "extension" && command.Source.ID == devcycle.Name {
+		if command.Source.Kind == "extension" && command.Source.ID == speccycle.Name {
 			byName[name] = command
 		}
 	}
@@ -350,11 +350,11 @@ func assertHostedSkillCatalog(
 
 	extensionNames := make([]string, 0, len(skills))
 	for _, skill := range skills {
-		if skill.Provenance != nil && skill.Provenance.InstalledFromExtension == devcycle.Name {
+		if skill.Provenance != nil && skill.Provenance.InstalledFromExtension == speccycle.Name {
 			extensionNames = append(extensionNames, skill.Name)
 		}
 	}
-	assertExtensionSkillNames(t, surface+" dev-cycle provenance", extensionNames)
+	assertExtensionSkillNames(t, surface+" spec-cycle provenance", extensionNames)
 }
 
 func assertHostedSkillViewCatalog(
@@ -368,12 +368,12 @@ func assertHostedSkillViewCatalog(
 	extensionNames := make([]string, 0, len(skills))
 	for _, skill := range skills {
 		names = append(names, skill.Name)
-		if skill.Source.Kind == "extension" && skill.Source.ID == devcycle.Name {
+		if skill.Source.Kind == "extension" && skill.Source.ID == speccycle.Name {
 			extensionNames = append(extensionNames, skill.Name)
 		}
 	}
 	assertReviewerSkillNames(t, surface, names)
-	assertExtensionSkillNames(t, surface+" dev-cycle source", extensionNames)
+	assertExtensionSkillNames(t, surface+" spec-cycle source", extensionNames)
 }
 
 func extensionSkillCommandNames(commands map[string]compozycontract.SessionCommandPayload) []string {
@@ -387,7 +387,7 @@ func extensionSkillCommandNames(commands map[string]compozycontract.SessionComma
 func assertExtensionSkillNames(t testing.TB, surface string, got []string) {
 	t.Helper()
 
-	assertSkillNames(t, surface, got, devCycleIntegrationSkillNames)
+	assertSkillNames(t, surface, got, specCycleIntegrationSkillNames)
 }
 
 func assertReviewerSkillNames(t testing.TB, surface string, got []string) {
@@ -527,19 +527,19 @@ func assertSuccessfulExtensionPromptStream(
 	}
 }
 
-func requireDevCycleExtensionEnabled(
+func requireSpecCycleExtensionEnabled(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 ) {
 	t.Helper()
 
-	enabled, err := harness.EnableExtension(ctx, devcycle.Name)
+	enabled, err := harness.EnableExtension(ctx, speccycle.Name)
 	if err != nil {
-		t.Fatalf("EnableExtension(%s) error = %v", devcycle.Name, err)
+		t.Fatalf("EnableExtension(%s) error = %v", speccycle.Name, err)
 	}
 	if !enabled.Enabled {
-		t.Fatalf("EnableExtension(%s).Enabled = false, want true", devcycle.Name)
+		t.Fatalf("EnableExtension(%s).Enabled = false, want true", speccycle.Name)
 	}
 }
 

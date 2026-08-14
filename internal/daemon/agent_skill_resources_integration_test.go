@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -32,12 +32,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var devCycleIntegrationSkillNames = []string{
+var specCycleIntegrationSkillNames = []string{
 	"cy-create-spec",
 	"cy-create-tasks",
 	"cy-execute-task",
 	"cy-final-verify",
 	"cy-fix-reviews",
+	"cy-orchestrate-tasks",
 	"cy-review-round",
 	"cy-workflow-memory",
 	"git-rebase",
@@ -354,10 +355,10 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	})
 }
 
-func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
+func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should publish eight global skills while preserving workspace-local isolation", func(t *testing.T) {
+	t.Run("Should publish nine global skills while preserving workspace-local isolation", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -394,21 +395,21 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 
 		homePaths := agentSkillIntegrationHome(t)
 		extensionRegistry := extensionpkg.NewRegistry(db.DB())
-		if err := devcycle.EnsureManagedInstall(homePaths, extensionRegistry); err != nil {
-			t.Fatalf("devcycle.EnsureManagedInstall() error = %v", err)
+		if err := speccycle.EnsureManagedInstall(homePaths, extensionRegistry); err != nil {
+			t.Fatalf("speccycle.EnsureManagedInstall() error = %v", err)
 		}
-		if err := extensionRegistry.Enable(devcycle.Name); err != nil {
-			t.Fatalf("extensionRegistry.Enable(%q) error = %v", devcycle.Name, err)
+		if err := extensionRegistry.Enable(speccycle.Name); err != nil {
+			t.Fatalf("extensionRegistry.Enable(%q) error = %v", speccycle.Name, err)
 		}
-		extensionSnapshot := agentSkillIntegrationDevCycleExtension(t, extensionRegistry)
+		extensionSnapshot := agentSkillIntegrationSpecCycleExtension(t, extensionRegistry)
 		runtime := &agentSkillIntegrationRuntime{extension: extensionSnapshot}
 
 		workspaceARoot := agentSkillIntegrationSkillWorkspace(t, true)
 		workspaceBRoot := agentSkillIntegrationSkillWorkspace(t, false)
 		now := time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
 		for _, workspace := range []workspacepkg.Workspace{
-			{ID: "ws_dev_cycle_a", RootDir: workspaceARoot, Name: "dev-cycle-a", CreatedAt: now, UpdatedAt: now},
-			{ID: "ws_dev_cycle_b", RootDir: workspaceBRoot, Name: "dev-cycle-b", CreatedAt: now, UpdatedAt: now},
+			{ID: "ws_spec_cycle_a", RootDir: workspaceARoot, Name: "spec-cycle-a", CreatedAt: now, UpdatedAt: now},
+			{ID: "ws_spec_cycle_b", RootDir: workspaceBRoot, Name: "spec-cycle-b", CreatedAt: now, UpdatedAt: now},
 		} {
 			if err := db.InsertWorkspace(ctx, workspace); err != nil {
 				t.Fatalf("InsertWorkspace(%q) error = %v", workspace.ID, err)
@@ -469,18 +470,18 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("skillStore.List() error = %v", err)
 		}
-		globalDevCycleCount := 0
+		globalSpecCycleCount := 0
 		for _, record := range records {
 			if record.Scope.Kind == resources.ResourceScopeKindGlobal &&
-				record.Spec.InstalledFromExtension == devcycle.Name {
-				globalDevCycleCount++
+				record.Spec.InstalledFromExtension == speccycle.Name {
+				globalSpecCycleCount++
 			}
 		}
-		if globalDevCycleCount != len(devCycleIntegrationSkillNames) {
+		if globalSpecCycleCount != len(specCycleIntegrationSkillNames) {
 			t.Fatalf(
-				"global dev-cycle skill records = %d, want %d",
-				globalDevCycleCount,
-				len(devCycleIntegrationSkillNames),
+				"global spec-cycle skill records = %d, want %d",
+				globalSpecCycleCount,
+				len(specCycleIntegrationSkillNames),
 			)
 		}
 
@@ -503,11 +504,11 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			t.Fatalf("bootDriver.RunBoot() error = %v", err)
 		}
 
-		resolvedA, err := workspaceResolver.Resolve(ctx, "ws_dev_cycle_a")
+		resolvedA, err := workspaceResolver.Resolve(ctx, "ws_spec_cycle_a")
 		if err != nil {
 			t.Fatalf("workspaceResolver.Resolve(A) error = %v", err)
 		}
-		resolvedB, err := workspaceResolver.Resolve(ctx, "ws_dev_cycle_b")
+		resolvedB, err := workspaceResolver.Resolve(ctx, "ws_spec_cycle_b")
 		if err != nil {
 			t.Fatalf("workspaceResolver.Resolve(B) error = %v", err)
 		}
@@ -519,7 +520,7 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("rebuiltSkills.ForWorkspace(B) error = %v", err)
 		}
-		for _, name := range devCycleIntegrationSkillNames {
+		for _, name := range specCycleIntegrationSkillNames {
 			if findIntegrationSkill(skillsA, name) == nil || findIntegrationSkill(skillsB, name) == nil {
 				t.Fatalf("skill %q missing: workspace A=%#v workspace B=%#v", name, skillsA, skillsB)
 			}
@@ -532,7 +533,7 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		}
 		if findIntegrationSkill(skillsA, "cy-capture-decisions") != nil ||
 			findIntegrationSkill(skillsB, "cy-capture-decisions") != nil {
-			t.Fatal("cy-capture-decisions is available, want excluded from dev-cycle bundle")
+			t.Fatal("cy-capture-decisions is available, want excluded from spec-cycle bundle")
 		}
 
 		executeA := findIntegrationSkill(skillsA, "cy-execute-task")
@@ -540,8 +541,8 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		if executeA.Source != skillspkg.SourceWorkspace {
 			t.Fatalf("workspace A cy-execute-task source = %v, want workspace", executeA.Source)
 		}
-		if executeB.Source != skillspkg.SourceBundled || executeB.InstalledFromExtension != devcycle.Name {
-			t.Fatalf("workspace B cy-execute-task = %#v, want bundled dev-cycle source", executeB)
+		if executeB.Source != skillspkg.SourceBundled || executeB.InstalledFromExtension != speccycle.Name {
+			t.Fatalf("workspace B cy-execute-task = %#v, want bundled spec-cycle source", executeB)
 		}
 		contentA, err := rebuiltSkills.LoadContent(ctx, executeA)
 		if err != nil {
@@ -554,7 +555,7 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		if strings.TrimSpace(contentA) != "Workspace A execution override." {
 			t.Fatalf("workspace A content = %q, want local override", contentA)
 		}
-		if !strings.Contains(contentB, "# Execute PRD Task") {
+		if !strings.Contains(contentB, "# Execute Spec Task") {
 			t.Fatalf("workspace B bundled content = %q, want cy-execute-task body", contentB)
 		}
 
@@ -587,9 +588,9 @@ func TestDevCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 				if err != nil {
 					t.Fatalf("skills augmenter error = %v", err)
 				}
-				for _, name := range devCycleIntegrationSkillNames {
+				for _, name := range specCycleIntegrationSkillNames {
 					if !strings.Contains(prompt, `name="`+name+`"`) {
-						t.Fatalf("prompt missing dev-cycle skill %q: %s", name, prompt)
+						t.Fatalf("prompt missing spec-cycle skill %q: %s", name, prompt)
 					}
 				}
 				gotLocalOnly := strings.Contains(prompt, `name="workspace-only-a"`)
@@ -1235,15 +1236,15 @@ Use extension skill context.
 	}
 }
 
-func agentSkillIntegrationDevCycleExtension(
+func agentSkillIntegrationSpecCycleExtension(
 	t *testing.T,
 	registry *extensionpkg.Registry,
 ) *extensionpkg.Extension {
 	t.Helper()
 
-	info, err := registry.Get(devcycle.Name)
+	info, err := registry.Get(speccycle.Name)
 	if err != nil {
-		t.Fatalf("registry.Get(%q) error = %v", devcycle.Name, err)
+		t.Fatalf("registry.Get(%q) error = %v", speccycle.Name, err)
 	}
 	rootDir := filepath.Dir(info.ManifestPath)
 	manifest, err := extensionpkg.LoadManifest(rootDir)
@@ -1258,7 +1259,7 @@ func agentSkillIntegrationDevCycleExtension(
 	for _, staticAgent := range staticAgents {
 		agents = append(agents, compozyconfig.CloneAgentDef(staticAgent.Agent))
 	}
-	skills := make([]*skillspkg.Skill, 0, len(devCycleIntegrationSkillNames))
+	skills := make([]*skillspkg.Skill, 0, len(specCycleIntegrationSkillNames))
 	for _, resourcePath := range manifest.Resources.Skills {
 		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath))
 		if err := filepath.WalkDir(resourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
@@ -1272,7 +1273,7 @@ func agentSkillIntegrationDevCycleExtension(
 			if err != nil {
 				return err
 			}
-			skill.InstalledFromExtension = devcycle.Name
+			skill.InstalledFromExtension = speccycle.Name
 			skills = append(skills, skill)
 			return nil
 		}); err != nil {
@@ -1282,8 +1283,8 @@ func agentSkillIntegrationDevCycleExtension(
 	slices.SortFunc(skills, func(left, right *skillspkg.Skill) int {
 		return strings.Compare(left.Meta.Name, right.Meta.Name)
 	})
-	if len(skills) != len(devCycleIntegrationSkillNames) {
-		t.Fatalf("loaded dev-cycle skills = %d, want %d", len(skills), len(devCycleIntegrationSkillNames))
+	if len(skills) != len(specCycleIntegrationSkillNames) {
+		t.Fatalf("loaded spec-cycle skills = %d, want %d", len(skills), len(specCycleIntegrationSkillNames))
 	}
 	return &extensionpkg.Extension{
 		Info:         *info,

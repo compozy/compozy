@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status: blocked-verify
 fix_commits:
-evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-dev-cycle-trust.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-update-precondition.md
+evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-spec-cycle-trust.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-update-precondition.md
 last_report: docs/qa/reports/2026-08-10-loop-browser-runtime-closeout.md
 overlaps: ET-015; ET-022; ET-023; ET-web-extension-kit-inventory
 ---
@@ -43,7 +43,7 @@ QA impact 2026-08-10: Extension Update now opens update-specific trust copy and 
 instead of reusing Install language. Reset for a fresh update-confirm, cancel, refresh, and detail
 walk from the current build.
 
-QA completion: blocked-verify 2026-08-10 — Bruno inspected `dev-cycle` runtime health and official
+QA completion: blocked-verify 2026-08-10 — Bruno inspected `spec-cycle` runtime health and official
 verified trust after a disable, reload, and restore cycle. The public inventory reported
 `update_available: false` for both installed official extensions, so the update-confirm/cancel branch
 could not be reached without fabricating daemon state. The full Playwright suite passed the seeded

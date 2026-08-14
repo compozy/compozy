@@ -15,9 +15,9 @@ Use it when you have authored tasks under `.compozy/tasks/<slug>` and want them 
 ## The artifact
 
 This is the complete definition, exactly as it ships in the CompozyOS repository at
-`extensions/dev-cycle/loops/implement-tasks/loop.yaml`. It runs against a current release.
+`extensions/spec-cycle/loops/implement-tasks/loop.yaml`. It runs against a current release.
 
-```yaml title="extensions/dev-cycle/loops/implement-tasks/loop.yaml"
+```yaml title="extensions/spec-cycle/loops/implement-tasks/loop.yaml"
 apiVersion: compozy.loop/v1
 kind: Loop
 meta:
@@ -64,7 +64,7 @@ graph:
 
     - id: load_tasks
       class: action
-      kind: ext__dev_cycle__import_tasks
+      kind: ext__spec_cycle__import_tasks
       params:
         pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md"
       produces:
@@ -196,7 +196,7 @@ compozy loop run --name implement-tasks --input slug=<slug> --dry-run
 compozy loop run --name implement-tasks --input slug=<slug>
 ```
 
-The definition ships inside the bundled `dev-cycle` extension, so the Loop is already published in
+The definition ships inside the bundled `spec-cycle` extension, so the Loop is already published in
 your runtime. Validate and create are for when you copy the file out and adapt it.
 
 Its start surfaces are manual, CLI, HTTP, UDS, native tool, and schedule — note that unlike the
@@ -252,9 +252,9 @@ review Loop it declares no webhook start, so a signed HTTP delivery cannot begin
     meta="Loops"
   />
   <GuideCard
-    href="/marketplace/bundled/dev-cycle"
+    href="/marketplace/bundled/spec-cycle"
     label="Marketplace"
-    title="The dev-cycle extension"
+    title="The spec-cycle extension"
     description="The implementer and reviewer agents, the task-import tool, and the skills these Loops load."
     meta="Bundled"
   />

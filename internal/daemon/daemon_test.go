@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -1469,22 +1469,22 @@ func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
 	}
 	extRegistry := extensionpkg.NewRegistry(db.DB())
-	info, err := extRegistry.Get(devcycle.Name)
+	info, err := extRegistry.Get(speccycle.Name)
 	if err != nil {
-		t.Fatalf("registry.Get(%s) error = %v", devcycle.Name, err)
+		t.Fatalf("registry.Get(%s) error = %v", speccycle.Name, err)
 	}
 	if !info.Enabled || info.Source != extensionpkg.SourceBundled {
-		t.Fatalf("dev-cycle info = %#v, want installed and enabled bundled extension", info)
+		t.Fatalf("spec-cycle info = %#v, want installed and enabled bundled extension", info)
 	}
 	if got, want := filepath.Base(info.ManifestPath), "extension.json"; got != want {
-		t.Fatalf("dev-cycle manifest file = %q, want %q", got, want)
+		t.Fatalf("spec-cycle manifest file = %q, want %q", got, want)
 	}
 }
 
-func TestBootExtensionsPreservesDevCycleDisableEnableState(t *testing.T) {
+func TestBootExtensionsPreservesSpecCycleDisableEnableState(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve dev-cycle disable and enable state across boots", func(t *testing.T) {
+	t.Run("Should preserve spec-cycle disable and enable state across boots", func(t *testing.T) {
 		t.Parallel()
 
 		db := openDaemonTestGlobalDB(t)
@@ -1506,32 +1506,32 @@ func TestBootExtensionsPreservesDevCycleDisableEnableState(t *testing.T) {
 			t.Fatalf("bootExtensions(first) error = %v", err)
 		}
 		extRegistry := extensionpkg.NewRegistry(db.DB())
-		if err := extRegistry.Disable(devcycle.Name); err != nil {
-			t.Fatalf("registry.Disable(%s) error = %v", devcycle.Name, err)
+		if err := extRegistry.Disable(speccycle.Name); err != nil {
+			t.Fatalf("registry.Disable(%s) error = %v", speccycle.Name, err)
 		}
 		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
 			t.Fatalf("bootExtensions(after disable) error = %v", err)
 		}
-		disabled, err := extRegistry.Get(devcycle.Name)
+		disabled, err := extRegistry.Get(speccycle.Name)
 		if err != nil {
-			t.Fatalf("registry.Get(%s disabled) error = %v", devcycle.Name, err)
+			t.Fatalf("registry.Get(%s disabled) error = %v", speccycle.Name, err)
 		}
 		if disabled.Enabled {
-			t.Fatalf("dev-cycle enabled after disabled boot = true, want false")
+			t.Fatalf("spec-cycle enabled after disabled boot = true, want false")
 		}
 
-		if err := extRegistry.Enable(devcycle.Name); err != nil {
-			t.Fatalf("registry.Enable(%s) error = %v", devcycle.Name, err)
+		if err := extRegistry.Enable(speccycle.Name); err != nil {
+			t.Fatalf("registry.Enable(%s) error = %v", speccycle.Name, err)
 		}
 		if err := d.bootExtensions(testutil.Context(t), state, &bootCleanup{}); err != nil {
 			t.Fatalf("bootExtensions(after enable) error = %v", err)
 		}
-		enabled, err := extRegistry.Get(devcycle.Name)
+		enabled, err := extRegistry.Get(speccycle.Name)
 		if err != nil {
-			t.Fatalf("registry.Get(%s enabled) error = %v", devcycle.Name, err)
+			t.Fatalf("registry.Get(%s enabled) error = %v", speccycle.Name, err)
 		}
 		if !enabled.Enabled {
-			t.Fatalf("dev-cycle enabled after enable boot = false, want true")
+			t.Fatalf("spec-cycle enabled after enable boot = false, want true")
 		}
 	})
 }

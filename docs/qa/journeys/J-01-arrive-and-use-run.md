@@ -9,7 +9,7 @@ through structured and Web reads after restart, and hand the operator a truthful
 ```mermaid
 flowchart TD
     A[Entry: home › Loops catalog] --> B{Filter / find a Loop}
-    B -->|dev-cycle: implement-tasks| C[Row: goal, last outcome, 30d success-rate, inline Run]
+    B -->|spec-cycle: implement-tasks| C[Row: goal, last outcome, 30d success-rate, inline Run]
     B -->|empty custom group| B2[Custom group hidden until a fork exists]
     C -->|click row| D[Loop detail: contract + read-only DAG + recent runs]
     C -->|inline Run| E[Run form: auto-generated typed inputs]
@@ -31,7 +31,7 @@ flowchart TD
 ```yaml
 journey:
   id: J-01
-  name: "Implement an authored task graph with the default dev-cycle Loop"
+  name: "Implement an authored task graph with the default spec-cycle Loop"
   value_statement: "A user runs implement-tasks with a slug and it implements every authored task in dependency order without adding review, verification, or approval gates."
   personas: [Lea, Bruno]
   entry_points:
@@ -89,7 +89,7 @@ design_reference:
     - "Running pulse only while live; gated by reduced-motion."
     - "Applied runtime is read-only persisted truth from the daemon binding; the Web never offers an unsupported runtime edit control."
     - "The CLI deep link uses the effective daemon port and opens this exact persisted run; dry-run never prints one."
-    - "loops-refac (2026-07-08): software-delivery's load_tasks resolves via the ext__dev_cycle__import_tasks action node (not source/file-import), and its run-agent sessions are now policy-gated (sandbox/permission/subset-only allowed_tools) — the run reaches the same verified done, but LP-003/LP-046 verify the new session posture (CH-026)."
+    - "loops-refac (2026-07-08): software-delivery's load_tasks resolves via the ext__spec_cycle__import_tasks action node (not source/file-import), and its run-agent sessions are now policy-gated (sandbox/permission/subset-only allowed_tools) — the run reaches the same verified done, but LP-003/LP-046 verify the new session posture (CH-026)."
 
 e2e_backbone:
   runtime:

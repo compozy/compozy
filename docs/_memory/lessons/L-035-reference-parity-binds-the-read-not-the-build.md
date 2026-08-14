@@ -26,4 +26,4 @@ Authority scope was completed for content and marks but not for build: nothing d
 ## Source
 
 - Operator directive of 2026-08-11 (worktree design set flagged as embedding risk across tasks/loops/sessions before implementation started).
-- Encoded in: `.agents/skills/eng/eng-ui-screenshot/references/visual-contract.md` (scope boundary + component map steps, divergence taxonomy), `.agents/skills/eng/eng-design/SKILL.md` (§Named visual contracts + Error Handling, precedence over `impeccable` comp reproduction), `.agents/skills/cy-final-verify/SKILL.md` §Visual Contract Parity (+ `extensions/dev-cycle/skills/cy-final-verify/` mirror), root `CLAUDE.md` §Design System, SD-007.
+- Encoded in: `.agents/skills/eng/eng-ui-screenshot/references/visual-contract.md` (scope boundary + component map steps, divergence taxonomy), `.agents/skills/eng/eng-design/SKILL.md` (§Named visual contracts + Error Handling, precedence over `impeccable` comp reproduction), `.agents/skills/cy-final-verify/SKILL.md` §Visual Contract Parity (+ `extensions/spec-cycle/skills/cy-final-verify/` mirror), root `CLAUDE.md` §Design System, SD-007.

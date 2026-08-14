@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/extensions/connectivity/tailscale"
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/resources"
 )
@@ -26,8 +26,8 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 
 	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
-	if err := devcycle.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
-		return fmt.Errorf("daemon: enroll dev-cycle extension: %w", err)
+	if err := speccycle.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
+		return fmt.Errorf("daemon: enroll spec-cycle extension: %w", err)
 	}
 	if err := tailscale.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
 		return fmt.Errorf("daemon: enroll Tailscale connectivity extension: %w", err)

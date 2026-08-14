@@ -62,7 +62,7 @@ Enforcement is per call against the effective grant, which is the declared list 
 
 ### Extension Kit
 
-The static resources shipped by one extension: skills, agents and their sidecars, Loops, automation, layouts, and MCP sidecars. Marketplace and local installs leave the kit inert; enable publishes resources owned by that extension instance, and disable removes them. The bundled `dev-cycle` extension is enabled on a fresh CompozyOS home, while later boot and update paths preserve the operator's explicit enabled or disabled state. Use **extension kit**, never **Bundle**, for this product concept.
+The static resources shipped by one extension: skills, agents and their sidecars, Loops, automation, layouts, and MCP sidecars. Marketplace and local installs leave the kit inert; enable publishes resources owned by that extension instance, and disable removes them. The bundled `spec-cycle` extension is enabled on a fresh CompozyOS home, while later boot and update paths preserve the operator's explicit enabled or disabled state. Use **extension kit**, never **Bundle**, for this product concept.
 
 ### Extension Secret Binding
 

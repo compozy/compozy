@@ -321,7 +321,7 @@ describe("public search index", () => {
     for (const provider of bridgeProviders) {
       expect(urls.has(`/marketplace/bridges#${provider.platform}`)).toBe(true);
     }
-    expect(urls.has("/marketplace/bundled/dev-cycle")).toBe(true);
+    expect(urls.has("/marketplace/bundled/spec-cycle")).toBe(true);
   });
 
   it("wires the live GET handler instead of the static export handler", async () => {

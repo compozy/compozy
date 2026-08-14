@@ -71,7 +71,7 @@ const reviewGraph = graph(
       kind: "branch",
       condition: "size(nodes.review.output.issues) > 0",
     },
-    { id: "write_artifacts", class: "action", kind: "ext__dev_cycle__write_review_artifacts" },
+    { id: "write_artifacts", class: "action", kind: "ext__spec_cycle__write_review_artifacts" },
     {
       id: "fix_batches",
       class: "control",
@@ -85,7 +85,7 @@ const reviewGraph = graph(
     {
       id: "finalize_round",
       class: "action",
-      kind: "ext__dev_cycle__finalize_review_round",
+      kind: "ext__spec_cycle__finalize_review_round",
     },
   ],
   [
@@ -104,7 +104,7 @@ const graphByName: Record<string, LoopDefinitionGraph> = {
   "quality-gate-demo": qualityGateGraph,
 };
 
-// The catalog contains the two bundled dev-cycle Loops. `quality-gate-demo` is a
+// The catalog contains the two bundled spec-cycle Loops. `quality-gate-demo` is a
 // workspace-only detail fixture used to cover generic gate UI without attributing
 // those states to the bundled `implement-tasks` Loop.
 

@@ -30,7 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const marketplacePaths = [
     "/marketplace",
     "/marketplace/bridges",
-    "/marketplace/bundled/dev-cycle",
+    "/marketplace/bundled/spec-cycle",
     ...MARKETPLACE_KINDS.flatMap(kind => [
       `/marketplace/${kind}`,
       ...entriesForKind(kind).map(entry => `/marketplace/${kind}/${entry.entry_id}`),

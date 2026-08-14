@@ -5,7 +5,7 @@ title: Public /marketplace renders the checked-in catalog snapshot with daemon-s
 persona: Dora
 journey: J-evaluate-compozy-beta
 expected: /marketplace identifies itself as a checked-in catalog snapshot, shows one section per kind (Skills, Extensions, MCP servers — no bundles) with every entry from catalog/*.json, and offers a Contribute card pointing at the catalog PR flow. /marketplace/[kind] lists that kind; /marketplace/[kind]/[entryId] shows metadata plus a copyable `compozy marketplace search <entry-id> --kind <kind>` command so the daemon resolves the entry against its configured active source before installation. Kind-specific blocks show extension tier + digest + repository, or MCP transport, env fields with secrets flagged but never valued, and default scope. No ratings, downloads, featured flags, or other invented fields appear anywhere.
-entry_points: compozy.com /marketplace; /marketplace/skills; /marketplace/extensions; /marketplace/mcp/context7; /marketplace/bridges; /marketplace/bundled/dev-cycle
+entry_points: compozy.com /marketplace; /marketplace/skills; /marketplace/extensions; /marketplace/mcp/context7; /marketplace/bridges; /marketplace/bundled/spec-cycle
 qa_status: pass
 bug_ids:
 fix_status:
@@ -30,8 +30,8 @@ QA impact 2026-07-29: `/marketplace` was rebuilt to the OpenDesign reference
 (`docs/design/opendesign/site/site-marketplace*.html`). New surfaces: a two-column hero with a
 feed-pipeline figure and a stat strip counted from the repository, a Bridge providers section plus
 `/marketplace/bridges` derived from `extensions/bridges/*/extension.toml`, and a
-`Ships with the runtime` section plus `/marketplace/bundled/dev-cycle` derived from
-`extensions/dev-cycle/extension.json`. `/marketplace/[kind]` gained the reference list shell — a
+`Ships with the runtime` section plus `/marketplace/bundled/spec-cycle` derived from
+`extensions/spec-cycle/extension.json`. `/marketplace/[kind]` gained the reference list shell — a
 kind tab strip with counts and a client-side filter with a no-match state — and
 `/marketplace/[kind]/[entryId]` gained masthead crumbs, an identity meta strip, and icon-headed
 sections. Reset to `untested` because every marketplace route changed. Deliberate deltas to verify as

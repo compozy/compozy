@@ -15,7 +15,7 @@ func TestExtensionToolCallErrorShouldRestoreStructuredOperatorFailure(t *testing
 	t.Run("Should restore a trusted tool error envelope from RPC data", func(t *testing.T) {
 		t.Parallel()
 
-		toolID := toolspkg.ToolID("ext__dev_cycle__import_tasks")
+		toolID := toolspkg.ToolID("ext__spec_cycle__import_tasks")
 		remote := toolspkg.NewOperatorToolError(
 			toolspkg.ErrorCodeInvalidInput,
 			toolID,
@@ -54,7 +54,7 @@ func TestExtensionToolCallErrorShouldRestoreStructuredOperatorFailure(t *testing
 		rpcErr := subprocess.NewRPCError(-32010, "tool failed", nil)
 		rpcErr.Data = json.RawMessage(`{"code":"not_a_tool_error","message":"unsafe"}`)
 
-		if got := extensionToolCallError("ext__dev_cycle__import_tasks", rpcErr); got != rpcErr {
+		if got := extensionToolCallError("ext__spec_cycle__import_tasks", rpcErr); got != rpcErr {
 			t.Fatalf("extensionToolCallError(malformed) = %T %v, want original RPC error", got, got)
 		}
 	})

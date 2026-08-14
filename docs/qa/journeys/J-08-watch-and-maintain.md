@@ -81,7 +81,7 @@ e2e_backbone:
   web:
     - "Loop catalog and run-page stories use the agent-authored graph, exact inputs, and truthful terminal states."
   integration:
-    - "Dev-cycle artifact suites prove exclusive rounds, containment, one result per issue file, and monotonic finalization."
+    - "Spec-cycle artifact suites prove exclusive rounds, containment, one result per issue file, and monotonic finalization."
   unit:
     - "Coordinator branch/fan-out settlement covers the clean-review branch and the non-empty remediation path."
   followups:

@@ -137,7 +137,7 @@ describe("public route metadata", () => {
     expect(urls).toContain(absoluteUrl("/docs/use-cases/prepare-a-project-workspace/"));
     expect(urls).toContain(absoluteUrl("/docs/network/protocol/implementation-status/"));
     expect(urls).toContain(absoluteUrl("/marketplace/bridges/"));
-    expect(urls).toContain(absoluteUrl("/marketplace/bundled/dev-cycle/"));
+    expect(urls).toContain(absoluteUrl("/marketplace/bundled/spec-cycle/"));
     expect(urls).toContain(absoluteUrl("/marketplace/skills/example-skill/"));
     expect(urls.filter(url => url.includes("/changelog"))).toEqual([
       absoluteUrl("/changelog/"),

@@ -2830,7 +2830,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		path := filepath.Join(
 			t.TempDir(),
 			"extensions",
-			"dev-cycle",
+			"spec-cycle",
 			"agents",
 			"code_implementer",
 			compozyconfig.AgentDefinitionFileName,

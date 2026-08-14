@@ -1,16 +1,16 @@
 import { Eyebrow } from "@compozy/ui";
-import { bundledSkills, devCycleExtension } from "@/lib/marketplace-bundled";
+import { bundledSkills, specCycleExtension } from "@/lib/marketplace-bundled";
 import { BundledExtensionCard, BundledSkillCard } from "./marketplace-bundled-card";
 
 /**
  * The runtime arrives with capabilities already installed, and the catalog cannot represent them:
- * `dev-cycle` is enrolled from the binary at first boot, and the bundled skills are compiled in. The
+ * `spec-cycle` is enrolled from the binary at first boot, and the bundled skills are compiled in. The
  * section therefore shows no install command — the honest action is to inspect what you already
  * have.
  */
 
 function inventorySummary(): string {
-  const { loops, skills, agents, tools } = devCycleExtension;
+  const { loops, skills, agents, tools } = specCycleExtension;
   return [
     `${loops.length} loops`,
     `${skills.length} skills`,
@@ -39,13 +39,13 @@ export function MarketplaceBundledSection() {
 
       <div className="flex flex-col gap-4">
         <BundledExtensionCard
-          href="/marketplace/bundled/dev-cycle"
-          name={devCycleExtension.displayName}
-          version={devCycleExtension.version}
-          description={devCycleExtension.description}
+          href="/marketplace/bundled/spec-cycle"
+          name={specCycleExtension.displayName}
+          version={specCycleExtension.version}
+          description={specCycleExtension.description}
           inventory={inventorySummary()}
-          minCompozyVersion={devCycleExtension.minCompozyVersion}
-          statusCommand={devCycleExtension.statusCommand}
+          minCompozyVersion={specCycleExtension.minCompozyVersion}
+          statusCommand={specCycleExtension.statusCommand}
         />
         {bundledSkills.map(skill => (
           <BundledSkillCard key={skill.name} name={skill.name} description={skill.description} />

@@ -19,7 +19,7 @@ charter:
       - "Execute every assigned scenario from its named entry point; capture command, timestamp, output, and end state."
       - "Exercise one recovery or abandonment branch and prove that it leaves no partial or duplicate side effect."
       - "Compare the owning public surfaces wherever the scenario promises Web, CLI, HTTP, UDS, or native parity."
-      - "Prioritize these representative observables first: Default dev-cycle software-delivery Loop; Default dev-cycle review-and-fix Loop."
+      - "Prioritize these representative observables first: Default spec-cycle software-delivery Loop; Default spec-cycle review-and-fix Loop."
     must_avoid:
       - "Do not infer a pass from source, mocks, historical evidence, or an automated suite alone."
       - "Do not perform live publication or mutate scenarios outside this charter."

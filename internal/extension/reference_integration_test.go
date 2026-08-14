@@ -25,7 +25,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	tailscale "github.com/compozy/compozy/extensions/connectivity/tailscale"
-	devcycle "github.com/compozy/compozy/extensions/dev-cycle"
+	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cli"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -403,11 +403,11 @@ func referenceDisableBundledExtensions(t *testing.T, homePaths compozyconfig.Hom
 	}()
 
 	registry := extensionpkg.NewRegistry(db.DB())
-	if err := devcycle.EnsureManagedInstall(homePaths, registry); err != nil {
-		t.Fatalf("EnsureManagedInstall(dev-cycle) error = %v", err)
+	if err := speccycle.EnsureManagedInstall(homePaths, registry); err != nil {
+		t.Fatalf("EnsureManagedInstall(spec-cycle) error = %v", err)
 	}
-	if err := registry.Disable(devcycle.Name); err != nil {
-		t.Fatalf("Disable(dev-cycle) error = %v", err)
+	if err := registry.Disable(speccycle.Name); err != nil {
+		t.Fatalf("Disable(spec-cycle) error = %v", err)
 	}
 	if err := tailscale.EnsureManagedInstall(homePaths, registry); err != nil {
 		t.Fatalf("EnsureManagedInstall(tailscale) error = %v", err)

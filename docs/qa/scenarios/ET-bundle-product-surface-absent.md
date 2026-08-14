@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits: 7701a3f
 evidence: /Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-08-02-bundles-removal.md
-overlaps: MS-046; MS-047; MS-048; ET-dev-cycle-skill-bundle; ET-api-marketplace-namespace; ET-049
+overlaps: MS-046; MS-047; MS-048; ET-spec-cycle-skill-bundle; ET-api-marketplace-namespace; ET-049
 ---
 
 QA impact 2026-08-02: hard-cut boundary scenario. Probe the deleted product and the surviving
