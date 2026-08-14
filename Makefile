@@ -173,14 +173,21 @@ web-test:
 # Parallel worktrees
 #
 # `worktree-new` creates a sibling worktree at ../_worktrees/<slug>, copies
-# shared dirs from main (.claude .codex .compozy .resources docs), then
+# shared dirs from main (.claude .codex .compozy docs), links .resources, then
 # bootstraps (mise pins, bun install + skill symlinks; BUILD=1 adds `make
-# build`, E2E=1 installs Playwright chromium). `worktree-bootstrap` preps the
-# current checkout. Removal: scripts/worktree.sh rm <slug>.
-.PHONY: worktree-new worktree-bootstrap
+# build`, E2E=1 installs Playwright chromium). `worktree-light` skips the copy
+# and the install (tracked dirs come from the branch) — enough for Go-only
+# work; PR=<n> tracks that PR's head branch (fork remote wired automatically)
+# so `git push` updates the PR. `worktree-bootstrap` preps the current
+# checkout. Removal: scripts/worktree.sh rm <slug>.
+.PHONY: worktree-new worktree-light worktree-bootstrap
 worktree-new:
 	@test -n "$(SLUG)" || { echo "usage: make worktree-new SLUG=<slug> [BRANCH=] [BASE=] [BUILD=1] [E2E=1]"; exit 2; }
 	@bash scripts/worktree.sh new $(SLUG) $(if $(BRANCH),--branch $(BRANCH),) $(if $(BASE),--base $(BASE),) $(if $(BUILD),--build,) $(if $(E2E),--e2e,)
+
+worktree-light:
+	@test -n "$(SLUG)$(PR)" || { echo "usage: make worktree-light PR=<number> | SLUG=<slug> [SLUG=] [BRANCH=] [BASE=]"; exit 2; }
+	@bash scripts/worktree.sh light $(SLUG) $(if $(PR),--pr $(PR),) $(if $(BRANCH),--branch $(BRANCH),) $(if $(BASE),--base $(BASE),)
 
 worktree-bootstrap:
 	@bash scripts/worktree.sh bootstrap $(if $(BUILD),--build,) $(if $(E2E),--e2e,)

@@ -141,6 +141,7 @@ make test / test-integration               # Go unit (-race) / +integration tag
 make test-e2e-runtime / test-e2e-web       # daemon-side (Go harness) / browser-side (Playwright)
 make build / codegen                       # compile binary / regen openapi + TS types + DESIGN.md tokens
 make worktree-new SLUG=<slug>              # sibling worktree + bootstrap (BRANCH=/BASE=/BUILD=1/E2E=1; rm via scripts/worktree.sh rm)
+make worktree-light PR=<n>                 # bare worktree, no install — tracks a PR head (SLUG=/BRANCH=/BASE= for non-PR work)
 ```
 
 Web-local dev/build/format (`make web-dev`, `make web-build`, `make web-fmt`) are documented in `web/CLAUDE.md`.

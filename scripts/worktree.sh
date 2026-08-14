@@ -2,26 +2,32 @@
 # Worktree lifecycle for parallel agent/dev checkouts.
 #
 #   scripts/worktree.sh new <slug> [--branch <name>] [--base <ref>] [--dir <path>] [--build] [--e2e] [--skip-install]
+#   scripts/worktree.sh light [<slug>] [--pr <number>] [--branch <name>] [--base <ref>] [--dir <path>]
 #   scripts/worktree.sh bootstrap [--build] [--e2e] [--skip-install]
 #   scripts/worktree.sh rm <slug-or-path> [--force]
 #   scripts/worktree.sh list
 #
 # `new` creates a sibling worktree (default <repo-parent>/_worktrees/<slug>),
-# replaces shared dirs (.claude .codex .compozy .resources docs) with copies
-# from the main checkout, then bootstraps. `bootstrap` makes the CURRENT
-# checkout dev-ready: mise tool pins, bun install (postinstall links
-# .claude/skills + AGENTS.md), golangci-lint cache seeded from the main
-# checkout (the cache is per-worktree), optional `make build` (--build) and
-# Playwright chromium (--e2e). GOCACHE/GOMODCACHE are shared; `make verify`
-# and the E2E lanes queue machine-wide (L-030), scoped lanes are
-# capacity-bounded.
+# copies shared dirs (.claude .codex .compozy docs), links .resources from the
+# main checkout, then bootstraps. `light` is the bare `git worktree
+# add` — no shared-dir copy, no install; tracked dirs come from the branch,
+# so it fits Go-only work (run `bootstrap` inside it later if you need the
+# full env). `--pr <n>` points it at an open PR head: resolves the head repo
+# via gh, adds/reuses that fork's remote, and tracks it so `git push` updates
+# the PR. `bootstrap` makes the CURRENT checkout dev-ready: mise tool pins,
+# bun install (postinstall links .claude/skills + AGENTS.md), golangci-lint
+# cache seeded from the main checkout (the cache is per-worktree), optional
+# `make build` (--build) and Playwright chromium (--e2e). GOCACHE/GOMODCACHE
+# are shared; `make verify` and the E2E lanes queue machine-wide (L-030),
+# scoped lanes are capacity-bounded.
 set -euo pipefail
 
-# Dirs wiped in the new worktree and replaced with copies from the main checkout.
-SHARED_DIRS=(.claude .codex .compozy .resources docs)
+# Dirs wiped in the new worktree and replaced from the main checkout.
+COPIED_DIRS=(.claude .codex .compozy docs)
+LINKED_DIRS=(.resources)
 
 usage() {
-  sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() {
@@ -48,7 +54,7 @@ default_container() {
   echo "$(dirname "$(main_root)")/_worktrees"
 }
 
-# Drop worktree copies of shared/local dirs and replace with main's tree.
+# Drop worktree versions of shared/local dirs and replace them from main.
 sync_shared_dirs_from_main() {
   local dest="$1"
   local src name
@@ -56,13 +62,25 @@ sync_shared_dirs_from_main() {
   dest="$(cd "$dest" && pwd)"
   [ "$src" = "$dest" ] && die "refusing to sync main onto itself"
 
-  for name in "${SHARED_DIRS[@]}"; do
+  for name in "${COPIED_DIRS[@]}"; do
     if [ -e "$dest/$name" ] || [ -L "$dest/$name" ]; then
       rm -rf "$dest/$name"
     fi
     if [ -e "$src/$name" ] || [ -L "$src/$name" ]; then
       echo "worktree: copying $name/ from main ($src)"
       cp -a "$src/$name" "$dest/$name"
+    else
+      echo "worktree: skip $name/ (not present in main)"
+    fi
+  done
+
+  for name in "${LINKED_DIRS[@]}"; do
+    if [ -e "$dest/$name" ] || [ -L "$dest/$name" ]; then
+      rm -rf "$dest/$name"
+    fi
+    if [ -e "$src/$name" ] || [ -L "$src/$name" ]; then
+      echo "worktree: linking $name/ from main ($src)"
+      ln -s "$src/$name" "$dest/$name"
     else
       echo "worktree: skip $name/ (not present in main)"
     fi
@@ -222,6 +240,122 @@ cmd_new() {
   (cd "$dir" && bootstrap ${pass_through[0]:+"${pass_through[@]}"})
 }
 
+# github.com/<owner>/<repo> for any remote URL form (ssh, https, with/without .git).
+canonical_remote_slug() {
+  printf '%s' "$1" | sed -e 's#^git@github\.com:#github.com/#' \
+    -e 's#^ssh://git@github\.com/#github.com/#' \
+    -e 's#^https\{0,1\}://github\.com/#github.com/#' \
+    -e 's#\.git$##'
+}
+
+# Remote name for <owner>/<repo>, reusing an existing one (origin included) or
+# adding <owner>-fork. Prints the remote name.
+ensure_github_remote() {
+  local owner="$1" repo="$2" want name url
+  want="github.com/$owner/$repo"
+  while read -r name; do
+    [ -n "$name" ] || continue
+    url="$(git remote get-url "$name" 2>/dev/null || true)"
+    if [ "$(canonical_remote_slug "$url")" = "$want" ]; then
+      printf '%s' "$name"
+      return 0
+    fi
+  done < <(git remote)
+  name="$owner-fork"
+  git remote get-url "$name" >/dev/null 2>&1 && die "remote $name exists but does not point at $want"
+  git remote add "$name" "git@github.com:$owner/$repo.git" >&2
+  echo "worktree: added remote $name -> git@github.com:$owner/$repo.git" >&2
+  printf '%s' "$name"
+}
+
+# Resolves an open PR to "<remote> <head-branch>", fetching the head ref.
+resolve_pr_head() {
+  local number="$1" fields owner repo head
+  command -v gh >/dev/null 2>&1 || die "--pr requires the gh CLI (https://cli.github.com)"
+  fields="$(gh pr view "$number" \
+    --json headRepositoryOwner,headRepository,headRefName \
+    --jq '[.headRepositoryOwner.login, .headRepository.name, .headRefName] | @tsv')" ||
+    die "gh could not resolve PR #$number"
+  IFS=$'\t' read -r owner repo head <<<"$fields"
+  [ -n "$owner" ] && [ -n "$repo" ] && [ -n "$head" ] || die "PR #$number has no head branch (deleted fork?)"
+  local remote
+  remote="$(ensure_github_remote "$owner" "$repo")"
+  echo "worktree: fetching $remote/$head (PR #$number)" >&2
+  git fetch "$remote" "$head" >&2
+  printf '%s %s\n' "$remote" "$head"
+}
+
+cmd_light() {
+  local slug="" branch="" base="main" dir="" pr=""
+  if [ $# -ge 1 ] && [[ "$1" != --* ]]; then
+    slug="$1"
+    shift
+  fi
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --pr)
+        [ $# -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]] || die "--pr requires a PR number"
+        pr="$2"
+        shift
+        ;;
+      --branch)
+        [ $# -ge 2 ] && [ -n "$2" ] && [[ "$2" != --* ]] || die "--branch requires a value"
+        branch="$2"
+        shift
+        ;;
+      --base)
+        [ $# -ge 2 ] && [ -n "$2" ] && [[ "$2" != --* ]] || die "--base requires a value"
+        base="$2"
+        shift
+        ;;
+      --dir)
+        [ $# -ge 2 ] && [ -n "$2" ] && [[ "$2" != --* ]] || die "--dir requires a value"
+        dir="$2"
+        shift
+        ;;
+      *) die "unknown light option: $1" ;;
+    esac
+    shift
+  done
+  [ -n "$slug" ] || [ -n "$pr" ] || die "usage: worktree.sh light [<slug>] [--pr <number>] [--branch <name>] [--base <ref>] [--dir <path>]"
+  [ -n "$slug" ] || slug="pr-$pr"
+  [[ "$slug" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || die "slug must be kebab-case: $slug"
+
+  local remote=""
+  if [ -n "$pr" ]; then
+    [ -z "$branch" ] || die "--pr and --branch are mutually exclusive"
+    read -r remote branch < <(resolve_pr_head "$pr")
+  fi
+  [ -n "$branch" ] || branch="$slug"
+  [ -n "$dir" ] || dir="$(default_container)/$slug"
+  [ -e "$dir" ] && die "target already exists: $dir"
+  mkdir -p "$(dirname "$dir")"
+
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    echo "worktree: adding $dir on existing local branch $branch"
+    if [ -n "$remote" ]; then
+      echo "worktree: local $branch kept as-is — merge $remote/$branch yourself if it lags"
+    fi
+    git worktree add "$dir" "$branch"
+  elif [ -n "$remote" ]; then
+    echo "worktree: adding $dir on $branch tracking $remote/$branch"
+    git worktree add --track -b "$branch" "$dir" "$remote/$branch"
+  else
+    echo "worktree: adding $dir on new branch $branch (from $base)"
+    git worktree add -b "$branch" "$dir" "$base"
+  fi
+
+  dir="$(cd "$dir" && pwd)"
+  echo ""
+  echo "worktree ready (light): $dir ($branch)"
+  echo "  no bun install / shared-dir copy — run 'make worktree-bootstrap' inside it for the full env"
+  echo "  go lanes     : go test -race ./internal/<pkg>/... | make lint (first run is cold)"
+  if [ -n "$remote" ]; then
+    echo "  publish      : git push  (tracks $remote/$branch)"
+  fi
+  echo "  remove       : git worktree remove $dir"
+}
+
 cmd_rm() {
   [ $# -ge 1 ] || die "usage: worktree.sh rm <slug-or-path> [--force]"
   local target="$1" force=""
@@ -248,6 +382,7 @@ main() {
   [ $# -gt 0 ] && shift
   case "$cmd" in
     new) cmd_new "$@" ;;
+    light) cmd_light "$@" ;;
     bootstrap) bootstrap "$@" ;;
     rm) cmd_rm "$@" ;;
     list) git worktree list ;;

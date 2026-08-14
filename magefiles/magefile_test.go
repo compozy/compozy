@@ -451,6 +451,59 @@ func TestWorktreeScriptRejectsMissingFlagValues(t *testing.T) {
 	}
 }
 
+func TestWorktreeScriptSharesResources(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should link resources from the main checkout", func(t *testing.T) {
+		t.Parallel()
+
+		mainDir, worktreeDir := createWorktreeScriptFixture(t, true)
+		resourcesPath := filepath.Join(worktreeDir, ".resources")
+		info, err := os.Lstat(resourcesPath)
+		if err != nil {
+			t.Fatalf("os.Lstat(%s) error = %v", resourcesPath, err)
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("worktree .resources mode = %v, want symlink", info.Mode())
+		}
+
+		target, err := os.Readlink(resourcesPath)
+		if err != nil {
+			t.Fatalf("os.Readlink(%s) error = %v", resourcesPath, err)
+		}
+		if !filepath.IsAbs(target) {
+			t.Fatalf("worktree .resources target = %q, want absolute path", target)
+		}
+		wantTarget := filepath.Join(mainDir, ".resources")
+		gotInfo, err := os.Stat(resourcesPath)
+		if err != nil {
+			t.Fatalf("os.Stat(%s) error = %v", resourcesPath, err)
+		}
+		wantInfo, err := os.Stat(wantTarget)
+		if err != nil {
+			t.Fatalf("os.Stat(%s) error = %v", wantTarget, err)
+		}
+		if !os.SameFile(gotInfo, wantInfo) {
+			t.Fatalf("worktree .resources target = %q, want same directory as %q", target, wantTarget)
+		}
+
+		writeTestFile(t, wantTarget, "added-after-worktree.txt", "shared")
+		if got := readTestFile(t, resourcesPath, "added-after-worktree.txt"); got != "shared" {
+			t.Fatalf("worktree resource content = %q, want %q", got, "shared")
+		}
+	})
+
+	t.Run("Should omit the link when main has no resources directory", func(t *testing.T) {
+		t.Parallel()
+
+		_, worktreeDir := createWorktreeScriptFixture(t, false)
+		resourcesPath := filepath.Join(worktreeDir, ".resources")
+		if _, err := os.Lstat(resourcesPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Lstat(%s) error = %v, want os.ErrNotExist", resourcesPath, err)
+		}
+	})
+}
+
 func TestDirectoryDigest(t *testing.T) {
 	t.Parallel()
 
@@ -850,6 +903,63 @@ func readTestFile(t *testing.T, root string, rel string) string {
 		t.Fatalf("os.ReadFile(%s) error = %v", rel, err)
 	}
 	return string(data)
+}
+
+func createWorktreeScriptFixture(t *testing.T, withResources bool) (string, string) {
+	t.Helper()
+
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd() error = %v", err)
+	}
+	testRoot := t.TempDir()
+	mainDir := filepath.Join(testRoot, "main")
+	worktreeDir := filepath.Join(testRoot, "worktree")
+	if err := os.MkdirAll(mainDir, 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%s) error = %v", mainDir, err)
+	}
+
+	runTestCommand(t, "", "git", "init", "-b", "main", mainDir)
+	writeTestFile(t, mainDir, "README.md", "fixture")
+	runTestCommand(t, mainDir, "git", "add", "README.md")
+	runTestCommand(t, mainDir, "git", "-c", "user.name=CompozyOS Test", "-c", "user.email=test@compozy.local", "-c", "commit.gpgsign=false", "commit", "-m", "test fixture")
+	if withResources {
+		writeTestFile(t, filepath.Join(mainDir, ".resources"), "existing.txt", "existing")
+	}
+
+	binDir := filepath.Join(testRoot, "bin")
+	writeTestFile(t, binDir, "mise", "#!/bin/sh\nexit 0\n")
+	if err := os.Chmod(filepath.Join(binDir, "mise"), 0o755); err != nil {
+		t.Fatalf("os.Chmod(mise) error = %v", err)
+	}
+
+	cmd := exec.Command(
+		"bash",
+		filepath.Join(repoRoot, "scripts", "worktree.sh"),
+		"new",
+		"linked-resources",
+		"--dir",
+		worktreeDir,
+		"--skip-install",
+	)
+	cmd.Dir = mainDir
+	cmd.Env = mergeCommandEnv(map[string]string{
+		"PATH": binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
+	})
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("worktree.sh new error = %v\n%s", err, output)
+	}
+	return mainDir, worktreeDir
+}
+
+func runTestCommand(t *testing.T, dir string, name string, args ...string) {
+	t.Helper()
+
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%s %s error = %v\n%s", name, strings.Join(args, " "), err, output)
+	}
 }
 
 func assertAskpassOutput(t *testing.T, env map[string]string, askpassPath string, prompt string, want string) {
