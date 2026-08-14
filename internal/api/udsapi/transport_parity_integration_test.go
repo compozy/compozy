@@ -2050,70 +2050,74 @@ func TestUDSTransportTerminalProcessFailureRejectsAttachAndPromptBeforeACPResume
 	acpmock.RequireDriver(t)
 	t.Parallel()
 
-	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  transportMockFixturePath(t, "driver_fault_fixture.json"),
-			FixtureAgent: "faulty",
-			AgentName:    transportUDSFaultyAgent,
-		}},
-	})
+	t.Run("Should reject attach and prompt before ACP resume after a terminal process failure", func(t *testing.T) {
+		t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  transportMockFixturePath(t, "driver_fault_fixture.json"),
+				FixtureAgent: "faulty",
+				AgentName:    transportUDSFaultyAgent,
+			}},
+		})
 
-	created, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
-		AgentName:     transportUDSFaultyAgent,
-		WorkspacePath: runtimeHarness.WorkspaceRoot,
-	})
-	if err != nil {
-		t.Fatalf("CreateSession() error = %v", err)
-	}
-	created = waitForTransportSessionActive(t, ctx, runtimeHarness, created)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
 
-	stream, err := runtimeHarness.PromptSession(ctx, created.ID, "trigger crash mid-stream")
-	if err != nil {
-		t.Fatalf("PromptSession() error = %v", err)
-	}
-	if !udsSSEContainsEvent(stream, "error") {
-		t.Fatalf("UDS prompt stream = %#v, want error event", stream)
-	}
-	waitForTransportDeadSession(t, ctx, runtimeHarness, created.ID)
-
-	clients, err := runtimeHarness.TransportClients()
-	if err != nil {
-		t.Fatalf("TransportClients() error = %v", err)
-	}
-	path := transportHarnessSessionPath(t, runtimeHarness, created.ID, "/attach")
-	assertTransportDeadSessionRejection(t, clients.HTTPClient, runtimeHarness.HTTPURL(path), nil)
-	assertTransportDeadSessionRejection(t, clients.UDSClient, runtimeHarness.UDSURL(path), nil)
-
-	promptBody, err := json.Marshal(compozycontract.SendPromptRequest{
-		Message:        "retry a dead session",
-		MessageID:      "message-dead-session-retry",
-		IdempotencyKey: "idempotency-dead-session-retry",
-	})
-	if err != nil {
-		t.Fatalf("json.Marshal(dead session prompt) error = %v", err)
-	}
-	promptPath := transportHarnessSessionPath(t, runtimeHarness, created.ID, "/prompt")
-	assertTransportDeadSessionRejection(t, clients.HTTPClient, runtimeHarness.HTTPURL(promptPath), promptBody)
-	assertTransportDeadSessionRejection(t, clients.UDSClient, runtimeHarness.UDSURL(promptPath), promptBody)
-
-	registration, ok := runtimeHarness.MockAgentRegistration(transportUDSFaultyAgent)
-	if !ok {
-		t.Fatalf("MockAgentRegistration(%q) not found", transportUDSFaultyAgent)
-	}
-	diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics(%q) error = %v", registration.DiagnosticsPath, err)
-	}
-	for _, diagnostic := range acpmock.ProtocolDiagnostics(
-		acpmock.DiagnosticsForCompozySession(diagnostics, created.ID),
-	) {
-		if diagnostic.ProtocolMethod == "session/load" {
-			t.Fatalf("terminal session diagnostics = %#v, want no session/load", diagnostics)
+		created, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+			AgentName:     transportUDSFaultyAgent,
+			WorkspacePath: runtimeHarness.WorkspaceRoot,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession() error = %v", err)
 		}
-	}
+		created = waitForTransportSessionActive(t, ctx, runtimeHarness, created)
+
+		stream, err := runtimeHarness.PromptSession(ctx, created.ID, "trigger crash mid-stream")
+		if err != nil {
+			t.Fatalf("PromptSession() error = %v", err)
+		}
+		if !udsSSEContainsEvent(stream, "error") {
+			t.Fatalf("UDS prompt stream = %#v, want error event", stream)
+		}
+		waitForTransportDeadSession(t, ctx, runtimeHarness, created.ID)
+
+		clients, err := runtimeHarness.TransportClients()
+		if err != nil {
+			t.Fatalf("TransportClients() error = %v", err)
+		}
+		path := transportHarnessSessionPath(t, runtimeHarness, created.ID, "/attach")
+		assertTransportDeadSessionRejection(t, clients.HTTPClient, runtimeHarness.HTTPURL(path), nil)
+		assertTransportDeadSessionRejection(t, clients.UDSClient, runtimeHarness.UDSURL(path), nil)
+
+		promptBody, err := json.Marshal(compozycontract.SendPromptRequest{
+			Message:        "retry a dead session",
+			MessageID:      "message-dead-session-retry",
+			IdempotencyKey: "idempotency-dead-session-retry",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(dead session prompt) error = %v", err)
+		}
+		promptPath := transportHarnessSessionPath(t, runtimeHarness, created.ID, "/prompt")
+		assertTransportDeadSessionRejection(t, clients.HTTPClient, runtimeHarness.HTTPURL(promptPath), promptBody)
+		assertTransportDeadSessionRejection(t, clients.UDSClient, runtimeHarness.UDSURL(promptPath), promptBody)
+
+		registration, ok := runtimeHarness.MockAgentRegistration(transportUDSFaultyAgent)
+		if !ok {
+			t.Fatalf("MockAgentRegistration(%q) not found", transportUDSFaultyAgent)
+		}
+		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(%q) error = %v", registration.DiagnosticsPath, err)
+		}
+		for _, diagnostic := range acpmock.ProtocolDiagnostics(
+			acpmock.DiagnosticsForCompozySession(diagnostics, created.ID),
+		) {
+			if diagnostic.ProtocolMethod == "session/load" {
+				t.Fatalf("terminal session diagnostics = %#v, want no session/load", diagnostics)
+			}
+		}
+	})
 }
 
 func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
