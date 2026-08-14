@@ -25,6 +25,7 @@ var expectedCompozyReferences = []string{
 	"references/tasks-and-orchestration.md",
 	"references/tools-and-skills.md",
 	"references/window-management.md",
+	"references/worktrees.md",
 }
 
 func TestBundledFSContainsOnlyCompozySkill(t *testing.T) {

@@ -19,6 +19,7 @@ func (p *ExecutionProfile) Normalize(options ExecutionProfileValidationOptions) 
 	normalized.Review = normalizeReviewProfile(normalized.Review)
 	normalized.Participants = normalizeParticipantPolicy(normalized.Participants)
 	normalized.Sandbox = normalizeSandboxPolicy(normalized.Sandbox)
+	normalized.Worktree = normalizeWorktreePolicy(normalized.Worktree)
 	normalized.Runtime = normalizeRuntimePolicy(normalized.Runtime)
 	if normalized.NetworkParticipation != nil {
 		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
@@ -59,6 +60,9 @@ func (p *ExecutionProfile) Validate(options ExecutionProfileValidationOptions) e
 		return err
 	}
 	if err := validateSandboxPolicy(p.Sandbox, options); err != nil {
+		return err
+	}
+	if err := validateWorktreePolicy(p.Worktree); err != nil {
 		return err
 	}
 	return validateRuntimePolicy(p.Runtime)

@@ -539,6 +539,14 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						if request.Inputs["target"] != "prod" {
 							t.Fatalf("RunLoop inputs = %#v, want target prod", request.Inputs)
 						}
+						if request.ConfigOverrides == nil ||
+							request.ConfigOverrides.Environment == nil ||
+							request.ConfigOverrides.Environment.Mode != contract.LoopEnvironmentModePerRun {
+							t.Fatalf(
+								"RunLoop config overrides = %#v, want per_run environment",
+								request.ConfigOverrides,
+							)
+						}
 						if request.NetworkParticipation == nil ||
 							request.NetworkParticipation.Mode == nil ||
 							*request.NetworkParticipation.Mode != participation.ModeLocal {
@@ -571,6 +579,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input: json.RawMessage(
 					`{"workspace":"ws-alpha","name":"release","inputs":{"target":"prod"},` +
+						`"config_overrides":{"environment":{"mode":"per_run"}},` +
 						`"network_participation":{"mode":"local"},"dry":true}`,
 				),
 			},

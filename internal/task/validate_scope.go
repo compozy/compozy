@@ -16,6 +16,9 @@ func (r SessionRef) Validate() error {
 	if err := ValidateReferenceSize(sessionID, "session_ref.session_id"); err != nil {
 		return err
 	}
+	if err := ValidateReferenceSize(strings.TrimSpace(r.WorktreeID), "session_ref.worktree_id"); err != nil {
+		return err
+	}
 	return nil
 }
 

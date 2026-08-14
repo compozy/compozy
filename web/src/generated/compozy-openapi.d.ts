@@ -259,6 +259,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent/tasks/{run_id}/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start a claimed task run under the calling agent's lease */
+    post: operations["startAgentTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents": {
     parameters: {
       query?: never;
@@ -3918,6 +3935,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tasks/{id}/execution-profile/worktree": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Set one task worktree policy */
+    patch: operations["setTaskWorktreePolicy"];
+    trace?: never;
+  };
   "/api/tasks/{id}/inspect": {
     parameters: {
       query?: never;
@@ -5898,6 +5932,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Fork a live session into a worktree */
+    post: operations["forkSessionToWorktree"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}": {
     parameters: {
       query?: never;
@@ -6080,6 +6131,195 @@ export interface paths {
     };
     /** Stream a topology and optional client presentation fence */
     get: operations["streamWindowManager"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List registered and discovered worktrees */
+    get: operations["listWorktrees"];
+    put?: never;
+    /** Accept a worktree creation */
+    post: operations["createWorktree"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/adopt": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Adopt an existing linked worktree */
+    post: operations["adoptWorktree"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect one worktree */
+    get: operations["inspectWorktree"];
+    put?: never;
+    post?: never;
+    /** Remove a worktree */
+    delete: operations["removeWorktree"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel a pending worktree creation */
+    post: operations["cancelWorktreeCreate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Dismiss a worktree tombstone */
+    post: operations["dismissWorktree"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the worktree exit plan */
+    get: operations["getWorktreeExitPlan"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/actions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Run a worktree exit action */
+    post: operations["runWorktreeExitAction"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel a worktree exit action */
+    post: operations["cancelWorktreeExitAction"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read or refresh worktree status */
+    get: operations["getWorktreeStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream durable worktree lifecycle events */
+    get: operations["streamWorktree"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/worktrees/catalog-stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream worktree catalog changes across workspaces */
+    get: operations["streamWorktreeCatalog"];
     put?: never;
     post?: never;
     delete?: never;
@@ -6349,6 +6589,13 @@ export interface components {
             }
         )[];
         params?: {
+          environment?: {
+            directory?: string;
+            /** @enum {string} */
+            mode: "root" | "worktree" | "per_run" | "directory";
+            worktree_ref?: string;
+          };
+        } & {
           [key: string]: unknown;
         };
         parse?: string;
@@ -10019,6 +10266,9 @@ export interface operations {
                             }
                         )
                       | null;
+                    /** @enum {string} */
+                    resolved_worktree_mode?: "inherit" | "none" | "ref" | "per_run";
+                    resolved_worktree_ref?: string;
                     run_kind?: number;
                     session_id?: string;
                     /** Format: date-time */
@@ -10036,6 +10286,7 @@ export interface operations {
                     task_id: string;
                     /** Format: int64 */
                     tokens_used?: number;
+                    worktree_id?: string;
                   } | null;
                   execution_profile?: {
                     coordinator: {
@@ -10154,6 +10405,11 @@ export interface operations {
                       provider?: string;
                       required_capabilities?: string[];
                     };
+                    worktree: {
+                      /** @enum {string} */
+                      mode: "inherit" | "none" | "ref" | "per_run";
+                      worktree_ref?: string;
+                    };
                   } | null;
                   handoff_summary?: string;
                   /** Format: int64 */
@@ -10247,6 +10503,9 @@ export interface operations {
                             }
                         )
                       | null;
+                    /** @enum {string} */
+                    resolved_worktree_mode?: "inherit" | "none" | "ref" | "per_run";
+                    resolved_worktree_ref?: string;
                     run_kind?: number;
                     session_id?: string;
                     /** Format: date-time */
@@ -10264,6 +10523,7 @@ export interface operations {
                     task_id: string;
                     /** Format: int64 */
                     tokens_used?: number;
+                    worktree_id?: string;
                   }[];
                   recent_events: {
                     actor: {
@@ -10377,6 +10637,9 @@ export interface operations {
                               }
                           )
                         | null;
+                      /** @enum {string} */
+                      resolved_worktree_mode?: "inherit" | "none" | "ref" | "per_run";
+                      resolved_worktree_ref?: string;
                       run_kind?: number;
                       session_id?: string;
                       /** Format: date-time */
@@ -10394,6 +10657,7 @@ export interface operations {
                       task_id: string;
                       /** Format: int64 */
                       tokens_used?: number;
+                      worktree_id?: string;
                     } | null;
                     /** Format: int64 */
                     sequence: number;
@@ -12204,6 +12468,7 @@ export interface operations {
                 updated_at: string;
                 workspace_id?: string;
                 workspace_path?: string;
+                worktree_id?: string;
               };
             };
           };
@@ -12656,6 +12921,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -12671,6 +12939,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               };
               task: {
                 effective_paused?: boolean;
@@ -14159,6 +14428,382 @@ export interface operations {
         };
       };
       /** @description Invalid release request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  startAgentTaskRun: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Daemon-issued active session id */
+        "X-Compozy-Session-ID": string;
+        /** @description Daemon-issued session agent name */
+        "X-Compozy-Agent": string;
+      };
+      path: {
+        /** @description Task run id */
+        run_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          idempotency_key?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              designation?: {
+                brief?: string;
+                index: number;
+              } | null;
+              designation_group_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              failure_kind?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              previous_run_id?: string;
+              /** Format: date-time */
+              queued_at: string;
+              recovery_count: number;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled"
+                | "needs_attention";
+              task_id: string;
+              worktree_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Agent caller identity is missing */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden - workspace or permission mismatch */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run start conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid start request */
       422: {
         headers: {
           [name: string]: unknown;
@@ -35295,7 +35940,12 @@ export interface operations {
           | "window_manager.window.closed"
           | "window_manager.stack.grouped"
           | "window_manager.stack.ungrouped"
-          | "window_manager.stack.activated";
+          | "window_manager.stack.activated"
+          | "worktree.pre_create"
+          | "worktree.pre_remove"
+          | "worktree.created"
+          | "worktree.adopted"
+          | "worktree.removed";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -35360,6 +36010,7 @@ export interface operations {
                 work_state?: string;
                 workspace_id?: string;
                 workspace_root?: string;
+                worktree_id?: string;
               };
               metadata?: {
                 [key: string]: string;
@@ -35643,6 +36294,7 @@ export interface operations {
               type: string;
               workflow_id?: string;
               workspace_id?: string;
+              worktree_id?: string;
             }[];
           };
         };
@@ -35784,6 +36436,7 @@ export interface operations {
             type: string;
             workflow_id?: string;
             workspace_id?: string;
+            worktree_id?: string;
           };
         };
       };
@@ -42709,6 +43362,8 @@ export interface operations {
         scope?: "global" | "workspace";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
+        /** @description Filter by active run worktree ID */
+        worktree?: string;
         /** @description Filter by owner kind */
         owner_kind?:
           | "human"
@@ -43099,6 +43754,8 @@ export interface operations {
         scope?: "global" | "workspace";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
+        /** @description Filter by active run worktree ID */
+        worktree?: string;
         /** @description Filter by owner kind */
         owner_kind?:
           | "human"
@@ -43257,6 +43914,9 @@ export interface operations {
                             }
                         )
                       | null;
+                    /** @enum {string} */
+                    resolved_worktree_mode: "none" | "ref" | "per_run";
+                    resolved_worktree_ref?: string;
                     session_id?: string;
                     /** Format: date-time */
                     started_at?: string | null;
@@ -43271,6 +43931,7 @@ export interface operations {
                       | "canceled"
                       | "needs_attention";
                     task_id: string;
+                    worktree_id?: string;
                   } | null;
                   task: {
                     id: string;
@@ -45650,6 +46311,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -45665,6 +46329,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               run_id: string;
             }[];
@@ -45983,6 +46648,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -45998,6 +46666,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               run_id: string;
             }[];
@@ -46295,6 +46964,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -46310,6 +46982,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -46759,6 +47432,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -46773,6 +47449,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -47242,6 +47919,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -47257,6 +47937,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             run: {
               attempt: number;
@@ -47375,6 +48056,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -47390,6 +48074,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -47743,6 +48428,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -47758,6 +48446,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -48110,6 +48799,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -48125,6 +48817,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             run: {
               attempt: number;
@@ -48243,6 +48936,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -48258,6 +48954,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -48733,6 +49430,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   result?: unknown;
                   session_id?: string;
                   /** Format: date-time */
@@ -48748,6 +49448,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 };
                 task: {
                   active_run?: {
@@ -48852,6 +49553,9 @@ export interface operations {
                             }
                         )
                       | null;
+                    /** @enum {string} */
+                    resolved_worktree_mode: "none" | "ref" | "per_run";
+                    resolved_worktree_ref?: string;
                     session_id?: string;
                     /** Format: date-time */
                     started_at?: string | null;
@@ -48866,6 +49570,7 @@ export interface operations {
                       | "canceled"
                       | "needs_attention";
                     task_id: string;
+                    worktree_id?: string;
                   } | null;
                   /** @enum {string} */
                   approval_policy?: "none" | "manual";
@@ -49722,6 +50427,8 @@ export interface operations {
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
         root?: string;
+        /** @description Filter by exact bound worktree id */
+        worktree?: string;
         /** @description Search session id, name, agent, provider, or channel */
         q?: string;
         /** @description Only list sessions eligible for explicit attach */
@@ -50000,6 +50707,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             }[];
           };
         };
@@ -50224,9 +50932,13 @@ export interface operations {
                   }
               )
             | null;
+          new_worktree?: {
+            name?: string;
+          } | null;
           parent_session_id?: string;
           workspace?: string;
           workspace_path?: string;
+          worktree?: string;
         };
       };
     };
@@ -50484,6 +51196,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -50985,6 +51698,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -52239,7 +52953,12 @@ export interface operations {
                   | "window_manager.window.closed"
                   | "window_manager.stack.grouped"
                   | "window_manager.stack.ungrouped"
-                  | "window_manager.stack.activated";
+                  | "window_manager.stack.activated"
+                  | "worktree.pre_create"
+                  | "worktree.pre_remove"
+                  | "worktree.created"
+                  | "worktree.adopted"
+                  | "worktree.removed";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -52285,6 +53004,7 @@ export interface operations {
                   work_state?: string;
                   workspace_id?: string;
                   workspace_root?: string;
+                  worktree_id?: string;
                 };
                 metadata?: {
                   [key: string]: string;
@@ -52530,7 +53250,12 @@ export interface operations {
                   | "window_manager.window.closed"
                   | "window_manager.stack.grouped"
                   | "window_manager.stack.ungrouped"
-                  | "window_manager.stack.activated";
+                  | "window_manager.stack.activated"
+                  | "worktree.pre_create"
+                  | "worktree.pre_remove"
+                  | "worktree.created"
+                  | "worktree.adopted"
+                  | "worktree.removed";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -52576,6 +53301,7 @@ export interface operations {
                   work_state?: string;
                   workspace_id?: string;
                   workspace_root?: string;
+                  worktree_id?: string;
                 };
                 metadata?: {
                   [key: string]: string;
@@ -53052,7 +53778,12 @@ export interface operations {
               | "window_manager.window.closed"
               | "window_manager.stack.grouped"
               | "window_manager.stack.ungrouped"
-              | "window_manager.stack.activated";
+              | "window_manager.stack.activated"
+              | "worktree.pre_create"
+              | "worktree.pre_remove"
+              | "worktree.created"
+              | "worktree.adopted"
+              | "worktree.removed";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
             matcher: {
@@ -53098,6 +53829,7 @@ export interface operations {
               work_state?: string;
               workspace_id?: string;
               workspace_root?: string;
+              worktree_id?: string;
             };
             metadata?: {
               [key: string]: string;
@@ -63019,6 +63751,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -63034,6 +63769,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             } | null;
             review: {
               attempt: number;
@@ -63461,6 +64197,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -63476,6 +64215,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               };
               session?: {
                 agent_name?: string;
@@ -63817,6 +64557,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -63832,6 +64575,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -64127,6 +64871,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -64142,6 +64889,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -64437,6 +65185,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -64452,6 +65203,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -65015,6 +65767,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -65030,6 +65785,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -65854,6 +66610,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -65869,6 +66628,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -66056,6 +66816,8 @@ export interface operations {
         owner_ref?: string;
         /** @description Filter by parent task ID */
         parent_task_id?: string;
+        /** @description Filter by active run worktree ID */
+        worktree?: string;
         /** @description Filter by resolved participation channel */
         participation_channel?: string;
         /** @description Filter by task title or identifier */
@@ -66193,6 +66955,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -66207,6 +66972,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               /** @enum {string} */
               approval_policy?: "none" | "manual";
@@ -67059,6 +67825,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -67073,6 +67842,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -67487,6 +68257,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -67502,6 +68275,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               }[];
               summary: {
                 active_run?: {
@@ -67606,6 +68380,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -67620,6 +68397,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -68848,6 +69626,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -68863,6 +69644,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             task: {
               /** @enum {string} */
@@ -70722,6 +71504,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -70736,6 +71521,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -71150,6 +71936,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -71165,6 +71954,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               }[];
               summary: {
                 active_run?: {
@@ -71269,6 +72059,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -71283,6 +72076,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -71918,6 +72712,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -71932,6 +72729,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -72346,6 +73144,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -72361,6 +73162,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               }[];
               summary: {
                 active_run?: {
@@ -72465,6 +73267,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -72479,6 +73284,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -73096,6 +73902,11 @@ export interface operations {
                 provider?: string;
                 required_capabilities?: string[];
               };
+              worktree: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref" | "per_run";
+                worktree_ref?: string;
+              };
             };
           };
         };
@@ -73348,6 +74159,11 @@ export interface operations {
             provider?: string;
             required_capabilities?: string[];
           };
+          worktree: {
+            /** @enum {string} */
+            mode: "inherit" | "none" | "ref" | "per_run";
+            worktree_ref?: string;
+          };
         };
       };
     };
@@ -73475,6 +74291,11 @@ export interface operations {
                 preferred_capabilities?: string[];
                 provider?: string;
                 required_capabilities?: string[];
+              };
+              worktree: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref" | "per_run";
+                worktree_ref?: string;
               };
             };
           };
@@ -73647,6 +74468,307 @@ export interface operations {
         content?: never;
       };
       /** @description Task or execution profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task execution profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  setTaskWorktreePolicy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @enum {string} */
+          mode: "inherit" | "none" | "ref" | "per_run";
+          worktree_ref?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            profile: {
+              coordinator: {
+                agent_name?: string;
+                guidance?: string;
+                /** @enum {string} */
+                mode: "inherit" | "guided";
+                model?: string;
+                provider?: string;
+              };
+              /** Format: date-time */
+              created_at: string;
+              network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode?: "local";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                    | {
+                        bounds?: {
+                          coalesce_window?: string;
+                          /** Format: int64 */
+                          max_input_tokens?: number;
+                          /** Format: int64 */
+                          max_output_tokens?: number;
+                          max_total_wall_time?: string;
+                          max_wake_depth?: number;
+                          max_wake_wall_time?: string;
+                          max_wakes?: number;
+                        };
+                        /** @enum {string} */
+                        channel_strategy: "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                      }
+                  )
+                | null;
+              participants: {
+                allowed_agent_names?: string[];
+                allowed_channel_ids?: string[];
+                allowed_peer_ids?: string[];
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                preferred_channel_ids?: string[];
+                preferred_peer_ids?: string[];
+                required_capabilities?: string[];
+              };
+              review: {
+                agent_name?: string;
+                allowed_agent_names?: string[];
+                allowed_channel_ids?: string[];
+                allowed_peer_ids?: string[];
+                model?: string;
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                preferred_channel_ids?: string[];
+                preferred_peer_ids?: string[];
+                provider?: string;
+                required_capabilities?: string[];
+              };
+              runtime: {
+                /** @enum {string} */
+                mode: "default" | "evidence";
+              };
+              sandbox: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref";
+                sandbox_ref?: string;
+              };
+              task_id: string;
+              /** Format: date-time */
+              updated_at: string;
+              worker: {
+                agent_name?: string;
+                allowed_agent_names?: string[];
+                /** @enum {string} */
+                mode: "inherit" | "select";
+                model?: string;
+                preferred_agent_names?: string[];
+                preferred_capabilities?: string[];
+                provider?: string;
+                required_capabilities?: string[];
+              };
+              worktree: {
+                /** @enum {string} */
+                mode: "inherit" | "none" | "ref" | "per_run";
+                worktree_ref?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Invalid task worktree policy */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
       404: {
         headers: {
           [name: string]: unknown;
@@ -74004,6 +75126,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -74018,6 +75143,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 /** @enum {string} */
                 approval_policy?: "none" | "manual";
@@ -75604,6 +76730,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -75619,6 +76748,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             task: {
               /** @enum {string} */
@@ -77335,6 +78465,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -77350,6 +78483,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             }[];
           };
         };
@@ -77676,6 +78810,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -77691,6 +78828,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
           };
         };
@@ -77922,6 +79060,7 @@ export interface operations {
                   }
               )
             | null;
+          worktree_per_run?: boolean;
         };
       };
     };
@@ -78051,6 +79190,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -78066,6 +79208,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             }[];
           };
         };
@@ -78421,6 +79564,9 @@ export interface operations {
                       }
                   )
                 | null;
+              /** @enum {string} */
+              resolved_worktree_mode: "none" | "ref" | "per_run";
+              resolved_worktree_ref?: string;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -78436,6 +79582,7 @@ export interface operations {
                 | "canceled"
                 | "needs_attention";
               task_id: string;
+              worktree_id?: string;
             };
             task: {
               /** @enum {string} */
@@ -78898,6 +80045,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -78912,6 +80062,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               /** Format: int64 */
               sequence: number;
@@ -79232,6 +80383,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -79246,6 +80400,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               /** Format: int64 */
               sequence: number;
@@ -79533,6 +80688,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -79547,6 +80705,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 child_count?: number;
                 depth: number;
@@ -79694,6 +80853,9 @@ export interface operations {
                           }
                       )
                     | null;
+                  /** @enum {string} */
+                  resolved_worktree_mode: "none" | "ref" | "per_run";
+                  resolved_worktree_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -79708,6 +80870,7 @@ export interface operations {
                     | "canceled"
                     | "needs_attention";
                   task_id: string;
+                  worktree_id?: string;
                 } | null;
                 child_count?: number;
                 depth: number;
@@ -88131,6 +89294,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             }[];
             skills?: {
               dir: string;
@@ -89830,7 +90994,12 @@ export interface operations {
           | "window_manager.window.closed"
           | "window_manager.stack.grouped"
           | "window_manager.stack.ungrouped"
-          | "window_manager.stack.activated";
+          | "window_manager.stack.activated"
+          | "worktree.pre_create"
+          | "worktree.pre_remove"
+          | "worktree.created"
+          | "worktree.adopted"
+          | "worktree.removed";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */
@@ -90840,6 +92009,13 @@ export interface operations {
                       }
                   )[];
                   params?: {
+                    environment?: {
+                      directory?: string;
+                      /** @enum {string} */
+                      mode: "root" | "worktree" | "per_run" | "directory";
+                      worktree_ref?: string;
+                    };
+                  } & {
                     [key: string]: unknown;
                   };
                   parse?: string;
@@ -95524,6 +96700,13 @@ export interface operations {
                     }
                 )[];
                 params?: {
+                  environment?: {
+                    directory?: string;
+                    /** @enum {string} */
+                    mode: "root" | "worktree" | "per_run" | "directory";
+                    worktree_ref?: string;
+                  };
+                } & {
                   [key: string]: unknown;
                 };
                 parse?: string;
@@ -96069,6 +97252,13 @@ export interface operations {
                         }
                     )[];
                     params?: {
+                      environment?: {
+                        directory?: string;
+                        /** @enum {string} */
+                        mode: "root" | "worktree" | "per_run" | "directory";
+                        worktree_ref?: string;
+                      };
+                    } & {
                       [key: string]: unknown;
                     };
                     parse?: string;
@@ -96823,6 +98013,13 @@ export interface operations {
                         }
                     )[];
                     params?: {
+                      environment?: {
+                        directory?: string;
+                        /** @enum {string} */
+                        mode: "root" | "worktree" | "per_run" | "directory";
+                        worktree_ref?: string;
+                      };
+                    } & {
                       [key: string]: unknown;
                     };
                     parse?: string;
@@ -97676,6 +98873,13 @@ export interface operations {
                     }
                 )[];
                 params?: {
+                  environment?: {
+                    directory?: string;
+                    /** @enum {string} */
+                    mode: "root" | "worktree" | "per_run" | "directory";
+                    worktree_ref?: string;
+                  };
+                } & {
                   [key: string]: unknown;
                 };
                 parse?: string;
@@ -98221,6 +99425,13 @@ export interface operations {
                         }
                     )[];
                     params?: {
+                      environment?: {
+                        directory?: string;
+                        /** @enum {string} */
+                        mode: "root" | "worktree" | "per_run" | "directory";
+                        worktree_ref?: string;
+                      };
+                    } & {
                       [key: string]: unknown;
                     };
                     parse?: string;
@@ -98895,6 +100106,12 @@ export interface operations {
               budget_tokens?: number | null;
               budget_wall_sec?: number | null;
               enabled_checks_json?: unknown;
+              environment?: {
+                directory?: string;
+                /** @enum {string} */
+                mode: "root" | "worktree" | "per_run" | "directory";
+                worktree_ref?: string;
+              } | null;
               fan_out_width?: number | null;
               gate_max_revisions?: number | null;
               human_gate_enabled?: boolean | null;
@@ -98933,6 +100150,12 @@ export interface operations {
               budget_tokens: number;
               budget_wall_sec: number;
               enabled_checks_json: unknown;
+              environment: {
+                directory?: string;
+                /** @enum {string} */
+                mode: "root" | "worktree" | "per_run" | "directory";
+                worktree_ref?: string;
+              };
               fan_out_width: number;
               gate_max_revisions: number;
               human_gate_enabled: boolean;
@@ -99120,6 +100343,12 @@ export interface operations {
             budget_tokens?: number | null;
             budget_wall_sec?: number | null;
             enabled_checks_json?: unknown;
+            environment?: {
+              directory?: string;
+              /** @enum {string} */
+              mode: "root" | "worktree" | "per_run" | "directory";
+              worktree_ref?: string;
+            } | null;
             fan_out_width?: number | null;
             gate_max_revisions?: number | null;
             human_gate_enabled?: boolean | null;
@@ -99169,6 +100398,12 @@ export interface operations {
               budget_tokens?: number | null;
               budget_wall_sec?: number | null;
               enabled_checks_json?: unknown;
+              environment?: {
+                directory?: string;
+                /** @enum {string} */
+                mode: "root" | "worktree" | "per_run" | "directory";
+                worktree_ref?: string;
+              } | null;
               fan_out_width?: number | null;
               gate_max_revisions?: number | null;
               human_gate_enabled?: boolean | null;
@@ -99207,6 +100442,12 @@ export interface operations {
               budget_tokens: number;
               budget_wall_sec: number;
               enabled_checks_json: unknown;
+              environment: {
+                directory?: string;
+                /** @enum {string} */
+                mode: "root" | "worktree" | "per_run" | "directory";
+                worktree_ref?: string;
+              };
               fan_out_width: number;
               gate_max_revisions: number;
               human_gate_enabled: boolean;
@@ -100309,6 +101550,12 @@ export interface operations {
             budget_tokens?: number | null;
             budget_wall_sec?: number | null;
             enabled_checks_json?: unknown;
+            environment?: {
+              directory?: string;
+              /** @enum {string} */
+              mode: "root" | "worktree" | "per_run" | "directory";
+              worktree_ref?: string;
+            } | null;
             fan_out_width?: number | null;
             gate_max_revisions?: number | null;
             human_gate_enabled?: boolean | null;
@@ -100603,6 +101850,12 @@ export interface operations {
                 budget_tokens: number;
                 budget_wall_sec: number;
                 enabled_checks_json: unknown;
+                environment: {
+                  directory?: string;
+                  /** @enum {string} */
+                  mode: "root" | "worktree" | "per_run" | "directory";
+                  worktree_ref?: string;
+                };
                 fan_out_width: number;
                 gate_max_revisions: number;
                 human_gate_enabled: boolean;
@@ -101191,6 +102444,12 @@ export interface operations {
                 budget_tokens: number;
                 budget_wall_sec: number;
                 enabled_checks_json: unknown;
+                environment: {
+                  directory?: string;
+                  /** @enum {string} */
+                  mode: "root" | "worktree" | "per_run" | "directory";
+                  worktree_ref?: string;
+                };
                 fan_out_width: number;
                 gate_max_revisions: number;
                 human_gate_enabled: boolean;
@@ -102209,6 +103468,13 @@ export interface operations {
                     }
                 )[];
                 params?: {
+                  environment?: {
+                    directory?: string;
+                    /** @enum {string} */
+                    mode: "root" | "worktree" | "per_run" | "directory";
+                    worktree_ref?: string;
+                  };
+                } & {
                   [key: string]: unknown;
                 };
                 parse?: string;
@@ -103791,6 +105057,7 @@ export interface operations {
                 updated_at: string;
                 workspace_id?: string;
                 workspace_path?: string;
+                worktree_id?: string;
               }[];
               workspace_id?: string;
             };
@@ -104230,6 +105497,7 @@ export interface operations {
                 updated_at: string;
                 workspace_id?: string;
                 workspace_path?: string;
+                worktree_id?: string;
               }[];
               workspace_id?: string;
             };
@@ -104678,6 +105946,7 @@ export interface operations {
                 updated_at: string;
                 workspace_id?: string;
                 workspace_path?: string;
+                worktree_id?: string;
               }[];
               workspace_id?: string;
             };
@@ -108059,6 +109328,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -108478,6 +109748,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -108990,6 +110261,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -109395,6 +110667,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -110063,6 +111336,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -110207,6 +111481,7 @@ export interface operations {
         content: {
           "application/json": {
             commands: {
+              available: boolean;
               canonical_token: string;
               description: string;
               display_name: string;
@@ -110220,6 +111495,7 @@ export interface operations {
                 kind: string;
                 scope: string;
               };
+              unavailable_reason?: string;
             }[];
             revision: string;
           };
@@ -110409,6 +111685,7 @@ export interface operations {
               workflow_id?: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             }[];
           };
         };
@@ -110981,6 +112258,7 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
                 workspace_path?: string;
+                worktree_id?: string;
               }[];
               turn_id: string;
             }[];
@@ -113386,6 +114664,9 @@ export interface operations {
                         }
                     )
                   | null;
+                /** @enum {string} */
+                resolved_worktree_mode: "none" | "ref" | "per_run";
+                resolved_worktree_ref?: string;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -113401,6 +114682,7 @@ export interface operations {
                   | "canceled"
                   | "needs_attention";
                 task_id: string;
+                worktree_id?: string;
               } | null;
               pending_inputs: number;
               pending_markers: number;
@@ -113680,6 +114962,7 @@ export interface operations {
                 updated_at: string;
                 workspace_id?: string;
                 workspace_path?: string;
+                worktree_id?: string;
               };
               snapshot: {
                 consistency: string;
@@ -114220,6 +115503,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -114654,6 +115938,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -115046,6 +116331,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -116102,6 +117388,7 @@ export interface operations {
               workflow_id?: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             } | null;
             session_commands_changed?: {
               revision: string;
@@ -116166,6 +117453,7 @@ export interface operations {
               workflow_id?: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             } | null;
             transcript_delta?: {
               /** Format: int64 */
@@ -117803,6 +119091,7 @@ export interface operations {
               updated_at: string;
               workspace_id?: string;
               workspace_path?: string;
+              worktree_id?: string;
             };
           };
         };
@@ -117968,6 +119257,436 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  forkSessionToWorktree: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Origin session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          confirmed: boolean;
+          new_worktree?: {
+            name?: string;
+          } | null;
+          worktree?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            session: {
+              activity?: {
+                current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
+                /** Format: int64 */
+                elapsed_seconds: number;
+                /** Format: int64 */
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
+              agent_name: string;
+              /** Format: date-time */
+              archived_at: string | null;
+              /** Format: date-time */
+              attach_expires_at?: string | null;
+              attachable: boolean;
+              attached_to?: string;
+              available_commands: {
+                description: string;
+                input?: {
+                  hint: string;
+                } | null;
+                name: string;
+              }[];
+              badge: string;
+              /** Format: date-time */
+              created_at: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
+              } | null;
+              id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  sandbox_profiles: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
+              name?: string;
+              resolved_network_participation?:
+                | (
+                    | {
+                        /** @enum {string} */
+                        mode: "local";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                      }
+                    | {
+                        bounds: {
+                          coalesce_window: string;
+                          /** Format: int64 */
+                          max_input_tokens: number;
+                          /** Format: int64 */
+                          max_output_tokens: number;
+                          max_total_wall_time: string;
+                          max_wake_depth: number;
+                          max_wake_wall_time: string;
+                          max_wakes: number;
+                        };
+                        channel_id: string;
+                        /** @enum {string} */
+                        channel_strategy: "named" | "run" | "loop_run";
+                        /** @enum {string} */
+                        mode: "live";
+                        /** @enum {string} */
+                        source:
+                          | "explicit_request"
+                          | "task_profile"
+                          | "workspace_coordination"
+                          | "loop_definition"
+                          | "automation_job"
+                          | "built_in_local";
+                        /** @enum {string} */
+                        version: "network-participation/v1";
+                        workspace_id: string;
+                      }
+                  )
+                | null;
+              runtime: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                effective?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                  speed_resolution?: {
+                    /** @enum {string} */
+                    reason?:
+                      | "capability_absent"
+                      | "capability_ambiguous"
+                      | "value_ambiguous"
+                      | "provider_rejected";
+                    /** @enum {string} */
+                    requested: "normal" | "fast";
+                    /** @enum {string} */
+                    status: "applied" | "unsupported" | "rejected";
+                  } | null;
+                } | null;
+                failure?: string;
+                selected?: {
+                  model?: string;
+                  provider: string;
+                  /** @enum {string} */
+                  reasoning_effort?:
+                    | "none"
+                    | "minimal"
+                    | "low"
+                    | "medium"
+                    | "high"
+                    | "xhigh"
+                    | "max";
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                } | null;
+                /** Format: int64 */
+                selection_revision: number;
+                status: string;
+                transition?: string;
+              };
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
+              /** @enum {string} */
+              state: "starting" | "active" | "stopping" | "stopped";
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              /** Format: int64 */
+              transcript_epoch?: number;
+              /** @enum {string} */
+              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+              workspace_path?: string;
+              worktree_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Confirmation or one worktree target is missing */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session, workspace, or worktree not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Origin session is busy or worktree is unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -122861,6 +124580,2570 @@ export interface operations {
             }[];
             error: string;
             workspace_id: string;
+          };
+        };
+      };
+    };
+  };
+  listWorktrees: {
+    parameters: {
+      query?: {
+        /** @description Refresh Git discovery and status */
+        refresh?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            discovered: {
+              branch: string;
+              detached: boolean;
+              name: string;
+              path: string;
+              reason?: string;
+              selectable: boolean;
+              stale: boolean;
+              unavailable: boolean;
+            }[];
+            repo: {
+              diagnostic?: string;
+              git_available: boolean;
+              git_backed: boolean;
+            };
+            worktrees: {
+              agent_activity: string;
+              ahead: number | null;
+              base_ref?: string;
+              behind: number | null;
+              branch: string;
+              /** Format: date-time */
+              created_at: string;
+              created_branch: boolean;
+              created_head?: string;
+              dirty: boolean | null;
+              id: string;
+              name: string;
+              origin: string;
+              path: string;
+              pending_phase?: string;
+              run_id?: string;
+              run_namespace?: string;
+              setup_error?: string;
+              setup_state: string;
+              state: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid worktree list query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  createWorktree: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          base_ref?: string;
+          branch?: string;
+          existing_branch?: string;
+          name?: string;
+          path?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            worktree: {
+              agent_activity: string;
+              ahead: number | null;
+              base_ref?: string;
+              behind: number | null;
+              branch: string;
+              /** Format: date-time */
+              created_at: string;
+              created_branch: boolean;
+              created_head?: string;
+              dirty: boolean | null;
+              id: string;
+              name: string;
+              origin: string;
+              path: string;
+              pending_phase?: string;
+              run_id?: string;
+              run_namespace?: string;
+              setup_error?: string;
+              setup_state: string;
+              state: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid worktree request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree operation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid worktree configuration */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  adoptWorktree: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          path: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            worktree: {
+              agent_activity: string;
+              ahead: number | null;
+              base_ref?: string;
+              behind: number | null;
+              branch: string;
+              /** Format: date-time */
+              created_at: string;
+              created_branch: boolean;
+              created_head?: string;
+              dirty: boolean | null;
+              id: string;
+              name: string;
+              origin: string;
+              path: string;
+              pending_phase?: string;
+              run_id?: string;
+              run_namespace?: string;
+              setup_error?: string;
+              setup_state: string;
+              state: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid worktree request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree operation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid worktree configuration */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  inspectWorktree: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            bindings: {
+              agent_activity: string;
+            };
+            forge: {
+              /** Format: date-time */
+              fetched_at: string | null;
+              merged: boolean | null;
+              pr_number: number | null;
+              pr_state: string | null;
+              pr_url?: string;
+              provider: string;
+            } | null;
+            repo: {
+              diagnostic?: string;
+              git_available: boolean;
+              git_backed: boolean;
+            };
+            status: {
+              ahead: number | null;
+              ahead_of_base: number | null;
+              behind: number | null;
+              branch: string | null;
+              deletions: number | null;
+              detached: boolean | null;
+              dirty_files: number | null;
+              has_upstream: boolean | null;
+              head_sha: string | null;
+              insertions: number | null;
+              read_error?: string;
+              /** Format: date-time */
+              refreshed_at: string | null;
+            } | null;
+            worktree: {
+              agent_activity: string;
+              ahead: number | null;
+              base_ref?: string;
+              behind: number | null;
+              branch: string;
+              /** Format: date-time */
+              created_at: string;
+              created_branch: boolean;
+              created_head?: string;
+              dirty: boolean | null;
+              id: string;
+              name: string;
+              origin: string;
+              path: string;
+              pending_phase?: string;
+              run_id?: string;
+              run_namespace?: string;
+              setup_error?: string;
+              setup_state: string;
+              state: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  removeWorktree: {
+    parameters: {
+      query?: {
+        /** @description Confirm destructive removal */
+        force?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid removal query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Removal requires another decision */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code: string;
+            downgrade: boolean;
+            risk: {
+              changed_files: number;
+              deletions: number;
+              exists_on_remote: boolean;
+              insertions: number;
+              unpushed_commits: number;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  cancelWorktreeCreate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid worktree request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree operation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid worktree configuration */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  dismissWorktree: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid worktree request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree operation conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid worktree configuration */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getWorktreeExitPlan: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            actions: {
+              action: string;
+              blocked_reason?: string;
+              enabled: boolean;
+              label: string;
+              pr_number?: number;
+              publish?: boolean;
+              url?: string;
+            }[];
+            base?: string;
+            browser_url?: string;
+            cleanup: {
+              blocker?: string;
+              downgraded?: boolean;
+              forge_state?: string;
+              safe: boolean;
+              source?: string;
+              stale?: boolean;
+              summary?: string;
+            };
+            commit_scope: {
+              changed_files: number;
+              deletions: number;
+              insertions: number;
+              untracked_files: string[];
+              untracked_total: number;
+              untracked_truncated?: boolean;
+            };
+            forge?: {
+              compare_url_template?: string;
+              credential_source?: string;
+              default_branch?: string;
+              open_action_label: string;
+              provider: string;
+              request_noun: string;
+              supports_draft: boolean;
+              template_paths?: string[];
+              view_action_label: string;
+            } | null;
+            forge_status?: {
+              /** Format: date-time */
+              fetched_at: string | null;
+              merged: boolean | null;
+              pr_number: number | null;
+              pr_state: string | null;
+              pr_url?: string;
+              provider: string;
+            } | null;
+            global_pause_cause?: string;
+            pr_prefill?: {
+              body?: string;
+              title?: string;
+            } | null;
+            primary?: string;
+            worktree_id: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree exit plan is unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  runWorktreeExitAction: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          action: string;
+          base?: string;
+          body?: string;
+          draft?: boolean;
+          message?: string;
+          title?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            op_id: string;
+          };
+        };
+      };
+      /** @description Invalid worktree exit request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree exit action conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forge provider error */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or forge service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  cancelWorktreeExitAction: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          op_id: string;
+        };
+      };
+    };
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid worktree exit request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree exit action conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forge provider error */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or forge service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getWorktreeStatus: {
+    parameters: {
+      query?: {
+        /** @description Refresh local Git status */
+        refresh?: boolean;
+        /** @description Refresh the serving forge provider */
+        forge?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            forge: {
+              /** Format: date-time */
+              fetched_at: string | null;
+              merged: boolean | null;
+              pr_number: number | null;
+              pr_state: string | null;
+              pr_url?: string;
+              provider: string;
+            } | null;
+            status: {
+              ahead: number | null;
+              ahead_of_base: number | null;
+              behind: number | null;
+              branch: string | null;
+              deletions: number | null;
+              detached: boolean | null;
+              dirty_files: number | null;
+              has_upstream: boolean | null;
+              head_sha: string | null;
+              insertions: number | null;
+              read_error?: string;
+              /** Format: date-time */
+              refreshed_at: string | null;
+            };
+            worktree_id: string;
+          };
+        };
+      };
+      /** @description Invalid status query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree status is unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forge provider error */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or forge service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamWorktree: {
+    parameters: {
+      query?: {
+        /** @description Replay events after this durable sequence */
+        after_sequence?: number;
+      };
+      header?: {
+        /** @description Resume after this durable sequence */
+        "Last-Event-ID"?: string;
+      };
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Canonical worktree event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Invalid stream cursor */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree stream is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamWorktreeCatalog: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Workspace-identified worktree catalog event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            error?: string;
+            kind: string;
+            workspace_id: string;
+            worktree_id: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Worktree catalog stream is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };

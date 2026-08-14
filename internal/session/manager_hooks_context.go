@@ -36,14 +36,14 @@ func hookSessionContext(session *Session) hookspkg.SessionContext {
 
 	ref := workref.NewRoot(info.WorkspaceID, info.Workspace)
 	return hookspkg.SessionContext{
-		SessionID:    strings.TrimSpace(info.ID),
-		SessionName:  strings.TrimSpace(info.Name),
-		SessionType:  string(info.Type),
-		AgentName:    strings.TrimSpace(info.AgentName),
-		WorkspaceID:  ref.WorkspaceID,
-		Workspace:    ref.Workspace,
-		ACPSessionID: strings.TrimSpace(info.ACPSessionID),
-		State:        string(info.State),
+		SessionID:             strings.TrimSpace(info.ID),
+		SessionName:           strings.TrimSpace(info.Name),
+		SessionType:           string(info.Type),
+		AgentName:             strings.TrimSpace(info.AgentName),
+		WorkspaceID:           ref.WorkspaceID,
+		Workspace:             ref.Workspace,
+		SessionRuntimeContext: hookspkg.NewSessionRuntimeContext(info.WorktreeID, info.ACPSessionID),
+		State:                 string(info.State),
 		SessionSoulContext: hookSessionSoulContext(
 			info.SoulSnapshotID,
 			info.SoulDigest,
@@ -86,16 +86,21 @@ func validateImmutableSessionWorkspace(expected, actual hookspkg.SessionContext)
 	expectedPath := strings.TrimSpace(expected.Workspace)
 	actualID := strings.TrimSpace(actual.WorkspaceID)
 	actualPath := strings.TrimSpace(actual.Workspace)
-	if actualID == expectedID && actualPath == expectedPath {
+	expectedWorktreeID := strings.TrimSpace(expected.WorktreeIDValue())
+	actualWorktreeID := strings.TrimSpace(actual.WorktreeIDValue())
+	if actualID == expectedID && actualPath == expectedPath &&
+		actualWorktreeID == expectedWorktreeID {
 		return nil
 	}
 	return fmt.Errorf(
-		"%w: session workspace identity is immutable after creation: expected {%q %q}, got {%q %q}",
+		"%w: session workspace identity is immutable after creation: expected {%q %q %q}, got {%q %q %q}",
 		ErrValidation,
 		expectedID,
 		expectedPath,
+		expectedWorktreeID,
 		actualID,
 		actualPath,
+		actualWorktreeID,
 	)
 }
 

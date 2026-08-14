@@ -12,6 +12,7 @@ import {
   activeWorkspaceStore,
   clearActiveWorkspaceSelection,
   setActiveWorkspaceId,
+  setActiveWorktreeId,
 } from "@/systems/workspace";
 
 function context() {
@@ -22,6 +23,7 @@ describe("confirmSessionWorkspaceSwitch", () => {
   beforeEach(() => {
     clearActiveWorkspaceSelection();
     setActiveWorkspaceId("ws_project");
+    setActiveWorktreeId("shell", "ws_project", "wt_project");
   });
 
   it("Should select the owning project workspace and re-enter the deep link", () => {
@@ -31,7 +33,11 @@ describe("confirmSessionWorkspaceSwitch", () => {
       { isGlobal: false },
       reenter
     );
-    expect(context()).toEqual({ scope: "workspace", selectedWorkspaceId: "ws_other" });
+    expect(context()).toEqual({
+      scope: "workspace",
+      selectedWorkspaceId: "ws_other",
+      worktreeByScope: {},
+    });
     expect(reenter).toHaveBeenCalledOnce();
   });
 
@@ -42,7 +48,11 @@ describe("confirmSessionWorkspaceSwitch", () => {
       { isGlobal: true },
       reenter
     );
-    expect(context()).toEqual({ scope: "global", selectedWorkspaceId: "ws_project" });
+    expect(context()).toEqual({
+      scope: "global",
+      selectedWorkspaceId: "ws_project",
+      worktreeByScope: { shell: "wt_project" },
+    });
     expect(reenter).toHaveBeenCalledOnce();
   });
 });

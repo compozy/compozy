@@ -9,10 +9,10 @@ import { WorkspaceCommandSelect } from "../workspace-command-select";
 
 const DEFAULT_WORKSPACE_ID = workspaceFixtures[0]?.id ?? null;
 
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({ children, open = false }: { children: React.ReactNode; open?: boolean }) {
   return (
-    <CenteredSurface className="w-[280px] border border-line bg-canvas-soft p-0">
-      {children}
+    <CenteredSurface className={open ? "items-start" : undefined}>
+      <div className="w-[280px] border border-line bg-canvas-soft">{children}</div>
     </CenteredSurface>
   );
 }
@@ -34,7 +34,7 @@ function WorkspaceCommandSelectHarness({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <Frame>
+    <Frame open={defaultOpen}>
       <WorkspaceCommandSelect
         workspaces={workspaceFixtures}
         value={workspaceId}
@@ -65,8 +65,10 @@ const meta: Meta<typeof WorkspaceCommandSelectHarness> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+/** Default closed workspace switcher. */
+export const Default: Story = { args: {} };
 
+/** Open switcher with searchable project workspaces. */
 export const Open: Story = {
   args: {
     defaultOpen: true,
@@ -78,6 +80,7 @@ export const Open: Story = {
   },
 };
 
+/** Operator-home registrations never appear as project choices. */
 export const HidesHomeRegistration: Story = {
   args: {
     defaultOpen: true,
@@ -97,7 +100,9 @@ export const HidesHomeRegistration: Story = {
   },
 };
 
+/** Selecting a row updates the trigger and closes the list. */
 export const SwitchesWorkspace: Story = {
+  args: {},
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const target = workspaceFixtures[1];
@@ -114,7 +119,9 @@ export const SwitchesWorkspace: Story = {
   },
 };
 
+/** Empty registries expose a disabled, truthful trigger. */
 export const EmptyRegistry: Story = {
+  args: {},
   render: () => (
     <Frame>
       <WorkspaceCommandSelect workspaces={[]} value={null} onChange={() => undefined} />
@@ -127,7 +134,9 @@ export const EmptyRegistry: Story = {
   },
 };
 
+/** Compact trigger for dense form rows. */
 export const Compact: Story = {
+  args: {},
   parameters: {
     docs: {
       description: {

@@ -43,8 +43,9 @@ func (e *RunLoopActionExecutor) Execute(
 		spec.Mode = dsl.RunLoopAwait
 	}
 	child, err := e.starter.Start(runCtx, in.WorkspaceID, spec.Loop, Inputs{
-		Values:          spec.Inputs,
-		ParentLoopRunID: in.LoopRunID,
+		Values:               spec.Inputs,
+		ParentLoopRunID:      in.LoopRunID,
+		InheritedEnvironment: cloneEnvironmentSpec(in.EnvironmentValue()),
 	}, in.Actor)
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("start child loop %q: %w", spec.Loop, err)

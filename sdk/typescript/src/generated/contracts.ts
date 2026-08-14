@@ -202,7 +202,12 @@ export type HookEvent =
   | "window_manager.window.closed"
   | "window_manager.stack.grouped"
   | "window_manager.stack.ungrouped"
-  | "window_manager.stack.activated";
+  | "window_manager.stack.activated"
+  | "worktree.pre_create"
+  | "worktree.pre_remove"
+  | "worktree.created"
+  | "worktree.adopted"
+  | "worktree.removed";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -213,6 +218,7 @@ export interface AgentCrashedPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -302,6 +308,7 @@ export interface AgentHeartbeatWakeAfterPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -327,6 +334,7 @@ export interface AgentHeartbeatWakeBeforePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -364,6 +372,7 @@ export interface AgentLifecyclePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -388,6 +397,7 @@ export interface AgentPreStartPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -636,6 +646,7 @@ export interface AgentSpawnedPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -672,6 +683,7 @@ export interface AgentStoppedPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -1286,6 +1298,7 @@ export interface ContextCompactPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -1324,6 +1337,7 @@ export interface ContextPostCompactPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -1354,6 +1368,7 @@ export interface ContextPreCompactPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -1731,6 +1746,7 @@ export interface EventPostRecordPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -1756,6 +1772,7 @@ export interface EventPreRecordPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -1781,6 +1798,7 @@ export interface EventRecordPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -1867,6 +1885,58 @@ export interface ExtensionValidatePayload {
   manifest?: ExtensionManifestSummary;
   issues: ValidationIssue[];
   consent_areas: ConsentArea[];
+}
+
+export interface ForgeCapabilitiesRequest {
+  remote_urls: string[];
+}
+
+export interface ForgeCapabilitiesResponse {
+  served: boolean;
+  available: boolean;
+  winner?: string;
+  provider?: string;
+  served_remote?: string;
+  request_noun?: string;
+  open_action_label?: string;
+  view_action_label?: string;
+  supports_draft?: boolean;
+  compare_url_template?: string;
+  template_paths?: string[];
+  credential_source?: string;
+  default_branch?: string;
+  cause?: string;
+}
+
+export interface ForgePRCreateRequest {
+  remote_urls: string[];
+  head: string;
+  base: string;
+  title: string;
+  body?: string;
+  draft?: boolean;
+}
+
+export interface ForgePRCreateResponse {
+  status: string;
+  number?: number;
+  url?: string;
+  cause?: string;
+}
+
+export interface ForgeStatusRequest {
+  remote_urls: string[];
+  branch: string;
+}
+
+export interface ForgeStatusResponse {
+  provider: string;
+  pr_number?: number;
+  pr_state?: string;
+  pr_url?: string;
+  merged?: boolean;
+  fetched_at: ISODateTime;
+  cause?: string;
 }
 
 export interface HeartbeatDeleteRequest {
@@ -2158,6 +2228,7 @@ export interface HookMatcher {
   agent_name?: string;
   agent_type?: string;
   workspace_id?: string;
+  worktree_id?: string;
   workspace_root?: string;
   session_type?: string;
   sandbox_id?: string;
@@ -2226,7 +2297,8 @@ export type HookEventFamily =
   | "loop"
   | "spawn"
   | "network"
-  | "window_manager";
+  | "window_manager"
+  | "worktree";
 
 export type HookRunOutcome = "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
 
@@ -2408,6 +2480,7 @@ export interface InputPreSubmitPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -2759,6 +2832,7 @@ export interface MessageDeltaPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -2790,6 +2864,7 @@ export interface MessageEndPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -2821,6 +2896,7 @@ export interface MessagePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -2852,6 +2928,7 @@ export interface MessageStartPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -3757,6 +3834,7 @@ export interface PermissionDeniedPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -3797,6 +3875,7 @@ export interface PermissionRequestPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -3823,6 +3902,7 @@ export interface PermissionResolutionPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -3850,6 +3930,7 @@ export interface PermissionResolvedPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -3891,6 +3972,7 @@ export interface PromptPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4121,6 +4203,7 @@ export interface SandboxPreparePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4152,6 +4235,7 @@ export interface SandboxReadyPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4180,6 +4264,7 @@ export interface SandboxStopPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4208,6 +4293,7 @@ export interface SandboxSyncAfterPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4242,6 +4328,7 @@ export interface SandboxSyncBeforePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4267,6 +4354,7 @@ export interface SessionContext {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4324,6 +4412,7 @@ export interface SessionHealthUpdateAfterPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4425,6 +4514,7 @@ export interface SessionLifecyclePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4442,6 +4532,7 @@ export interface SessionMessagePersistedPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4480,6 +4571,7 @@ export interface SessionPostCreatePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4507,6 +4599,7 @@ export interface SessionPostResumePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4534,6 +4627,7 @@ export interface SessionPostStopPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4551,6 +4645,7 @@ export interface SessionPreCreatePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4578,6 +4673,7 @@ export interface SessionPreResumePayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -4605,6 +4701,7 @@ export interface SessionPreStopPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -5316,6 +5413,7 @@ export interface TaskDashboard {
 export interface TaskDashboardParams {
   scope?: Scope;
   workspace?: string;
+  worktree?: string;
   owner_kind?: OwnerKind;
   owner_ref?: string;
   participation_channel?: string;
@@ -5347,6 +5445,8 @@ export interface TaskDependencyReferencePayload {
   depends_on: TaskReferencePayload;
 }
 
+export type ResolvedWorktreeMode = string;
+
 export type CoordinationMessageKind = string;
 
 export interface CoordinationChannelPayload {
@@ -5376,6 +5476,9 @@ export interface TaskRunSummaryPayload {
   failure_kind?: string;
   max_attempts: number;
   session_id?: string;
+  worktree_id?: string;
+  resolved_worktree_mode: ResolvedWorktreeMode;
+  resolved_worktree_ref?: string;
   claimed_by?: ActorIdentity;
   claim_token_hash?: string;
   lease_until?: ISODateTime;
@@ -5450,6 +5553,9 @@ export interface TaskRun {
   failure_kind?: string;
   claimed_by?: ActorIdentity;
   session_id?: string;
+  worktree_id?: string;
+  resolved_worktree_mode: ResolvedWorktreeMode;
+  resolved_worktree_ref?: string;
   origin: Origin;
   idempotency_key?: string;
   resolved_network_participation?: NetworkParticipationSpec;
@@ -5521,6 +5627,9 @@ export interface TaskCatalogRunPayload {
   failure_kind?: string;
   max_attempts: number;
   session_id?: string;
+  worktree_id?: string;
+  resolved_worktree_mode: ResolvedWorktreeMode;
+  resolved_worktree_ref?: string;
   claimed_by?: ActorIdentity;
   lease_until?: ISODateTime;
   heartbeat_at?: ISODateTime;
@@ -5588,6 +5697,7 @@ export type CatalogScope = string;
 export interface TaskInboxParams {
   scope?: CatalogScope;
   workspace?: string;
+  worktree?: string;
   owner_kind?: OwnerKind;
   owner_ref?: string;
   lane?: TaskInboxLane;
@@ -6227,6 +6337,7 @@ export interface TasksParams {
   owner_kind?: OwnerKind;
   owner_ref?: string;
   parent_task_id?: string;
+  worktree?: string;
   participation_channel?: string;
   query?: string;
   sort?: CatalogSort;
@@ -6366,6 +6477,7 @@ export interface ToolPostCallPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -6398,6 +6510,7 @@ export interface ToolPostErrorPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -6422,6 +6535,7 @@ export interface ToolPreCallPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -6467,6 +6581,7 @@ export interface TurnEndPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -6493,6 +6608,7 @@ export interface TurnPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -6519,6 +6635,7 @@ export interface TurnStartPayload {
   agent_name?: string;
   workspace_id?: string;
   workspace?: string;
+  worktree_id?: string;
   acp_session_id?: string;
   state?: string;
   soul_snapshot_id?: string;
@@ -6646,6 +6763,70 @@ export interface WindowManagerWindowOpenedPayload {
   origin?: string;
 }
 
+export interface WorktreeControlPatch {
+  deny?: boolean;
+  deny_reason?: string;
+}
+
+export type WorktreeObservationPatch = Record<string, never>;
+
+export interface WorktreeObservationPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  worktree_id: string;
+  workspace_id: string;
+  workspace_root?: string;
+  name: string;
+  branch: string;
+  path: string;
+  origin: string;
+  run_id?: string;
+}
+
+export interface WorktreePreCreatePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  worktree_id: string;
+  workspace_id: string;
+  workspace_root?: string;
+  name: string;
+  branch: string;
+  path: string;
+  origin: string;
+  run_id?: string;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
+export interface WorktreeContext {
+  worktree_id: string;
+  workspace_id: string;
+  workspace_root?: string;
+  name: string;
+  branch: string;
+  path: string;
+  origin: string;
+  run_id?: string;
+}
+
+export interface WorktreeRisk {
+  changed_files: number;
+  insertions: number;
+  deletions: number;
+  unpushed_commits: number;
+  exists_on_remote: boolean;
+}
+
+export interface WorktreePreRemovePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  worktree: WorktreeContext;
+  force: boolean;
+  risk: WorktreeRisk;
+  denied?: boolean;
+  deny_reason?: string;
+}
+
 export interface HookPayloadByEvent {
   "session.pre_create": SessionPreCreatePayload;
   "session.post_create": SessionPostCreatePayload;
@@ -6742,6 +6923,11 @@ export interface HookPayloadByEvent {
   "window_manager.stack.grouped": WindowManagerStackGroupedPayload;
   "window_manager.stack.ungrouped": WindowManagerStackUngroupedPayload;
   "window_manager.stack.activated": WindowManagerStackActivatedPayload;
+  "worktree.pre_create": WorktreePreCreatePayload;
+  "worktree.pre_remove": WorktreePreRemovePayload;
+  "worktree.created": WorktreeObservationPayload;
+  "worktree.adopted": WorktreeObservationPayload;
+  "worktree.removed": WorktreeObservationPayload;
 }
 
 export interface HookPatchByEvent {
@@ -6840,6 +7026,11 @@ export interface HookPatchByEvent {
   "window_manager.stack.grouped": WindowManagerObservationPatch;
   "window_manager.stack.ungrouped": WindowManagerObservationPatch;
   "window_manager.stack.activated": WindowManagerObservationPatch;
+  "worktree.pre_create": WorktreeControlPatch;
+  "worktree.pre_remove": WorktreeControlPatch;
+  "worktree.created": WorktreeObservationPatch;
+  "worktree.adopted": WorktreeObservationPatch;
+  "worktree.removed": WorktreeObservationPatch;
 }
 
 export interface HostAPIMethodMap {
@@ -7232,6 +7423,7 @@ export const REQUIRED_METHODS_BY_PROVIDE = {
     "connectivity/status",
     "connectivity/teardown",
   ],
+  "forge.provider": ["forge/capabilities", "forge/pr_create", "forge/status"],
   "loop.watch_source": ["watch/poll"],
   "memory.backend": ["memory/forget", "memory/recall", "memory/store"],
   "model.source": ["models/list"],
@@ -7248,6 +7440,7 @@ export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFix
     provide: "connectivity.provider",
     required_methods: REQUIRED_METHODS_BY_PROVIDE["connectivity.provider"],
   },
+  { provide: "forge.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["forge.provider"] },
   {
     provide: "loop.watch_source",
     required_methods: REQUIRED_METHODS_BY_PROVIDE["loop.watch_source"],

@@ -392,7 +392,7 @@ const loopCreateInputSchema = `{
 	"additionalProperties":false,
 	"properties":{
 		"workspace":{"type":"string"},
-		"definition":{"type":"object","additionalProperties":true},
+		"definition":` + loopCreateDefinitionInputSchema + `,
 		"fork_from_name":{"type":"string"},
 		"expected_version":{"type":"integer","minimum":0}
 	}
@@ -407,7 +407,7 @@ const loopRunInputSchema = `{
 		"name":{"type":"string","minLength":1},
 		"inputs":{"type":"object","additionalProperties":true},
 		"parent_loop_run_id":{"type":"string"},
-		"config_overrides":{"type":"object","additionalProperties":true},
+		"config_overrides":` + loopConfigInputSchema + `,
 		"network_participation":` + networkParticipationRequestSchema + `,
 		"dry":{"type":"boolean"}
 	}
@@ -455,7 +455,7 @@ const loopConfigureInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"name":{"type":"string","minLength":1},
-		"config":{"type":"object","additionalProperties":true}
+		"config":` + loopConfigInputSchema + `
 	}
 }`
 

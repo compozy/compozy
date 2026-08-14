@@ -347,7 +347,11 @@ func TestReadOnlyPoolLifecycle(t *testing.T) {
 				reader := &readOnlyPoolTestReader{}
 				if sessionID == "sess-read-only-expired" {
 					reader.onClose = func(ctx context.Context) error {
-						lease, err := pool.Open(ctx, testSessionDBOwner("sess-read-only-independent"), path+".independent")
+						lease, err := pool.Open(
+							ctx,
+							testSessionDBOwner("sess-read-only-independent"),
+							path+".independent",
+						)
 						if err != nil {
 							return fmt.Errorf("open independent reader during expired close: %w", err)
 						}

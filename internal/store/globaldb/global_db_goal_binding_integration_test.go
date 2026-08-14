@@ -145,105 +145,108 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should fence ordinary action activation by cell owner and publish cleanup for stale creation", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should fence ordinary action activation by cell owner and publish cleanup for stale creation",
+		func(t *testing.T) {
+			t.Parallel()
 
-		globalDB := openLoopTestGlobalDB(t, "ws-action-binding")
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 7, 11, 8, 0, 0, 0, time.UTC)
-		insertGoalSchemaLoopRun(t, globalDB, "run-action-binding", "ws-action-binding", "catalog", nil)
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at)
+			globalDB := openLoopTestGlobalDB(t, "ws-action-binding")
+			ctx := testutil.Context(t)
+			now := time.Date(2026, 7, 11, 8, 0, 0, 0, time.UTC)
+			insertGoalSchemaLoopRun(t, globalDB, "run-action-binding", "ws-action-binding", "catalog", nil)
+			if _, err := globalDB.db.ExecContext(
+				ctx,
+				`INSERT INTO loop_generations (loop_run_id, generation, parent_generation, origin, created_at)
 			 VALUES (?, 1, 0, 'initial', ?)`,
-			"run-action-binding",
-			store.FormatTimestamp(now),
-		); err != nil {
-			t.Fatalf("insert action generation error = %v", err)
-		}
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`INSERT INTO loop_generation_outputs (
+				"run-action-binding",
+				store.FormatTimestamp(now),
+			); err != nil {
+				t.Fatalf("insert action generation error = %v", err)
+			}
+			if _, err := globalDB.db.ExecContext(
+				ctx,
+				`INSERT INTO loop_generation_outputs (
 				loop_run_id, generation, node_id, item_index, status, task_run_id, epoch
 			 ) VALUES (?, 1, 'execute', 0, 'enqueued', 'taskrun-action-live', 4)`,
-			"run-action-binding",
-		); err != nil {
-			t.Fatalf("insert action cell error = %v", err)
-		}
+				"run-action-binding",
+			); err != nil {
+				t.Fatalf("insert action cell error = %v", err)
+			}
 
-		prepare := func(handle string, sessionID string) goal.BindingKey {
-			t.Helper()
-			key := goal.BindingKey{
+			prepare := func(handle string, sessionID string) goal.BindingKey {
+				t.Helper()
+				key := goal.BindingKey{
+					WorkspaceID: "ws-action-binding",
+					LoopRunID:   "run-action-binding",
+					Handle:      handle,
+				}
+				identity := store.SessionCreationIdentity{
+					CreationProfileRef: "profile-" + sessionID,
+					PolicySpecDigest:   "policy-" + sessionID,
+					CreationDigest:     "creation-" + sessionID,
+				}
+				if _, err := globalDB.PrepareSessionBindingAttempt(ctx, goal.PrepareBindingAttemptRequest{
+					Key: key, BindingEpoch: 1, BindingAttemptID: "attempt-" + sessionID,
+					SessionID: sessionID, CreationProfileRef: identity.CreationProfileRef,
+					PolicySpecDigest: identity.PolicySpecDigest, CreationDigest: identity.CreationDigest,
+					CreatedAt: now,
+				}); err != nil {
+					t.Fatalf("PrepareSessionBindingAttempt(%s) error = %v", handle, err)
+				}
+				registerGoalSessionIdentityForTest(
+					t,
+					globalDB,
+					goalSessionInfoForTest(sessionID, "ws-action-binding", now),
+					identity,
+				)
+				return key
+			}
+			cellKey := goal.TurnKey{
 				WorkspaceID: "ws-action-binding",
 				LoopRunID:   "run-action-binding",
-				Handle:      handle,
+				Generation:  1,
+				NodeID:      "execute",
+				ItemIndex:   0,
 			}
-			identity := store.SessionCreationIdentity{
-				CreationProfileRef: "profile-" + sessionID,
-				PolicySpecDigest:   "policy-" + sessionID,
-				CreationDigest:     "creation-" + sessionID,
+			liveKey := prepare("main", "session-action-live")
+			live, stopped, err := globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
+				Key: liveKey, CellFence: &goal.BindingCellFence{
+					Key: cellKey, Epoch: 4, TaskRunID: "taskrun-action-live",
+				},
+				ExpectedBindingEpoch: 1,
+				ActivatedAt:          now.Add(time.Second),
+			})
+			if err != nil || stopped || live.State != goal.BindingStateActive {
+				t.Fatalf("FinalizeSessionBindingCreation(live cell) = %#v/%t, %v", live, stopped, err)
 			}
-			if _, err := globalDB.PrepareSessionBindingAttempt(ctx, goal.PrepareBindingAttemptRequest{
-				Key: key, BindingEpoch: 1, BindingAttemptID: "attempt-" + sessionID,
-				SessionID: sessionID, CreationProfileRef: identity.CreationProfileRef,
-				PolicySpecDigest: identity.PolicySpecDigest, CreationDigest: identity.CreationDigest,
-				CreatedAt: now,
-			}); err != nil {
-				t.Fatalf("PrepareSessionBindingAttempt(%s) error = %v", handle, err)
-			}
-			registerGoalSessionIdentityForTest(
-				t,
-				globalDB,
-				goalSessionInfoForTest(sessionID, "ws-action-binding", now),
-				identity,
-			)
-			return key
-		}
-		cellKey := goal.TurnKey{
-			WorkspaceID: "ws-action-binding",
-			LoopRunID:   "run-action-binding",
-			Generation:  1,
-			NodeID:      "execute",
-			ItemIndex:   0,
-		}
-		liveKey := prepare("main", "session-action-live")
-		live, stopped, err := globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
-			Key: liveKey, CellFence: &goal.BindingCellFence{
-				Key: cellKey, Epoch: 4, TaskRunID: "taskrun-action-live",
-			},
-			ExpectedBindingEpoch: 1,
-			ActivatedAt:          now.Add(time.Second),
-		})
-		if err != nil || stopped || live.State != goal.BindingStateActive {
-			t.Fatalf("FinalizeSessionBindingCreation(live cell) = %#v/%t, %v", live, stopped, err)
-		}
 
-		staleKey := prepare("stale", "session-action-stale")
-		_, _, err = globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
-			Key: staleKey, CellFence: &goal.BindingCellFence{
-				Key: cellKey, Epoch: 3, TaskRunID: "taskrun-action-live",
-			},
-			ExpectedBindingEpoch: 1,
-			ActivatedAt:          now.Add(2 * time.Second),
-		})
-		requireGoalReasonCode(t, err, looppkg.ReasonCodeGoalControlStale)
-		stale, err := globalDB.GetSessionBindingAttempt(ctx, staleKey, 1)
-		if err != nil {
-			t.Fatalf("GetSessionBindingAttempt(stale) error = %v", err)
-		}
-		if stale.State != goal.BindingStateFailed ||
-			stale.FailureCode != goalBindingFailureControlRevokedInFlight {
-			t.Fatalf("stale binding = %#v, want failed control-revoked", stale)
-		}
-		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
-		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
-		}
-		if len(cleanups) != 1 || cleanups[0].SessionID != "session-action-stale" ||
-			cleanups[0].Cause != goal.SessionCleanupCauseControlRevoked {
-			t.Fatalf("stale action cleanups = %#v, want one control-revoked session", cleanups)
-		}
-	})
+			staleKey := prepare("stale", "session-action-stale")
+			_, _, err = globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
+				Key: staleKey, CellFence: &goal.BindingCellFence{
+					Key: cellKey, Epoch: 3, TaskRunID: "taskrun-action-live",
+				},
+				ExpectedBindingEpoch: 1,
+				ActivatedAt:          now.Add(2 * time.Second),
+			})
+			requireGoalReasonCode(t, err, looppkg.ReasonCodeGoalControlStale)
+			stale, err := globalDB.GetSessionBindingAttempt(ctx, staleKey, 1)
+			if err != nil {
+				t.Fatalf("GetSessionBindingAttempt(stale) error = %v", err)
+			}
+			if stale.State != goal.BindingStateFailed ||
+				stale.FailureCode != goalBindingFailureControlRevokedInFlight {
+				t.Fatalf("stale binding = %#v, want failed control-revoked", stale)
+			}
+			cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			if err != nil {
+				t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+			}
+			if len(cleanups) != 1 || cleanups[0].SessionID != "session-action-stale" ||
+				cleanups[0].Cause != goal.SessionCleanupCauseControlRevoked {
+				t.Fatalf("stale action cleanups = %#v, want one control-revoked session", cleanups)
+			}
+		},
+	)
 
 	t.Run("Should release an unsettled Stop creation cleanup after database reopen", func(t *testing.T) {
 		t.Parallel()

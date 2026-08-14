@@ -81,6 +81,7 @@ const (
 	specAPITasksIDBlocksPath                                 = specAPITasksIDPath + "/blocks"
 	specAPITasksIDBlocksBlockIDClearPath                     = specAPITasksIDBlocksPath + "/{block_id}/clear"
 	specAPITasksIDExecutionProfilePath                       = "/api/tasks/{id}/execution-profile"
+	specAPITasksIDExecutionProfileWorktreePath               = specAPITasksIDExecutionProfilePath + "/worktree"
 	specAPITasksIDInspectPath                                = "/api/tasks/{id}/inspect"
 	specAPITasksIDNotificationsBridgesPath                   = "/api/tasks/{id}/notifications/bridges"
 	specAPITasksIDNotificationsBridgesSubscriptionIDPath     = "/api/tasks/{id}/notifications/bridges/{subscription_id}"
@@ -178,6 +179,7 @@ const (
 	specToolsetsKey                                          = "toolsets"
 	specVaultKey                                             = "vault"
 	specWorkspacesKey                                        = "workspaces"
+	specWorktreesKey                                         = "worktrees"
 )
 
 const (
@@ -288,6 +290,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specToolsetsKey},
 			{Name: specVaultKey},
 			{Name: specWorkspacesKey},
+			{Name: specWorktreesKey},
 		},
 	}
 	if err := registerExtensionAuthoringComponentSchemas(doc.Components.Schemas); err != nil {

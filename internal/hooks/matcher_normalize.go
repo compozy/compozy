@@ -12,6 +12,9 @@ func (m HookMatcher) matchSessionContext(payload SessionContext, includeSessionT
 	if !matchStringField(m.WorkspaceRoot, payload.Workspace) {
 		return false
 	}
+	if !matchStringField(m.WorktreeID, payload.WorktreeIDValue()) {
+		return false
+	}
 	if includeSessionType && !matchStringField(m.SessionType, payload.SessionType) {
 		return false
 	}
@@ -52,6 +55,7 @@ func normalizeHookMatcher(matcher HookMatcher) HookMatcher {
 		AgentName:        strings.TrimSpace(matcher.AgentName),
 		AgentType:        strings.TrimSpace(matcher.AgentType),
 		WorkspaceID:      strings.TrimSpace(matcher.WorkspaceID),
+		WorktreeID:       strings.TrimSpace(matcher.WorktreeID),
 		WorkspaceRoot:    strings.TrimSpace(matcher.WorkspaceRoot),
 		SessionType:      strings.TrimSpace(matcher.SessionType),
 		SandboxID:        strings.TrimSpace(matcher.SandboxID),

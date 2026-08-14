@@ -5,7 +5,10 @@ type ApiSection = { label: string; ids: string[] };
 
 /** Section grouping consumed by `scripts/generate-openapi.ts` when it writes the api meta.json. */
 export const API_SECTIONS: ApiSection[] = [
-  { label: "Workspace", ids: ["sessions", "workspaces", "agents", "memory", "skills"] },
+  {
+    label: "Workspace",
+    ids: ["sessions", "workspaces", "worktrees", "agents", "memory", "skills"],
+  },
   {
     label: "Tools & automation",
     ids: [

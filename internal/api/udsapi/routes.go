@@ -12,6 +12,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerBridgeRoutes(api, handlers)
 	registerNotificationRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
+	registerWorktreeRoutes(api, handlers)
 	registerWindowManagerRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
 	registerAgentRoutes(api, handlers)
@@ -101,6 +102,7 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 		tasks := agent.Group("/tasks")
 		{
 			tasks.POST("/claim-next", handlers.AgentTaskClaimNext)
+			tasks.POST("/:run_id/start", handlers.AgentTaskStart)
 			tasks.POST("/:run_id/heartbeat", handlers.AgentTaskHeartbeat)
 			tasks.POST("/:run_id/complete", handlers.AgentTaskComplete)
 			tasks.POST("/:run_id/fail", handlers.AgentTaskFail)
@@ -202,6 +204,7 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 		tasks.PATCH("/:id", handlers.UpdateTask)
 		tasks.GET("/:id/execution-profile", handlers.GetTaskExecutionProfile)
 		tasks.PUT("/:id/execution-profile", handlers.SetTaskExecutionProfile)
+		tasks.PATCH("/:id/execution-profile/worktree", handlers.SetTaskWorktreePolicy)
 		tasks.DELETE("/:id/execution-profile", handlers.DeleteTaskExecutionProfile)
 		tasks.POST("/:id/notifications/bridges", handlers.CreateTaskBridgeNotificationSubscription)
 		tasks.GET("/:id/notifications/bridges", handlers.ListTaskBridgeNotificationSubscriptions)

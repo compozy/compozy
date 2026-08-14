@@ -121,15 +121,14 @@ func TestDispatchACPAgentHookEventDispatchesToolAndPermissionFamilies(t *testing
 		discardLogger(),
 		runtime,
 		sessionCtx,
-		acp.AgentEvent{
+		(acp.AgentEvent{
 			Type:      acp.EventTypePermission,
 			SessionID: "acp-session-1",
 			TurnID:    "turn-1",
-			RequestID: "perm-1",
 			Action:    "session/request_permission",
 			Resource:  "/tmp/secret.txt",
 			Raw:       mustMarshalJSON(t, permissionEventRaw("perm-1", "", "Read")),
-		},
+		}).WithRequestID("perm-1"),
 		fixedNow,
 	)
 	dispatchACPAgentHookEvent(
@@ -137,16 +136,15 @@ func TestDispatchACPAgentHookEventDispatchesToolAndPermissionFamilies(t *testing
 		discardLogger(),
 		runtime,
 		sessionCtx,
-		acp.AgentEvent{
+		(acp.AgentEvent{
 			Type:      acp.EventTypePermission,
 			SessionID: "acp-session-1",
 			TurnID:    "turn-1",
-			RequestID: "perm-1",
 			Action:    "session/request_permission",
 			Resource:  "/tmp/secret.txt",
 			Decision:  "allow",
 			Raw:       mustMarshalJSON(t, permissionEventRaw("perm-1", "allow", "Read")),
-		},
+		}).WithRequestID("perm-1"),
 		fixedNow,
 	)
 	dispatchACPAgentHookEvent(
@@ -154,16 +152,15 @@ func TestDispatchACPAgentHookEventDispatchesToolAndPermissionFamilies(t *testing
 		discardLogger(),
 		runtime,
 		sessionCtx,
-		acp.AgentEvent{
+		(acp.AgentEvent{
 			Type:      acp.EventTypePermission,
 			SessionID: "acp-session-1",
 			TurnID:    "turn-1",
-			RequestID: "perm-1",
 			Action:    "session/request_permission",
 			Resource:  "/tmp/secret.txt",
 			Decision:  "deny",
 			Raw:       mustMarshalJSON(t, permissionEventRaw("perm-1", "deny", "Read")),
-		},
+		}).WithRequestID("perm-1"),
 		fixedNow,
 	)
 
@@ -288,12 +285,17 @@ func TestDispatchACPAgentHookEventSkipsPendingToolCallPreCall(t *testing.T) {
 func TestHookAgentEventHelpersHandlePointerAndAliasInputs(t *testing.T) {
 	t.Parallel()
 
-	event, ok := normalizeHookAgentEvent(&acp.AgentEvent{Type: acp.EventTypePermission, RequestID: "perm-1"})
+	eventInput := (acp.AgentEvent{Type: acp.EventTypePermission}).WithRequestID("perm-1")
+	event, ok := normalizeHookAgentEvent(&eventInput)
 	if !ok {
 		t.Fatal("normalizeHookAgentEvent(pointer) ok = false, want true")
 	}
-	if event.RequestID != "perm-1" {
-		t.Fatalf("normalizeHookAgentEvent(pointer).RequestID = %q, want %q", event.RequestID, "perm-1")
+	if event.RequestIDValue() != "perm-1" {
+		t.Fatalf(
+			"normalizeHookAgentEvent(pointer).RequestID = %q, want %q",
+			event.RequestIDValue(),
+			"perm-1",
+		)
 	}
 	if _, ok := normalizeHookAgentEvent(struct{}{}); ok {
 		t.Fatal("normalizeHookAgentEvent(struct{}) ok = true, want false")

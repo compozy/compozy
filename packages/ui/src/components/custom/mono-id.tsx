@@ -59,7 +59,7 @@ function MonoId({
       )}
       {...props}
     >
-      <span data-slot="mono-id-value" className="truncate">
+      <span data-slot="mono-id-value" className="min-w-0 truncate">
         {text}
       </span>
       {copy ? (

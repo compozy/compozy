@@ -21,6 +21,9 @@ export function normalizeTaskListFilter(filters: TaskListFilter = {}): TaskListF
   return {
     scope: filters.scope,
     workspace: normalizeOptionalText(filters.workspace),
+    // Filters on the derived active-run worktree id. The daemon requires a
+    // workspace alongside it, which `taskScopeForActiveWorkspace` guarantees.
+    worktree: normalizeOptionalText(filters.worktree),
     status: filters.status,
     priority: filters.priority,
     include_drafts: filters.include_drafts,
@@ -41,6 +44,9 @@ export function taskListStableFilter(filters: TaskListFilter = {}): TaskListStab
   return {
     scope: normalized.scope,
     workspace: normalized.workspace,
+    // Part of the stable filter, so it enters both the query key and the
+    // cursor-bound page request — pagination can never straddle a scope change.
+    worktree: normalized.worktree,
     status: normalized.status,
     priority: normalized.priority,
     include_drafts: normalized.include_drafts,

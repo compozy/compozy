@@ -5,12 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch } from "@/test/msw-fetch";
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { LoopRunForm } from "../run-form/loop-run-form";
 import { handlers } from "../../mocks";
+import { worktreeHandlers } from "@/systems/workspace/mocks/worktree-handlers";
 import { loopDetailByName, loopEffectiveConfigFixture } from "../../mocks/fixtures";
 import type { LoopEffectiveConfig } from "../../types";
 
-const WS = "ws_default";
+const WS = storyWorkspaceIds.hq;
 const loop = loopDetailByName.get("implement-tasks")!;
 const watchLoop = loopDetailByName.get("review-and-fix")!;
 const savedConfig: Partial<LoopEffectiveConfig> = {
@@ -24,7 +26,7 @@ const savedConfig: Partial<LoopEffectiveConfig> = {
 };
 
 function stubFetch() {
-  const mswFetch = createMswFetch(() => handlers);
+  const mswFetch = createMswFetch(() => [...handlers, ...worktreeHandlers]);
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => mswFetch(input, init));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -311,6 +313,23 @@ describe("LoopRunForm", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     await expect(runRequestBody()).resolves.toMatchObject({
       config_overrides: { iteration_cap: 4 },
+    });
+  });
+
+  it("Should send the selected environment as a per-run override", async () => {
+    renderForm();
+    const perRun = screen.getByRole("button", { name: "Per-run" });
+    await waitFor(() => expect(perRun).toBeEnabled());
+    fireEvent.click(perRun);
+    await waitFor(() => expect(perRun).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
+    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
+      target: { value: "billing-webhooks" },
+    });
+    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await expect(runRequestBody()).resolves.toMatchObject({
+      config_overrides: { environment: { mode: "per_run" } },
     });
   });
 });

@@ -15,6 +15,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
@@ -774,6 +775,25 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 		}
 
 		now := h.observer.now()
+		worktrees := []worktreepkg.Worktree{
+			{
+				ID: "wt-observe-alpha", WorkspaceID: h.workspaceID, Name: "alpha", Branch: "feature/alpha",
+				Path: filepath.Join(t.TempDir(), "alpha"), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				CreatedAt: now, UpdatedAt: now,
+			},
+			{
+				ID: "wt-observe-beta", WorkspaceID: h.workspaceID, Name: "beta", Branch: "feature/beta",
+				Path: filepath.Join(t.TempDir(), "beta"), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				CreatedAt: now, UpdatedAt: now,
+			},
+		}
+		for _, item := range worktrees {
+			if err := h.registry.Worktrees.Insert(testutil.Context(t), item); err != nil {
+				t.Fatalf("Insert worktree %q error = %v", item.ID, err)
+			}
+		}
 		makeTask := func(id string, workspaceID string, title string) {
 			createObserveTask(t, h, taskpkg.Task{
 				ID:          id,
@@ -797,50 +817,61 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 		makeTask("task-other-workspace", otherWorkspaceID, "Other workspace")
 
 		createObserveRun(t, h, taskpkg.Run{
-			ID:        "run-running-recent",
-			TaskID:    "task-running-recent",
-			Status:    taskpkg.TaskRunStatusRunning,
-			Attempt:   1,
-			Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
-			QueuedAt:  now.Add(-6 * time.Minute),
-			ClaimedAt: now.Add(-5 * time.Minute),
-			StartedAt: now.Add(-time.Minute),
+			ID:                 "run-running-recent",
+			TaskID:             "task-running-recent",
+			WorkspaceID:        h.workspaceID,
+			RunWorktreeState:   &taskpkg.RunWorktreeState{WorktreeID: worktrees[0].ID},
+			Status:             taskpkg.TaskRunStatusRunning,
+			Attempt:            1,
+			DesignationGroupID: "dashboard-fanout",
+			Origin:             taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
+			QueuedAt:           now.Add(-6 * time.Minute),
+			ClaimedAt:          now.Add(-5 * time.Minute),
+			StartedAt:          now.Add(-time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
-			ID:        "run-running-stale",
-			TaskID:    "task-running-stale",
-			Status:    taskpkg.TaskRunStatusRunning,
-			Attempt:   1,
-			Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
-			QueuedAt:  now.Add(-25 * time.Minute),
-			ClaimedAt: now.Add(-22 * time.Minute),
-			StartedAt: now.Add(-20 * time.Minute),
+			ID:               "run-running-stale",
+			TaskID:           "task-running-stale",
+			WorkspaceID:      h.workspaceID,
+			RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: worktrees[0].ID},
+			Status:           taskpkg.TaskRunStatusRunning,
+			Attempt:          1,
+			Origin:           taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
+			QueuedAt:         now.Add(-25 * time.Minute),
+			ClaimedAt:        now.Add(-22 * time.Minute),
+			StartedAt:        now.Add(-20 * time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
-			ID:        "run-starting",
-			TaskID:    "task-starting",
-			Status:    taskpkg.TaskRunStatusStarting,
-			Attempt:   1,
-			Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
-			QueuedAt:  now.Add(-8 * time.Minute),
-			ClaimedAt: now.Add(-2 * time.Minute),
+			ID:               "run-starting",
+			TaskID:           "task-starting",
+			WorkspaceID:      h.workspaceID,
+			RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: worktrees[1].ID},
+			Status:           taskpkg.TaskRunStatusStarting,
+			Attempt:          1,
+			Origin:           taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
+			QueuedAt:         now.Add(-8 * time.Minute),
+			ClaimedAt:        now.Add(-2 * time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
-			ID:        "run-claimed",
-			TaskID:    "task-claimed",
-			Status:    taskpkg.TaskRunStatusClaimed,
-			Attempt:   1,
-			Origin:    taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
-			QueuedAt:  now.Add(-9 * time.Minute),
-			ClaimedAt: now.Add(-3 * time.Minute),
+			ID:               "run-claimed",
+			TaskID:           "task-claimed",
+			WorkspaceID:      h.workspaceID,
+			RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: worktrees[1].ID},
+			Status:           taskpkg.TaskRunStatusClaimed,
+			Attempt:          1,
+			Origin:           taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
+			QueuedAt:         now.Add(-9 * time.Minute),
+			ClaimedAt:        now.Add(-3 * time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
-			ID:       "run-queued",
-			TaskID:   "task-queued",
-			Status:   taskpkg.TaskRunStatusQueued,
-			Attempt:  1,
-			Origin:   taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
-			QueuedAt: now.Add(-4 * time.Minute),
+			ID:               "run-queued",
+			TaskID:           "task-queued",
+			WorkspaceID:      h.workspaceID,
+			RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: worktrees[1].ID},
+			Status:           taskpkg.TaskRunStatusQueued,
+			Attempt:          1,
+			Origin:           taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
+			QueuedAt:         now.Add(-4 * time.Minute),
 		})
 		createObserveRun(t, h, taskpkg.Run{
 			ID:       "run-other-workspace",
@@ -874,6 +905,36 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 		}
 		if !dashboard.ActiveRuns.Items[1].Stuck || dashboard.ActiveRuns.Items[1].HealthStatus != "warn" {
 			t.Fatalf("dashboard.ActiveRuns.Items[1] = %#v, want stuck warn run", dashboard.ActiveRuns.Items[1])
+		}
+
+		createObserveRun(t, h, taskpkg.Run{
+			ID:                 "run-running-recent-beta",
+			TaskID:             "task-running-recent",
+			WorkspaceID:        h.workspaceID,
+			RunWorktreeState:   &taskpkg.RunWorktreeState{WorktreeID: worktrees[1].ID},
+			Status:             taskpkg.TaskRunStatusRunning,
+			Attempt:            2,
+			DesignationGroupID: "dashboard-fanout",
+			Origin:             taskOrigin(taskpkg.OriginKindCLI, "compozy task"),
+			QueuedAt:           now.Add(-3 * time.Minute),
+			ClaimedAt:          now.Add(-2 * time.Minute),
+			StartedAt:          now.Add(-30 * time.Second),
+		})
+
+		worktreeDashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: h.workspaceID,
+			WorktreeID:  worktrees[0].ID,
+		})
+		if err != nil {
+			t.Fatalf("QueryTaskDashboard(worktree filtered) error = %v", err)
+		}
+		if got, want := worktreeDashboard.Totals.TasksTotal, 2; got != want {
+			t.Fatalf("worktree dashboard task total = %d, want %d", got, want)
+		}
+		if got := activeRunIDs(worktreeDashboard.ActiveRuns.Items); len(got) != 2 ||
+			got[0] != "run-running-recent" || got[1] != "run-running-stale" {
+			t.Fatalf("worktree dashboard active run ids = %#v, want alpha runs", got)
 		}
 	})
 }
@@ -931,6 +992,22 @@ func TestTaskObserveQueryValidationAndConfigOption(t *testing.T) {
 	if err := (TaskInboxQuery{Lane: TaskInboxLane("bogus")}).Validate(); !errors.Is(err, taskpkg.ErrValidation) ||
 		!strings.Contains(err.Error(), "lane") {
 		t.Fatalf("TaskInboxQuery.Validate(invalid lane) error = %v, want ErrValidation mentioning lane", err)
+	}
+}
+
+func TestFilterTasksByWorktreeMatchesAnyActiveFanoutRun(t *testing.T) {
+	t.Parallel()
+
+	tasks := []taskpkg.Summary{{ID: "task-fanout"}}
+	runs := []taskpkg.Run{
+		{ID: "run-target", TaskID: "task-fanout", Status: taskpkg.TaskRunStatusRunning,
+			RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-target"}},
+		{ID: "run-newer", TaskID: "task-fanout", Status: taskpkg.TaskRunStatusRunning, Attempt: 2,
+			RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-other"}},
+	}
+	filtered := filterTasksByWorktree(tasks, runs, "wt-target")
+	if len(filtered) != 1 || filtered[0].ID != "task-fanout" {
+		t.Fatalf("filterTasksByWorktree() = %#v, want task matched by any active fan-out run", filtered)
 	}
 }
 

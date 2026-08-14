@@ -1,0 +1,19 @@
+{
+    "title": "Worktree",
+    "pages": [
+        "index",
+        "adopt",
+        "cancel",
+        "commit",
+        "create",
+        "dismiss",
+        "exit",
+        "exit-cancel",
+        "inspect",
+        "list",
+        "pr",
+        "push",
+        "remove",
+        "status"
+    ]
+}

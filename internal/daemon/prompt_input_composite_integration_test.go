@@ -20,7 +20,10 @@ import (
 )
 
 func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetworkTurns(t *testing.T) {
-	t.Run("Should preserve stored messages while augmenting user and network turns", testPromptInputCompositeIntegrationPreservesStoredMessages)
+	t.Run(
+		"Should preserve stored messages while augmenting user and network turns",
+		testPromptInputCompositeIntegrationPreservesStoredMessages,
+	)
 }
 
 func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {

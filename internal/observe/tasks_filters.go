@@ -80,6 +80,50 @@ func filterTasksByOrigin(tasks []taskpkg.Summary, origin taskpkg.OriginKind) []t
 	return filtered
 }
 
+func filterTasksByWorktree(
+	tasks []taskpkg.Summary,
+	runs []taskpkg.Run,
+	worktreeID string,
+) []taskpkg.Summary {
+	worktreeID = strings.TrimSpace(worktreeID)
+	if worktreeID == "" {
+		return tasks
+	}
+
+	matchingTaskIDs := make(map[string]struct{}, len(tasks))
+	for idx := range runs {
+		candidate := runs[idx]
+		if dashboardActiveRunRank(candidate.Status) == 0 ||
+			strings.TrimSpace(candidate.WorktreeIDValue()) != worktreeID {
+			continue
+		}
+		matchingTaskIDs[strings.TrimSpace(candidate.TaskID)] = struct{}{}
+	}
+
+	filtered := make([]taskpkg.Summary, 0, len(tasks))
+	for idx := range tasks {
+		item := &tasks[idx]
+		if _, ok := matchingTaskIDs[strings.TrimSpace(item.ID)]; ok {
+			filtered = append(filtered, *item)
+		}
+	}
+	return filtered
+}
+
+func filterRunsByWorktree(runs []taskpkg.Run, worktreeID string) []taskpkg.Run {
+	worktreeID = strings.TrimSpace(worktreeID)
+	if worktreeID == "" {
+		return runs
+	}
+	filtered := make([]taskpkg.Run, 0, len(runs))
+	for idx := range runs {
+		if strings.TrimSpace(runs[idx].WorktreeIDValue()) == worktreeID {
+			filtered = append(filtered, runs[idx])
+		}
+	}
+	return filtered
+}
+
 func filterRuns(runs []taskpkg.Run, taskIDs map[string]struct{}, query TaskSummaryQuery) []taskpkg.Run {
 	normalizedOrigin := query.OriginKind.Normalize()
 	channel := strings.TrimSpace(query.ParticipationChannel)
@@ -113,11 +157,21 @@ func filterRunsByOrigin(runs []taskpkg.Run, origin taskpkg.OriginKind) []taskpkg
 	return filtered
 }
 
-func filterEventsForTasks(events []taskpkg.Event, taskIDs map[string]struct{}) []taskpkg.Event {
+func filterEventsForTasks(
+	events []taskpkg.Event,
+	taskIDs map[string]struct{},
+	runIDs map[string]taskpkg.Run,
+	worktreeID string,
+) []taskpkg.Event {
 	filtered := make([]taskpkg.Event, 0, len(events))
 	for _, item := range events {
 		if _, ok := taskIDs[strings.TrimSpace(item.TaskID)]; !ok {
 			continue
+		}
+		if strings.TrimSpace(worktreeID) != "" && strings.TrimSpace(item.RunID) != "" {
+			if _, ok := runIDs[strings.TrimSpace(item.RunID)]; !ok {
+				continue
+			}
 		}
 		filtered = append(filtered, item)
 	}

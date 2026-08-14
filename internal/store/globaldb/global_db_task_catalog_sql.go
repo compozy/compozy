@@ -13,7 +13,8 @@ base_runs AS MATERIALIZED (
 	SELECT
 		tr.id, tr.task_id, tr.workspace_id, tr.status, tr.run_kind, tr.attempt, tr.recovery_count,
 		tr.previous_run_id, tr.failure_kind,
-		tr.claimed_by_kind, tr.claimed_by_ref, tr.session_id, tr.lease_until,
+		tr.claimed_by_kind, tr.claimed_by_ref, tr.session_id, tr.worktree_id,
+		tr.resolved_worktree_mode, tr.resolved_worktree_ref, tr.lease_until,
 		tr.heartbeat_at, tr.network_spec_json, tr.network_mode, tr.network_channel,
 		tr.network_source, tr.queued_at, tr.claimed_at, tr.started_at,
 		tr.ended_at, tr.error
@@ -153,7 +154,8 @@ latest_terminal_candidates AS (
 active_run_candidates AS (
 	SELECT
 		id, task_id, workspace_id, status, attempt, recovery_count, previous_run_id, failure_kind, claimed_by_kind,
-		claimed_by_ref, session_id, lease_until, heartbeat_at,
+		claimed_by_ref, session_id, worktree_id, resolved_worktree_mode, resolved_worktree_ref,
+		lease_until, heartbeat_at,
 		network_spec_json, network_mode, network_channel, network_source,
 		queued_at, claimed_at, started_at,
 		ended_at, error,
@@ -244,6 +246,9 @@ catalog_derived AS (
 		ar.claimed_by_kind AS active_run_claimed_by_kind,
 		ar.claimed_by_ref AS active_run_claimed_by_ref,
 		ar.session_id AS active_run_session_id,
+		ar.worktree_id AS active_run_worktree_id,
+		ar.resolved_worktree_mode AS active_run_resolved_worktree_mode,
+		ar.resolved_worktree_ref AS active_run_resolved_worktree_ref,
 		ar.lease_until AS active_run_lease_until,
 		ar.heartbeat_at AS active_run_heartbeat_at,
 		ar.network_spec_json AS active_run_network_spec_json,
@@ -276,7 +281,8 @@ catalog AS (
 		dependency_count, last_activity_at, priority_rank, active_run_id, active_run_workspace_id,
 		active_run_status, active_run_attempt, active_run_recovery_count, active_run_previous_run_id,
 		active_run_failure_kind, active_run_claimed_by_kind, active_run_claimed_by_ref,
-		active_run_session_id, active_run_lease_until, active_run_heartbeat_at,
+		active_run_session_id, active_run_worktree_id, active_run_resolved_worktree_mode,
+		active_run_resolved_worktree_ref, active_run_lease_until, active_run_heartbeat_at,
 		active_run_network_spec_json, active_run_network_mode,
 		active_run_network_channel, active_run_network_source,
 		active_run_queued_at, active_run_claimed_at,
@@ -293,6 +299,7 @@ const taskCatalogSelectColumns = `id, identifier, scope, workspace_id, parent_ta
 	dependency_count, last_activity_at, priority_rank, active_run_id, active_run_workspace_id, active_run_status,
 	active_run_attempt, active_run_recovery_count, active_run_previous_run_id, active_run_failure_kind,
 	active_run_claimed_by_kind, active_run_claimed_by_ref, active_run_session_id,
+	active_run_worktree_id, active_run_resolved_worktree_mode, active_run_resolved_worktree_ref,
 	active_run_lease_until, active_run_heartbeat_at, active_run_network_spec_json,
 	active_run_network_mode, active_run_network_channel, active_run_network_source,
 	active_run_queued_at, active_run_claimed_at, active_run_started_at,
@@ -339,10 +346,20 @@ func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 }
 
 func taskCatalogFilter(query taskpkg.CatalogQuery) ([]string, []any) {
-	return store.BuildClauses(
+	where, args := store.BuildClauses(
 		store.StringClause("status", string(query.Status)),
 		store.StringClause("network_channel", query.ParticipationChannel),
 	)
+	if query.WorktreeID != "" {
+		where = append(where, `EXISTS (
+			SELECT 1 FROM base_runs worktree_run
+			WHERE worktree_run.task_id = catalog.id
+				AND worktree_run.worktree_id = ?
+				AND worktree_run.status IN ('queued', 'claimed', 'starting', 'running')
+		)`)
+		args = append(args, query.WorktreeID)
+	}
+	return where, args
 }
 
 func taskCatalogPageFilter(

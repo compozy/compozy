@@ -91,6 +91,7 @@ most authors never write this block.
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
+| `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
 | `bridge.adapter`        | `bridges/deliver`, `bridges/targets/snapshot`                            | no     |
 
 `bridge.adapter` is not yet a third-party surface. An installed manifest declaring it is rejected
@@ -105,6 +106,11 @@ participation with `gateway.private`, `gateway.public`, or both in `channel_scop
 tier must match one of those scopes. Workspace-scoped installs are rejected. See
 [Develop Extensions](/docs/extensions/develop#connectivity-providers) for the request and trust
 contract.
+
+A `forge.provider` must register all three daemon-initiated methods and return the closed
+capabilities/status/create contract. See
+[Develop Extensions](/docs/extensions/develop#forge-providers) for vocabulary, draft, compare URL,
+credential-source, and idempotency requirements.
 
 ## `[permissions]`
 

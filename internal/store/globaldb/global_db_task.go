@@ -47,10 +47,11 @@ const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 ), tasks.updated_at) DESC, updated_at DESC, created_at DESC, id DESC`
 
 const taskRunSelectColumnsSQL = `
-	id, task_id, workspace_id, run_kind, loop_run_id, status, attempt, recovery_count, previous_run_id, failure_kind,
+	id, task_id, workspace_id, worktree_id, run_kind, loop_run_id, status, attempt, recovery_count,
+	previous_run_id, failure_kind,
 	claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
 	network_spec_json, network_mode, network_channel, network_source,
-	designation_group_id, '' AS claim_token,
+	designation_group_id, resolved_worktree_mode, resolved_worktree_ref, '' AS claim_token,
 	claim_token_hash, lease_until, heartbeat_at, queued_at,
 	claimed_at, started_at, ended_at, tokens_used, error, metadata_json, result_json, review_required,
 	review_request_round, review_policy_snapshot, review_request_id, parent_run_id, review_id,

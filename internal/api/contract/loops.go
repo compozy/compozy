@@ -246,6 +246,23 @@ type PutLoopConfigRequest struct {
 	Config LoopConfig `json:"config"`
 }
 
+// LoopEnvironmentMode selects the execution root for Loop agent actions.
+type LoopEnvironmentMode string
+
+const (
+	LoopEnvironmentModeRoot      LoopEnvironmentMode = "root"
+	LoopEnvironmentModeWorktree  LoopEnvironmentMode = "worktree"
+	LoopEnvironmentModePerRun    LoopEnvironmentMode = "per_run"
+	LoopEnvironmentModeDirectory LoopEnvironmentMode = "directory"
+)
+
+// LoopEnvironment is one loop-level execution environment default.
+type LoopEnvironment struct {
+	Mode        LoopEnvironmentMode `json:"mode"`
+	WorktreeRef string              `json:"worktree_ref,omitempty"`
+	Directory   string              `json:"directory,omitempty"`
+}
+
 // LoopConfig is the public per-loop or per-run override layer.
 type LoopConfig struct {
 	HumanGateEnabled  *bool                  `json:"human_gate_enabled,omitempty"`
@@ -260,6 +277,7 @@ type LoopConfig struct {
 	GateMaxRevisions  *int                   `json:"gate_max_revisions,omitempty"`
 	RuntimeDefaults   *LoopRuntimeDefaults   `json:"runtime_defaults,omitempty"`
 	RuntimeRules      []LoopRuntimeRule      `json:"runtime_rules,omitempty"`
+	Environment       *LoopEnvironment       `json:"environment,omitempty"`
 }
 
 // LoopEffectiveConfig is the public fully resolved runtime config.
@@ -277,6 +295,7 @@ type LoopEffectiveConfig struct {
 	RuntimeDefaults   LoopRuntimeDefaults   `json:"runtime_defaults"`
 	RuntimeRules      []LoopRuntimeRule     `json:"runtime_rules"`
 	RunRuntimeRules   []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
+	Environment       LoopEnvironment       `json:"environment"`
 }
 
 // LoopAnnotationPayload is one editor node position.

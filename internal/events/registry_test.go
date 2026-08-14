@@ -319,4 +319,28 @@ func TestRegistryMetadata(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should register every canonical worktree event with global scope", func(t *testing.T) {
+		t.Parallel()
+
+		expected := map[string]Outcome{
+			WorktreeCreated: OutcomeSuccess, WorktreeAdopted: OutcomeSuccess,
+			WorktreeRemoved: OutcomeSuccess, WorktreeMissing: OutcomeWarning,
+			WorktreeDismissed: OutcomeInfo, WorktreeCreationCanceled: OutcomeInfo,
+			WorktreeSetupFailed: OutcomeWarning, WorktreeStatusRefreshed: OutcomeInfo,
+			WorktreeBranchReclaimed: OutcomeSuccess, WorktreeExitActionStarted: OutcomeInfo,
+			WorktreeExitActionStep: OutcomeInfo, WorktreeExitHookOutput: OutcomeInfo,
+			WorktreeExitActionCompleted: OutcomeSuccess,
+			WorktreeExitActionFailed:    OutcomeFailure, WorktreeExitActionCanceled: OutcomeInfo,
+		}
+		for name, outcome := range expected {
+			metadata, ok := Lookup(name)
+			if !ok {
+				t.Fatalf("Lookup(%q) = false", name)
+			}
+			if metadata.Component != ComponentWorktree || metadata.Outcome != outcome || !metadata.GlobalScope {
+				t.Fatalf("Lookup(%q) = %#v, want worktree/%s/global", name, metadata, outcome)
+			}
+		}
+	})
 }

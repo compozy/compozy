@@ -386,7 +386,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 					},
 					Catalog: integrationRuntimeCatalog{},
 				},
-				CWD: fixture.workspaceRoot, GoalSegmentEpoch: 1,
+				Environment: &loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot}, GoalSegmentEpoch: 1,
 				GoalContextNudgeRatio: new(fixture.run.GoalContextNudgeRatio),
 			})
 			if executeErr != nil {
@@ -679,6 +679,7 @@ func newLoopGoalCoordinatorRuntimeFixture(
 		policyGate,
 		time.Now,
 		discardLogger(),
+		nil,
 	)
 	return loopGoalCoordinatorRuntimeFixture{
 		runtime: runtime, goalStore: goalStore, taskStore: tasks, taskManager: taskManager,
@@ -1053,6 +1054,7 @@ func newLoopGoalManagedRuntimeFixture(
 		policyGate,
 		time.Now,
 		discardLogger(),
+		nil,
 	)
 	fixture := loopGoalManagedRuntimeFixture{
 		runtime: runtime, goalStore: goalStore, manager: manager,
@@ -1073,7 +1075,8 @@ func (f loopGoalManagedRuntimeFixture) bindingRequest(suffix string) looppkg.Act
 	return looppkg.ActionSessionBindRequest{
 		WorkspaceID: f.run.WorkspaceID, LoopRunID: f.run.ID, Generation: 1,
 		NodeID: "converge", ItemIndex: 0, Agent: f.agentName,
-		CWD: f.workspaceRoot, Handle: "goal:managed:" + suffix, Mode: "continuous",
+		Environment: &loopdsl.EnvironmentSpec{Mode: loopdsl.EnvironmentRoot},
+		Handle:      "goal:managed:" + suffix, Mode: "continuous",
 		TargetBindingEpoch: 1, ExpectedControlEpoch: 1,
 		ExpectedCheckpointPhase: "idle", ExpectedTaskRunID: f.taskRunID,
 		BindingAttemptID: "binding-attempt-goal-managed-" + suffix,
@@ -1091,9 +1094,12 @@ func (f loopGoalManagedRuntimeFixture) createOriginSession(
 	ctx := testutil.Context(t)
 	request := f.bindingRequest("origin-" + suffix)
 	request.NetworkParticipation = &spec
-	profile, opts, err := f.runtime.resolveEffectiveCreationProfile(ctx, request, "")
+	profile, opts, materialized, err := f.runtime.resolveEffectiveCreationProfile(ctx, request, "")
 	if err != nil {
 		t.Fatalf("resolveEffectiveCreationProfile(origin) error = %v", err)
+	}
+	if materialized != nil {
+		t.Fatalf("resolveEffectiveCreationProfile(origin) materialized worktree = %#v, want nil", materialized)
 	}
 	sessionID := "sess-goal-origin-" + suffix
 	opts.DesiredSessionID = sessionID

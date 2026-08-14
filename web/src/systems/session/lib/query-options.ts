@@ -132,14 +132,14 @@ export function sessionHistoryOptions(workspace: string, id: string) {
  * Canonical command projection for the current session. SSE frames invalidate this exact key and
  * the composer refetches it whenever the native trigger popover opens.
  */
-export function sessionCommandsOptions(workspace: string, id: string) {
+export function sessionCommandsOptions(workspace: string, id: string, enabled = true) {
   const workspaceId = workspace.trim();
   const sessionId = id.trim();
   return queryOptions({
     queryKey: sessionKeys.commands(workspaceId, sessionId),
     queryFn: ({ signal }) => fetchSessionCommands(workspaceId, sessionId, signal),
     staleTime: 30_000,
-    enabled: workspaceId.length > 0 && sessionId.length > 0,
+    enabled: enabled && workspaceId.length > 0 && sessionId.length > 0,
   });
 }
 

@@ -150,6 +150,7 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		SelectedRuntime:          storeSessionRuntimeSelection(info.SelectedRuntime),
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
 		WorkspaceID:              info.WorkspaceID,
+		WorktreeID:               info.WorktreeID,
 		SessionType:              string(info.Type),
 		Lineage:                  store.CloneSessionLineage(info.Lineage),
 		State:                    string(info.State),

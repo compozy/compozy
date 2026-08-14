@@ -15,9 +15,16 @@
   workspaces-overview-states · LAB — edge cases for the Command-Tab switcher.
   Spec: DESIGN-NOTES.md.
   Provenance:
-    production            — 264px card anatomy from os-workspaces-overview.tsx:155-208
-    authorized delta      — compact tiles; Current = check; empty uses one primary
+    production            — 264px card anatomy from os-workspaces-overview.tsx:155-208;
+                            worktree projection from os-workspaces-overview.tsx meta line +
+                            Show worktrees expander + WorktreeNestList (worktree-display.ts)
+    authorized delta      — compact tiles; Current = check; empty uses one primary;
+                            worktrees as an always-visible VERTICAL menu under the
+                            caption (S1 nest row vocabulary; never a horizontal strip);
+                            caption = identity only (agents/sessions dropped)
     spec global-workspace — no Home card; global-on hides Current
+    spec worktree-support — enum ready·pending·discovered·missing·error, adopted-only
+                            counts, locked sort, git_backed gating (US-009/US-011)
 -->
 <style>
   a{color:inherit;text-decoration:none}
@@ -73,13 +80,13 @@
       <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Proposed — three project tiles</h2>
         <span class="lab-sec__gist">check = current · plate = focus · dashed = new</span></div>
       <div class="spec">
-        <div class="spec__note"><b>Happy path</b>Same three workspaces, compact tiles. Focus is a frosted glass plate behind the whole tile — macOS Command-Tab, not a ring, no border. Caption under the strip carries agents · sessions and the path — once, for the focused tile. Zero accent on this screen.</div>
+        <div class="spec__note"><b>Happy path</b>Same three workspaces, compact tiles. Focus is a frosted glass plate behind the whole tile — macOS Command-Tab, not a ring, no border. Caption under the strip carries the name and path — once, for the focused tile. Zero accent on this screen.</div>
         <div class="spec__demo">
           <div class="stage">
             <div class="overlay wsov" style="position:absolute" data-od-id="demo-default">
               <div class="wsov-stage">
                 <h2 class="wsov-title">Workspaces</h2>
-                <p class="wsov-sub">3 workspaces · 5 agents</p>
+                <p class="wsov-sub">3 workspaces · 5 worktrees</p>
                 <div class="wsov-strip">
                   <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
                   <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
@@ -104,7 +111,7 @@
                   </div>
                   </div>
                 </div>
-                <div class="wsov-caption"><b>compozy</b><span class="meta">3 agents · 5 sessions</span><span class="path">~/dev/compozy</span></div>
+                <div class="wsov-caption"><b>compozy</b><span class="path">~/dev/compozy</span></div>
               </div>
             </div>
           </div>
@@ -122,7 +129,7 @@
             <div class="overlay wsov" style="position:absolute" data-od-id="demo-focus">
               <div class="wsov-stage">
                 <h2 class="wsov-title">Workspaces</h2>
-                <p class="wsov-sub">3 workspaces · 5 agents</p>
+                <p class="wsov-sub">3 workspaces · 5 worktrees</p>
                 <div class="wsov-strip">
                   <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
                   <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
@@ -147,7 +154,7 @@
                   </div>
                   </div>
                 </div>
-                <div class="wsov-caption"><b>branas-site</b><span class="meta">1 agent · 2 sessions</span><span class="path">~/dev/branas/site</span></div>
+                <div class="wsov-caption"><b>branas-site</b><span class="path">~/dev/branas/site</span></div>
               </div>
             </div>
           </div>
@@ -190,7 +197,7 @@
             <div class="overlay wsov" style="position:absolute" data-od-id="demo-one">
               <div class="wsov-stage">
                 <h2 class="wsov-title">Workspaces</h2>
-                <p class="wsov-sub">1 workspace · 3 agents</p>
+                <p class="wsov-sub">1 workspace</p>
                 <div class="wsov-strip">
                   <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
                   <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
@@ -207,7 +214,7 @@
                   </div>
                   </div>
                 </div>
-                <div class="wsov-caption"><b>compozy</b><span class="meta">3 agents · 5 sessions</span><span class="path">~/dev/compozy</span></div>
+                <div class="wsov-caption"><b>compozy</b><span class="path">~/dev/compozy</span></div>
               </div>
             </div>
           </div>
@@ -225,7 +232,7 @@
             <div class="overlay wsov" style="position:absolute" data-od-id="demo-many">
               <div class="wsov-stage">
                 <h2 class="wsov-title">Workspaces</h2>
-                <p class="wsov-sub">12 workspaces · 18 agents</p>
+                <p class="wsov-sub">12 workspaces · 8 worktrees</p>
                 <div class="wsov-strip" data-overflow="end">
                   <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
                   <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
@@ -247,7 +254,7 @@
                   </div>
                   </div>
                 </div>
-                <div class="wsov-caption"><b>branas-site</b><span class="meta">1 agent · 2 sessions</span><span class="path">~/dev/branas/site</span></div>
+                <div class="wsov-caption"><b>branas-site</b><span class="path">~/dev/branas/site</span></div>
               </div>
             </div>
           </div>
@@ -265,7 +272,7 @@
             <div class="overlay wsov" style="position:absolute" data-scope="global" data-od-id="demo-global">
               <div class="wsov-stage">
                 <h2 class="wsov-title">Workspaces</h2>
-                <p class="wsov-sub">3 workspaces · 5 agents</p>
+                <p class="wsov-sub">3 workspaces · 5 worktrees</p>
                 <p class="wsov-notice">Global scope is on — picking a workspace turns it off.</p>
                 <div class="wsov-strip">
                   <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
@@ -279,7 +286,7 @@
                   </div>
                   </div>
                 </div>
-                <div class="wsov-caption"><b>compozy</b><span class="meta">3 agents · 5 sessions</span><span class="path">~/dev/compozy</span></div>
+                <div class="wsov-caption"><b>compozy</b><span class="path">~/dev/compozy</span></div>
               </div>
             </div>
           </div>
@@ -297,7 +304,7 @@
             <div class="overlay wsov" style="position:absolute" data-od-id="demo-add">
               <div class="wsov-stage">
                 <h2 class="wsov-title">Workspaces</h2>
-                <p class="wsov-sub">3 workspaces · 5 agents</p>
+                <p class="wsov-sub">3 workspaces · 5 worktrees</p>
                 <div class="wsov-strip">
                   <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
                   <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
@@ -321,9 +328,145 @@
       </div>
     </section>
 
+    <section class="lab-sec" data-od-id="st-wt-menu">
+      <div class="lab-sec__head"><span class="lab-sec__num">09</span><h2 class="lab-sec__t">Worktree menu — always visible, vertical</h2>
+        <span class="lab-sec__gist">no disclosure gesture · subordinate weight · one check per layer</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Canonical</b>The focused git-backed workspace shows its worktrees as a quiet vertical menu under the caption — always, no <code>↓</code> needed to reveal it. Rows are two lines: name, then a small state chip + the worktree path (mono, truncated) — S5 full anatomy at menu scale. One trailing signal, and a kebab (<code>⋮</code>) revealed on hover/focus with <b>Copy path · Delete</b>. Scope is <code>compozy / payments-retry</code>: check on the menu row, <b>branch badge</b> on the parent tile. Six entries truncate to five + a quiet <b>All 5 worktrees</b> row (adopted-only count).<code>GET /api/workspaces/:id/worktrees</code></div>
+        <div class="spec__demo">
+          <div class="stage">
+            <div class="overlay wsov" style="position:absolute" data-od-id="demo-wt-menu">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">3 workspaces · 5 worktrees</p>
+                <div class="wsov-strip">
+                  <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+                  <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+                  <div class="wsov-track">
+                  <div class="wsov-row">
+                    <button class="wsov-tile is-on" data-current="wt">
+                      <span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span>
+                      <span class="wsov-name">compozy</span>
+                    </button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">B</span></span><span class="wsov-name">branas-site</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">N</span></span><span class="wsov-name">notes</span></button>
+                    <button class="wsov-tile wsov-tile--add"><span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span><span class="wsov-name">New</span></button>
+                  </div>
+                  </div>
+                </div>
+                <div class="wsov-caption"><b>compozy</b><span class="path">~/dev/compozy</span></div>
+                <div class="wsov-below wsov-below--flow">
+                  <div class="wsov-menu" role="listbox" aria-label="Worktrees of compozy">
+                    <div class="wsov-mrow wsov-mrow--wt is-on" data-state="ready" role="option" aria-selected="true"><span class="wsov-mdot" aria-hidden="true"></span><span class="wsov-mmain"><span class="wsov-mname"><b>payments-retry</b></span><span class="wsov-mline2"><span class="wsov-mpath">~/.compozy/worktrees/compozy/payments-retry</span></span></span><span class="wsov-mtrail"><span class="wsov-magent" data-live="running"></span><span class="wsov-mcheck" aria-hidden="true"><svg data-lucide="check"></svg></span><button class="wsov-mkebab" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded="false" aria-label="Actions"><svg data-lucide="ellipsis-vertical"></svg></button></span></div>
+                    <div class="wsov-mrow wsov-mrow--wt" data-state="ready" role="option"><span class="wsov-mdot" aria-hidden="true"></span><span class="wsov-mmain"><span class="wsov-mname"><b>auth-refresh</b></span><span class="wsov-mline2"><span class="wsov-mpath">~/.compozy/worktrees/compozy/auth-refresh</span></span></span><span class="wsov-mtrail"><span class="wsov-mab"><span class="behind" data-hot>2</span></span><button class="wsov-mkebab" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded="false" aria-label="Actions"><svg data-lucide="ellipsis-vertical"></svg></button></span></div>
+                    <div class="wsov-mrow wsov-mrow--wt" data-state="ready" role="option"><span class="wsov-mdot" aria-hidden="true"></span><span class="wsov-mmain"><span class="wsov-mname"><b>fix-flaky-e2e</b></span><span class="wsov-mline2"><span class="wsov-mpath">~/.compozy/worktrees/compozy/fix-flaky-e2e</span></span></span><span class="wsov-mtrail"><span class="wsov-mmerged"><svg data-lucide="git-merge"></svg>Merged</span><button class="wsov-mkebab" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded="false" aria-label="Actions"><svg data-lucide="ellipsis-vertical"></svg></button></span></div>
+                    <div class="wsov-mrow wsov-mrow--wt" data-state="pending" data-inert aria-disabled="true"><span class="wsov-mdot" data-state="pending" aria-hidden="true"></span><span class="wsov-mmain"><span class="wsov-mname"><b>docs-refresh</b></span><span class="wsov-mline2"><span class="wsov-mchip" data-state="pending">pending</span><span class="wsov-mpath">~/.compozy/worktrees/compozy/docs-refresh</span></span></span><span class="wsov-mtrail"><span class="wsov-mwhy">materializing</span><button class="wsov-mkebab" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded="false" aria-label="Actions"><svg data-lucide="ellipsis-vertical"></svg></button></span></div>
+                    <div class="wsov-mrow wsov-mrow--wt" data-state="discovered" role="option"><span class="wsov-mdot" data-state="discovered" aria-hidden="true"></span><span class="wsov-mmain"><span class="wsov-mname"><b>spike-sqlite-vacuum</b></span><span class="wsov-mline2"><span class="wsov-mchip" data-state="discovered">discovered</span><span class="wsov-mpath">../compozy-spike</span></span></span><span class="wsov-mtrail"><span class="wsov-madopt">Adopt</span><button class="wsov-mkebab" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded="false" aria-label="Actions"><svg data-lucide="ellipsis-vertical"></svg></button></span></div>
+                    <a class="wsov-mrow wsov-mrow--foot" href="../worktree/worktree-overview.html">
+                      <svg data-lucide="ellipsis"></svg><span class="wsov-mname"><b>All 5 worktrees</b></span>
+                    </a>
+                    <div class="wsov-msep" aria-hidden="true"></div>
+                    <a class="wsov-mrow wsov-mrow--foot" href="../worktree/worktree-create-dialog.html">
+                      <svg data-lucide="plus"></svg><span class="wsov-mname"><b>New worktree</b></span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="st-wt-mixed">
+      <div class="lab-sec__head"><span class="lab-sec__num">10</span><h2 class="lab-sec__t">Menu — non-ready vocabulary</h2>
+        <span class="lab-sec__gist">locked sort · inert rows skipped by arrows · reasons never hover-only</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Pending never reads as ready</b>Small chip on the path line, functional reason in the right lane — never hover-only. Pending and missing are inert: resting cursor, no hover fill, skipped by <code>↑</code> <code>↓</code>. The discovered row is focused: <b>Adopt</b> reveals on hover/focus and <code>↵</code> reaches the same confirm as S1/S3 (US-009 / ADR-002). The kebab on <code>tf-upgrade</code> is open: <b>Copy path</b> (clipboard + toast) and <b>Delete worktree…</b> — the real remove flow owns the force-refusal dialogs (S13).</div>
+        <div class="spec__demo">
+          <div class="stage stage--short" style="display:grid;place-items:center">
+            <div class="wsov-below wsov-below--flow" data-od-id="demo-wt-states">
+              <div class="wsov-menu" role="listbox" aria-label="Worktrees of compozy">
+                <div class="wsov-mrow wsov-mrow--wt" data-state="pending" data-inert aria-disabled="true"><span class="wsov-mdot" data-state="pending" aria-hidden="true"></span><span class="wsov-mmain"><span class="wsov-mname"><b>docs-refresh</b></span><span class="wsov-mline2"><span class="wsov-mchip" data-state="pending">pending</span><span class="wsov-mpath">~/.compozy/worktrees/compozy/docs-refresh</span></span></span><span class="wsov-mtrail"><span class="wsov-mwhy">materializing</span><button class="wsov-mkebab" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded="false" aria-label="Actions"><svg data-lucide="ellipsis-vertical"></svg></button></span></div>
+                <div class="wsov-mrow wsov-mrow--wt is-on" data-state="discovered" role="option"><span class="wsov-mdot" data-state="discovered" aria-hidden="true"></span><span class="wsov-mmain"><span class="wsov-mname"><b>spike-sqlite-vacuum</b></span><span class="wsov-mline2"><span class="wsov-mchip" data-state="discovered">discovered</span><span class="wsov-mpath">../compozy-spike</span></span></span><span class="wsov-mtrail"><span class="wsov-madopt">Adopt</span><button class="wsov-mkebab" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded="false" aria-label="Actions"><svg data-lucide="ellipsis-vertical"></svg></button></span></div>
+                <div class="wsov-mrow wsov-mrow--wt" data-state="missing" data-inert aria-disabled="true"><span class="wsov-mdot" data-state="missing" aria-hidden="true"></span><span class="wsov-mmain"><span class="wsov-mname"><b>hotfix-cors</b></span><span class="wsov-mline2"><span class="wsov-mchip" data-state="missing">missing</span><span class="wsov-mpath">~/.compozy/worktrees/compozy/hotfix-cors</span></span></span><span class="wsov-mtrail"><span class="wsov-mwhy">directory missing</span><button class="wsov-mkebab" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded="false" aria-label="Actions"><svg data-lucide="ellipsis-vertical"></svg></button></span></div>
+                <div class="wsov-mrow wsov-mrow--wt" data-state="ready" role="option"><span class="wsov-mdot" aria-hidden="true"></span><span class="wsov-mmain"><span class="wsov-mname"><b>tf-upgrade</b></span><span class="wsov-mline2"><span class="wsov-mpath">~/.compozy/worktrees/infra/tf-upgrade</span></span></span><span class="wsov-mtrail"><span class="wsov-mflag" title="setup failed — worktree is usable"><svg data-lucide="triangle-alert"></svg></span><button class="wsov-mkebab" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded="false" aria-label="Actions"><svg data-lucide="ellipsis-vertical"></svg></button></span></div>
+                <!-- kebab open on tf-upgrade — Copy path · Delete; real remove flow owns the confirm (S13) -->
+                <div class="wsov-actions" role="menu" aria-label="Worktree actions" style="top:173px">
+                  <button class="wsov-actitem" type="button" role="menuitem"><svg data-lucide="copy"></svg>Copy path</button>
+                  <button class="wsov-actitem wsov-actitem--danger" type="button" role="menuitem"><svg data-lucide="trash-2"></svg>Delete worktree…</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="st-wt-absence">
+      <div class="lab-sec__head"><span class="lab-sec__num">11</span><h2 class="lab-sec__t">Menu — absence states</h2>
+        <span class="lab-sec__gist">git + zero → New button only · no git → nothing at all</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Zero worktrees, git-backed</b><code>branas-site</code> shows no menu panel — just the quiet dashed <b>New worktree</b> button (the create entry point is always rendered for git-backed workspaces, S1 rule). No empty panel, no zero count.</div>
+        <div class="spec__demo">
+          <div class="stage stage--short">
+            <div class="overlay wsov" style="position:absolute" data-od-id="demo-wt-zero">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">3 workspaces · 5 worktrees</p>
+                <div class="wsov-strip">
+                  <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+                  <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+                  <div class="wsov-track">
+                  <div class="wsov-row">
+                    <button class="wsov-tile" data-current="wt"><span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">compozy</span></button>
+                    <button class="wsov-tile is-on"><span class="wsov-well"><span class="wsov-mono">B</span></span><span class="wsov-name">branas-site</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">N</span></span><span class="wsov-name">notes</span></button>
+                    <button class="wsov-tile wsov-tile--add"><span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span><span class="wsov-name">New</span></button>
+                  </div>
+                  </div>
+                </div>
+                <div class="wsov-caption"><b>branas-site</b><span class="path">~/dev/branas/site</span></div>
+                <div class="wsov-below wsov-below--flow">
+                  <a class="wsov-newbtn" href="../worktree/worktree-create-dialog.html" data-od-id="demo-wt-newbtn"><svg data-lucide="plus"></svg>New worktree</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Workspace without git</b><code>notes</code> is not git-backed: no menu, no button, no <code>↓ worktrees</code> hint — the affordance is absent, never disabled. The tile is indistinguishable from the pre-worktree product.<code>repo.git_backed === false</code></div>
+        <div class="spec__demo">
+          <div class="stage stage--short">
+            <div class="overlay wsov" style="position:absolute" data-od-id="demo-wt-nogit">
+              <div class="wsov-stage">
+                <h2 class="wsov-title">Workspaces</h2>
+                <p class="wsov-sub">3 workspaces · 5 worktrees</p>
+                <div class="wsov-strip">
+                  <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
+                  <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
+                  <div class="wsov-track">
+                  <div class="wsov-row">
+                    <button class="wsov-tile" data-current><span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check"><svg data-lucide="check"></svg></span></span><span class="wsov-name">compozy</span></button>
+                    <button class="wsov-tile"><span class="wsov-well"><span class="wsov-mono">B</span></span><span class="wsov-name">branas-site</span></button>
+                    <button class="wsov-tile is-on"><span class="wsov-well"><span class="wsov-mono">N</span></span><span class="wsov-name">notes</span></button>
+                    <button class="wsov-tile wsov-tile--add"><span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span><span class="wsov-name">New</span></button>
+                  </div>
+                  </div>
+                </div>
+                <div class="wsov-caption"><b>notes</b><span class="path">~/notes</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
       Interactive overlay: <a href="workspaces-overview.html" style="color:var(--subtle)">workspaces-overview.html</a>.
-      Contract: <span class="mono">DESIGN-NOTES.md</span>. Spaces (window arrangements) stay in <span class="mono">os/</span> — this set is identity switching only.
+      Contract: <span class="mono">DESIGN-NOTES.md</span>. Worktree projection parity: <span class="mono">worktree/</span> set (S1/S2/S3) — the surfaces must not diverge.
+      Spaces (window arrangements) stay in <span class="mono">os/</span> — this set is identity switching only.
     </p>
   </div></div>
 </div></div>

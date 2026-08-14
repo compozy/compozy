@@ -12,6 +12,7 @@ import (
 
 const (
 	nativeProfileToolsDeletedKey = "deleted"
+	nativeProfileToolsProfileKey = "profile"
 )
 
 type taskExecutionProfileRefInput struct {
@@ -23,6 +24,12 @@ type taskExecutionProfileSetInput struct {
 	Profile *taskExecutionProfileInput `json:"profile"`
 }
 
+type taskWorktreePolicySetInput struct {
+	TaskID      string               `json:"task_id"`
+	Mode        taskpkg.WorktreeMode `json:"mode"`
+	WorktreeRef string               `json:"worktree_ref,omitempty"`
+}
+
 type taskExecutionProfileInput struct {
 	TaskID               string                     `json:"task_id,omitempty"`
 	Coordinator          taskpkg.CoordinatorProfile `json:"coordinator"`
@@ -30,6 +37,7 @@ type taskExecutionProfileInput struct {
 	Review               taskpkg.ReviewProfile      `json:"review"`
 	Participants         taskpkg.ParticipantPolicy  `json:"participants"`
 	Sandbox              taskpkg.SandboxPolicy      `json:"sandbox"`
+	Worktree             taskpkg.WorktreePolicy     `json:"worktree"`
 	Runtime              taskpkg.RuntimePolicy      `json:"runtime"`
 	NetworkParticipation *participation.Request     `json:"network_participation,omitempty"`
 }
@@ -47,7 +55,9 @@ func (n *daemonNativeTools) taskExecutionProfileGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"profile": profile}, fmt.Sprintf("profile %s", profile.TaskID))
+	return structuredResult(
+		map[string]any{nativeProfileToolsProfileKey: profile}, fmt.Sprintf("profile %s", profile.TaskID),
+	)
 }
 
 func (n *daemonNativeTools) taskExecutionProfileSet(
@@ -64,7 +74,7 @@ func (n *daemonNativeTools) taskExecutionProfileSet(
 		return toolspkg.ToolResult{}, err
 	}
 	if input.Profile == nil {
-		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "profile")
+		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, nativeProfileToolsProfileKey)
 	}
 	actor, err := actorContextFromScope(scope)
 	if err != nil {
@@ -96,6 +106,36 @@ func (n *daemonNativeTools) taskExecutionProfileDelete(
 	return structuredResult(
 		map[string]any{coordinatorRuntimeTaskIDKey: taskID, nativeProfileToolsDeletedKey: true},
 		fmt.Sprintf("deleted profile %s", taskID),
+	)
+}
+
+func (n *daemonNativeTools) taskWorktreePolicySet(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input taskWorktreePolicySetInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	taskID, err := requiredNativeString(req.ToolID, coordinatorRuntimeTaskIDKey, input.TaskID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, err := actorContextFromScope(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	stored, err := n.deps.Tasks.SetWorktreePolicy(ctx, taskID, taskpkg.WorktreePolicy{
+		Mode:        input.Mode,
+		WorktreeRef: input.WorktreeRef,
+	}, actor)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(
+		map[string]any{"profile": stored},
+		fmt.Sprintf("updated worktree policy %s", stored.TaskID),
 	)
 }
 
@@ -139,6 +179,7 @@ func (i *taskExecutionProfileInput) profile(taskID string) (taskpkg.ExecutionPro
 		Review:               i.Review,
 		Participants:         i.Participants,
 		Sandbox:              i.Sandbox,
+		Worktree:             i.Worktree,
 		Runtime:              i.Runtime,
 		NetworkParticipation: participation.CloneRequest(i.NetworkParticipation),
 	}, nil

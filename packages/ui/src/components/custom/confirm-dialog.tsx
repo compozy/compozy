@@ -139,25 +139,30 @@ function ConfirmDialog({
             </DialogDescription>
           ) : null}
         </DialogHeader>
-        {note ? (
-          <div className="px-5 pt-4">
-            <Alert
-              variant={noteVariant}
-              role="note"
-              {...restNoteProps}
-              className={cn("text-xs", noteClassName)}
-            >
-              <AlertDescription>{note}</AlertDescription>
-            </Alert>
-          </div>
-        ) : null}
-        {body ? (
+        {note || body ? (
           <div
-            data-slot="confirm-dialog-body"
-            {...restBodyProps}
-            className={cn("flex flex-col gap-3 px-5 pt-4", bodyClassName)}
+            data-slot="confirm-dialog-stack"
+            className="flex min-w-0 flex-col gap-4 px-5 pt-4 pb-5"
           >
-            {body}
+            {note ? (
+              <Alert
+                variant={noteVariant}
+                role="note"
+                {...restNoteProps}
+                className={cn("text-xs", noteClassName)}
+              >
+                <AlertDescription>{note}</AlertDescription>
+              </Alert>
+            ) : null}
+            {body ? (
+              <div
+                data-slot="confirm-dialog-body"
+                {...restBodyProps}
+                className={cn("flex min-w-0 flex-col gap-3", bodyClassName)}
+              >
+                {body}
+              </div>
+            ) : null}
           </div>
         ) : null}
         {requiresTyping ? (

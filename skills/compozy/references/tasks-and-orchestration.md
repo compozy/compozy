@@ -14,11 +14,13 @@ The daemon owns task state. Treat task.Service, persisted task/run records, sess
 
 Do not infer task ownership from a message. Do not mutate task state outside CompozyOS task tools or the equivalent CLI/API surface.
 
-Task inspection, task pause/resume, forced run recovery, scheduler pause/resume/drain, and scheduler backlog are management surfaces. They are not currently exposed as native `compozy__*` tools. Use CLI or HTTP/UDS with structured output when you need those controls.
+Task inspect, pause/resume, and forced run release/fail/retry plus scheduler pause/resume/drain and
+backlog are CLI or HTTP/UDS management surfaces. Native tools do expose task block/list/unblock and
+task-level `needs_attention` recovery; use those only for their narrower daemon-owned contracts.
 
 ## Catalog And Inbox Reads
 
-Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `compozy__task_list`. Filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, resolved participation channel, title/identifier search, sort (`recent` or `priority`), cursor, and limit. The participation filter is `--participation-channel` in the CLI and `participation_channel` in HTTP/UDS and native input. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace`/`search`.
+Use `compozy task list -o json`, HTTP/UDS `GET /api/tasks`, or native `compozy__task_list`. Filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, resolved participation channel, title/identifier search, sort (`recent` or `priority`), cursor, and limit. All surfaces accept `worktree` to scope the catalog to tasks whose active run is bound to that worktree; the CLI flag is `--worktree`. The participation filter is `--participation-channel` in the CLI and `participation_channel` in HTTP/UDS and native input. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace`/`search`.
 
 Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `compozy__task_run_list` for run history. All three filter by status, attached session, resolved participation channel, and limit; filtering happens before the limit is applied.
 
@@ -101,14 +103,22 @@ Do not leave ready tasks idle after telling the operator that work has been orch
 
 When one task should run as several scoped sibling assignments, use the designated fan-out surface:
 
-    compozy task fan-out <task-id> --designation "Inspect data path" --designation "Validate UI and docs" -o json
+    compozy task fan-out <task-id> --idempotency-key <stable-key> --designation "Inspect data path" --designation "Validate UI and docs" -o json
 
 Fan-out is bounded by `task.orchestration.designated_run_max`, and every sibling assignment must
-carry a non-empty designation and idempotency identity before CompozyOS enqueues any run. Each sibling run
-gets a shared `designation_group_id` and one assignment brief. If the task came from a Compozy Network
+carry a non-empty designation and idempotency identity before CompozyOS enqueues any run. The CLI
+derives per-designation identities from the required `--idempotency-key`. Each sibling run gets a
+shared `designation_group_id` and one assignment brief. If the task came from a Compozy Network
 thread, terminal run state is summarized back to the origin thread by `compozy.runtime`; do not manually
 duplicate raw worker logs into the thread. Read aggregated designation results from task detail JSON
 (`compozy task get <id> -o json`, field `designation_rollups`).
+
+Task execution profiles accept worktree modes `inherit`, `none`, `ref`, and `per_run`. Set only that
+block with `compozy task profile set-worktree <task-id> --mode <mode> [--ref <worktree>]` or
+`compozy__task_worktree_policy_set`; the dedicated mutation preserves the profile's other blocks. An
+enqueued run keeps its resolved policy even after later profile edits. A removed `ref` fails run start
+as `worktree_ref_invalid`; it never falls back to the workspace root. Add `--worktree-per-run` or
+`worktree_per_run: true` to fan-out when every sibling needs its own fresh worktree.
 
 For dependency DAGs, opt a dependent task into auto-enqueue so it starts on its own the moment its blockers finish: `compozy task create … --auto-enqueue-on-ready`, or toggle it on an assembled tree with `compozy task update <id> --auto-enqueue-on-ready` (`--auto-enqueue-on-ready=false` turns it off). When set, a blocking dependency completing and the task reaching `ready` enqueues exactly one run through the canonical path — no manual start. It is conservative by design: a failed or expired blocker never triggers it, paused dependents are skipped, and the open-run reservation guarantees one queued run even under concurrent blocker completions. Read the flag back from `compozy task inspect <id> -o json` (`auto_enqueue_on_ready`).
 
@@ -121,7 +131,7 @@ Use this guidance only inside a worker session with an active task claim or whil
 1. Inspect the agent context bundle before changing files.
 2. Confirm task id, run id, objective, acceptance criteria, lease status, and available task tools.
 3. Use the hosted task read tools when lease or run health is ambiguous.
-4. Claim the assigned run with `compozy__task_run_claim_next`, passing the runtime-provided `run_id` and any required capabilities. Do not use the CLI for session-bound lease operations.
+4. Claim the assigned run with `compozy__task_run_claim_next`, passing the runtime-provided `run_id` and any required capabilities. The tool also starts worker execution. If its returned `session_id` differs from this session, the run was transferred to a dedicated session; end this turn without doing task work. Do not use the CLI for session-bound lease operations.
 5. Keep the lease current with `compozy__task_run_heartbeat`.
 6. Complete, fail, or release only through `compozy__task_run_complete`, `compozy__task_run_fail`, or `compozy__task_run_release` from the same session.
 7. Include changed files, verification commands, and residual risks in the run summary.

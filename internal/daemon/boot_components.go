@@ -16,6 +16,7 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootSpawnReaper(ctx, state, cleanup) },
 		func() error { return d.bootNetwork(ctx, state, cleanup) },
 		func() error { return d.bootHooks(ctx, state, cleanup) },
+		func() error { return d.bootWorktrees(ctx, state) },
 		func() error { return d.startNetworkWakeRunner(ctx, state, cleanup) },
 		func() error { return d.bootToolRegistry(ctx, state, cleanup) },
 		func() error { return d.bootLoopEffectRelay(ctx, state, cleanup) },

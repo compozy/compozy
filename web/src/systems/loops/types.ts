@@ -53,6 +53,14 @@ export interface LoopConfigSnapshot {
 }
 export type LoopConfigUpdateRequest = OperationRequestBody<"putLoopConfig">;
 
+/**
+ * The execution environment descriptor. The same shape is the loop-level default
+ * (`config.environment`) and the per-node override (`params.environment`), which
+ * is why the node inspector and the configure dialog share one control grammar.
+ */
+export type LoopEnvironmentSpec = NonNullable<LoopConfig["environment"]>;
+export type LoopEnvironmentMode = LoopEnvironmentSpec["mode"];
+
 // Editor annotations (node positions) ---------------------------------------
 
 export type LoopAnnotation = OperationResponse<"getLoopAnnotations", 200>["annotations"][number];

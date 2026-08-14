@@ -10,7 +10,8 @@ import {
   EMPTY_SESSION_CREATE_DRAFT,
   type SessionCreateDialogDraft,
 } from "../lib/session-create-draft";
-import type { SessionPayload } from "../types";
+import type { SessionEnvironmentTarget } from "../lib/session-environment-target";
+import type { CreateSessionParams, SessionPayload } from "../types";
 
 interface SessionCreateNavigationTarget {
   attempt: number;
@@ -23,6 +24,21 @@ type SessionCreateOperation =
   | { status: "navigation-pending"; target: SessionCreateNavigationTarget }
   | { attempt: number; status: "navigating" };
 
+/**
+ * A submit held back until the chosen environment exists.
+ *
+ * It carries the whole request the operator already approved — only the worktree
+ * id is still unknown — so resuming it needs nothing from the live draft, which
+ * the operator remains free to edit while the checkout is built.
+ */
+interface SessionCreatePendingSubmit {
+  agentName: string;
+  workspaceId: string;
+  firstMessage: string;
+  previousEnvironment: SessionEnvironmentTarget;
+  request: CreateSessionParams;
+}
+
 interface SessionCreateStoreContext {
   open: boolean;
   restoreFocusOnClose: boolean;
@@ -31,11 +47,23 @@ interface SessionCreateStoreContext {
   submitError: string | null;
   attempt: number;
   operation: SessionCreateOperation;
+  /** Non-null while a worktree is materializing for a submit the operator already asked for. */
+  pendingSubmit: SessionCreatePendingSubmit | null;
 }
 
 type SessionCreateStoreEvents = {
   agentSelected: { agentName: string; workspaceId: string };
-  dialogOpened: { agentName: string; workspaceId: string };
+  /** The submit is waiting on the environment; the dialog stays open and editable. */
+  environmentAwaited: SessionCreatePendingSubmit;
+  /** The environment stopped being pending — ready, failed, or canceled. */
+  environmentSettled: {};
+  firstMessageChanged: { firstMessage: string };
+  dialogOpened: {
+    agentName: string;
+    workspaceId: string;
+    /** Preselects where the session will run; omitted opens at the workspace root. */
+    environment?: SessionEnvironmentTarget;
+  };
   dialogOpenChanged: { open: boolean };
   modeSelected: { mode: EntityMode };
   navigationCompleted: { attempt: number };
@@ -45,6 +73,8 @@ type SessionCreateStoreEvents = {
     SessionCreateDialogDraft,
     "networkParticipationMode" | "networkChannelId" | "networkChannelStrategy"
   >;
+  environmentSelected: { environment: SessionEnvironmentTarget };
+  environmentRestored: { environment: SessionEnvironmentTarget };
   sessionNameChanged: { sessionName: string };
   submissionFailed: { attempt: number; message: string };
   submissionRequested: {
@@ -68,6 +98,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
     submitError: null,
     attempt: 0,
     operation: { status: "idle" },
+    pendingSubmit: null,
   },
   on: {
     dialogOpened: (context, event) => {
@@ -76,8 +107,14 @@ export const sessionCreateStoreLogic = createStoreLogic<
         ...context,
         open: true,
         restoreFocusOnClose: true,
-        mode: "simple",
-        draft: applySessionAgentSelection(context.draft, event.agentName, event.workspaceId),
+        pendingSubmit: null,
+        // A preselected environment lives in Advanced, so opening there is the
+        // only way the operator can see what was chosen for them.
+        mode: event.environment ? "advanced" : "simple",
+        draft: {
+          ...applySessionAgentSelection(context.draft, event.agentName, event.workspaceId),
+          ...(event.environment ? { environment: event.environment } : {}),
+        },
         operation: { status: "idle" },
         submitError: null,
       };
@@ -89,6 +126,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
         open: event.open,
         restoreFocusOnClose: true,
         operation: event.open ? { status: "idle" } : context.operation,
+        pendingSubmit: null,
         submitError: event.open ? context.submitError : null,
       };
     },
@@ -102,6 +140,9 @@ export const sessionCreateStoreLogic = createStoreLogic<
       ...context,
       draft: {
         ...applySessionAgentSelection(context.draft, event.agentName, event.workspaceId),
+        // Both are the operator's own words; swapping agents is not a reason to
+        // throw them away.
+        firstMessage: context.draft.firstMessage,
         sessionName: context.draft.sessionName,
       },
       submitError: null,
@@ -110,6 +151,30 @@ export const sessionCreateStoreLogic = createStoreLogic<
       ...context,
       draft: { ...context.draft, sessionName: event.sessionName },
     }),
+    firstMessageChanged: (context, event) => ({
+      ...context,
+      draft: { ...context.draft, firstMessage: event.firstMessage },
+    }),
+    environmentSelected: (context, event) => ({
+      ...context,
+      draft: { ...context.draft, environment: event.environment },
+      // Changing where the session runs retracts the submit that was waiting on
+      // the previous choice.
+      pendingSubmit: null,
+      submitError: null,
+    }),
+    environmentRestored: (context, event) => ({
+      ...context,
+      draft: { ...context.draft, environment: event.environment },
+      pendingSubmit: null,
+      submitError: null,
+    }),
+    environmentAwaited: (context, event) =>
+      context.operation.status === "idle"
+        ? { ...context, pendingSubmit: event, submitError: null }
+        : undefined,
+    environmentSettled: context =>
+      context.pendingSubmit === null ? undefined : { ...context, pendingSubmit: null },
     networkParticipationSelected: (context, event) => ({
       ...context,
       draft: { ...context.draft, ...event },
@@ -141,6 +206,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
           status: "submitting",
           workspaceId: event.workspaceId,
         },
+        pendingSubmit: null,
         submitError: null,
       };
     },
@@ -155,6 +221,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
       return {
         ...context,
         operation: { status: "idle" },
+        pendingSubmit: null,
         submitError: event.message,
       };
     },
@@ -175,6 +242,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
           status: "navigation-pending",
           target: { attempt: event.attempt, session: event.session },
         },
+        pendingSubmit: null,
       };
     },
     navigationRequested: (context, event, enqueue) => {

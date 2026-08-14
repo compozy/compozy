@@ -11,6 +11,8 @@ import { LoopRunInputField } from "./loop-run-input-field";
 import { LoopRunOverrides } from "./loop-run-overrides";
 import { LoopRunPlan } from "./loop-run-plan";
 import { NetworkParticipationFields } from "@/systems/network";
+import { useWorktrees } from "@/systems/workspace";
+import { LoopRunEnvironment } from "./loop-run-environment";
 
 interface LoopRunFormProps {
   workspaceId: string;
@@ -36,7 +38,15 @@ export function LoopRunForm({
   activeRun,
   onRunStarted,
 }: LoopRunFormProps) {
-  const form = useLoopRunForm({ workspaceId, loop, effectiveConfig, onRunStarted });
+  const worktrees = useWorktrees(workspaceId);
+  const gitBacked = Boolean(worktrees.data?.repo.git_backed);
+  const form = useLoopRunForm({
+    workspaceId,
+    loop,
+    effectiveConfig,
+    gitBacked,
+    onRunStarted,
+  });
   const inputNames = form.schema ? Object.keys(form.schema) : [];
 
   return (
@@ -108,6 +118,14 @@ export function LoopRunForm({
             value={form.networkParticipation}
           />
         </Section>
+
+        <LoopRunEnvironment
+          disabled={form.busy}
+          gitBacked={gitBacked}
+          onChange={environment => form.setOverridesDraft({ ...form.overrides, environment })}
+          value={form.overrides.environment}
+          worktrees={worktrees.data?.worktrees ?? []}
+        />
 
         <LoopRunOverrides
           effectiveConfig={effectiveConfig}

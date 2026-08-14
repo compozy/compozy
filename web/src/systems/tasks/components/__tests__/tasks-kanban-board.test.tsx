@@ -175,6 +175,7 @@ describe("TasksKanbanBoard", () => {
         id: "fail",
         status: "failed",
         active_run: {
+          resolved_worktree_mode: "none",
           id: "run_fail",
           task_id: "fail",
           attempt: 3,

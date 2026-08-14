@@ -795,6 +795,46 @@ type fakeWorkspaceResolver struct {
 	nextID                 int
 }
 
+type fakeSessionWorktreeResolver struct {
+	mu      sync.Mutex
+	id      string
+	root    string
+	err     error
+	calls   []sessionWorktreeResolveCall
+	resolve func(context.Context, string, string) (string, string, error)
+}
+
+type sessionWorktreeResolveCall struct {
+	workspaceID string
+	ref         string
+}
+
+func (r *fakeSessionWorktreeResolver) ResolveSessionWorktree(
+	ctx context.Context,
+	workspaceID string,
+	ref string,
+) (string, string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, sessionWorktreeResolveCall{workspaceID: workspaceID, ref: ref})
+	if r.resolve != nil {
+		return r.resolve(ctx, workspaceID, ref)
+	}
+	return r.id, r.root, r.err
+}
+
+func (r *fakeSessionWorktreeResolver) setError(err error) {
+	r.mu.Lock()
+	r.err = err
+	r.mu.Unlock()
+}
+
+func (r *fakeSessionWorktreeResolver) callsSnapshot() []sessionWorktreeResolveCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]sessionWorktreeResolveCall(nil), r.calls...)
+}
+
 type fakeSkillRegistry struct {
 	mu                sync.Mutex
 	skillsByWorkspace map[string][]*skillspkg.Skill

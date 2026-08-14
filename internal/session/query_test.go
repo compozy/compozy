@@ -413,6 +413,11 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			t.Fatalf("ListPage(workspace mismatch) error = %v, want ErrListCursorInvalid", err)
 		}
 		query.WorkspaceID = h.workspaceID
+		query.WorktreeID = "wt-foreign"
+		if _, err := h.manager.ListPage(testutil.Context(t), query); !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("ListPage(worktree mismatch) error = %v, want ErrListCursorInvalid", err)
+		}
+		query.WorktreeID = ""
 		query.SessionType = SessionTypeSystem
 		if _, err := h.manager.ListPage(testutil.Context(t), query); !errors.Is(err, ErrListCursorInvalid) {
 			t.Fatalf("ListPage(type mismatch) error = %v, want ErrListCursorInvalid", err)
@@ -559,6 +564,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		AgentName:            "coder",
 		Provider:             "codex",
 		WorkspaceID:          "ws-alpha",
+		WorktreeID:           "wt-alpha",
 		NetworkParticipation: testLiveParticipation("ws-alpha", "builders"),
 		Type:                 SessionTypeUser,
 		State:                StateActive,
@@ -570,6 +576,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 
 		if !sessionMatchesListQuery(base, ListQuery{
 			WorkspaceID: "ws-alpha",
+			WorktreeID:  "wt-alpha",
 			State:       "active",
 			SessionType: SessionTypeUser,
 			AgentName:   "coder",
@@ -582,6 +589,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		}
 		for _, query := range []ListQuery{
 			{WorkspaceID: "ws-foreign"},
+			{WorktreeID: "wt-foreign"},
 			{State: "stopped"},
 			{SessionType: SessionTypeSystem},
 			{AgentName: "reviewer"},

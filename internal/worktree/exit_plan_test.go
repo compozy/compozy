@@ -1,0 +1,476 @@
+package worktree
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+)
+
+// Canonical suite: daemon-owned exit ladder, refusal copy, scope, and cleanup evidence.
+func TestExitPlan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return a blocked plan when Git status is unreadable", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryWorktreeStore()
+		item := Worktree{
+			ID: "wt-unreadable", WorkspaceID: "ws-a", Name: "unreadable",
+			Branch: "feature/unreadable", Path: "/repo/unreadable", State: StateReady,
+		}
+		if err := store.Insert(context.Background(), item); err != nil {
+			t.Fatalf("seed worktree: %v", err)
+		}
+		runner := &recordingGitRunner{responses: []gitResponse{{
+			stderr: []byte("fatal: cannot read index"), err: errors.New("git status failed"),
+		}}}
+		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
+
+		plan, err := service.ExitPlan(context.Background(), item.WorkspaceID, item.ID)
+		if err != nil {
+			t.Fatalf("ExitPlan() error = %v", err)
+		}
+		if plan.GlobalPauseCause != reasonStatusUnreadable || plan.Cleanup.Blocker != reasonStatusUnreadable {
+			t.Fatalf("blocked plan = %#v, want unreadable status reason", plan)
+		}
+		if len(plan.Actions) == 0 {
+			t.Fatal("blocked plan actions = empty, want disabled ladder")
+		}
+		for _, action := range plan.Actions {
+			if action.Enabled || action.BlockedReason != reasonStatusUnreadable {
+				t.Fatalf("action = %#v, want globally blocked", action)
+			}
+		}
+		if got := len(runner.invocations()); got != 1 {
+			t.Fatalf("Git calls = %d, want only the failed status read", got)
+		}
+	})
+
+	forge := &ForgeCapabilities{Provider: "github", OpenActionLabel: "Open PR", ViewActionLabel: "View PR"}
+	openState, prNumber := "open", 42
+	cases := []struct {
+		name       string
+		status     Status
+		forge      *ForgeCapabilities
+		forgeState *ForgeStatus
+		baseAhead  int
+		browserURL string
+		pause      string
+		primary    ExitAction
+		blocked    map[ExitAction]string
+		viewLabel  string
+	}{
+		{
+			name: "dirty worktree starts at commit", status: exitStatus(2, true, 0, 0), forge: forge,
+			baseAhead: 1, primary: ExitActionCommit,
+			blocked: map[ExitAction]string{ExitActionPush: reasonCommitFirst, ExitActionOpenPR: reasonCommitFirst},
+		},
+		{
+			name: "unpublished clean branch advances to push", status: exitStatus(0, false, 0, 0), forge: forge,
+			baseAhead: 1, primary: ExitActionPush,
+			blocked: map[ExitAction]string{ExitActionOpenPR: reasonPushFirst},
+		},
+		{
+			name: "pushed branch advances to open PR", status: exitStatus(0, true, 0, 0), forge: forge,
+			baseAhead: 1, primary: ExitActionOpenPR,
+		},
+		{
+			name:   "cached PR advances to view PR",
+			status: exitStatus(0, true, 0, 0),
+			forge:  forge,
+			forgeState: &ForgeStatus{
+				PRState:  &openState,
+				PRNumber: &prNumber,
+				PRURL:    "https://github.com/acme/repo/pull/42",
+			},
+			baseAhead: 1,
+			primary:   ExitActionViewPR,
+			viewLabel: "View PR",
+		},
+		{
+			name:   "cached PR remains visible without an available provider",
+			status: exitStatus(0, true, 0, 0),
+			forgeState: &ForgeStatus{
+				PRState:  &openState,
+				PRNumber: &prNumber,
+				PRURL:    "https://github.com/acme/repo/pull/42",
+			},
+			baseAhead: 1,
+			primary:   ExitActionViewPR,
+			viewLabel: "View in browser",
+		},
+		{
+			name: "diverged branch refuses publish actions", status: exitStatus(0, true, 2, 1), forge: forge,
+			baseAhead: 2,
+			blocked:   map[ExitAction]string{ExitActionPush: reasonDiverged, ExitActionOpenPR: reasonDiverged},
+		},
+		{
+			name: "behind branch refuses publish actions", status: exitStatus(0, true, 0, 1), forge: forge,
+			baseAhead: 1,
+			blocked:   map[ExitAction]string{ExitActionPush: reasonBehind, ExitActionOpenPR: reasonBehind},
+		},
+		{
+			name: "zero base delta refuses PR", status: exitStatus(0, true, 0, 0), forge: forge,
+			blocked: map[ExitAction]string{ExitActionOpenPR: reasonNoPRChanges},
+		},
+		{
+			name: "browser tier remains actionable without forge fields", status: exitStatus(0, true, 0, 0),
+			baseAhead: 1, browserURL: "https://github.com/acme/repo/compare/main...feature", primary: ExitActionOpenPR,
+		},
+		{
+			name: "global pause disables every action", status: exitStatus(1, true, 0, 0), forge: forge,
+			baseAhead: 1, pause: reasonSessionRunning, primary: ExitActionCommit,
+			blocked: map[ExitAction]string{
+				ExitActionCommit: reasonSessionRunning, ExitActionCommitPush: reasonSessionRunning,
+				ExitActionPush: reasonSessionRunning, ExitActionOpenPR: reasonSessionRunning,
+			},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run("Should "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			rows := buildExitActions(
+				&testCase.status, testCase.forge, testCase.forgeState, testCase.baseAhead,
+				true, testCase.browserURL, testCase.pause,
+			)
+			if got := selectExitPrimary(rows, &testCase.status); got != testCase.primary {
+				t.Fatalf("primary = %q, want %q; rows=%#v", got, testCase.primary, rows)
+			}
+			for action, reason := range testCase.blocked {
+				row := exitActionRow(t, rows, action)
+				if row.Enabled || row.BlockedReason != reason {
+					t.Fatalf("%s row = %#v, want disabled %q", action, row, reason)
+				}
+			}
+			if testCase.browserURL != "" {
+				row := exitActionRow(t, rows, ExitActionOpenPR)
+				if row.URL != testCase.browserURL || row.Label != "Open in browser" {
+					t.Fatalf("browser row = %#v, want neutral browser action", row)
+				}
+			}
+			if testCase.viewLabel != "" {
+				row := exitActionRow(t, rows, ExitActionViewPR)
+				if row.Label != testCase.viewLabel || row.URL != testCase.forgeState.PRURL {
+					t.Fatalf("cached PR row = %#v, want label %q", row, testCase.viewLabel)
+				}
+			}
+		})
+	}
+
+	t.Run("Should expose only commit when origin is absent", func(t *testing.T) {
+		t.Parallel()
+		status := exitStatus(1, false, 0, 0)
+		rows := buildExitActions(&status, forge, nil, 1, false, "", "")
+		if len(rows) != 1 || rows[0].Action != ExitActionCommit || !rows[0].Enabled {
+			t.Fatalf("no-remote rows = %#v, want enabled commit only", rows)
+		}
+	})
+
+	t.Run("Should distinguish an absent origin from an unreadable remote configuration", func(t *testing.T) {
+		t.Parallel()
+		absent := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: []gitResponse{{
+			err: gitExitCodeError(2),
+		}}})
+		urls, err := absent.readOriginRemoteURLs(context.Background(), "/repo")
+		if err != nil || len(urls) != 0 {
+			t.Fatalf("absent origin = %#v, %v, want empty success", urls, err)
+		}
+
+		unreadable := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: []gitResponse{{
+			stderr: []byte("credential=secret"), err: gitExitCodeError(128),
+		}}})
+		_, err = unreadable.readOriginRemoteURLs(context.Background(), "/repo")
+		if err == nil || strings.Contains(err.Error(), "secret") {
+			t.Fatalf("unreadable origin error = %v, want redacted failure", err)
+		}
+	})
+
+	t.Run("Should bound named untracked scope without counting ignored entries", func(t *testing.T) {
+		t.Parallel()
+		var fixture strings.Builder
+		for index := range exitUntrackedFileLimit + 5 {
+			fmt.Fprintf(&fixture, "? file-%03d.txt\x00", index)
+		}
+		fixture.WriteString("! ignored.txt\x00")
+		service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: []gitResponse{{
+			stdout: []byte(fixture.String()),
+		}}})
+		scope, err := service.readExitCommitScope(context.Background(), Worktree{Path: "/repo"}, &Status{})
+		if err != nil {
+			t.Fatalf("readExitCommitScope() error = %v", err)
+		}
+		if len(scope.UntrackedFiles) != exitUntrackedFileLimit || scope.UntrackedTotal != exitUntrackedFileLimit+5 ||
+			!scope.UntrackedTruncated || strings.Contains(strings.Join(scope.UntrackedFiles, "\n"), "ignored.txt") {
+			t.Fatalf("scope = %#v, want bounded non-ignored names", scope)
+		}
+	})
+
+	t.Run(
+		"Should prefer local and remote cleanup evidence without claiming unique commits are safe",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, testCase := range []struct {
+				name      string
+				responses []gitResponse
+				want      ExitCleanupEvidence
+			}{
+				{name: "no unique commits", responses: []gitResponse{{stdout: []byte("0\n")}},
+					want: ExitCleanupEvidence{Safe: true, Source: "local", Summary: "No commits unique to this branch."}},
+				{name: "remote branch downgrade", responses: []gitResponse{{stdout: []byte("2\n")}, {stdout: []byte("origin/feature\n")}},
+					want: ExitCleanupEvidence{Safe: true, Source: "local", Downgraded: true, Summary: "Unique commits are already on a remote branch."}},
+				{name: "unique commits block", responses: []gitResponse{{stdout: []byte("2\n")}, {}},
+					want: ExitCleanupEvidence{Source: "local", Blocker: "2 commits exist nowhere else."}},
+			} {
+				t.Run("Should report "+testCase.name, func(t *testing.T) {
+					t.Parallel()
+					service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: testCase.responses})
+					got := service.exitCleanupEvidence(
+						context.Background(),
+						Worktree{Path: "/repo", Branch: "feature"},
+						nil,
+					)
+					if got != testCase.want {
+						t.Fatalf("cleanup = %#v, want %#v", got, testCase.want)
+					}
+				})
+			}
+		},
+	)
+
+	t.Run("Should apply merged evidence freshness before local cleanup evidence", func(t *testing.T) {
+		t.Parallel()
+		fetchedAt := time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC)
+		merged, closed := "merged", "closed"
+		for _, testCase := range []struct {
+			name      string
+			forge     *ForgeStatus
+			responses []gitResponse
+			want      ExitCleanupEvidence
+		}{
+			{
+				name:      "fresh merged forge verdict",
+				forge:     &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
+				responses: []gitResponse{{stdout: []byte("  origin/feature\n")}},
+				want: ExitCleanupEvidence{
+					ForgeState: "merged", Safe: true, Source: "forge", Summary: "Merged on github",
+				},
+			},
+			{
+				name:  "current head absent from every remote",
+				forge: &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
+				responses: []gitResponse{
+					{}, {stdout: []byte("1\n")}, {},
+				},
+				want: ExitCleanupEvidence{
+					ForgeState: "merged", Stale: true, Source: "local",
+					Blocker: "1 commits exist nowhere else.",
+				},
+			},
+			{
+				name:      "closed but not merged verdict",
+				forge:     &ForgeStatus{Provider: "github", PRState: &closed, FetchedAt: &fetchedAt},
+				responses: []gitResponse{{stdout: []byte("1\n")}, {}},
+				want: ExitCleanupEvidence{
+					ForgeState: "closed", Source: "local", Blocker: "1 commits exist nowhere else.",
+				},
+			},
+			{
+				name:      "merged verdict without a timestamp",
+				forge:     &ForgeStatus{Provider: "github", PRState: &merged},
+				responses: []gitResponse{{stdout: []byte("1\n")}, {}},
+				want: ExitCleanupEvidence{
+					ForgeState: "merged", Stale: true, Source: "local",
+					Blocker: "1 commits exist nowhere else.",
+				},
+			},
+			{
+				name:      "merged verdict with unreadable local commit time",
+				forge:     &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
+				responses: []gitResponse{{err: context.Canceled}, {stdout: []byte("1\n")}, {}},
+				want: ExitCleanupEvidence{
+					ForgeState: "merged", Stale: true, Source: "local",
+					Blocker: "1 commits exist nowhere else.",
+				},
+			},
+			{
+				name:      "merged verdict without remote containment",
+				forge:     &ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
+				responses: []gitResponse{{}, {stdout: []byte("1\n")}, {}},
+				want: ExitCleanupEvidence{
+					ForgeState: "merged", Stale: true, Source: "local",
+					Blocker: "1 commits exist nowhere else.",
+				},
+			},
+		} {
+			t.Run("Should prefer "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				service := NewService(
+					newMemoryWorktreeStore(),
+					&recordingGitRunner{responses: testCase.responses},
+					WithClock(func() time.Time { return fetchedAt.Add(29 * time.Second) }),
+				)
+				got := service.exitCleanupEvidence(
+					context.Background(), Worktree{Path: "/repo", Branch: "feature"}, testCase.forge,
+				)
+				if got != testCase.want {
+					t.Fatalf("cleanup = %#v, want %#v", got, testCase.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should downgrade stale forge evidence to current local evidence", func(t *testing.T) {
+		t.Parallel()
+		fetchedAt := time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC)
+		merged := "merged"
+		service := NewService(
+			newMemoryWorktreeStore(),
+			&recordingGitRunner{responses: []gitResponse{{stdout: []byte("1\n")}, {}}},
+			WithClock(func() time.Time { return fetchedAt.Add(exitForgeFreshness) }),
+		)
+		got := service.exitCleanupEvidence(
+			context.Background(),
+			Worktree{Path: "/repo", Branch: "feature"},
+			&ForgeStatus{Provider: "github", PRState: &merged, FetchedAt: &fetchedAt},
+		)
+		want := ExitCleanupEvidence{
+			ForgeState: "merged", Stale: true, Source: "local",
+			Blocker: "1 commits exist nowhere else.",
+		}
+		if got != want {
+			t.Fatalf("cleanup = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should resolve PR base from merge base then upstream then provider default", func(t *testing.T) {
+		t.Parallel()
+		statusWithUpstream := exitStatus(0, true, 0, 0)
+		for _, testCase := range []struct {
+			name      string
+			status    *Status
+			forge     *ForgeCapabilities
+			responses []gitResponse
+			want      string
+		}{
+			{
+				name: "recorded gh merge base", status: &statusWithUpstream,
+				responses: []gitResponse{{stdout: []byte("release\n")}}, want: "release",
+			},
+			{
+				name: "different upstream branch", status: &statusWithUpstream,
+				responses: []gitResponse{{err: context.Canceled}, {stdout: []byte("origin/trunk\n")}}, want: "trunk",
+			},
+			{
+				name: "provider default", status: &Status{}, forge: &ForgeCapabilities{DefaultBranch: "develop"},
+				responses: []gitResponse{{err: context.Canceled}}, want: "develop",
+			},
+		} {
+			t.Run("Should use "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				service := NewService(newMemoryWorktreeStore(), &recordingGitRunner{responses: testCase.responses})
+				got := service.resolveExitBase(
+					context.Background(), Worktree{Path: "/repo", Branch: "feature", BaseRef: "main"},
+					testCase.status, testCase.forge,
+				)
+				if got != testCase.want {
+					t.Fatalf("resolveExitBase() = %q, want %q", got, testCase.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should expose forge PR defaults and omit them without a forge", func(t *testing.T) {
+		t.Parallel()
+		item := Worktree{
+			ID: "wt-prefill", WorkspaceID: "ws-prefill", Path: "/repo", Name: "prefill",
+			Branch: "feature/prefill", BaseRef: "main", State: StateReady,
+			CreatedAt: statusTestClock(), UpdatedAt: statusTestClock(),
+		}
+		newRunner := func() *recordingGitRunner {
+			return &recordingGitRunner{run: func(call gitInvocation) gitResponse {
+				command := strings.Join(call.args, " ")
+				switch command {
+				case "status --porcelain=v2 --branch -z":
+					return gitResponse{stdout: []byte("# branch.oid abc\x00# branch.head feature/prefill\x00" +
+						"# branch.upstream origin/feature/prefill\x00# branch.ab +0 -0\x00")}
+				case "diff --numstat -z",
+					"diff --cached --numstat -z",
+					"status --porcelain=v2 -z --untracked-files=all":
+					return gitResponse{}
+				case "remote get-url --all origin":
+					return gitResponse{stdout: []byte("git@github.com:acme/repo.git\n")}
+				case "config --get branch.feature/prefill.gh-merge-base":
+					return gitResponse{stdout: []byte("main\n")}
+				case "rev-list --count main..HEAD",
+					"rev-list --count HEAD --not --remotes --exclude=refs/heads/feature/prefill --branches":
+					return gitResponse{stdout: []byte("1\n")}
+				case "branch -r --list */feature/prefill":
+					return gitResponse{}
+				case "ls-tree -r -z main":
+					return gitResponse{stdout: []byte("100644 blob abc\t.github/pull_request_template.md\x00")}
+				case "show main:.github/pull_request_template.md":
+					return gitResponse{stdout: []byte("## Summary\nDescribe the change.\n")}
+				default:
+					return gitResponse{err: fmt.Errorf("unexpected Git call: %s", command)}
+				}
+			}}
+		}
+		newStore := func() *memoryWorktreeStore {
+			store := newMemoryWorktreeStore()
+			if err := store.Insert(context.Background(), item); err != nil {
+				t.Fatalf("seed worktree: %v", err)
+			}
+			return store
+		}
+		capabilities := &ForgeCapabilities{
+			Provider: "github", OpenActionLabel: "Open PR", ViewActionLabel: "View PR",
+			TemplatePaths: []string{".github/pull_request_template.md"},
+		}
+		withForge := NewService(
+			newStore(), newRunner(), WithCapabilityGate(readyCapabilityGate()),
+			WithForge(&recordingExitForge{capabilities: capabilities}),
+		)
+		plan, err := withForge.ExitPlan(context.Background(), item.WorkspaceID, item.ID)
+		if err != nil {
+			t.Fatalf("ExitPlan() error = %v", err)
+		}
+		if plan.PRPrefill == nil || plan.PRPrefill.Title != item.Branch ||
+			plan.PRPrefill.Body != "## Summary\nDescribe the change." {
+			t.Fatalf("PR prefill = %#v, want branch title and base template", plan.PRPrefill)
+		}
+
+		withoutForge := NewService(newStore(), newRunner(), WithCapabilityGate(readyCapabilityGate()))
+		plan, err = withoutForge.ExitPlan(context.Background(), item.WorkspaceID, item.ID)
+		if err != nil {
+			t.Fatalf("ExitPlan(without forge) error = %v", err)
+		}
+		if plan.PRPrefill != nil {
+			t.Fatalf("PR prefill without forge = %#v, want nil", plan.PRPrefill)
+		}
+	})
+}
+
+type gitExitCodeError int
+
+func (e gitExitCodeError) Error() string { return fmt.Sprintf("git exited with status %d", e) }
+func (e gitExitCodeError) ExitCode() int { return int(e) }
+
+func exitStatus(dirty int, upstream bool, ahead, behind int) Status {
+	detached := false
+	return Status{
+		DirtyFiles: &dirty, Detached: &detached, HasUpstream: &upstream, Ahead: &ahead, Behind: &behind,
+	}
+}
+
+func exitActionRow(t *testing.T, rows []ExitActionPlan, action ExitAction) ExitActionPlan {
+	t.Helper()
+	for _, row := range rows {
+		if row.Action == action {
+			return row
+		}
+	}
+	t.Fatalf("action %q missing from %#v", action, rows)
+	return ExitActionPlan{}
+}

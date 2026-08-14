@@ -70,6 +70,7 @@ type SessionInfo struct {
 	SelectedRuntime          *SessionRuntimeSelection
 	RuntimeSelectionRevision int64
 	WorkspaceID              string
+	WorktreeID               string
 	*SessionNetworkState
 	SessionType      string
 	Lineage          *SessionLineage
@@ -160,6 +161,7 @@ type SessionListQuery struct {
 	State           string
 	AgentName       string
 	WorkspaceID     string
+	WorktreeID      string
 	SessionType     string
 	ParentSessionID string
 	RootSessionID   string

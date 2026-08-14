@@ -1600,6 +1600,53 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		}
 	})
 
+	t.Run("Should let child config override an inherited parent environment", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		svc := newTestService(t, store, validDefinition())
+		childEnvironment := dsl.EnvironmentSpec{
+			Mode:        dsl.EnvironmentWorktree,
+			WorktreeRef: "child-feature",
+		}
+		if err := svc.Configure(context.Background(), "ws-1", "valid-loop", loop.LoopConfig{
+			Environment: &childEnvironment,
+		}); err != nil {
+			t.Fatalf("Configure(child environment) error = %v", err)
+		}
+		parentEnvironment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
+		preview, err := svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values:               map[string]any{"tasks": "task-ref"},
+			InheritedEnvironment: &parentEnvironment,
+		})
+		if err != nil {
+			t.Fatalf("DryRun(inherited environment) error = %v", err)
+		}
+		if preview.EffectiveConfig.Environment != childEnvironment {
+			t.Fatalf(
+				"effective child environment = %#v, want %#v",
+				preview.EffectiveConfig.Environment,
+				childEnvironment,
+			)
+		}
+		explicitRunEnvironment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot}
+		preview, err = svc.DryRun(context.Background(), "ws-1", "valid-loop", loop.Inputs{
+			Values:               map[string]any{"tasks": "task-ref"},
+			InheritedEnvironment: &parentEnvironment,
+			ConfigOverrides:      loop.LoopConfig{Environment: &explicitRunEnvironment},
+		})
+		if err != nil {
+			t.Fatalf("DryRun(explicit environment) error = %v", err)
+		}
+		if preview.EffectiveConfig.Environment != explicitRunEnvironment {
+			t.Fatalf(
+				"effective run environment = %#v, want %#v",
+				preview.EffectiveConfig.Environment,
+				explicitRunEnvironment,
+			)
+		}
+	})
+
 	t.Run("Should reject invalid config JSON", func(t *testing.T) {
 		t.Parallel()
 

@@ -181,10 +181,23 @@ type stubClient struct {
 	resolveWorkspaceRefs  bool
 	updateWorkspaceFn     func(context.Context, string, WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	deleteWorkspaceFn     func(context.Context, string) error
-	listLoopsFn           func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
-	createLoopFn          func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
-	getLoopFn             func(context.Context, string, string) (contract.LoopResponse, error)
-	patchLoopFn           func(
+	listWorktreesFn       func(context.Context, string, bool) (WorktreeListRecord, error)
+	createWorktreeFn      func(context.Context, string, WorktreeCreateRequest) (WorktreeRecord, error)
+	cancelWorktreeFn      func(context.Context, string, string) error
+	adoptWorktreeFn       func(context.Context, string, string) (WorktreeRecord, error)
+	inspectWorktreeFn     func(context.Context, string, string) (WorktreeInspectRecord, error)
+	worktreeStatusFn      func(context.Context, string, string, bool, bool) (WorktreeStatusRecord, error)
+	worktreeExitPlanFn    func(context.Context, string, string) (WorktreeExitPlanRecord, error)
+	runWorktreeExitFn     func(
+		context.Context, string, string, WorktreeExitActionRequest,
+	) (WorktreeExitOperationRecord, error)
+	cancelWorktreeExitFn func(context.Context, string, string, string) error
+	removeWorktreeFn     func(context.Context, string, string, bool) error
+	dismissWorktreeFn    func(context.Context, string, string) error
+	listLoopsFn          func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
+	createLoopFn         func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
+	getLoopFn            func(context.Context, string, string) (contract.LoopResponse, error)
+	patchLoopFn          func(
 		context.Context,
 		string,
 		string,
@@ -384,6 +397,11 @@ type stubClient struct {
 		context.Context,
 		string,
 		*TaskExecutionProfileRequest,
+	) (TaskExecutionProfileRecord, error)
+	setTaskWorktreePolicyFn func(
+		context.Context,
+		string,
+		*TaskWorktreePolicyRequest,
 	) (TaskExecutionProfileRecord, error)
 	deleteTaskExecutionProfileFn               func(context.Context, string) error
 	createTaskBridgeNotificationSubscriptionFn func(
@@ -1884,6 +1902,119 @@ func (s *stubClient) DeleteWorkspace(ctx context.Context, ref string) error {
 	return errors.New("unexpected DeleteWorkspace call")
 }
 
+func (s *stubClient) ListWorktrees(
+	ctx context.Context,
+	workspace string,
+	refresh bool,
+) (WorktreeListRecord, error) {
+	if s.listWorktreesFn != nil {
+		return s.listWorktreesFn(ctx, workspace, refresh)
+	}
+	return WorktreeListRecord{}, errors.New("unexpected ListWorktrees call")
+}
+
+func (s *stubClient) CreateWorktree(
+	ctx context.Context,
+	workspace string,
+	request WorktreeCreateRequest,
+) (WorktreeRecord, error) {
+	if s.createWorktreeFn != nil {
+		return s.createWorktreeFn(ctx, workspace, request)
+	}
+	return WorktreeRecord{}, errors.New("unexpected CreateWorktree call")
+}
+
+func (s *stubClient) CancelWorktreeCreate(ctx context.Context, workspace, ref string) error {
+	if s.cancelWorktreeFn != nil {
+		return s.cancelWorktreeFn(ctx, workspace, ref)
+	}
+	return errors.New("unexpected CancelWorktreeCreate call")
+}
+
+func (s *stubClient) AdoptWorktree(
+	ctx context.Context,
+	workspace string,
+	path string,
+) (WorktreeRecord, error) {
+	if s.adoptWorktreeFn != nil {
+		return s.adoptWorktreeFn(ctx, workspace, path)
+	}
+	return WorktreeRecord{}, errors.New("unexpected AdoptWorktree call")
+}
+
+func (s *stubClient) InspectWorktree(
+	ctx context.Context,
+	workspace string,
+	ref string,
+) (WorktreeInspectRecord, error) {
+	if s.inspectWorktreeFn != nil {
+		return s.inspectWorktreeFn(ctx, workspace, ref)
+	}
+	return WorktreeInspectRecord{}, errors.New("unexpected InspectWorktree call")
+}
+
+func (s *stubClient) GetWorktreeStatus(
+	ctx context.Context,
+	workspace string,
+	ref string,
+	refresh bool,
+	forge bool,
+) (WorktreeStatusRecord, error) {
+	if s.worktreeStatusFn != nil {
+		return s.worktreeStatusFn(ctx, workspace, ref, refresh, forge)
+	}
+	return WorktreeStatusRecord{}, errors.New("unexpected GetWorktreeStatus call")
+}
+
+func (s *stubClient) GetWorktreeExitPlan(
+	ctx context.Context,
+	workspace string,
+	ref string,
+) (WorktreeExitPlanRecord, error) {
+	if s.worktreeExitPlanFn != nil {
+		return s.worktreeExitPlanFn(ctx, workspace, ref)
+	}
+	return WorktreeExitPlanRecord{}, errors.New("unexpected GetWorktreeExitPlan call")
+}
+
+func (s *stubClient) RunWorktreeExitAction(
+	ctx context.Context,
+	workspace string,
+	ref string,
+	request WorktreeExitActionRequest,
+) (WorktreeExitOperationRecord, error) {
+	if s.runWorktreeExitFn != nil {
+		return s.runWorktreeExitFn(ctx, workspace, ref, request)
+	}
+	return WorktreeExitOperationRecord{}, errors.New("unexpected RunWorktreeExitAction call")
+}
+
+func (s *stubClient) CancelWorktreeExitAction(
+	ctx context.Context,
+	workspace string,
+	ref string,
+	opID string,
+) error {
+	if s.cancelWorktreeExitFn != nil {
+		return s.cancelWorktreeExitFn(ctx, workspace, ref, opID)
+	}
+	return errors.New("unexpected CancelWorktreeExitAction call")
+}
+
+func (s *stubClient) RemoveWorktree(ctx context.Context, workspace, ref string, force bool) error {
+	if s.removeWorktreeFn != nil {
+		return s.removeWorktreeFn(ctx, workspace, ref, force)
+	}
+	return errors.New("unexpected RemoveWorktree call")
+}
+
+func (s *stubClient) DismissWorktree(ctx context.Context, workspace, ref string) error {
+	if s.dismissWorktreeFn != nil {
+		return s.dismissWorktreeFn(ctx, workspace, ref)
+	}
+	return errors.New("unexpected DismissWorktree call")
+}
+
 func (s *stubClient) ListLoops(
 	ctx context.Context,
 	workspaceID string,
@@ -3294,6 +3425,17 @@ func (s *stubClient) SetTaskExecutionProfile(
 		return s.setTaskExecutionProfileFn(ctx, id, request)
 	}
 	return TaskExecutionProfileRecord{}, errors.New("unexpected SetTaskExecutionProfile call")
+}
+
+func (s *stubClient) SetTaskWorktreePolicy(
+	ctx context.Context,
+	id string,
+	request *TaskWorktreePolicyRequest,
+) (TaskExecutionProfileRecord, error) {
+	if s.setTaskWorktreePolicyFn != nil {
+		return s.setTaskWorktreePolicyFn(ctx, id, request)
+	}
+	return TaskExecutionProfileRecord{}, errors.New("unexpected SetTaskWorktreePolicy call")
 }
 
 func (s *stubClient) DeleteTaskExecutionProfile(ctx context.Context, id string) error {

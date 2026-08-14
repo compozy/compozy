@@ -507,6 +507,36 @@ func TestUpdateTaskRequestHasChangesIncludesExpandedFields(t *testing.T) {
 	})
 }
 
+func TestTaskCatalogRunPayloadFromSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the resolved worktree binding", func(t *testing.T) {
+		t.Parallel()
+
+		summary := &taskpkg.RunSummary{
+			ID:                   "run-1",
+			TaskID:               "task-1",
+			WorktreeID:           "wt-1",
+			ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
+			ResolvedWorktreeRef:  "payments-retry",
+		}
+		payload := TaskCatalogRunPayloadFromSummary(summary)
+		if payload == nil || payload.WorktreeID != summary.WorktreeID ||
+			payload.ResolvedWorktreeMode != ResolvedWorktreeMode(summary.ResolvedWorktreeMode) ||
+			payload.ResolvedWorktreeRef != summary.ResolvedWorktreeRef {
+			t.Fatalf("TaskCatalogRunPayloadFromSummary() = %#v, want worktree binding %#v", payload, summary)
+		}
+	})
+
+	t.Run("Should omit a missing run summary", func(t *testing.T) {
+		t.Parallel()
+
+		if payload := TaskCatalogRunPayloadFromSummary(nil); payload != nil {
+			t.Fatalf("TaskCatalogRunPayloadFromSummary(nil) = %#v, want nil", payload)
+		}
+	})
+}
+
 func marshalObject(t *testing.T, value any) map[string]any {
 	t.Helper()
 

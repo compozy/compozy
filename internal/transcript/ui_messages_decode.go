@@ -98,10 +98,10 @@ func fallbackAgentEvent(parsed event, storedEvent store.SessionEvent) acp.AgentE
 
 		var payload map[string]any
 		if err := json.Unmarshal([]byte(content), &payload); err == nil {
-			event.RequestID = firstNonEmpty(
+			event = event.WithRequestID(firstNonEmpty(
 				nestedString(payload, "request_id"),
 				nestedString(payload, "requestId"),
-			)
+			))
 			event.Action = nestedString(payload, "action")
 			event.Resource = nestedString(payload, "resource")
 			event.Decision = nestedString(payload, "decision")

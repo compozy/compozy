@@ -1,10 +1,13 @@
 package daemon
 
 import (
+	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/core"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 type nativeToolAvailabilitySet struct {
@@ -23,6 +26,7 @@ type nativeToolAvailabilitySet struct {
 	heartbeatStatus     toolspkg.NativeAvailabilityFunc
 	heartbeatWake       toolspkg.NativeAvailabilityFunc
 	workspaces          toolspkg.NativeAvailabilityFunc
+	worktrees           toolspkg.NativeAvailabilityFunc
 	workspaceDetails    toolspkg.NativeAvailabilityFunc
 	agentCreate         toolspkg.NativeAvailabilityFunc
 	tasks               toolspkg.NativeAvailabilityFunc
@@ -104,6 +108,7 @@ func (n *daemonNativeTools) applySessionNativeToolAvailability(availability *nat
 	availability.workspaces = n.dependencyAvailability(func() bool {
 		return n.deps.Workspaces != nil
 	})
+	availability.worktrees = n.worktreeAvailability()
 	availability.workspaceDetails = n.dependencyAvailability(func() bool {
 		return n.deps.Workspaces != nil && n.deps.Sessions != nil
 	})
@@ -111,6 +116,29 @@ func (n *daemonNativeTools) applySessionNativeToolAvailability(availability *nat
 		return n.deps.Workspaces != nil && strings.TrimSpace(n.deps.HomePaths.AgentsDir) != ""
 	})
 	n.applyTaskNativeToolAvailability(availability)
+}
+
+func (n *daemonNativeTools) worktreeAvailability() toolspkg.NativeAvailabilityFunc {
+	return func(ctx context.Context, _ toolspkg.Scope) toolspkg.Availability {
+		if n == nil || n.deps == nil || n.deps.Worktrees == nil || n.deps.Workspaces == nil {
+			return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
+		}
+		checker, ok := n.deps.Worktrees.(interface {
+			Capability(context.Context) (worktree.CapabilityDiagnostic, error)
+		})
+		if !ok {
+			return toolspkg.Available()
+		}
+		_, err := checker.Capability(ctx)
+		switch {
+		case err == nil:
+			return toolspkg.Available()
+		case errors.Is(err, worktree.ErrGitVersionUnsupported):
+			return toolspkg.Unavailable(toolspkg.ReasonWorktreeGitVersionUnsupported)
+		default:
+			return toolspkg.Unavailable(toolspkg.ReasonWorktreeGitUnavailable)
+		}
+	}
 }
 
 func (n *daemonNativeTools) applyTaskNativeToolAvailability(availability *nativeToolAvailabilitySet) {

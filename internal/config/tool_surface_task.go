@@ -12,6 +12,7 @@ const (
 	toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath = "task.orchestration.profile.default_coordinator_mode"
 	toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath     = "task.orchestration.profile.default_sandbox_mode"
 	toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath      = "task.orchestration.profile.default_worker_mode"
+	toolSurfaceTaskOrchestrationProfileDefaultWorktreeModePath    = "task.orchestration.profile.default_worktree_mode"
 	toolSurfaceTaskOrchestrationReviewDefaultPolicyPath           = "task.orchestration.review.default_policy"
 	toolSurfaceTaskOrchestrationReviewFailurePolicyPath           = "task.orchestration.review.failure_policy"
 	toolSurfaceTaskOrchestrationReviewMaxReviewAttemptsPath       = "task.orchestration.review.max_review_attempts"
@@ -49,6 +50,7 @@ func taskToolSurfaceMutableConfigKinds() map[string]ValueKind {
 		toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath: ConfigValueString,
 		toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath:      ConfigValueString,
 		toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath:     ConfigValueString,
+		toolSurfaceTaskOrchestrationProfileDefaultWorktreeModePath:    ConfigValueString,
 		"task.orchestration.profile.allow_task_provider_override":     ConfigValueBool,
 		"task.orchestration.profile.allow_task_sandbox_none":          ConfigValueBool,
 		toolSurfaceTaskOrchestrationReviewDefaultPolicyPath:           ConfigValueString,

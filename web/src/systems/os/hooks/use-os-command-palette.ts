@@ -22,7 +22,18 @@ import { useOsShell } from "./use-os-shell";
 import { useOsWindowCommands, type OsFocusedWindowActions } from "./use-os-window-commands";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
 import { getSessionDisplayTitle, useSessionCreateActions, useSessions } from "@/systems/session";
-import { useActiveWorkspace, type WorkspacePayload } from "@/systems/workspace";
+import {
+  selectWorktreeForScope,
+  useActiveWorkspace,
+  useScopedWorktreeFilter,
+  useWorktrees,
+  sortWorktreeNestEntries,
+  toWorktreeNestEntries,
+  type WorkspacePayload,
+  type WorktreeNestEntry,
+} from "@/systems/workspace";
+
+import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 
 type PaletteSession = NonNullable<ReturnType<typeof useSessions>["data"]>[number];
 
@@ -81,6 +92,9 @@ export interface OsCommandPaletteModel {
   globalScopeOn: boolean;
   canDisableGlobal: boolean;
   scopeToggleLocked: boolean;
+  /** Ready worktrees of the active workspace; scoping is the only action here. */
+  paletteWorktrees: WorktreeNestEntry[];
+  switchWorktree(entry: WorktreeNestEntry): void;
   commandsAvailable: boolean;
 }
 
@@ -108,9 +122,19 @@ export function useOsCommandPalette(
     setActiveWorkspaceId,
     toggleGlobalScope,
   } = useActiveWorkspace();
+  const worktreeScopeId = useFocusedWorktreeScopeId();
+  const worktreesQuery = useWorktrees(activeWorkspaceId, {
+    enabled: scope === "workspace" && activeWorkspaceId !== null,
+  });
+  // Shell surface: it follows the focused window's scope, matching the chip.
+  // Global cannot bind a worktree, so the palette filter stays off in that mode.
+  const paletteWorktreeFilter = useScopedWorktreeFilter(activeWorkspaceId, worktreeScopeId, {
+    enabled: open && scope === "workspace",
+  });
   // Session labels follow the daemon binding — in Global scope that is the home row.
   const sessions = useSessions(runtimeWorkspaceId, {
-    enabled: open && runtimeWorkspaceId !== null,
+    enabled: open && runtimeWorkspaceId !== null && paletteWorktreeFilter.resolved,
+    filters: scope === "workspace" ? { worktree: paletteWorktreeFilter.worktreeId } : undefined,
   });
   const windowCommands = useOsWindowCommands();
   const { commandsAvailable } = windowCommands;
@@ -295,10 +319,25 @@ export function useOsCommandPalette(
           route: { pathname: "/settings/appearance", search: {} },
         });
       }),
-    switchWorkspace: workspaceId => run(() => setActiveWorkspaceId(workspaceId)),
+    switchWorkspace: workspaceId =>
+      run(() => setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })),
     toggleGlobalScope: () => run(() => toggleGlobalScope()),
     globalScopeOn: scope === "global",
     canDisableGlobal,
     scopeToggleLocked: pending || toggleLocked,
+    // Only ready worktrees: the palette scopes, and a pending or missing entry
+    // cannot receive work. Adoption stays a consent moment on the nav surfaces.
+    // Global cannot bind a worktree, so the group stays empty in that mode.
+    paletteWorktrees:
+      scope === "global"
+        ? []
+        : sortWorktreeNestEntries(toWorktreeNestEntries(worktreesQuery.data)).filter(
+            entry => entry.kind === "worktree" && entry.displayState === "ready"
+          ),
+    switchWorktree: entry =>
+      run(() => {
+        if (!entry.worktree || activeWorkspaceId === null) return;
+        selectWorktreeForScope(worktreeScopeId, activeWorkspaceId, entry.worktree.id);
+      }),
   };
 }

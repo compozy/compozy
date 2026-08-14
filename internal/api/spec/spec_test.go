@@ -803,6 +803,25 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeConfirmedWorktreeForkContract",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				fork := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork",
+					"POST",
+				)
+				request := jsonRequestSchema(t, fork)
+				assertRequired(t, request, "confirmed")
+				assertNotRequired(t, request, "worktree", "new_worktree")
+				assertSchemaHasAdditionalProperties(t, request, false)
+				assertResponseStatus(t, fork, 201)
+				assertResponseStatus(t, fork, 409)
+			},
+		},
+		{
 			name: "ShouldDescribeCreateAgentContract",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
@@ -1808,6 +1827,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/tasks/{id}/recover", method: "POST"},
 					{path: "/api/tasks/{id}/execution-profile", method: "GET"},
 					{path: "/api/tasks/{id}/execution-profile", method: "PUT"},
+					{path: "/api/tasks/{id}/execution-profile/worktree", method: "PATCH"},
 					{path: "/api/tasks/{id}/execution-profile", method: "DELETE"},
 					{path: "/api/tasks/{id}/notifications/bridges", method: "POST"},
 					{path: "/api/tasks/{id}/notifications/bridges", method: "GET"},
@@ -1861,6 +1881,17 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.RuntimeModeDefault),
 					string(taskpkg.RuntimeModeEvidence),
 				)
+				worktreePatch := operationFor(t, doc, "/api/tasks/{id}/execution-profile/worktree", "PATCH")
+				worktreeSchema := jsonRequestSchema(t, worktreePatch)
+				assertRequired(t, worktreeSchema, "mode")
+				assertEnumValues(
+					t,
+					propertySchema(t, worktreeSchema, "mode"),
+					string(taskpkg.WorktreeModeInherit),
+					string(taskpkg.WorktreeModeNone),
+					string(taskpkg.WorktreeModeRef),
+					string(taskpkg.WorktreeModePerRun),
+				)
 			},
 		},
 		{
@@ -1879,6 +1910,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/agent/channels/{channel}/send", method: "POST"},
 					{path: "/api/agent/channels/reply", method: "POST"},
 					{path: "/api/agent/tasks/claim-next", method: "POST"},
+					{path: "/api/agent/tasks/{run_id}/start", method: "POST"},
 					{path: "/api/agent/tasks/{run_id}/heartbeat", method: "POST"},
 					{path: "/api/agent/tasks/{run_id}/complete", method: "POST"},
 					{path: "/api/agent/tasks/{run_id}/fail", method: "POST"},
@@ -1975,6 +2007,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				leaseSchema := propertySchema(t, claimPayload, "lease")
 				assertRequired(t, leaseSchema, "task_id", "run_id", "status")
 				assertNotRequired(t, leaseSchema, "claim_token_hash", "coordination_channel")
+
+				startOperation := operationFor(t, doc, "/api/agent/tasks/{run_id}/start", "POST")
+				assertParameter(t, startOperation, "run_id", openapi3.ParameterInPath, true)
+				startSchema := jsonRequestSchema(t, startOperation)
+				assertNotRequired(t, startSchema, "idempotency_key")
+				if _, exists := startSchema.Properties["claim_token"]; exists {
+					t.Fatalf("agent start schema exposes raw claim_token")
+				}
 
 				heartbeatOperation := operationFor(t, doc, "/api/agent/tasks/{run_id}/heartbeat", "POST")
 				assertParameter(t, heartbeatOperation, "run_id", openapi3.ParameterInPath, true)
@@ -2155,6 +2195,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, listTasks, "priority", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "include_drafts", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "approval_state", openapi3.ParameterInQuery, false)
+				assertParameter(t, listTasks, "worktree", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "query", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "sort", openapi3.ParameterInQuery, false)
 				assertParameter(t, listTasks, "cursor", openapi3.ParameterInQuery, false)
@@ -2553,6 +2594,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertTagsContain(t, dashboard, "observe", "tasks")
 				assertParameter(t, dashboard, "scope", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, dashboard, "worktree", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_kind", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_ref", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "participation_channel", openapi3.ParameterInQuery, false)
@@ -2572,6 +2614,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				inbox := operationFor(t, doc, "/api/observe/tasks/inbox", "GET")
 				assertTagsContain(t, inbox, "observe", "tasks")
+				assertParameter(t, inbox, "worktree", openapi3.ParameterInQuery, false)
 				assertParameter(t, inbox, "lane", openapi3.ParameterInQuery, false)
 				assertParameter(t, inbox, "unread", openapi3.ParameterInQuery, false)
 				assertParameter(t, inbox, "query", openapi3.ParameterInQuery, false)
@@ -2723,7 +2766,10 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "TaskDependencyKind", typ: taskpkg.DependencyKindBlocks},
 		{name: "TaskBlockKind", typ: taskpkg.BlockKindNeedsInput},
 		{name: "TaskBlockedSource", typ: taskpkg.BlockedSourceBlock},
+		{name: "TaskWorktreeMode", typ: taskpkg.WorktreeModePerRun},
+		{name: "ResolvedWorktreeMode", typ: contract.ResolvedWorktreeModePerRun},
 		{name: "TaskRuntimeMode", typ: taskpkg.RuntimeModeDefault},
+		{name: "LoopEnvironmentMode", typ: contract.LoopEnvironmentModePerRun},
 		{name: "AutomationSchedulerCatchUpPolicy", typ: automationpkg.SchedulerCatchUpPolicySkipMissed},
 		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
 		{name: "IssueSeverity", typ: contract.IssueSeverityError},

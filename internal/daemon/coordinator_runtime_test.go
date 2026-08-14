@@ -30,6 +30,35 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	run := coordinatorRuntimeRun()
 	run.SetNetworkState(participation.LocalSpec(), "", "", "")
 	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), run)
+	store.runs["run-worker-z"] = taskpkg.Run{
+		ID: "run-worker-z", TaskID: "task-z", WorkspaceID: "ws-1",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-z"},
+		RunKind:          taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+	}
+	store.runs["run-worker-a"] = taskpkg.Run{
+		ID: "run-worker-a", TaskID: "task-a", WorkspaceID: "ws-1",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-a"},
+		RunKind:          taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusClaimed,
+	}
+	store.runs["run-loop-worker"] = taskpkg.Run{
+		ID: "run-loop-worker", WorkspaceID: "ws-1", LoopRunID: "loop-1",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-loop"},
+		RunKind:          taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+	}
+	store.runs["run-coordinator"] = taskpkg.Run{
+		ID: "run-coordinator", WorkspaceID: "ws-1",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-coordinator"},
+		RunKind:          taskpkg.RunKindCoordinator, Status: taskpkg.TaskRunStatusRunning,
+	}
+	store.runs["run-other-workspace"] = taskpkg.Run{
+		ID: "run-other-workspace", WorkspaceID: "ws-2",
+		RunWorktreeState: &taskpkg.RunWorktreeState{WorktreeID: "wt-other"},
+		RunKind:          taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+	}
+	store.runs["run-root-worker"] = taskpkg.Run{
+		ID: "run-root-worker", WorkspaceID: "ws-1",
+		RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusRunning,
+	}
 	sessions := &coordinatorRuntimeSessions{}
 	hooks := &recordingCoordinatorHooks{}
 	runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), now)
@@ -48,6 +77,9 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	}
 	if info == nil || info.Type != session.SessionTypeCoordinator {
 		t.Fatalf("bootstrapRun() info = %#v, want coordinator info", info)
+	}
+	if info.WorktreeID != "" {
+		t.Fatalf("bootstrapRun() worktree_id = %q, want unbound coordinator", info.WorktreeID)
 	}
 
 	call := sessions.createCall(0)
@@ -68,6 +100,13 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 			"CreateOpts workspace/participation = %q/%#v, want ws-1/local",
 			call.Workspace,
 			call.ResolvedNetworkParticipation,
+		)
+	}
+	if call.CWD != "" || call.Worktree != "" {
+		t.Fatalf(
+			"CreateOpts coordinator execution target = cwd %q worktree %q, want workspace root",
+			call.CWD,
+			call.Worktree,
 		)
 	}
 	if call.Lineage == nil || call.Lineage.SpawnRole != string(session.SessionTypeCoordinator) {
@@ -103,9 +142,16 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 		toolspkg.ToolIDSessionDescribe.String(),
 		toolspkg.ToolIDTaskRunClaimNext.String(),
 		"compozy spawn",
+		"Active worker worktrees:\n- run_id: run-worker-a; worktree_id: wt-a\n" +
+			"- run_id: run-worker-z; worktree_id: wt-z",
 	} {
 		if !contains(call.PromptOverlay, required) {
 			t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
+		}
+	}
+	for _, excluded := range []string{"wt-loop", "wt-coordinator", "wt-other", "run-root-worker"} {
+		if contains(call.PromptOverlay, excluded) {
+			t.Fatalf("PromptOverlay contains excluded worker binding %q:\n%s", excluded, call.PromptOverlay)
 		}
 	}
 	for _, forbidden := range []string{"compozy ch", "ch-run-1", "participation_channel", "coordination_channel_id"} {

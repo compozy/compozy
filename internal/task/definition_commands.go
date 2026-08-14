@@ -31,6 +31,13 @@ type ExecutionProfileMutation struct {
 	Event   Event
 }
 
+// WorktreePolicyMutation commits one worktree block patch and its event.
+type WorktreePolicyMutation struct {
+	TaskID string
+	Policy WorktreePolicy
+	Event  Event
+}
+
 // ExecutionProfileDeleteMutation commits one profile deletion and its event.
 type ExecutionProfileDeleteMutation struct {
 	TaskID string
@@ -42,5 +49,6 @@ type DefinitionStore interface {
 	CreateTaskDefinition(ctx context.Context, mutation CreateTaskDefinitionMutation) error
 	UpdateTaskDefinition(ctx context.Context, mutation *UpdateTaskDefinitionMutation) (ExecutionProfile, error)
 	SetTaskExecutionProfile(ctx context.Context, mutation *ExecutionProfileMutation) (ExecutionProfile, error)
+	SetTaskWorktreePolicy(ctx context.Context, mutation *WorktreePolicyMutation) (ExecutionProfile, error)
 	DeleteTaskExecutionProfile(ctx context.Context, mutation ExecutionProfileDeleteMutation) error
 }

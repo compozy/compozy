@@ -43,6 +43,7 @@ type daemonNativeToolsDeps struct {
 	Skills                     daemonNativeSkillsRegistry
 	Sessions                   core.SessionManager
 	Workspaces                 core.WorkspaceService
+	Worktrees                  core.WorktreeService
 	WorkspaceResolver          workspacepkg.RuntimeResolver
 	ModelCatalog               core.ModelCatalogService
 	MarketplaceCatalog         core.MarketplaceCatalogService
@@ -53,6 +54,7 @@ type daemonNativeToolsDeps struct {
 	NetworkStore               core.NetworkStore
 	NetworkUsage               store.NetworkUsageStore
 	Tasks                      taskpkg.Manager
+	TaskClaimHandoff           taskClaimHandoffCoordinator
 	MemoryStore                *memorypkg.Store
 	MemoryToolWrites           memoryToolWriteRecorder
 	DreamTrigger               core.DreamTrigger

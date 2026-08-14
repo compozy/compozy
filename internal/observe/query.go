@@ -26,7 +26,7 @@ func (o *Observer) QueryEvents(ctx context.Context, query store.EventSummaryQuer
 	o.mu.RLock()
 	memorySource := o.memoryEventSource
 	o.mu.RUnlock()
-	if memorySource == nil || strings.TrimSpace(query.SessionID) != "" {
+	if memorySource == nil || strings.TrimSpace(query.SessionID) != "" || strings.TrimSpace(query.WorktreeID) != "" {
 		return events, nil
 	}
 

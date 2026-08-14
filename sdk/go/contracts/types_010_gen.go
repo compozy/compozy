@@ -7,6 +7,54 @@ import (
 	"time"
 )
 
+type HeartbeatTimeWindowPayload struct {
+	Timezone string `json:"timezone"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+}
+
+type HeartbeatValidateRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	Body        string `json:"body"`
+}
+
+type HeartbeatWakeDecisionPayload struct {
+	WakeEventID       string                             `json:"wake_event_id,omitempty"`
+	Result            HeartbeatWakeResult                `json:"result"`
+	Reason            HeartbeatWakeReason                `json:"reason"`
+	PolicySnapshotID  string                             `json:"policy_snapshot_id,omitempty"`
+	PolicyDigest      string                             `json:"policy_digest,omitempty"`
+	ConfigDigest      string                             `json:"config_digest,omitempty"`
+	SyntheticPromptID string                             `json:"synthetic_prompt_id,omitempty"`
+	Diagnostics       []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
+type HeartbeatWakeEventPayload struct {
+	ID                string              `json:"id"`
+	WorkspaceID       string              `json:"workspace_id,omitempty"`
+	AgentName         string              `json:"agent_name,omitempty"`
+	SessionID         string              `json:"session_id,omitempty"`
+	PolicySnapshotID  string              `json:"policy_snapshot_id,omitempty"`
+	Source            HeartbeatWakeSource `json:"source"`
+	Result            HeartbeatWakeResult `json:"result"`
+	Reason            HeartbeatWakeReason `json:"reason"`
+	SyntheticPromptID string              `json:"synthetic_prompt_id,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	ExpiresAt         time.Time           `json:"expires_at"`
+}
+
+type HeartbeatWakeReason string
+
+type HeartbeatWakeRequest struct {
+	WorkspaceID    string              `json:"workspace_id,omitempty"`
+	AgentName      string              `json:"agent_name"`
+	SessionID      string              `json:"session_id"`
+	Source         HeartbeatWakeSource `json:"source"`
+	DryRun         bool                `json:"dry_run,omitempty"`
+	IdempotencyKey string              `json:"idempotency_key,omitempty"`
+}
+
 type HeartbeatWakeResponse struct {
 	Decision HeartbeatWakeDecisionPayload `json:"decision"`
 }
@@ -54,6 +102,7 @@ type HookMatcher struct {
 	AgentName           string           `json:"agent_name,omitempty"`
 	AgentType           string           `json:"agent_type,omitempty"`
 	WorkspaceID         string           `json:"workspace_id,omitempty"`
+	WorktreeID          string           `json:"worktree_id,omitempty"`
 	WorkspaceRoot       string           `json:"workspace_root,omitempty"`
 	SessionType         string           `json:"session_type,omitempty"`
 	SandboxID           string           `json:"sandbox_id,omitempty"`
@@ -136,44 +185,4 @@ type InboundMessageEnvelope struct {
 	Conversation      *NetworkConversationRef `json:"conversation,omitempty"`
 	ProviderMetadata  json.RawMessage         `json:"provider_metadata,omitempty"`
 	IdempotencyKey    string                  `json:"idempotency_key"`
-}
-
-type InboundReaction struct {
-	MessageID string `json:"message_id"`
-	Emoji     string `json:"emoji"`
-	RawEmoji  string `json:"raw_emoji,omitempty"`
-	Added     bool   `json:"added"`
-}
-
-type InitializeBridgeBoundSecret struct {
-	BindingName string `json:"binding_name"`
-	Kind        string `json:"kind"`
-	Value       string `json:"value"`
-}
-
-type InitializeBridgeManagedInstance struct {
-	Instance     BridgeInstance                `json:"instance"`
-	BoundSecrets []InitializeBridgeBoundSecret `json:"bound_secrets,omitempty"`
-}
-
-type InitializeBridgeRuntime struct {
-	RuntimeVersion   string                            `json:"runtime_version"`
-	Purpose          BridgeRuntimePurpose              `json:"purpose"`
-	Provider         string                            `json:"provider"`
-	Platform         string                            `json:"platform"`
-	AllowedMethods   []string                          `json:"allowed_methods,omitempty"`
-	ManagedInstances []InitializeBridgeManagedInstance `json:"managed_instances,omitempty"`
-}
-
-type InitializeCapabilities struct {
-	Provides              []string        `json:"provides"`
-	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
-	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
-	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
-}
-
-type InitializeExtension struct {
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	SourceTier string `json:"source_tier"`
 }

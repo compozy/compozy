@@ -40,6 +40,7 @@ var (
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
 	WorkspaceID     string
+	WorktreeID      string
 	State           string
 	SessionType     Type
 	AgentName       string
@@ -64,6 +65,7 @@ type ListPage struct {
 
 type sessionListFingerprint struct {
 	WorkspaceID     string                     `json:"workspace_id"`
+	WorktreeID      string                     `json:"worktree_id"`
 	State           string                     `json:"state"`
 	SessionType     Type                       `json:"type"`
 	AgentName       string                     `json:"agent"`
@@ -102,6 +104,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 
 	durable, err := pager.PageSessions(ctx, store.SessionCatalogPageQuery{
 		WorkspaceID:         normalized.WorkspaceID,
+		WorktreeID:          normalized.WorktreeID,
 		State:               normalized.State,
 		SessionType:         string(normalized.SessionType),
 		AgentName:           normalized.AgentName,
@@ -180,6 +183,7 @@ func (m *Manager) activeSessionCatalogRows(
 
 func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
 	query.State = strings.TrimSpace(query.State)
 	query.SessionType = Type(strings.TrimSpace(string(query.SessionType)))
 	query.AgentName = strings.TrimSpace(query.AgentName)
@@ -223,31 +227,8 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 }
 
 func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
-	if info == nil || info.Type == SessionTypeDream {
-		return false
-	}
-	if lineage := info.Lineage; lineage != nil && IsInternalSpawnRole(lineage.SpawnRole) {
-		return false
-	}
-	if query.WorkspaceID != "" && strings.TrimSpace(info.WorkspaceID) != query.WorkspaceID {
-		return false
-	}
-	if query.State != "" && strings.TrimSpace(string(info.State)) != query.State {
-		return false
-	}
-	if query.SessionType != "" && normalizeSessionType(info.Type) != query.SessionType {
-		return false
-	}
-	if query.AgentName != "" && strings.TrimSpace(info.AgentName) != query.AgentName {
-		return false
-	}
-	if !sessionMatchesLineageFilters(info, query) {
-		return false
-	}
-	if query.Resumable && !AttachableForInfo(info, now) {
-		return false
-	}
-	if !sessionMatchesArchiveFilter(info, query.Archive) {
+	if !sessionMatchesIdentityFilters(info, query) || !sessionMatchesLineageFilters(info, query) ||
+		query.Resumable && !AttachableForInfo(info, now) || !sessionMatchesArchiveFilter(info, query.Archive) {
 		return false
 	}
 	search := strings.ToLower(strings.TrimSpace(query.Search))
@@ -266,6 +247,20 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 		}
 	}
 	return false
+}
+
+func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
+	if info == nil || info.Type == SessionTypeDream {
+		return false
+	}
+	if lineage := info.Lineage; lineage != nil && IsInternalSpawnRole(lineage.SpawnRole) {
+		return false
+	}
+	return (query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID) &&
+		(query.WorktreeID == "" || strings.TrimSpace(info.WorktreeID) == query.WorktreeID) &&
+		(query.State == "" || strings.TrimSpace(string(info.State)) == query.State) &&
+		(query.SessionType == "" || normalizeSessionType(info.Type) == query.SessionType) &&
+		(query.AgentName == "" || strings.TrimSpace(info.AgentName) == query.AgentName)
 }
 
 func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
@@ -335,6 +330,7 @@ func compareSessionCatalogPosition(left store.SessionCatalogPosition, right stor
 func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
 		WorkspaceID:     query.WorkspaceID,
+		WorktreeID:      query.WorktreeID,
 		State:           query.State,
 		SessionType:     query.SessionType,
 		AgentName:       query.AgentName,
@@ -417,6 +413,7 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 		RuntimeTransition:    info.RuntimeTransition,
 		RuntimeFailure:       strings.TrimSpace(info.RuntimeFailure),
 		WorkspaceID:          strings.TrimSpace(info.WorkspaceID),
+		WorktreeID:           strings.TrimSpace(info.WorktreeID),
 		NetworkParticipation: info.NetworkSpecSnapshot(),
 		Type:                 Type(strings.TrimSpace(info.SessionType)),
 		Lineage:              store.CloneSessionLineage(info.Lineage),

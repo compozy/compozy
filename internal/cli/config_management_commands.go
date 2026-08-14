@@ -143,9 +143,9 @@ func newConfigValidateCommandNamed(deps commandDeps, name string) *cobra.Command
 			if err != nil {
 				return err
 			}
-			loadOptions := []compozyconfig.LoadOption{}
-			if resolved {
-				loadOptions = append(loadOptions, compozyconfig.WithWorkspaceRoot(workspace))
+			loadOptions, err := configDisplayLoadOptions(homePaths, workspace, resolved, deps.getenv)
+			if err != nil {
+				return err
 			}
 			if _, err := compozyconfig.LoadForHome(homePaths, loadOptions...); err != nil {
 				record := configValidateRecord{
@@ -234,9 +234,14 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 			if err := runConfigEditor(cmd, deps, target.Path()); err != nil {
 				return err
 			}
-			loadOptions := []compozyconfig.LoadOption{}
-			if workspace != "" {
-				loadOptions = append(loadOptions, compozyconfig.WithWorkspaceRoot(workspace))
+			loadOptions, err := configDisplayLoadOptions(
+				homePaths,
+				workspace,
+				workspace != "",
+				deps.getenv,
+			)
+			if err != nil {
+				return err
 			}
 			if _, err := compozyconfig.LoadForHome(homePaths, loadOptions...); err != nil {
 				return fmt.Errorf("cli: edited config failed validation: %w", err)

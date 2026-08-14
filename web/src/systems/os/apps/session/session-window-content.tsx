@@ -1,10 +1,13 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, use, useRef } from "react";
 import { toast } from "sonner";
 
 import { loadSessionThread } from "./session-window-module-loader";
 import { useSessionWindowController } from "./use-session-window-controller";
+import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
 import {
   type SessionPayload,
+  SessionEnvironmentControl,
+  type SessionEnvironmentControlHandle,
   SessionPromptRuntimeSelector,
   SessionResumeFailure,
   SessionSidebar,
@@ -57,6 +60,7 @@ export function SessionWindowContent({
   onDeleteSuccess: () => void;
   liveDataEnabled: boolean;
 }) {
+  const worktreeDialogs = use(WorktreeDialogActionsContext);
   const page = useSessionWindowController({
     windowId,
     sessionId,
@@ -64,6 +68,8 @@ export function SessionWindowContent({
     session,
     onDeleteSuccess,
     liveDataEnabled,
+    onOpenWorktreeContext: worktreeDialogs?.requestContextWorktree,
+    onResolveMissingWorktree: worktreeDialogs?.requestResolveMissingWorktree,
   });
   const {
     controls,
@@ -78,7 +84,9 @@ export function SessionWindowContent({
     commandCatalog,
     commandCatalogStatus,
     refreshCommandCatalog,
+    worktreeBinding,
   } = page;
+  const environmentControl = useRef<SessionEnvironmentControlHandle>(null);
   const forkSession = useCreateSession();
 
   const handleForkDeadSession = () => {
@@ -164,9 +172,24 @@ export function SessionWindowContent({
           onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
           onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
           runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
+          environmentControl={
+            <SessionEnvironmentControl
+              ref={environmentControl}
+              binding={worktreeBinding}
+              sessionId={sessionId}
+              sessionTitle={session.name ?? sessionId}
+              workspaceId={workspaceId}
+              workspaceName={session.workspace_path ?? workspaceId}
+            />
+          }
           commandCatalog={commandCatalog}
           commandCatalogStatus={commandCatalogStatus}
           onCommandCatalogOpen={refreshCommandCatalog}
+          onCommandAction={token => {
+            if (token !== "/worktree") return false;
+            environmentControl.current?.openFork();
+            return true;
+          }}
         />
       </div>
       {inspector.open ? (

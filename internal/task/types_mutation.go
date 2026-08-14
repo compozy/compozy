@@ -93,6 +93,7 @@ type EnqueueRun struct {
 	NetworkParticipation       *participation.Request `json:"network_participation,omitempty"`
 	NetworkParticipationSource participation.Source   `json:"-"`
 	DesignationGroupID         string                 `json:"designation_group_id,omitempty"`
+	WorktreePerRun             bool                   `json:"worktree_per_run,omitempty"`
 	Metadata                   json.RawMessage        `json:"metadata,omitempty"`
 }
 

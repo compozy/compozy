@@ -36,6 +36,33 @@ type windowManagerAPIError struct {
 	payload    contract.WindowManagerErrorPayload
 }
 
+type worktreeRemovalAPIError struct {
+	statusCode int
+	status     string
+	payload    contract.WorktreeRemovalRefusalPayload
+}
+
+func (e *worktreeRemovalAPIError) Error() string {
+	if e == nil {
+		return nilToolErrorString
+	}
+	return apiErrorMessage(e.payload.Code, e.status)
+}
+
+func (e *worktreeRemovalAPIError) cliExitCode() int {
+	if e == nil {
+		return 1
+	}
+	return apiStatusExitCode(e.statusCode)
+}
+
+func (e *worktreeRemovalAPIError) worktreeRemovalErrorPayload() contract.WorktreeRemovalRefusalPayload {
+	if e == nil {
+		return contract.WorktreeRemovalRefusalPayload{}
+	}
+	return e.payload
+}
+
 func (e *windowManagerAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
@@ -148,6 +175,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		for _, parse := range []func(int, string, []byte) (bool, error){
 			parseExtensionOperationAPIError,
 			parseWindowManagerAPIError,
+			parseWorktreeRemovalAPIError,
 			parseDaemonAPIError,
 			parseMemoryAPIError,
 			parseToolAPIError,
@@ -171,6 +199,16 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		status:     status,
 		payload:    contract.ErrorPayload{Error: message},
 	}
+}
+
+func parseWorktreeRemovalAPIError(statusCode int, status string, body []byte) (bool, error) {
+	var payload contract.WorktreeRemovalRefusalPayload
+	if json.Unmarshal(body, &payload) != nil ||
+		(payload.Code != "worktree_dirty_requires_force" &&
+			payload.Code != "worktree_unpushed_requires_force") {
+		return false, nil
+	}
+	return true, &worktreeRemovalAPIError{statusCode: statusCode, status: status, payload: payload}
 }
 
 func parseExtensionOperationAPIError(statusCode int, status string, body []byte) (bool, error) {

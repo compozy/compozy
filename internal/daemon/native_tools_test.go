@@ -49,6 +49,7 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/compozy/compozy/internal/worktree"
 	skillbundled "github.com/compozy/compozy/skills"
 )
 
@@ -971,6 +972,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("BuildCatalog() error = %v", err)
 		}
+		catalog = commandpkg.SetBuiltinAvailability(
+			catalog,
+			"worktree",
+			false,
+			"Wait for the current turn to finish.",
+		)
 		manager := &nativeSessionCommandManager{
 			StubSessionManager: nativeNetworkTestSessionManager("ws-command"),
 			catalog:            catalog,
@@ -993,8 +1000,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatalf("json.Unmarshal(command_list) error = %v", err)
 		}
-		if payload.Revision != catalog.Revision || len(payload.Commands) != 2 ||
-			payload.Commands[1].CanonicalToken != "/review" {
+		if payload.Revision != catalog.Revision || len(payload.Commands) != 3 ||
+			payload.Commands[1].CanonicalToken != "/worktree" || payload.Commands[1].Available ||
+			payload.Commands[1].UnavailableReason != "Wait for the current turn to finish." ||
+			payload.Commands[2].CanonicalToken != "/review" {
 			t.Fatalf("command_list payload = %#v", payload)
 		}
 	})
@@ -3642,16 +3651,21 @@ func TestDaemonNativeTools(t *testing.T) {
 			scope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskList,
-				Input:  json.RawMessage(`{"scope":"workspace","status":"pending","limit":3}`),
+				Input:  json.RawMessage(`{"scope":"workspace","status":"pending","worktree":"wt-1","limit":3}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(task_list) error = %v", err)
 		}
 		if tasks.listCalls != 1 ||
-			tasks.lastQuery.WorkspaceID != "ws-1" ||
-			tasks.lastQuery.Status != taskpkg.TaskStatusPending {
-			t.Fatalf("ListTasks calls/query = %d/%#v, want workspace pending query", tasks.listCalls, tasks.lastQuery)
+			tasks.lastCatalogQuery.WorkspaceID != "ws-1" ||
+			tasks.lastCatalogQuery.WorktreeID != "wt-1" ||
+			tasks.lastCatalogQuery.Status != taskpkg.TaskStatusPending {
+			t.Fatalf(
+				"ListTasks calls/query = %d/%#v, want workspace pending worktree query",
+				tasks.listCalls,
+				tasks.lastCatalogQuery,
+			)
 		}
 
 		readResult, err := registry.Call(
@@ -4008,7 +4022,8 @@ func TestDaemonNativeTools(t *testing.T) {
 						`"worker":{"mode":"select","agent_name":"worker-b","required_capabilities":["build"]},` +
 						`"review":{"agent_name":"reviewer-b","allowed_channel_ids":["reviews"]},` +
 						`"participants":{"allowed_agent_names":["worker-b"],"required_capabilities":["build"]},` +
-						`"sandbox":{"mode":"none"},"runtime":{"mode":"evidence"},` +
+						`"sandbox":{"mode":"none"},"worktree":{"mode":"ref","worktree_ref":"feature-a"},` +
+						`"runtime":{"mode":"evidence"},` +
 						`"network_participation":{"mode":"local"}}}`,
 				),
 			},
@@ -4022,6 +4037,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			tasks.lastSetProfile.TaskID != "task-profile" ||
 			tasks.lastSetProfile.Worker.AgentName != "worker-b" ||
 			tasks.lastSetProfile.Participants.RequiredCapabilities[0] != "build" ||
+			tasks.lastSetProfile.Worktree.Mode != taskpkg.WorktreeModeRef ||
+			tasks.lastSetProfile.Worktree.WorktreeRef != "feature-a" ||
 			tasks.lastSetProfile.Runtime.Mode != taskpkg.RuntimeModeEvidence ||
 			tasks.lastSetProfile.NetworkParticipation == nil ||
 			tasks.lastSetProfile.NetworkParticipation.Mode == nil ||
@@ -4030,6 +4047,29 @@ func TestDaemonNativeTools(t *testing.T) {
 				"SetExecutionProfile calls/profile = %d/%#v, want profile update",
 				tasks.profileSetCalls,
 				tasks.lastSetProfile,
+			)
+		}
+
+		worktreeResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskWorktreePolicySet,
+				Input:  json.RawMessage(`{"task_id":"task-profile","mode":"per_run"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_worktree_policy_set) error = %v", err)
+		}
+		requireNativeStructuredContains(t, worktreeResult, []byte(`"mode":"per_run"`))
+		if tasks.profileWorktreeCalls != 1 ||
+			tasks.lastProfileTaskID != "task-profile" ||
+			tasks.lastWorktreePolicy.Mode != taskpkg.WorktreeModePerRun {
+			t.Fatalf(
+				"SetWorktreePolicy calls/task/policy = %d/%q/%#v, want task-profile/per_run",
+				tasks.profileWorktreeCalls,
+				tasks.lastProfileTaskID,
+				tasks.lastWorktreePolicy,
 			)
 		}
 
@@ -4130,6 +4170,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Run: taskpkg.Run{
 					ID:             "run-1",
 					TaskID:         "task-1",
+					RunKind:        taskpkg.RunKindWorker,
 					Status:         taskpkg.TaskRunStatusClaimed,
 					SessionID:      "sess-agent",
 					ClaimTokenHash: hash,
@@ -4173,15 +4214,26 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredExcludes(t, claimResult, []byte(rawToken))
 		requireNativeStructuredExcludes(t, claimResult, []byte(`"claim_token"`))
 		if tasks.claimNextCalls != 1 ||
+			tasks.startCalls != 1 ||
 			tasks.lastClaimCriteria.RunID != "run-1" ||
 			tasks.lastClaimCriteria.ClaimerSessionID != "sess-agent" ||
 			tasks.lastClaimCriteria.WorkspaceID != "ws-1" ||
 			tasks.lastClaimActor.Actor.Ref != "sess-agent" {
 			t.Fatalf(
-				"claim next calls/criteria/actor = %d/%#v/%#v, want caller session/workspace",
+				"claim/start calls/criteria/actor = %d/%d/%#v/%#v, want caller session/workspace",
 				tasks.claimNextCalls,
+				tasks.startCalls,
 				tasks.lastClaimCriteria,
 				tasks.lastClaimActor,
+			)
+		}
+		if tasks.lastStartRunID != "run-1" ||
+			tasks.lastStart.ClaimToken != rawToken ||
+			tasks.lastStart.IdempotencyKey != "native-start:run-1" {
+			t.Fatalf(
+				"StartRun id/request = %q/%#v, want claimed run and internal lease token",
+				tasks.lastStartRunID,
+				tasks.lastStart,
 			)
 		}
 
@@ -4314,6 +4366,62 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if tasks.claimNextCalls != 1 {
 			t.Fatalf("ClaimNextRun() calls = %d, want 1", tasks.claimNextCalls)
+		}
+	})
+
+	t.Run("Should start and hand off per-run worker claims to the bound session", func(t *testing.T) {
+		t.Parallel()
+
+		const rawToken = "compozy_claim_HANDOFF123"
+		tasks := &nativeTaskManager{
+			claimResult: &taskpkg.ClaimResult{
+				Task: &taskpkg.Task{ID: "task-1", Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-1"},
+				Run: taskpkg.Run{
+					ID:        "run-1",
+					TaskID:    "task-1",
+					RunKind:   taskpkg.RunKindWorker,
+					Status:    taskpkg.TaskRunStatusClaimed,
+					SessionID: "sess-bootstrap",
+				},
+				ClaimToken: rawToken,
+			},
+			startResult: &taskpkg.Run{
+				ID:        "run-1",
+				TaskID:    "task-1",
+				RunKind:   taskpkg.RunKindWorker,
+				Status:    taskpkg.TaskRunStatusRunning,
+				SessionID: "sess-bound",
+				RunWorktreeState: &taskpkg.RunWorktreeState{
+					WorktreeID: "wt-run-1",
+				},
+			},
+		}
+		handoff := &nativeTaskClaimHandoffStub{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:         nativeNetworkTestSessionManager("ws-1"),
+			Tasks:            tasks,
+			TaskClaimHandoff: handoff,
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-bootstrap", WorkspaceID: "ws-1", AgentName: "coder"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDTaskRunClaimNext, Input: json.RawMessage(`{}`)},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_run_claim_next) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"status":"running"`))
+		requireNativeStructuredContains(t, result, []byte(`"session_id":"sess-bound"`))
+		requireNativeStructuredContains(t, result, []byte(`"worktree_id":"wt-run-1"`))
+		requireNativeStructuredExcludes(t, result, []byte(rawToken))
+		if handoff.bootstrapSessionID != "sess-bootstrap" ||
+			handoff.run.SessionID != "sess-bound" ||
+			handoff.run.WorktreeIDValue() != "wt-run-1" {
+			t.Fatalf("handoff = %#v, want bootstrap to bound worktree session", handoff)
+		}
+		if tasks.lastStart.ClaimToken != rawToken || tasks.lastStart.IdempotencyKey != "native-start:run-1" {
+			t.Fatalf("StartRun request = %#v, want internal token and deterministic identity", tasks.lastStart)
 		}
 	})
 
@@ -5830,6 +5938,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		workspaceResolveCalls := 0
 		var seenListQuery session.ListQuery
 		var acceptedCreate session.CreateAcceptedOpts
+		createdWorktrees := 0
 		var submittedPrompt session.SendPromptOpts
 		var submittedRewind session.ConversationRewindOptions
 		rewindSubmitCalls := 0
@@ -5905,6 +6014,7 @@ func TestDaemonNativeTools(t *testing.T) {
 						ID:          "sess-created",
 						AgentName:   opts.Session.AgentName,
 						WorkspaceID: opts.Session.Workspace,
+						WorktreeID:  opts.Session.Worktree,
 						State:       session.StateActive,
 					}, nil
 				},
@@ -6138,9 +6248,22 @@ func TestDaemonNativeTools(t *testing.T) {
 				},
 			},
 		}
+		worktrees := &nativeWorktreeServiceStub{create: func(
+			_ context.Context,
+			workspaceID string,
+			opts worktree.CreateOptions,
+		) (*worktree.Worktree, error) {
+			createdWorktrees++
+			if workspaceID != registryWorkspaceID || opts.Name != "native-feature" ||
+				opts.Origin != worktree.OriginManual {
+				t.Fatalf("Create() = workspace %q opts %#v", workspaceID, opts)
+			}
+			return &worktree.Worktree{ID: "wt-created", WorkspaceID: workspaceID}, nil
+		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Workspaces: workspaces,
 			Sessions:   manager,
+			Worktrees:  worktrees,
 		}, nativeApproveAllPolicyInputs())
 
 		for _, tc := range []struct {
@@ -6208,7 +6331,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionCreate,
 				Input: json.RawMessage(
-					`{"workspace":"ws-stable","agent":"coder","name":"native",` +
+					`{"workspace":"ws-stable","agent":"coder","name":"native","worktree":"wt-ready",` +
 						`"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"builders"}}`,
 				),
 			},
@@ -6217,7 +6340,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(session_create) error = %v", err)
 		}
 		if acceptedCreate.Session.AgentName != "coder" || acceptedCreate.Session.Name != "native" ||
-			acceptedCreate.Session.Workspace != registryWorkspaceID {
+			acceptedCreate.Session.Workspace != registryWorkspaceID || acceptedCreate.Session.Worktree != "wt-ready" {
 			t.Fatalf("session_create opts = %#v", acceptedCreate)
 		}
 		if got := acceptedCreate.Session.NetworkParticipation; got == nil ||
@@ -6233,6 +6356,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			)
 		}
 		requireNativeStructuredContains(t, createdResult, []byte(`"sess-created"`))
+
+		materializedResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionCreate,
+				Input: json.RawMessage(
+					`{"workspace":"ws-stable","agent":"coder","new_worktree":{"name":"native-feature"}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(session_create new worktree) error = %v", err)
+		}
+		if createdWorktrees != 1 || acceptedCreate.Session.Worktree != "wt-created" {
+			t.Fatalf("session_create new worktree calls = %d opts = %#v", createdWorktrees, acceptedCreate)
+		}
+		requireNativeStructuredContains(t, materializedResult, []byte(`"worktree_id":"wt-created"`))
 
 		boundCreateResult, err := registry.Call(
 			t.Context(),
@@ -6569,7 +6710,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionList,
 				Input: json.RawMessage(
-					`{"workspace":"ws-stable","state":"active","type":"user","agent":"coder","q":"review",` +
+					`{"workspace":"ws-stable","worktree":"wt-filtered","state":"active","type":"user","agent":"coder","q":"review",` +
 						`"resumable":true,"archive":"only","include_health":true,"sort":"last_activity",` +
 						`"cursor":"cursor-prev","limit":2}`,
 				),
@@ -6578,7 +6719,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(session_list page) error = %v; cause=%v", err, errors.Unwrap(err))
 		}
-		if seenListQuery.WorkspaceID == "" || seenListQuery.State != "active" ||
+		if seenListQuery.WorkspaceID == "" || seenListQuery.WorktreeID != "wt-filtered" ||
+			seenListQuery.State != "active" ||
 			seenListQuery.SessionType != session.SessionTypeUser ||
 			seenListQuery.AgentName != "coder" || seenListQuery.Search != "review" ||
 			!seenListQuery.Resumable || seenListQuery.Archive != session.ArchiveOnly ||
@@ -11179,6 +11321,7 @@ type nativeTaskManager struct {
 	childErr                error
 	listCalls               int
 	lastQuery               taskpkg.Query
+	lastCatalogQuery        taskpkg.CatalogQuery
 	listSummaries           []taskpkg.Summary
 	getCalls                int
 	lastGetID               string
@@ -11220,6 +11363,12 @@ type nativeTaskManager struct {
 	lastClaimActor          taskpkg.ActorContext
 	claimResult             *taskpkg.ClaimResult
 	claimErr                error
+	startCalls              int
+	lastStartRunID          string
+	lastStart               taskpkg.StartRun
+	lastStartActor          taskpkg.ActorContext
+	startResult             *taskpkg.Run
+	startErr                error
 	lookupCalls             int
 	lastLookupSessionID     string
 	lastLookupRunID         string
@@ -11260,12 +11409,46 @@ type nativeTaskManager struct {
 	recordReviewErr         error
 	profileGetCalls         int
 	profileSetCalls         int
+	profileWorktreeCalls    int
 	profileDeleteCalls      int
 	lastProfileTaskID       string
 	lastSetProfile          taskpkg.ExecutionProfile
+	lastWorktreePolicy      taskpkg.WorktreePolicy
 	lastDeleteProfileTaskID string
 	executionProfile        taskpkg.ExecutionProfile
 	profileErr              error
+}
+
+type nativeTaskClaimHandoffStub struct {
+	pending            bool
+	bootstrapSessionID string
+	run                taskpkg.Run
+	err                error
+}
+
+func (s *nativeTaskClaimHandoffStub) HasPending(string) bool {
+	return s.pending
+}
+
+func (s *nativeTaskClaimHandoffStub) ScheduleBootstrapStop(
+	bootstrapSessionID string,
+	runID string,
+	targetSessionID string,
+) error {
+	s.bootstrapSessionID = bootstrapSessionID
+	s.run.ID = runID
+	s.run.SessionID = targetSessionID
+	return s.err
+}
+
+func (s *nativeTaskClaimHandoffStub) Activate(
+	_ context.Context,
+	bootstrapSessionID string,
+	run taskpkg.Run,
+) error {
+	s.bootstrapSessionID = bootstrapSessionID
+	s.run = run
+	return s.err
 }
 
 func (m *nativeTaskManager) CreateTask(
@@ -11454,6 +11637,7 @@ func (m *nativeTaskManager) ListTaskCatalog(
 	_ taskpkg.ActorContext,
 ) (taskpkg.CatalogPage, error) {
 	m.listCalls++
+	m.lastCatalogQuery = query
 	m.lastQuery = taskpkg.Query{
 		Scope:       taskpkg.Scope(query.Scope),
 		WorkspaceID: query.WorkspaceID,
@@ -11507,6 +11691,23 @@ func (m *nativeTaskManager) SetExecutionProfile(
 	return m.lastSetProfile, nil
 }
 
+func (m *nativeTaskManager) SetWorktreePolicy(
+	_ context.Context,
+	taskID string,
+	policy taskpkg.WorktreePolicy,
+	_ taskpkg.ActorContext,
+) (taskpkg.ExecutionProfile, error) {
+	m.profileWorktreeCalls++
+	m.lastProfileTaskID = taskID
+	m.lastWorktreePolicy = policy
+	if m.profileErr != nil {
+		return taskpkg.ExecutionProfile{}, m.profileErr
+	}
+	m.executionProfile.TaskID = taskID
+	m.executionProfile.Worktree = policy
+	return m.executionProfile, nil
+}
+
 func (m *nativeTaskManager) DeleteExecutionProfile(
 	_ context.Context,
 	taskID string,
@@ -11537,6 +11738,31 @@ func (m *nativeTaskManager) ClaimNextRun(
 		return &result, nil
 	}
 	return nil, taskpkg.ErrNoClaimableRun
+}
+
+func (m *nativeTaskManager) StartRun(
+	_ context.Context,
+	runID string,
+	req taskpkg.StartRun,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	m.startCalls++
+	m.lastStartRunID = runID
+	m.lastStart = req
+	m.lastStartActor = actor
+	if m.startErr != nil {
+		return nil, m.startErr
+	}
+	if m.startResult != nil {
+		run := *m.startResult
+		return &run, nil
+	}
+	if m.claimResult != nil {
+		run := m.claimResult.Run
+		run.Status = taskpkg.TaskRunStatusRunning
+		return &run, nil
+	}
+	return nil, errUnexpectedNativeTaskCall
 }
 
 func (m *nativeTaskManager) LookupActiveRunForSession(

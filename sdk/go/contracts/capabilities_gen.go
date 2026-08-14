@@ -5,6 +5,7 @@ package contracts
 var requiredMethodsByProvide = map[string][]string{
 	"bridge.adapter":        []string{"bridges/deliver", "bridges/targets/snapshot"},
 	"connectivity.provider": []string{"connectivity/establish", "connectivity/status", "connectivity/teardown"},
+	"forge.provider":        []string{"forge/capabilities", "forge/pr_create", "forge/status"},
 	"loop.watch_source":     []string{"watch/poll"},
 	"memory.backend":        []string{"memory/forget", "memory/recall", "memory/store"},
 	"model.source":          []string{"models/list"},
@@ -27,6 +28,9 @@ type ProvideConformanceFixture struct {
 var publicProvideConformanceFixtures = []ProvideConformanceFixture{{
 	Provide:         "connectivity.provider",
 	RequiredMethods: RequiredMethods("connectivity.provider"),
+}, {
+	Provide:         "forge.provider",
+	RequiredMethods: RequiredMethods("forge.provider"),
 }, {
 	Provide:         "loop.watch_source",
 	RequiredMethods: RequiredMethods("loop.watch_source"),

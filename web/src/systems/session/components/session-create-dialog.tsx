@@ -19,6 +19,8 @@ import {
 } from "@/lib/network-participation";
 
 import { SessionCreateAdvancedSection } from "./session-create-advanced-section";
+import { SessionCreateFirstMessage } from "./session-create-first-message";
+import { SessionEnvironmentField } from "./session-environment-field";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
 import type { AgentPayload } from "@/systems/agent";
 import { WorkspaceScopeStatement, type WorkspaceScopeMode } from "@/systems/workspace";
@@ -36,12 +38,21 @@ export interface SessionCreateDialogProps {
   destinationReady: boolean;
   sessionName: string;
   onSessionNameChange: (next: string) => void;
+  firstMessage: string;
+  onFirstMessageChange: (next: string) => void;
   selectedAgentName: string;
   networkParticipation: NetworkParticipationDraft;
   onAgentChange: (agentName: string) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
+  /** Absent when the selected workspace is not git-backed. */
+  environment?: React.ComponentProps<typeof SessionEnvironmentField>;
+  environmentListingState?: "loading" | "ready" | "error" | "unsupported";
+  environmentListingError?: string;
   onSubmit: () => void;
   isSubmitting: boolean;
+  /** A submit is waiting on its worktree; Cancel stops that, not the dialog. */
+  isAwaitingEnvironment: boolean;
+  onCancelEnvironment: () => void;
   submitError: string | null;
 }
 
@@ -58,12 +69,19 @@ function SessionCreateDialog({
   destinationReady,
   sessionName,
   onSessionNameChange,
+  firstMessage,
+  onFirstMessageChange,
   selectedAgentName,
   networkParticipation,
   onAgentChange,
   onNetworkParticipationChange,
+  environment,
+  environmentListingState = "unsupported",
+  environmentListingError,
   onSubmit,
   isSubmitting,
+  isAwaitingEnvironment,
+  onCancelEnvironment,
   submitError,
 }: SessionCreateDialogProps) {
   const restoreFocusOnCloseRef = useRef(restoreFocusOnClose);
@@ -77,23 +95,30 @@ function SessionCreateDialog({
   const canSubmit =
     !isSubmitting &&
     destinationReady &&
+    !isAwaitingEnvironment &&
     hasAgents &&
     hasSelectedAgent &&
     isNetworkParticipationDraftValid(networkParticipation, ["named"]);
 
-  const submitIfAllowed = () => {
-    if (!canSubmit) return;
-    onSubmit();
-  };
-
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    submitIfAllowed();
+    if (!canSubmit) return;
+    onSubmit();
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isSubmitting && !nextOpen) return;
     onOpenChange(nextOpen);
+  };
+
+  // While a worktree is being created, Cancel is about that creation — the
+  // operator asked to stop making an environment, not to discard what they wrote.
+  const handleCancel = () => {
+    if (isAwaitingEnvironment) {
+      onCancelEnvironment();
+      return;
+    }
+    handleOpenChange(false);
   };
 
   return (
@@ -124,9 +149,18 @@ function SessionCreateDialog({
               workspaceSelected={destinationReady}
             />
 
+            <SessionCreateFirstMessage
+              disabled={isSubmitting || isAwaitingEnvironment}
+              onChange={onFirstMessageChange}
+              value={firstMessage}
+            />
+
             {mode === "advanced" ? (
               <SessionCreateAdvancedSection
-                isSubmitting={isSubmitting}
+                environment={environment}
+                environmentListingError={environmentListingError}
+                environmentListingState={environmentListingState}
+                isSubmitting={isSubmitting || isAwaitingEnvironment}
                 networkParticipation={networkParticipation}
                 onNetworkParticipationChange={onNetworkParticipationChange}
                 onSessionNameChange={onSessionNameChange}
@@ -141,6 +175,17 @@ function SessionCreateDialog({
               >
                 {submitError}
               </FieldError>
+            ) : null}
+
+            {isAwaitingEnvironment ? (
+              <p
+                aria-live="polite"
+                className="mt-4 text-form-hint text-subtle"
+                data-testid="session-create-environment-status"
+                role="status"
+              >
+                Creating the environment. The session starts once it is ready.
+              </p>
             ) : null}
 
             {isSubmitting ? (
@@ -166,7 +211,7 @@ function SessionCreateDialog({
               />
             }
             isSaving={isSubmitting}
-            onCancel={() => handleOpenChange(false)}
+            onCancel={handleCancel}
             primaryDisabled={!canSubmit}
             primaryLabel="Start session"
             primaryTestId="session-create-submit"

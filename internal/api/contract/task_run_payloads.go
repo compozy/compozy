@@ -8,6 +8,24 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+// ResolvedWorktreeMode is the immutable runtime choice after inheritance has
+// been resolved. Unlike a profile mode, it can never be "inherit".
+type ResolvedWorktreeMode string
+
+const (
+	ResolvedWorktreeModeNone   ResolvedWorktreeMode = "none"
+	ResolvedWorktreeModeRef    ResolvedWorktreeMode = "ref"
+	ResolvedWorktreeModePerRun ResolvedWorktreeMode = "per_run"
+)
+
+func ResolvedWorktreeModeValues() []string {
+	return []string{
+		string(ResolvedWorktreeModeNone),
+		string(ResolvedWorktreeModeRef),
+		string(ResolvedWorktreeModePerRun),
+	}
+}
+
 // TaskRunPayload is the shared task-run response payload.
 type TaskRunPayload struct {
 	ID                           string                         `json:"id"`
@@ -19,6 +37,9 @@ type TaskRunPayload struct {
 	FailureKind                  string                         `json:"failure_kind,omitempty"`
 	ClaimedBy                    *taskpkg.ActorIdentity         `json:"claimed_by,omitempty"`
 	SessionID                    string                         `json:"session_id,omitempty"`
+	WorktreeID                   string                         `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode         ResolvedWorktreeMode           `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef          string                         `json:"resolved_worktree_ref,omitempty"`
 	Origin                       taskpkg.Origin                 `json:"origin"`
 	IdempotencyKey               string                         `json:"idempotency_key,omitempty"`
 	ResolvedNetworkParticipation *participation.Spec            `json:"resolved_network_participation,omitempty"`
@@ -48,6 +69,9 @@ type TaskRunSummaryPayload struct {
 	FailureKind                  string                         `json:"failure_kind,omitempty"`
 	MaxAttempts                  int                            `json:"max_attempts"`
 	SessionID                    string                         `json:"session_id,omitempty"`
+	WorktreeID                   string                         `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode         ResolvedWorktreeMode           `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef          string                         `json:"resolved_worktree_ref,omitempty"`
 	ClaimedBy                    *taskpkg.ActorIdentity         `json:"claimed_by,omitempty"`
 	ClaimTokenHash               string                         `json:"claim_token_hash,omitempty"`
 	LeaseUntil                   *time.Time                     `json:"lease_until,omitempty"`

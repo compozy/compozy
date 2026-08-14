@@ -96,6 +96,12 @@ func validateRunExecutorBinding(r Run) error {
 	if err := r.Status.Validate("task_run.status"); err != nil {
 		return err
 	}
+	if err := validateResolvedWorktreePolicy(WorktreePolicy{
+		Mode:        r.ResolvedWorktreeModeValue(),
+		WorktreeRef: r.ResolvedWorktreeRefValue(),
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 

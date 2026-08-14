@@ -186,6 +186,13 @@ func Boundaries() error {
 		{"internal/bridgesdk", "internal/daemon"},
 		{"internal/bridgesdk", "internal/store"},
 		{"internal/bridgesdk", "internal/session"},
+		{"internal/worktree", "internal/session"},
+		{"internal/worktree", "internal/task"},
+		{"internal/worktree", "internal/loop"},
+		{"internal/worktree", "internal/workspace"},
+		{"internal/worktree", "internal/daemon"},
+		{"internal/worktree", "internal/api"},
+		{"internal/worktree", "internal/cli"},
 	}
 	for _, rule := range prefixForbidden {
 		importerDir := rule.importer

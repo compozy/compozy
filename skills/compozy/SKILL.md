@@ -1,6 +1,6 @@
 ---
 name: compozy
-description: Agent guide for operating CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, desktops and windows, bridges, automation, extensions, or configuration. Do not use for unrelated projects.
+description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, desktops and windows, bridges, automation, extensions, or configuration. Don't use for unrelated projects.
 metadata:
   compozy:
     version: 1
@@ -11,7 +11,7 @@ metadata:
 
 # CompozyOS
 
-Use this skill when operating CompozyOS. This body is a router, not the manual. Load the matching reference before acting.
+This body routes to the matching reference. Load it before acting.
 
 ## Required Reading Router
 
@@ -36,6 +36,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Install, enable, update, dev-link, build, publish, or remove an extension; manage extension kits, secrets, or hooks            | references/extensions.md + references/native-tools.md              |
 | Write or scaffold extension code: manifests, permissions, provide surfaces, contributed commands                               | references/extension-authoring.md + references/extensions.md       |
 | Create or manage automation jobs, triggers, schedules, or suggestions                                                          | references/native-tools.md + references/configuration.md           |
+| Create, inspect, bind sessions to, exit, publish, remove, or recover workspace worktrees                                       | references/worktrees.md + references/native-tools.md               |
 | Inspect or manage Gateway posture, tier surfaces, device pairing, connection profiles, SSH forwards, or stream tickets         | references/runtime-operations.md + references/configuration.md     |
 | Read or change CompozyOS configuration: config.toml keys, defaults, scopes, and the settings apply lifecycle                   | references/configuration.md                                        |
 
@@ -54,6 +55,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/extensions.md - extension kits, install trust, the authoring and dev loop, instance scoping, dev overlays, logs, and hook management.
 - references/extension-authoring.md - code-first extension authoring: templates, SDK declaration shape, closed permissions and derived consent, provide surfaces, contributed commands, generated manifest, and structured workflows.
 - references/configuration.md - config.toml desired state, the settings apply lifecycle, and the key reference for gateway, scheduler, Loop, Goal, automation, compaction, role, and window-manager settings.
+- references/worktrees.md - workspace worktree lifecycle, session binding, exit plans and actions, forge integration, cleanup evidence, and public management surfaces.
 
 ## Operating Loop
 

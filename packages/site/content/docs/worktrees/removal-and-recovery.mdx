@@ -1,0 +1,92 @@
+---
+title: Removal and Recovery
+description: Remove a linked checkout after safety checks or recover a Worktree that disappeared outside CompozyOS.
+---
+
+Removal deletes the linked checkout, not its branch or Git history. CompozyOS checks bound sessions,
+dirty files, unpushed commits, repository identity, and fresh cleanup evidence before it changes Git.
+
+## Remove a clean Worktree
+
+### 1. Read cleanup evidence
+
+```bash
+compozy worktree exit feature-auth --workspace . -o json
+```
+
+Continue only when `cleanup.safe` is true and the evidence matches the intended branch or merged pull
+request.
+
+### 2. Remove the linked checkout
+
+```bash
+compozy worktree remove feature-auth --workspace . -o json
+```
+
+Expected result:
+
+```json
+{
+  "action": "removed",
+  "worktree": { "id": "feature-auth" }
+}
+```
+
+A bound idle session is stopped before removal. A session that is mid-turn blocks removal with
+`worktree_session_active`.
+
+## Review a refusal before force
+
+Dirty or unpushed work returns a structured conflict instead of deleting it:
+
+```json
+{
+  "code": "worktree_dirty_requires_force",
+  "risk": {
+    "changed_files": 2,
+    "insertions": 4,
+    "deletions": 1,
+    "unpushed_commits": 3,
+    "exists_on_remote": false
+  },
+  "downgrade": false
+}
+```
+
+Return to [Assisted exit](/docs/worktrees/assisted-exit) first. If the operator still intends to
+discard the checkout after reviewing those exact quantities, confirm explicitly:
+
+```bash
+compozy worktree remove feature-auth --workspace . --force -o json
+```
+
+`--force` does not delete the branch. A remote branch may downgrade unpushed evidence, but it never
+hides dirty files or an unreadable safety check.
+
+## Recover a missing path
+
+Run a fresh discovery after a checkout is removed or moved outside CompozyOS:
+
+```bash
+compozy worktree list --workspace . --refresh -o json
+```
+
+The record becomes `missing`, retains history, and cannot host new sessions or runs.
+
+If the same linked checkout is back at its recorded path, restore it by adopting that path:
+
+```bash
+compozy worktree adopt /src/acme-feature-auth --workspace . -o json
+```
+
+Expected result is the original Worktree ID with `state: "ready"`. A different repository at that
+path is refused.
+
+If the path cannot return, clear only the retained record:
+
+```bash
+compozy worktree dismiss feature-auth --workspace . -o json
+```
+
+Expected result reports `action: "dismissed"`. Dismiss does not delete a filesystem path, a branch,
+session history, task history, or workspace memory.

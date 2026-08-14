@@ -489,6 +489,30 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 				Workspace: "/workspace/project",
 			},
 		},
+		{
+			name: "Should start in an existing worktree",
+			args: []string{"session", "new", "--workspace", "ws_abc", "--worktree", "wt-ready", "-o", "json"},
+			request: CreateSessionRequest{
+				Workspace: "ws_abc",
+				Worktree:  "wt-ready",
+			},
+		},
+		{
+			name: "Should create a named worktree before starting",
+			args: []string{"session", "new", "--workspace", "ws_abc", "--new-worktree=feature-session", "-o", "json"},
+			request: CreateSessionRequest{
+				Workspace:   "ws_abc",
+				NewWorktree: &contract.NewSessionWorktreeRequest{Name: "feature-session"},
+			},
+		},
+		{
+			name: "Should request an automatically named worktree",
+			args: []string{"session", "new", "--workspace", "ws_abc", "--new-worktree", "-o", "json"},
+			request: CreateSessionRequest{
+				Workspace:   "ws_abc",
+				NewWorktree: &contract.NewSessionWorktreeRequest{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -497,7 +521,10 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 
 			client := &stubClient{
 				createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-					if request.Workspace != tt.request.Workspace || request.WorkspacePath != tt.request.WorkspacePath {
+					if request.Workspace != tt.request.Workspace ||
+						request.WorkspacePath != tt.request.WorkspacePath ||
+						request.Worktree != tt.request.Worktree ||
+						!reflect.DeepEqual(request.NewWorktree, tt.request.NewWorktree) {
 						t.Fatalf("CreateSession() request = %#v, want %#v", request, tt.request)
 					}
 					return SessionRecord{
@@ -567,6 +594,35 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		}
 		if createCalls != 0 {
 			t.Fatalf("CreateSession() calls = %d, want 0 after resolver failure", createCalls)
+		}
+	})
+
+	t.Run("Should reject mutually exclusive worktree selectors", func(t *testing.T) {
+		t.Parallel()
+
+		tests := [][]string{
+			{"session", "new", "--cwd", "/tmp/proj", "--worktree", "wt-ready"},
+			{"session", "new", "--cwd", "/tmp/proj", "--new-worktree"},
+			{"session", "new", "--worktree", "wt-ready", "--new-worktree"},
+		}
+		for _, args := range tests {
+			t.Run("Should reject "+strings.Join(args[2:], " "), func(t *testing.T) {
+				t.Parallel()
+				createCalls := 0
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					createSessionFn: func(context.Context, CreateSessionRequest) (SessionRecord, error) {
+						createCalls++
+						return SessionRecord{}, nil
+					},
+				})
+				_, _, err := executeRootCommand(t, deps, args...)
+				if err == nil || !strings.Contains(err.Error(), "if any flags in the group") {
+					t.Fatalf("executeRootCommand(%v) error = %v, want flag conflict", args, err)
+				}
+				if createCalls != 0 {
+					t.Fatalf("CreateSession() calls = %d, want 0 for %v", createCalls, args)
+				}
+			})
 		}
 	})
 
@@ -831,6 +887,8 @@ func TestSessionListPassesServerOwnedPageFilters(t *testing.T) {
 			"list",
 			"--workspace",
 			"ws-filtered",
+			"--worktree",
+			"wt-filtered",
 			"--all",
 			"--state",
 			"stopped",
@@ -854,7 +912,8 @@ func TestSessionListPassesServerOwnedPageFilters(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeRootCommand(session list) error = %v", err)
 		}
-		if seenQuery.Workspace != "ws-filtered" || seenQuery.State != "stopped" || seenQuery.Type != "user" ||
+		if seenQuery.Workspace != "ws-filtered" || seenQuery.Worktree != "wt-filtered" ||
+			seenQuery.State != "stopped" || seenQuery.Type != "user" ||
 			seenQuery.Agent != "general" || seenQuery.Query != "demo" ||
 			seenQuery.Archive != string(session.ArchiveOnly) ||
 			!seenQuery.IncludeHealth ||

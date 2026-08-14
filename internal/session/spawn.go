@@ -37,7 +37,10 @@ var (
 
 // SpawnOpts defines the safe child-session creation request accepted by the manager.
 type SpawnOpts struct {
-	ParentSessionID      string
+	ParentSessionID string
+	// InheritedWorktreeID is daemon-owned structural context copied from the parent.
+	// Public callers cannot select or override it.
+	InheritedWorktreeID  string
 	AgentName            string
 	Provider             string
 	Model                string
@@ -102,6 +105,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		Name:                 normalized.Name,
 		Workspace:            workspaceRef,
 		WorkspacePath:        workspacePath,
+		Worktree:             normalized.InheritedWorktreeID,
 		NetworkParticipation: spawnNetworkParticipation(normalized),
 		NetworkAuthority: &participation.AuthorityScope{
 			Enforced:   true,
@@ -137,6 +141,7 @@ func (m *Manager) prepareSpawn(
 	if normalized.Speed == "" {
 		normalized.Speed = parent.Speed
 	}
+	normalized.InheritedWorktreeID = strings.TrimSpace(parent.WorktreeID)
 	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
@@ -153,6 +158,9 @@ func (m *Manager) prepareSpawn(
 	normalized, lineage, err = m.dispatchSpawnPreCreate(ctx, parent, normalized, lineage)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
+	}
+	if strings.TrimSpace(normalized.InheritedWorktreeID) != strings.TrimSpace(parent.WorktreeID) {
+		return SpawnOpts{}, nil, nil, spawnValidation("inherited worktree binding is immutable")
 	}
 	normalized, err = m.validateSpawnWorkspace(ctx, parent, normalized)
 	if err != nil {

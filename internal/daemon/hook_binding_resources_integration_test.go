@@ -152,35 +152,32 @@ func TestHookBindingResourceReconcileFiresPermissionHooksThroughSessionNotifier(
 	}
 
 	sessionValue := integrationSession()
-	h.notifier.OnAgentEventForSession(testutil.Context(t), sessionValue, acp.AgentEvent{
+	h.notifier.OnAgentEventForSession(testutil.Context(t), sessionValue, (acp.AgentEvent{
 		Type:      acp.EventTypePermission,
 		SessionID: "acp-session-1",
 		TurnID:    "turn-1",
-		RequestID: "perm-1",
 		Action:    "session/request_permission",
 		Resource:  "/tmp/secret.txt",
 		Raw:       mustMarshalJSON(t, permissionEventRaw("perm-1", "", "Read")),
-	})
-	h.notifier.OnAgentEventForSession(testutil.Context(t), sessionValue, acp.AgentEvent{
+	}).WithRequestID("perm-1"))
+	h.notifier.OnAgentEventForSession(testutil.Context(t), sessionValue, (acp.AgentEvent{
 		Type:      acp.EventTypePermission,
 		SessionID: "acp-session-1",
 		TurnID:    "turn-1",
-		RequestID: "perm-1",
 		Action:    "session/request_permission",
 		Resource:  "/tmp/secret.txt",
 		Decision:  "allow",
 		Raw:       mustMarshalJSON(t, permissionEventRaw("perm-1", "allow", "Read")),
-	})
-	h.notifier.OnAgentEventForSession(testutil.Context(t), sessionValue, acp.AgentEvent{
+	}).WithRequestID("perm-1"))
+	h.notifier.OnAgentEventForSession(testutil.Context(t), sessionValue, (acp.AgentEvent{
 		Type:      acp.EventTypePermission,
 		SessionID: "acp-session-1",
 		TurnID:    "turn-1",
-		RequestID: "perm-1",
 		Action:    "session/request_permission",
 		Resource:  "/tmp/secret.txt",
 		Decision:  "deny",
 		Raw:       mustMarshalJSON(t, permissionEventRaw("perm-1", "deny", "Read")),
-	})
+	}).WithRequestID("perm-1"))
 
 	select {
 	case payload := <-requests:

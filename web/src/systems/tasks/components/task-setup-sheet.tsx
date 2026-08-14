@@ -25,6 +25,7 @@ export interface TaskSetupSheetProps {
   profileLoading?: boolean;
   profileErrorMessage?: string | null;
   hasActiveRun: boolean;
+  activeRunId?: string;
   isSetPending?: boolean;
   isDeletePending?: boolean;
   clearOpen: boolean;
@@ -32,6 +33,9 @@ export interface TaskSetupSheetProps {
   onClearProfile: () => Promise<void>;
   editor: TaskProfileEditor;
   runtime: TaskSetupFormProps["runtime"];
+  /** Absent when the workspace is not git-backed — there is no worktree to choose. */
+  worktreePolicy?: TaskSetupFormProps["worktreePolicy"];
+  worktreePolicyValid?: boolean;
 }
 
 /**
@@ -48,6 +52,7 @@ export function TaskSetupSheet({
   profileLoading = false,
   profileErrorMessage = null,
   hasActiveRun,
+  activeRunId,
   isSetPending = false,
   isDeletePending = false,
   clearOpen,
@@ -55,8 +60,11 @@ export function TaskSetupSheet({
   onClearProfile,
   editor,
   runtime,
+  worktreePolicy,
+  worktreePolicyValid = true,
 }: TaskSetupSheetProps) {
   const [showJson, setShowJson] = useState(false);
+  const saving = isSetPending || Boolean(worktreePolicy?.pending);
 
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
@@ -84,8 +92,15 @@ export function TaskSetupSheet({
               data-testid="tasks-setup-locked"
             >
               <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
-              Editing is locked while a run is active. Cancel the current run before changing the
-              setup.
+              {activeRunId ? (
+                <span>
+                  Editing is locked while run{" "}
+                  <span className="font-mono text-fg">{activeRunId}</span> is active. Cancel the
+                  current run before changing the setup.
+                </span>
+              ) : (
+                "Editing is locked while a run is active. Cancel the current run before changing the setup."
+              )}
             </div>
           ) : null}
 
@@ -94,20 +109,29 @@ export function TaskSetupSheet({
           ) : profileErrorMessage && !profile ? (
             <p className="text-small-body text-danger">{profileErrorMessage}</p>
           ) : profile ? (
-            <TaskSetupProfileView profile={profile} />
+            <TaskSetupProfileView
+              profile={profile}
+              worktrees={worktreePolicy?.worktrees}
+              showWorktree={Boolean(worktreePolicy)}
+            />
           ) : (
             <p className="text-small-body text-muted" data-testid="tasks-setup-empty">
               No custom setup. Runs inherit the workspace defaults for worker, model, and sandbox.
             </p>
           )}
 
-          {editor.open && editor.value ? (
+          {editor.open && editor.value && !hasActiveRun ? (
             <div className="mt-2 flex flex-col gap-2" data-testid="tasks-setup-editor">
-              <TaskSetupForm onChange={editor.setValue} runtime={runtime} value={editor.value} />
+              <TaskSetupForm
+                onChange={editor.setValue}
+                runtime={runtime}
+                value={editor.value}
+                worktreePolicy={worktreePolicy}
+              />
               <div className="flex items-center justify-end gap-2">
                 <Button
-                  aria-busy={isSetPending || undefined}
-                  disabled={isSetPending}
+                  aria-busy={saving || undefined}
+                  disabled={saving}
                   onClick={() => editor.setOpen(false)}
                   size="sm"
                   type="button"
@@ -117,14 +141,24 @@ export function TaskSetupSheet({
                 </Button>
                 <Button
                   data-testid="tasks-setup-editor-save"
-                  disabled={isSetPending}
+                  disabled={saving || !worktreePolicyValid}
                   onClick={() => void editor.submit()}
                   size="sm"
                   type="button"
                 >
-                  {isSetPending ? "Saving…" : "Save setup"}
+                  {saving ? "Saving…" : "Save setup"}
                 </Button>
               </div>
+            </div>
+          ) : hasActiveRun && profile ? (
+            <div className="mt-2 flex flex-col gap-2" data-testid="tasks-setup-editor">
+              <TaskSetupForm
+                disabled
+                onChange={editor.setValue}
+                runtime={runtime}
+                value={{ ...profile, task_id: profile.task_id }}
+                worktreePolicy={worktreePolicy ? { ...worktreePolicy, locked: true } : undefined}
+              />
             </div>
           ) : showJson && profile ? (
             <div className="mt-2" data-testid="tasks-setup-json">

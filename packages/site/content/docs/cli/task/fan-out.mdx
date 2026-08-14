@@ -11,16 +11,29 @@ Enqueue designated sibling runs for one task
 compozy task fan-out <task-id> [flags]
 ```
 
+### Examples
+
+```
+  # Enqueue two sibling runs in separate worktrees
+  compozy task fan-out task_123 --worktree-per-run \
+    --idempotency-key review-task-123-v1 \
+    --designation "Review the API" --designation "Review the web app"
+
+  # Output example
+  compozy task fan-out task_123 --worktree-per-run --idempotency-key review-task-123-v1 --designation "Review the API"
+```
+
 ### Options
 
 ```
       --designation stringArray           Designation brief for one sibling run; repeatable
   -h, --help                              help for fan-out
-      --idempotency-key string            Optional fan-out idempotency key
+      --idempotency-key string            Fan-out idempotency key
       --network string                    Network participation mode: local or live
       --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
       --network-channel string            Named channel id when strategy is named
       --network-channel-strategy string   Live channel strategy: named, run, or loop_run
+      --worktree-per-run                  Create a dedicated worktree for each run
 ```
 
 ### Options inherited from parent commands
@@ -44,5 +57,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy task fan-out <task-id> -o json
+compozy task fan-out task_123 --worktree-per-run --idempotency-key review-task-123-v1 --designation "Review the API" -o json
 ```

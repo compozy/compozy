@@ -137,6 +137,7 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			NetworkParticipation: daemonTestLiveParticipationPtr("ws-parity", "design-review"),
 			Title:                "Parity task",
 			Capabilities:         []string{"frontend"},
+			Worktree:             taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModeNone},
 			Profile: &taskpkg.ExecutionProfile{
 				TaskID: "task-parity",
 				Worker: taskpkg.WorkerProfile{
@@ -165,7 +166,7 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			SandboxRef:      "evidence-lab",
 			DisableSandbox:  false,
 			Permissions:     compozyconfig.PermissionModeApproveAll,
-			Name:            "task-role:frontend-engineer:run-parity:63e604975a4c215d",
+			Name:            "task-role:frontend-engineer:run-parity:0307ba9fbba159c9",
 			Workspace:       "ws-parity",
 			WorkspacePath:   "",
 			NetworkOwnerKey: "task_run:run-parity",

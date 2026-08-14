@@ -12,6 +12,7 @@ const taskListInputSchema = `{
 		"owner_kind":{"type":"string"},
 		"owner_ref":{"type":"string"},
 		"parent_task_id":{"type":"string"},
+		"worktree":{"type":"string"},
 		"participation_channel":{"type":"string"},
 		"search":{"type":"string"},
 		"sort":{"type":"string","enum":["recent","priority"]},

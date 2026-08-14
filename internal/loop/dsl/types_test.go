@@ -143,7 +143,7 @@ func TestNodeParamsShouldDecodePerKindSchemas(t *testing.T) {
 			"agent":         "codex",
 			"prompt":        "Ship it",
 			"output_schema": map[string]any{"summary": "string"},
-			"cwd":           "/repo",
+			"environment":   map[string]any{"mode": "directory", "directory": "packages/api"},
 			"model":         "gpt-5",
 			"allowed_tools": []string{"compozy__task_read"},
 			"max_turns":     3,
@@ -157,6 +157,10 @@ func TestNodeParamsShouldDecodePerKindSchemas(t *testing.T) {
 		}
 		if got := agentParams.OutputSchema["summary"]; got != "string" {
 			t.Fatalf("OutputSchema[summary] = %#v, want string", got)
+		}
+		if agentParams.Environment.Mode != dsl.EnvironmentDirectory ||
+			agentParams.Environment.Directory != "packages/api" {
+			t.Fatalf("Environment = %#v, want contained directory", agentParams.Environment)
 		}
 		if len(agentParams.AllowedTools) != 1 || agentParams.AllowedTools[0] != "compozy__task_read" {
 			t.Fatalf("AllowedTools = %#v, want compozy__task_read", agentParams.AllowedTools)

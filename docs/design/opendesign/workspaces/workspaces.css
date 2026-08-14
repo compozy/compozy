@@ -15,6 +15,13 @@
      horizontal track with edge fades, not a second line.
      Current = check, not accent border.
      New workspace is a trailing dashed tile, never a second primary.
+     Worktrees = a subordinate VERTICAL menu, always visible under the
+     caption for the focused git-backed workspace (zero worktrees → only
+     the quiet New worktree button; non-git → nothing). Same projection
+     as S1/S2/S3 (worktree/DESIGN-NOTES.md): state enum ready · pending ·
+     discovered · missing · error, adopted-only counts, locked sort,
+     truncate at 5 + "All N worktrees". Never a horizontal strip — the
+     worktrees must not compete with the workspace tiles.
    ============================================================ */
 
 /* ---- domain tokens (derived from ds-core / ds-shell only) ---- */
@@ -74,6 +81,11 @@
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:24px 16px 80px;
 }
+/* the strip sits ABOVE dead center: a reserved band below the stage keeps
+   room for the worktree menu plus breathing space before the bottom-pinned
+   shortcut hints. Labs render the menu in flow — no reserve there. */
+.wsov::after{content:"";flex:0 0 clamp(160px, 30vh, 300px)}
+.stage .wsov::after{content:none}
 .wsov-stage{
   display:flex;flex-direction:column;align-items:center;
   width:min(1080px, calc(100% - 32px));
@@ -238,6 +250,157 @@
 .wsov-tile--add:focus-visible .wsov-well--add{color:var(--fg-strong)}
 .wsov-well--add svg{width:18px;height:18px}
 
+/* ============ WORKTREE MENU (vertical, subordinate) ============
+   gating: GET /api/workspaces/:id/worktrees → {worktrees[], discovered[],
+   repo.git_backed}. The menu of the FOCUSED git-backed workspace is ALWAYS
+   visible under the caption — no disclosure gesture. Zero worktrees → only
+   the quiet "New worktree" button. Non-git → nothing (absent, never
+   disabled). Rows mirror worktree.css .wt-row nest density (30px) — the
+   S1/S2/S3 projection. Never a horizontal strip: worktrees must not
+   compete with the workspace tiles for visual weight. */
+/* zero-height slot: the menu hangs below the caption without shifting the
+   centered strip when its height changes between workspaces */
+.wsov-below{
+  width:100%;height:0;overflow:visible;
+  display:flex;justify-content:center;align-items:flex-start;
+}
+.wsov-below--flow{height:auto}
+.wsov-menu{
+  position:relative;
+  width:340px;max-width:calc(100vw - 48px);
+  margin-top:4px;padding:5px;
+  background:var(--shell-glass-pop);
+  backdrop-filter:blur(30px) saturate(1.25);
+  border:1px solid var(--line-strong);
+  border-radius:12px;
+  box-shadow:var(--shadow-overlay),var(--highlight);
+  animation:wsov-menu-in .16s var(--ease);
+}
+@keyframes wsov-menu-in{from{opacity:0;transform:translateY(-3px)}}
+/* lone create entry — git-backed, zero worktrees */
+.wsov-newbtn{
+  display:inline-flex;align-items:center;gap:6px;
+  height:28px;margin-top:8px;padding:0 12px;
+  border:1px dashed var(--line-strong);border-radius:var(--radius-md);
+  font-size:11.5px;font-weight:500;color:var(--muted);
+  background:transparent;white-space:nowrap;
+  animation:wsov-menu-in .16s var(--ease);
+}
+.wsov-newbtn:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.wsov-newbtn:focus-visible,.wsov-newbtn.is-on{background:var(--btn-fill);color:var(--fg-strong);outline:none}
+.wsov-newbtn svg{width:12px;height:12px}
+
+/* ---- rows ---- */
+.wsov-mrow{
+  display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;gap:8px;
+  width:100%;min-height:30px;padding:4px 9px;border-radius:8px;
+  color:var(--fg);text-align:left;user-select:none;
+  transition:background var(--dur) var(--ease);
+}
+.wsov-mrow[data-nav]{cursor:pointer}
+.wsov-mrow:hover{background:var(--row-hover)}
+.wsov-mrow.is-on,.wsov-mrow:focus-visible{background:var(--row-selected);outline:none}
+.wsov-mrow[data-inert]{cursor:default}
+.wsov-mrow[data-inert]:hover{background:transparent}
+/* worktree rows are two lines: name · then chip + path (S5 full anatomy,
+   demoted to menu scale). Dot pins to the first line optically. */
+.wsov-mrow--wt{min-height:44px;padding:6px 9px}
+.wsov-mrow--wt .wsov-mdot{align-self:start;margin-top:4px}
+.wsov-mmain{min-width:0;display:flex;flex-direction:column;gap:2px}
+.wsov-mname{display:flex;align-items:center;gap:7px;min-width:0}
+.wsov-mname b{font-size:12.5px;font-weight:550;letter-spacing:-.008em;color:var(--fg-strong);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wsov-mrow[data-state="missing"] .wsov-mname b{color:var(--muted)}
+.wsov-mline2{display:flex;align-items:center;gap:6px;min-width:0}
+.wsov-mpath{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.wsov-mtrail{display:flex;align-items:center;gap:7px;flex:none}
+
+/* state dot — single source of shape truth: worktree.css .wt-dot */
+.wsov-mdot{width:7px;height:7px;justify-self:center;border-radius:50%;background:var(--success)}
+.wsov-mdot[data-state="pending"]{width:5.5px;height:5.5px;border-radius:1px;transform:rotate(45deg);background:var(--warning)}
+.wsov-mdot[data-state="discovered"],
+.wsov-mdot[data-state="missing"]{background:transparent;box-shadow:inset 0 0 0 1.4px var(--info)}
+.wsov-mdot[data-state="error"]{border-radius:1.5px;background:var(--danger)}
+
+/* one trailing signal max — agent → ahead/behind → merged → setup flag
+   (worktree-signals.tsx priority); agent dot = runtime state, not decoration */
+.wsov-magent{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+@keyframes wsov-magent-pulse{50%{opacity:.35}}
+.wsov-magent[data-live="running"]{animation:wsov-magent-pulse 1.6s var(--ease) infinite}
+.wsov-magent[data-live="wait"]{background:transparent;box-shadow:inset 0 0 0 1.4px var(--accent)}
+.wsov-mab{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);font-variant-numeric:tabular-nums}
+.wsov-mab .behind::before{content:"↓";margin-right:1px;color:var(--faint)}
+.wsov-mab .behind[data-hot]{color:var(--warning)}
+.wsov-mab .ahead::before{content:"↑";margin-right:1px;color:var(--faint)}
+.wsov-mmerged{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--success)}
+.wsov-mmerged svg{width:12px;height:12px}
+.wsov-mflag{display:inline-flex;align-items:center;color:var(--warning)}
+.wsov-mflag svg{width:11px;height:11px}
+
+/* non-ready vocabulary — small chip on the second line, functional reason in
+   the right lane (never hover-only); pending/missing are inert, skipped by arrows */
+.wsov-mchip{display:inline-flex;align-items:center;height:14px;padding:0 5px;border-radius:var(--radius-xxs);
+  font-size:8.5px;font-weight:600;letter-spacing:.02em;flex:none}
+.wsov-mchip[data-state="pending"]{background:var(--warning-tint);color:var(--warning)}
+.wsov-mchip[data-state="discovered"]{background:var(--info-tint);color:var(--info)}
+.wsov-mchip[data-state="missing"]{background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--info)}
+.wsov-mwhy{font-family:var(--font-mono);font-size:9px;color:var(--faint)}
+/* adopt-on-select affordance — revealed on hover/focus (US-009/ADR-002) */
+.wsov-madopt{font-size:10.5px;font-weight:600;color:var(--info);opacity:0;transition:opacity var(--dur)}
+.wsov-mrow:hover .wsov-madopt,.wsov-mrow.is-on .wsov-madopt,.wsov-mrow:focus-visible .wsov-madopt{opacity:1}
+
+/* scoped worktree — the check moves into the menu (one marker per layer) */
+.wsov-mcheck{width:13px;height:13px;color:var(--fg-strong)}
+.wsov-mcheck svg{width:13px;height:13px;display:block}
+
+/* row actions — kebab revealed on hover/focus, popover with Copy path ·
+   Delete. Real flows own the dialogs (remove force-refusals, S13) —
+   here the actions are prototype toasts + clipboard. */
+.wsov-mkebab{
+  width:22px;height:22px;flex:none;
+  display:grid;place-items:center;border-radius:6px;
+  color:var(--faint);opacity:0;
+  transition:opacity var(--dur) var(--ease),background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.wsov-mkebab svg{width:13px;height:13px}
+.wsov-mrow:hover .wsov-mkebab,.wsov-mrow.is-on .wsov-mkebab,
+.wsov-mrow:focus-within .wsov-mkebab,.wsov-mkebab[aria-expanded="true"]{opacity:1}
+.wsov-mkebab:hover,.wsov-mkebab[aria-expanded="true"]{background:var(--btn-fill);color:var(--fg-strong)}
+.wsov-mkebab:focus-visible{opacity:1;background:var(--btn-fill);color:var(--fg-strong);outline:none}
+.wsov-actions{
+  position:absolute;right:8px;z-index:5;min-width:168px;
+  background:var(--shell-glass-pop);
+  backdrop-filter:blur(30px) saturate(1.25);
+  border:1px solid var(--line-strong);border-radius:10px;
+  box-shadow:var(--shadow-overlay);
+  padding:4px;
+  animation:wsov-menu-in .14s var(--ease);
+}
+.wsov-actitem{
+  display:flex;align-items:center;gap:8px;width:100%;
+  height:28px;padding:0 9px;border-radius:7px;
+  font-size:12px;font-weight:500;color:var(--fg);text-align:left;
+  transition:background var(--dur) var(--ease);
+}
+.wsov-actitem:hover,.wsov-actitem:focus-visible{background:var(--row-hover);outline:none}
+.wsov-actitem svg{width:13px;height:13px;color:var(--subtle)}
+.wsov-actitem--danger{color:var(--danger)}
+.wsov-actitem--danger svg{color:var(--danger)}
+.wsov-actitem--danger:hover{background:var(--danger-tint)}
+
+/* quiet footer rows — All N worktrees · New worktree */
+.wsov-msep{height:1px;margin:4px 6px;background:var(--line-soft)}
+.wsov-mrow--foot svg{width:12px;height:12px;color:var(--subtle);justify-self:center}
+.wsov-mrow--foot .wsov-mname b{font-weight:500;font-size:11.5px;color:var(--muted)}
+.wsov-mrow--foot:hover .wsov-mname b,.wsov-mrow--foot.is-on .wsov-mname b,
+.wsov-mrow--foot:focus-visible .wsov-mname b{color:var(--fg-strong)}
+
+/* parent tile branch badge — current workspace while a worktree is the scope */
+.wsov-check .ic-branch{display:none}
+.wsov-tile[data-current="wt"] .wsov-check .ic-check{display:none}
+.wsov-tile[data-current="wt"] .wsov-check .ic-branch{display:block}
+
 /* caption under the strip — identity of the focused tile, once */
 .wsov-caption{
   display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -256,8 +419,11 @@
 @keyframes wsov-cap-swap{from{opacity:0;transform:translateY(3px)}}
 
 .wsov-hint{
+  /* pinned to the page bottom (overlay is the fixed containing block),
+     out of the stage flow — the strip + caption stay centered */
+  position:absolute;left:16px;right:16px;bottom:26px;
   display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
-  margin-top:18px;font-size:11px;color:var(--muted);
+  font-size:11px;color:var(--muted);
 }
 .wsov-hint kbd{
   font-size:10px;color:var(--muted);
@@ -338,13 +504,16 @@
   .wsov-caption{min-height:48px}
 }
 @media (prefers-reduced-motion:reduce){
-  .wsov-stage,.wsov-toast,.wsov-caption.is-swap > *{animation:none}
-  .wsov-well,.wsov-tile,.wsov-edge{transition:none}
+  .wsov-stage,.wsov-toast,.wsov-caption.is-swap > *,.wsov-menu,.wsov-newbtn,.wsov-magent[data-live="running"]{animation:none}
+  .wsov-well,.wsov-tile,.wsov-edge,.wsov-mrow{transition:none}
   .wsov-tile.is-on .wsov-well,.wsov-tile:active .wsov-well{transform:none}
   .wsov-track{scroll-behavior:auto;scroll-snap-type:none}
 }
 body[data-motion="reduced"] .wsov-stage,
 body[data-motion="reduced"] .wsov-toast,
+body[data-motion="reduced"] .wsov-menu,
+body[data-motion="reduced"] .wsov-newbtn,
+body[data-motion="reduced"] .wsov-magent[data-live="running"],
 body[data-motion="reduced"] .wsov-caption.is-swap > *{animation:none}
 body[data-motion="reduced"] .wsov-track{scroll-behavior:auto;scroll-snap-type:none}
 

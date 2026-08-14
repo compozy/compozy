@@ -12,55 +12,90 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 	ctx context.Context,
 	req looppkg.ActionSessionBindRequest,
 	pinnedProfileRef string,
-) (store.SessionCreationProfile, session.CreateOpts, error) {
+) (store.SessionCreationProfile, session.CreateOpts, *worktree.Worktree, error) {
 	agent := strings.TrimSpace(req.Agent)
 	var opts session.CreateOpts
+	var materialized *worktree.Worktree
 	if strings.TrimSpace(pinnedProfileRef) != "" {
 		profile, err := b.creationStore.GetSessionCreationProfile(ctx, pinnedProfileRef)
 		if err != nil {
-			return store.SessionCreationProfile{}, session.CreateOpts{}, err
+			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 		}
 		if err := validatePinnedRuntime(req.Runtime, profile); err != nil {
-			return store.SessionCreationProfile{}, session.CreateOpts{}, err
+			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 		}
 		agent = profile.AgentName
 		opts = createOptionsFromProfile(req, profile)
-	} else {
-		if agent == "" {
-			return store.SessionCreationProfile{}, session.CreateOpts{}, fmt.Errorf(
-				"%w: managed Goal agent is required",
-				looppkg.ErrValidation,
-			)
+		pinnedCWD := opts.CWD
+		pinnedWorktree := opts.Worktree
+		opts.CWD = ""
+		opts.Worktree = ""
+		resolution, err := b.policyGate.applyResolved(ctx, &opts, agent, opts.AllowedToolsOverride)
+		if err != nil {
+			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 		}
-		opts = b.baseCreateOptions(req, agent, loopManagedGoalKind)
+		opts.CWD = pinnedCWD
+		opts.Worktree = pinnedWorktree
+		return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, &resolution, nil)
 	}
+	if agent == "" {
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, fmt.Errorf(
+			"%w: managed Goal agent is required",
+			looppkg.ErrValidation,
+		)
+	}
+	opts = b.baseCreateOptions(req, agent, loopManagedGoalKind)
 	resolution, err := b.policyGate.applyResolved(ctx, &opts, agent, opts.AllowedToolsOverride)
 	if err != nil {
-		return store.SessionCreationProfile{}, session.CreateOpts{}, err
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 	}
-	profile := profileFromPolicyResolution(opts, &resolution)
+	materialized, err = b.applyLoopActionEnvironment(ctx, &opts, req)
+	if err != nil {
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
+	}
+	return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, &resolution, materialized)
+}
+
+func (b *loopActionSessionBinder) validateLoopCreationProfile(
+	ctx context.Context,
+	req looppkg.ActionSessionBindRequest,
+	pinnedProfileRef string,
+	opts session.CreateOpts,
+	resolution *loopSessionPolicyResolution,
+	materialized *worktree.Worktree,
+) (store.SessionCreationProfile, session.CreateOpts, *worktree.Worktree, error) {
+	profile := profileFromPolicyResolution(opts, resolution)
 	profileRef, err := profile.Ref()
 	if err != nil {
-		return store.SessionCreationProfile{}, session.CreateOpts{}, err
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil,
+			b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
 	}
 	if pinned := strings.TrimSpace(pinnedProfileRef); pinned != "" && profileRef != pinned {
-		return store.SessionCreationProfile{}, session.CreateOpts{}, bindingMismatch("creation profile drifted")
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, bindingMismatch("creation profile drifted")
 	}
 	policyDigest, err := profile.PolicySpecDigest()
 	if err != nil {
-		return store.SessionCreationProfile{}, session.CreateOpts{}, err
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil,
+			b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
 	}
 	if staticDigest := strings.TrimSpace(req.StaticPolicySpecDigest); staticDigest != "" &&
 		staticDigest != policyDigest {
-		return store.SessionCreationProfile{}, session.CreateOpts{}, bindingMismatch("static policy digest drifted")
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil,
+			b.rollbackLoopActionEnvironment(
+				ctx,
+				req,
+				materialized,
+				bindingMismatch("static policy digest drifted"),
+			)
 	}
-	return profile, opts, nil
+	return profile, opts, materialized, nil
 }
 
 func (b *loopActionSessionBinder) baseCreateOptions(
@@ -73,7 +108,6 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 		Provider:                     strings.TrimSpace(req.Runtime.Provider),
 		Model:                        strings.TrimSpace(req.Runtime.Model),
 		ReasoningEffort:              strings.TrimSpace(req.Runtime.Reasoning),
-		CWD:                          strings.TrimSpace(req.CWD),
 		Name:                         loopRuntimeSessionName(kind, agent, req.Handle),
 		ResolvedNetworkParticipation: req.NetworkParticipation,
 		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
@@ -84,6 +118,7 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 		ContractOverlay: strings.TrimSpace(req.ContractBlock),
 		Type:            session.SessionTypeSystem,
 	}
+	applyLoopDirectoryBeforePolicy(&opts, req.EnvironmentValue())
 	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {
 		opts.Workspace = workspaceID
 	} else {
@@ -125,6 +160,7 @@ func createOptionsFromProfile(
 		Model:                        profile.Model,
 		ReasoningEffort:              profile.ReasoningEffort,
 		CWD:                          profile.CWD,
+		Worktree:                     profile.WorktreeRef,
 		SandboxRef:                   profile.SandboxRef,
 		DisableSandbox:               profile.SandboxMode == store.SessionCreationSandboxNone,
 		Permissions:                  compozyconfig.PermissionMode(profile.Permissions),
@@ -164,6 +200,7 @@ func profileFromPolicyResolution(
 		ReasoningEffort: opts.ReasoningEffort,
 		WorkspaceID:     resolution.workspace.ID,
 		CWD:             opts.CWD,
+		WorktreeRef:     opts.Worktree,
 		SandboxMode:     sandboxMode,
 		SandboxRef:      sandboxRef,
 		Permissions:     permissions,

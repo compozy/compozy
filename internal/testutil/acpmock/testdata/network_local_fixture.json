@@ -8,6 +8,19 @@
             "prompt": "You are a deterministic Local execution probe.",
             "turns": [
                 {
+                    "name": "bootstrap",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "noop"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "noop"
+                        }
+                    ]
+                },
+                {
                     "name": "local-session-probe",
                     "match": {
                         "turn_source": "user",
@@ -30,6 +43,38 @@
                         {
                             "kind": "assistant",
                             "text": "```json\n{\"summary\":\"local loop complete\",\"message\":\"local loop result\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "worktree-exit-write",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "write exit journey file"
+                    },
+                    "steps": [
+                        {
+                            "kind": "sandbox_exec",
+                            "tool_call_id": "worktree-exit-write",
+                            "title": "Write the worktree exit marker",
+                            "command": "sh",
+                            "args": ["-c", "printf 'written by bound agent\\n' > agent.txt"]
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "Worktree exit marker written."
+                        }
+                    ]
+                },
+                {
+                    "name": "task-claim-handoff",
+                    "match": {
+                        "turn_source": "synthetic"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "task handoff accepted"
                         }
                     ]
                 }

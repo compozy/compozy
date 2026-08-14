@@ -514,18 +514,25 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 
 		claimedAt := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 		run := taskpkg.Run{
-			ID:                 "run-lease",
-			TaskID:             "task-lease",
-			Status:             taskpkg.TaskRunStatusRunning,
-			Attempt:            1,
-			RecoveryCount:      2,
-			ClaimedBy:          &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
-			SessionID:          "sess-lease",
-			Origin:             taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-			ClaimTokenHash:     "sha256:" + strings.Repeat("c", 64),
-			LeaseUntil:         claimedAt.Add(15 * time.Minute),
-			HeartbeatAt:        claimedAt.Add(time.Minute),
-			RunNetworkState:    &taskpkg.RunNetworkState{NetworkSpec: coreTestLiveParticipation("ws-1", "coord-lease")},
+			ID:            "run-lease",
+			TaskID:        "task-lease",
+			Status:        taskpkg.TaskRunStatusRunning,
+			Attempt:       1,
+			RecoveryCount: 2,
+			ClaimedBy:     &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
+			SessionID:     "sess-lease",
+			RunWorktreeState: &taskpkg.RunWorktreeState{
+				WorktreeID:           "wt-run-lease",
+				ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
+				ResolvedWorktreeRef:  "feature/lease",
+			},
+			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+			ClaimTokenHash: "sha256:" + strings.Repeat("c", 64),
+			LeaseUntil:     claimedAt.Add(15 * time.Minute),
+			HeartbeatAt:    claimedAt.Add(time.Minute),
+			RunNetworkState: &taskpkg.RunNetworkState{
+				NetworkSpec: coreTestLiveParticipation("ws-1", "coord-lease"),
+			},
 			QueuedAt:           claimedAt.Add(-time.Minute),
 			ClaimedAt:          claimedAt,
 			StartedAt:          claimedAt.Add(time.Minute),
@@ -550,6 +557,11 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 		}
 		if payload.RecoveryCount != int(run.RecoveryCount) {
 			t.Fatalf("RecoveryCount = %d, want %d", payload.RecoveryCount, run.RecoveryCount)
+		}
+		if payload.WorktreeID != run.WorktreeIDValue() ||
+			payload.ResolvedWorktreeMode != contract.ResolvedWorktreeMode(run.ResolvedWorktreeModeValue()) ||
+			payload.ResolvedWorktreeRef != run.ResolvedWorktreeRefValue() {
+			t.Fatalf("worktree projection = %#v, want run snapshot %#v", payload, run)
 		}
 		if payload.ResolvedNetworkParticipation == nil ||
 			payload.ResolvedNetworkParticipation.ChannelID != run.NetworkSpecSnapshot().ChannelID {

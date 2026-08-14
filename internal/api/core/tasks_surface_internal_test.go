@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -42,7 +43,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		ginCtx.Request = httptest.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
-			"/tasks?scope=workspace&workspace=alpha&status=ready&priority=high&include_drafts=true&approval_state=pending&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&participation_channel=builders&query=review&limit=7",
+			"/tasks?scope=workspace&workspace=alpha&status=ready&priority=high&include_drafts=true&approval_state=pending&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&worktree=wt-alpha&participation_channel=builders&query=review&limit=7",
 			http.NoBody,
 		)
 
@@ -66,6 +67,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			domainQuery.OwnerKind != taskpkg.OwnerKindPool ||
 			domainQuery.OwnerRef != "reviewers" ||
 			domainQuery.ParentTaskID != "task-root" ||
+			domainQuery.WorktreeID != "wt-alpha" ||
 			domainQuery.ParticipationChannel != "builders" ||
 			domainQuery.Search != "review" ||
 			domainQuery.Limit != 7 {
@@ -166,7 +168,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		dashboardCtx.Request = httptest.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
-			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&participation_channel=builders&origin_kind=http",
+			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&worktree=wt-alpha&owner_kind=human&owner_ref=alice&participation_channel=builders&origin_kind=http",
 			http.NoBody,
 		)
 
@@ -174,7 +176,8 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ParseTaskDashboardQuery() error = %v", err)
 		}
-		if dashboardQuery.OriginKind != taskpkg.OriginKindHTTP ||
+		if dashboardQuery.Worktree != "wt-alpha" ||
+			dashboardQuery.OriginKind != taskpkg.OriginKindHTTP ||
 			dashboardQuery.ParticipationChannel != "builders" {
 			t.Fatalf("ParseTaskDashboardQuery() = %#v", dashboardQuery)
 		}
@@ -185,6 +188,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		}
 		if domainDashboard.Scope != taskpkg.ScopeWorkspace ||
 			domainDashboard.WorkspaceID != "ws-alpha" ||
+			domainDashboard.WorktreeID != "wt-alpha" ||
 			domainDashboard.OwnerKind != taskpkg.OwnerKindHuman ||
 			domainDashboard.OwnerRef != "alice" ||
 			domainDashboard.ParticipationChannel != "builders" ||
@@ -197,7 +201,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		inboxCtx.Request = httptest.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
-			"/observe/tasks/inbox?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&lane=approvals&unread=true&query=approve&limit=4",
+			"/observe/tasks/inbox?scope=workspace&workspace=alpha&worktree=wt-alpha&owner_kind=human&owner_ref=alice&lane=approvals&unread=true&query=approve&limit=4",
 			http.NoBody,
 		)
 
@@ -205,7 +209,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ParseTaskInboxQuery() error = %v", err)
 		}
-		if inboxQuery.Lane != "approvals" || inboxQuery.Unread == nil ||
+		if inboxQuery.Worktree != "wt-alpha" || inboxQuery.Lane != "approvals" || inboxQuery.Unread == nil ||
 			!*inboxQuery.Unread || inboxQuery.Query != "approve" {
 			t.Fatalf("ParseTaskInboxQuery() = %#v", inboxQuery)
 		}
@@ -216,6 +220,7 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 		}
 		if domainInbox.Scope != taskpkg.CatalogScopeWorkspace ||
 			domainInbox.WorkspaceID != "ws-alpha" ||
+			domainInbox.WorktreeID != "wt-alpha" ||
 			domainInbox.OwnerKind != taskpkg.OwnerKindHuman ||
 			domainInbox.OwnerRef != "alice" ||
 			domainInbox.Lane != observe.TaskInboxLaneApprovals ||
@@ -229,6 +234,58 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 
 func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should require workspace scope for a worktree filter", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newExpandedTaskHandlers(nil)
+		recorder := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(recorder)
+		ginCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/tasks?worktree=wt-alpha",
+			http.NoBody,
+		)
+
+		if _, err := ParseTaskListQuery(ginCtx); err == nil {
+			t.Fatal("ParseTaskListQuery(worktree without workspace) error = nil, want non-nil")
+		} else {
+			assertTaskValidationError(t, err, "workspace")
+		}
+		if _, err := handlers.taskListDomainQuery(
+			context.Background(),
+			contract.TaskListQuery{Worktree: "wt-alpha"},
+		); err == nil {
+			t.Fatal("taskListDomainQuery(worktree without workspace) error = nil, want non-nil")
+		} else {
+			assertTaskValidationError(t, err, "workspace")
+		}
+
+		for _, path := range []string{
+			"/observe/tasks/dashboard?worktree=wt-alpha",
+			"/observe/tasks/inbox?worktree=wt-alpha",
+		} {
+			recorder := httptest.NewRecorder()
+			queryCtx, _ := gin.CreateTestContext(recorder)
+			queryCtx.Request = httptest.NewRequestWithContext(
+				context.Background(),
+				http.MethodGet,
+				path,
+				http.NoBody,
+			)
+			var err error
+			if strings.Contains(path, "dashboard") {
+				_, err = ParseTaskDashboardQuery(queryCtx)
+			} else {
+				_, err = ParseTaskInboxQuery(queryCtx)
+			}
+			if err == nil {
+				t.Fatalf("parse %q error = nil, want non-nil", path)
+			}
+			assertTaskValidationError(t, err, "workspace")
+		}
+	})
 
 	t.Run("Should reject an invalid inbox lane", func(t *testing.T) {
 		t.Parallel()

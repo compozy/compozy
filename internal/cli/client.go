@@ -145,6 +145,7 @@ type DaemonClient interface {
 	GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error)
 	UpdateWorkspace(ctx context.Context, ref string, request WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	DeleteWorkspace(ctx context.Context, ref string) error
+	worktreeClientAPI
 	ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error)
 	GetAgent(ctx context.Context, name string, query AgentQuery) (AgentRecord, error)
 	CreateAgent(ctx context.Context, request contract.CreateAgentRequest) (AgentRecord, error)
@@ -319,6 +320,11 @@ type DaemonClient interface {
 		ctx context.Context,
 		id string,
 		request *TaskExecutionProfileRequest,
+	) (TaskExecutionProfileRecord, error)
+	SetTaskWorktreePolicy(
+		ctx context.Context,
+		id string,
+		request *TaskWorktreePolicyRequest,
 	) (TaskExecutionProfileRecord, error)
 	DeleteTaskExecutionProfile(ctx context.Context, id string) error
 	CreateTaskBridgeNotificationSubscription(

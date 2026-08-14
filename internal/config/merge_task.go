@@ -33,6 +33,7 @@ type taskOrchestrationProfileOverlay struct {
 	DefaultCoordinatorMode    *string `toml:"default_coordinator_mode"`
 	DefaultWorkerMode         *string `toml:"default_worker_mode"`
 	DefaultSandboxMode        *string `toml:"default_sandbox_mode"`
+	DefaultWorktreeMode       *string `toml:"default_worktree_mode"`
 	AllowTaskProviderOverride *bool   `toml:"allow_task_provider_override"`
 	AllowTaskSandboxNone      *bool   `toml:"allow_task_sandbox_none"`
 }
@@ -116,6 +117,9 @@ func (o taskOrchestrationProfileOverlay) Apply(dst *TaskOrchestrationProfileConf
 	}
 	if o.DefaultSandboxMode != nil {
 		dst.DefaultSandboxMode = *o.DefaultSandboxMode
+	}
+	if o.DefaultWorktreeMode != nil {
+		dst.DefaultWorktreeMode = *o.DefaultWorktreeMode
 	}
 	if o.AllowTaskProviderOverride != nil {
 		dst.AllowTaskProviderOverride = *o.AllowTaskProviderOverride

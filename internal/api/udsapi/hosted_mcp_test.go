@@ -167,6 +167,32 @@ func TestHostedMCPJSONToolErrors(t *testing.T) {
 			t.Fatalf("tool error payload used opaque backend fallback: %s", recorder.Body.String())
 		}
 	})
+
+	t.Run("Should keep terminal approval failures out of the success status range", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newApprovalRequiredHostedMCPToolRegistry(t)
+		router, service, peer := newHostedMCPRouteTestHarnessWithRegistry(t, registry)
+		bind := launchAndBindHostedMCP(t, service, peer, "sess-tool-approval")
+
+		recorder := postHostedMCPToolCall(t, router, peer, bind.BindID, "compozy__hosted_approval")
+
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
+		}
+		payload := decodeHostedMCPToolError(t, recorder)
+		if payload.Error.Code != toolspkg.ErrorCodeApprovalRequired {
+			t.Fatalf(
+				"error code = %q, want %q; payload=%#v",
+				payload.Error.Code,
+				toolspkg.ErrorCodeApprovalRequired,
+				payload,
+			)
+		}
+		if !slices.Contains(payload.Error.ReasonCodes, toolspkg.ReasonApprovalUnreachable) {
+			t.Fatalf("reason_codes = %#v, want %q", payload.Error.ReasonCodes, toolspkg.ReasonApprovalUnreachable)
+		}
+	})
 }
 
 func TestHostedMCPJSONRouteErrors(t *testing.T) {
@@ -448,6 +474,49 @@ func newDeniedHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 			SystemPermissionMode: toolspkg.PermissionModeApproveAll,
 			ApprovalAvailable:    true,
 			DenyTools:            []toolspkg.ToolPattern{denyPattern},
+		}, toolspkg.ToolsetCatalog{}),
+	)
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+	return registry
+}
+
+func newApprovalRequiredHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
+	t.Helper()
+
+	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: toolspkg.BuiltinSourceOwner}
+	descriptor := toolspkg.Descriptor{
+		ID:              "compozy__hosted_approval",
+		DisplayTitle:    "Hosted Approval",
+		Description:     "Approval-gated hosted test tool.",
+		InputSchema:     json.RawMessage(`{"type":"object","additionalProperties":false}`),
+		OutputSchema:    json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}}}`),
+		Backend:         toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "hosted_approval"},
+		Source:          source,
+		Visibility:      toolspkg.VisibilityModel,
+		Risk:            toolspkg.RiskMutating,
+		ConcurrencySafe: true,
+		Toolsets:        []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+	}
+	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
+		Descriptor: descriptor,
+		Call: func(
+			context.Context,
+			toolspkg.Scope,
+			toolspkg.CallRequest,
+		) (toolspkg.ToolResult, error) {
+			return toolspkg.ToolResult{Structured: json.RawMessage(`{"ok":true}`)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewNativeProvider() error = %v", err)
+	}
+	registry, err := toolspkg.NewRegistry(
+		toolspkg.WithProviders(provider),
+		toolspkg.WithPolicyInputs(toolspkg.PolicyInputs{
+			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
+			ApprovalAvailable:    true,
 		}, toolspkg.ToolsetCatalog{}),
 	)
 	if err != nil {

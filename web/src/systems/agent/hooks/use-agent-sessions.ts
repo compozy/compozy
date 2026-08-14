@@ -1,4 +1,6 @@
 import { type SessionPayload, useSessions } from "@/systems/session";
+import { useScopedWorktreeFilter } from "@/systems/workspace";
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 interface UseAgentSessionsOptions {
   enabled?: boolean;
@@ -28,13 +30,23 @@ export function useAgentSessions(
   options?: UseAgentSessionsOptions
 ): UseAgentSessionsResult {
   const enabled = (options?.enabled ?? true) && Boolean(workspaceId) && Boolean(agentName);
+  // This window's scope. `undefined` when the scope is the workspace root or the
+  // selection fell back, which drops the filter instead of sending an empty one.
+  const scopeId = useWorktreeScopeId();
+  const worktree = useScopedWorktreeFilter(workspaceId, scopeId, { enabled });
+  const queryEnabled = enabled && worktree.resolved;
   const sessionsQuery = useSessions(workspaceId, {
-    enabled,
-    filters: { agent: agentName, sort: "last_activity" },
+    enabled: queryEnabled,
+    filters: { agent: agentName, sort: "last_activity", worktree: worktree.worktreeId },
   });
   const archivedSessionsQuery = useSessions(workspaceId, {
-    enabled,
-    filters: { agent: agentName, archive: "only", sort: "last_activity" },
+    enabled: queryEnabled,
+    filters: {
+      agent: agentName,
+      archive: "only",
+      sort: "last_activity",
+      worktree: worktree.worktreeId,
+    },
   });
 
   return {
@@ -51,7 +63,8 @@ export function useAgentSessions(
     loadMoreArchived: () => {
       void archivedSessionsQuery.fetchNextPage();
     },
-    isLoading: sessionsQuery.isLoading || archivedSessionsQuery.isLoading,
+    isLoading:
+      (enabled && !worktree.resolved) || sessionsQuery.isLoading || archivedSessionsQuery.isLoading,
     isError: sessionsQuery.isError || archivedSessionsQuery.isError,
   };
 }

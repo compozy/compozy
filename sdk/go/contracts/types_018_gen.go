@@ -4,6 +4,51 @@ package contracts
 
 import "time"
 
+type RuntimeSelectionPayload struct {
+	Provider        string      `json:"provider"`
+	Model           string      `json:"model,omitempty"`
+	ReasoningEffort Effort      `json:"reasoning_effort,omitempty"`
+	Speed           Speed       `json:"speed,omitempty"`
+	SpeedResolution *Resolution `json:"speed_resolution,omitempty"`
+}
+
+type SandboxExecParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+	Command     string `json:"command"`
+	Timeout     int    `json:"timeout,omitempty"`
+}
+
+type SandboxExecResult struct {
+	ExitCode int    `json:"exit_code"`
+	Stdout   string `json:"stdout,omitempty"`
+	Stderr   string `json:"stderr,omitempty"`
+}
+
+type SandboxInfoParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+}
+
+type SandboxInfoResult struct {
+	SandboxID     string    `json:"sandbox_id"`
+	Backend       string    `json:"backend"`
+	Profile       string    `json:"profile"`
+	InstanceID    string    `json:"instance_id"`
+	RuntimeRoot   string    `json:"runtime_root"`
+	SyncState     string    `json:"sync_state"`
+	CreatedAt     time.Time `json:"created_at"`
+	LastSyncError string    `json:"last_sync_error"`
+}
+
+type SandboxListParams struct {
+	Workspace string `json:"workspace,omitempty"`
+}
+
+type SandboxListResult struct {
+	Sandboxes []SandboxSummary `json:"sandboxes"`
+}
+
 type SandboxObservationPatch struct{}
 
 type SandboxPreparePatch struct {
@@ -21,6 +66,7 @@ type SandboxPreparePayload struct {
 	AgentName           string                `json:"agent_name,omitempty"`
 	WorkspaceID         string                `json:"workspace_id,omitempty"`
 	Workspace           string                `json:"workspace,omitempty"`
+	WorktreeID          string                `json:"worktree_id,omitempty"`
 	ACPSessionID        string                `json:"acp_session_id,omitempty"`
 	State               string                `json:"state,omitempty"`
 	SoulSnapshotID      string                `json:"soul_snapshot_id,omitempty"`
@@ -63,6 +109,7 @@ type SandboxReadyPayload struct {
 	AgentName             string    `json:"agent_name,omitempty"`
 	WorkspaceID           string    `json:"workspace_id,omitempty"`
 	Workspace             string    `json:"workspace,omitempty"`
+	WorktreeID            string    `json:"worktree_id,omitempty"`
 	ACPSessionID          string    `json:"acp_session_id,omitempty"`
 	State                 string    `json:"state,omitempty"`
 	SoulSnapshotID        string    `json:"soul_snapshot_id,omitempty"`
@@ -91,6 +138,7 @@ type SandboxStopPayload struct {
 	AgentName      string    `json:"agent_name,omitempty"`
 	WorkspaceID    string    `json:"workspace_id,omitempty"`
 	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
 	ACPSessionID   string    `json:"acp_session_id,omitempty"`
 	State          string    `json:"state,omitempty"`
 	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
@@ -129,6 +177,7 @@ type SandboxSyncAfterPayload struct {
 	AgentName        string    `json:"agent_name,omitempty"`
 	WorkspaceID      string    `json:"workspace_id,omitempty"`
 	Workspace        string    `json:"workspace,omitempty"`
+	WorktreeID       string    `json:"worktree_id,omitempty"`
 	ACPSessionID     string    `json:"acp_session_id,omitempty"`
 	State            string    `json:"state,omitempty"`
 	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
@@ -163,6 +212,7 @@ type SandboxSyncBeforePayload struct {
 	AgentName       string    `json:"agent_name,omitempty"`
 	WorkspaceID     string    `json:"workspace_id,omitempty"`
 	Workspace       string    `json:"workspace,omitempty"`
+	WorktreeID      string    `json:"worktree_id,omitempty"`
 	ACPSessionID    string    `json:"acp_session_id,omitempty"`
 	State           string    `json:"state,omitempty"`
 	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
@@ -195,73 +245,3 @@ type ScheduleSpec struct {
 type SchedulerCatchUpPolicy string
 
 type Scope string
-
-type SessionActivityHealth struct {
-	SessionID          string     `json:"session_id"`
-	TurnID             string     `json:"turn_id,omitempty"`
-	TurnSource         string     `json:"turn_source,omitempty"`
-	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
-	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
-	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
-	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
-	CurrentTool        string     `json:"current_tool,omitempty"`
-	ToolCallID         string     `json:"tool_call_id,omitempty"`
-	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current,omitempty"`
-	IterationMax       int        `json:"iteration_max,omitempty"`
-	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
-	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
-	Status             string     `json:"status"`
-	StallState         string     `json:"stall_state,omitempty"`
-	StallReason        string     `json:"stall_reason,omitempty"`
-}
-
-type SessionConfigOptionPayload struct {
-	ID          string                            `json:"id"`
-	Label       string                            `json:"label,omitempty"`
-	Description string                            `json:"description,omitempty"`
-	Kind        string                            `json:"kind"`
-	Current     string                            `json:"current,omitempty"`
-	Values      []SessionConfigOptionValuePayload `json:"values,omitempty"`
-}
-
-type SessionConfigOptionValuePayload struct {
-	Value       string `json:"value"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-}
-
-type SessionContext struct {
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-type SessionCreatePatch struct {
-	Deny        bool    `json:"deny,omitempty"`
-	DenyReason  string  `json:"deny_reason,omitempty"`
-	SessionName *string `json:"session_name,omitempty"`
-	SessionType *string `json:"session_type,omitempty"`
-	AgentName   *string `json:"agent_name,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Workspace   *string `json:"workspace,omitempty"`
-}
-
-type SessionCreateResult struct {
-	SessionID string `json:"session_id"`
-}
-
-type SessionEvent struct {
-	Type      string    `json:"type"`
-	Timestamp time.Time `json:"timestamp"`
-	Data      any       `json:"data,omitempty"`
-}

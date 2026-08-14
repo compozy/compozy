@@ -64,12 +64,14 @@ type hostAPIAcceptanceNetworkSessionManagerAdapter struct {
 }
 
 var (
-	_ hostAPIPromptOptsSessionManager     = (*hostAPISessionManagerAdapter)(nil)
-	_ hostAPIPromptOptsSessionManager     = (*hostAPINetworkSessionManagerAdapter)(nil)
-	_ core.SessionArchiveManager          = (*hostAPISessionManagerAdapter)(nil)
-	_ core.SessionRuntimeSelectionManager = (*hostAPISessionManagerAdapter)(nil)
-	_ core.SessionAcceptanceManager       = (*hostAPIAcceptanceSessionManagerAdapter)(nil)
-	_ core.SessionAcceptanceManager       = (*hostAPIAcceptanceNetworkSessionManagerAdapter)(nil)
+	_ hostAPIPromptOptsSessionManager           = (*hostAPISessionManagerAdapter)(nil)
+	_ hostAPIPromptOptsSessionManager           = (*hostAPINetworkSessionManagerAdapter)(nil)
+	_ core.SessionArchiveManager                = (*hostAPISessionManagerAdapter)(nil)
+	_ core.SessionRuntimeSelectionManager       = (*hostAPISessionManagerAdapter)(nil)
+	_ core.SessionAcceptanceManager             = (*hostAPIAcceptanceSessionManagerAdapter)(nil)
+	_ core.SessionAcceptanceManager             = (*hostAPIAcceptanceNetworkSessionManagerAdapter)(nil)
+	_ core.SessionWorktreeForkAcceptanceManager = (*hostAPIAcceptanceSessionManagerAdapter)(nil)
+	_ core.SessionWorktreeForkAcceptanceManager = (*hostAPIAcceptanceNetworkSessionManagerAdapter)(nil)
 )
 
 func newHostAPISessionManagerAdapter(sessions SessionManager) hostAPIExtensionSessionManager {
@@ -160,6 +162,22 @@ func (a hostAPISessionAcceptance) CreateAccepted(
 	info, err := a.acceptance.CreateAccepted(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: host api CreateAccepted: %w", err)
+	}
+	return info, nil
+}
+
+func (a hostAPISessionAcceptance) CreateWorktreeForkAccepted(
+	ctx context.Context,
+	originSessionID string,
+	opts session.CreateAcceptedOpts,
+) (*session.Info, error) {
+	acceptance, ok := a.acceptance.(core.SessionWorktreeForkAcceptanceManager)
+	if !ok {
+		return nil, errors.New("daemon: atomic worktree fork acceptance is unavailable")
+	}
+	info, err := acceptance.CreateWorktreeForkAccepted(ctx, originSessionID, opts)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: host api CreateWorktreeForkAccepted: %w", err)
 	}
 	return info, nil
 }

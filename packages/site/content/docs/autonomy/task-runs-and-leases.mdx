@@ -10,8 +10,9 @@ is the only authority for run ownership and terminal state.
 ## Claiming the next run
 
 A managed agent session claims work either through the dedicated autonomy tool family or the
-parallel CLI. Both routes call the same task service writers and obey the same session-bound
-contract.
+parallel CLI. Both routes call the same task service writers. The native tool also starts worker
+execution so session and worktree placement are ready before it returns; the CLI keeps claim and
+start as separate operator steps.
 
 Tool path:
 
@@ -29,14 +30,22 @@ Loop action workers are not part of this claim pool. The daemon's `loop-action` 
 runs from enqueue through completion, so coordinators, task-role sessions, and manual claim-next
 calls do not receive them. This keeps one execution owner for each Loop node.
 
-The claim is atomic. CompozyOS selects one eligible queued run, binds it to the current managed session,
-sets a lease deadline, and returns a synchronous claim response that includes:
+The native claim-and-start operation selects one eligible queued worker run, sets a lease, resolves
+its execution policy, and returns only after the run is `running`. Modes `none` and `ref` keep the
+caller session. Mode `per_run` creates a dedicated session bound to the new worktree, delivers the
+task context there, and ends the provisional caller session after its current turn. When the returned
+`session_id` differs, end the caller turn without doing task work.
+
+The synchronous response includes:
 
 - task summary
 - run summary
 - safe lease summary
 - `claim_token_hash` for observability
 - coordination channel metadata when the run has a bound channel
+
+`compozy task next` claims only. Operator flows that use it must call the explicit run-start surface
+before expecting a worktree or execution session.
 
 The raw bearer lease token is internal to CompozyOS. Public CLI, HTTP, UDS, native-tool, web, stream,
 log, channel, and memory payloads use the calling session plus `run_id` and expose at most

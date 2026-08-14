@@ -74,6 +74,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/tasks/:id/execution-profile",
 			"DELETE /api/vault/secrets",
 			"DELETE /api/workspaces/:workspace_id",
+			"DELETE /api/workspaces/:workspace_id/worktrees/:worktree_id",
 			"DELETE /api/workspaces/:workspace_id/window-manager/clients/:client_id",
 			"DELETE /api/workspaces/:workspace_id/window-manager/layout-profiles/:profile_id",
 			"GET /api/workspaces/:workspace_id/window-manager",
@@ -272,6 +273,12 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/vault/secrets/metadata",
 			"GET /api/workspaces",
 			"GET /api/workspaces/:workspace_id",
+			"GET /api/worktrees/catalog-stream",
+			"GET /api/workspaces/:workspace_id/worktrees",
+			"GET /api/workspaces/:workspace_id/worktrees/:worktree_id",
+			"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/exit",
+			"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/status",
+			"GET /api/workspaces/:workspace_id/worktrees/:worktree_id/stream",
 			"GET /api/workspaces/:workspace_id/loop-runs",
 			"GET /api/workspaces/:workspace_id/loop-runs/:run_id",
 			"GET /api/workspaces/:workspace_id/loop-runs/:run_id/events",
@@ -303,6 +310,12 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/automation/jobs",
 			"POST /api/automation/jobs/:id/trigger",
 			"POST /api/automation/triggers",
+			"POST /api/workspaces/:workspace_id/worktrees",
+			"POST /api/workspaces/:workspace_id/worktrees/adopt",
+			"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/cancel",
+			"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/dismiss",
+			"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/actions",
+			"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/cancel",
 			"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/accept",
 			"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/dismiss",
 			"POST /api/bridges",
@@ -322,6 +335,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/agent/tasks/:run_id/fail",
 			"POST /api/agent/tasks/:run_id/heartbeat",
 			"POST /api/agent/tasks/:run_id/release",
+			"POST /api/agent/tasks/:run_id/start",
 			"POST /api/agents/:name/duplicate",
 			"POST /api/agent/tasks/claim-next",
 			"POST /api/agents",
@@ -402,6 +416,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/attach",
+			"POST /api/workspaces/:workspace_id/sessions/:session_id/worktree-fork",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/archive",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/stop",
@@ -464,6 +479,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 			"PUT /api/workspaces/:workspace_id/network/channels/:channel/subscriptions",
 			"PUT /api/tasks/:id/execution-profile",
+			"PATCH /api/tasks/:id/execution-profile/worktree",
 			"PUT /api/vault/secrets",
 			"PUT /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 			"PUT /api/workspaces/:workspace_id/sessions/:session_id/runtime",
@@ -592,6 +608,16 @@ func TestMemoryRoutesMatchV2Contract(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	apitestutil.AssertMemoryV2RouteParity(t, apitestutil.MemoryV2RouteKeysFromGin(engine.Routes()))
+}
+
+func TestWorktreeRoutesMatchTransportParityContractIT033(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	apitestutil.AssertWorktreeRouteParity(t, apitestutil.WorktreeRouteKeysFromGin(engine.Routes()))
 }
 
 func TestTaskBlockHandlersReturnUDSStatusAndBody(t *testing.T) {
@@ -1096,6 +1122,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"POST /api/agent/tasks/:run_id/complete":                       "AgentTaskComplete",
 		"POST /api/agent/tasks/:run_id/fail":                           "AgentTaskFail",
 		"POST /api/agent/tasks/:run_id/heartbeat":                      "AgentTaskHeartbeat",
+		"POST /api/agent/tasks/:run_id/start":                          "AgentTaskStart",
 		"POST /api/agent/tasks/:run_id/release":                        "AgentTaskRelease",
 		"POST /api/agent/tasks/claim-next":                             "AgentTaskClaimNext",
 		"POST /api/agent/spawn":                                        "AgentSpawn",
@@ -1115,6 +1142,7 @@ func TestRegisterTaskRoutesUseSharedHandlerBindings(t *testing.T) {
 		"POST /api/task-runs/:id/reviews":                              "RequestTaskRunReview",
 		"POST /api/task-reviews/:id/verdict":                           "SubmitTaskRunReviewVerdict",
 		"PUT /api/tasks/:id/execution-profile":                         "SetTaskExecutionProfile",
+		"PATCH /api/tasks/:id/execution-profile/worktree":              "SetTaskWorktreePolicy",
 	}
 
 	routes := engine.Routes()

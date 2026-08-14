@@ -131,7 +131,17 @@ func (d *Daemon) reconcileDaemonSandboxSession(
 
 	resolvedWorkspace, workspaceResolved := d.resolveSandboxReconcileWorkspace(ctx, state, meta, envMeta)
 	resolvedEnv := sandboxReconcileResolvedSandbox(envMeta, resolvedWorkspace, workspaceResolved)
-	localRoot, localAdditional := sandboxReconcileLocalRoots(resolvedWorkspace, workspaceResolved)
+	localRoot, localAdditional, rootsResolved := d.resolveSandboxReconcileLocalRoots(
+		ctx,
+		state,
+		meta,
+		envMeta,
+		resolvedWorkspace,
+		workspaceResolved,
+	)
+	if !rootsResolved {
+		return
+	}
 
 	stateForProvider := sandboxSessionStateFromMeta(envMeta)
 	if strings.TrimSpace(stateForProvider.InstanceID) == "" && strings.TrimSpace(envMeta.SandboxID) != "" {

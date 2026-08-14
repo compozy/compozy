@@ -19,6 +19,7 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	appendIf(matcherAgentNameKey, matcher.AgentName != "")
 	appendIf("agent_type", matcher.AgentType != "")
 	appendIf(matcherWorkspaceIDKey, matcher.WorkspaceID != "")
+	appendIf(matcherWorktreeIDKey, matcher.WorktreeID != "")
 	appendIf(matcherWorkspaceRootKey, matcher.WorkspaceRoot != "")
 	appendIf("session_type", matcher.SessionType != "")
 	appendIf("sandbox_id", matcher.SandboxID != "")
@@ -88,6 +89,7 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		{field: matcherAgentNameKey, pattern: matcher.AgentName},
 		{field: "agent_type", pattern: matcher.AgentType},
 		{field: matcherWorkspaceIDKey, pattern: matcher.WorkspaceID},
+		{field: matcherWorktreeIDKey, pattern: matcher.WorktreeID},
 		{field: matcherWorkspaceRootKey, pattern: matcher.WorkspaceRoot},
 		{field: "session_type", pattern: matcher.SessionType},
 		{field: "sandbox_id", pattern: matcher.SandboxID},

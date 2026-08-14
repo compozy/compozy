@@ -239,7 +239,12 @@ func TestRemoteCLIProfilesIntegrationIT060ThroughIT066(t *testing.T) {
 		credentialPath := filepath.Join(homePaths.GatewayCredentialsDir, "laptop.cred")
 		credentialInfo, err := os.Stat(credentialPath)
 		if err != nil || credentialInfo.Mode().Perm() != 0o600 || state.deviceCount() != 1 {
-			t.Fatalf("paired credential/device = info:%v err:%v devices:%d [IT-060]", credentialInfo, err, state.deviceCount())
+			t.Fatalf(
+				"paired credential/device = info:%v err:%v devices:%d [IT-060]",
+				credentialInfo,
+				err,
+				state.deviceCount(),
+			)
 		}
 
 		passphrase := filepath.Join(t.TempDir(), "profile.passphrase")
@@ -484,7 +489,11 @@ func (s *remoteCLIIntegrationState) serveHTTP(writer http.ResponseWriter, reques
 	writer.Header().Set("Content-Type", "application/json")
 	if request.URL.Path == "/api/gateway/pairings/redeem" {
 		if s.paired {
-			writeRemoteCLIJSON(writer, http.StatusGone, contract.ErrorPayload{Error: "spent", Code: "gateway_pairing_spent"})
+			writeRemoteCLIJSON(
+				writer,
+				http.StatusGone,
+				contract.ErrorPayload{Error: "spent", Code: "gateway_pairing_spent"},
+			)
 			return
 		}
 		var redeem contract.GatewayPairingRedeemRequest
@@ -653,7 +662,17 @@ func TestConnectSSHIntegrationIT070ThroughIT072(t *testing.T) {
 		deps = deps.withDefaults()
 
 		firstCtx, cancelFirst := context.WithCancel(t.Context())
-		firstResult := executeSSHCommandAsync(deps, firstCtx, "connect", "ssh", "remote.example", "--name", "ssh-lab", "-o", "json")
+		firstResult := executeSSHCommandAsync(
+			deps,
+			firstCtx,
+			"connect",
+			"ssh",
+			"remote.example",
+			"--name",
+			"ssh-lab",
+			"-o",
+			"json",
+		)
 		firstTunnel := <-executor.tunnels
 		<-forwardReady
 		busyResult := executeSSHCommandAsync(
@@ -2171,7 +2190,10 @@ channel_scopes = ["team/*"]
 		if installed.Name != "integration-ext" || installed.State != "disabled" || installed.Enabled ||
 			!installed.DaemonRunning ||
 			installed.NetworkRequirementDigest == "" || !installed.NetworkConfirmationRequired {
-			t.Fatalf("installed extension = %#v, want inert daemon-backed extension awaiting network consent", installed)
+			t.Fatalf(
+				"installed extension = %#v, want inert daemon-backed extension awaiting network consent",
+				installed,
+			)
 		}
 
 		listOut, _, err := executeRootCommand(t, h.deps, "extension", "list", "-o", "json")

@@ -27,6 +27,10 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
 	}
+	startOpts.Cwd, err = normalizeSessionLaunchCWD(spec, session, startOpts.Cwd)
+	if err != nil {
+		return acp.StartOpts{}, startupFailure("session pre-start hook cwd is invalid", err)
+	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, runtime.agent, startOpts)
 	if spec.resumeReplay {
 		spec.resumeReplayBlock, spec.resumeReplayMessageCount, err = m.buildResumeReplay(ctx, session)
@@ -45,6 +49,9 @@ func (m *Manager) prepareSessionLaunch(
 	session.setEffectivePermissions(string(startOpts.Permissions))
 	if err := finalizeStartCreationIdentityIfEnabled(spec, session); err != nil {
 		return acp.StartOpts{}, startupFailure("session creation identity changed", err)
+	}
+	if err := m.revalidateSessionWorktree(ctx, spec); err != nil {
+		return acp.StartOpts{}, startupFailure("session worktree binding changed", err)
 	}
 	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)

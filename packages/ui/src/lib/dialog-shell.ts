@@ -46,9 +46,6 @@ const FILL_HEIGHT_CLASS: Record<DialogShellSize, string> = {
   xl: "h-(--height-modal-xl)",
 };
 
-/** Grid column track that lets every shell row shrink below its content width. */
-const SHELL_GRID_CLASS = "grid-cols-[minmax(0,1fr)]";
-
 /**
  * At 760px and below a dialog becomes a full-width bottom surface
  * (`MODAL-STANDARD.md` § Hosts). The host drops its centering transform, spans
@@ -87,5 +84,5 @@ export function dialogShellClass(size: DialogShellSize, options: DialogShellOpti
   const height = options.fill
     ? `${FILL_HEIGHT_CLASS[size]} ${MAX_HEIGHT_CLASS[size]}`
     : MAX_HEIGHT_CLASS[size];
-  return `${SHELL_GRID_CLASS} ${WIDTH_CLASS[size]} ${height} ${BOTTOM_SURFACE_CLASS}`;
+  return `${WIDTH_CLASS[size]} ${height} ${BOTTOM_SURFACE_CLASS}`;
 }

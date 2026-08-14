@@ -10,6 +10,7 @@ type CreationProfileInput struct {
 	ReasoningEffort string
 	WorkspaceID     string
 	CWD             string
+	WorktreeRef     string
 	SandboxMode     string
 	SandboxRef      string
 	Permissions     string
@@ -32,6 +33,7 @@ func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfi
 		ReasoningEffort: input.ReasoningEffort,
 		WorkspaceID:     input.WorkspaceID,
 		CWD:             input.CWD,
+		WorktreeRef:     input.WorktreeRef,
 		SandboxMode:     input.SandboxMode,
 		SandboxRef:      input.SandboxRef,
 		Permissions:     input.Permissions,

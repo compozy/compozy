@@ -13,12 +13,24 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 
+import type { WorktreePayload } from "@/systems/workspace";
+
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSessionRunning, isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 import { SessionStatusLine } from "../components/session-status-line";
+import { SessionWorktreeBindingChip } from "../components/session-worktree-binding-chip";
+
+interface SessionTopbarWorktreeBinding {
+  worktreeId: string;
+  worktree: WorktreePayload | undefined;
+  onOpenContext?: () => void;
+  onResolve?: () => void;
+}
 
 interface UseSessionTopbarSlotInput {
+  /** Absent for an unbound session — absence is the signal, not a placeholder. */
+  worktreeBinding?: SessionTopbarWorktreeBinding;
   session: SessionPayload;
   isDeleting: boolean;
   isRenaming: boolean;
@@ -62,6 +74,7 @@ export function useSessionTopbarSlot({
   onResume,
   onUnarchive,
   onClear,
+  worktreeBinding,
 }: UseSessionTopbarSlotInput): void {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const renameRequested = useRef(false);
@@ -167,7 +180,20 @@ export function useSessionTopbarSlot({
     ),
     glyphPresentation: "state",
     crumb: getSessionDisplayTitle(session),
-    status: <SessionStatusLine session={session} showState={false} />,
+    status: (
+      <span className="flex min-w-0 items-center gap-2">
+        <SessionStatusLine session={session} showState={false} />
+        {/* OQ7: the binding chip mounts here; the exit control never does. */}
+        {worktreeBinding ? (
+          <SessionWorktreeBindingChip
+            onOpenContext={worktreeBinding.onOpenContext}
+            onResolve={worktreeBinding.onResolve}
+            worktree={worktreeBinding.worktree}
+            worktreeId={worktreeBinding.worktreeId}
+          />
+        ) : null}
+      </span>
+    ),
     actions: (
       <>
         {sidebarToggle}

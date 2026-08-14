@@ -11,7 +11,10 @@ import {
   EntityDialogFooter,
   EntityDialogHeader,
   FormSection,
+  Spinner,
 } from "@compozy/ui";
+
+import { useWorktrees } from "@/systems/workspace";
 
 import { useLoopConfigure } from "../../hooks/use-loop-configure";
 import type { LoopConfig, LoopDetail, LoopEffectiveConfig } from "../../types";
@@ -19,6 +22,7 @@ import { LoopConfigureChecks } from "./loop-configure-checks";
 import { LoopConfigureLimits } from "./loop-configure-limits";
 import { LoopConfigureStrategy } from "./loop-configure-strategy";
 import { LoopConfigureSwitchRow } from "./loop-configure-switch-row";
+import { LoopWorktreeSection } from "./loop-worktree-section";
 
 interface LoopConfigureDialogProps {
   open: boolean;
@@ -53,6 +57,7 @@ export function LoopConfigureDialog({
   onOpenChange,
   onOpenEditor,
 }: LoopConfigureDialogProps) {
+  const worktrees = useWorktrees(workspaceId, { enabled: open });
   const model = useLoopConfigure({
     workspaceId,
     loop,
@@ -125,6 +130,41 @@ export function LoopConfigureDialog({
               value={model.draft.reattemptStrategy}
             />
           </FormSection>
+
+          {worktrees.isPending ? (
+            <FormSection title="Environment default">
+              <div aria-busy="true" className="flex min-h-8 items-center" role="status">
+                <Spinner className="size-4" />
+              </div>
+            </FormSection>
+          ) : worktrees.error ? (
+            <FormSection title="Environment default">
+              <Alert variant="danger">
+                <AlertDescription>
+                  {worktrees.error instanceof Error
+                    ? worktrees.error.message
+                    : "Environments could not be loaded."}
+                </AlertDescription>
+              </Alert>
+              <Button
+                className="mt-2"
+                onClick={() => void worktrees.refetch()}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Retry
+              </Button>
+            </FormSection>
+          ) : worktrees.data ? (
+            <LoopWorktreeSection
+              disabled={model.busy}
+              gitBacked={worktrees.data.repo.git_backed}
+              onChange={model.setEnvironment}
+              value={model.draft.environment}
+              worktrees={worktrees.data.worktrees}
+            />
+          ) : null}
 
           <FormSection rightLabel="per-loop defaults" title="Stop limits">
             <LoopConfigureLimits

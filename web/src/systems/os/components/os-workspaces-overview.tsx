@@ -1,4 +1,5 @@
-import { ArrowRight, Plus } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, ChevronRight, Plus } from "lucide-react";
 
 import {
   Button,
@@ -17,7 +18,15 @@ import type {
   OsWorkspaceDetailsResult,
 } from "../hooks/use-workspace-details";
 import type { OsPresentation } from "../lib/os-types";
-import type { WorkspacePayload } from "@/systems/workspace";
+import {
+  groupWorkspaceTree,
+  WorktreeAggregate,
+  WorktreeHoverSubmenu,
+  WorktreeSubmenuPanel,
+  type WorkspacePayload,
+  type WorktreeListingByWorkspace,
+  type WorktreeNestEntry,
+} from "@/systems/workspace";
 
 export interface OsWorkspacesOverviewProps {
   open: boolean;
@@ -29,6 +38,15 @@ export interface OsWorkspacesOverviewProps {
   details: OsWorkspaceDetailsResult;
   presentation: OsPresentation;
   reducedMotion: boolean;
+  /** Same projection as the switcher and the menubar menu. */
+  worktreesByWorkspace?: WorktreeListingByWorkspace;
+  userHomeDir?: string;
+  selectedWorktreeId?: string | null;
+  onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onCreateWorktree?: (workspaceId: string) => void;
+  onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onResolveMissing?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onOpenWorktreeContext?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
 
 const MEMBER_AVATAR_MAX = 5;
@@ -37,13 +55,22 @@ function workspaceMonogram(name: string): string {
   return name.trim().slice(0, 2).toUpperCase() || "WS";
 }
 
-function workspaceMetaLine(detail: OsWorkspaceDetailModel | undefined): string {
+function workspaceMetaLine(
+  detail: OsWorkspaceDetailModel | undefined,
+  adoptedWorktrees: number
+): string {
   if (!detail || detail.status === "loading") return "Loading…";
   if (detail.status === "error") return "Details unavailable";
   return [
     `${detail.agentCount} agent${detail.agentCount === 1 ? "" : "s"}`,
     `${detail.sessionCount} session${detail.sessionCount === 1 ? "" : "s"}`,
-  ].join(" · ");
+    // Zero renders nothing rather than "0 worktrees".
+    adoptedWorktrees > 0
+      ? `${adoptedWorktrees} worktree${adoptedWorktrees === 1 ? "" : "s"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function WorkspaceMembers({ detail }: { detail: OsWorkspaceDetailModel | undefined }) {
@@ -89,17 +116,40 @@ export function OsWorkspacesOverview({
   details,
   presentation,
   reducedMotion,
+  worktreesByWorkspace,
+  userHomeDir,
+  selectedWorktreeId,
+  onSelectWorktree,
+  onCreateWorktree,
+  onRemoveWorktree,
+  onResolveMissing,
+  onOpenWorktreeContext,
 }: OsWorkspacesOverviewProps) {
+  const [submenuWorkspaceId, setSubmenuWorkspaceId] = useState<string | null>(null);
   const selectWorkspace = (workspaceId: string) => {
-    if (workspaceId !== activeWorkspaceId) onSelectWorkspace(workspaceId);
+    onSelectWorkspace(workspaceId);
     onOpenChange(false);
   };
 
+  const tree = worktreesByWorkspace
+    ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
+    : null;
+  const nodeByWorkspaceId = new Map(tree?.map(node => [node.workspace.id, node]) ?? []);
+  const orderedWorkspaces = tree?.map(node => node.workspace) ?? workspaces;
+  // Adopted-only, per the locked count rule: a discovered checkout has no
+  // record and never enters a worktree count.
+  const totalWorktrees = tree?.reduce((total, node) => total + node.adoptedCount, 0) ?? 0;
+
   const workspaceCount = workspaces.length;
-  const subtitle =
+  const subtitle = [
+    `${workspaceCount} workspace${workspaceCount === 1 ? "" : "s"}`,
     details.totalAgents !== null
-      ? `${workspaceCount} workspace${workspaceCount === 1 ? "" : "s"} · ${details.totalAgents} agent${details.totalAgents === 1 ? "" : "s"}`
-      : `${workspaceCount} workspace${workspaceCount === 1 ? "" : "s"}`;
+      ? `${details.totalAgents} agent${details.totalAgents === 1 ? "" : "s"}`
+      : null,
+    totalWorktrees > 0 ? `${totalWorktrees} worktree${totalWorktrees === 1 ? "" : "s"}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -147,65 +197,134 @@ export function OsWorkspacesOverview({
               : "max-h-[70vh] flex-wrap gap-workspaces-row-gap overflow-y-auto px-6 py-1"
           )}
         >
-          {workspaces.map(workspace => {
+          {orderedWorkspaces.map(workspace => {
             const active = workspace.id === activeWorkspaceId;
             const detail = details.byWorkspaceId.get(workspace.id);
-            const meta = workspaceMetaLine(detail);
+            const node = nodeByWorkspaceId.get(workspace.id);
+            const meta = workspaceMetaLine(detail, node?.adoptedCount ?? 0);
             return (
-              <button
+              // The card is a button, so the worktree trigger is a sibling:
+              // interactive worktree rows cannot live inside a button.
+              <div
                 key={workspace.id}
-                type="button"
-                data-slot="os-workspace-card"
-                data-workspace-id={workspace.id}
-                data-current={active ? "true" : undefined}
-                aria-label={`${active ? "Current workspace" : "Switch to"} ${workspace.name}. ${meta}`}
-                className={cn(
-                  "group flex w-workspace-card shrink-0 flex-col gap-3 overflow-hidden rounded-xl border bg-canvas-soft p-4 text-left",
-                  "transition-[transform,border-color] duration-shell-fast ease-spring",
-                  "focus-visible:shadow-focus-ring focus-visible:outline-none",
-                  !reducedMotion && "hover:-translate-y-1",
-                  active ? "border-accent" : "border-line-strong hover:border-line-focus"
-                )}
-                onClick={() => selectWorkspace(workspace.id)}
+                data-slot="os-workspace-card-group"
+                className="flex w-workspace-card shrink-0 flex-col gap-1"
               >
-                <span className="flex items-center gap-2.5">
-                  <span
-                    aria-hidden="true"
-                    className="grid size-7 shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-workspace-avatar font-semibold text-muted"
-                  >
-                    {workspaceMonogram(workspace.name)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-small-body font-semibold text-fg-strong">
-                    {workspace.name}
-                  </span>
-                  {active ? (
-                    <Pill data-slot="os-workspace-current" size="xs" tone="neutral">
-                      Current
-                    </Pill>
-                  ) : null}
-                </span>
-                <span
-                  className="text-form-label text-subtle"
-                  data-testid={`os-workspace-meta-${workspace.id}`}
+                <button
+                  type="button"
+                  data-slot="os-workspace-card"
+                  data-workspace-id={workspace.id}
+                  data-current={active ? "true" : undefined}
+                  aria-label={`${active ? "Current workspace" : "Switch to"} ${workspace.name}. ${meta}`}
+                  className={cn(
+                    "group flex w-full shrink-0 flex-col gap-3 overflow-hidden rounded-xl border bg-canvas-soft p-4 text-left",
+                    "transition-[transform,border-color] duration-shell-fast ease-spring",
+                    "focus-visible:shadow-focus-ring focus-visible:outline-none",
+                    !reducedMotion && "hover:-translate-y-1",
+                    active ? "border-accent" : "border-line-strong hover:border-line-focus"
+                  )}
+                  onClick={() => selectWorkspace(workspace.id)}
                 >
-                  {meta}
-                </span>
-                <WorkspaceMembers detail={detail} />
-                <span className="flex items-center justify-between border-t border-line-soft pt-2.5">
-                  <span className="truncate font-mono text-mono-id text-faint">
-                    {workspace.root_dir}
+                  <span className="flex items-center gap-2.5">
+                    <span
+                      aria-hidden="true"
+                      className="grid size-7 shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-workspace-avatar font-semibold text-muted"
+                    >
+                      {workspaceMonogram(workspace.name)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-small-body font-semibold text-fg-strong">
+                      {workspace.name}
+                    </span>
+                    {active ? (
+                      <Pill data-slot="os-workspace-current" size="xs" tone="neutral">
+                        Current
+                      </Pill>
+                    ) : null}
                   </span>
                   <span
-                    className={cn(
-                      "inline-flex shrink-0 items-center gap-1 text-form-label font-medium text-muted",
-                      "transition-colors duration-base group-hover:text-fg"
-                    )}
+                    className="text-form-label text-subtle"
+                    data-testid={`os-workspace-meta-${workspace.id}`}
                   >
-                    Enter
-                    <ArrowRight aria-hidden="true" className="size-3" />
+                    {meta}
                   </span>
-                </span>
-              </button>
+                  <WorkspaceMembers detail={detail} />
+                  <span className="flex items-center justify-between border-t border-line-soft pt-2.5">
+                    <span className="truncate font-mono text-mono-id text-faint">
+                      {workspace.root_dir}
+                    </span>
+                    <span
+                      className={cn(
+                        "inline-flex shrink-0 items-center gap-1 text-form-label font-medium text-muted",
+                        "transition-colors duration-base group-hover:text-fg"
+                      )}
+                    >
+                      Enter
+                      <ArrowRight aria-hidden="true" className="size-3" />
+                    </span>
+                  </span>
+                </button>
+
+                {node?.gitBacked ? (
+                  <WorktreeHoverSubmenu
+                    open={submenuWorkspaceId === workspace.id}
+                    onOpenChange={next => setSubmenuWorkspaceId(next ? workspace.id : null)}
+                    testId={`os-worktree-submenu-${workspace.id}`}
+                    label={`Worktrees in ${workspace.name}`}
+                    trigger={
+                      <button
+                        type="button"
+                        className="flex min-h-6 items-center gap-1.5 self-start rounded-md px-2 text-form-label text-subtle hover:bg-row-hover"
+                        aria-haspopup="dialog"
+                        aria-expanded={submenuWorkspaceId === workspace.id}
+                        aria-label={`Worktrees in ${workspace.name}`}
+                        data-testid={`os-workspace-worktrees-toggle-${workspace.id}`}
+                      >
+                        <ChevronRight aria-hidden="true" className="size-3" />
+                        Worktrees
+                        <WorktreeAggregate runningAgents={node.runningAgents} />
+                      </button>
+                    }
+                  >
+                    <WorktreeSubmenuPanel
+                      node={node}
+                      limit={node.worktrees.length}
+                      selectedWorktreeId={selectedWorktreeId}
+                      testIdPrefix="os"
+                      onSelectWorktree={
+                        onSelectWorktree
+                          ? entry => {
+                              onSelectWorktree(workspace.id, entry);
+                              onOpenChange(false);
+                            }
+                          : undefined
+                      }
+                      onCreateWorktree={
+                        onCreateWorktree
+                          ? () => {
+                              onCreateWorktree(workspace.id);
+                              onOpenChange(false);
+                            }
+                          : undefined
+                      }
+                      onRemoveWorktree={
+                        onRemoveWorktree
+                          ? entry => onRemoveWorktree(workspace.id, entry)
+                          : undefined
+                      }
+                      onResolveMissing={
+                        onResolveMissing
+                          ? entry => onResolveMissing(workspace.id, entry)
+                          : undefined
+                      }
+                      onOpenContext={
+                        onOpenWorktreeContext
+                          ? entry => onOpenWorktreeContext(workspace.id, entry)
+                          : undefined
+                      }
+                    />
+                  </WorktreeHoverSubmenu>
+                ) : null}
+              </div>
             );
           })}
         </div>

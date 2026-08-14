@@ -232,6 +232,7 @@ func sessionEventCorrelation(event store.SessionEvent) store.EventCorrelation {
 }
 
 type sessionEventCorrelationPayload struct {
+	WorktreeID           string `json:"worktree_id"`
 	TaskID               string `json:"task_id"`
 	RunID                string `json:"run_id"`
 	WorkflowID           string `json:"workflow_id"`
@@ -263,6 +264,7 @@ func decodeSessionEventCorrelation(payload string) (store.EventCorrelation, erro
 	}
 
 	return store.EventCorrelation{
+		WorktreeID:           decoded.WorktreeID,
 		TaskID:               decoded.TaskID,
 		RunID:                decoded.RunID,
 		WorkflowID:           decoded.WorkflowID,

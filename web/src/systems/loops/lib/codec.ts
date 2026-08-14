@@ -1,6 +1,6 @@
 import type { Edge as FlowEdge, Node as FlowNode } from "@xyflow/react";
 
-import type { LoopDefinition, LoopDefinitionGraph } from "../types";
+import type { LoopDefinition, LoopDefinitionGraph, LoopEnvironmentSpec } from "../types";
 import { toLoopNodeClass, type LoopNodeClass } from "./loop-graph";
 
 /**
@@ -28,6 +28,8 @@ export interface EditorNodeData extends Record<string, unknown> {
   kind: string;
   /** Attached by the linter when a per-node validation error targets this node. */
   hasError: boolean;
+  /** Read-only loop default used to label inherited execution on the node card. */
+  loopDefaultEnvironment?: LoopEnvironmentSpec;
 }
 
 /** Data carried on each React Flow edge: the full raw edge for verbatim round-trip. */

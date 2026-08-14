@@ -110,6 +110,14 @@ const (
 	ToolIDWorkspaceInfo ToolID = "compozy__workspace_info"
 	// ToolIDWorkspaceDescribe reads one resolved workspace detail projection.
 	ToolIDWorkspaceDescribe ToolID = "compozy__workspace_describe"
+	// ToolIDWorktreeList lists workspace-scoped worktrees.
+	ToolIDWorktreeList ToolID = "compozy__worktree_list"
+	// ToolIDWorktreeInspect reads one worktree with cached status and bindings.
+	ToolIDWorktreeInspect ToolID = "compozy__worktree_inspect"
+	// ToolIDWorktreeCreate accepts one durable worktree creation.
+	ToolIDWorktreeCreate ToolID = "compozy__worktree_create"
+	// ToolIDWorktreeRemove removes one worktree after safety evaluation.
+	ToolIDWorktreeRemove ToolID = "compozy__worktree_remove"
 	// ToolIDAgentCreate authors one AGENT.md definition at global or workspace scope.
 	ToolIDAgentCreate ToolID = "compozy__agent_create"
 	// ToolIDProviderModelsList lists the daemon provider model catalog.
@@ -236,6 +244,8 @@ const (
 	ToolIDTaskExecutionProfileGet ToolID = "compozy__task_execution_profile_get"
 	// ToolIDTaskExecutionProfileSet updates one task execution profile.
 	ToolIDTaskExecutionProfileSet ToolID = "compozy__task_execution_profile_set"
+	// ToolIDTaskWorktreePolicySet updates only one task execution profile's worktree policy.
+	ToolIDTaskWorktreePolicySet ToolID = "compozy__task_worktree_policy_set"
 	// ToolIDTaskExecutionProfileDelete removes one task execution profile.
 	ToolIDTaskExecutionProfileDelete ToolID = "compozy__task_execution_profile_delete"
 	// ToolIDTaskNotificationSubscribe creates one bridge notification subscription for a task.
@@ -421,6 +431,8 @@ const (
 	ToolsetIDAuthoredContext ToolsetID = "compozy__authored_context"
 	// ToolsetIDWorkspace groups workspace inspection and managed agent authoring tools.
 	ToolsetIDWorkspace ToolsetID = "compozy__workspace"
+	// ToolsetIDWorktrees groups workspace-scoped worktree tools.
+	ToolsetIDWorktrees ToolsetID = "compozy__worktree"
 	// ToolsetIDProviderModels groups provider model catalog tools.
 	ToolsetIDProviderModels ToolsetID = "compozy__provider_models"
 	// ToolsetIDMemory groups Memory v2 read and proposal tools.

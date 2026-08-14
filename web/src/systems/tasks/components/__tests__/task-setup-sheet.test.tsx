@@ -1,11 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { worktreeBehindFixture, worktreeMissingFixture } from "@/systems/workspace/mocks";
+
+import type { TaskProfileEditor } from "../../hooks/use-profile-editor";
 import {
   buildTaskExecutionProfileFixture,
   taskExecutionProfileFixture,
 } from "../../mocks/fixtures";
-import type { TaskProfileEditor } from "../../hooks/use-profile-editor";
 import { TaskSetupSheet } from "../task-setup-sheet";
 
 const runtime = {
@@ -34,6 +36,7 @@ describe("TaskSetupSheet", () => {
     const editor = buildEditor();
     render(
       <TaskSetupSheet
+        activeRunId="run_active_42"
         clearOpen={false}
         editor={editor}
         hasActiveRun
@@ -43,12 +46,24 @@ describe("TaskSetupSheet", () => {
         open
         profile={taskExecutionProfileFixture}
         runtime={runtime}
+        worktreePolicy={{
+          locked: true,
+          onChange: vi.fn(),
+          pending: false,
+          value: { mode: "ref", worktree_ref: worktreeBehindFixture.id },
+          worktrees: [worktreeBehindFixture],
+        }}
       />
     );
 
     expect(screen.getByTestId("tasks-setup-locked")).toHaveTextContent(
-      "Editing is locked while a run is active"
+      "Editing is locked while run run_active_42 is active. Cancel the current run before changing the setup."
     );
+    expect(screen.getByTestId("tasks-setup-form")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("tasks-setup-form")).getByRole("button", { name: "Named worktree" })
+    ).toBeDisabled();
+    expect(screen.queryByTestId("tasks-setup-editor-save")).toBeNull();
     expect(screen.queryByTestId("tasks-setup-edit")).toBeNull();
     expect(screen.queryByTestId("tasks-setup-clear")).toBeNull();
   });
@@ -76,6 +91,33 @@ describe("TaskSetupSheet", () => {
     expect(screen.getByTestId("tasks-setup-form")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-setup-editor-save")).toBeDisabled();
     expect(screen.getByTestId("tasks-setup-editor-save")).toHaveTextContent("Saving…");
+  });
+
+  it("Should block saving an incomplete named-worktree draft", () => {
+    render(
+      <TaskSetupSheet
+        clearOpen={false}
+        editor={buildEditor({ open: true, value: taskExecutionProfileFixture })}
+        hasActiveRun={false}
+        onClearOpenChange={vi.fn()}
+        onClearProfile={vi.fn()}
+        onOpenChange={vi.fn()}
+        open
+        profile={taskExecutionProfileFixture}
+        runtime={runtime}
+        worktreePolicy={{
+          locked: false,
+          onChange: vi.fn(),
+          pending: false,
+          value: { mode: "ref", worktree_ref: worktreeMissingFixture.id },
+          worktrees: [worktreeMissingFixture],
+        }}
+        worktreePolicyValid={false}
+      />
+    );
+
+    expect(screen.getByText(/is missing/)).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-setup-editor-save")).toBeDisabled();
   });
 
   it("Should render every configured review and participant routing selector", () => {

@@ -34,6 +34,7 @@ func sessionStartSpecFromMeta(
 		runtimeSelectionRevision: selectionRevision,
 		permissions:              compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
 		workspace:                *workspace,
+		worktreeID:               strings.TrimSpace(meta.WorktreeIDValue()),
 		networkParticipation:     meta.NetworkSpecSnapshot(),
 		networkOwnerKey:          meta.NetworkOwnerKeySnapshot(),
 		cwd:                      cwd,
@@ -48,7 +49,7 @@ func sessionStartSpecFromMeta(
 		creationIdentity:         creationIdentityFromMeta(meta),
 		creationIdentityPinned:   meta.CreationProfile != nil,
 		creationIdentityEnabled:  meta.CreationProfile != nil,
-		advertisedCommands:       store.CloneSessionAdvertisedCommands(meta.AdvertisedCommands),
+		advertisedCommands:       store.CloneSessionAdvertisedCommands(meta.AdvertisedCommandsValue()),
 	}
 	if spec.creationProfile != nil {
 		spec.runtimeMode = spec.creationProfile.RuntimeMode

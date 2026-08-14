@@ -114,6 +114,9 @@ type TaskExecutionProfilePayload = taskpkg.ExecutionProfile
 // SetTaskExecutionProfileRequest captures one profile replacement request.
 type SetTaskExecutionProfileRequest = taskpkg.ExecutionProfile
 
+// SetTaskWorktreePolicyRequest captures one worktree-only profile patch.
+type SetTaskWorktreePolicyRequest = taskpkg.WorktreePolicy
+
 // TaskExecutionProfileResponse wraps one execution profile response.
 type TaskExecutionProfileResponse struct {
 	Profile TaskExecutionProfilePayload `json:"profile"`

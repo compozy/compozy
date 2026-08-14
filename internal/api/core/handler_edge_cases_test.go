@@ -544,12 +544,11 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 	t.Parallel()
 
+	var listQuery session.ListQuery
 	manager := testutil.StubSessionManager{
-		ListAllFn: func(context.Context) ([]*session.Info, error) {
-			return []*session.Info{
-				{ID: "sess-1", WorkspaceID: "ws_alpha"},
-				{ID: "sess-2", WorkspaceID: "ws_beta"},
-			}, nil
+		ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+			listQuery = query
+			return session.ListPage{}, nil
 		},
 	}
 	workspaces := testutil.StubWorkspaceService{
@@ -565,9 +564,12 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 		PendingRestartFn: func(context.Context) (bool, error) { return true, nil },
 	}
 
-	resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace=alpha", nil)
+	resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?workspace=alpha&worktree=wt-bound", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("filtered list status = %d, want %d", resp.Code, http.StatusOK)
+	}
+	if listQuery.WorkspaceID != "ws_alpha" || listQuery.WorktreeID != "wt-bound" {
+		t.Fatalf("session list query = %#v, want resolved workspace and exact worktree", listQuery)
 	}
 
 	fixture.Handlers.SetHTTPPort(4321)

@@ -319,7 +319,11 @@ func TestGatewayBoundaryRules(t *testing.T) {
 
 		root := t.TempDir()
 		fixture := filepath.Join(root, "fixture.go")
-		if err := os.WriteFile(fixture, []byte("package fixture\nimport _ \"github.com/compozy/compozy/internal/daemon\"\n"), 0o600); err != nil {
+		if err := os.WriteFile(
+			fixture,
+			[]byte("package fixture\nimport _ \"github.com/compozy/compozy/internal/daemon\"\n"),
+			0o600,
+		); err != nil {
 			t.Fatalf("write boundary fixture: %v", err)
 		}
 		files, err := filesImporting(root, compozyModulePath+"internal/daemon")

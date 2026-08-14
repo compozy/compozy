@@ -31,6 +31,7 @@ func buildOperationRegistry() []OperationSpec {
 		registrySettingsOperations(),
 		registrySettingsFeatureOperations(),
 		registryWorkspaceOperations(),
+		registryWorktreeOperations(),
 	}
 	operations := make([]OperationSpec, 0)
 	for _, group := range groups {

@@ -1,0 +1,16 @@
+{
+    "title": "Worktrees",
+    "icon": "GitBranch",
+    "pages": [
+        "index",
+        "concepts",
+        "create-and-adopt",
+        "navigation",
+        "task-isolation",
+        "loop-environments",
+        "assisted-exit",
+        "removal-and-recovery",
+        "configuration",
+        "agent-surface"
+    ]
+}

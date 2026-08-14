@@ -171,6 +171,25 @@ func (n *daemonNativeTools) workspaceToolBindings(
 	}
 }
 
+func (n *daemonNativeTools) worktreeToolBindings(
+	availability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDWorktreeList: {
+			call: n.worktreeList, availability: availability,
+		},
+		toolspkg.ToolIDWorktreeInspect: {
+			call: n.worktreeInspect, availability: availability,
+		},
+		toolspkg.ToolIDWorktreeCreate: {
+			call: n.worktreeCreate, availability: availability,
+		},
+		toolspkg.ToolIDWorktreeRemove: {
+			call: n.worktreeRemove, availability: availability,
+		},
+	}
+}
+
 func (n *daemonNativeTools) memoryToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
@@ -299,6 +318,10 @@ func (n *daemonNativeTools) taskToolBindings(
 		},
 		toolspkg.ToolIDTaskExecutionProfileSet: {
 			call:         n.taskExecutionProfileSet,
+			availability: availability,
+		},
+		toolspkg.ToolIDTaskWorktreePolicySet: {
+			call:         n.taskWorktreePolicySet,
 			availability: availability,
 		},
 		toolspkg.ToolIDTaskExecutionProfileDelete: {

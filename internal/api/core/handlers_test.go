@@ -106,6 +106,12 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 		if err != nil {
 			t.Fatalf("BuildCatalog() error = %v", err)
 		}
+		catalog = commandpkg.SetBuiltinAvailability(
+			catalog,
+			"worktree",
+			false,
+			"Wait for the current turn to finish.",
+		)
 		var calls atomic.Int32
 		manager := sessionCommandCatalogManagerStub{
 			StubSessionManager: testutil.StubSessionManager{
@@ -145,8 +151,10 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(commands) error = %v", err)
 		}
-		if payload.Revision != catalog.Revision || len(payload.Commands) != 3 ||
-			payload.Commands[2].CanonicalToken != "/review" || payload.Commands[2].Source.Key != "" {
+		if payload.Revision != catalog.Revision || len(payload.Commands) != 4 ||
+			payload.Commands[1].CanonicalToken != "/worktree" || payload.Commands[1].Available ||
+			payload.Commands[1].UnavailableReason != "Wait for the current turn to finish." ||
+			payload.Commands[3].CanonicalToken != "/review" || payload.Commands[3].Source.Key != "" {
 			t.Fatalf("commands payload = %#v, want unified path-free catalog", payload)
 		}
 

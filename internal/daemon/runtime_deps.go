@@ -52,6 +52,7 @@ type RuntimeDeps struct {
 	DeadEntities        doctor.DeadEntitySource
 	WorkspaceResolver   workspacepkg.RuntimeResolver
 	WorkspaceService    core.WorkspaceService
+	Worktrees           core.WorktreeService
 	WorkspaceAccess     workspaceaccess.Policy
 	AgentCatalog        core.AgentCatalog
 	AgentDefinitionSync core.AgentDefinitionSync

@@ -17,6 +17,7 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 
 	agentTasks := agent.Group("/tasks")
 	agentTasks.POST("/claim-next", handlers.AgentTaskClaimNext)
+	agentTasks.POST("/:run_id/start", handlers.AgentTaskStart)
 	agentTasks.POST("/:run_id/heartbeat", handlers.AgentTaskHeartbeat)
 	agentTasks.POST("/:run_id/complete", handlers.AgentTaskComplete)
 	agentTasks.POST("/:run_id/fail", handlers.AgentTaskFail)

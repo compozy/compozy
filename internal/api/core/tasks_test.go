@@ -176,6 +176,7 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 
 	var (
 		gotSetProfile taskpkg.ExecutionProfile
+		gotWorktree   taskpkg.WorktreePolicy
 		deletedTaskID string
 	)
 	tasks := &testutil.StubTaskManager{
@@ -201,6 +202,20 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 			gotSetProfile = *profile
 			stored := *profile
 			stored.UpdatedAt = now
+			return stored, nil
+		},
+		SetWorktreePolicyFn: func(
+			_ context.Context,
+			id string,
+			policy taskpkg.WorktreePolicy,
+			actor taskpkg.ActorContext,
+		) (taskpkg.ExecutionProfile, error) {
+			if id != "task-1" || actor.Origin.Ref != "tasks.set_worktree_policy" {
+				t.Fatalf("SetWorktreePolicy(id, actor) = %q, %#v", id, actor)
+			}
+			gotWorktree = policy
+			stored := storedProfile
+			stored.Worktree = policy
 			return stored, nil
 		},
 		DeleteExecutionProfileFn: func(_ context.Context, id string, actor taskpkg.ActorContext) error {
@@ -251,6 +266,25 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 		!gotSetProfile.CreatedAt.IsZero() ||
 		!gotSetProfile.UpdatedAt.IsZero() {
 		t.Fatalf("set profile request = %#v", gotSetProfile)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPatch,
+		"/tasks/task-1/execution-profile/worktree",
+		[]byte(`{"mode":"ref","worktree_ref":"feature-a"}`),
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("set worktree status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	if gotWorktree.Mode != taskpkg.WorktreeModeRef || gotWorktree.WorktreeRef != "feature-a" {
+		t.Fatalf("set worktree request = %#v", gotWorktree)
+	}
+	var worktreePayload contract.TaskExecutionProfileResponse
+	testutil.DecodeJSONResponse(t, resp, &worktreePayload)
+	if worktreePayload.Profile.Worktree != gotWorktree {
+		t.Fatalf("set worktree payload = %#v, want %#v", worktreePayload.Profile.Worktree, gotWorktree)
 	}
 
 	resp = performRequest(t, fixture.Engine, http.MethodDelete, "/tasks/task-1/execution-profile", nil)
@@ -2282,7 +2316,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs/fan-out",
 		[]byte(
-			`{"idempotency_key":"fanout-key","network_participation":{"mode":"live","channel_strategy":"named","channel_id":"release-room"},"designations":[{"brief":"Review API handlers","metadata":{"lane":"api"}},{"brief":"Review web wiring","metadata":{"lane":"web"}}]}`,
+			`{"idempotency_key":"fanout-key","worktree_per_run":true,"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"release-room"},"designations":[{"brief":"Review API handlers","metadata":{"lane":"api"}},{"brief":"Review web wiring","metadata":{"lane":"web"}}]}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -2296,6 +2330,11 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	if fanoutResp.Runs[0].DesignationGroupID != fanoutResp.DesignationGroupID ||
 		fanoutResp.Runs[1].DesignationGroupID != fanoutResp.DesignationGroupID {
 		t.Fatalf("fan-out runs missing group id: %#v", fanoutResp.Runs)
+	}
+	for index, spec := range enqueuedRuns[len(enqueuedRuns)-2:] {
+		if !spec.WorktreePerRun {
+			t.Fatalf("fan-out enqueue %d WorktreePerRun = false, want true", index)
+		}
 	}
 
 	enqueuedBeforeInvalidFanout := len(enqueuedRuns)

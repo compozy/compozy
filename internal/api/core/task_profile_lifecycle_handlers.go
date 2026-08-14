@@ -82,6 +82,39 @@ func (h *BaseHandlers) SetTaskExecutionProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.TaskExecutionProfileResponse{Profile: stored})
 }
 
+// SetTaskWorktreePolicy patches only the worktree block of one task execution profile.
+func (h *BaseHandlers) SetTaskWorktreePolicy(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	var req contract.SetTaskWorktreePolicyRequest
+	if err := decodeStrictJSONBody(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode task worktree policy request: %w", h.transportName(), err)),
+		)
+		return
+	}
+	actor, err := h.taskActorContext(c, taskActionSetWorktree)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	stored, err := manager.SetWorktreePolicy(c.Request.Context(), taskID, req, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskExecutionProfileResponse{Profile: stored})
+}
+
 // DeleteTaskExecutionProfile removes one persisted task-owned execution profile.
 func (h *BaseHandlers) DeleteTaskExecutionProfile(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)

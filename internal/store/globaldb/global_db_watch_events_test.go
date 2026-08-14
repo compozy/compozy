@@ -1259,13 +1259,30 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 		watcher := testLoopRun("watch-cursor-legacy-watcher", now, looppkg.StatusRunning)
 		watcher.WorkspaceID = looppkg.WorkspaceID(workspaceID)
 		pinLoopRunDefinitionForTest(t, &watcher, definition)
-		if _, err := prefixGlobalDB.CreateLoopRunForStart(ctx, watcher, dsl.ConcurrencyAllow); err != nil {
-			t.Fatalf("CreateLoopRunForStart(watcher) error = %v", err)
+		if err := upsertLoopDefinitionSnapshot(ctx, prefixDB, watcher, now); err != nil {
+			t.Fatalf("insert v60 watcher definition snapshot error = %v", err)
 		}
 		target := testLoopRun("watch-cursor-target", now.Add(time.Minute), looppkg.StatusRunning)
 		target.WorkspaceID = looppkg.WorkspaceID(workspaceID)
-		if _, err := prefixGlobalDB.CreateLoopRunForStart(ctx, target, dsl.ConcurrencyAllow); err != nil {
-			t.Fatalf("CreateLoopRunForStart(target) error = %v", err)
+		for _, run := range []looppkg.Run{watcher, target} {
+			if _, err := prefixDB.ExecContext(
+				ctx,
+				`INSERT INTO loop_runs (
+					id, workspace_id, loop_name, status, last_progress_at, inputs_json,
+					created_at, started_at, definition_version, definition_digest
+				) VALUES (?, ?, ?, ?, ?, '{}', ?, ?, ?, ?)`,
+				run.ID,
+				run.WorkspaceID,
+				run.LoopName,
+				run.Status,
+				store.FormatTimestamp(run.LastProgressAt),
+				store.FormatTimestamp(run.CreatedAt),
+				store.FormatTimestamp(run.StartedAt),
+				run.DefinitionVersion,
+				run.DefinitionDigest,
+			); err != nil {
+				t.Fatalf("insert v60 loop run %q error = %v", run.ID, err)
+			}
 		}
 		if err := appendLoopRunEventWithExecutor(
 			ctx,

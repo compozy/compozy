@@ -4,6 +4,63 @@ package contracts
 
 import "time"
 
+type SessionStatusResponse struct {
+	SessionID           string                           `json:"session_id"`
+	WorkspaceID         string                           `json:"workspace_id"`
+	AgentName           string                           `json:"agent_name"`
+	State               SessionHealthState               `json:"state"`
+	Health              SessionHealthStatus              `json:"health"`
+	ActivePrompt        bool                             `json:"active_prompt"`
+	Attachable          bool                             `json:"attachable"`
+	EligibleForWake     bool                             `json:"eligible_for_wake"`
+	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
+	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
+	UpdatedAt           time.Time                        `json:"updated_at"`
+}
+
+type SessionSummary struct {
+	ID         string                `json:"id"`
+	Name       string                `json:"name,omitempty"`
+	Agent      string                `json:"agent"`
+	Runtime    SessionRuntimePayload `json:"runtime"`
+	Workspace  string                `json:"workspace,omitempty"`
+	State      State                 `json:"state"`
+	ArchivedAt *time.Time            `json:"archived_at"`
+	CreatedAt  time.Time             `json:"created_at"`
+}
+
+type SessionTargetParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+}
+
+type SessionsCreateParams struct {
+	Agent                string   `json:"agent"`
+	Workspace            string   `json:"workspace,omitempty"`
+	NetworkParticipation *Request `json:"network_participation,omitempty"`
+}
+
+type SessionsListParams struct {
+	Workspace string `json:"workspace,omitempty"`
+	Archive   string `json:"archive,omitempty"`
+}
+
+type SessionsPromptParams struct {
+	WorkspaceID    string                         `json:"workspace_id"`
+	SessionID      string                         `json:"session_id"`
+	Message        string                         `json:"message"`
+	MessageID      string                         `json:"message_id"`
+	IdempotencyKey string                         `json:"idempotency_key"`
+	Mode           PromptMode                     `json:"mode,omitempty"`
+	ExpectedTurnID string                         `json:"expected_turn_id,omitempty"`
+	Runtime        *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
+type ShutdownRequest struct {
+	Reason     string `json:"reason"`
+	DeadlineMS int64  `json:"deadline_ms"`
+}
+
 type ShutdownResponse struct {
 	Acknowledged bool `json:"acknowledged"`
 }
@@ -215,59 +272,4 @@ type SpawnReapedPayload struct {
 	StopReason                   string         `json:"stop_reason,omitempty"`
 	ReapReason                   string         `json:"reap_reason,omitempty"`
 	Error                        string         `json:"error,omitempty"`
-}
-
-type SpawnTTLExpiredPayload struct {
-	Event                        HookEvent      `json:"event"`
-	Timestamp                    time.Time      `json:"timestamp"`
-	ParentSessionID              string         `json:"parent_session_id,omitempty"`
-	RootSessionID                string         `json:"root_session_id,omitempty"`
-	ChildSessionID               string         `json:"child_session_id,omitempty"`
-	WorkspaceID                  string         `json:"workspace_id,omitempty"`
-	Workspace                    string         `json:"workspace,omitempty"`
-	AgentName                    string         `json:"agent_name,omitempty"`
-	SpawnRole                    string         `json:"spawn_role,omitempty"`
-	SpawnDepth                   int            `json:"spawn_depth,omitempty"`
-	TTLSeconds                   int64          `json:"ttl_seconds,omitempty"`
-	AutoStopOnParent             bool           `json:"auto_stop_on_parent,omitempty"`
-	TaskID                       string         `json:"task_id,omitempty"`
-	RunID                        string         `json:"run_id,omitempty"`
-	WorkflowID                   string         `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec          `json:"resolved_network_participation,omitempty"`
-	SoulSnapshotID               string         `json:"soul_snapshot_id,omitempty"`
-	SoulDigest                   string         `json:"soul_digest,omitempty"`
-	ParentSoulDigest             string         `json:"parent_soul_digest,omitempty"`
-	ParentPermissions            *PermissionSet `json:"parent_permissions,omitempty"`
-	ChildPermissions             *PermissionSet `json:"child_permissions,omitempty"`
-	StopReason                   string         `json:"stop_reason,omitempty"`
-	ReapReason                   string         `json:"reap_reason,omitempty"`
-	Error                        string         `json:"error,omitempty"`
-}
-
-type Spec struct {
-	Version         string          `json:"version"`
-	Mode            Mode            `json:"mode"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	ChannelStrategy ChannelStrategy `json:"channel_strategy,omitempty"`
-	ChannelID       string          `json:"channel_id,omitempty"`
-	Source          Source          `json:"source"`
-	Bounds          Bounds          `json:"bounds,omitzero"`
-}
-
-type Speed string
-
-type State string
-
-type Status string
-
-type StopReason string
-
-type StuckTaskRun struct {
-	TaskID     string        `json:"task_id"`
-	RunID      string        `json:"run_id"`
-	Status     TaskRunStatus `json:"status"`
-	OriginKind OriginKind    `json:"origin_kind"`
-	ChannelID  string        `json:"channel_id,omitempty"`
-	SessionID  string        `json:"session_id,omitempty"`
-	AgeMillis  int64         `json:"age_ms"`
 }

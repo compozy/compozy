@@ -67,6 +67,7 @@ func eventSummaryAllowsGlobalScope(eventType string) bool {
 type EventSummaryQuery struct {
 	SessionID     string
 	WorkspaceID   string
+	WorktreeID    string
 	AgentName     string
 	Type          string
 	TaskID        string

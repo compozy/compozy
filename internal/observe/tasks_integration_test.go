@@ -949,7 +949,12 @@ func newObserveTaskManager(
 		taskpkg.WithManagerNow(clock.Now),
 		taskpkg.WithIDGenerator(func(prefix string) (string, error) {
 			sequence++
-			return prefix + "-observe-" + strconv.FormatInt(clock.current.UnixNano(), 10) + "-" + strconv.Itoa(sequence), nil
+			return prefix + "-observe-" + strconv.FormatInt(
+				clock.current.UnixNano(),
+				10,
+			) + "-" + strconv.Itoa(
+				sequence,
+			), nil
 		}),
 		taskpkg.WithCancelGracePeriod(0),
 		taskpkg.WithParticipationResolver(observeParticipationResolver{}),

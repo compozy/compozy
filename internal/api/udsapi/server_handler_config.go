@@ -30,6 +30,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		settingsUpdate:     s.settingsUpdate,
 		vault:              s.vault,
 		workspaces:         s.workspaces,
+		worktrees:          s.worktrees,
 		workspaceAccess:    s.workspaceAccess,
 		onboarding:         s.onboarding,
 		agentCatalog:       s.agentCatalog,

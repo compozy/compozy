@@ -118,6 +118,12 @@ type SessionAcceptanceManager interface {
 	CreateAccepted(ctx context.Context, opts session.CreateAcceptedOpts) (*session.Info, error)
 }
 
+// SessionWorktreeForkAcceptanceManager reserves the origin session while a
+// clean worktree-bound child is accepted.
+type SessionWorktreeForkAcceptanceManager interface {
+	CreateWorktreeForkAccepted(context.Context, string, session.CreateAcceptedOpts) (*session.Info, error)
+}
+
 // SessionPageManager is the bounded public catalog capability implemented by
 // the runtime manager without widening internal full-snapshot consumers.
 type SessionPageManager interface {

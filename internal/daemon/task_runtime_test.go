@@ -30,6 +30,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 func TestLoopActionRuntimeRetriesWorkspaceCapacityDeferral(t *testing.T) {
@@ -1095,6 +1096,72 @@ type recordingTaskBridgeSessionManager struct {
 	restoreCalls []string
 }
 
+type taskBridgeWorktreeMaterializeCall struct {
+	workspaceID string
+	request     worktreepkg.RunWorktreeRequest
+}
+
+type taskBridgeWorktreeRollbackCall struct {
+	workspaceID string
+	worktreeID  string
+	runID       string
+}
+
+type taskBridgeWorktreeGetCall struct {
+	workspaceID string
+	ref         string
+}
+
+type recordingTaskBridgeWorktrees struct {
+	getItem          *worktreepkg.Worktree
+	getErr           error
+	getCalls         []taskBridgeWorktreeGetCall
+	materialized     *worktreepkg.Worktree
+	materializeFn    func(string, worktreepkg.RunWorktreeRequest) (*worktreepkg.Worktree, error)
+	materializeErr   error
+	materializeCalls []taskBridgeWorktreeMaterializeCall
+	rollbackErr      error
+	rollbackCalls    []taskBridgeWorktreeRollbackCall
+}
+
+func (w *recordingTaskBridgeWorktrees) Get(
+	_ context.Context,
+	workspaceID string,
+	ref string,
+) (*worktreepkg.Worktree, error) {
+	w.getCalls = append(w.getCalls, taskBridgeWorktreeGetCall{workspaceID: workspaceID, ref: ref})
+	return w.getItem, w.getErr
+}
+
+func (w *recordingTaskBridgeWorktrees) MaterializeForRun(
+	_ context.Context,
+	workspaceID string,
+	request worktreepkg.RunWorktreeRequest,
+) (*worktreepkg.Worktree, error) {
+	w.materializeCalls = append(w.materializeCalls, taskBridgeWorktreeMaterializeCall{
+		workspaceID: workspaceID,
+		request:     request,
+	})
+	if w.materializeFn != nil {
+		return w.materializeFn(workspaceID, request)
+	}
+	return w.materialized, w.materializeErr
+}
+
+func (w *recordingTaskBridgeWorktrees) RollbackRunMaterialization(
+	_ context.Context,
+	workspaceID string,
+	worktreeID string,
+	runID string,
+) error {
+	w.rollbackCalls = append(w.rollbackCalls, taskBridgeWorktreeRollbackCall{
+		workspaceID: workspaceID,
+		worktreeID:  worktreeID,
+		runID:       runID,
+	})
+	return w.rollbackErr
+}
+
 func (m *recordingTaskBridgeSessionManager) BindNetworkPeer(
 	_ context.Context,
 	sessionID string,
@@ -1344,6 +1411,235 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 			t.Fatalf("PromptOverlay missing permission boundary guidance:\n%s", createCall.PromptOverlay)
 		}
 	})
+
+	t.Run("Should keep an explicit none worktree policy at the parent workspace root", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		worktrees := &recordingTaskBridgeWorktrees{}
+		bridge, err := newTaskSessionBridge(
+			sessions,
+			t.TempDir(),
+			discardLogger(),
+			withTaskSessionWorktrees(worktrees),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		ref, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-worktree-none",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-worktree-root",
+			},
+			Run: taskpkg.Run{
+				ID:               "run-worktree-none",
+				TaskID:           "task-worktree-none",
+				WorkspaceID:      "ws-worktree-root",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModeNone},
+				Status:           taskpkg.TaskRunStatusStarting,
+				Attempt:          1,
+				Origin: taskpkg.Origin{
+					Kind: taskpkg.OriginKindCLI, Ref: "compozy task run",
+				},
+				QueuedAt: time.Date(2026, 5, 5, 12, 28, 0, 0, time.UTC),
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskSession() error = %v", err)
+		}
+		call := sessions.createCall(0)
+		if call.Workspace != "ws-worktree-root" || call.Worktree != "" {
+			t.Fatalf("CreateOpts root placement = workspace %q worktree %q", call.Workspace, call.Worktree)
+		}
+		if ref.WorktreeID != "" || len(worktrees.getCalls) != 0 || len(worktrees.materializeCalls) != 0 {
+			t.Fatalf("none policy binding = ref:%#v worktrees:%#v, want no worktree lookup", ref, worktrees)
+		}
+	})
+
+	t.Run("Should reject worktree execution for a global task", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{ID: "task-global-worktree", Scope: taskpkg.ScopeGlobal},
+			Run: taskpkg.Run{
+				ID: "run-global-worktree", TaskID: "task-global-worktree",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
+				Status:           taskpkg.TaskRunStatusStarting, Attempt: 1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 29, 0, 0, time.UTC),
+			},
+		})
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("StartTaskSession(global worktree) error = %v, want ErrValidation", err)
+		}
+		if len(sessions.createCalls) != 0 {
+			t.Fatalf("Create() calls = %d, want zero", len(sessions.createCalls))
+		}
+	})
+
+	t.Run("Should select the immutable ref snapshot for session creation", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		worktreePath := t.TempDir()
+		worktrees := &recordingTaskBridgeWorktrees{getItem: &worktreepkg.Worktree{
+			ID:          "wt-feature-docs",
+			WorkspaceID: "ws-worktree",
+			Path:        worktreePath,
+			State:       worktreepkg.StateReady,
+		}}
+		bridge, err := newTaskSessionBridge(
+			sessions,
+			t.TempDir(),
+			discardLogger(),
+			withTaskSessionWorktrees(worktrees),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-worktree-ref",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-worktree",
+			},
+			Run: taskpkg.Run{
+				ID:          "run-worktree-ref",
+				TaskID:      "task-worktree-ref",
+				WorkspaceID: "ws-worktree",
+				RunWorktreeState: &taskpkg.RunWorktreeState{
+					ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
+					ResolvedWorktreeRef:  "feature-docs",
+				},
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 30, 0, 0, time.UTC),
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskSession() error = %v", err)
+		}
+		if got, want := sessions.createCall(0).Worktree, "wt-feature-docs"; got != want {
+			t.Fatalf("createCall.Worktree = %q, want %q", got, want)
+		}
+		if got, want := worktrees.getCalls, []taskBridgeWorktreeGetCall{{
+			workspaceID: "ws-worktree",
+			ref:         "feature-docs",
+		}}; !slices.Equal(got, want) {
+			t.Fatalf("Get() calls = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject a removed ref snapshot with the task policy error", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		worktrees := &recordingTaskBridgeWorktrees{getErr: worktreepkg.ErrNotFound}
+		bridge, err := newTaskSessionBridge(
+			sessions,
+			t.TempDir(),
+			discardLogger(),
+			withTaskSessionWorktrees(worktrees),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-removed-ref",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-worktree",
+			},
+			Run: taskpkg.Run{
+				ID:          "run-removed-ref",
+				TaskID:      "task-removed-ref",
+				WorkspaceID: "ws-worktree",
+				RunWorktreeState: &taskpkg.RunWorktreeState{
+					ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
+					ResolvedWorktreeRef:  "removed-ref",
+				},
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 32, 0, 0, time.UTC),
+			},
+		})
+		if !errors.Is(err, worktreepkg.ErrRefInvalid) {
+			t.Fatalf("StartTaskSession() error = %v, want %v", err, worktreepkg.ErrRefInvalid)
+		}
+		if got := len(sessions.createCalls); got != 0 {
+			t.Fatalf("Create() calls = %d, want zero", got)
+		}
+	})
+
+	t.Run("Should materialize and bind a dedicated per-run worktree", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		overlay := &taskContextOverlayStub{overlay: "task context bundle"}
+		worktrees := &recordingTaskBridgeWorktrees{materialized: &worktreepkg.Worktree{
+			ID:          "wt-run-1",
+			WorkspaceID: "ws-worktree",
+			Origin:      worktreepkg.OriginPerRun,
+			RunID:       "run-per-run",
+			State:       worktreepkg.StateReady,
+		}}
+		bridge, err := newTaskSessionBridge(
+			sessions,
+			t.TempDir(),
+			discardLogger(),
+			withTaskSessionWorktrees(worktrees),
+			withTaskSessionContextOverlay(overlay),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		ref, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-per-run",
+				Identifier:  "review-docs",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-worktree",
+			},
+			Run: taskpkg.Run{
+				ID:               "run-per-run",
+				TaskID:           "task-per-run",
+				WorkspaceID:      "ws-worktree",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
+				Status:           taskpkg.TaskRunStatusStarting,
+				Attempt:          1,
+				Origin:           taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "compozy task run"},
+				QueuedAt:         time.Date(2026, 5, 5, 12, 35, 0, 0, time.UTC),
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskSession() error = %v", err)
+		}
+		if got, want := len(worktrees.materializeCalls), 1; got != want {
+			t.Fatalf("MaterializeForRun() calls = %d, want %d", got, want)
+		}
+		call := worktrees.materializeCalls[0]
+		if call.workspaceID != "ws-worktree" || call.request.TaskSlug != "review-docs" ||
+			call.request.RunID != "run-per-run" {
+			t.Fatalf("MaterializeForRun() call = %#v, want immutable run identity", call)
+		}
+		if got, want := sessions.createCall(0).Worktree, "wt-run-1"; got != want {
+			t.Fatalf("createCall.Worktree = %q, want %q", got, want)
+		}
+		if got, want := ref.WorktreeID, "wt-run-1"; got != want {
+			t.Fatalf("SessionRef.WorktreeID = %q, want %q", got, want)
+		}
+		if got, want := overlay.calls[0].worktreeID, "wt-run-1"; got != want {
+			t.Fatalf("TaskRunPromptOverlay().WorktreeID = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestTaskSessionBridgeStartTaskSessionInjectsTaskContextOverlay(t *testing.T) {
@@ -1429,48 +1725,158 @@ func TestTaskSessionBridgeStartTaskSessionInjectsTaskContextOverlay(t *testing.T
 	})
 }
 
-func TestTaskSessionBridgeAttachTaskSessionRejectsStoppedSessions(t *testing.T) {
+func TestTaskSessionBridgeAttachTaskSession(t *testing.T) {
 	t.Parallel()
 
-	sessions := &fakeSessionManager{
-		infos: []*session.Info{
-			{
-				ID:          "sess-active",
-				State:       session.StateActive,
-				WorkspaceID: "ws-active",
-				CreatedAt:   time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
-			},
-			{
-				ID:          "sess-stopped",
-				State:       session.StateStopped,
-				WorkspaceID: "ws-stopped",
-				CreatedAt:   time.Date(2026, 4, 14, 17, 0, 0, 0, time.UTC),
-			},
-		},
-	}
-	bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
-	if err != nil {
-		t.Fatalf("newTaskSessionBridge() error = %v", err)
-	}
+	t.Run("Should reject stopped sessions", func(t *testing.T) {
+		t.Parallel()
 
-	ref, err := bridge.AttachTaskSession(context.Background(), "run-1", "sess-active")
-	if err != nil {
-		t.Fatalf("AttachTaskSession(active) error = %v", err)
-	}
-	if got, want := ref.SessionID, "sess-active"; got != want {
-		t.Fatalf("AttachTaskSession(active).SessionID = %q, want %q", got, want)
-	}
+		sessions := &fakeSessionManager{
+			infos: []*session.Info{
+				{
+					ID:          "sess-active",
+					State:       session.StateActive,
+					WorkspaceID: "ws-active",
+					CreatedAt:   time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+				},
+				{
+					ID:          "sess-stopped",
+					State:       session.StateStopped,
+					WorkspaceID: "ws-stopped",
+					CreatedAt:   time.Date(2026, 4, 14, 17, 0, 0, 0, time.UTC),
+				},
+			},
+		}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
 
-	if _, err := bridge.AttachTaskSession(
-		context.Background(),
-		"run-1",
-		"sess-stopped",
-	); !errors.Is(
-		err,
-		taskpkg.ErrSessionAttachNotAllowed,
-	) {
-		t.Fatalf("AttachTaskSession(stopped) error = %v, want %v", err, taskpkg.ErrSessionAttachNotAllowed)
-	}
+		ref, err := bridge.AttachTaskSession(context.Background(), "run-1", "sess-active")
+		if err != nil {
+			t.Fatalf("AttachTaskSession(active) error = %v", err)
+		}
+		if got, want := ref.SessionID, "sess-active"; got != want {
+			t.Fatalf("AttachTaskSession(active).SessionID = %q, want %q", got, want)
+		}
+
+		if _, err := bridge.AttachTaskSession(
+			context.Background(),
+			"run-1",
+			"sess-stopped",
+		); !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
+			t.Fatalf("AttachTaskSession(stopped) error = %v, want %v", err, taskpkg.ErrSessionAttachNotAllowed)
+		}
+	})
+
+	t.Run("Should reject a worktree-bound session for a root run", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{infos: []*session.Info{{
+			ID:          "sess-worktree",
+			State:       session.StateActive,
+			WorkspaceID: "ws-attach",
+			WorktreeID:  "wt-unexpected",
+		}}}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		_, err = bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
+			ID:               "run-root",
+			WorkspaceID:      "ws-attach",
+			RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModeNone},
+		}, "sess-worktree")
+		if !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
+			t.Fatalf("AttachTaskRunSession() error = %v, want ErrSessionAttachNotAllowed", err)
+		}
+	})
+
+	t.Run("Should reject a session from a different workspace", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{infos: []*session.Info{{
+			ID: "sess-foreign", State: session.StateActive, WorkspaceID: "ws-foreign",
+		}}}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		_, err = bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
+			ID: "run-root", WorkspaceID: "ws-owning",
+			RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModeNone},
+		}, "sess-foreign")
+		if !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
+			t.Fatalf("AttachTaskRunSession(foreign workspace) error = %v, want ErrSessionAttachNotAllowed", err)
+		}
+	})
+
+	t.Run("Should attach only a session bound to the resolved ready worktree", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{infos: []*session.Info{{
+			ID:          "sess-ref",
+			State:       session.StateActive,
+			WorkspaceID: "ws-attach",
+			WorktreeID:  "wt-feature",
+		}}}
+		worktrees := &recordingTaskBridgeWorktrees{getItem: &worktreepkg.Worktree{
+			ID:          "wt-feature",
+			WorkspaceID: "ws-attach",
+			State:       worktreepkg.StateReady,
+		}}
+		bridge, err := newTaskSessionBridge(
+			sessions,
+			t.TempDir(),
+			discardLogger(),
+			withTaskSessionWorktrees(worktrees),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		ref, err := bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
+			ID:          "run-ref",
+			WorkspaceID: "ws-attach",
+			RunWorktreeState: &taskpkg.RunWorktreeState{
+				ResolvedWorktreeMode: taskpkg.WorktreeModeRef,
+				ResolvedWorktreeRef:  "feature-docs",
+			},
+		}, "sess-ref")
+		if err != nil {
+			t.Fatalf("AttachTaskRunSession() error = %v", err)
+		}
+		if got, want := ref.WorktreeID, "wt-feature"; got != want {
+			t.Fatalf("SessionRef.WorktreeID = %q, want %q", got, want)
+		}
+		if got, want := worktrees.getCalls, []taskBridgeWorktreeGetCall{{
+			workspaceID: "ws-attach",
+			ref:         "feature-docs",
+		}}; !slices.Equal(got, want) {
+			t.Fatalf("Get() calls = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject attachment for a per-run worktree", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{infos: []*session.Info{{
+			ID:          "sess-active",
+			State:       session.StateActive,
+			WorkspaceID: "ws-attach",
+		}}}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+		_, err = bridge.AttachTaskRunSession(context.Background(), taskpkg.Run{
+			ID:               "run-per-run",
+			WorkspaceID:      "ws-attach",
+			RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
+		}, "sess-active")
+		if !errors.Is(err, taskpkg.ErrSessionAttachNotAllowed) {
+			t.Fatalf("AttachTaskRunSession() error = %v, want ErrSessionAttachNotAllowed", err)
+		}
+	})
 }
 
 func TestTaskSessionBridgeStopPathsUseCooperativeThenForcedCalls(t *testing.T) {
@@ -1882,6 +2288,91 @@ func TestTaskSessionBridgeErrorPaths(t *testing.T) {
 		})
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("StartTaskSession(create error) error = %v, want %v", err, wantErr)
+		}
+	})
+
+	t.Run("Should stop before session creation when per-run materialization fails", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		worktrees := &recordingTaskBridgeWorktrees{
+			materializeErr: fmt.Errorf("%w: checkout failed", worktreepkg.ErrPerRunMaterialization),
+		}
+		bridge, err := newTaskSessionBridge(
+			sessions,
+			t.TempDir(),
+			discardLogger(),
+			withTaskSessionWorktrees(worktrees),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-materialize-failure",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-materialize-failure",
+			},
+			Run: taskpkg.Run{
+				ID:               "run-materialize-failure",
+				WorkspaceID:      "ws-materialize-failure",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
+			},
+		})
+		if !errors.Is(err, worktreepkg.ErrPerRunMaterialization) {
+			t.Fatalf("StartTaskSession() error = %v, want ErrPerRunMaterialization", err)
+		}
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("Create() calls = %d, want zero", got)
+		}
+	})
+
+	t.Run("Should roll back a per-run worktree when session creation fails", func(t *testing.T) {
+		t.Parallel()
+
+		wantErr := errors.New("create failed after materialization")
+		worktrees := &recordingTaskBridgeWorktrees{materialized: &worktreepkg.Worktree{
+			ID:          "wt-create-failure",
+			WorkspaceID: "ws-create-failure",
+			Origin:      worktreepkg.OriginPerRun,
+			RunID:       "run-create-failure",
+			State:       worktreepkg.StateReady,
+		}}
+		bridge, err := newTaskSessionBridge(
+			&taskBridgeCreateErrorSessionManager{err: wantErr},
+			t.TempDir(),
+			discardLogger(),
+			withTaskSessionWorktrees(worktrees),
+		)
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-create-failure",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-create-failure",
+			},
+			Run: taskpkg.Run{
+				ID:               "run-create-failure",
+				WorkspaceID:      "ws-create-failure",
+				RunWorktreeState: &taskpkg.RunWorktreeState{ResolvedWorktreeMode: taskpkg.WorktreeModePerRun},
+			},
+		})
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("StartTaskSession() error = %v, want %v", err, wantErr)
+		}
+		if got, want := len(worktrees.rollbackCalls), 1; got != want {
+			t.Fatalf("RollbackRunMaterialization() calls = %d, want %d", got, want)
+		}
+		if got, want := worktrees.rollbackCalls[0], (taskBridgeWorktreeRollbackCall{
+			workspaceID: "ws-create-failure",
+			worktreeID:  "wt-create-failure",
+			runID:       "run-create-failure",
+		}); got != want {
+			t.Fatalf("RollbackRunMaterialization() call = %#v, want %#v", got, want)
 		}
 	})
 
@@ -2738,8 +3229,9 @@ func TestTaskRecoveryLivenessHelpers(t *testing.T) {
 }
 
 type taskContextOverlayCall struct {
-	taskID string
-	runID  string
+	taskID     string
+	runID      string
+	worktreeID string
 }
 
 type taskContextOverlayStub struct {
@@ -2755,8 +3247,9 @@ func (s *taskContextOverlayStub) TaskRunPromptOverlay(
 	_ *taskpkg.ExecutionProfile,
 ) (string, error) {
 	s.calls = append(s.calls, taskContextOverlayCall{
-		taskID: strings.TrimSpace(taskRecord.ID),
-		runID:  strings.TrimSpace(run.ID),
+		taskID:     strings.TrimSpace(taskRecord.ID),
+		runID:      strings.TrimSpace(run.ID),
+		worktreeID: strings.TrimSpace(run.WorktreeIDValue()),
 	})
 	if s.err != nil {
 		return "", s.err

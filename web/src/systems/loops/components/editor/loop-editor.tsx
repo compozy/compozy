@@ -3,9 +3,12 @@ import { ReactFlowProvider } from "@xyflow/react";
 
 import { Empty, Skeleton, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
+import { useWorktrees, type WorktreePayload } from "@/systems/workspace";
+
 import { useLoopEditor, type UseLoopEditorResult } from "../../hooks/use-loop-editor";
 import { useLoopFork } from "../../hooks/use-loop-fork";
-import type { LoopDefinition, LoopDetail } from "../../types";
+import { useLoopConfig } from "../../hooks/use-loops";
+import type { LoopDefinition, LoopDetail, LoopEnvironmentSpec } from "../../types";
 import { LoopEditorCanvas } from "./loop-editor-canvas";
 import { LoopEditorDslView } from "./loop-editor-dsl-view";
 import { LoopEditorPalette } from "./loop-editor-palette";
@@ -45,7 +48,11 @@ export function LoopEditor({
   liveDataEnabled = true,
 }: LoopEditorProps) {
   const editor = useLoopEditor(workspaceId, name, onPublished, liveDataEnabled);
+  const config = useLoopConfig(workspaceId, name, Boolean(workspaceId) && liveDataEnabled);
   const forkState = useLoopFork(workspaceId, name);
+  const worktrees = useWorktrees(workspaceId, {
+    enabled: Boolean(workspaceId) && liveDataEnabled,
+  });
   const readyEditor: ReadyEditor | null =
     editor.status === "ready" && editor.loop && editor.definition
       ? { ...editor, loop: editor.loop, definition: editor.definition }
@@ -95,15 +102,29 @@ export function LoopEditor({
     );
   }
 
-  return <LoopEditorReady editor={readyEditor} fork={forkState} />;
+  return (
+    <LoopEditorReady
+      editor={readyEditor}
+      fork={forkState}
+      gitBacked={worktrees.data?.repo.git_backed !== false}
+      loopDefaultEnvironment={config.data?.environment ?? undefined}
+      worktrees={worktrees.data?.worktrees ?? []}
+    />
+  );
 }
 
 function LoopEditorReady({
   editor,
   fork,
+  loopDefaultEnvironment,
+  worktrees,
+  gitBacked,
 }: {
   editor: ReadyEditor;
   fork: { fork: () => void; forking: boolean };
+  loopDefaultEnvironment?: LoopEnvironmentSpec;
+  worktrees: WorktreePayload[];
+  gitBacked: boolean;
 }) {
   const definition = editor.definition;
   const readOnly = !editor.definitionEditable;
@@ -144,6 +165,7 @@ function LoopEditorReady({
                   onConnect={editor.onConnect}
                   onSelectNode={editor.selectNode}
                   readOnly={readOnly}
+                  loopDefaultEnvironment={loopDefaultEnvironment}
                 />
               </div>
             ) : (
@@ -170,19 +192,23 @@ function LoopEditorReady({
           <LoopEditorSidebar
             contract={definition.contract}
             contractDisabled={editor.busy || readOnly}
-            onChangeContract={editor.changeContract}
-            onChangeContractPath={editor.changeContractPath}
+            gitBacked={gitBacked}
+            inspectorDisabled={editor.busy || readOnly}
+            lintByNode={editor.lint.byNode}
+            loopDefaultEnvironment={loopDefaultEnvironment}
             node={editor.selectedNode}
             fields={editor.selectedFields}
             nodes={editor.nodes}
             edges={editor.edges}
-            selectionKey={editor.selectionSeq}
-            definition={definition}
-            inspectorDisabled={editor.busy || readOnly}
+            onChangeContract={editor.changeContract}
+            onChangeContractPath={editor.changeContractPath}
             onChangeField={editor.changeField}
             onChangeFields={editor.changeFields}
-            sidebarTab={editor.sidebarTab}
             onSidebarTabChange={editor.selectSidebarTab}
+            selectionKey={editor.selectionSeq}
+            definition={definition}
+            sidebarTab={editor.sidebarTab}
+            worktrees={worktrees}
           />
         </div>
       </div>

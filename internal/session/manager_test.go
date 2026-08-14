@@ -29,6 +29,21 @@ import (
 	skillbundled "github.com/compozy/compozy/skills"
 )
 
+type blockingSessionCreatedNotifier struct {
+	Notifier
+	worktreeID string
+	entered    chan struct{}
+	release    chan struct{}
+}
+
+func (n *blockingSessionCreatedNotifier) OnSessionCreated(ctx context.Context, session *Session) {
+	if session.Info().WorktreeID == n.worktreeID {
+		close(n.entered)
+		<-n.release
+	}
+	n.Notifier.OnSessionCreated(ctx, session)
+}
+
 func TestSupervisionForSessionShouldDisableOnlyLoopInactivityTimers(t *testing.T) {
 	t.Parallel()
 
@@ -127,6 +142,192 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	}
 }
 
+func TestSessionWorktreeBinding(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should start a bound session at the worktree root and persist the binding", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		worktreeRoot := filepath.Join(t.TempDir(), "worktree")
+		if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(worktree root) error = %v", err)
+		}
+		resolver := &fakeSessionWorktreeResolver{id: "wt-ready", root: worktreeRoot}
+		h.manager = newManagerWithHarness(t, h, WithWorktreeResolver(resolver))
+
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Worktree: "ready-ref",
+		})
+		if err != nil {
+			t.Fatalf("Create(bound) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+
+		canonicalRoot, err := canonicalDirectory(worktreeRoot)
+		if err != nil {
+			t.Fatalf("canonicalDirectory(worktree root) error = %v", err)
+		}
+		if got := h.driver.startCalls[0].Cwd; got != canonicalRoot {
+			t.Fatalf("bound start cwd = %q, want %q", got, canonicalRoot)
+		}
+		if got := h.driver.startCalls[0].AdditionalDirs; got != nil {
+			t.Fatalf("bound additional dirs = %#v, want nil", got)
+		}
+		if got := created.Info().WorktreeID; got != "wt-ready" {
+			t.Fatalf("Info.WorktreeID = %q, want wt-ready", got)
+		}
+		if got := readMeta(t, created.MetaPath()).WorktreeIDValue(); got != "wt-ready" {
+			t.Fatalf("meta.WorktreeID = %q, want wt-ready", got)
+		}
+		if got, want := resolver.callsSnapshot(), []sessionWorktreeResolveCall{
+			{workspaceID: h.workspaceID, ref: "ready-ref"},
+			{workspaceID: h.workspaceID, ref: "wt-ready"},
+		}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("worktree resolver calls = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject a bound cwd outside the worktree without falling back to the workspace", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		worktreeRoot := filepath.Join(t.TempDir(), "worktree")
+		if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(worktree root) error = %v", err)
+		}
+		h.manager = newManagerWithHarness(t, h, WithWorktreeResolver(&fakeSessionWorktreeResolver{
+			id: "wt-ready", root: worktreeRoot,
+		}))
+
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-ready", CWD: h.workspace,
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "escapes root") {
+			t.Fatalf("Create(bound escape) error = %v, want ErrValidation escape", err)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver starts after bound escape = %d, want 0", got)
+		}
+	})
+
+	for _, test := range []struct {
+		name string
+		err  error
+	}{
+		{name: "not found", err: errors.New("worktree_not_found")},
+		{name: "not ready", err: errors.New("worktree_not_ready")},
+		{name: "missing", err: errors.New("worktree_missing")},
+	} {
+		t.Run("Should refuse a "+test.name+" binding before runtime start", func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			h.manager = newManagerWithHarness(t, h, WithWorktreeResolver(&fakeSessionWorktreeResolver{err: test.err}))
+			_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName: "coder", Workspace: h.workspaceID, Worktree: "target",
+			})
+			if !errors.Is(err, test.err) {
+				t.Fatalf("Create(%s binding) error = %v, want %v", test.name, err, test.err)
+			}
+			if got := len(h.driver.startCalls); got != 0 {
+				t.Fatalf("driver starts after %s binding = %d, want 0", test.name, got)
+			}
+		})
+	}
+
+	t.Run("Should refuse a binding removed after selection but before runtime start", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		worktreeRoot := filepath.Join(t.TempDir(), "worktree")
+		if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(worktree root) error = %v", err)
+		}
+		missingErr := errors.New("worktree_missing")
+		resolveCalls := 0
+		resolver := &fakeSessionWorktreeResolver{resolve: func(
+			_ context.Context,
+			_ string,
+			_ string,
+		) (string, string, error) {
+			resolveCalls++
+			if resolveCalls == 1 {
+				return "wt-race", worktreeRoot, nil
+			}
+			return "", "", missingErr
+		}}
+		h.manager = newManagerWithHarness(t, h, WithWorktreeResolver(resolver))
+
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-race",
+		})
+		if !errors.Is(err, missingErr) {
+			t.Fatalf("Create(removed before start) error = %v, want %v", err, missingErr)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver starts after removal race = %d, want 0", got)
+		}
+		if got := len(h.manager.List()); got != 0 {
+			t.Fatalf("active sessions after removal race = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reserve an idle origin until the worktree fork child is accepted", func(t *testing.T) {
+		t.Parallel()
+
+		worktreeRoot := filepath.Join(t.TempDir(), "fork-worktree")
+		if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(worktree root) error = %v", err)
+		}
+		childAccepted := make(chan struct{})
+		releaseChildAcceptance := make(chan struct{})
+		notifier := &blockingSessionCreatedNotifier{
+			Notifier: newFakeNotifier(), worktreeID: "wt-fork",
+			entered: childAccepted, release: releaseChildAcceptance,
+		}
+		h := newHarness(
+			t,
+			WithWorktreeResolver(&fakeSessionWorktreeResolver{id: "wt-fork", root: worktreeRoot}),
+			WithNotifier(notifier),
+		)
+		origin := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, origin.ID) })
+
+		createdResult := make(chan *Info, 1)
+		errResult := make(chan error, 1)
+		go func() {
+			created, err := h.manager.CreateWorktreeForkAccepted(
+				testutil.Context(t),
+				origin.ID,
+				CreateAcceptedOpts{Session: CreateOpts{
+					AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-fork", Type: SessionTypeUser,
+				}},
+			)
+			createdResult <- created
+			errResult <- err
+		}()
+
+		select {
+		case <-childAccepted:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for fork child acceptance")
+		}
+		if _, err := origin.beginExclusivePromptSetup(); !errors.Is(err, ErrPromptInProgress) {
+			t.Fatalf("beginExclusivePromptSetup(during fork) error = %v, want ErrPromptInProgress", err)
+		}
+		close(releaseChildAcceptance)
+		if err := <-errResult; err != nil {
+			t.Fatalf("CreateWorktreeForkAccepted() error = %v", err)
+		}
+		child := <-createdResult
+		if child == nil || child.WorktreeID != "wt-fork" {
+			t.Fatalf("fork child = %#v, want wt-fork binding", child)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+	})
+}
+
 func TestManagerPublishClarifyEvent(t *testing.T) {
 	t.Run("Should preserve typed clarification evidence in the canonical transcript payload", func(t *testing.T) {
 		t.Parallel()
@@ -169,7 +370,7 @@ func TestManagerPublishClarifyEvent(t *testing.T) {
 		if got, want := decoded.Type, EventTypeClarify; got != want {
 			t.Fatalf("event type = %q, want %q", got, want)
 		}
-		if got, want := decoded.RequestID, clarifyEvent.Request.RequestID; got != want {
+		if got, want := decoded.RequestIDValue(), clarifyEvent.Request.RequestID; got != want {
 			t.Fatalf("request id = %q, want %q", got, want)
 		}
 		var persisted toolspkg.ClarifyEvent

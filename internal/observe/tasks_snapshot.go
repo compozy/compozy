@@ -32,6 +32,11 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		return taskSnapshot{}, fmt.Errorf("observe: list tasks for summary: %w", err)
 	}
 	tasks = filterTasksByOrigin(tasks, query.OriginKind)
+	runs, err := o.registry.ListTaskRuns(ctx, taskpkg.RunQuery{})
+	if err != nil {
+		return taskSnapshot{}, fmt.Errorf("observe: list task runs for summary: %w", err)
+	}
+	tasks = filterTasksByWorktree(tasks, runs, query.WorktreeID)
 	dependencyCounts, err := o.loadTaskDependencyCounts(ctx, tasks)
 	if err != nil {
 		return taskSnapshot{}, err
@@ -44,11 +49,8 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		tasks[idx].DependencyCount = taskpkg.ClampSummaryCount(dependencyCounts[taskID])
 	}
 
-	runs, err := o.registry.ListTaskRuns(ctx, taskpkg.RunQuery{})
-	if err != nil {
-		return taskSnapshot{}, fmt.Errorf("observe: list task runs for summary: %w", err)
-	}
 	tasksByID, taskIDs := taskSummaryIndex(tasks)
+	runs = filterRunsByWorktree(runs, query.WorktreeID)
 	taskChannels := taskParticipationChannels(tasks, runs)
 	tasks = filterTasksByNetworkChannel(tasks, taskChannels, query.ParticipationChannel)
 
@@ -64,12 +66,11 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		runsByID[runID] = item
 	}
 	runs = filterRuns(runs, taskIDs, query)
-
 	events, err := o.registry.ListTaskEvents(ctx, taskpkg.EventQuery{})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list task events for summary: %w", err)
 	}
-	events = filterEventsForTasks(events, taskIDs)
+	events = filterEventsForTasks(events, taskIDs, runsByID, query.WorktreeID)
 
 	workspaceID := strings.TrimSpace(query.WorkspaceID)
 	audits, err := o.registry.ListNetworkAudit(ctx, store.NetworkAuditQuery{
@@ -79,6 +80,9 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 	})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list network audit for summary: %w", err)
+	}
+	if strings.TrimSpace(query.WorktreeID) != "" {
+		audits = nil
 	}
 
 	return taskSnapshot{

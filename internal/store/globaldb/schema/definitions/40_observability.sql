@@ -2,6 +2,7 @@ CREATE TABLE event_summaries (
 			id                     TEXT PRIMARY KEY,
 			session_id             TEXT NOT NULL DEFAULT '',
 			workspace_id           TEXT NOT NULL DEFAULT '',
+			worktree_id            TEXT NOT NULL DEFAULT '',
 			type                   TEXT NOT NULL,
 			agent_name             TEXT NOT NULL DEFAULT '',
 			content_json           TEXT NOT NULL DEFAULT '',
@@ -49,3 +50,5 @@ CREATE INDEX idx_summaries_type ON event_summaries(type);
 CREATE INDEX idx_summaries_workflow ON event_summaries(workflow_id);
 
 CREATE INDEX idx_summaries_workspace ON event_summaries(workspace_id);
+
+CREATE INDEX idx_summaries_worktree ON event_summaries(worktree_id);

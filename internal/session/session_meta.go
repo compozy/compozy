@@ -52,13 +52,14 @@ func (s *Session) metaLocked() store.SessionMeta {
 		Sandbox:              cloneSessionSandboxMeta(s.Sandbox),
 		CreationProfile:      profile,
 		CreationOptions:      creationOptions,
-		AdvertisedCommands:   store.CloneSessionAdvertisedCommands(s.AdvertisedCommands),
 		SoulSnapshotID:       s.SoulSnapshotID,
 		SoulDigest:           s.SoulDigest,
 		ParentSoulDigest:     s.ParentSoulDigest,
 		CreatedAt:            s.CreatedAt,
 		UpdatedAt:            s.UpdatedAt,
 	}
+	meta.SetWorktreeID(s.WorktreeID)
+	meta.SetAdvertisedCommands(s.AdvertisedCommands)
 	if identity != nil {
 		meta.CreationProfileRef = identity.CreationProfileRef
 		meta.PolicySpecDigest = identity.PolicySpecDigest

@@ -16,6 +16,9 @@ func ValidateTaskListQuery(query TaskListQuery, path string) error {
 	if err := validateTaskCatalogScopeBinding(query.Scope, query.Workspace, path); err != nil {
 		return err
 	}
+	if strings.TrimSpace(query.Worktree) != "" && strings.TrimSpace(query.Workspace) == "" {
+		return fmt.Errorf("%w: %s.workspace is required with worktree", taskpkg.ErrValidation, path)
+	}
 	if err := validateOptionalTaskStatus(query.Status, path+".status"); err != nil {
 		return err
 	}
@@ -45,6 +48,9 @@ func ValidateTaskInboxQuery(query TaskInboxQuery, path string) error {
 	}
 	if err := validateTaskCatalogScopeBinding(query.Scope, query.Workspace, path); err != nil {
 		return err
+	}
+	if strings.TrimSpace(query.Worktree) != "" && strings.TrimSpace(query.Workspace) == "" {
+		return fmt.Errorf("%w: %s.workspace is required with worktree", taskpkg.ErrValidation, path)
 	}
 	if err := validateOptionalTaskOwnerKind(query.OwnerKind, path+".owner_kind"); err != nil {
 		return err

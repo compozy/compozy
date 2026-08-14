@@ -1,4 +1,4 @@
-import { Check, Info } from "lucide-react";
+import { Check, ChevronRight, Info } from "lucide-react";
 
 import {
   Alert,
@@ -7,9 +7,21 @@ import {
   MenubarItem,
   MenubarMenu,
   MenubarSeparator,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
 } from "@compozy/ui";
 
-import { GLOBAL_SCOPE_COPY, type WorkspacePayload } from "@/systems/workspace";
+import {
+  GLOBAL_SCOPE_COPY,
+  groupWorkspaceTree,
+  WorktreeAggregate,
+  WorktreeSubmenuPanel,
+  WORKTREE_SUBMENU_FRAME_CLASS,
+  type WorkspacePayload,
+  type WorktreeListingByWorkspace,
+  type WorktreeNestEntry,
+} from "@/systems/workspace";
 
 export interface WorkspaceMenuProps {
   /** The workspace chip, already built as a `MenubarTrigger` by the chrome. */
@@ -24,6 +36,34 @@ export interface WorkspaceMenuProps {
   onSelectWorkspace: (workspaceId: string) => void;
   onOpenWorkspaces: () => void;
   onAddWorkspace: () => void;
+  /** Same query as the S1 switcher — the two surfaces must not diverge. */
+  worktreesByWorkspace?: WorktreeListingByWorkspace;
+  userHomeDir?: string;
+  selectedWorktreeId?: string | null;
+  onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onCreateWorktree?: (workspaceId: string) => void;
+  /** Opens the remove dialog for an adopted worktree (row actions menu). */
+  onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+}
+
+function WorkspaceRowLabel({
+  monogram,
+  name,
+  runningAgents,
+}: {
+  monogram: string;
+  name: string;
+  runningAgents: number;
+}) {
+  return (
+    <>
+      <span className="grid size-4 shrink-0 place-items-center rounded-xs border border-line-strong bg-elevated font-mono text-micro font-semibold">
+        {monogram}
+      </span>
+      {name}
+      <WorktreeAggregate runningAgents={runningAgents} />
+    </>
+  );
 }
 
 /** Workspace switcher: the bound set, then the overview and creation paths. */
@@ -39,8 +79,19 @@ export function WorkspaceMenu({
   onSelectWorkspace,
   onOpenWorkspaces,
   onAddWorkspace,
+  worktreesByWorkspace,
+  userHomeDir,
+  selectedWorktreeId,
+  onSelectWorktree,
+  onCreateWorktree,
+  onRemoveWorktree,
 }: WorkspaceMenuProps) {
   const notice = deletionNotice ?? (globalScopeOn ? GLOBAL_SCOPE_COPY.menuNotice : null);
+  const tree = worktreesByWorkspace
+    ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
+    : null;
+  const nodeByWorkspaceId = new Map(tree?.map(node => [node.workspace.id, node]) ?? []);
+  const orderedWorkspaces = tree?.map(node => node.workspace) ?? workspaces;
 
   return (
     <MenubarMenu open={open} onOpenChange={onOpenChange}>
@@ -57,21 +108,75 @@ export function WorkspaceMenu({
             <AlertDescription className="text-form-hint">{notice}</AlertDescription>
           </Alert>
         ) : null}
-        {workspaces.map(workspace => (
-          <MenubarItem
-            key={workspace.id}
-            data-testid={`os-workspace-option-${workspace.id}`}
-            onClick={() => onSelectWorkspace(workspace.id)}
-          >
-            <span className="grid size-4 place-items-center rounded-xs border border-line-strong bg-elevated font-mono text-micro font-semibold">
-              {monogram(workspace.name)}
-            </span>
-            {workspace.name}
-            {!globalScopeOn && workspace.id === activeWorkspaceId ? (
-              <Check className="ml-auto size-3 text-accent" />
-            ) : null}
-          </MenubarItem>
-        ))}
+        {orderedWorkspaces.map(workspace => {
+          const node = nodeByWorkspaceId.get(workspace.id);
+          // A non-git workspace gets no worktree affordance — absent, never disabled.
+          const gitBacked = Boolean(node?.gitBacked);
+          const isActive = !globalScopeOn && workspace.id === activeWorkspaceId;
+          const rowLabel = (
+            <WorkspaceRowLabel
+              monogram={monogram(workspace.name)}
+              name={workspace.name}
+              runningAgents={node?.runningAgents ?? 0}
+            />
+          );
+          if (!gitBacked || !node) {
+            return (
+              <MenubarItem
+                key={workspace.id}
+                data-testid={`os-workspace-option-${workspace.id}`}
+                onClick={() => onSelectWorkspace(workspace.id)}
+              >
+                {rowLabel}
+                {isActive ? <Check className="ml-auto size-3 text-accent" /> : null}
+              </MenubarItem>
+            );
+          }
+          return (
+            <MenubarSub key={workspace.id}>
+              <MenubarSubTrigger
+                // The primitive appends its own ml-auto chevron; hide it so the
+                // active check and the chevron share one trailing lane.
+                className="[&>svg:last-child]:hidden"
+                data-testid={`os-workspace-option-${workspace.id}`}
+                onClick={event => {
+                  // Enter and screen-reader activation (detail 0) keep opening
+                  // the submenu per the menu contract; a pointer click selects.
+                  if (event.detail === 0) return;
+                  onSelectWorkspace(workspace.id);
+                  onOpenChange(false);
+                }}
+              >
+                {rowLabel}
+                <span className="ml-auto flex shrink-0 items-center gap-1">
+                  {isActive ? <Check className="size-3 text-accent" /> : null}
+                  <ChevronRight aria-hidden="true" className="size-3 text-faint" />
+                </span>
+              </MenubarSubTrigger>
+              <MenubarSubContent
+                className={WORKTREE_SUBMENU_FRAME_CLASS}
+                data-testid={`os-worktree-submenu-${workspace.id}`}
+              >
+                <WorktreeSubmenuPanel
+                  node={node}
+                  selectedWorktreeId={globalScopeOn ? null : selectedWorktreeId}
+                  testIdPrefix="os"
+                  variant="menu"
+                  onSelectWorktree={
+                    onSelectWorktree ? entry => onSelectWorktree(workspace.id, entry) : undefined
+                  }
+                  onCreateWorktree={
+                    onCreateWorktree ? () => onCreateWorktree(workspace.id) : undefined
+                  }
+                  onShowAllWorktrees={onOpenWorkspaces}
+                  onRemoveWorktree={
+                    onRemoveWorktree ? entry => onRemoveWorktree(workspace.id, entry) : undefined
+                  }
+                />
+              </MenubarSubContent>
+            </MenubarSub>
+          );
+        })}
         <MenubarSeparator />
         <MenubarItem data-testid="os-workspace-overview" onClick={onOpenWorkspaces}>
           Workspaces overview…

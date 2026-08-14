@@ -35,6 +35,9 @@ func taskValues(query TaskListQuery) url.Values {
 	if trimmed := strings.TrimSpace(query.ParentTaskID); trimmed != "" {
 		values.Set("parent_task_id", trimmed)
 	}
+	if trimmed := strings.TrimSpace(query.Worktree); trimmed != "" {
+		values.Set("worktree", trimmed)
+	}
 	if trimmed := strings.TrimSpace(query.ParticipationChannel); trimmed != "" {
 		values.Set("participation_channel", trimmed)
 	}

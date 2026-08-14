@@ -21,6 +21,7 @@ func newService(options managerOptions) *Service {
 		coordinatorStatusOK:   options.coordinatorStatusOK,
 		coordinatorHookOK:     options.coordinatorHookOK,
 		profileValidation:     options.profileValidation,
+		worktreeRefValidator:  options.worktreeRefValidator,
 		forceRecovery:         normalizeForceRecoveryOptions(options.forceRecovery),
 		now:                   options.now,
 		newID:                 options.newID,

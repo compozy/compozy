@@ -288,6 +288,7 @@ describe("SDK integration", () => {
     const provides = fixtures.map(fixture => fixture.provide);
     expect(provides).toEqual([
       "connectivity.provider",
+      "forge.provider",
       "loop.watch_source",
       "memory.backend",
       "model.source",

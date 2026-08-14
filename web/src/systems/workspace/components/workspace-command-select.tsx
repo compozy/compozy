@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { ChevronsUpDown, Plus } from "lucide-react";
+import { ChevronRight, ChevronsUpDown, Plus } from "lucide-react";
 
 import {
   cn,
@@ -13,7 +12,12 @@ import {
   CommandSeparator,
 } from "@compozy/ui";
 
-import { partitionProjectWorkspaces } from "../lib/project-workspaces";
+import { useWorkspaceCommandSelectState } from "../hooks/use-workspace-command-select-state";
+import type { WorktreeListingByWorkspace } from "../lib/workspace-tree";
+import type { WorktreeNestEntry } from "../lib/worktree-display";
+import { WorktreeAggregate } from "./worktree-aggregate";
+import { WorktreeHoverSubmenu } from "./worktree-hover-submenu";
+import { WorktreeSubmenuPanel } from "./worktree-submenu-panel";
 
 function workspaceInitial(name: string): string {
   return name.charAt(0).toUpperCase() || "·";
@@ -39,6 +43,17 @@ export interface WorkspaceCommandSelectProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   size?: "default" | "compact";
+  /**
+   * Worktree listings keyed by workspace id. Omitted entirely on surfaces that
+   * do not read worktrees, which keeps the switcher exactly as it was.
+   */
+  worktreesByWorkspace?: WorktreeListingByWorkspace;
+  selectedWorktreeId?: string | null;
+  /** Selecting a discovered entry is the adoption gesture (ADR-002). */
+  onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onCreateWorktree?: (workspaceId: string) => void;
+  onShowAllWorktrees?: (workspaceId: string) => void;
+  onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
 
 export function WorkspaceCommandSelect({
@@ -55,37 +70,38 @@ export function WorkspaceCommandSelect({
   open: openProp,
   onOpenChange,
   size = "default",
+  worktreesByWorkspace,
+  selectedWorktreeId,
+  onSelectWorktree,
+  onCreateWorktree,
+  onShowAllWorktrees,
+  onRemoveWorktree,
 }: WorkspaceCommandSelectProps) {
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
-  const open = openProp ?? uncontrolledOpen;
-  const setOpen = onOpenChange ?? setUncontrolledOpen;
-  const { projectWorkspaces } = partitionProjectWorkspaces(workspaces, userHomeDir);
-  const selected = projectWorkspaces.find(workspace => workspace.id === value) ?? null;
-  const label = selected?.name ?? "No workspace";
-  const hasWorkspaces = projectWorkspaces.length > 0;
+  const state = useWorkspaceCommandSelectState({
+    userHomeDir,
+    workspaces,
+    value,
+    onChange,
+    onAddWorkspace,
+    open: openProp,
+    onOpenChange,
+    worktreesByWorkspace,
+  });
+  const label = state.selected?.name ?? "No workspace";
+  const hasWorkspaces = state.projectWorkspaces.length > 0;
   const isDisabled = disabled || !hasWorkspaces;
 
-  const handleSelect = (workspace: WorkspaceCommandSelectOption) => {
-    onChange(workspace.id);
-    setOpen(false);
-  };
-
-  const handleAddWorkspace = () => {
-    onAddWorkspace?.();
-    setOpen(false);
-  };
-
   return (
-    <CommandSelect open={open} onOpenChange={next => setOpen(next)}>
+    <CommandSelect open={state.open} onOpenChange={state.changeOpen}>
       <CommandSelectTrigger
         aria-haspopup="listbox"
-        aria-expanded={open}
+        aria-expanded={state.open}
         aria-labelledby={ariaLabelledBy}
         aria-label={hasWorkspaces ? `Workspace: ${label}` : "No workspace"}
         data-size={size}
         data-testid={triggerTestId}
         disabled={isDisabled}
-        selected={Boolean(selected)}
+        selected={Boolean(state.selected)}
         className={cn(
           size === "compact"
             ? "h-[calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))] min-w-0 gap-1.5 rounded-md border-transparent bg-transparent px-(--space-pill-group-segment-md-x) py-0 text-subtle shadow-none hover:bg-row-hover hover:text-fg-strong focus-visible:border-transparent focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
@@ -130,20 +146,35 @@ export function WorkspaceCommandSelect({
       <CommandSelectShell
         className={cn(size === "compact" ? "min-w-56" : "min-w-64")}
         inputPlaceholder="Search workspaces..."
-        inputProps={{ "data-testid": `${testIdPrefix}-input` }}
+        commandProps={{
+          value: state.activeCommandValue,
+          onValueChange: state.changeCommandValue,
+          onKeyDown: state.handleCommandKeyDown,
+        }}
+        inputProps={{ ref: state.inputRef, "data-testid": `${testIdPrefix}-input` }}
       >
         <CommandList>
           <CommandEmpty data-testid={`${testIdPrefix}-empty`}>
             No workspaces match your search.
           </CommandEmpty>
           <CommandSelectGroup heading="Workspaces" data-testid={`${testIdPrefix}-group`}>
-            {projectWorkspaces.map(workspace => {
+            {state.projectWorkspaces.map(workspace => {
               const isActive = workspace.id === value;
-              return (
+              const node = state.nodeByWorkspaceId.get(workspace.id);
+              const gitBacked = Boolean(node?.gitBacked);
+              const row = (
                 <CommandItem
                   key={workspace.id}
                   value={workspace.name}
-                  onSelect={() => handleSelect(workspace)}
+                  aria-haspopup={gitBacked ? "dialog" : undefined}
+                  aria-expanded={gitBacked ? state.submenuWorkspaceId === workspace.id : undefined}
+                  onPointerDown={event => {
+                    if (event.button !== 0) return;
+                    state.pointerSelectionArmed();
+                  }}
+                  onSelect={() => {
+                    state.selectWorkspace(workspace.id, gitBacked);
+                  }}
                   data-checked={isActive ? "true" : "false"}
                   data-testid={`${testIdPrefix}-item-${workspace.id}`}
                 >
@@ -156,8 +187,47 @@ export function WorkspaceCommandSelect({
                   </span>
                   <span className="flex min-w-0 flex-1 items-center gap-2">
                     <span className="truncate text-small-body text-fg">{workspace.name}</span>
+                    <WorktreeAggregate runningAgents={node?.runningAgents ?? 0} />
                   </span>
+                  {gitBacked ? (
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="ml-auto size-3 shrink-0 text-faint"
+                    />
+                  ) : null}
                 </CommandItem>
+              );
+              if (!gitBacked || !node) return row;
+              return (
+                <WorktreeHoverSubmenu
+                  key={workspace.id}
+                  open={state.submenuWorkspaceId === workspace.id}
+                  onOpenChange={next => state.changeSubmenuOpen(workspace.id, next)}
+                  testId={`${testIdPrefix}-worktree-submenu-${workspace.id}`}
+                  label={`Worktrees in ${workspace.name}`}
+                  trigger={row}
+                  focusOnOpen={state.focusedSubmenuWorkspaceId === workspace.id}
+                  onReturnFocus={() => state.inputRef.current?.focus()}
+                >
+                  <WorktreeSubmenuPanel
+                    node={node}
+                    selectedWorktreeId={selectedWorktreeId}
+                    testIdPrefix={testIdPrefix}
+                    onSelectWorktree={
+                      onSelectWorktree ? entry => onSelectWorktree(workspace.id, entry) : undefined
+                    }
+                    onCreateWorktree={
+                      onCreateWorktree ? () => onCreateWorktree(workspace.id) : undefined
+                    }
+                    onShowAllWorktrees={
+                      onShowAllWorktrees ? () => onShowAllWorktrees(workspace.id) : undefined
+                    }
+                    onRemoveWorktree={
+                      onRemoveWorktree ? entry => onRemoveWorktree(workspace.id, entry) : undefined
+                    }
+                    onClose={state.close}
+                  />
+                </WorktreeHoverSubmenu>
               );
             })}
           </CommandSelectGroup>
@@ -167,7 +237,7 @@ export function WorkspaceCommandSelect({
               <CommandSelectGroup>
                 <CommandItem
                   value="add workspace"
-                  onSelect={handleAddWorkspace}
+                  onSelect={state.addWorkspace}
                   data-testid={`${testIdPrefix}-add`}
                 >
                   <Plus aria-hidden="true" className="size-4 shrink-0 text-subtle" />

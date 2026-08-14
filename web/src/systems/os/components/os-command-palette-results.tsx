@@ -1,6 +1,6 @@
-import { ArrowRightLeft } from "lucide-react";
+import { ArrowRightLeft, FolderGit2 } from "lucide-react";
 
-import { CommandGroup, CommandItem } from "@compozy/ui";
+import { CommandGroup, CommandItem, MonoId } from "@compozy/ui";
 
 import type { OsCommandPaletteModel } from "../hooks/use-os-command-palette";
 import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
@@ -99,6 +99,24 @@ export function OsCommandPaletteResults({ destination, model }: OsCommandPalette
                 {tab.minimized ? "minimized · " : ""}
                 {tab.desktopName}
               </span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      ) : null}
+
+      {!destination && model.paletteWorktrees.length > 0 ? (
+        <CommandGroup heading="Worktrees">
+          {model.paletteWorktrees.map(entry => (
+            <CommandItem
+              key={entry.key}
+              value={`worktree ${entry.name} ${entry.branch}`}
+              data-testid={`os-palette-worktree-${entry.key}`}
+              onSelect={() => model.switchWorktree(entry)}
+              disabled={!model.commandsAvailable}
+            >
+              <FolderGit2 className="size-3.5 text-muted" />
+              <span className="min-w-0 truncate">{entry.name}</span>
+              <MonoId className="ml-auto" value={entry.branch} preserveCase size="sm" />
             </CommandItem>
           ))}
         </CommandGroup>

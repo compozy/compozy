@@ -72,6 +72,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'normal',
 			4,
 			'ws-1',
+			'wt-scan',
 			?,
 			'live',
 			'builders',
@@ -129,6 +130,9 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		}
 		if got, want := info.StopReason, store.StopTimeout; got != want {
 			t.Fatalf("info.StopReason = %q, want %q", got, want)
+		}
+		if got, want := info.WorktreeID, "wt-scan"; got != want {
+			t.Fatalf("info.WorktreeID = %q, want %q", got, want)
 		}
 		if got, want := info.StopDetail, "deadline exceeded"; got != want {
 			t.Fatalf("info.StopDetail = %q, want %q", got, want)
@@ -298,6 +302,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'',
 			0,
 			'ws-1',
+			NULL,
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',
 			NULL,
@@ -408,6 +413,7 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'',
 			0,
 			'ws-1',
+			NULL,
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',
 			NULL,
@@ -491,6 +497,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'',
 			0,
 			'ws-1',
+			NULL,
 			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
 			'local',
 			NULL,

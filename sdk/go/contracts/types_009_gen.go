@@ -4,6 +4,48 @@ package contracts
 
 import "time"
 
+type ForgePRCreateResponse struct {
+	Status string `json:"status"`
+	Number int    `json:"number,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Cause  string `json:"cause,omitempty"`
+}
+
+type ForgeStatusRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Branch     string   `json:"branch"`
+}
+
+type ForgeStatusResponse struct {
+	Provider  string    `json:"provider"`
+	PRNumber  *int      `json:"pr_number,omitempty"`
+	PRState   *string   `json:"pr_state,omitempty"`
+	PRURL     string    `json:"pr_url,omitempty"`
+	Merged    *bool     `json:"merged,omitempty"`
+	FetchedAt time.Time `json:"fetched_at"`
+	Cause     string    `json:"cause,omitempty"`
+}
+
+type GatewayIngressPayload struct {
+	SubjectKind                 string     `json:"subject_kind"`
+	SubjectID                   string     `json:"subject_id"`
+	ScopeKind                   string     `json:"scope_kind"`
+	WorkspaceID                 string     `json:"workspace_id,omitempty"`
+	URL                         string     `json:"url,omitempty"`
+	Reachability                string     `json:"reachability"`
+	EndpointGeneration          uint64     `json:"endpoint_generation"`
+	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
+	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
+	EnablePath                  string     `json:"enable_path,omitempty"`
+}
+
+type HeartbeatActorKind string
+
+type HeartbeatActorPayload struct {
+	Kind HeartbeatActorKind `json:"kind"`
+	Ref  string             `json:"ref,omitempty"`
+}
+
 type HeartbeatConfigProvenancePayload struct {
 	Digest string                       `json:"digest"`
 	Subset HeartbeatConfigSubsetPayload `json:"subset"`
@@ -167,52 +209,4 @@ type HeartbeatStatusResponse struct {
 	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
 	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
 	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
-}
-
-type HeartbeatTimeWindowPayload struct {
-	Timezone string `json:"timezone"`
-	Start    string `json:"start"`
-	End      string `json:"end"`
-}
-
-type HeartbeatValidateRequest struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	AgentName   string `json:"agent_name,omitempty"`
-	Body        string `json:"body"`
-}
-
-type HeartbeatWakeDecisionPayload struct {
-	WakeEventID       string                             `json:"wake_event_id,omitempty"`
-	Result            HeartbeatWakeResult                `json:"result"`
-	Reason            HeartbeatWakeReason                `json:"reason"`
-	PolicySnapshotID  string                             `json:"policy_snapshot_id,omitempty"`
-	PolicyDigest      string                             `json:"policy_digest,omitempty"`
-	ConfigDigest      string                             `json:"config_digest,omitempty"`
-	SyntheticPromptID string                             `json:"synthetic_prompt_id,omitempty"`
-	Diagnostics       []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-type HeartbeatWakeEventPayload struct {
-	ID                string              `json:"id"`
-	WorkspaceID       string              `json:"workspace_id,omitempty"`
-	AgentName         string              `json:"agent_name,omitempty"`
-	SessionID         string              `json:"session_id,omitempty"`
-	PolicySnapshotID  string              `json:"policy_snapshot_id,omitempty"`
-	Source            HeartbeatWakeSource `json:"source"`
-	Result            HeartbeatWakeResult `json:"result"`
-	Reason            HeartbeatWakeReason `json:"reason"`
-	SyntheticPromptID string              `json:"synthetic_prompt_id,omitempty"`
-	CreatedAt         time.Time           `json:"created_at"`
-	ExpiresAt         time.Time           `json:"expires_at"`
-}
-
-type HeartbeatWakeReason string
-
-type HeartbeatWakeRequest struct {
-	WorkspaceID    string              `json:"workspace_id,omitempty"`
-	AgentName      string              `json:"agent_name"`
-	SessionID      string              `json:"session_id"`
-	Source         HeartbeatWakeSource `json:"source"`
-	DryRun         bool                `json:"dry_run,omitempty"`
-	IdempotencyKey string              `json:"idempotency_key,omitempty"`
 }

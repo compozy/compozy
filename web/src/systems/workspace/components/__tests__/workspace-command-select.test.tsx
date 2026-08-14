@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
+import { emptyWorktreeListingFixture } from "../../mocks";
 import type { WorkspacePayload } from "../../types";
 import { WorkspaceCommandSelect } from "../workspace-command-select";
 
@@ -224,5 +225,121 @@ describe("WorkspaceCommandSelect", () => {
     await user.click(screen.getByTestId("workspace-command-add"));
     expect(onAddWorkspace).toHaveBeenCalledOnce();
     expect(screen.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("Should select a git-backed workspace and close on a pointer click", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <WorkspaceCommandSelect
+          workspaces={workspaces}
+          value="ws_alpha"
+          onChange={onChange}
+          worktreesByWorkspace={{ [workspaces[0].id]: emptyWorktreeListingFixture }}
+          onCreateWorktree={() => undefined}
+        />
+      </UIProvider>
+    );
+
+    await user.click(screen.getByTestId("workspace-switcher"));
+    const row = screen.getByTestId("workspace-command-item-ws_alpha");
+    expect(row).toHaveAttribute("aria-haspopup", "dialog");
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByTestId("workspace-command-worktree-submenu-ws_alpha")
+    ).not.toBeInTheDocument();
+
+    await user.click(row);
+    expect(onChange).toHaveBeenCalledWith("ws_alpha");
+    expect(screen.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("Should open the worktree side submenu on hover without selecting", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <WorkspaceCommandSelect
+          workspaces={workspaces}
+          value="ws_alpha"
+          onChange={onChange}
+          worktreesByWorkspace={{ [workspaces[0].id]: emptyWorktreeListingFixture }}
+          onCreateWorktree={() => undefined}
+        />
+      </UIProvider>
+    );
+
+    await user.click(screen.getByTestId("workspace-switcher"));
+    await user.hover(screen.getByTestId("workspace-command-item-ws_alpha"));
+
+    expect(
+      await screen.findByTestId("workspace-command-worktree-submenu-ws_alpha")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-command-worktree-create-ws_alpha")).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("Should move keyboard focus into the worktree panel and back to its trigger", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <WorkspaceCommandSelect
+          workspaces={workspaces}
+          value="ws_alpha"
+          onChange={() => undefined}
+          worktreesByWorkspace={{ [workspaces[0].id]: emptyWorktreeListingFixture }}
+          onCreateWorktree={() => undefined}
+        />
+      </UIProvider>
+    );
+
+    await user.click(screen.getByTestId("workspace-switcher"));
+    const input = screen.getByTestId("workspace-command-input");
+    await user.keyboard("{ArrowRight}");
+
+    const create = await screen.findByTestId("workspace-command-worktree-create-ws_alpha");
+    expect(create).toHaveFocus();
+    expect(screen.getByRole("dialog", { name: "Worktrees in alpha" })).toBeInTheDocument();
+
+    await user.keyboard("{ArrowLeft}");
+    expect(input).toHaveFocus();
+    expect(
+      screen.queryByTestId("workspace-command-worktree-submenu-ws_alpha")
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should leave a non-git workspace as a plain item with no submenu", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <WorkspaceCommandSelect
+          workspaces={workspaces}
+          value="ws_alpha"
+          onChange={() => undefined}
+          worktreesByWorkspace={{
+            [workspaces[0].id]: emptyWorktreeListingFixture,
+            [workspaces[1].id]: {
+              worktrees: [],
+              discovered: [],
+              repo: { git_backed: false, git_available: true },
+            },
+          }}
+        />
+      </UIProvider>
+    );
+
+    await user.click(screen.getByTestId("workspace-switcher"));
+    expect(screen.getByTestId("workspace-command-item-ws_beta")).not.toHaveAttribute(
+      "aria-haspopup"
+    );
+    expect(
+      screen.queryByTestId("workspace-command-worktree-submenu-ws_beta")
+    ).not.toBeInTheDocument();
   });
 });

@@ -43,6 +43,7 @@ func (s *Session) infoLocked() *Info {
 		EffectivePermissions:     s.EffectivePermissions,
 		WorkspaceID:              s.WorkspaceID,
 		Workspace:                s.Workspace,
+		WorktreeID:               s.WorktreeID,
 		NetworkParticipation:     s.NetworkParticipation,
 		NetworkOwnerKey:          s.NetworkOwnerKey,
 		Type:                     normalizeSessionType(s.Type),

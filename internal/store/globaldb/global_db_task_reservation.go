@@ -30,6 +30,11 @@ func (g *TaskRepo) normalizeQueuedRunReservationInput(
 	normalizedReservation.Origin = normalizedOrigin
 	normalizedReservation.IdempotencyKey = strings.TrimSpace(normalizedReservation.IdempotencyKey)
 	normalizedReservation.DesignationGroupID = strings.TrimSpace(normalizedReservation.DesignationGroupID)
+	normalizedReservation.ResolvedWorktreeMode = normalizedReservation.ResolvedWorktreeMode.Normalize()
+	if normalizedReservation.ResolvedWorktreeMode == "" {
+		normalizedReservation.ResolvedWorktreeMode = taskpkg.WorktreeModeNone
+	}
+	normalizedReservation.ResolvedWorktreeRef = strings.TrimSpace(normalizedReservation.ResolvedWorktreeRef)
 	normalizedReservation.Metadata = normalizeTaskJSON(normalizedReservation.Metadata)
 	if err := normalizedReservation.Validate("queue_run_reservation"); err != nil {
 		return queuedRunReservationInput{}, err
@@ -39,16 +44,18 @@ func (g *TaskRepo) normalizeQueuedRunReservationInput(
 		normalizedQueuedAt = g.now()
 	}
 	return queuedRunReservationInput{
-		taskID:             normalizedReservation.TaskID,
-		runID:              normalizedReservation.RunID,
-		runKind:            normalizedReservation.RunKind,
-		loopRunID:          normalizedReservation.LoopRunID,
-		idempotencyKey:     normalizedReservation.IdempotencyKey,
-		origin:             normalizedOrigin,
-		networkSpec:        normalizedReservation.NetworkSpec,
-		designationGroupID: normalizedReservation.DesignationGroupID,
-		metadata:           normalizedReservation.Metadata,
-		queuedAt:           normalizedQueuedAt,
+		taskID:               normalizedReservation.TaskID,
+		runID:                normalizedReservation.RunID,
+		runKind:              normalizedReservation.RunKind,
+		loopRunID:            normalizedReservation.LoopRunID,
+		idempotencyKey:       normalizedReservation.IdempotencyKey,
+		origin:               normalizedOrigin,
+		networkSpec:          normalizedReservation.NetworkSpec,
+		designationGroupID:   normalizedReservation.DesignationGroupID,
+		resolvedWorktreeMode: normalizedReservation.ResolvedWorktreeMode,
+		resolvedWorktreeRef:  normalizedReservation.ResolvedWorktreeRef,
+		metadata:             normalizedReservation.Metadata,
+		queuedAt:             normalizedQueuedAt,
 	}, nil
 }
 
@@ -163,8 +170,12 @@ func (g *TaskRepo) createQueuedRunWithExecutor(
 		Origin:             input.origin,
 		IdempotencyKey:     input.idempotencyKey,
 		DesignationGroupID: input.designationGroupID,
-		Metadata:           input.metadata,
-		QueuedAt:           input.queuedAt,
+		RunWorktreeState: &taskpkg.RunWorktreeState{
+			ResolvedWorktreeMode: input.resolvedWorktreeMode,
+			ResolvedWorktreeRef:  input.resolvedWorktreeRef,
+		},
+		Metadata: input.metadata,
+		QueuedAt: input.queuedAt,
 	}
 	run.SetNetworkState(input.networkSpec, "", "", "")
 	normalizedRun, err := g.normalizeTaskRunForCreate(run)

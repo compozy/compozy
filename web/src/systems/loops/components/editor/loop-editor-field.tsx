@@ -2,7 +2,8 @@ import { AlertTriangle } from "lucide-react";
 
 import { cn, Input, NativeSelect, NativeSelectOption, Switch, Textarea } from "@compozy/ui";
 
-import { MonoTag } from "../mono-tag";
+import type { WorktreePayload } from "@/systems/workspace";
+
 import type { RawLoopNode } from "../../lib/codec";
 import { getAtPath, type NodeFieldEdit } from "../../lib/loop-editor-draft";
 import type {
@@ -13,8 +14,11 @@ import type {
   TextFieldSpec,
 } from "../../lib/loop-node-schema";
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
+import type { LoopEnvironmentSpec, LoopValidationIssue } from "../../types";
+import { MonoTag } from "../mono-tag";
 import { LoopEditorCriteria } from "./loop-editor-criteria";
 import { LoopEditorEffectsField } from "./loop-editor-field-effects";
+import { LoopEditorEnvironmentField } from "./loop-editor-environment-field";
 import { LoopEditorJsonField } from "./loop-editor-json-field";
 import { LoopEditorWaitMode } from "./loop-editor-wait-mode";
 import { LoopEditorWatchEvents } from "./loop-editor-watch-events";
@@ -26,8 +30,12 @@ interface LoopEditorFieldProps {
   suggestions: readonly LoopReferenceSuggestion[];
   disabled: boolean;
   onChange: (path: FieldPath, value: unknown) => void;
-  /** Multi-key atomic edits — the `wait` discriminator is the only field that needs them. */
+  /** Multi-key atomic edits — wait and environment discriminators. */
   onChangeFields: (edits: NodeFieldEdit[]) => void;
+  worktrees?: readonly WorktreePayload[];
+  gitBacked?: boolean;
+  loopDefaultEnvironment?: LoopEnvironmentSpec;
+  lintIssues?: readonly LoopValidationIssue[];
 }
 
 function str(value: unknown): string {
@@ -297,6 +305,22 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
         raw={raw as RawLoopNode}
         disabled={disabled}
         onChangeFields={props.onChangeFields}
+      />
+    );
+  }
+  if (field.type === "environment") {
+    return (
+      <LoopEditorEnvironmentField
+        disabled={disabled}
+        field={field}
+        gitBacked={props.gitBacked}
+        lintIssues={props.lintIssues}
+        loopDefaultEnvironment={props.loopDefaultEnvironment}
+        onChange={props.onChange}
+        onChangeFields={props.onChangeFields}
+        raw={raw as RawLoopNode}
+        suggestions={props.suggestions}
+        worktrees={props.worktrees}
       />
     );
   }

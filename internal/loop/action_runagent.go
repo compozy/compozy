@@ -125,13 +125,17 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 		return ActionSessionBinding{}, ResolvedRuntime{}, err
 	}
 	handle := actionSessionHandle(node.Session)
+	environment, err := ResolveActionEnvironment(spec.Environment, in.EnvironmentValue())
+	if err != nil {
+		return ActionSessionBinding{}, ResolvedRuntime{}, err
+	}
 	binding, err := e.binder.BindActionSession(ctx, ActionSessionBindRequest{
 		WorkspaceID:        in.WorkspaceID,
 		LoopRunID:          in.LoopRunID,
 		Generation:         in.Generation,
 		NodeID:             in.NodeID,
 		Agent:              strings.TrimSpace(spec.Agent),
-		CWD:                strings.TrimSpace(spec.CWD),
+		Environment:        cloneEnvironmentSpec(environment),
 		Handle:             handle,
 		SharedKey:          actionSessionSharedKey(in.Generation, in.NodeID, in.ItemIndex, handle),
 		ItemIndex:          in.ItemIndex,

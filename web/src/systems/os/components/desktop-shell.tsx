@@ -3,10 +3,14 @@ import { Outlet } from "@tanstack/react-router";
 import { cn } from "@compozy/ui";
 
 import { OsShellContext } from "../contexts/os-shell-context";
+import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-desktop-shell-model";
+import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
+import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import { DesktopGate } from "./desktop-gate";
+import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
 import { DesktopMenubar } from "./desktop-menubar";
 import { DesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
@@ -31,10 +35,11 @@ import {
 } from "@/systems/session";
 import { useSettingsSandboxes } from "@/systems/settings";
 import {
+  selectWorktreeForScope,
   useWorkspaceSetupContent,
+  WorkspaceSetupDialog,
   type WorkspaceSetupCollection,
   type WorkspaceSetupDefaultsModel,
-  WorkspaceSetupDialog,
 } from "@/systems/workspace";
 
 /**
@@ -60,6 +65,7 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
   const chrome = useDesktopChrome(model.runtimeWorkspaceId);
   const agentsQuery = useAgents();
   const sandboxesQuery = useSettingsSandboxes();
+  const worktreeDialogs = useWorktreeDialogTargets();
   const workspaceSetupDefaults: WorkspaceSetupDefaultsModel = {
     agents: workspaceSetupCollection(
       agentsQuery.data,
@@ -82,40 +88,61 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
   // project workspace and must not replace the shell with setup.
 
   return (
-    <OsShellContext.Provider value={chrome.shell}>
-      <SessionCreateProvider store={model.sessionCreate.store}>
-        <AgentCreateHostProvider
-          openDialog={model.agentCreate.openDialog}
-          openForDuplicate={model.agentCreate.openForDuplicate}
-        >
-          <DesktopShellBody
-            firstRun={firstRun}
-            model={model}
-            workspaceSetupDefaults={workspaceSetupDefaults}
-          />
-          <SessionCreateDialogHost
-            activeWorkspace={model.runtimeWorkspace}
-            agents={model.workspaceAgents}
-            homeWorkspaceId={model.homeWorkspace?.id}
-            projectWorkspaceId={model.activeWorkspaceId}
-            scope={model.scope}
-            store={model.sessionCreate.store}
-          />
-        </AgentCreateHostProvider>
-      </SessionCreateProvider>
-    </OsShellContext.Provider>
+    <WorktreeDialogActionsContext.Provider value={worktreeDialogs}>
+      <OsShellContext.Provider value={chrome.shell}>
+        <SessionCreateProvider store={model.sessionCreate.store}>
+          <AgentCreateHostProvider
+            openDialog={model.agentCreate.openDialog}
+            openForDuplicate={model.agentCreate.openForDuplicate}
+          >
+            <DesktopShellBody
+              firstRun={firstRun}
+              model={model}
+              worktreeDialogs={worktreeDialogs}
+              workspaceSetupDefaults={workspaceSetupDefaults}
+            />
+            <SessionCreateDialogHost
+              activeWorkspace={model.runtimeWorkspace}
+              agents={model.workspaceAgents}
+              homeWorkspaceId={model.homeWorkspace?.id}
+              projectWorkspaceId={model.activeWorkspaceId}
+              scope={model.scope}
+              store={model.sessionCreate.store}
+            />
+          </AgentCreateHostProvider>
+        </SessionCreateProvider>
+      </OsShellContext.Provider>
+    </WorktreeDialogActionsContext.Provider>
   );
 }
 
-function DesktopShellBody({
-  model,
-  firstRun,
-  workspaceSetupDefaults,
-}: {
+interface DesktopShellBodyProps {
   model: DesktopShellModel;
   firstRun: boolean;
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
-}) {
+  worktreeDialogs: ReturnType<typeof useWorktreeDialogTargets>;
+}
+
+type DesktopWorktreeScope = ReturnType<typeof useDesktopWorktreeScope>;
+
+function DesktopShellBody(props: DesktopShellBodyProps) {
+  const worktreeScope = useDesktopWorktreeScope(props.model.worktreeListing);
+
+  return (
+    <WindowScopeContext value={worktreeScope.worktreeScopeId}>
+      <DesktopShellScopedBody {...props} {...worktreeScope} />
+    </WindowScopeContext>
+  );
+}
+
+function DesktopShellScopedBody({
+  model,
+  firstRun,
+  workspaceSetupDefaults,
+  worktreeDialogs,
+  worktreeScopeId,
+  worktreeSelection,
+}: DesktopShellBodyProps & DesktopWorktreeScope) {
   const sessionCreate = useSessionCreateActions();
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
   const openNewSession = () => {
@@ -145,7 +172,6 @@ function DesktopShellBody({
     firstRun,
     onNewSession: openNewSession,
   });
-
   return (
     <div
       ref={desktopRef}
@@ -173,7 +199,9 @@ function DesktopShellBody({
         deletionNotice={model.deletionNotice}
         rememberedWorkspaceName={model.rememberedWorkspace?.name ?? null}
         onToggleGlobalScope={model.toggleGlobalScope}
-        onSelectWorkspace={model.setActiveWorkspaceId}
+        onSelectWorkspace={workspaceId =>
+          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
+        }
         onAddWorkspace={model.openWorkspaceSetup}
         onNewSession={openNewSession}
         onOpenPalette={() => overlays.setOverlayOpen("palette", true)}
@@ -183,6 +211,18 @@ function DesktopShellBody({
         activeOverlay={overlays.activeOverlay}
         onOverlayOpenChange={overlays.setOverlayOpen}
         attention={attention}
+        worktreesByWorkspace={model.worktreesByWorkspace}
+        userHomeDir={model.userHomeDir}
+        worktreeSelection={worktreeSelection}
+        onSelectWorktree={(workspaceId, entry) => {
+          // A discovered row is the adoption gesture; anything else scopes.
+          if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
+          if (entry.worktree) {
+            selectWorktreeForScope(worktreeScopeId, workspaceId, entry.worktree.id);
+          }
+        }}
+        onCreateWorktree={model.openWorktreeCreate}
+        onRemoveWorktree={worktreeDialogs.requestRemove}
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
         <OsWallpaper wallpaper={desktop.wallpaper} />
@@ -291,17 +331,37 @@ function DesktopShellBody({
         onOpenChange={open => overlays.setOverlayOpen("workspaces", open)}
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
-        onSelectWorkspace={model.setActiveWorkspaceId}
+        onSelectWorkspace={workspaceId =>
+          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
+        }
         onNewWorkspace={model.openWorkspaceSetup}
         details={workspaceDetails}
         presentation={pager.presentation}
         reducedMotion={reducedMotion}
+        worktreesByWorkspace={model.worktreesByWorkspace}
+        userHomeDir={model.userHomeDir}
+        selectedWorktreeId={worktreeSelection.selectedWorktreeId}
+        onSelectWorktree={(workspaceId, entry) => {
+          if (worktreeDialogs.requestAdopt(workspaceId, entry)) return;
+          if (entry.worktree) {
+            selectWorktreeForScope(worktreeScopeId, workspaceId, entry.worktree.id);
+          }
+        }}
+        onCreateWorktree={model.openWorktreeCreate}
+        onRemoveWorktree={worktreeDialogs.requestRemove}
+        onResolveMissing={worktreeDialogs.requestResolveMissing}
+        onOpenWorktreeContext={worktreeDialogs.requestContext}
       />
       <WorkspaceSetupDialogBoundary
         defaults={workspaceSetupDefaults}
         onOpenChange={model.setWorkspaceSetupOpen}
         onWorkspaceResolved={model.setActiveWorkspaceId}
         open={model.isWorkspaceSetupOpen}
+      />
+      <DesktopWorktreeDialogs
+        model={model}
+        scopeId={worktreeScopeId}
+        worktreeDialogs={worktreeDialogs}
       />
       <AgentCreateDialog
         draft={model.agentCreate.draft}
@@ -328,6 +388,11 @@ function DesktopShellBody({
   );
 }
 
+/**
+ * Mirrors `WorkspaceSetupDialogBoundary`: the domain hook runs in exactly one
+ * place and only while the dialog is mounted, so a closed dialog holds no
+ * mutation state.
+ */
 function WorkspaceSetupDialogBoundary({
   defaults,
   onOpenChange,

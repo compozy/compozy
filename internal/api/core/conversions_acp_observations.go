@@ -26,7 +26,7 @@ func availableCommandPayloads(commands []store.SessionAdvertisedCommand) []contr
 func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload {
 	return contract.AgentEventPayload{
 		Type: event.Type, SessionID: event.SessionID, TurnID: event.TurnID,
-		MessageID: event.MessageIDValue(), RequestID: event.RequestID,
+		MessageID: event.MessageIDValue(), RequestID: event.RequestIDValue(),
 		Timestamp: event.Timestamp, Text: event.Text, Title: event.Title, ToolCallID: event.ToolCallID,
 		StopReason: event.StopReason, PromptStopReason: contract.ACPPromptStopReason(event.PromptStopReason),
 		AvailableCommands: availableCommandPayloads(event.AvailableCommands.Values()), Action: event.Action,

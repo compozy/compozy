@@ -99,6 +99,7 @@ type WatchEventsRepo struct {
 }
 type DeadEntityRepo struct{ *repoBase }
 type ApprovalGrantRepo struct{ *repoBase }
+type WorktreeRepo struct{ *repoBase }
 
 func (g *GlobalDB) initializeRepositories(config openConfig) {
 	base := newRepoBase(g.db, func() time.Time { return g.now() }, &g.closed)
@@ -140,6 +141,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	}
 	g.DeadEntityRepo = &DeadEntityRepo{repoBase: base}
 	g.ApprovalGrantRepo = &ApprovalGrantRepo{repoBase: base}
+	g.Worktrees = &WorktreeRepo{repoBase: base}
 	loopRepo.watchEvents = g.WatchEventsRepo
 	loopRepo.observe = g.ObserveRepo
 	taskRepo.enqueueLoopCoordinatorWake = loopRepo.enqueueLoopCoordinatorWakeWithRunID

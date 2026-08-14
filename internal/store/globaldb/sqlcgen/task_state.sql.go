@@ -108,6 +108,37 @@ func (q *Queries) CountPausedTasks(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const findActiveDesignationProjectionCandidate = `-- name: FindActiveDesignationProjectionCandidate :one
+SELECT id
+FROM task_runs
+WHERE task_id = ?1
+  AND designation_group_id = ?2
+  AND id <> ?3
+  AND status IN ('claimed', 'starting', 'running')
+ORDER BY
+  CASE status
+    WHEN 'running' THEN 3
+    WHEN 'starting' THEN 2
+    ELSE 1
+  END DESC,
+  queued_at DESC,
+  id DESC
+LIMIT 1
+`
+
+type FindActiveDesignationProjectionCandidateParams struct {
+	TaskID             sql.NullString `json:"task_id"`
+	DesignationGroupID string         `json:"designation_group_id"`
+	ExcludedRunID      string         `json:"excluded_run_id"`
+}
+
+func (q *Queries) FindActiveDesignationProjectionCandidate(ctx context.Context, arg FindActiveDesignationProjectionCandidateParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, findActiveDesignationProjectionCandidate, arg.TaskID, arg.DesignationGroupID, arg.ExcludedRunID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getSchedulerPause = `-- name: GetSchedulerPause :one
 SELECT paused, paused_by, paused_at, reason, updated_at
 FROM scheduler_pause
@@ -144,6 +175,24 @@ func (q *Queries) GetTaskCurrentRunProjection(ctx context.Context, id string) (s
 	var current_run_id sql.NullString
 	err := row.Scan(&current_run_id)
 	return current_run_id, err
+}
+
+const getTaskRunProjectionIdentity = `-- name: GetTaskRunProjectionIdentity :one
+SELECT task_id, designation_group_id
+FROM task_runs
+WHERE id = ?1
+`
+
+type GetTaskRunProjectionIdentityRow struct {
+	TaskID             sql.NullString `json:"task_id"`
+	DesignationGroupID string         `json:"designation_group_id"`
+}
+
+func (q *Queries) GetTaskRunProjectionIdentity(ctx context.Context, runID string) (GetTaskRunProjectionIdentityRow, error) {
+	row := q.db.QueryRowContext(ctx, getTaskRunProjectionIdentity, runID)
+	var i GetTaskRunProjectionIdentityRow
+	err := row.Scan(&i.TaskID, &i.DesignationGroupID)
+	return i, err
 }
 
 const getTaskStatus = `-- name: GetTaskStatus :one

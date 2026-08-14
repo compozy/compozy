@@ -1043,6 +1043,14 @@ func TestUnixSocketClientTaskMethodsRejectNilPointerRequests(t *testing.T) {
 			want: "cli: task execution profile request is required",
 		},
 		{
+			name: "Should reject nil task worktree policy request",
+			run: func() error {
+				_, err := client.SetTaskWorktreePolicy(context.Background(), "task-1", nil)
+				return err
+			},
+			want: "cli: task worktree policy request is required",
+		},
+		{
 			name: "Should reject nil bridge notification subscription request",
 			run: func() error {
 				_, err := client.CreateTaskBridgeNotificationSubscription(context.Background(), "task-1", nil)
@@ -3675,6 +3683,9 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if got := req.URL.Query().Get("parent_task_id"); got != "task-root" {
 						t.Fatalf("task parent_task_id query = %q, want %q", got, "task-root")
 					}
+					if got := req.URL.Query().Get("worktree"); got != "wt-alpha" {
+						t.Fatalf("task worktree query = %q, want %q", got, "wt-alpha")
+					}
 					if got := req.URL.Query().Get("participation_channel"); got != "builders" {
 						t.Fatalf("task participation_channel query = %q, want %q", got, "builders")
 					}
@@ -3876,6 +3887,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 			OwnerKind:            taskpkg.OwnerKindPool,
 			OwnerRef:             "triage",
 			ParentTaskID:         "task-root",
+			Worktree:             "wt-alpha",
 			ParticipationChannel: "builders",
 			Limit:                3,
 		})
@@ -4474,9 +4486,10 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		OwnerKind:            taskpkg.OwnerKindPool,
 		OwnerRef:             "triage",
 		ParentTaskID:         "task-root",
+		Worktree:             "wt-alpha",
 		ParticipationChannel: "builders",
 		Limit:                3,
-	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("participation_channel") != "builders" || got.Get("limit") != "3" {
+	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("worktree") != "wt-alpha" || got.Get("participation_channel") != "builders" || got.Get("limit") != "3" {
 		t.Fatalf("taskValues() = %v, want all task filters", got)
 	}
 

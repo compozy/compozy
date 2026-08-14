@@ -115,6 +115,12 @@ type StubTaskManager struct {
 		*taskpkg.ExecutionProfile,
 		taskpkg.ActorContext,
 	) (taskpkg.ExecutionProfile, error)
+	SetWorktreePolicyFn func(
+		context.Context,
+		string,
+		taskpkg.WorktreePolicy,
+		taskpkg.ActorContext,
+	) (taskpkg.ExecutionProfile, error)
 	DeleteExecutionProfileFn func(context.Context, string, taskpkg.ActorContext) error
 	RequestRunReviewFn       func(
 		context.Context,

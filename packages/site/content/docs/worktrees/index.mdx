@@ -1,0 +1,89 @@
+---
+title: Worktrees
+description: Run sessions, tasks, and Loops in isolated Git checkouts while sharing the parent workspace's runtime context.
+---
+
+A Worktree is a linked Git checkout inside one CompozyOS workspace. It has its own branch and files,
+but keeps the parent workspace's identity, memory, agents, skills, configuration, and permissions.
+Use one when parallel agents need independent working directories in the same repository.
+
+The workspace remains the ownership and data-isolation boundary. A Worktree is a nested execution
+context, not another workspace: its sessions, task runs, events, status cache, and API reads all carry
+the parent `workspace_id` plus a `worktree_id`.
+
+<OperatorNote>
+  A Worktree does not copy workspace memory or configuration into a new scope. It changes the Git
+  checkout and current directory used by the work; the parent workspace still owns runtime data.
+</OperatorNote>
+
+## Lifecycle
+
+| State       | Meaning                                                               |
+| ----------- | --------------------------------------------------------------------- |
+| `pending`   | Creation is moving through `branch`, `checkout`, `copy`, and `setup`. |
+| `ready`     | Sessions and runs may bind to the Worktree.                           |
+| `failed`    | Boot recovery could not preserve a usable checkout.                   |
+| `missing`   | Git no longer reports the recorded path. History remains attached.    |
+| `removing`  | Removal owns the Worktree while safety checks and cleanup run.        |
+| `removed`   | The linked checkout is gone; the branch and Git history remain.       |
+| `dismissed` | A retained tombstone was explicitly cleared from the catalog.         |
+
+Git is the source of truth for linked checkouts. CompozyOS combines Git discovery with its own
+records so it can show unmanaged checkouts, adopt them, retain history when paths disappear, and
+refuse unsafe removal.
+
+A failed `setup_command` is different from lifecycle `failed`: the checkout stays `ready`, while
+`setup_state: "failed"` and `setup_error` flag the bootstrap result.
+
+## How work binds
+
+- A session chooses the workspace root, an existing ready Worktree, or a new Worktree before its
+  first prompt. Changing the environment later creates a new session; it never moves a live one.
+- A Task policy resolves to the workspace root, one named Worktree, or a fresh Worktree per run.
+  The resolved choice is saved on the run and does not change after enqueue.
+- A Loop agent action resolves `root`, `worktree`, `per_run`, or `directory`. A node value wins over
+  the Loop default; `run-loop` forwards the parent environment unless the child resolves its own.
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/docs/worktrees/create-and-adopt"
+    label="Start"
+    title="Create or adopt a Worktree"
+    description="Create a managed checkout or attach one that Git already knows."
+    meta="Lifecycle"
+  />
+  <RouteRow
+    href="/docs/worktrees/task-isolation"
+    label="Tasks"
+    title="Isolate task runs"
+    description="Bind future runs to one Worktree or create one per run and fan-out designation."
+    meta="Execution"
+  />
+  <RouteRow
+    href="/docs/worktrees/assisted-exit"
+    label="Exit"
+    title="Commit, publish, and open a pull request"
+    description="Follow the daemon-computed exit plan and its durable progress stream."
+    meta="Git"
+  />
+  <RouteRow
+    href="/docs/worktrees/agent-surface"
+    label="Reference"
+    title="Agent management surface"
+    description="CLI, HTTP, UDS, native tools, events, and deterministic error codes."
+    meta="Automation"
+  />
+</RouteList>
+
+## Start here
+
+1. [Create or adopt](/docs/worktrees/create-and-adopt) a checkout.
+2. [Select it for a session](/docs/worktrees/navigation), a
+   [Task](/docs/worktrees/task-isolation), or a [Loop](/docs/worktrees/loop-environments).
+3. Use the [assisted exit](/docs/worktrees/assisted-exit) to commit and publish work.
+4. [Remove or recover](/docs/worktrees/removal-and-recovery) the checkout without losing history.
+
+Use Git 2.37 or newer. If Git is missing, too old, or the workspace is not Git-backed, the worktree
+surface returns a structured diagnostic instead of partially enabling lifecycle actions.

@@ -57,6 +57,7 @@ type ExecutionProfile struct {
 	Review               ReviewProfile          `json:"review"`
 	Participants         ParticipantPolicy      `json:"participants"`
 	Sandbox              SandboxPolicy          `json:"sandbox"`
+	Worktree             WorktreePolicy         `json:"worktree"`
 	Runtime              RuntimePolicy          `json:"runtime"`
 	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 	CreatedAt            time.Time              `json:"created_at"`
@@ -127,6 +128,7 @@ type ExecutionProfileValidationOptions struct {
 	AllowProviderOverride       bool
 	AllowSandboxNone            bool
 	AllowSandboxRef             bool
+	DefaultWorktreeMode         WorktreeMode
 	MaxCoordinatorGuidanceBytes int
 }
 
@@ -136,6 +138,7 @@ func DefaultExecutionProfileValidationOptions() ExecutionProfileValidationOption
 		AllowProviderOverride:       true,
 		AllowSandboxNone:            true,
 		AllowSandboxRef:             true,
+		DefaultWorktreeMode:         WorktreeModeInherit,
 		MaxCoordinatorGuidanceBytes: defaultCoordinatorGuidanceMaxBytes,
 	}
 }

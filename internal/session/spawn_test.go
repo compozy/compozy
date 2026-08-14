@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -290,6 +292,66 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			t.Fatalf("child prompt overlay was not appended to start prompt: %#v", h.driver.startCalls)
 		}
 	})
+
+	t.Run("Should inherit the parent worktree and refuse a missing binding", func(t *testing.T) {
+		t.Parallel()
+
+		worktreeRoot := filepath.Join(t.TempDir(), "worktree")
+		if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(worktree root) error = %v", err)
+		}
+		worktreeResolver := &fakeSessionWorktreeResolver{id: "wt-spawn", root: worktreeRoot}
+		h := newHostedMCPHarness(t, WithWorktreeResolver(worktreeResolver))
+		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "bound parent",
+			Workspace: h.workspaceID,
+			Worktree:  "wt-spawn",
+			Lineage: &store.SessionLineage{
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(bound parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, parent.ID)
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(bound child) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		if got := child.Info().WorktreeID; got != "wt-spawn" {
+			t.Fatalf("child worktree = %q, want %q", got, "wt-spawn")
+		}
+		canonicalRoot, err := canonicalDirectory(worktreeRoot)
+		if err != nil {
+			t.Fatalf("canonicalDirectory(worktree root) error = %v", err)
+		}
+		if got := h.driver.startCalls[len(h.driver.startCalls)-1].Cwd; got != canonicalRoot {
+			t.Fatalf("child cwd = %q, want %q", got, canonicalRoot)
+		}
+
+		missingErr := errors.New("worktree: missing")
+		worktreeResolver.setError(missingErr)
+		startsBefore := len(h.driver.startCalls)
+		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if !errors.Is(err, missingErr) {
+			t.Fatalf("Spawn(missing binding) error = %v, want %v", err, missingErr)
+		}
+		if got := len(h.driver.startCalls); got != startsBefore {
+			t.Fatalf("driver starts after missing binding = %d, want %d", got, startsBefore)
+		}
+	})
+
 	t.Run("Should keep children local by default and enforce their delegated channel scope", func(t *testing.T) {
 		t.Parallel()
 

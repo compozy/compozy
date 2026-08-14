@@ -52,6 +52,7 @@ const (
 	taskActionTree             = "tree"
 	taskActionGetProfile       = "get_profile"
 	taskActionSetProfile       = "set_profile"
+	taskActionSetWorktree      = "set_worktree_policy"
 	taskActionDeleteProfile    = "delete_profile"
 	taskActionRequestReview    = "request_review"
 	taskActionListReviews      = "list_reviews"

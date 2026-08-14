@@ -208,7 +208,8 @@ func TestBootGatewayRefusalContinuesLocalOnly(t *testing.T) {
 		!strings.Contains(status.Refusal.Fix, "pairing and device authentication") {
 		t.Fatalf("gateway refusal = %#v, want authentication cause and fix", status.Refusal)
 	}
-	if len(status.Addresses) != 0 || status.Tiers[0].Advertised || status.Providers[0].Observed != gateway.ProviderDown {
+	if len(status.Addresses) != 0 || status.Tiers[0].Advertised ||
+		status.Providers[0].Observed != gateway.ProviderDown {
 		t.Fatalf("gateway status = %#v, want local-only and provider down", status)
 	}
 	if d.httpServer == nil || d.udsServer == nil {

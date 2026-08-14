@@ -627,7 +627,8 @@ func TestStdioRuntimeProvidesConnectivityProvider(t *testing.T) {
 		}
 		var statusReachability compozysdk.ConnectivityReachability
 		decodeResult(t, status.Result, &statusReachability)
-		if statusReachability.Tier != "private" || statusReachability.Health != "healthy" || len(statusReachability.Endpoints) != 1 {
+		if statusReachability.Tier != "private" || statusReachability.Health != "healthy" ||
+			len(statusReachability.Endpoints) != 1 {
 			t.Fatalf("connectivity status = %#v", statusReachability)
 		}
 		teardown := runtime.call(t, 4, "connectivity/teardown", map[string]any{
@@ -658,7 +659,10 @@ func TestConnectivityProviderRegistrationIsAtomic(t *testing.T) {
 	t.Run("Should leave every unreserved method available after a collision", func(t *testing.T) {
 		t.Parallel()
 		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "collision", Version: "0.1.0"})
-		if err := extension.Handle(compozysdk.ExtensionServiceMethodConnectivityStatus, noOpExtensionHandler); err != nil {
+		if err := extension.Handle(
+			compozysdk.ExtensionServiceMethodConnectivityStatus,
+			noOpExtensionHandler,
+		); err != nil {
 			t.Fatalf("Handle(status) error = %v", err)
 		}
 		if err := compozysdk.ConnectivityProvider(extension, validConnectivityHandlers()); err == nil {
@@ -709,6 +713,143 @@ func TestConnectivityProviderRegistrationIsAtomic(t *testing.T) {
 			t.Fatal("extension runtime did not stop")
 		}
 	})
+}
+
+func TestForgeProviderRegistrationIsAtomic(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should leave every unreserved method available after a collision", func(t *testing.T) {
+		t.Parallel()
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "forge-collision", Version: "0.1.0"})
+		if err := extension.Handle(compozysdk.ExtensionServiceMethodForgeStatus, noOpExtensionHandler); err != nil {
+			t.Fatalf("Handle(status) error = %v", err)
+		}
+		if err := compozysdk.ForgeProvider(extension, validForgeHandlers()); err == nil ||
+			!strings.Contains(err.Error(), "Invalid params") {
+			t.Fatalf("ForgeProvider() error = %v, want invalid-params reserved-method collision", err)
+		}
+		for _, method := range []string{
+			compozysdk.ExtensionServiceMethodForgeCapabilities,
+			compozysdk.ExtensionServiceMethodForgePRCreate,
+		} {
+			if err := extension.Handle(method, noOpExtensionHandler); err != nil {
+				t.Fatalf("Handle(%s) after failed registration error = %v", method, err)
+			}
+		}
+	})
+
+	t.Run("Should reserve all forge methods after one registration", func(t *testing.T) {
+		t.Parallel()
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "forge", Version: "0.1.0"})
+		if err := compozysdk.ForgeProvider(extension, validForgeHandlers()); err != nil {
+			t.Fatalf("ForgeProvider(first) error = %v", err)
+		}
+		if err := compozysdk.ForgeProvider(extension, validForgeHandlers()); err == nil ||
+			!strings.Contains(err.Error(), "Invalid params") {
+			t.Fatalf("ForgeProvider(second) error = %v, want invalid params", err)
+		}
+		for _, method := range []string{
+			compozysdk.ExtensionServiceMethodForgeCapabilities,
+			compozysdk.ExtensionServiceMethodForgeStatus,
+			compozysdk.ExtensionServiceMethodForgePRCreate,
+		} {
+			if err := extension.Handle(method, noOpExtensionHandler); err == nil ||
+				!strings.Contains(err.Error(), "Invalid params") {
+				t.Fatalf("Handle(%s) error = %v, want invalid params for reserved method", method, err)
+			}
+		}
+	})
+}
+
+func TestStdioRuntimeValidatesForgeProviderRequests(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject missing required fields before invoking forge handlers", func(t *testing.T) {
+		t.Parallel()
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{Name: "Go Forge", Version: "0.1.0"},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		if err := compozysdk.ForgeProvider(extension, validForgeHandlers()); err != nil {
+			t.Fatalf("ForgeProvider() error = %v", err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		t.Cleanup(func() {
+			cancel()
+			if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("close input error = %v", err)
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("extension runtime did not stop")
+			}
+		})
+		params := initializeParams("Go Forge")
+		params["capabilities"].(map[string]any)["provides"] = []string{"forge.provider"}
+		params["methods"].(map[string]any)["extension_services"] = []string{
+			compozysdk.ExtensionServiceMethodForgeCapabilities,
+			compozysdk.ExtensionServiceMethodForgeStatus,
+			compozysdk.ExtensionServiceMethodForgePRCreate,
+		}
+		if response := runtime.call(t, 1, "initialize", params); response.Error != nil {
+			t.Fatalf("initialize error = %#v", response.Error)
+		}
+
+		cases := []struct {
+			name   string
+			method string
+			params map[string]any
+			want   string
+		}{
+			{name: "capabilities remotes", method: compozysdk.ExtensionServiceMethodForgeCapabilities,
+				params: map[string]any{}, want: "remote_urls are required"},
+			{name: "status branch", method: compozysdk.ExtensionServiceMethodForgeStatus,
+				params: map[string]any{"remote_urls": []string{"git@example.test:repo.git"}}, want: "branch is required"},
+			{name: "create fields", method: compozysdk.ExtensionServiceMethodForgePRCreate,
+				params: map[string]any{"remote_urls": []string{"git@example.test:repo.git"}},
+				want:   "head, base, and title are required"},
+		}
+		for index, testCase := range cases {
+			t.Run("Should reject missing "+testCase.name, func(t *testing.T) {
+				response := runtime.call(t, index+2, testCase.method, testCase.params)
+				if response.Error == nil || response.Error.Code != -32602 ||
+					!strings.Contains(string(response.Error.Data), testCase.want) {
+					t.Fatalf("%s error = %#v, want invalid params containing %q", testCase.method, response.Error, testCase.want)
+				}
+			})
+		}
+	})
+}
+
+func validForgeHandlers() compozysdk.ForgeProviderHandlers {
+	return compozysdk.ForgeProviderHandlers{
+		Capabilities: func(
+			context.Context,
+			compozysdk.ExtensionContext,
+			compozysdk.ForgeCapabilitiesRequest,
+		) (compozysdk.ForgeCapabilitiesResponse, error) {
+			return compozysdk.ForgeCapabilitiesResponse{Served: true}, nil
+		},
+		Status: func(
+			context.Context,
+			compozysdk.ExtensionContext,
+			compozysdk.ForgeStatusRequest,
+		) (compozysdk.ForgeStatusResponse, error) {
+			return compozysdk.ForgeStatusResponse{Provider: "test", FetchedAt: time.Now()}, nil
+		},
+		CreatePR: func(
+			context.Context,
+			compozysdk.ExtensionContext,
+			compozysdk.ForgePRCreateRequest,
+		) (compozysdk.ForgePRCreateResponse, error) {
+			return compozysdk.ForgePRCreateResponse{Status: "created", Number: 1, URL: "https://example.test/pr/1"}, nil
+		},
+	}
 }
 
 func validConnectivityHandlers() compozysdk.ConnectivityProviderHandlers {

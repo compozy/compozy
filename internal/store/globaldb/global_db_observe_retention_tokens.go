@@ -171,6 +171,7 @@ func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 		&summary.ID,
 		&summary.SessionID,
 		&summary.WorkspaceID,
+		&summary.WorktreeID,
 		&summary.Type,
 		&summary.AgentName,
 		&summary.Provider,

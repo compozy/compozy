@@ -4,6 +4,96 @@ package contracts
 
 import "time"
 
+type TurnEndPatch struct {
+	Deny       bool              `json:"deny,omitempty"`
+	DenyReason string            `json:"deny_reason,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+}
+
+type TurnEndPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	TurnID         string    `json:"turn_id,omitempty"`
+	InputClass     string    `json:"input_class,omitempty"`
+	UserMessage    string    `json:"user_message,omitempty"`
+}
+
+type TurnPatch struct {
+	Deny       bool              `json:"deny,omitempty"`
+	DenyReason string            `json:"deny_reason,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+}
+
+type TurnPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	TurnID         string    `json:"turn_id,omitempty"`
+	InputClass     string    `json:"input_class,omitempty"`
+	UserMessage    string    `json:"user_message,omitempty"`
+}
+
+type TurnStartPatch struct {
+	Deny       bool              `json:"deny,omitempty"`
+	DenyReason string            `json:"deny_reason,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+}
+
+type TurnStartPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	TurnID         string    `json:"turn_id,omitempty"`
+	InputClass     string    `json:"input_class,omitempty"`
+	UserMessage    string    `json:"user_message,omitempty"`
+}
+
+type ValidationIssue struct {
+	Path     string        `json:"path"`
+	Line     int           `json:"line,omitempty"`
+	Column   int           `json:"column,omitempty"`
+	Field    string        `json:"field,omitempty"`
+	Message  string        `json:"message"`
+	Severity IssueSeverity `json:"severity"`
+}
+
 type Visibility string
 
 type WindowManagerActor struct {
@@ -120,4 +210,35 @@ type WindowManagerWindowOpenedPayload struct {
 	Changes     WindowManagerChanges `json:"changes"`
 	Actor       WindowManagerActor   `json:"actor"`
 	Origin      string               `json:"origin,omitempty"`
+}
+
+type WorktreeContext struct {
+	WorktreeID    string `json:"worktree_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceRoot string `json:"workspace_root,omitempty"`
+	Name          string `json:"name"`
+	Branch        string `json:"branch"`
+	Path          string `json:"path"`
+	Origin        string `json:"origin"`
+	RunID         string `json:"run_id,omitempty"`
+}
+
+type WorktreeControlPatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
+type WorktreeObservationPatch struct{}
+
+type WorktreeObservationPayload struct {
+	Event         HookEvent `json:"event"`
+	Timestamp     time.Time `json:"timestamp"`
+	WorktreeID    string    `json:"worktree_id"`
+	WorkspaceID   string    `json:"workspace_id"`
+	WorkspaceRoot string    `json:"workspace_root,omitempty"`
+	Name          string    `json:"name"`
+	Branch        string    `json:"branch"`
+	Path          string    `json:"path"`
+	Origin        string    `json:"origin"`
+	RunID         string    `json:"run_id,omitempty"`
 }

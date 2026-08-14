@@ -428,6 +428,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.PATCH("/tasks/:id", handlers.UpdateTask)
 	engine.GET("/tasks/:id/execution-profile", handlers.GetTaskExecutionProfile)
 	engine.PUT("/tasks/:id/execution-profile", handlers.SetTaskExecutionProfile)
+	engine.PATCH("/tasks/:id/execution-profile/worktree", handlers.SetTaskWorktreePolicy)
 	engine.DELETE("/tasks/:id/execution-profile", handlers.DeleteTaskExecutionProfile)
 	engine.POST("/tasks/:id/notifications/bridges", handlers.CreateTaskBridgeNotificationSubscription)
 	engine.GET("/tasks/:id/notifications/bridges", handlers.ListTaskBridgeNotificationSubscriptions)

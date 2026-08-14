@@ -22,19 +22,21 @@ import (
 
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
-	DesiredSessionID     string
-	AgentName            string
-	Provider             string
-	Model                string
-	ReasoningEffort      string
-	Speed                speedpkg.Speed
-	CWD                  string
-	SandboxRef           string
-	DisableSandbox       bool
-	Permissions          compozyconfig.PermissionMode
-	Name                 string
-	Workspace            string
-	WorkspacePath        string
+	DesiredSessionID string
+	AgentName        string
+	Provider         string
+	Model            string
+	ReasoningEffort  string
+	Speed            speedpkg.Speed
+	CWD              string
+	SandboxRef       string
+	DisableSandbox   bool
+	Permissions      compozyconfig.PermissionMode
+	Name             string
+	Workspace        string
+	WorkspacePath    string
+	// Worktree names an existing ready worktree within the resolved parent workspace.
+	Worktree             string
 	NetworkParticipation *participation.Request
 	// ResolvedNetworkParticipation binds an internal worker session to the immutable owner snapshot.
 	// Callers must not set it together with NetworkParticipation.
@@ -181,6 +183,7 @@ type Manager struct {
 	ledgerMaterializer           LedgerMaterializer
 	homePaths                    compozyconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
+	worktreeResolver             WorktreeResolver
 	workspaceAccess              workspaceaccess.Policy
 	readSessionMeta              sessionMetaReader
 	openStore                    StoreOpener

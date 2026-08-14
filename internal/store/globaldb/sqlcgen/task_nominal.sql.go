@@ -62,19 +62,20 @@ func (q *Queries) AdmitTaskRunDirectExecution(ctx context.Context, arg AdmitTask
 const bindTaskRunSession = `-- name: BindTaskRunSession :execrows
 UPDATE task_runs
 SET status = 'starting',
-    session_id = ?1
-WHERE task_runs.id = ?2
-	AND COALESCE(task_runs.task_id, '') = COALESCE(?3, '')
-	AND COALESCE(task_runs.workspace_id, '') = COALESCE(?4, '')
-  AND task_runs.status = ?5
+    session_id = ?1,
+    worktree_id = ?2
+WHERE task_runs.id = ?3
+	AND COALESCE(task_runs.task_id, '') = COALESCE(?4, '')
+	AND COALESCE(task_runs.workspace_id, '') = COALESCE(?5, '')
+  AND task_runs.status = ?6
   AND task_runs.status IN ('claimed', 'starting')
-  AND COALESCE(task_runs.session_id, '') = COALESCE(?6, '')
-  AND COALESCE(task_runs.claim_token_hash, '') = COALESCE(?7, '')
-  AND COALESCE(task_runs.lease_until, '') = COALESCE(?8, '')
+  AND COALESCE(task_runs.session_id, '') = COALESCE(?7, '')
+  AND COALESCE(task_runs.claim_token_hash, '') = COALESCE(?8, '')
+  AND COALESCE(task_runs.lease_until, '') = COALESCE(?9, '')
   AND NOT EXISTS (
     SELECT 1
     FROM task_runs AS bound
-    WHERE bound.id <> ?2
+    WHERE bound.id <> ?3
       AND bound.session_id = ?1
       AND bound.status IN ('claimed', 'starting', 'running')
   )
@@ -82,6 +83,7 @@ WHERE task_runs.id = ?2
 
 type BindTaskRunSessionParams struct {
 	SessionID              sql.NullString `json:"session_id"`
+	WorktreeID             sql.NullString `json:"worktree_id"`
 	ID                     string         `json:"id"`
 	ExpectedTaskID         sql.NullString `json:"expected_task_id"`
 	ExpectedWorkspaceID    sql.NullString `json:"expected_workspace_id"`
@@ -94,6 +96,7 @@ type BindTaskRunSessionParams struct {
 func (q *Queries) BindTaskRunSession(ctx context.Context, arg BindTaskRunSessionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, bindTaskRunSession,
 		arg.SessionID,
+		arg.WorktreeID,
 		arg.ID,
 		arg.ExpectedTaskID,
 		arg.ExpectedWorkspaceID,

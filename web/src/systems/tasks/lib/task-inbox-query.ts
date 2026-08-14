@@ -19,6 +19,7 @@ export function normalizeTaskInboxFilter(filters: TaskInboxFilter = {}): TaskInb
   return {
     scope: filters.scope,
     workspace: normalizeOptionalText(filters.workspace),
+    worktree: normalizeOptionalText(filters.worktree),
     owner_kind: filters.owner_kind,
     owner_ref: normalizeOptionalText(filters.owner_ref),
     lane: filters.lane,
@@ -36,6 +37,7 @@ export function taskInboxStableFilter(filters: TaskInboxFilter = {}): TaskInboxS
   return {
     scope: normalized.scope,
     workspace: normalized.workspace,
+    worktree: normalized.worktree,
     owner_kind: normalized.owner_kind,
     owner_ref: normalized.owner_ref,
     lane: normalized.lane,

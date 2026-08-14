@@ -58,6 +58,7 @@ type BaseHandlerConfig struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	Worktrees                    WorktreeService
 	WorkspaceAccess              workspaceaccess.Policy
 	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
@@ -139,6 +140,7 @@ type BaseHandlers struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	Worktrees                    WorktreeService
 	WorkspaceAccess              workspaceaccess.Policy
 	WindowManager                WindowManagerService
 	Onboarding                   OnboardingStore
@@ -196,8 +198,16 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		cfg = &BaseHandlerConfig{}
 	}
 	defaults := normalizeBaseHandlerConfig(cfg)
+	handlers := baseHandlersFromConfig(cfg, defaults)
+	handlers.applyAuthoredContextConfig(cfg)
+	handlers.streamDone = cfg.StreamDone
+	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
+	handlers.httpPort.Store(int64(cfg.HTTPPort))
+	return handlers
+}
 
-	handlers := &BaseHandlers{
+func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults) *BaseHandlers {
+	return &BaseHandlers{
 		TransportName:                strings.TrimSpace(cfg.TransportName),
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
@@ -230,6 +240,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		SettingsUpdate:               cfg.SettingsUpdate,
 		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
+		Worktrees:                    cfg.Worktrees,
 		WorkspaceAccess:              cfg.WorkspaceAccess,
 		WindowManager:                cfg.WindowManager,
 		Onboarding:                   cfg.Onboarding,
@@ -267,11 +278,6 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		AgentLoader:                  defaults.agentLoader,
 		PID:                          defaults.pid,
 	}
-	handlers.applyAuthoredContextConfig(cfg)
-	handlers.streamDone = cfg.StreamDone
-	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
-	handlers.httpPort.Store(int64(cfg.HTTPPort))
-	return handlers
 }
 
 type baseHandlerDefaults struct {

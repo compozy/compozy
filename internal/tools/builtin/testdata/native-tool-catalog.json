@@ -1197,7 +1197,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "877dc6bb0d5a4420c8952295baf71eed04e11524f2c4d4d0af186fc1d1f121f7",
+    "input_schema_digest": "ce7eb1b60e6c7def133d7ee4fa666bb3f8c3601e57b55b1a2b7269fc4496c7b9",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1210,7 +1210,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "23b041a6608b8efbdb1037c5857f6c000a25c1a73b7dd98200daea3b25d2ef13",
+    "input_schema_digest": "6e8a8f45f1b015779df6f983361f6adf0c422dc306eae677a266b5dbfd7bdc51",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1379,7 +1379,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "6d39ba744b605061f53d5db0549199f1b436beac993190540608631fbbb67cb5",
+    "input_schema_digest": "d9fb5b9cad68bc9b8f8a021169b25e64444c3a11041e3aa0362bcd138103b75e",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2314,7 +2314,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "0ac9961caa3f4b116df559c13775d9a292422f2d0f724d894be2a0b6667e0a97",
+    "input_schema_digest": "a2bdcf225efc2d2a474e1359a025716a3e80027eab725ba20899ad58a78f1cea",
     "output_schema_digest": "b97eb6ea4bc792cd27f46f8065e5e6001d3180f8c16a669df6f9f1347802ca00"
   },
   {
@@ -2432,7 +2432,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "3cddc2c810e01b3edb0ff7724647ae1503acf97c8c64552a8bfc5567a2670efd",
+    "input_schema_digest": "4d8ca5fd25b5e8faf7dccbddbf40361a5cb15ecb0348b806447ad0c28ff16e81",
     "output_schema_digest": "8003521e0a33d873299bea49afede257877a3cb3ea602bfc592b77ade7b96808"
   },
   {
@@ -2666,7 +2666,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "0627968053cc0b4932fead39b20b98fa2c4e0fde2811a9a58d03fe701da301c5",
+    "input_schema_digest": "de86d3ea7e006ecb05b2c2a70518b6d9647ba4805ef506b2cf8edcc56f196b65",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2679,7 +2679,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "6007801c7c5ff33b00601ca7634ba0abeaca0c84cbab1ceff98bf64be6378017",
+    "input_schema_digest": "0699a34ef1606a96c0abd30933fac4fae786ced076c5fb4d6c5b88cb00f2f376",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2692,7 +2692,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "e91c2502b3986aa8c20fa2b50fee16785d7354955af8f0b3391509825d12d4fc",
+    "input_schema_digest": "fe61569f091739fef76029461eea225c4525048fcf63cb6150f68aa4190fac45",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2941,6 +2941,19 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "dc26481c6e9c9a64a57287487816d0641409335903a22f261c15e1a2c3fdc6a5",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__task_worktree_policy_set",
+    "native_name": "task_worktree_policy_set",
+    "toolsets": [
+      "compozy__tasks"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "adefd2f68ec27fc89d215385d44374be5e72db3fb84a94dfe75503e1edc6a4df",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -3315,6 +3328,58 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__worktree_create",
+    "native_name": "worktree_create",
+    "toolsets": [
+      "compozy__worktree"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "26cb044666db372ebf1242d28700908e2fed5c4942dfa231a0efb739413c9ef1",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__worktree_inspect",
+    "native_name": "worktree_inspect",
+    "toolsets": [
+      "compozy__worktree"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "63750d180ff6c99105e604648835d303bbc2c217c53ceabac032b06309d4bb73",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__worktree_list",
+    "native_name": "worktree_list",
+    "toolsets": [
+      "compozy__worktree"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "00eda40864a2746275ffb715308c364445b78502a70e70a31cf4fd5caff153fb",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__worktree_remove",
+    "native_name": "worktree_remove",
+    "toolsets": [
+      "compozy__worktree"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "dd3d8edc310c3729e227619ccbf640e6d83a7e8399bbd46c07bae8863443016a",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   }
 ]

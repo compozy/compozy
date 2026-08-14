@@ -15,6 +15,7 @@
         "autonomy",
         "memory",
         "workspaces",
+        "worktrees",
         "sandbox",
         "---Automation---",
         "automation",

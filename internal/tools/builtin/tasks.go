@@ -13,6 +13,7 @@ const (
 	tasksRunsKey                   = "runs"
 	tasksTaskExecutionProfileValue = "task execution profile"
 	tasksTasksKey                  = "tasks"
+	tasksWorktreeKey               = "worktree"
 )
 
 var taskTools = []toolspkg.Descriptor{
@@ -239,6 +240,20 @@ var taskTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
 		[]string{tasksTasksKey, tasksExecutionProfileKey},
 		[]string{tasksTaskExecutionProfileValue, "profile set"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskWorktreePolicySet,
+		"task_worktree_policy_set",
+		"Task Worktree Policy Set",
+		"Set only the worktree policy of one task execution profile.",
+		taskWorktreePolicySetInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{tasksTasksKey, tasksExecutionProfileKey, tasksWorktreeKey},
+		[]string{"task worktree policy", "profile worktree set"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDTaskExecutionProfileDelete,

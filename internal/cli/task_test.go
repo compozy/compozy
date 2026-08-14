@@ -15,7 +15,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
+func TestTaskCommandsRejectInvalidFlagCombos(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -32,6 +32,13 @@ func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
 			name:    "Should require change flags on update",
 			args:    []string{"task", "update", "task-1"},
 			wantErr: "task update requires at least one change flag",
+		},
+		{
+			name: "Should require an idempotency key for task fan-out",
+			args: []string{
+				"task", "fan-out", "task-1", "--designation", "Review the API",
+			},
+			wantErr: `required flag(s) "idempotency-key" not set`,
 		},
 		{
 			name: "Should reject clear owner with owner mutation",
@@ -359,6 +366,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					"--owner-kind", "pool",
 					"--owner-ref", "triage",
 					"--parent", "task-root",
+					"--worktree", "wt-alpha",
 					"--participation-channel", "builders",
 					"--limit", "3",
 					"-o", "json",
@@ -373,6 +381,7 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					listQuery.OwnerKind != taskpkg.OwnerKindPool ||
 					listQuery.OwnerRef != "triage" ||
 					listQuery.ParentTaskID != "task-root" ||
+					listQuery.Worktree != "wt-alpha" ||
 					listQuery.ParticipationChannel != "builders" ||
 					listQuery.Limit != 3 {
 					t.Fatalf("listQuery = %#v, want parsed filters", listQuery)
@@ -2039,6 +2048,8 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 			inspectID     string
 			updateID      string
 			updateRequest TaskExecutionProfileRequest
+			worktreeID    string
+			worktree      TaskWorktreePolicyRequest
 			deleteID      string
 		)
 		deps := newWorkspaceTestDeps(t, &stubClient{
@@ -2059,6 +2070,21 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 				updateRequest = *request
 				record := *request
 				record.UpdatedAt = fixedTestNow
+				return record, nil
+			},
+			setTaskWorktreePolicyFn: func(
+				_ context.Context,
+				id string,
+				request *TaskWorktreePolicyRequest,
+			) (TaskExecutionProfileRecord, error) {
+				if request == nil {
+					t.Fatal("worktree request is nil")
+					return TaskExecutionProfileRecord{}, nil
+				}
+				worktreeID = id
+				worktree = *request
+				record := sampleTaskExecutionProfileRecord()
+				record.Worktree = *request
 				return record, nil
 			},
 			deleteTaskExecutionProfileFn: func(_ context.Context, id string) error {
@@ -2107,6 +2133,34 @@ func TestTaskProfileCommandsMapRequests(t *testing.T) {
 		}
 		if updated.TaskID != "task-1" || updated.Worker.AgentName != "worker-b" {
 			t.Fatalf("updated profile = %#v", updated)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"task",
+			"profile",
+			"set-worktree",
+			"task-1",
+			"--mode",
+			"ref",
+			"--ref",
+			"feature-a",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task profile set-worktree error = %v", err)
+		}
+		if worktreeID != "task-1" || worktree.Mode != taskpkg.WorktreeModeRef || worktree.WorktreeRef != "feature-a" {
+			t.Fatalf("set-worktree request = %q/%#v", worktreeID, worktree)
+		}
+		var worktreeProfile TaskExecutionProfileRecord
+		if err := json.Unmarshal([]byte(stdout), &worktreeProfile); err != nil {
+			t.Fatalf("json.Unmarshal(profile set-worktree) error = %v", err)
+		}
+		if worktreeProfile.Worktree != worktree {
+			t.Fatalf("set-worktree profile = %#v", worktreeProfile)
 		}
 
 		stdout, _, err = executeRootCommand(t, deps, "task", "profile", "delete", "task-1", "-o", "json")
@@ -3053,7 +3107,7 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 				nil,
 				commandDeps{},
 				nil,
-				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", "", "", "", 0,
+				"", "", "", "", tt.ownerKindRaw, tt.ownerRef, "", "", "", "", "", "", 0,
 			)
 			if err == nil || !strings.Contains(err.Error(), "--owner-kind and --owner-ref must be provided together") {
 				t.Fatalf("parseTaskListFilters() error = %v, want paired owner filter validation", err)
@@ -3068,11 +3122,25 @@ func TestParseTaskListFiltersRejectsInvalidFilters(t *testing.T) {
 			nil,
 			commandDeps{},
 			nil,
-			"", "", "", "", "", "", "", "invalid channel!", "", "", "", 0,
+			"", "", "", "", "", "", "", "", "invalid channel!", "", "", "", 0,
 		)
 		if err == nil || !strings.Contains(err.Error(), "invalid --participation-channel value") ||
 			strings.Contains(err.Error(), "invalid --channel value") {
 			t.Fatalf("parseTaskListFilters() error = %v, want current participation-channel diagnostic", err)
+		}
+	})
+
+	t.Run("Should reject a worktree filter without a workspace boundary", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := parseTaskListFilters(
+			nil,
+			commandDeps{},
+			nil,
+			"all", "", "", "", "", "", "", "wt-alpha", "", "", "", "", 0,
+		)
+		if err == nil || !strings.Contains(err.Error(), "--worktree requires a workspace") {
+			t.Fatalf("parseTaskListFilters() error = %v, want workspace boundary diagnostic", err)
 		}
 	})
 }

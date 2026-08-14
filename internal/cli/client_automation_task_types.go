@@ -114,6 +114,9 @@ type TaskExecutionProfileRecord = contract.TaskExecutionProfilePayload
 // TaskExecutionProfileRequest captures a task execution profile replacement.
 type TaskExecutionProfileRequest = contract.SetTaskExecutionProfileRequest
 
+// TaskWorktreePolicyRequest captures a worktree-only execution profile patch.
+type TaskWorktreePolicyRequest = contract.SetTaskWorktreePolicyRequest
+
 // TaskBridgeNotificationSubscriptionRecord is one task terminal bridge
 // notification subscription payload.
 type TaskBridgeNotificationSubscriptionRecord = contract.TaskBridgeNotificationSubscriptionPayload

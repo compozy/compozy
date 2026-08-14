@@ -4,6 +4,8 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { cn } from "@compozy/ui";
 
 import type { EditorNode } from "../../lib/codec";
+import { LOOP_ENVIRONMENT_MODE_LABELS } from "../../lib/loop-node-schema-types";
+import type { LoopEnvironmentMode, LoopEnvironmentSpec } from "../../types";
 import { MonoTag } from "../mono-tag";
 
 const KIND_IN_LABEL = new Set(["gate", "fan-out", "collect", "branch", "sub-loop"]);
@@ -32,6 +34,53 @@ function fanOutChips(raw: EditorNode["data"]["raw"]): string[] {
 }
 
 /**
+ * The node's own environment declaration, as a short readout.
+ *
+ * Only what the node itself declares is rendered: the loop-level default is not
+ * part of the canvas node model, so naming it here would be a guess rather than
+ * a readback.
+ */
+interface EnvironmentReadout {
+  label: string;
+  inherited: boolean;
+}
+
+function specLabel(spec: {
+  mode?: unknown;
+  worktree_ref?: unknown;
+  directory?: unknown;
+}): string | undefined {
+  if (typeof spec.mode !== "string") return undefined;
+  if (spec.mode === "worktree" && typeof spec.worktree_ref === "string" && spec.worktree_ref) {
+    return `${LOOP_ENVIRONMENT_MODE_LABELS.worktree} · ${spec.worktree_ref}`;
+  }
+  if (spec.mode === "directory" && typeof spec.directory === "string" && spec.directory) {
+    return `${LOOP_ENVIRONMENT_MODE_LABELS.directory} · ${spec.directory}`;
+  }
+  if (spec.mode in LOOP_ENVIRONMENT_MODE_LABELS) {
+    return LOOP_ENVIRONMENT_MODE_LABELS[spec.mode as LoopEnvironmentMode];
+  }
+  return undefined;
+}
+
+function environmentReadout(
+  raw: EditorNode["data"]["raw"],
+  loopDefault?: LoopEnvironmentSpec
+): EnvironmentReadout | undefined {
+  if (raw.kind !== "run-agent" && raw.kind !== "goal") return undefined;
+  const params = raw.params;
+  if (typeof params === "object" && params !== null) {
+    const environment = (params as Record<string, unknown>).environment;
+    if (typeof environment === "object" && environment !== null) {
+      const label = specLabel(environment as Record<string, unknown>);
+      if (label) return { label, inherited: false };
+    }
+  }
+  const defaultLabel = loopDefault ? specLabel(loopDefault) : undefined;
+  return defaultLabel ? { label: `${defaultLabel} · loop default`, inherited: true } : undefined;
+}
+
+/**
  * One neutral node card on the DAG canvas (design §4.6). Color never encodes class:
  * selection is an accent ring, a lint error is a danger ring + corner badge, everything
  * else is a flat surface with mono class/kind labels. A single custom node type
@@ -41,6 +90,7 @@ function fanOutChips(raw: EditorNode["data"]["raw"]): string[] {
 export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
   const { raw, nodeClass, kind, hasError } = data;
   const chips = fanOutChips(raw);
+  const environment = environmentReadout(raw, data.loopDefaultEnvironment);
   return (
     <div
       className={cn(
@@ -74,6 +124,21 @@ export function LoopEditorNode({ data, selected }: NodeProps<EditorNode>) {
       >
         {kind || "—"}
       </span>
+      {environment ? (
+        <span
+          className="flex min-w-0 items-baseline gap-1 font-mono text-pill-group-badge text-faint"
+          data-slot="loop-node-card-env"
+        >
+          <span>env</span>
+          <span
+            className={cn("min-w-0 truncate", environment.inherited ? "text-faint" : "text-subtle")}
+            data-source={environment.inherited ? "loop-default" : "node"}
+            title={environment.label}
+          >
+            {environment.label}
+          </span>
+        </span>
+      ) : null}
       {chips.length > 0 ? (
         <div className="mt-0.5 flex flex-wrap gap-1" data-testid="loop-editor-node-branches">
           {chips.map(chip => (

@@ -65,6 +65,9 @@ export function buildTaskRunFixture(overrides: Partial<TaskActiveRun> = {}): Tas
     session_id: storySessionIds.product,
     claimed_by: { kind: "agent_session", ref: storyAgentNames.product },
     resolved_network_participation: buildLocalNetworkParticipationFixture(),
+    // No worktree policy resolved for this run, so it binds nothing:
+    // `worktree_id` and `resolved_worktree_ref` stay absent rather than empty.
+    resolved_worktree_mode: "none",
     ...overrides,
   };
 }
@@ -1321,6 +1324,10 @@ export function buildTaskExecutionProfileFixture(
       mode: "ref",
       sandbox_ref: "fintech-launch",
       ...overrides.sandbox,
+    },
+    worktree: {
+      mode: "inherit",
+      ...overrides.worktree,
     },
     participants: {
       preferred_agent_names: [storyAgentNames.copywriter],

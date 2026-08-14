@@ -62,7 +62,8 @@ const getTaskExecutionProfile = `-- name: GetTaskExecutionProfile :one
 SELECT task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
        coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
        worker_provider, worker_model, review_agent_name, review_provider,
-       review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at,
+       review_model, sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
+       runtime_mode, created_at, updated_at,
        network_mode, network_channel_strategy, network_channel, network_bounds_json
 FROM task_execution_profiles
 WHERE task_id = ?1
@@ -84,6 +85,8 @@ type GetTaskExecutionProfileRow struct {
 	ReviewModel            string         `json:"review_model"`
 	SandboxMode            string         `json:"sandbox_mode"`
 	SandboxRef             string         `json:"sandbox_ref"`
+	WorktreeMode           string         `json:"worktree_mode"`
+	WorktreeRef            string         `json:"worktree_ref"`
 	RuntimeMode            string         `json:"runtime_mode"`
 	CreatedAt              string         `json:"created_at"`
 	UpdatedAt              string         `json:"updated_at"`
@@ -112,6 +115,8 @@ func (q *Queries) GetTaskExecutionProfile(ctx context.Context, taskID string) (G
 		&i.ReviewModel,
 		&i.SandboxMode,
 		&i.SandboxRef,
+		&i.WorktreeMode,
+		&i.WorktreeRef,
 		&i.RuntimeMode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -360,7 +365,8 @@ INSERT INTO task_execution_profiles (
   task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
   coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
   worker_provider, worker_model, review_agent_name, review_provider,
-  review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at,
+  review_model, sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
+  runtime_mode, created_at, updated_at,
   network_mode, network_channel_strategy, network_channel, network_bounds_json
 ) VALUES (
   ?1, ?2, ?3,
@@ -369,8 +375,9 @@ INSERT INTO task_execution_profiles (
   ?10, ?11, ?12,
   ?13, ?14, ?15,
   ?16, ?17, ?18,
-  ?19, ?20, ?21,
-  ?22
+  ?19, ?20,
+  ?21, ?22, ?23,
+  ?24
 )
 ON CONFLICT(task_id) DO UPDATE SET
   coordinator_mode = excluded.coordinator_mode,
@@ -387,6 +394,8 @@ ON CONFLICT(task_id) DO UPDATE SET
   review_model = excluded.review_model,
   sandbox_mode = excluded.sandbox_mode,
   sandbox_ref = excluded.sandbox_ref,
+  worktree_mode = excluded.worktree_mode,
+  worktree_ref = excluded.worktree_ref,
   runtime_mode = excluded.runtime_mode,
   network_mode = excluded.network_mode,
   network_channel_strategy = excluded.network_channel_strategy,
@@ -411,6 +420,8 @@ type UpsertTaskExecutionProfileParams struct {
 	ReviewModel            string         `json:"review_model"`
 	SandboxMode            string         `json:"sandbox_mode"`
 	SandboxRef             string         `json:"sandbox_ref"`
+	WorktreeMode           string         `json:"worktree_mode"`
+	WorktreeRef            string         `json:"worktree_ref"`
 	RuntimeMode            string         `json:"runtime_mode"`
 	CreatedAt              string         `json:"created_at"`
 	UpdatedAt              string         `json:"updated_at"`
@@ -437,6 +448,8 @@ func (q *Queries) UpsertTaskExecutionProfile(ctx context.Context, arg UpsertTask
 		arg.ReviewModel,
 		arg.SandboxMode,
 		arg.SandboxRef,
+		arg.WorktreeMode,
+		arg.WorktreeRef,
 		arg.RuntimeMode,
 		arg.CreatedAt,
 		arg.UpdatedAt,

@@ -14,6 +14,7 @@ import {
   windowFrame,
   windowID,
 } from "../fixtures/os-navigation";
+import { createWorktreeRepo } from "../fixtures/worktree-repo";
 import {
   osShellSelectors,
   sessionWorkspaceSwitchSelectors,
@@ -3529,3 +3530,118 @@ async function openMenu(page: Page, name: MenubarMenu): Promise<void> {
   const menuTestID = name === "CompozyOS" ? "os-menu-compozy" : `os-menu-${name.toLowerCase()}`;
   await expect(page.getByTestId(menuTestID)).toBeVisible();
 }
+
+/**
+ * E2E-005: the command switcher, the menubar menu, and the overview render one
+ * nested tree from one query; keyboard-only traversal reaches nested entries;
+ * and selecting a worktree scopes session and task reads server-side.
+ */
+test("operator sees one nested worktree tree across all three workspace-listing surfaces", async ({
+  appPage,
+  runtime,
+}) => {
+  const repo = await createWorktreeRepo();
+  try {
+    await completeOnboardingIfPrompted(appPage);
+    const workspace = await runtime.resolveWorkspace(repo.rootDir);
+    await runtime.requestJSON(`/api/workspaces/${workspace.id}/worktrees`, {
+      body: JSON.stringify({ name: "payments-retry" }),
+      method: "POST",
+    });
+    await expect
+      .poll(
+        async () => {
+          const listing = await runtime.requestJSON<{
+            worktrees: Array<{ id: string; name: string; state: string }>;
+          }>(`/api/workspaces/${workspace.id}/worktrees`);
+          return listing.worktrees[0]?.state;
+        },
+        { timeout: 30_000 }
+      )
+      .toBe("ready");
+    const worktree = (
+      await runtime.requestJSON<{
+        worktrees: Array<{ id: string; name: string; state: string }>;
+      }>(`/api/workspaces/${workspace.id}/worktrees`)
+    ).worktrees.find(entry => entry.name === "payments-retry");
+    if (!worktree) throw new Error("ready worktree is missing from the catalog");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+
+    // Observe the scoped reads the UI issues, rather than trusting the chip.
+    const scopedRequests: string[] = [];
+    const parentRequests: string[] = [];
+    appPage.on("request", request => {
+      const url = request.url();
+      if (!url.includes("/api/sessions") && !url.includes("/api/tasks")) return;
+      const worktreeID = new URL(url).searchParams.get("worktree");
+      if (worktreeID === worktree.id) scopedRequests.push(url);
+      if (worktreeID === null) parentRequests.push(url);
+    });
+
+    // Surface 1 — the menubar workspace menu. Keyboard-only traversal opens
+    // the side submenu and selects the nested entry.
+    await appPage.locator('[data-slot="os-menubar-workspace"]').click();
+    await appPage.getByTestId(`os-workspace-option-${workspace.id}`).focus();
+    await appPage.keyboard.press("ArrowRight");
+    const menuRow = appPage.getByTestId(/^os-worktree-option-/).first();
+    await expect(menuRow).toBeVisible();
+    await expect(menuRow).toContainText("payments-retry");
+
+    await menuRow.focus();
+    await appPage.keyboard.press("Enter");
+
+    // The chip states where new work will run: `workspace / worktree`.
+    await expect(appPage.locator('[data-slot="os-menubar-worktree"]')).toHaveText("payments-retry");
+
+    // A fresh window inherits the shell selection and issues scoped reads.
+    await openDockApp(appPage, "Tasks", "tasks");
+    await expect(appPage.locator('[data-slot="os-menubar-worktree"]')).toHaveText("payments-retry");
+
+    // Surface 2 — the real command palette switcher renders and selects the
+    // same ready row; this is not another read of the menubar menu.
+    await appPage.keyboard.press("ControlOrMeta+K");
+    const palette = appPage.getByTestId("os-command-palette");
+    await expect(palette).toBeVisible();
+    const paletteRow = palette.getByTestId(`os-palette-worktree-${worktree.id}`);
+    await expect(paletteRow).toContainText("payments-retry");
+    await paletteRow.press("Enter");
+    await expect(palette).toHaveCount(0);
+
+    // Surface 3 — the overview nest, same content and same order.
+    await appPage.locator('[data-slot="os-menubar-workspace"]').click();
+    await appPage.getByTestId("os-workspace-overview").click();
+    const overviewToggle = appPage.getByTestId(`os-workspace-worktrees-toggle-${workspace.id}`);
+    await expect(overviewToggle).toBeVisible();
+    await overviewToggle.hover();
+    await expect(appPage.getByTestId(`os-worktree-submenu-${workspace.id}`)).toBeVisible();
+    const overviewRows = await appPage
+      .getByTestId(new RegExp(`^os-worktree-option-`))
+      .allTextContents();
+    expect(overviewRows.join(" ")).toContain("payments-retry");
+    // Both surfaces project the same tree, so their row order matches.
+    expect(overviewRows[0]).toContain("payments-retry");
+    await appPage.keyboard.press("Escape");
+
+    // Selection scopes the reads themselves, server-side, for sessions and tasks.
+    await expect
+      .poll(() => scopedRequests.some(url => url.includes("/api/sessions")), { timeout: 15_000 })
+      .toBe(true);
+    await expect
+      .poll(() => scopedRequests.some(url => url.includes("/api/tasks")), { timeout: 15_000 })
+      .toBe(true);
+
+    // Selecting the parent clears the worktree scope and returns both views to
+    // the whole workspace instead of keeping a hidden client-side filter.
+    await appPage.locator('[data-slot="os-menubar-workspace"]').click();
+    await appPage.getByTestId(`os-workspace-option-${workspace.id}`).click();
+    await expect(appPage.locator('[data-slot="os-menubar-worktree"]')).toHaveCount(0);
+    await expect
+      .poll(() => parentRequests.some(url => url.includes("/api/sessions")), { timeout: 15_000 })
+      .toBe(true);
+    await expect
+      .poll(() => parentRequests.some(url => url.includes("/api/tasks")), { timeout: 15_000 })
+      .toBe(true);
+  } finally {
+    await repo.cleanup();
+  }
+});

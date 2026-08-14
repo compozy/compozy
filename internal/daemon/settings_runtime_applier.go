@@ -61,6 +61,7 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	a.state.cfg = next
 	a.daemon.config = next
 	preStarter := a.daemon.providerPreStarter
+	worktrees := a.state.worktrees
 	a.daemon.mu.Unlock()
 	if a.state.agentProbeConfig != nil {
 		a.state.agentProbeConfig.Update(&next)
@@ -68,6 +69,9 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	// Drop cached workspace overlays so role and status resolution sees the applied global config.
 	if a.state.workspaceResolver != nil {
 		a.state.workspaceResolver.InvalidateAll()
+	}
+	if worktrees != nil {
+		worktrees.Reconfigure(next.Worktrees, next.Worktrees.ResolveRoot(a.daemon.homePaths))
 	}
 
 	if preStarter != nil {

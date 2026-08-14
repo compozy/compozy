@@ -29,6 +29,18 @@ func (s *StubTaskManager) SetExecutionProfile(
 	return taskpkg.ExecutionProfile{}, taskpkg.ErrTaskNotFound
 }
 
+func (s *StubTaskManager) SetWorktreePolicy(
+	ctx context.Context,
+	taskID string,
+	policy taskpkg.WorktreePolicy,
+	actor taskpkg.ActorContext,
+) (taskpkg.ExecutionProfile, error) {
+	if s.SetWorktreePolicyFn != nil {
+		return s.SetWorktreePolicyFn(ctx, taskID, policy, actor)
+	}
+	return taskpkg.ExecutionProfile{}, taskpkg.ErrTaskNotFound
+}
+
 func (s *StubTaskManager) DeleteExecutionProfile(
 	ctx context.Context,
 	taskID string,

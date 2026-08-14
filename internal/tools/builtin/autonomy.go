@@ -13,7 +13,7 @@ var autonomyTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDTaskRunClaimNext,
 		"task_run_claim_next",
 		"Task Run Claim Next",
-		"Claim the next eligible task run for the caller session.",
+		"Claim and start the next eligible task run for the caller session.",
 		autonomyClaimNextInputSchema,
 		toolspkg.RiskMutating,
 		false,

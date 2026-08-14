@@ -98,11 +98,10 @@ func TestPromptStreamEncoderPermissionDataPartIdentity(t *testing.T) {
 			Type:      acp.EventTypePermission,
 			SessionID: "sess-1",
 			TurnID:    "turn-1",
-			RequestID: "req-1",
 			Title:     "Bash",
 			Action:    "session/request_permission",
 			Resource:  "Bash",
-		}
+		}.WithRequestID("req-1")
 		final := pending
 		final.Decision = "allow-once"
 

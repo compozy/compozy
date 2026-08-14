@@ -48,6 +48,9 @@ type taskCatalogScanFields struct {
 	activeRunClaimedByKind   sql.NullString
 	activeRunClaimedByRef    sql.NullString
 	activeRunSessionID       sql.NullString
+	activeRunWorktreeID      sql.NullString
+	activeRunWorktreeMode    sql.NullString
+	activeRunWorktreeRef     sql.NullString
 	activeRunLeaseUntil      sql.NullString
 	activeRunHeartbeatAt     sql.NullString
 	activeRunNetworkSpecJSON sql.NullString
@@ -107,6 +110,9 @@ func scanTaskCatalogSummary(scanner rowScanner) (taskpkg.Summary, error) {
 		&fields.activeRunClaimedByKind,
 		&fields.activeRunClaimedByRef,
 		&fields.activeRunSessionID,
+		&fields.activeRunWorktreeID,
+		&fields.activeRunWorktreeMode,
+		&fields.activeRunWorktreeRef,
 		&fields.activeRunLeaseUntil,
 		&fields.activeRunHeartbeatAt,
 		&fields.activeRunNetworkSpecJSON,
@@ -222,6 +228,12 @@ func taskCatalogRunSummary(
 	if err != nil {
 		return nil, err
 	}
+	resolvedWorktreeMode := taskpkg.WorktreeMode(
+		strings.TrimSpace(fields.activeRunWorktreeMode.String),
+	).Normalize()
+	if resolvedWorktreeMode == "" {
+		resolvedWorktreeMode = taskpkg.WorktreeModeNone
+	}
 	run := &taskpkg.RunSummary{
 		ID:                           strings.TrimSpace(fields.activeRunID.String),
 		TaskID:                       strings.TrimSpace(taskID),
@@ -232,6 +244,9 @@ func taskCatalogRunSummary(
 		FailureKind:                  strings.TrimSpace(fields.activeRunFailureKind.String),
 		MaxAttempts:                  maxAttempts,
 		SessionID:                    strings.TrimSpace(fields.activeRunSessionID.String),
+		WorktreeID:                   strings.TrimSpace(fields.activeRunWorktreeID.String),
+		ResolvedWorktreeMode:         resolvedWorktreeMode,
+		ResolvedWorktreeRef:          strings.TrimSpace(fields.activeRunWorktreeRef.String),
 		ResolvedNetworkParticipation: participation.CloneSpec(networkSpec),
 		Error:                        strings.TrimSpace(fields.activeRunError.String),
 	}

@@ -100,4 +100,9 @@ const (
 	HookEventWindowManagerStackGrouped      HookEvent = "window_manager.stack.grouped"
 	HookEventWindowManagerStackUngrouped    HookEvent = "window_manager.stack.ungrouped"
 	HookEventWindowManagerStackActivated    HookEvent = "window_manager.stack.activated"
+	HookEventWorktreePreCreate              HookEvent = "worktree.pre_create"
+	HookEventWorktreePreRemove              HookEvent = "worktree.pre_remove"
+	HookEventWorktreeCreated                HookEvent = "worktree.created"
+	HookEventWorktreeAdopted                HookEvent = "worktree.adopted"
+	HookEventWorktreeRemoved                HookEvent = "worktree.removed"
 )

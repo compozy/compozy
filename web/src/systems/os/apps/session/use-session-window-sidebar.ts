@@ -1,3 +1,6 @@
+import { useScopedWorktreeFilter } from "@/systems/workspace";
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
+
 import { useOsSessionsModal } from "../../hooks/use-os-sessions-modal";
 import {
   type SessionLifecycleActionHandlers,
@@ -43,9 +46,19 @@ export function useSessionWindowSidebar({
   const { coordinator, manager, collapsedAgentIds } = useOsSessionsModal();
   const { openForAgent } = useSessionCreateActions();
   const lifecycle = useSessionLifecycleActions({ workspaceId });
-  const sessionsQuery = useSessions(workspaceId, {
+  // Scoped to this window: two session windows can hold different worktrees and
+  // must list different sessions.
+  const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
     enabled: sidebar.open,
-    filters: { include_health: true, limit: 100, sort: "last_activity" },
+  });
+  const sessionsQuery = useSessions(workspaceId, {
+    enabled: sidebar.open && worktree.resolved,
+    filters: {
+      include_health: true,
+      limit: 100,
+      sort: "last_activity",
+      worktree: worktree.worktreeId,
+    },
   });
 
   const onSelectSession = (target: SessionPayload) => {
@@ -64,7 +77,7 @@ export function useSessionWindowSidebar({
     open: sidebar.open,
     toggle: sidebar.toggle,
     sessions: sessionsQuery.data ?? [],
-    disconnected: sidebar.open && sessionsQuery.isError,
+    disconnected: sidebar.open && worktree.resolved && sessionsQuery.isError,
     collapsedAgentIds,
     collapsedThreadIds: sidebar.collapsedThreadIds,
     onToggleGroup: agentName => manager.toggleRailGroup(agentName),

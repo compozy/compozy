@@ -204,7 +204,8 @@ func (h *Handlers) releaseHostedMCP(c *gin.Context) {
 
 func respondHostedMCPError(c *gin.Context, err error) {
 	if isHostedMCPToolError(err) {
-		core.RespondToolError(c, err, false)
+		status := hostedMCPStatus(err)
+		c.JSON(status, core.ToolErrorResponseForError(err, status, false))
 		return
 	}
 	core.RespondError(c, hostedMCPStatus(err), hostedMCPJSONError(err), false)
@@ -248,7 +249,11 @@ func hostedMCPStatus(err error) int {
 	case err == nil:
 		return http.StatusOK
 	case isHostedMCPToolError(err):
-		return core.StatusForToolError(err)
+		status := core.StatusForToolError(err)
+		if status == http.StatusAccepted {
+			return http.StatusForbidden
+		}
+		return status
 	case errors.Is(err, mcppkg.ErrHostedDisabled), errors.Is(err, mcppkg.ErrHostedRegistryRequired):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, mcppkg.ErrHostedSessionRequired),

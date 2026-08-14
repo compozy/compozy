@@ -26,6 +26,12 @@ func (c *lintContext) lintRunAgentNode(node dsl.Node) {
 		c.add(node.ID, refs.CodeUnresolvablePath, "run-agent params are invalid: %v", err)
 		return
 	}
+	if _, exists := params.Extra["cwd"]; exists {
+		c.add(node.ID, CodeEnvironmentCWDRemoved, "params.cwd is retired; use params.environment.directory")
+	}
+	if _, err := ResolveActionEnvironment(params.Environment, dsl.EnvironmentSpec{}); err != nil {
+		c.add(node.ID, CodeEnvironmentInvalid, "run-agent environment is invalid: %v", err)
+	}
 	if strings.TrimSpace(params.Agent) == "" {
 		c.add(node.ID, refs.CodeUnresolvablePath, "run-agent params.agent is required")
 	}

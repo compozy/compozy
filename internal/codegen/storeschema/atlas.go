@@ -24,6 +24,8 @@ import (
 
 var atlasDatabaseSequence atomic.Uint64
 
+const atlasSchemaName = "schema"
+
 type atlasPlan struct {
 	migration *migrate.Plan
 	changes   schema.Changes
@@ -137,13 +139,14 @@ func planAtlasStream(
 		return nil, nil, nil, fmt.Errorf("codegen: open %s Atlas database: %w", descriptor.name, err)
 	}
 	closeDev = dev.DB.Close
-	desired, err := readDesiredRealm(ctx, descriptor.schemaSource)
+	desiredSchema, err := readDesiredSQLiteSchema(ctx, descriptor.schemaSource)
 	if err != nil {
 		return nil, nil, nil, errors.Join(
 			fmt.Errorf("codegen: read %s declarative schema: %w", descriptor.name, err),
 			closeAtlasDatabase(closeDev, descriptor.name),
 		)
 	}
+	desired := desiredSchema.realm
 	executor, err := migrate.NewExecutor(dev.Driver, dir, migrate.NopRevisionReadWriter{})
 	if err != nil {
 		return nil, nil, nil, errors.Join(
@@ -160,6 +163,18 @@ func planAtlasStream(
 	}
 	normalizeGeneratedSQLiteIndexes(current)
 	normalizeGeneratedSQLiteIndexes(desired)
+	if err := normalizeSQLiteIndexExpressions(current); err != nil {
+		return nil, nil, nil, errors.Join(
+			err,
+			closeAtlasDatabase(closeDev, descriptor.name),
+		)
+	}
+	if err := normalizeSQLiteIndexExpressions(desired); err != nil {
+		return nil, nil, nil, errors.Join(
+			err,
+			closeAtlasDatabase(closeDev, descriptor.name),
+		)
+	}
 	changes, err := dev.RealmDiff(current, desired, schema.DiffNormalized())
 	if err != nil {
 		return nil, nil, nil, errors.Join(
@@ -173,7 +188,7 @@ func planAtlasStream(
 		}
 		return nil, nil, nil, migrate.ErrNoPlan
 	}
-	plan, err := dev.PlanChanges(ctx, "schema", changes, func(options *migrate.PlanOptions) {
+	plan, err := dev.PlanChanges(ctx, atlasSchemaName, changes, func(options *migrate.PlanOptions) {
 		options.Mode = migrate.PlanModeDeferred
 	})
 	if err != nil {
@@ -182,6 +197,8 @@ func planAtlasStream(
 			closeAtlasDatabase(closeDev, descriptor.name),
 		)
 	}
+	restoreSQLiteExpressionIndexStatements(plan, desired)
+	appendSQLiteTriggerRecreations(plan, desiredSchema.triggers)
 	return &atlasPlan{migration: plan, changes: changes}, dev, closeDev, nil
 }
 
@@ -258,14 +275,19 @@ func openAtlasClient(ctx context.Context) (*sqlclient.Client, error) {
 	}, nil
 }
 
-func readDesiredRealm(ctx context.Context, source schemaSource) (_ *schema.Realm, err error) {
+type desiredSQLiteSchema struct {
+	realm    *schema.Realm
+	triggers []sqliteTrigger
+}
+
+func readDesiredSQLiteSchema(ctx context.Context, source schemaSource) (_ desiredSQLiteSchema, err error) {
 	files, err := source.files()
 	if err != nil {
-		return nil, err
+		return desiredSQLiteSchema{}, err
 	}
 	client, err := openAtlasClient(ctx)
 	if err != nil {
-		return nil, err
+		return desiredSQLiteSchema{}, err
 	}
 	defer func() {
 		err = errors.Join(err, closeAtlasDatabase(client.DB.Close, filepath.Base(source.path)))
@@ -273,17 +295,29 @@ func readDesiredRealm(ctx context.Context, source schemaSource) (_ *schema.Realm
 	for _, schemaPath := range files {
 		contents, err := os.ReadFile(schemaPath)
 		if err != nil {
-			return nil, fmt.Errorf("read %q: %w", schemaPath, err)
+			return desiredSQLiteSchema{}, fmt.Errorf("read %q: %w", schemaPath, err)
 		}
 		if _, err := client.DB.ExecContext(ctx, string(contents)); err != nil {
-			return nil, fmt.Errorf("execute %q: %w", schemaPath, err)
+			return desiredSQLiteSchema{}, fmt.Errorf("execute %q: %w", schemaPath, err)
 		}
 	}
 	realm, err := client.InspectRealm(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("inspect schema source %q: %w", source.path, err)
+		return desiredSQLiteSchema{}, fmt.Errorf("inspect schema source %q: %w", source.path, err)
 	}
-	return realm, nil
+	triggers, err := inspectSQLiteTriggers(ctx, client.DB)
+	if err != nil {
+		return desiredSQLiteSchema{}, fmt.Errorf("inspect schema source %q triggers: %w", source.path, err)
+	}
+	return desiredSQLiteSchema{realm: realm, triggers: triggers}, nil
+}
+
+func readDesiredRealm(ctx context.Context, source schemaSource) (*schema.Realm, error) {
+	desired, err := readDesiredSQLiteSchema(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	return desired.realm, nil
 }
 
 func writeAtlasSum(dir migrate.Dir, streamName string) error {
@@ -326,13 +360,17 @@ func (sequentialGooseFormatter) Format(plan *migrate.Plan) ([]migrate.File, erro
 		return nil, fmt.Errorf("format goose migration: got %d files, want 1", len(files))
 	}
 	contents := files[0].Bytes()
+	contents, err = wrapGooseTriggerStatements(contents, plan.Changes)
+	if err != nil {
+		return nil, err
+	}
 	if downIndex := bytes.Index(contents, []byte("\n-- +goose Down")); downIndex >= 0 {
 		contents = append(bytes.TrimRight(contents[:downIndex], "\r\n"), '\n')
 	}
 	name := strings.Trim(strings.ToLower(plan.Name), " _-")
 	name = strings.NewReplacer(" ", "_", "-", "_").Replace(name)
 	if name == "" {
-		name = "schema"
+		name = atlasSchemaName
 	}
 	return []migrate.File{
 		migrate.NewLocalFile(fmt.Sprintf("%s_%s.sql", plan.Version, name), contents),

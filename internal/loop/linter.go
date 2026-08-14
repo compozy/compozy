@@ -159,6 +159,10 @@ func (c *lintContext) lintKindsAndSchemas() {
 
 func (c *lintContext) lintActionNode(node dsl.Node) {
 	c.lintActionHarvest(node)
+	actionKind := dsl.ActionKind(node.Kind)
+	if actionKind != dsl.ActionRunAgent && actionKind != dsl.ActionGoal {
+		c.lintUnsupportedEnvironment(node)
+	}
 	if dsl.IsReservedActionKind(node.Kind) {
 		c.lintReservedActionNode(node)
 		return
@@ -178,6 +182,7 @@ func (c *lintContext) lintActionNode(node dsl.Node) {
 }
 
 func (c *lintContext) lintControlNode(node dsl.Node) {
+	c.lintUnsupportedEnvironment(node)
 	if !dsl.IsKnownControlKind(node.Kind) {
 		c.add(
 			node.ID,
@@ -259,6 +264,7 @@ func hasJudgeCriterion(criteria []dsl.GateCriterion) bool {
 }
 
 func (c *lintContext) lintSourceNode(node dsl.Node) {
+	c.lintUnsupportedEnvironment(node)
 	if !dsl.IsKnownSourceKind(node.Kind) {
 		c.add(node.ID, CodeUnknownSourceKind, "source kind %q is not in the closed enum", node.Kind)
 		return
@@ -297,6 +303,16 @@ func (c *lintContext) lintSourceNode(node dsl.Node) {
 	case dsl.SourceWatchEvents:
 		c.lintWatchEventsNode(node)
 		return
+	}
+}
+
+func (c *lintContext) lintUnsupportedEnvironment(node dsl.Node) {
+	if _, exists := node.Params["environment"]; exists {
+		c.add(
+			node.ID,
+			CodeEnvironmentUnsupported,
+			"params.environment is supported only on run-agent and goal nodes",
+		)
 	}
 }
 

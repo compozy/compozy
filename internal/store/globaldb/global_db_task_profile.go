@@ -200,6 +200,8 @@ func upsertExecutionProfileRow(
 		ReviewModel:            profile.Review.Model,
 		SandboxMode:            string(profile.Sandbox.Mode),
 		SandboxRef:             profile.Sandbox.SandboxRef,
+		WorktreeMode:           string(profile.Worktree.Mode),
+		WorktreeRef:            profile.Worktree.WorktreeRef,
 		RuntimeMode:            string(profile.Runtime.Mode),
 		CreatedAt:              store.FormatTimestamp(profile.CreatedAt),
 		UpdatedAt:              store.FormatTimestamp(profile.UpdatedAt),

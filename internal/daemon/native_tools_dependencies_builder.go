@@ -14,12 +14,7 @@ func (d *Daemon) nativeToolsDeps(
 		soul:      state.soulCatalog,
 		heartbeat: state.heartbeatCatalog,
 	})
-	marketplaceSkills := skillmarketplace.NewService(
-		d.homePaths,
-		state.cfg.Skills,
-		skillmarketplace.WithLogger(state.logger),
-		skillmarketplace.WithNow(d.now),
-	)
+	marketplaceSkills := d.nativeMarketplaceSkills(state)
 	return daemonNativeToolsDeps{
 		Registry:                   registryRef,
 		ToolArtifacts:              state.toolArtifacts,
@@ -27,6 +22,7 @@ func (d *Daemon) nativeToolsDeps(
 		Skills:                     skillsRegistryAPI(state.skillsRegistry),
 		Sessions:                   state.sessions,
 		Workspaces:                 state.workspaceResolver,
+		Worktrees:                  state.worktrees,
 		WorkspaceResolver:          state.workspaceResolver,
 		ModelCatalog:               state.deps.ModelCatalog,
 		MarketplaceCatalog:         state.deps.MarketplaceCatalog,
@@ -37,6 +33,7 @@ func (d *Daemon) nativeToolsDeps(
 		NetworkStore:               state.registry,
 		NetworkUsage:               state.registry,
 		Tasks:                      state.deps.Tasks,
+		TaskClaimHandoff:           taskClaimHandoffForState(state),
 		MemoryStore:                state.memoryStore,
 		MemoryToolWrites:           state.memoryExtractor,
 		DreamTrigger:               state.deps.DreamTrigger,
@@ -87,4 +84,13 @@ func (d *Daemon) nativeToolsDeps(
 		Resources:     state.deps.Resources,
 		WindowManager: state.windowManager,
 	}
+}
+
+func (d *Daemon) nativeMarketplaceSkills(state *bootState) *skillmarketplace.Service {
+	return skillmarketplace.NewService(
+		d.homePaths,
+		state.cfg.Skills,
+		skillmarketplace.WithLogger(state.logger),
+		skillmarketplace.WithNow(d.now),
+	)
 }

@@ -137,6 +137,9 @@ func statusForWorkspaceError(err error) int {
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func statusForSessionError(err error) int {
+	if WorktreeErrorCode(err) != "" {
+		return StatusForWorktreeError(err)
+	}
 	if status, ok := statusForSessionParticipationError(err); ok {
 		return status
 	}

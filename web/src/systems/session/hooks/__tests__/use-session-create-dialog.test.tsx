@@ -12,25 +12,59 @@ import {
   useSessionCreateDialogViewModel,
   type SessionCreateDialogApi,
 } from "../use-session-create-dialog";
+import { sessionStore } from "../../stores/session-store";
 import type { AgentPayload } from "@/systems/agent";
 import type { WorkspacePayload } from "@/systems/workspace";
+import {
+  buildWorktreeFixture,
+  emptyWorktreeListingFixture,
+} from "@/systems/workspace/mocks/worktree-fixtures";
 
-// Invariant: creation submits only durable session identity and launch context, then hands off
-// to the canonical session route. Owning layer: session-create view model. Canonical suite: this hook test.
+// Invariant: creation submits only durable session identity and launch context, derives Global
+// from the hidden home registration without a worktree choice, materializes a project environment
+// before binding to it, queues the typed first message against the created session, and hands off
+// to the canonical session route. Every exit from a pending environment — Cancel, dismiss, or
+// failure — rolls the worktree back and keeps what the operator typed.
+// Owning layer: session-create view model. Canonical suite: this hook test.
 const {
+  mockCancel,
+  mockMaterializationRef,
   mockMutateAsync,
   mockNavigate,
+  mockReset,
   mockSetActiveWorkspaceId,
+  mockStart,
   mockUseAgents,
   mockUserHomeDir,
   mockWorkspaceListRef,
+  mockWorktreeListingRef,
 } = vi.hoisted(() => ({
+  mockCancel: vi.fn(),
+  mockMaterializationRef: { current: { status: "idle" as string, worktree: undefined as unknown } },
   mockMutateAsync: vi.fn<(input: unknown) => Promise<SessionPayload>>(),
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
+  mockReset: vi.fn(),
   mockSetActiveWorkspaceId: vi.fn<(workspaceId: string | null) => void>(),
+  mockStart: vi.fn(),
   mockUseAgents: vi.fn(),
   mockUserHomeDir: { current: undefined as string | undefined },
   mockWorkspaceListRef: { current: [] as WorkspacePayload[] },
+  mockWorktreeListingRef: { current: undefined as unknown },
+}));
+
+vi.mock("@/systems/workspace/hooks/use-worktrees", () => ({
+  useWorktrees: () => ({ data: mockWorktreeListingRef.current }),
+}));
+
+vi.mock("@/systems/workspace/hooks/use-worktree-materialization", () => ({
+  useWorktreeMaterialization: () => ({
+    ...mockMaterializationRef.current,
+    cancel: mockCancel,
+    recover: mockReset,
+    reset: mockReset,
+    retry: vi.fn(),
+    start: mockStart,
+  }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
@@ -63,6 +97,13 @@ const activeWorkspace: WorkspacePayload = {
   name: "alpha",
   created_at: "2026-04-20T10:00:00Z",
   updated_at: "2026-04-20T10:00:00Z",
+};
+
+const homeWorkspace: WorkspacePayload = {
+  ...activeWorkspace,
+  id: "ws_home",
+  root_dir: "/Users/operator",
+  name: "operator-home",
 };
 
 const agents: AgentPayload[] = [
@@ -112,6 +153,8 @@ function useSessionCreateDialog(context: {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
   scope?: "workspace" | "global";
+  projectWorkspaceId?: string | null;
+  homeWorkspaceId?: string;
 }): SessionCreateDialogApi & { openDialog: (agentName: string) => void } {
   const controller = useSessionCreateDialogController();
   const dialog = useSessionCreateDialogViewModel(context, controller.store);
@@ -148,6 +191,19 @@ describe("useSessionCreateDialog", () => {
     mockUseAgents.mockReturnValue({ data: undefined });
     mockUserHomeDir.current = undefined;
     mockWorkspaceListRef.current = [activeWorkspace];
+    mockCancel.mockReset();
+    mockReset.mockReset();
+    mockStart.mockReset();
+    mockMaterializationRef.current = { status: "idle", worktree: undefined };
+    // The real store flips to `creating` synchronously inside `start`, which is
+    // what keeps the armed submit waiting instead of standing down at once.
+    mockStart.mockImplementation(() => {
+      mockMaterializationRef.current = { status: "creating", worktree: undefined };
+    });
+    // Most cases are not git-backed, so the environment control is absent and
+    // creation behaves exactly as it did before worktrees existed.
+    mockWorktreeListingRef.current = undefined;
+    sessionStore.trigger.sessionInteractionRemoved({ sessionId: createdSession.id });
   });
 
   it("Should isolate draft state between dialog controller instances", () => {
@@ -252,8 +308,9 @@ describe("useSessionCreateDialog", () => {
     );
   });
 
-  it("Should not activate a workspace after a Global session create", async () => {
+  it("Should bind Global creation to home without exposing or activating a worktree", async () => {
     mockUserHomeDir.current = "/Users/operator";
+    mockWorktreeListingRef.current = emptyWorktreeListingFixture;
     mockMutateAsync.mockResolvedValue({
       ...createdSession,
       workspace_id: "ws_home",
@@ -262,13 +319,26 @@ describe("useSessionCreateDialog", () => {
 
     const { wrapper } = createWrapper();
     const { result } = renderHook(
-      () => useSessionCreateDialog({ agents, activeWorkspace, scope: "global" }),
+      () =>
+        useSessionCreateDialog({
+          agents,
+          activeWorkspace: homeWorkspace,
+          scope: "global",
+          projectWorkspaceId: activeWorkspace.id,
+          homeWorkspaceId: homeWorkspace.id,
+        }),
       { wrapper }
     );
 
     act(() => result.current.openDialog("codex-agent"));
+    expect(result.current.environment).toBeUndefined();
     await act(async () => result.current.submit());
 
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      agent_name: "codex-agent",
+      workspace: homeWorkspace.id,
+      network_participation: { mode: "local" },
+    });
     await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
     expect(mockSetActiveWorkspaceId).not.toHaveBeenCalled();
   });
@@ -285,5 +355,153 @@ describe("useSessionCreateDialog", () => {
 
     expect(mockMutateAsync).not.toHaveBeenCalled();
     expect(result.current.submitError).toBe("Select an agent before starting the session.");
+  });
+
+  it("Should queue the typed first message against the session it created", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("codex-agent"));
+    act(() => result.current.onFirstMessageChange("Investigate the regression"));
+    await act(async () => result.current.submit());
+
+    await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+    expect(sessionStore.getSnapshot().context.firstPrompts[createdSession.id]).toEqual({
+      text: "Investigate the regression",
+      claimed: false,
+    });
+  });
+
+  describe("with a new worktree as the environment", () => {
+    const readyWorktree = buildWorktreeFixture({
+      id: "wt_hotfix",
+      name: "hotfix-cors",
+      state: "ready",
+    });
+
+    function armSubmit() {
+      mockWorktreeListingRef.current = emptyWorktreeListingFixture;
+      const { wrapper } = createWrapper();
+      const rendered = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+        wrapper,
+      });
+
+      act(() => rendered.result.current.openDialog("codex-agent"));
+      act(() => rendered.result.current.onFirstMessageChange("Investigate the regression"));
+      // Through the field's own handler — the seam the dialog actually renders,
+      // so a regression that materializes on selection is visible here.
+      act(() =>
+        rendered.result.current.environment?.onChange({
+          kind: "new",
+          name: "",
+          previous: { kind: "root" },
+        })
+      );
+      return rendered;
+    }
+
+    it("Should create the worktree on submit rather than on selection", async () => {
+      const { result, rerender } = armSubmit();
+
+      // Choosing is not a commitment: an abandoned dialog leaves nothing behind.
+      expect(mockStart).not.toHaveBeenCalled();
+
+      act(() => result.current.submit());
+
+      expect(mockStart).toHaveBeenCalledTimes(1);
+      expect(mockMutateAsync).not.toHaveBeenCalled();
+      expect(result.current.isAwaitingEnvironment).toBe(true);
+
+      mockMaterializationRef.current = { status: "ready", worktree: readyWorktree };
+      await act(async () => rerender());
+
+      await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ worktree: "wt_hotfix" })
+      );
+      await waitFor(() =>
+        expect(sessionStore.getSnapshot().context.firstPrompts[createdSession.id]?.text).toBe(
+          "Investigate the regression"
+        )
+      );
+    });
+
+    it("Should cancel the worktree on Cancel and keep the dialog and the typed message", async () => {
+      const { result, rerender } = armSubmit();
+      act(() => result.current.submit());
+      await act(async () => rerender());
+
+      act(() => result.current.onCancelEnvironment());
+
+      expect(mockCancel).toHaveBeenCalledTimes(1);
+      expect(result.current.open).toBe(true);
+      expect(result.current.firstMessage).toBe("Investigate the regression");
+      expect(result.current.environment?.value).toEqual({ kind: "root" });
+      expect(result.current.isAwaitingEnvironment).toBe(false);
+      expect(mockMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("Should restore the prior ready worktree when a new materialization is canceled", async () => {
+      mockWorktreeListingRef.current = {
+        ...emptyWorktreeListingFixture,
+        worktrees: [readyWorktree],
+      };
+      const { wrapper } = createWrapper();
+      const rendered = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+        wrapper,
+      });
+
+      act(() => rendered.result.current.openDialog("codex-agent"));
+      act(() =>
+        rendered.result.current.environment?.onChange({
+          kind: "worktree",
+          worktreeId: readyWorktree.id,
+        })
+      );
+      act(() =>
+        rendered.result.current.environment?.onChange({
+          kind: "new",
+          name: "",
+          previous: { kind: "worktree", worktreeId: readyWorktree.id },
+        })
+      );
+      act(() => rendered.result.current.submit());
+      act(() => rendered.result.current.onCancelEnvironment());
+
+      expect(rendered.result.current.environment?.value).toEqual({
+        kind: "worktree",
+        worktreeId: readyWorktree.id,
+      });
+    });
+
+    it("Should cancel a pending worktree when the dialog is dismissed", async () => {
+      const { result, rerender } = armSubmit();
+      act(() => result.current.submit());
+      await act(async () => rerender());
+
+      act(() => result.current.onOpenChange(false));
+
+      expect(mockCancel).toHaveBeenCalledTimes(1);
+      expect(result.current.open).toBe(false);
+    });
+
+    it("Should stand down when materialization fails, leaving the draft and its exits intact", async () => {
+      const { result, rerender } = armSubmit();
+      act(() => result.current.submit());
+      await act(async () => rerender());
+
+      mockMaterializationRef.current = { status: "failed", worktree: undefined };
+      await act(async () => rerender());
+
+      expect(result.current.isAwaitingEnvironment).toBe(false);
+      expect(mockMutateAsync).not.toHaveBeenCalled();
+      expect(result.current.firstMessage).toBe("Investigate the regression");
+      // Retry, pick another environment, and fall back to the root are all still
+      // on the table — the field renders them from this same model.
+      expect(result.current.environment?.materialization.status).toBe("failed");
+      expect(result.current.environment?.onChange).toBeTypeOf("function");
+    });
   });
 });

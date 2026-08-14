@@ -15,6 +15,7 @@ func registrySessionOperations() []OperationSpec {
 		archiveSessionOperationSpec(),
 		unarchiveSessionOperationSpec(),
 		attachSessionOperationSpec(),
+		forkSessionWorktreeOperationSpec(),
 		setSessionRuntimeOperationSpec(),
 		clearSessionRuntimeOperationSpec(),
 		sendSessionPromptOperationSpec(),
@@ -50,6 +51,34 @@ func renameSessionOperationSpec() OperationSpec {
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Session rename unavailable", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func forkSessionWorktreeOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork",
+		OperationID: "forkSessionToWorktree",
+		Summary:     "Fork a live session into a worktree",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Origin session id"),
+		},
+		RequestBody: contract.ForkSessionWorktreeRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: specCreatedDescription, Body: contract.SessionResponse{}},
+			{Status: 400, Description: "Confirmation or one worktree target is missing", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Session, workspace, or worktree not found", Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Origin session is busy or worktree is unavailable",
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specNewWorkAdmissionUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }

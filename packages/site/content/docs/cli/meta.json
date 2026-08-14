@@ -14,6 +14,7 @@
         "task",
         "---Workspace & OS---",
         "workspace",
+        "worktree",
         "app",
         "desktop",
         "window",

@@ -32,6 +32,7 @@ type configOverlay struct {
 	Network       networkOverlay             `toml:"network"`
 	Gateway       *gatewayOverlay            `toml:"gateway"`
 	Autonomy      autonomyOverlay            `toml:"autonomy"`
+	Worktrees     worktreesOverlay           `toml:"worktrees"`
 }
 
 func (o *configOverlay) Apply(dst *Config) error {
@@ -73,5 +74,6 @@ func (o *configOverlay) Apply(dst *Config) error {
 		o.Gateway.Apply(&dst.Gateway)
 	}
 	o.Autonomy.Apply(&dst.Autonomy)
+	o.Worktrees.Apply(&dst.Worktrees)
 	return o.Hooks.Apply(&dst.Hooks)
 }

@@ -45,7 +45,15 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if err := validateSessionParticipationWorkspace(meta.NetworkSpecSnapshot(), resolvedWorkspace.ID); err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: validate resume participation for %q: %w", meta.ID, err)
 	}
-	cwd, err := resumeSessionCWD(meta, resolvedWorkspace.RootDir)
+	worktreeID, worktreeRoot, err := m.resolveSessionWorktree(ctx, resolvedWorkspace.ID, meta.WorktreeIDValue())
+	if err != nil {
+		return sessionStartSpec{}, fmt.Errorf("session: resolve resume worktree for %q: %w", meta.ID, err)
+	}
+	executionRoot := resolvedWorkspace.RootDir
+	if worktreeRoot != "" {
+		executionRoot = worktreeRoot
+	}
+	cwd, err := resumeSessionCWD(meta, executionRoot)
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: validate resume cwd for %q: %w", meta.ID, err)
 	}
@@ -53,6 +61,8 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: build resume start spec for %q: %w", meta.ID, err)
 	}
+	spec.worktreeID = worktreeID
+	spec.worktreeRoot = worktreeRoot
 	spec.postEvent = hookspkg.HookSessionPostResume
 	spec.startAction = sessionStartActionResume
 	spec.includePromptUpdatedAt = true
@@ -64,14 +74,14 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 	return spec, nil
 }
 
-func resumeSessionCWD(meta store.SessionMeta, workspaceRoot string) (string, error) {
-	requested := workspaceRoot
+func resumeSessionCWD(meta store.SessionMeta, executionRoot string) (string, error) {
+	requested := executionRoot
 	if meta.CreationProfile != nil {
 		requested = strings.TrimSpace(meta.CreationProfile.CWD)
 	} else if cwd := strings.TrimSpace(meta.CWD); cwd != "" {
 		requested = cwd
 	}
-	return ResolveSessionCWD(workspaceRoot, requested)
+	return ResolveSessionCWD(executionRoot, requested)
 }
 
 func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *Session, err error) {
@@ -109,14 +119,14 @@ func (m *Manager) startAgentProcess(
 func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.SessionContext {
 	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
 	ctx := hookspkg.SessionContext{
-		SessionID:    strings.TrimSpace(s.sessionID),
-		SessionName:  strings.TrimSpace(s.sessionName),
-		SessionType:  string(normalizeSessionType(s.sessionType)),
-		AgentName:    strings.TrimSpace(s.agentName),
-		WorkspaceID:  ref.WorkspaceID,
-		Workspace:    ref.Workspace,
-		ACPSessionID: strings.TrimSpace(s.acpSessionID),
-		State:        string(StateStarting),
+		SessionID:             strings.TrimSpace(s.sessionID),
+		SessionName:           strings.TrimSpace(s.sessionName),
+		SessionType:           string(normalizeSessionType(s.sessionType)),
+		AgentName:             strings.TrimSpace(s.agentName),
+		WorkspaceID:           ref.WorkspaceID,
+		Workspace:             ref.Workspace,
+		SessionRuntimeContext: hookspkg.NewSessionRuntimeContext(s.worktreeID, s.acpSessionID),
+		State:                 string(StateStarting),
 		SessionSoulContext: hookSessionSoulContext(
 			s.soulSnapshotID,
 			s.soulDigest,
@@ -138,6 +148,7 @@ func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupProm
 		Provider:             strings.TrimSpace(s.provider),
 		WorkspaceID:          ref.WorkspaceID,
 		Workspace:            ref.Workspace,
+		WorktreeID:           strings.TrimSpace(s.worktreeID),
 		NetworkParticipation: s.networkParticipation,
 		SessionType:          normalizeSessionType(s.sessionType),
 		SoulSnapshot:         cloneSoulSnapshotPointer(s.soulSnapshot),

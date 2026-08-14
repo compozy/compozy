@@ -74,8 +74,9 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 				RequiredCapabilities:  []string{"go"},
 				PreferredCapabilities: []string{"review"},
 			},
-			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "workspace"},
-			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+			Sandbox:  taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "workspace"},
+			Worktree: taskpkg.WorktreePolicy{Mode: taskpkg.WorktreeModeRef, WorktreeRef: "feature-one"},
+			Runtime:  taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
 			NetworkParticipation: &participation.Request{
 				Mode:            &liveMode,
 				ChannelStrategy: &runStrategy,
@@ -193,6 +194,11 @@ func assertStoredProfileShape(t *testing.T, profile *taskpkg.ExecutionProfile) {
 	}
 	if got, want := profile.Sandbox.Mode, taskpkg.SandboxModeRef; got != want {
 		t.Fatalf("Sandbox.Mode = %q, want %q", got, want)
+	}
+	if got, want := profile.Worktree, (taskpkg.WorktreePolicy{
+		Mode: taskpkg.WorktreeModeRef, WorktreeRef: "feature-one",
+	}); got != want {
+		t.Fatalf("Worktree = %#v, want %#v", got, want)
 	}
 	if got, want := profile.Runtime.Mode, taskpkg.RuntimeModeEvidence; got != want {
 		t.Fatalf("Runtime.Mode = %q, want %q", got, want)

@@ -69,11 +69,17 @@ function CommandMenuItemRow({
       item={item}
       index={flatIndex}
       data-testid="composer-command-item"
+      data-unavailable={presentation.available ? undefined : ""}
+      disabled={!presentation.available}
+      title={presentation.unavailableReason}
       className={cn(
         "group/command-row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left",
         "text-small-body text-fg outline-none select-none",
         "transition-colors duration-fast ease-out",
-        "data-[highlighted]:bg-elevated data-[highlighted]:text-fg-strong"
+        "data-[highlighted]:bg-elevated data-[highlighted]:text-fg-strong",
+        // Unavailable commands stay listed: hiding one would erase the daemon's
+        // reason for why it cannot run right now.
+        "data-[unavailable]:cursor-not-allowed data-[unavailable]:opacity-55"
       )}
     >
       <span
@@ -86,9 +92,17 @@ function CommandMenuItemRow({
       </span>
       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
         <span className="shrink-0 font-medium">{presentation.menuTitle}</span>
-        {item.description ? (
+        {presentation.available && item.description ? (
           <span className="truncate text-transcript-caption text-subtle">{item.description}</span>
         ) : null}
+        {presentation.available ? null : (
+          <span
+            className="truncate text-transcript-caption text-warning"
+            data-slot="composer-command-unavailable-reason"
+          >
+            {presentation.unavailableReason ?? item.description}
+          </span>
+        )}
       </span>
       <span
         className={cn(

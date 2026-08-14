@@ -6,12 +6,13 @@ import { buildCheckDescriptors, type LoopConfigCheckDescriptor } from "../lib/lo
 import {
   buildLoopConfigRequest,
   initialConfigDraft,
+  normalizeLoopEnvironment,
   resetConfigDraft,
   type LoopConfigDraft,
   type LoopReattemptStrategy,
 } from "../lib/loop-config-draft";
 import type { LoopOverrideDraft } from "../lib/loop-overrides";
-import type { LoopConfig, LoopDetail, LoopEffectiveConfig } from "../types";
+import type { LoopConfig, LoopDetail, LoopEffectiveConfig, LoopEnvironmentSpec } from "../types";
 import { usePutLoopConfig } from "./use-loop-actions";
 
 interface UseLoopConfigureOptions {
@@ -33,6 +34,8 @@ export interface UseLoopConfigureResult {
   setHumanGate: (enabled: boolean) => void;
   setStrategy: (strategy: LoopReattemptStrategy) => void;
   setLimits: (limits: LoopOverrideDraft) => void;
+  /** `null` unpins the loop-level default so every node falls back to the workspace root. */
+  setEnvironment: (environment: LoopEnvironmentSpec | null) => void;
   handleReset: () => void;
   handleSave: () => void;
 }
@@ -83,6 +86,10 @@ export function useLoopConfigure({
     setDraft(prev => ({ ...prev, limits }));
   }
 
+  function setEnvironment(environment: LoopEnvironmentSpec | null) {
+    setDraft(prev => ({ ...prev, environment: normalizeLoopEnvironment(environment) }));
+  }
+
   function handleReset() {
     setDraft(resetConfigDraft(descriptors, effectiveConfig));
     toast.success("Reset to loop defaults");
@@ -117,6 +124,7 @@ export function useLoopConfigure({
     setHumanGate,
     setStrategy,
     setLimits,
+    setEnvironment,
     handleReset,
     handleSave,
   };

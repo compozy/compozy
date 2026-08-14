@@ -68,6 +68,9 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 		if got, want := orchestration.Profile.DefaultSandboxMode, TaskSandboxModeInherit; got != want {
 			t.Fatalf("DefaultWithHome() profile DefaultSandboxMode = %q, want %q", got, want)
 		}
+		if got, want := orchestration.Profile.DefaultWorktreeMode, TaskWorktreeModeInherit; got != want {
+			t.Fatalf("DefaultWithHome() profile DefaultWorktreeMode = %q, want %q", got, want)
+		}
 		if !orchestration.Profile.AllowTaskProviderOverride {
 			t.Fatal("DefaultWithHome() profile AllowTaskProviderOverride = false, want true")
 		}
@@ -212,6 +215,20 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 				cfg.Orchestration.Profile.AllowTaskSandboxNone = false
 			},
 			wantErr: "task.orchestration.profile.default_sandbox_mode",
+		},
+		{
+			name: "Should reject unknown worktree default mode",
+			mutate: func(cfg *TaskConfig) {
+				cfg.Orchestration.Profile.DefaultWorktreeMode = "automatic"
+			},
+			wantErr: "task.orchestration.profile.default_worktree_mode",
+		},
+		{
+			name: "Should reject ref as a worktree default without a reference key",
+			mutate: func(cfg *TaskConfig) {
+				cfg.Orchestration.Profile.DefaultWorktreeMode = TaskWorktreeModeRef
+			},
+			wantErr: "task.orchestration.profile.default_worktree_mode",
 		},
 		{
 			name: "Should reject unknown review policy",
@@ -367,6 +384,7 @@ allow_agent_force = false
 default_coordinator_mode = "guided"
 default_worker_mode = "inherit"
 default_sandbox_mode = "none"
+default_worktree_mode = "per_run"
 allow_task_provider_override = false
 allow_task_sandbox_none = true
 
@@ -390,6 +408,9 @@ summary_max_bytes = 3000
 default_max_runtime = "0s"
 max_active_runs_per_workspace = 0
 network_status_timeout = "3s"
+
+[task.orchestration.profile]
+default_worktree_mode = "none"
 
 [task.recovery]
 allow_agent_force = true
@@ -428,6 +449,9 @@ timeout = "10m"
 		}
 		if got, want := orchestration.Profile.DefaultSandboxMode, TaskSandboxModeNone; got != want {
 			t.Fatalf("LoadForHome() DefaultSandboxMode = %q, want %q", got, want)
+		}
+		if got, want := orchestration.Profile.DefaultWorktreeMode, TaskWorktreeModeNone; got != want {
+			t.Fatalf("LoadForHome() DefaultWorktreeMode = %q, want workspace override %q", got, want)
 		}
 		if orchestration.Profile.AllowTaskProviderOverride {
 			t.Fatal("LoadForHome() AllowTaskProviderOverride = true, want global false")

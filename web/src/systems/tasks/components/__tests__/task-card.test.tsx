@@ -76,6 +76,7 @@ describe("TaskCard", () => {
         task={buildTask({
           status: "failed",
           active_run: {
+            resolved_worktree_mode: "none",
             id: "run_002",
             task_id: "task_001",
             attempt: 3,
@@ -158,6 +159,7 @@ describe("TaskCard", () => {
           id: "loop.run-1.g1.node.execute_task.0",
           identifier: undefined,
           active_run: {
+            resolved_worktree_mode: "none",
             id: "run_cell",
             task_id: "loop.run-1.g1.node.execute_task.0",
             attempt: 1,

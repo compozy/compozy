@@ -96,14 +96,14 @@ func hookSessionContext(sess *session.Session) hookspkg.SessionContext {
 	}
 
 	return hookspkg.SessionContext{
-		SessionID:    strings.TrimSpace(info.ID),
-		SessionName:  strings.TrimSpace(info.Name),
-		SessionType:  string(info.Type),
-		AgentName:    strings.TrimSpace(info.AgentName),
-		WorkspaceID:  strings.TrimSpace(info.WorkspaceID),
-		Workspace:    strings.TrimSpace(info.Workspace),
-		ACPSessionID: strings.TrimSpace(info.ACPSessionID),
-		State:        string(info.State),
+		SessionID:             strings.TrimSpace(info.ID),
+		SessionName:           strings.TrimSpace(info.Name),
+		SessionType:           string(info.Type),
+		AgentName:             strings.TrimSpace(info.AgentName),
+		WorkspaceID:           strings.TrimSpace(info.WorkspaceID),
+		Workspace:             strings.TrimSpace(info.Workspace),
+		SessionRuntimeContext: hookspkg.NewSessionRuntimeContext(info.WorktreeID, info.ACPSessionID),
+		State:                 string(info.State),
 		SessionSoulContext: hookSessionSoulContext(
 			info.SoulSnapshotID,
 			info.SoulDigest,
@@ -134,7 +134,7 @@ func sessionFromHookPayload(payload hookspkg.SessionLifecyclePayload) *session.S
 		Workspace:    strings.TrimSpace(payload.Workspace),
 		Type:         session.Type(strings.TrimSpace(payload.SessionType)),
 		State:        session.State(strings.TrimSpace(payload.State)),
-		ACPSessionID: strings.TrimSpace(payload.ACPSessionID),
+		ACPSessionID: strings.TrimSpace(payload.ACPSessionIDValue()),
 		CreatedAt:    payload.CreatedAt,
 		UpdatedAt:    payload.UpdatedAt,
 	}

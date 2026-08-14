@@ -15,11 +15,13 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 	var run taskpkg.Run
 	var taskID sql.NullString
 	var workspaceID sql.NullString
+	var worktreeID sql.NullString
 	var fields taskRunScanFields
 	if err := scanner.Scan(
 		&run.ID,
 		&taskID,
 		&workspaceID,
+		&worktreeID,
 		&fields.runKind,
 		&fields.loopRunID,
 		&fields.status,
@@ -38,6 +40,8 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&fields.networkChannel,
 		&fields.networkSource,
 		&fields.designationGroupID,
+		&fields.resolvedWorktreeMode,
+		&fields.resolvedWorktreeRef,
 		&fields.claimToken,
 		&fields.claimTokenHash,
 		&fields.leaseUntilRaw,
@@ -68,6 +72,7 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 	}
 	run.TaskID = taskNullStringValue(taskID)
 	run.WorkspaceID = taskNullStringValue(workspaceID)
+	run.SetWorktreeID(taskNullStringValue(worktreeID))
 	return (&fields).record(run)
 }
 
@@ -87,6 +92,8 @@ type taskRunScanFields struct {
 	networkChannel         sql.NullString
 	networkSource          string
 	designationGroupID     string
+	resolvedWorktreeMode   string
+	resolvedWorktreeRef    string
 	claimToken             sql.NullString
 	claimTokenHash         sql.NullString
 	leaseUntilRaw          sql.NullString
@@ -131,6 +138,11 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 		fields.claimToken,
 		fields.claimTokenHash,
 		fields.runErr,
+	)
+	run.SetWorktreeState(
+		run.WorktreeIDValue(),
+		taskpkg.WorktreeMode(strings.TrimSpace(fields.resolvedWorktreeMode)),
+		fields.resolvedWorktreeRef,
 	)
 	networkSpec, err := decodeParticipationSnapshot(
 		run.WorkspaceID,

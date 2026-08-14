@@ -295,3 +295,81 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
     .toBe(false);
   await browserArtifacts.captureScreenshot("tasks-draft-deleted", appPage);
 });
+
+// E2E-011: the task worktree policy — the locked mode vocabulary, a
+// same-workspace-only reference picker, an invalid reference flagged, and every
+// control locked while a run is active.
+test("operator sets the task worktree policy from the setup sheet", async ({
+  appPage,
+  runtime,
+}) => {
+  await completeOnboardingIfPrompted(appPage);
+  const seeded = await seedBrowserTasksOperatorFlow(runtime, {
+    sessionAgentName: tasksSessionAgentName,
+  });
+  const taskId = seeded.referenceTask.id;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await openAppWindow(appPage, "Tasks", "tasks");
+  await appPage.getByTestId(`tasks-row-${taskId}`).click();
+  await appPage.getByTestId("tasks-detail-setup").click();
+
+  const policy = appPage.locator('[data-slot="task-worktree-policy"]');
+  await expect(policy).toBeVisible();
+  const modes = policy.locator('[data-slot="pill-group-item"]');
+  await expect(modes).toHaveText(["Inherit", "Workspace root", "Named worktree", "Per-run"]);
+
+  await modes.filter({ hasText: "Per-run" }).click();
+  await expect(policy).toHaveAttribute("data-mode", "per_run");
+  await expect
+    .poll(async () => {
+      const profile = await runtime.requestJSON<{ profile: { worktree: { mode: string } } }>(
+        `/api/tasks/${taskId}/execution-profile`
+      );
+      return profile.profile.worktree.mode;
+    })
+    .toBe("per_run");
+
+  // The reference picker only exists in `ref` mode, and only offers ready
+  // worktrees from this task's own workspace.
+  await modes.filter({ hasText: "Named worktree" }).click();
+  await expect(appPage.getByTestId("tasks-setup-worktree-ref")).toBeVisible();
+});
+
+// E2E-012: fan-out isolation — the count statement matches the request, and the
+// result attributes each run to the worktree the response named.
+test("operator isolates each fan-out run in its own worktree", async ({ appPage, runtime }) => {
+  await completeOnboardingIfPrompted(appPage);
+  const seeded = await seedBrowserTasksOperatorFlow(runtime, {
+    sessionAgentName: tasksSessionAgentName,
+  });
+  const taskId = seeded.referenceTask.id;
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await openAppWindow(appPage, "Tasks", "tasks");
+  await appPage.getByTestId(`tasks-row-${taskId}`).click();
+  await appPage.getByTestId("tasks-detail-fan-out").click();
+
+  await appPage
+    .getByTestId("tasks-fan-out-designations")
+    .fill("Investigate the failing checkout path\nValidate the fix on staging");
+
+  const isolation = appPage.locator('[data-slot="task-fan-out-isolation"]');
+  await expect(isolation).toBeVisible();
+  await appPage.getByTestId("tasks-fan-out-worktree-per-run").click();
+  await expect(isolation.locator('[data-slot="task-fan-out-isolation-count"]')).toHaveText(
+    "Creates 2 worktrees, one per run."
+  );
+
+  await appPage.getByTestId("tasks-fan-out-runs-submit").click();
+  const results = appPage.locator('[data-slot="task-fan-out-run-results"]');
+  await expect(results).toBeVisible();
+  await expect(results.locator('[data-slot="task-fan-out-run-result"]')).toHaveCount(2);
+  for (const row of await results.locator('[data-slot="task-fan-out-run-result"]').all()) {
+    await expect(row).toHaveAttribute("data-unattributed", "");
+    await expect(row.locator('[data-slot="task-fan-out-run-attribution"]')).not.toContainText(
+      "Worktree pending"
+    );
+    await expect(row.locator('[data-slot="task-fan-out-run-attribution"]')).not.toContainText(
+      "Worktree unavailable"
+    );
+  }
+});

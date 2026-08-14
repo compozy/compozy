@@ -39,5 +39,6 @@ describe("sessionCommandsOptions", () => {
     expect(options.enabled).toBe(true);
     expect(sessionCommandsOptions("", "sess_1").enabled).toBe(false);
     expect(sessionCommandsOptions("   ", "sess_1").enabled).toBe(false);
+    expect(sessionCommandsOptions("ws_alpha", "sess_1", false).enabled).toBe(false);
   });
 });

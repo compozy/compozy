@@ -11,16 +11,18 @@ import (
 
 // QueueRunReservation captures the canonical store-level queue reservation input.
 type QueueRunReservation struct {
-	TaskID             string             `json:"task_id"`
-	RunID              string             `json:"run_id"`
-	RunKind            RunKind            `json:"run_kind,omitempty"`
-	LoopRunID          string             `json:"loop_run_id,omitempty"`
-	IdempotencyKey     string             `json:"idempotency_key,omitempty"`
-	Origin             Origin             `json:"origin"`
-	NetworkSpec        participation.Spec `json:"network_spec"`
-	DesignationGroupID string             `json:"designation_group_id,omitempty"`
-	Metadata           json.RawMessage    `json:"metadata,omitempty"`
-	QueuedAt           time.Time          `json:"queued_at"`
+	TaskID               string             `json:"task_id"`
+	RunID                string             `json:"run_id"`
+	RunKind              RunKind            `json:"run_kind,omitempty"`
+	LoopRunID            string             `json:"loop_run_id,omitempty"`
+	IdempotencyKey       string             `json:"idempotency_key,omitempty"`
+	Origin               Origin             `json:"origin"`
+	NetworkSpec          participation.Spec `json:"network_spec"`
+	DesignationGroupID   string             `json:"designation_group_id,omitempty"`
+	ResolvedWorktreeMode WorktreeMode       `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string             `json:"resolved_worktree_ref,omitempty"`
+	Metadata             json.RawMessage    `json:"metadata,omitempty"`
+	QueuedAt             time.Time          `json:"queued_at"`
 }
 
 // Validate reports whether the store-level queue reservation input is internally consistent.
@@ -49,6 +51,12 @@ func (r QueueRunReservation) Validate(path string) error {
 		if err := participation.ValidateSpec(r.NetworkSpec); err != nil {
 			return fmt.Errorf("%s: %w", nestedPath(path, "network_spec"), err)
 		}
+	}
+	if err := validateResolvedWorktreePolicy(WorktreePolicy{
+		Mode:        r.ResolvedWorktreeMode,
+		WorktreeRef: r.ResolvedWorktreeRef,
+	}); err != nil {
+		return err
 	}
 	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
 		return err

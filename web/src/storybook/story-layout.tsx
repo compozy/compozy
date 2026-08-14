@@ -29,7 +29,7 @@ export function StorySurface({ children, className }: StoryFrameProps) {
 
 export function CenteredSurface({ children, className }: StoryFrameProps) {
   return (
-    <StorySurface className={cn("flex items-center justify-center", className)}>
+    <StorySurface className={cn("flex w-full items-center justify-center", className)}>
       {children}
     </StorySurface>
   );

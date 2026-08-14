@@ -35,6 +35,9 @@ export const tasksKeys = {
       ...tasksKeys.lists(),
       normalizeText(normalized.scope),
       normalizeText(normalized.workspace),
+      // Part of the key, not just the request: two window scopes must not share
+      // one cache entry, or one window's list would serve another's.
+      normalizeText(normalized.worktree),
       normalizeText(normalized.status),
       normalizeText(normalized.priority),
       normalizeFlag(normalized.include_drafts),
@@ -87,6 +90,7 @@ export const tasksKeys = {
       ...tasksKeys.dashboardRoot(),
       normalizeText(filters.scope),
       normalizeText(filters.workspace),
+      normalizeText(filters.worktree),
       normalizeText(filters.owner_kind),
       normalizeText(filters.owner_ref),
       normalizeText(filters.participation_channel),
@@ -100,6 +104,7 @@ export const tasksKeys = {
       ...tasksKeys.inboxRoot(),
       normalizeText(normalized.scope),
       normalizeText(normalized.workspace),
+      normalizeText(normalized.worktree),
       normalizeText(normalized.owner_kind),
       normalizeText(normalized.owner_ref),
       normalizeText(normalized.lane),

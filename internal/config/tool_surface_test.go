@@ -210,6 +210,41 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueString,
 		},
 		{
+			name: "Should allow task orchestration worktree mode mutation",
+			path: "task.orchestration.profile.default_worktree_mode",
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow worktree root mutation",
+			path: worktreeRootConfigPath,
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow worktree branch namespace mutation",
+			path: worktreeNamespaceConfigPath,
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow worktree copy list mutation",
+			path: worktreeCopyListConfigPath,
+			kind: ConfigValueStringSlice,
+		},
+		{
+			name: "Should allow worktree setup command mutation",
+			path: worktreeSetupCommandPath,
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow worktree setup timeout mutation",
+			path: worktreeSetupTimeoutPath,
+			kind: ConfigValueDuration,
+		},
+		{
+			name: "Should allow worktree discovery cache mutation",
+			path: worktreeDiscoveryTTLPath,
+			kind: ConfigValueDuration,
+		},
+		{
 			name: "Should allow task orchestration provider override gate mutation",
 			path: "task.orchestration.profile.allow_task_provider_override",
 			kind: ConfigValueBool,

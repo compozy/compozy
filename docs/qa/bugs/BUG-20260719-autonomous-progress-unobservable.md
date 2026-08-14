@@ -132,3 +132,16 @@ declared tasks unstarted and six task-owning agents silent, while the independen
   `2026-08-02T20:00:35Z` and `2026-08-02T20:05:05Z`, but the 1,800-second observer saw no
   runtime-owned progress after scheduler resume and set `stall_detected=true`. Observer-authored CLI
   comparison rows were appended afterward with actor `qa-observer`; they do not masquerade as runtime events.
+
+## Re-found — 2026-08-13
+
+- **Persona:** Mateo Rivera, release operator for the `devtool-oss-launch` playbook during the
+  worktree-support release QA.
+- **Report:** `docs/qa/reports/2026-08-13-worktree-support.md`.
+- **Result:** Reproduced after exactly one kickoff. The observer stopped at its five-minute stall
+  threshold and reported all eleven runs without completion, while the independent public Task
+  catalog already showed ten tasks `completed` and only the disruption-dependent decision task
+  `ready`. No follow-up provider prompt was sent.
+- **Evidence:**
+  `/Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/observation-summary.json`;
+  `/Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/tasks-runtime-0840.json`.

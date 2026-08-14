@@ -34,7 +34,7 @@ func (m *Service) startCoordinatorRun(
 		func(store runMutationStore) (NominalRunMutationResult, error) {
 			return store.TransitionRunStarting(
 				lifecycleCtx,
-				NewRunStartingMutation(run),
+				NewRunStartingMutation(run, req.ClaimToken, startingAt),
 			)
 		},
 		transitionRunPayload,
@@ -57,7 +57,7 @@ func (m *Service) startCoordinatorRun(
 		func(store runMutationStore) (NominalRunMutationResult, error) {
 			return store.TransitionRunRunning(
 				lifecycleCtx,
-				NewRunRunningMutation(run, runningAt),
+				NewRunRunningMutation(run, req.ClaimToken, runningAt),
 			)
 		},
 		transitionRunPayload,

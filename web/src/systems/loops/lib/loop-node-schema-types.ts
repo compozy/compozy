@@ -6,6 +6,8 @@
  * the inspector renders FROM these descriptors, it is not a second schema authority.
  */
 
+import type { LoopEnvironmentMode } from "../types";
+
 export type FieldPath = (string | number)[];
 
 interface FieldCommon {
@@ -111,6 +113,44 @@ export interface WaitModeFieldSpec extends FieldCommon {
   mode: LoopWaitMode | null;
 }
 
+/**
+ * The locked environment-mode vocabulary shared by every CompozyOS surface. Wire
+ * values come from the contract (`LoopEnvironmentMode`); the labels are the only
+ * mode wording allowed anywhere.
+ */
+export const LOOP_ENVIRONMENT_MODES = [
+  "root",
+  "worktree",
+  "per_run",
+  "directory",
+] as const satisfies readonly LoopEnvironmentMode[];
+
+export const LOOP_ENVIRONMENT_MODE_LABELS: Record<LoopEnvironmentMode, string> = {
+  root: "Workspace root",
+  worktree: "Named worktree",
+  per_run: "Per-run",
+  directory: "Directory",
+};
+
+/**
+ * The single execution-environment control on agent-executing nodes.
+ *
+ * It is not a plain select: `root` and `per_run` must carry neither
+ * `worktree_ref` nor `directory`, `worktree` requires only `worktree_ref`, and
+ * `directory` requires only `directory`. Switching therefore writes the winner
+ * and clears the losers in one transition (`environmentModeEdits` +
+ * `setNodeFields`), so no rejected intermediate shape is ever observable.
+ */
+export interface EnvironmentFieldSpec extends FieldCommon {
+  type: "environment";
+  /** The container the descriptor lives under — `["params","environment"]`. */
+  basePath: FieldPath;
+  /** The declared mode, or `null` when the node declares none and inherits the loop default. */
+  mode: LoopEnvironmentMode | null;
+  /** Label for the inherit choice. Never "None", "Unset", or "Root". */
+  inheritLabel: string;
+}
+
 export interface FoldFieldSpec extends FieldCommon {
   type: "fold";
   subLabel?: string;
@@ -128,4 +168,5 @@ export type FieldSpec =
   | EventsFieldSpec
   | EffectsFieldSpec
   | WaitModeFieldSpec
+  | EnvironmentFieldSpec
   | FoldFieldSpec;

@@ -166,7 +166,10 @@ func (e *Extension) handleWatchPoll(
 		return WatchPollResponse{}, NewInvalidParamsError("watch source response.event_key is required", nil)
 	}
 	if len([]byte(response.EventKey)) > 256 {
-		return WatchPollResponse{}, NewInvalidParamsError("watch source response.event_key must be at most 256 bytes", nil)
+		return WatchPollResponse{}, NewInvalidParamsError(
+			"watch source response.event_key must be at most 256 bytes",
+			nil,
+		)
 	}
 	return response, nil
 }

@@ -21,6 +21,7 @@ func newBootLoopActionRegistry(
 		sessions:            state.sessions,
 		globalWorkspacePath: globalWorkspacePath,
 		policyGate:          policyGate,
+		worktrees:           executionWorktreesForState(state),
 	}
 	actionOptions := []looppkg.ActionRegistryOption{
 		looppkg.WithActionSessionBinder(actionBinder),
@@ -43,6 +44,7 @@ func newBootLoopActionRegistry(
 			policyGate,
 			time.Now,
 			state.logger,
+			executionWorktreesForState(state),
 		)
 		actionOptions[0] = looppkg.WithActionSessionBinder(goalRuntime)
 		goalOption, err := composeLoopGoalExecutor(

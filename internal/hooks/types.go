@@ -165,6 +165,7 @@ type HookMatcher struct {
 	AgentName          string `json:"agent_name,omitempty"         yaml:"agent_name,omitempty"`
 	AgentType          string `json:"agent_type,omitempty"         yaml:"agent_type,omitempty"`
 	WorkspaceID        string `json:"workspace_id,omitempty"       yaml:"workspace_id,omitempty"`
+	WorktreeID         string `json:"worktree_id,omitempty"        yaml:"worktree_id,omitempty"`
 	WorkspaceRoot      string `json:"workspace_root,omitempty"     yaml:"workspace_root,omitempty"`
 	SessionType        string `json:"session_type,omitempty"       yaml:"session_type,omitempty"`
 	SandboxID          string `json:"sandbox_id,omitempty"         yaml:"sandbox_id,omitempty"`

@@ -203,8 +203,8 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       : Promise.resolve();
 
   const handleFanOutRuns = async (data: FanOutTaskRunsRequest) => {
-    if (!hasTaskId) return;
-    await submitTaskMutation(
+    if (!hasTaskId) return undefined;
+    return submitTaskMutation(
       () => fanOutMutation.mutateAsync({ id: taskId, data }),
       result => {
         const count = result?.runs?.length ?? 0;

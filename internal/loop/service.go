@@ -101,7 +101,14 @@ func (s *service) DryRun(
 	if err != nil {
 		return nil, err
 	}
-	effective, err := s.effectiveConfig(ctx, ws, loopName, resolved, inputs.ConfigOverrides)
+	effective, err := s.effectiveConfig(
+		ctx,
+		ws,
+		loopName,
+		resolved,
+		inputs.InheritedEnvironment,
+		inputs.ConfigOverrides,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -289,6 +296,7 @@ func (s *service) effectiveConfig(
 	ws WorkspaceID,
 	loopName string,
 	resolved *ResolvedDefinition,
+	inheritedEnvironment *dsl.EnvironmentSpec,
 	perRun LoopConfig,
 ) (EffectiveConfig, error) {
 	stored, err := s.store.GetLoopConfig(ctx, ws, loopName)
@@ -302,7 +310,7 @@ func (s *service) effectiveConfig(
 	if err != nil {
 		return EffectiveConfig{}, fmt.Errorf("resolve loop defaults: %w", err)
 	}
-	effective, err := ResolveEffectiveConfig(resolved, defaults, stored, perRun)
+	effective, err := resolveEffectiveConfig(resolved, defaults, inheritedEnvironment, stored, perRun)
 	if err != nil {
 		return EffectiveConfig{}, err
 	}

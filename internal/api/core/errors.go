@@ -102,6 +102,8 @@ func errorPayloadForNormalizedStatus(
 ) contract.ErrorPayload {
 	message := http.StatusText(status)
 	switch {
+	case status >= http.StatusInternalServerError && WorktreeErrorCode(err) != "":
+		message = WorktreeErrorCode(err)
 	case maskInternalErrors && status >= http.StatusInternalServerError:
 		if strings.TrimSpace(message) == "" {
 			message = errorsInternalServerErrorValue

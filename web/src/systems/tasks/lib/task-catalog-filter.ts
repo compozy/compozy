@@ -10,6 +10,7 @@ export function defaultTaskCatalogFilter(scope: ActiveTaskScopeFilter): TaskList
   return {
     scope: scope.scope,
     workspace: scope.workspace,
+    worktree: scope.worktree,
     include_drafts: true,
     limit: DEFAULT_TASK_LIST_LIMIT,
     sort: "recent",
@@ -39,6 +40,7 @@ export function taskInboxFilterFromRouteSearch(
   return {
     scope: scope.scope,
     workspace: scope.workspace,
+    worktree: scope.worktree,
     lane:
       search.inboxLane === undefined || search.inboxLane === "all" ? undefined : search.inboxLane,
     status: search.inboxStatus,

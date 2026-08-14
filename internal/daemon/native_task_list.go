@@ -20,6 +20,7 @@ type taskListInput struct {
 	OwnerKind            string `json:"owner_kind,omitempty"`
 	OwnerRef             string `json:"owner_ref,omitempty"`
 	ParentTaskID         string `json:"parent_task_id,omitempty"`
+	WorktreeID           string `json:"worktree,omitempty"`
 	ParticipationChannel string `json:"participation_channel,omitempty"`
 	Search               string `json:"search,omitempty"`
 	Sort                 string `json:"sort,omitempty"`
@@ -65,6 +66,7 @@ func (i taskListInput) query() taskpkg.CatalogQuery {
 		OwnerKind:            taskpkg.OwnerKind(strings.TrimSpace(i.OwnerKind)),
 		OwnerRef:             strings.TrimSpace(i.OwnerRef),
 		ParentTaskID:         strings.TrimSpace(i.ParentTaskID),
+		WorktreeID:           strings.TrimSpace(i.WorktreeID),
 		ParticipationChannel: strings.TrimSpace(i.ParticipationChannel),
 		Search:               strings.TrimSpace(i.Search),
 		Sort:                 taskpkg.CatalogSort(strings.TrimSpace(i.Sort)),

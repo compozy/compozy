@@ -330,7 +330,10 @@ func TestDevelopmentExtensionNetworkConsentLifecycle(t *testing.T) {
 			workspaceTwoEngine,
 			http.MethodPost,
 			"/extensions/"+extensionName+"/reload",
-			mustExtensionTransportJSON(t, contract.ReloadExtensionRequest{GenerationHash: workspaceTwoChangedGeneration}),
+			mustExtensionTransportJSON(
+				t,
+				contract.ReloadExtensionRequest{GenerationHash: workspaceTwoChangedGeneration},
+			),
 		)
 		if workspaceTwoRefusal.Code != http.StatusConflict ||
 			!strings.Contains(workspaceTwoRefusal.Body.String(), workspaceTwoChangedDigest) {

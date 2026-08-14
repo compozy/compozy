@@ -1197,7 +1197,6 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 			Type:      acp.EventTypePermission,
 			SessionID: "sess-1",
 			TurnID:    "turn-1",
-			RequestID: "req-1",
 			Timestamp: time.Date(2026, 4, 7, 10, 30, 0, 0, time.UTC),
 			Action:    "fs/read_text_file",
 			Resource:  "/tmp/file.txt",
@@ -1209,7 +1208,7 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 				Timestamp:   time.Date(2026, 4, 7, 10, 30, 1, 0, time.UTC),
 			},
 			Raw: []byte(`{"ok":true}`),
-		}).WithPromptRuntime(&acp.PromptRuntime{
+		}).WithRequestID("req-1").WithPromptRuntime(&acp.PromptRuntime{
 			Provider:        "codex",
 			Model:           "gpt-5.6",
 			ReasoningEffort: "high",
@@ -1220,7 +1219,8 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 		var roundTrip contract.AgentEventPayload
 		marshalJSON(t, payload, &roundTrip)
 
-		if roundTrip.Type != event.Type || roundTrip.RequestID != event.RequestID || roundTrip.Action != event.Action {
+		if roundTrip.Type != event.Type || roundTrip.RequestID != event.RequestIDValue() ||
+			roundTrip.Action != event.Action {
 			t.Fatalf("roundTrip payload = %#v", roundTrip)
 		}
 		if roundTrip.Usage == nil || roundTrip.Usage.InputTokens == nil || *roundTrip.Usage.InputTokens != inputTokens {
@@ -1659,14 +1659,16 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 
 		startedAt := time.Date(2026, 4, 14, 10, 1, 0, 0, time.UTC)
 		payload := contract.TaskRunPayload{
-			ID:             "run-1",
-			TaskID:         "task-1",
-			Status:         taskpkg.TaskRunStatusRunning,
-			Attempt:        2,
-			ClaimedBy:      &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			SessionID:      "sess-1",
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
-			IdempotencyKey: "key-1",
+			ID:                   "run-1",
+			TaskID:               "task-1",
+			Status:               taskpkg.TaskRunStatusRunning,
+			Attempt:              2,
+			ClaimedBy:            &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			SessionID:            "sess-1",
+			WorktreeID:           "wt-run-1",
+			ResolvedWorktreeMode: contract.ResolvedWorktreeModePerRun,
+			Origin:               taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
+			IdempotencyKey:       "key-1",
 			ResolvedNetworkParticipation: &participation.Spec{
 				Version:   participation.SpecVersion,
 				Mode:      participation.ModeLive,
@@ -1683,6 +1685,9 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 
 		if got["session_id"] != "sess-1" || got["idempotency_key"] != "key-1" {
 			t.Fatalf("task run JSON = %#v", got)
+		}
+		if got["worktree_id"] != "wt-run-1" || got["resolved_worktree_mode"] != "per_run" {
+			t.Fatalf("task run worktree JSON = %#v", got)
 		}
 		if resolvedChannelFromJSON(got) != "builders" || got["status"] != taskpkg.TaskRunStatusRunning.String() {
 			t.Fatalf("task run JSON = %#v", got)

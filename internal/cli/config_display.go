@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 
 	"strings"
@@ -30,15 +31,64 @@ func loadConfigForDisplay(
 	if err != nil {
 		return compozyconfig.Config{}, "", err
 	}
-	loadOptions := []compozyconfig.LoadOption{}
-	if resolved {
-		loadOptions = append(loadOptions, compozyconfig.WithWorkspaceRoot(workspace))
+	loadOptions, err := configDisplayLoadOptions(homePaths, workspace, resolved, deps.getenv)
+	if err != nil {
+		return compozyconfig.Config{}, "", err
 	}
 	cfg, err := compozyconfig.LoadForHome(homePaths, loadOptions...)
 	if err != nil {
 		return compozyconfig.Config{}, "", err
 	}
 	return cfg, workspace, nil
+}
+
+func configDisplayLoadOptions(
+	homePaths compozyconfig.HomePaths,
+	workspace string,
+	resolved bool,
+	getenv func(string) string,
+) ([]compozyconfig.LoadOption, error) {
+	if !resolved {
+		return nil, nil
+	}
+	options := []compozyconfig.LoadOption{compozyconfig.WithWorkspaceRoot(workspace)}
+	operatorHome, err := compozyconfig.ResolveOperatorHomeDirWithLookup(
+		homePaths,
+		func(key string) (string, bool) {
+			if getenv == nil {
+				return "", false
+			}
+			value := getenv(key)
+			return value, strings.TrimSpace(value) != ""
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cli: resolve operator home for config display: %w", err)
+	}
+	workspacePath, err := comparableConfigDisplayPath(workspace)
+	if err != nil {
+		return nil, err
+	}
+	operatorPath, err := comparableConfigDisplayPath(operatorHome)
+	if err != nil {
+		return nil, err
+	}
+	if workspacePath == operatorPath {
+		options = append(options, compozyconfig.WithoutWorkspaceOverlayFiles())
+	}
+	return options, nil
+}
+
+func comparableConfigDisplayPath(path string) (string, error) {
+	abs, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("cli: resolve config display path %q: %w", path, err)
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err == nil {
+		return filepath.Clean(resolved), nil
+	}
+	return filepath.Clean(abs), nil
 }
 
 func configWriteTarget(

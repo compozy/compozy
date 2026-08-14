@@ -40,6 +40,7 @@ type taskRuntime struct {
 	detached             *harnessDetachedWorkBridge
 	reentry              *harnessReentryBridge
 	wakeBridge           *taskWakeBridge
+	claimHandoff         *taskClaimHandoffRuntime
 	bridgeNotifications  *bridgeTerminalTaskNotificationObserver
 	taskStatusProjection *taskStatusProjectionObserver
 	loopActions          *loopActionRuntime

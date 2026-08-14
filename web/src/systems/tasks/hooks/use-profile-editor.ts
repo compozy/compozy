@@ -28,6 +28,7 @@ function emptyProfile(taskId: string): TaskExecutionProfileSetRequest {
     worker: { mode: "inherit" },
     review: {},
     sandbox: { mode: "inherit" },
+    worktree: { mode: "inherit" },
     participants: {},
     runtime: { mode: "default" },
     created_at: now,
@@ -57,9 +58,13 @@ export function useProfileEditor({
       store.trigger.closed({});
     },
     setValue: value => store.trigger.valueChanged({ value }),
+    // The worktree policy has its own patch route and is never edited in this
+    // draft, so the replace body carries the freshly-read block rather than
+    // whatever it held when the editor opened — otherwise saving an unrelated
+    // field would silently revert a policy change made while it was open.
     submit: () =>
       store.trigger.submitRequested({
-        execute: onSetProfile,
+        execute: value => onSetProfile(profile ? { ...value, worktree: profile.worktree } : value),
         taskId,
         updatedAt: new Date().toISOString(),
       }),

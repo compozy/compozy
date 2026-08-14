@@ -658,13 +658,22 @@ func waitForSSHGatewayE2EConnection(t *testing.T, connect *sshGatewayE2EConnect)
 			connect.mu.Lock()
 			err := connect.err
 			connect.mu.Unlock()
-			t.Fatalf("connect ssh returned before a connection record: %v; stdout: %s; stderr: %s", err, output, connect.stderr.String())
+			t.Fatalf(
+				"connect ssh returned before a connection record: %v; stdout: %s; stderr: %s",
+				err,
+				output,
+				connect.stderr.String(),
+			)
 		case <-t.Context().Done():
 			t.Fatalf("wait for connect ssh output canceled: %v", t.Context().Err())
 		default:
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("connect ssh did not write a connection record before deadline; stdout: %s; stderr: %s", output, connect.stderr.String())
+			t.Fatalf(
+				"connect ssh did not write a connection record before deadline; stdout: %s; stderr: %s",
+				output,
+				connect.stderr.String(),
+			)
 		}
 		timer := time.NewTimer(sshE2EPollInterval)
 		select {
@@ -843,7 +852,12 @@ func assertRemoteDaemonRunningForSSHGatewayE2E(
 	return status
 }
 
-func remoteDaemonStatusForSSHGatewayE2E(t *testing.T, executor sshExecutor, target sshTarget, remoteHome string) DaemonStatus {
+func remoteDaemonStatusForSSHGatewayE2E(
+	t *testing.T,
+	executor sshExecutor,
+	target sshTarget,
+	remoteHome string,
+) DaemonStatus {
 	t.Helper()
 	output, err := executor.Run(t.Context(), target, remoteCompozyCommand(remoteHome, "status", "-o", "json"))
 	if err != nil {

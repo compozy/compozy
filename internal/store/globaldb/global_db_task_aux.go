@@ -28,16 +28,18 @@ type taskSQLExecutor interface {
 }
 
 type queuedRunReservationInput struct {
-	taskID             string
-	runID              string
-	runKind            taskpkg.RunKind
-	loopRunID          string
-	idempotencyKey     string
-	origin             taskpkg.Origin
-	networkSpec        participation.Spec
-	designationGroupID string
-	metadata           json.RawMessage
-	queuedAt           time.Time
+	taskID               string
+	runID                string
+	runKind              taskpkg.RunKind
+	loopRunID            string
+	idempotencyKey       string
+	origin               taskpkg.Origin
+	networkSpec          participation.Spec
+	designationGroupID   string
+	resolvedWorktreeMode taskpkg.WorktreeMode
+	resolvedWorktreeRef  string
+	metadata             json.RawMessage
+	queuedAt             time.Time
 }
 
 // GetTaskTriageState returns the durable actor-scoped triage state for one task.

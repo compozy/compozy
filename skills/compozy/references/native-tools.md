@@ -20,8 +20,6 @@
 
 Inside CompozyOS, prefer callable daemon-native tools over shelling out. They are policy-filtered, structured, auditable, and redaction-aware. Use shell only when a native tool is absent, denied, too narrow, or explicitly requested.
 
-`compozy__*` strings are canonical ToolIDs for registry, policy, CLI, descriptors, and `tool_id`; harnesses may wrap call names. Resolve by capability plus canonical ID, then call the returned reference exactly.
-
 Never guess a tool schema from this reference. Resolve canonical `compozy__tool_info` for the exact descriptor, input schema, risks, and availability diagnostics before the first call.
 
 Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, notification presets, config apply history, and some session repair/recap/approval flows.
@@ -49,8 +47,10 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_runtime_clear`, `compozy__session_archive`,
 `compozy__session_unarchive`, `compozy__session_rename`.
 
-`compozy__session_create` accepts only workspace, agent, and optional name. It creates an active
-logical session with `runtime.status="unbound"`; it does not accept or send a prompt or runtime.
+`compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
+`new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not
+accept or send a prompt or runtime. A named Worktree must be ready; new creation reaches ready before
+session persistence.
 The calling session is recorded automatically as `lineage.parent_session_id` (provenance only, no
 governance) when the new session lands in the caller's workspace; the link is not a tool input.
 Use `compozy__session_prompt` with `session_id`, `message`, and an optional `runtime` snapshot. A
@@ -71,6 +71,12 @@ reconfiguring ACP; `compozy__session_runtime_clear` removes it. Both accept opti
 `expected_revision`; when omitted, the tool reads the current `runtime.selection_revision` before
 the write. On conflict, read session status and decide from the new server value instead of replaying
 the stale mutation.
+
+Worktree tools: `compozy__worktree_list`, `compozy__worktree_inspect`,
+`compozy__worktree_create`, and `compozy__worktree_remove`. List and inspect are read tools; create is
+mutating; remove is destructive and approval-gated. All carry an explicit or caller-resolved
+workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
+CLI/HTTP/UDS-only; read `references/worktrees.md` before using either path.
 
 Remembered approvals: `compozy__tool_approvals_set`, `compozy__tool_approvals_list`, and
 `compozy__tool_approvals_revoke`. `allow-always` or `reject-always` creates an exact workspace + agent +
@@ -216,7 +222,7 @@ tool ID.
 
 ## Task And Autonomy Tools
 
-Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_promote_from_thread`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_notification_subscribe`, `compozy__task_notification_list`, `compozy__task_notification_show`, `compozy__task_notification_delete`.
+Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_promote_from_thread`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_worktree_policy_set`, `compozy__task_notification_subscribe`, `compozy__task_notification_list`, `compozy__task_notification_show`, `compozy__task_notification_delete`.
 
 Task-notification cursor diagnostics expose an explicit `{kind, workspace_id}` scope, with `kind`
 closed to `global` or `workspace`. Subscribe and list use the hard-cut `workspace_id` input; do not
@@ -227,13 +233,13 @@ its `subscription_id`, and a bridge acknowledgment must echo the exact `delivery
 
 Session-bound autonomy tools: `compozy__task_run_claim_next`, `compozy__task_run_heartbeat`, `compozy__task_run_complete`, `compozy__task_run_fail`, `compozy__task_run_release`, `compozy__task_run_review_submit`.
 
-Autonomy tools are bound to the caller session. Do not substitute general task mutation tools for session-bound lease operations. Read references/tasks-and-orchestration.md before claiming, heartbeating, completing, failing, releasing, or submitting review verdicts.
+Autonomy tools are bound to the caller session. `compozy__task_run_claim_next` claims and starts a worker run; a different returned `session_id` means execution moved to that dedicated session and the caller must end its turn. Do not substitute general task mutation tools for session-bound lease operations. Read references/tasks-and-orchestration.md before claiming, heartbeating, completing, failing, releasing, or submitting review verdicts.
 
 ## Loop Tools
 
-Toolset `compozy__loops` (16 tools):
-`compozy__loop_list/_inspect/_validate/_status/_runs/_create/_run/_configure/_pause/_resume/_approve/_stop/_delete`,
-`compozy__goal_get`, `compozy__goal_report`, and `compozy__loop_turns`.
+Toolset `compozy__loops` has 23 tools: Goal get/report; Loop
+list/inspect/validate/create/run/status/runs/turns/cancel/kill/pause/resume/configure/approve/delete;
+and node list/pause/resume/cancel/kill/requeue.
 
 No `compozy__loop_edit`. See references/loops.md for publishing, approval/self-approval, and Goal report
 binding semantics.

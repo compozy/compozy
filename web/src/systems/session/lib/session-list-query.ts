@@ -12,8 +12,12 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   const workspace = normalizedText(filters.workspace);
   const agent = normalizedText(filters.agent);
   const search = normalizedText(filters.q);
+  // Server-side scoping: a worktree selection filters on the bound worktree id
+  // rather than trimming a loaded page client-side.
+  const worktree = normalizedText(filters.worktree);
 
   if (workspace) normalized.workspace = workspace;
+  if (worktree) normalized.worktree = worktree;
   if (filters.include_health !== undefined) {
     normalized.include_health = filters.include_health;
   }

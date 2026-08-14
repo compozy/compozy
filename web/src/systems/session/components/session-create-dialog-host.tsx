@@ -33,10 +33,17 @@ export function SessionCreateDialogHost({
       agents={sessionCreate.agents}
       destinationLabel={sessionCreate.destinationLabel}
       destinationReady={sessionCreate.destinationReady}
+      environment={sessionCreate.environment}
+      environmentListingError={sessionCreate.environmentListingError}
+      environmentListingState={sessionCreate.environmentListingState}
+      firstMessage={sessionCreate.firstMessage}
+      isAwaitingEnvironment={sessionCreate.isAwaitingEnvironment}
       isSubmitting={sessionCreate.isSubmitting}
       mode={sessionCreate.mode}
       networkParticipation={sessionCreate.networkParticipation}
       onAgentChange={sessionCreate.onAgentChange}
+      onCancelEnvironment={sessionCreate.onCancelEnvironment}
+      onFirstMessageChange={sessionCreate.onFirstMessageChange}
       onModeChange={sessionCreate.onModeChange}
       onNetworkParticipationChange={sessionCreate.onNetworkParticipationChange}
       onOpenChange={sessionCreate.onOpenChange}

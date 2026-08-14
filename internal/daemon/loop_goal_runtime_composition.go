@@ -17,6 +17,7 @@ func newLoopGoalProductionRuntime(
 	policyGate *loopSessionPolicyGate,
 	now func() time.Time,
 	logger *slog.Logger,
+	worktrees loopActionWorktrees,
 ) *loopGoalRuntime {
 	managedInputs, managedOK := sessions.(loopManagedInputSessionManager)
 	binder := &loopActionSessionBinder{
@@ -27,6 +28,7 @@ func newLoopGoalProductionRuntime(
 		managedInputs:       managedInputs,
 		globalWorkspacePath: globalWorkspacePath,
 		policyGate:          policyGate,
+		worktrees:           worktrees,
 		now:                 now,
 	}
 	lifecycle := &loopGoalManagedInputLifecycle{store: goalStore, binder: binder, now: now}

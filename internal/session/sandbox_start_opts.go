@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"fmt"
 	pathpkg "path"
 	"path/filepath"
@@ -81,4 +82,51 @@ func sandboxRuntimeCWD(
 		return remoteRoot, nil
 	}
 	return pathpkg.Join(remoteRoot, filepath.ToSlash(relative)), nil
+}
+
+func normalizeSessionLaunchCWD(spec *sessionStartSpec, session *Session, requested string) (string, error) {
+	if spec == nil {
+		return "", errors.New("session: start spec is required")
+	}
+	if spec.sandboxDisabled {
+		cwd, err := resolveContainedDirectory(spec.executionRoot(), requested)
+		if err != nil {
+			return "", fmt.Errorf("%w: pre-start hook cwd escapes execution root: %w", ErrValidation, err)
+		}
+		return cwd, nil
+	}
+	if session == nil {
+		return "", fmt.Errorf("%w: prepared sandbox state is required", ErrValidation)
+	}
+	info := session.Info()
+	if info == nil || info.Sandbox == nil {
+		return "", fmt.Errorf("%w: prepared sandbox state is required", ErrValidation)
+	}
+	meta := info.Sandbox
+	runtimeRoot := strings.TrimSpace(meta.RuntimeRootDir)
+	if runtimeRoot == "" {
+		return "", fmt.Errorf("%w: prepared sandbox runtime root is required", ErrValidation)
+	}
+	if envpkg.Backend(strings.TrimSpace(meta.Backend)) == envpkg.BackendLocal {
+		cwd, err := resolveContainedDirectory(runtimeRoot, requested)
+		if err != nil {
+			return "", fmt.Errorf("%w: pre-start hook cwd escapes sandbox root: %w", ErrValidation, err)
+		}
+		return cwd, nil
+	}
+	root := pathpkg.Clean(runtimeRoot)
+	cwd := pathpkg.Clean(strings.TrimSpace(requested))
+	if cwd == "." || !pathpkg.IsAbs(cwd) || !posixPathWithinRoot(root, cwd) {
+		return "", fmt.Errorf("%w: pre-start hook cwd escapes sandbox root", ErrValidation)
+	}
+	return cwd, nil
+}
+
+func posixPathWithinRoot(root, candidate string) bool {
+	root = pathpkg.Clean(root)
+	candidate = pathpkg.Clean(candidate)
+	if root == "/" {
+		return pathpkg.IsAbs(candidate)
+	}
+	return candidate == root || strings.HasPrefix(candidate, strings.TrimSuffix(root, "/")+"/")
 }

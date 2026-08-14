@@ -78,6 +78,7 @@ func taskRunFromGenerated(row *sqlcgen.GetTaskRunRow) (taskpkg.Run, error) {
 			Ref: row.OriginRef,
 		},
 	}
+	run.SetWorktreeID(taskNullStringValue(row.WorktreeID))
 	fields := taskRunScanFields{
 		status:                 row.Status,
 		runKind:                row.RunKind,
@@ -94,6 +95,8 @@ func taskRunFromGenerated(row *sqlcgen.GetTaskRunRow) (taskpkg.Run, error) {
 		networkChannel:         row.NetworkChannel,
 		networkSource:          row.NetworkSource,
 		designationGroupID:     row.DesignationGroupID,
+		resolvedWorktreeMode:   row.ResolvedWorktreeMode,
+		resolvedWorktreeRef:    row.ResolvedWorktreeRef,
 		claimToken:             nullableTaskString(row.ClaimToken),
 		claimTokenHash:         row.ClaimTokenHash,
 		leaseUntilRaw:          row.LeaseUntil,
@@ -140,6 +143,7 @@ func taskRunFromStatusGenerated(row *sqlcgen.ListTaskRunsByStatusRow) (taskpkg.R
 		RecoveryCount: recoveryCount,
 		Origin:        taskpkg.Origin{Ref: row.OriginRef},
 	}
+	run.SetWorktreeID(taskNullStringValue(row.WorktreeID))
 	fields := taskRunScanFields{
 		status:                 row.Status,
 		runKind:                row.RunKind,
@@ -156,6 +160,8 @@ func taskRunFromStatusGenerated(row *sqlcgen.ListTaskRunsByStatusRow) (taskpkg.R
 		networkChannel:         row.NetworkChannel,
 		networkSource:          row.NetworkSource,
 		designationGroupID:     row.DesignationGroupID,
+		resolvedWorktreeMode:   row.ResolvedWorktreeMode,
+		resolvedWorktreeRef:    row.ResolvedWorktreeRef,
 		claimToken:             nullableTaskString(row.ClaimToken),
 		claimTokenHash:         row.ClaimTokenHash,
 		leaseUntilRaw:          row.LeaseUntil,
@@ -273,6 +279,7 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		ID:                     run.ID,
 		TaskID:                 nullableTaskString(run.TaskID),
 		WorkspaceID:            nullableTaskString(run.WorkspaceID),
+		WorktreeID:             nullableTaskString(run.WorktreeIDValue()),
 		RunKind:                run.RunKind.String(),
 		LoopRunID:              nullableTaskString(run.LoopRunID),
 		Status:                 run.Status.String(),
@@ -291,6 +298,8 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		NetworkChannel:         network.Channel,
 		NetworkSource:          network.Source,
 		DesignationGroupID:     strings.TrimSpace(run.DesignationGroupID),
+		ResolvedWorktreeMode:   string(run.ResolvedWorktreeModeValue()),
+		ResolvedWorktreeRef:    strings.TrimSpace(run.ResolvedWorktreeRefValue()),
 		ClaimTokenHash:         nullableTaskString(run.ClaimTokenHash),
 		LeaseUntil:             nullableTaskTime(run.LeaseUntil),
 		HeartbeatAt:            nullableTaskTime(run.HeartbeatAt),

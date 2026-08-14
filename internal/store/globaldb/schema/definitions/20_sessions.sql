@@ -102,6 +102,7 @@ CREATE TABLE sessions (
 		selected_speed TEXT NOT NULL DEFAULT '',
 		runtime_selection_revision INTEGER NOT NULL DEFAULT 0,
 		workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
+		worktree_id    TEXT,
 		session_type   TEXT NOT NULL DEFAULT 'user',
 		state          TEXT NOT NULL,
 		archived_at    TEXT,
@@ -138,6 +139,8 @@ CREATE TABLE sessions (
 					'explicit_request', 'task_profile', 'workspace_coordination',
 					'loop_definition', 'automation_job', 'built_in_local'
 				)),
+		FOREIGN KEY (workspace_id, worktree_id)
+			REFERENCES worktrees(workspace_id, id),
 		UNIQUE (workspace_id, id));
 
 CREATE TABLE token_stats (
@@ -227,6 +230,8 @@ CREATE INDEX idx_sessions_soul_snapshot
 CREATE INDEX idx_sessions_spawn_role ON sessions(spawn_role);
 
 CREATE INDEX idx_sessions_type_depth ON sessions(session_type, spawn_depth);
+
+CREATE INDEX idx_sessions_worktree ON sessions(worktree_id) WHERE worktree_id IS NOT NULL;
 
 CREATE TRIGGER trg_sessions_archive_insert_guard
 			BEFORE INSERT ON sessions

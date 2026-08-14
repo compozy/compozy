@@ -111,6 +111,12 @@ var Matrix = []Rule{
 	{Pattern: "automation.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "loops.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "goals.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "worktrees.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	{
+		Pattern:   "task.orchestration.profile.default_worktree_mode",
+		Lifecycle: Live,
+		DiffClass: DiffClassLive,
+	},
 	{Pattern: "task.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "network.enabled", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "network.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

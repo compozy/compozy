@@ -58,9 +58,9 @@ func TestDriverStreamsStablePermissionAndToolSequence(t *testing.T) {
 	}
 
 	events := collectPromptEvents(t, eventsCh, func(event acp.AgentEvent) {
-		if event.Type == acp.EventTypePermission && event.Decision == "" && event.RequestID != "" {
+		if event.Type == acp.EventTypePermission && event.Decision == "" && event.RequestIDValue() != "" {
 			if err := driver.ApprovePermission(testutil.Context(t), proc, acp.ApproveRequest{
-				RequestID: event.RequestID,
+				RequestID: event.RequestIDValue(),
 				Decision:  "allow-always",
 			}); err != nil {
 				t.Fatalf("ApprovePermission() error = %v", err)

@@ -621,10 +621,10 @@ describe("dashboard and inbox", () => {
   it("fetches dashboard payload with filter normalization", async () => {
     mockJsonResponse({ dashboard: dashboardFixture });
 
-    await getTaskDashboard({ scope: "workspace", workspace: "  ws_a  " });
+    await getTaskDashboard({ scope: "workspace", workspace: "  ws_a  ", worktree: "  wt_a  " });
 
     await expectFetchRequest({
-      path: "/api/observe/tasks/dashboard?scope=workspace&workspace=ws_a",
+      path: "/api/observe/tasks/dashboard?scope=workspace&workspace=ws_a&worktree=wt_a",
     });
   });
 
@@ -634,6 +634,7 @@ describe("dashboard and inbox", () => {
     const result = await getTaskInbox({
       scope: "workspace",
       workspace: "ws_a",
+      worktree: "wt_a",
       lane: "my_work",
       status: "ready",
       priority: "high",
@@ -644,7 +645,7 @@ describe("dashboard and inbox", () => {
 
     expect(result).toEqual(inboxFixture);
     await expectFetchRequest({
-      path: "/api/observe/tasks/inbox?scope=workspace&workspace=ws_a&lane=my_work&status=ready&priority=high&unread=true&cursor=inbox-cursor&limit=10",
+      path: "/api/observe/tasks/inbox?scope=workspace&workspace=ws_a&worktree=wt_a&lane=my_work&status=ready&priority=high&unread=true&cursor=inbox-cursor&limit=10",
     });
   });
 });

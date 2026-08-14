@@ -90,6 +90,10 @@ func (cfg LoopConfig) Clone() LoopConfig {
 	}
 	cloned.RuntimeDefaults = cloneRuntimeDefaults(cfg.RuntimeDefaults)
 	cloned.RuntimeRules = cloneRuntimeRules(cfg.RuntimeRules)
+	if cfg.Environment != nil {
+		environment := *cfg.Environment
+		cloned.Environment = &environment
+	}
 	if cfg.Lifecycle != nil {
 		lifecycle := cfg.Lifecycle.Clone()
 		cloned.Lifecycle = &lifecycle
@@ -104,6 +108,16 @@ func ResolveEffectiveConfig(
 	stored *LoopConfig,
 	perRun LoopConfig,
 ) (EffectiveConfig, error) {
+	return resolveEffectiveConfig(resolved, defaults, nil, stored, perRun)
+}
+
+func resolveEffectiveConfig(
+	resolved *ResolvedDefinition,
+	defaults LoopDefaults,
+	inheritedEnvironment *dsl.EnvironmentSpec,
+	stored *LoopConfig,
+	perRun LoopConfig,
+) (EffectiveConfig, error) {
 	if resolved == nil {
 		return EffectiveConfig{}, fmt.Errorf("%w: resolved definition is required", ErrValidation)
 	}
@@ -111,10 +125,15 @@ func ResolveEffectiveConfig(
 		ReattemptStrategy: ReattemptFailedOnly,
 		EnabledChecks:     cloneRawMessage(emptyChecksJSON),
 		BudgetOnExceeded:  dsl.BudgetExceededHalt,
+		Environment:       dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot},
 		Lifecycle:         DefaultLifecycleConfig(),
 	}
 	mergeConfigLayer(&effective, definitionConfigLayer(resolved.Definition))
 	mergeConfigLayer(&effective, defaults.forDefinition(resolved.Definition))
+	if inheritedEnvironment != nil {
+		inherited := *inheritedEnvironment
+		mergeConfigLayer(&effective, LoopConfig{Environment: &inherited})
+	}
 	if stored != nil {
 		mergeConfigLayer(&effective, *stored)
 	}
@@ -220,6 +239,9 @@ func mergeConfigLayer(effective *EffectiveConfig, layer LoopConfig) {
 	if layer.Lifecycle != nil {
 		mergeLifecycleLayer(&effective.Lifecycle, *layer.Lifecycle)
 	}
+	if layer.Environment != nil {
+		effective.Environment = normalizeEnvironmentSpec(*layer.Environment)
+	}
 	mergeRuntimeConfigLayer(effective, layer)
 }
 
@@ -239,6 +261,9 @@ func validateEffectiveConfig(cfg EffectiveConfig) error {
 		return fmt.Errorf("%w: enabled_checks_json must be valid JSON", ErrValidation)
 	}
 	if _, err := ResolveNodeLifecycleConfig(dsl.Node{}, nil, cfg.Lifecycle); err != nil {
+		return err
+	}
+	if _, err := ResolveActionEnvironment(dsl.EnvironmentSpec{}, cfg.Environment); err != nil {
 		return err
 	}
 	return nil

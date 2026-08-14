@@ -1,0 +1,54 @@
+---
+title: Worktree Model
+description: The ownership, identity, Git-truth, binding, and concurrency rules behind CompozyOS Worktrees.
+---
+
+A Worktree is one linked Git checkout owned by one workspace. Its stable record adds execution and
+history to Git's checkout data without replacing Git as the source of truth.
+
+## Ownership and identity
+
+Every record carries `workspace_id`, `worktree_id`, canonical path, branch, repository identity,
+origin, lifecycle state, and optional run identity. API, UDS, SSE, cache, event, session, and Task
+lookups require the parent workspace boundary. A Worktree from another workspace never resolves by
+name or path through the current one.
+
+Workspace memory, agents, skills, permissions, and config stay workspace-scoped. A Worktree changes
+the checkout and current directory only. It is neither an additional root nor a nested workspace.
+
+## Git truth and catalog truth
+
+`git worktree list --porcelain` owns which linked checkouts exist. CompozyOS owns durable bindings,
+setup state, cached status, agent activity, exit operations, and history. Reconciliation combines the
+two:
+
+- a Git checkout without a record is discovered and may be adopted;
+- a record whose checkout disappeared becomes `missing` and keeps its history;
+- a checkout restored with the same repository identity can revive that record;
+- a different repository at the same path is refused.
+
+Bootstrap status is independent of lifecycle state. A setup-command failure leaves the checkout
+`ready` and records `setup_state: "failed"`; lifecycle `failed` is reserved for boot recovery that
+cannot preserve a usable checkout.
+
+## Binding is decided before work starts
+
+A session binds its Worktree before the first prompt. A Task run snapshots its resolved policy at
+enqueue. A Loop action resolves its environment before starting its agent. These bindings do not
+follow later UI selection or config changes.
+
+Changing environment therefore creates new work: fork a session, enqueue another Task run, or start
+another Loop execution. The existing process never switches checkout underneath an active turn.
+
+## Concurrency and safety
+
+Repository-changing operations are serialized through the repository's common Git directory.
+CompozyOS refuses duplicate names and paths, branches already held by another Worktree, branches
+checked out at the main root, and removal while a bound session is mid-turn. Hooks can explicitly
+deny create or remove; ordinary hook execution failures fail open and remain observable.
+
+Exit actions are durable operations identified by `op_id`. Reconnect to the Worktree stream to
+resume progress, and cancel only the exact operation ID. Removal uses fresh safety evidence and
+preserves the branch and Git history even when the linked checkout is deleted.
+
+Continue with [Create or adopt](/docs/worktrees/create-and-adopt) for the first end-to-end path.

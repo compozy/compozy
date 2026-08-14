@@ -71,6 +71,7 @@ type Info struct {
 	EffectivePermissions     string
 	WorkspaceID              string
 	Workspace                string
+	WorktreeID               string
 	NetworkParticipation     participation.Spec
 	NetworkOwnerKey          string
 	Type                     Type
@@ -119,6 +120,7 @@ type Session struct {
 	EffectivePermissions     string
 	WorkspaceID              string
 	Workspace                string
+	WorktreeID               string
 	CWD                      string
 	NetworkParticipation     participation.Spec
 	NetworkOwnerKey          string
@@ -154,6 +156,7 @@ type Session struct {
 	process    *AgentProcess
 
 	sandboxDestroyOnStop    bool
+	worktreeForkReserved    bool
 	promptSetupCount        int
 	promptSetupDone         chan struct{}
 	currentTurnID           string

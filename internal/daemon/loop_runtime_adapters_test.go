@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 func TestLoopCancellationSessionControllerShouldTreatMissingSessionsAsStopped(t *testing.T) {
@@ -198,6 +199,162 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 		if binding.AppliedRuntime.Provider != "mock" || binding.AppliedRuntime.Model != "agent-model" {
 			t.Fatalf("AppliedRuntime = %#v, want agent runtime", binding.AppliedRuntime)
+		}
+	})
+
+	t.Run("Should materialize one worktree for each per-run action instance", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
+			Name: "task-worker", Provider: "mock", Prompt: "Handle the loop node.",
+		}})
+		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-worktree"}
+		worktrees := &recordingTaskBridgeWorktrees{
+			materializeFn: func(workspaceID string, request worktreepkg.RunWorktreeRequest) (*worktreepkg.Worktree, error) {
+				item := int(request.RunID[len(request.RunID)-1] - '0')
+				return &worktreepkg.Worktree{
+					ID:          fmt.Sprintf("wt-loop-action-%d", item),
+					WorkspaceID: workspaceID,
+					Path:        fmt.Sprintf("/worktrees/loop-action-%d", item),
+					Origin:      worktreepkg.OriginPerRun,
+					RunID:       request.RunID,
+					State:       worktreepkg.StateReady,
+				}, nil
+			},
+		}
+		binder := &loopActionSessionBinder{
+			sessions:  sessions,
+			worktrees: worktrees,
+			policyGate: &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+			}},
+		}
+
+		for itemIndex := range 3 {
+			_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+				WorkspaceID: "ws-loop",
+				LoopRunID:   "loop-run-worktree",
+				Generation:  2,
+				NodeID:      "review",
+				ItemIndex:   itemIndex,
+				Agent:       "task-worker",
+				Handle:      "review",
+				Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun},
+			})
+			if err != nil {
+				t.Fatalf("BindActionSession(item=%d) error = %v", itemIndex, err)
+			}
+		}
+		if got, want := len(worktrees.materializeCalls), 3; got != want {
+			t.Fatalf("MaterializeForRun() calls = %d, want %d", got, want)
+		}
+		for itemIndex, call := range worktrees.materializeCalls {
+			wantRunID := fmt.Sprintf("loop:loop-run-worktree:2:review:%d", itemIndex)
+			if call.workspaceID != "ws-loop" || call.request.RunID != wantRunID {
+				t.Fatalf("MaterializeForRun() call[%d] = %#v, want %s", itemIndex, call, wantRunID)
+			}
+		}
+		createCalls := sessions.allCreateCalls()
+		if len(createCalls) != 3 {
+			t.Fatalf("Create call count = %d, want 3", len(createCalls))
+		}
+		for itemIndex, createCall := range createCalls {
+			wantWorktree := fmt.Sprintf("wt-loop-action-%d", itemIndex)
+			wantPath := fmt.Sprintf("/worktrees/loop-action-%d", itemIndex)
+			if createCall.Worktree != wantWorktree || createCall.CWD != wantPath {
+				t.Fatalf(
+					"CreateOpts[%d] environment = worktree %q cwd %q, want %q/%q",
+					itemIndex,
+					createCall.Worktree,
+					createCall.CWD,
+					wantWorktree,
+					wantPath,
+				)
+			}
+		}
+	})
+
+	t.Run("Should reject a worktree reference removed before session binding", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
+			Name: "task-worker", Provider: "mock", Prompt: "Handle the loop node.",
+		}})
+		sessions := &loopActionBinderSessionManager{}
+		worktrees := &recordingTaskBridgeWorktrees{getItem: &worktreepkg.Worktree{
+			ID: "wt-removed", WorkspaceID: "ws-loop", State: worktreepkg.StateMissing,
+		}}
+		binder := &loopActionSessionBinder{
+			sessions:  sessions,
+			worktrees: worktrees,
+			policyGate: &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+			}},
+		}
+
+		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			WorkspaceID: "ws-loop",
+			LoopRunID:   "loop-run-removed-ref",
+			Generation:  1,
+			NodeID:      "review",
+			Agent:       "task-worker",
+			Environment: &dsl.EnvironmentSpec{
+				Mode: dsl.EnvironmentWorktree, WorktreeRef: "removed-loop-ref",
+			},
+		})
+		if !errors.Is(err, worktreepkg.ErrNotReady) || !strings.Contains(err.Error(), "removed-loop-ref") {
+			t.Fatalf("BindActionSession() error = %v, want named removed worktree", err)
+		}
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("Create() calls = %d, want none", got)
+		}
+		if len(worktrees.getCalls) != 1 || worktrees.getCalls[0].ref != "removed-loop-ref" {
+			t.Fatalf("Get() calls = %#v, want late resolution of removed-loop-ref", worktrees.getCalls)
+		}
+	})
+
+	t.Run("Should roll back a per-run action worktree when session creation fails", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := loopActionBinderWorkspace(t, []compozyconfig.AgentDef{{
+			Name: "task-worker", Provider: "mock", Prompt: "Handle the loop node.",
+		}})
+		wantErr := errors.New("loop session create failed")
+		sessions := &loopActionBinderSessionManager{createErr: wantErr}
+		worktrees := &recordingTaskBridgeWorktrees{materialized: &worktreepkg.Worktree{
+			ID:          "wt-loop-failure",
+			WorkspaceID: "ws-loop",
+			Path:        "/worktrees/loop-failure",
+			Origin:      worktreepkg.OriginPerRun,
+			RunID:       "loop:loop-run-failure:1:review:0",
+			State:       worktreepkg.StateReady,
+		}}
+		binder := &loopActionSessionBinder{
+			sessions:  sessions,
+			worktrees: worktrees,
+			policyGate: &loopSessionPolicyGate{workspaceResolver: loopActionBinderWorkspaceResolver{
+				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
+			}},
+		}
+
+		_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+			WorkspaceID: "ws-loop",
+			LoopRunID:   "loop-run-failure",
+			Generation:  1,
+			NodeID:      "review",
+			Agent:       "task-worker",
+			Handle:      "review",
+			Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun},
+		})
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("BindActionSession() error = %v, want %v", err, wantErr)
+		}
+		if got, want := len(worktrees.rollbackCalls), 1; got != want {
+			t.Fatalf("RollbackRunMaterialization() calls = %d, want %d", got, want)
+		}
+		if got := worktrees.rollbackCalls[0]; got.worktreeID != "wt-loop-failure" ||
+			got.runID != "loop:loop-run-failure:1:review:0" {
+			t.Fatalf("RollbackRunMaterialization() call = %#v, want exact execution instance", got)
 		}
 	})
 
@@ -1145,6 +1302,12 @@ func (m *loopActionBinderSessionManager) createCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.createCalls)
+}
+
+func (m *loopActionBinderSessionManager) allCreateCalls() []session.CreateOpts {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]session.CreateOpts(nil), m.createCalls...)
 }
 
 func (m *loopActionBinderSessionManager) stopCount() int {

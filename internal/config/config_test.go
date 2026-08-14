@@ -1798,6 +1798,32 @@ ttl = "30m"
 	}
 }
 
+func TestLoadForHomeSkipsDuplicateWorkspaceOverlay(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply the global config once when the workspace root contains Compozy home", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := t.TempDir()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(operatorHome, DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, "[gateway]\nprivate_port = 4242\n")
+
+		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(operatorHome))
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if got, want := cfg.Gateway.PrivatePort, 4242; got != want {
+			t.Fatalf("LoadForHome() Gateway.PrivatePort = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestLoadRejectsUnknownConfigKeys(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	homeRoot := filepath.Join(t.TempDir(), "home")

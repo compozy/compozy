@@ -372,3 +372,35 @@ export {
   type SessionInspectorProps,
 } from "./components/session-inspector";
 export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";
+
+// Worktree environment surfaces (Task 07)
+export { SessionEnvironmentField } from "./components/session-environment-field";
+export { SessionEnvironmentChip } from "./components/session-environment-chip";
+export type { SessionEnvironmentChipState } from "./components/session-environment-chip";
+export { SessionEnvironmentControl } from "./components/session-environment-control";
+export type { SessionEnvironmentControlHandle } from "./components/session-environment-control";
+export { SessionWorktreeForkDialog } from "./components/session-worktree-fork-dialog";
+export { SessionWorktreeBindingChip } from "./components/session-worktree-binding-chip";
+export { useSessionEnvironment } from "./hooks/use-session-environment";
+export type { SessionEnvironmentModel } from "./hooks/use-session-environment";
+export {
+  useSessionWorktreeBinding,
+  WORKTREE_COMMAND_TOKEN,
+} from "./hooks/use-session-worktree-binding";
+export type { SessionWorktreeBinding } from "./hooks/use-session-worktree-binding";
+export { useForkSessionToWorktree } from "./hooks/use-fork-session-to-worktree";
+export { forkSessionToWorktree } from "./adapters/session-worktree-api";
+export {
+  environmentTargetLabel,
+  isEnvironmentTargetMissing,
+  NEW_WORKTREE_LABEL,
+  ROOT_ENVIRONMENT_TARGET,
+  selectableWorktrees,
+  WORKSPACE_ROOT_LABEL,
+} from "./lib/session-environment-target";
+export type { SessionEnvironmentTarget } from "./lib/session-environment-target";
+export { findSessionCommand } from "./hooks/use-session-commands";
+export { useSessionFirstPrompt } from "./hooks/use-session-first-prompt";
+export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
+export { useSessionPromptStaging } from "./hooks/use-session-prompt-staging";
+export type { SessionPromptStaging } from "./hooks/use-session-prompt-staging";

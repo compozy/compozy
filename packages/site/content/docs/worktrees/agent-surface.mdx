@@ -1,0 +1,99 @@
+---
+title: Agent Management Surface
+description: Operate Worktrees through structured CLI, HTTP, UDS, native tools, events, hooks, and stable error codes.
+---
+
+Agents can manage the full Worktree lifecycle without using Web or editing daemon storage. Prefer a
+native tool when one exists, then use CLI or HTTP/UDS for lifecycle actions not projected as tools.
+
+## CLI
+
+Every Worktree verb supports structured output:
+
+| Intent             | Command                                                           |
+| ------------------ | ----------------------------------------------------------------- |
+| List and inspect   | `worktree list`, `inspect`, `status`                              |
+| Create or adopt    | `worktree create`, `cancel`, `adopt`                              |
+| Plan and publish   | `worktree exit`, `commit`, `push`, `pr`, `exit-cancel`            |
+| Remove or recover  | `worktree remove`, `dismiss`                                      |
+| Bind a session     | `session new --worktree` or `--new-worktree`                      |
+| Set Task isolation | `task profile set-worktree` and `task fan-out --worktree-per-run` |
+
+Use `-o json` or `-o toon`; preserve `workspace_id`, `worktree_id`, `run_id`, and `op_id` exactly.
+The JSON list is an array of registered records. Discovery and repository diagnostics remain in the
+HTTP/UDS and native-tool list payloads. See the generated
+[`compozy worktree` reference](/docs/cli/worktree).
+
+## HTTP and UDS
+
+HTTP and Unix-domain-socket transports use the same handlers and payloads:
+
+| Method   | Path                                                                  |
+| -------- | --------------------------------------------------------------------- |
+| `GET`    | `/api/workspaces/{workspace_id}/worktrees`                            |
+| `POST`   | `/api/workspaces/{workspace_id}/worktrees`                            |
+| `POST`   | `/api/workspaces/{workspace_id}/worktrees/adopt`                      |
+| `GET`    | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}`              |
+| `GET`    | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status`       |
+| `GET`    | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit`         |
+| `POST`   | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/actions` |
+| `POST`   | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/cancel`  |
+| `POST`   | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}/cancel`       |
+| `DELETE` | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}?force=<bool>` |
+| `POST`   | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss`      |
+| `GET`    | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}/stream`       |
+| `GET`    | `/api/worktrees/catalog-stream`                                       |
+
+Status accepts `refresh` and `forge` query flags. Per-Worktree SSE resumes with `after_sequence` or
+`Last-Event-ID`; keep the same `workspace_id` and `worktree_id` across reconnects. Session creation
+accepts `worktree` or `new_worktree`, and Task policy uses
+`PATCH /api/tasks/{id}/execution-profile/worktree`.
+
+The generated [Worktrees API reference](/docs/api/worktrees) owns exact schemas and status codes.
+
+## Native tools
+
+The lazy `compozy__worktree` toolset contains:
+
+| Tool                        | Risk        | Purpose                                      |
+| --------------------------- | ----------- | -------------------------------------------- |
+| `compozy__worktree_list`    | read        | List registered and discovered Worktrees.    |
+| `compozy__worktree_inspect` | read        | Inspect status, forge state, and activity.   |
+| `compozy__worktree_create`  | mutating    | Accept durable phased creation.              |
+| `compozy__worktree_remove`  | destructive | Remove after safety evaluation and approval. |
+
+There are no direct native tools for adopt, exit, commit, push, pull request creation, cancel, or
+dismiss. Use structured CLI or HTTP/UDS for those actions. Related tools are
+`compozy__session_create` (`worktree` or `new_worktree`), `compozy__task_worktree_policy_set`,
+`compozy__task_fanout_runs.worktree_per_run`, and Loop config tools with `environment`.
+
+## Durable events and hooks
+
+Lifecycle events include `worktree.created`, `worktree.adopted`, `worktree.removed`,
+`worktree.missing`, `worktree.dismissed`, `worktree.creation_canceled`, `worktree.setup_failed`,
+`worktree.status_refreshed`, and `worktree.branch_reclaimed`. Exit progress adds
+`worktree.exit_action_started`, `worktree.exit_action_step`, `worktree.exit_hook_output`, and exactly
+one of `worktree.exit_action_completed`, `worktree.exit_action_failed`, or
+`worktree.exit_action_canceled`.
+
+Extensions may register synchronous `worktree.pre_create` and `worktree.pre_remove` gates. An
+explicit denial blocks the operation; a hook execution failure fails open and is logged. The
+`worktree.created`, `worktree.adopted`, and `worktree.removed` hooks are observe-only and fail open.
+
+## Deterministic error codes
+
+These wire codes are stable decision inputs:
+
+| Area                | Codes                                                                                                                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host and repository | `worktree_git_unavailable`, `worktree_git_version_unsupported`, `workspace_not_git_backed`, `repo_has_no_commits`                                                                       |
+| Name, path, branch  | `worktree_name_taken`, `worktree_path_exists`, `branch_held_by_worktree`, `branch_checked_out_at_root`, `base_ref_not_found`                                                            |
+| Lookup and state    | `worktree_not_found`, `worktree_not_ready`, `worktree_pending`, `worktree_missing`, `worktree_ref_invalid`, `worktree_not_pending`, `worktree_operation_in_progress`                    |
+| Adoption            | `adoption_main_checkout`, `adoption_foreign_repository`, `adoption_unreadable`                                                                                                          |
+| Safety and removal  | `worktree_session_active`, `worktree_status_unreadable`, `worktree_dirty_requires_force`, `worktree_unpushed_requires_force`, `worktree_safety_check_failed`, `worktree_removal_failed` |
+| Creation and policy | `per_run_materialization_failed`, `worktree_config_invalid`, `worktree_denied_by_hook`                                                                                                  |
+| Forge and exit      | `forge_unavailable`, `forge_error`, `worktree_exit_action_invalid`                                                                                                                      |
+
+Handle the code before free-form text. Conflict payloads for dirty or unpushed removal also include a
+bounded `risk` object. Forge diagnostics preserve only the safe cause vocabulary; secrets and remote
+credential material are redacted.

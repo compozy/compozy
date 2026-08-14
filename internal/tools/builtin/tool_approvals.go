@@ -38,7 +38,7 @@ func toolApprovalDescriptors() []toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDToolApprovals},
-		[]string{catalogToolsKey, catalogApprovalsKey, catalogPermissionsKey, "list"},
+		[]string{catalogToolsKey, catalogApprovalsKey, catalogPermissionsKey, descriptorKeywordList},
 		[]string{"remembered tool approvals", "tool permissions"},
 	)
 	list.OutputSchema = json.RawMessage(toolApprovalsListOutputSchema)

@@ -30,7 +30,8 @@ WHERE id = sqlc.arg(id)
 -- name: BindTaskRunSession :execrows
 UPDATE task_runs
 SET status = 'starting',
-    session_id = sqlc.arg(session_id)
+    session_id = sqlc.arg(session_id),
+    worktree_id = sqlc.narg(worktree_id)
 WHERE task_runs.id = sqlc.arg(id)
 	AND COALESCE(task_runs.task_id, '') = COALESCE(sqlc.narg(expected_task_id), '')
 	AND COALESCE(task_runs.workspace_id, '') = COALESCE(sqlc.narg(expected_workspace_id), '')

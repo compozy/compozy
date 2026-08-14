@@ -31,6 +31,10 @@ export interface SessionComposerCommand {
   lane: SessionCommandLane;
   /** Daemon source scope (session/workspace/agent/global); shown for skills. */
   scope?: string;
+  /** Daemon availability for the current session state; defaults to available. */
+  available?: boolean;
+  /** Verbatim daemon explanation when unavailable. */
+  unavailableReason?: string;
 }
 
 export interface SessionComposerCommandSection {
@@ -53,6 +57,10 @@ export interface SessionCommandItemPresentation {
   sectionLabel: string;
   /** Row title in the menu; skill rows keep their exact kebab identity. */
   menuTitle: string;
+  /** Daemon availability for the current session state. */
+  available: boolean;
+  /** Verbatim daemon explanation when unavailable. */
+  unavailableReason?: string;
 }
 
 export interface SessionCommandMenuGroupEntry {
@@ -102,6 +110,10 @@ export function asTriggerItem(
       menuTitle: command.label,
       lane: command.lane,
       ...(command.scope ? { scope: command.scope } : {}),
+      // Availability travels as metadata so the row can stay listed and inert
+      // while still stating the daemon's reason.
+      available: command.available !== false,
+      ...(command.unavailableReason ? { unavailableReason: command.unavailableReason } : {}),
       sectionId: section.id,
       sectionLabel: section.label,
     },
@@ -120,6 +132,11 @@ export function commandItemPresentation(
     sectionId: typeof metadata.sectionId === "string" ? metadata.sectionId : lane,
     sectionLabel: typeof metadata.sectionLabel === "string" ? metadata.sectionLabel : item.label,
     menuTitle: typeof metadata.menuTitle === "string" ? metadata.menuTitle : item.label,
+    // Absent metadata means the daemon never gated this command.
+    available: metadata.available !== false,
+    ...(typeof metadata.unavailableReason === "string"
+      ? { unavailableReason: metadata.unavailableReason }
+      : {}),
   };
 }
 

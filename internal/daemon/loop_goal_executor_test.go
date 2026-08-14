@@ -90,6 +90,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			&loopSessionPolicyGate{},
 			time.Now,
 			discardLogger(),
+			nil,
 		)
 		option, err := composeLoopGoalExecutor(
 			store,

@@ -19,9 +19,12 @@ import {
   GLOBAL_SCOPE_COPY,
   globalScopeTooltipOn,
   workspaceMonogram,
+  type ActiveWorktreeSelection,
   type WorkspaceChipIdentity,
   type WorkspacePayload,
   type WorkspaceScopeMode,
+  type WorktreeListingByWorkspace,
+  type WorktreeNestEntry,
 } from "@/systems/workspace";
 
 import { GlobalScopeToggle } from "./global-scope-toggle";
@@ -50,6 +53,14 @@ export interface DesktopMenubarProps {
   activeOverlay: DesktopOverlay | null;
   onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void;
   attention: OsAttentionModel;
+  /** Same worktree query the switcher reads; omitted, the menu stays flat. */
+  worktreesByWorkspace?: WorktreeListingByWorkspace;
+  userHomeDir?: string;
+  /** Focused window's scope, resolved against the live list. */
+  worktreeSelection?: ActiveWorktreeSelection;
+  onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
+  onCreateWorktree?: (workspaceId: string) => void;
+  onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
 
 /**
@@ -80,6 +91,12 @@ export function DesktopMenubar({
   activeOverlay,
   onOverlayOpenChange,
   attention,
+  worktreesByWorkspace,
+  userHomeDir,
+  worktreeSelection,
+  onSelectWorktree,
+  onCreateWorktree,
+  onRemoveWorktree,
 }: DesktopMenubarProps) {
   const { coordinator } = useOsShell();
   const hydration = useDesktop(state => state.hydration);
@@ -110,6 +127,11 @@ export function DesktopMenubar({
       : globalOn && !canDisableGlobal
         ? GLOBAL_SCOPE_COPY.tooltipPickWorkspace
         : undefined;
+  const fallback = globalOn ? null : (worktreeSelection?.fallback ?? null);
+  const fallbackNotice =
+    fallback?.reason === "missing"
+      ? `${fallback.name ?? "The selected worktree"} is missing — new work runs at the workspace root`
+      : `${fallback?.name ?? "The selected worktree"} is unavailable — new work runs at the workspace root`;
   const overlay = (id: DesktopOverlay) => ({
     open: activeOverlay === id,
     onOpenChange: (open: boolean) => onOverlayOpenChange(id, open),
@@ -137,7 +159,22 @@ export function DesktopMenubar({
   return (
     <OsMenuBar
       className={className}
-      workspace={workspaceSlot}
+      workspace={{
+        ...workspaceSlot,
+        // Global cannot bind a worktree; only a ready project worktree reaches the chip.
+        worktree: globalOn ? null : (worktreeSelection?.activeWorktree?.name ?? null),
+      }}
+      scopeNotice={
+        fallback ? (
+          <span
+            role="status"
+            data-testid="os-worktree-fallback-notice"
+            className="inline-flex items-center gap-1.5 rounded-md bg-info-tint px-2 py-1 text-form-label text-info"
+          >
+            {fallbackNotice}
+          </span>
+        ) : null
+      }
       // No workspace means no layout stream — there is nothing to be out of sync with.
       status={<OsHydrationStatus hydration={hydration} />}
       notifications={attention.notificationCount}
@@ -175,6 +212,12 @@ export function DesktopMenubar({
           onSelectWorkspace={onSelectWorkspace}
           onOpenWorkspaces={onOpenWorkspaces}
           onAddWorkspace={onAddWorkspace}
+          worktreesByWorkspace={worktreesByWorkspace}
+          userHomeDir={userHomeDir}
+          selectedWorktreeId={globalOn ? null : (worktreeSelection?.selectedWorktreeId ?? null)}
+          onSelectWorktree={onSelectWorktree}
+          onCreateWorktree={onCreateWorktree}
+          onRemoveWorktree={onRemoveWorktree}
         />
       )}
       menus={

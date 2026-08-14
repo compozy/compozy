@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+type ResolutionReason string
+
+type ResolutionStatus string
+
+type ResolvedWorktreeMode string
+
+type ResourceGetParams struct {
+	Kind ResourceKind `json:"kind"`
+	ID   string       `json:"id"`
+}
+
+type ResourceKind string
+
+type ResourceOwner struct {
+	Kind ResourceOwnerKind `json:"kind"`
+	ID   string            `json:"id"`
+}
+
+type ResourceOwnerKind string
+
 type ResourceRecord struct {
 	Kind      ResourceKind    `json:"kind"`
 	ID        string          `json:"id"`
@@ -117,48 +137,3 @@ type RunDesignationSummary struct {
 }
 
 type RunStatus string
-
-type RuntimeSelectionPayload struct {
-	Provider        string      `json:"provider"`
-	Model           string      `json:"model,omitempty"`
-	ReasoningEffort Effort      `json:"reasoning_effort,omitempty"`
-	Speed           Speed       `json:"speed,omitempty"`
-	SpeedResolution *Resolution `json:"speed_resolution,omitempty"`
-}
-
-type SandboxExecParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-	Command     string `json:"command"`
-	Timeout     int    `json:"timeout,omitempty"`
-}
-
-type SandboxExecResult struct {
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout,omitempty"`
-	Stderr   string `json:"stderr,omitempty"`
-}
-
-type SandboxInfoParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-}
-
-type SandboxInfoResult struct {
-	SandboxID     string    `json:"sandbox_id"`
-	Backend       string    `json:"backend"`
-	Profile       string    `json:"profile"`
-	InstanceID    string    `json:"instance_id"`
-	RuntimeRoot   string    `json:"runtime_root"`
-	SyncState     string    `json:"sync_state"`
-	CreatedAt     time.Time `json:"created_at"`
-	LastSyncError string    `json:"last_sync_error"`
-}
-
-type SandboxListParams struct {
-	Workspace string `json:"workspace,omitempty"`
-}
-
-type SandboxListResult struct {
-	Sandboxes []SandboxSummary `json:"sandboxes"`
-}

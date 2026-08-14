@@ -91,6 +91,7 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
+	worktreeID := normalized.WorktreeIDValue()
 	normalized.RunKind = normalized.RunKind.Normalize()
 	if normalized.RunKind == taskpkg.RunKindUnknown {
 		normalized.RunKind = taskpkg.RunKindWorker
@@ -117,6 +118,11 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 		ownerKey,
 	)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
+	resolvedWorktreeMode := normalized.ResolvedWorktreeModeValue().Normalize()
+	if resolvedWorktreeMode == "" {
+		resolvedWorktreeMode = taskpkg.WorktreeModeNone
+	}
+	normalized.SetWorktreeState(worktreeID, resolvedWorktreeMode, normalized.ResolvedWorktreeRefValue())
 	normalized.ClaimTokenHash = strings.TrimSpace(normalized.ClaimTokenHash)
 	normalized.RequiredCapabilities = normalizeTaskRunCapabilityIDs(normalized.RequiredCapabilities)
 	normalized.PreferredCapabilities = normalizeTaskRunCapabilityIDs(

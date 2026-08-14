@@ -23,6 +23,10 @@ const (
 	TaskWorkerModeInherit      = "inherit"
 	TaskSandboxModeInherit     = "inherit"
 	TaskSandboxModeNone        = "none"
+	TaskWorktreeModeInherit    = "inherit"
+	TaskWorktreeModeNone       = "none"
+	TaskWorktreeModeRef        = "ref"
+	TaskWorktreeModePerRun     = "per_run"
 	TaskReviewPolicyNone       = "none"
 	TaskReviewPolicyOnSuccess  = "on_success"
 	TaskReviewPolicyOnFailure  = "on_failure"
@@ -66,6 +70,7 @@ type TaskOrchestrationProfileConfig struct {
 	DefaultCoordinatorMode    string `toml:"default_coordinator_mode"`
 	DefaultWorkerMode         string `toml:"default_worker_mode"`
 	DefaultSandboxMode        string `toml:"default_sandbox_mode"`
+	DefaultWorktreeMode       string `toml:"default_worktree_mode"`
 	AllowTaskProviderOverride bool   `toml:"allow_task_provider_override"`
 	AllowTaskSandboxNone      bool   `toml:"allow_task_sandbox_none"`
 }
@@ -107,6 +112,7 @@ func DefaultTaskConfig() TaskConfig {
 				DefaultCoordinatorMode:    TaskCoordinatorModeInherit,
 				DefaultWorkerMode:         TaskWorkerModeInherit,
 				DefaultSandboxMode:        TaskSandboxModeInherit,
+				DefaultWorktreeMode:       TaskWorktreeModeInherit,
 				AllowTaskProviderOverride: true,
 				AllowTaskSandboxNone:      true,
 			},

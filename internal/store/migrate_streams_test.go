@@ -221,6 +221,7 @@ func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
 			if after != before {
 				t.Fatalf("Status(%s reopen) = %#v, want %#v", item.name, after, before)
 			}
+			assertSQLiteIntegrity(t, item.name, reopened)
 
 			aheadDB := openStreamTestDB(t, item.name+"-ahead.db")
 			if _, err := aheadDB.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE %q (
@@ -730,6 +731,47 @@ func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {
 		t.Fatalf("query table %s existence: %v", table, err)
 	}
 	return exists
+}
+
+func assertSQLiteIntegrity(t *testing.T, streamName string, db *sql.DB) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	var integrity string
+	if err := db.QueryRowContext(ctx, "PRAGMA integrity_check").Scan(&integrity); err != nil {
+		t.Fatalf("run %s integrity_check: %v", streamName, err)
+	}
+	if integrity != "ok" {
+		t.Fatalf("%s integrity_check = %q, want ok", streamName, integrity)
+	}
+	rows, err := db.QueryContext(ctx, "PRAGMA foreign_key_check")
+	if err != nil {
+		t.Fatalf("run %s foreign_key_check: %v", streamName, err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Errorf("close %s foreign_key_check rows: %v", streamName, err)
+		}
+	}()
+	if rows.Next() {
+		var table string
+		var rowID sql.NullInt64
+		var parent string
+		var foreignKeyID int
+		if err := rows.Scan(&table, &rowID, &parent, &foreignKeyID); err != nil {
+			t.Fatalf("scan %s foreign_key_check result: %v", streamName, err)
+		}
+		t.Fatalf(
+			"%s foreign_key_check violation: table=%q row_id=%v parent=%q foreign_key_id=%d",
+			streamName,
+			table,
+			rowID,
+			parent,
+			foreignKeyID,
+		)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate %s foreign_key_check results: %v", streamName, err)
+	}
 }
 
 func sqliteColumns(t *testing.T, db *sql.DB, table string) map[string]bool {

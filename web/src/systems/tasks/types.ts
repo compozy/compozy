@@ -56,10 +56,14 @@ export type TaskExecutionProfileWorker = TaskExecutionProfile["worker"];
 export type TaskExecutionProfileCoordinator = TaskExecutionProfile["coordinator"];
 export type TaskExecutionProfileReviewSelectors = TaskExecutionProfile["review"];
 export type TaskExecutionProfileSandbox = TaskExecutionProfile["sandbox"];
+export type TaskExecutionProfileWorktree = TaskExecutionProfile["worktree"];
 export type TaskExecutionProfileParticipants = TaskExecutionProfile["participants"];
 export type TaskExecutionProfileWorkerMode = TaskExecutionProfileWorker["mode"];
 export type TaskExecutionProfileCoordinatorMode = TaskExecutionProfileCoordinator["mode"];
 export type TaskExecutionProfileSandboxMode = TaskExecutionProfileSandbox["mode"];
+export type TaskExecutionProfileWorktreeMode = TaskExecutionProfileWorktree["mode"];
+/** Body of the dedicated worktree-policy patch — never a full-profile replace. */
+export type TaskWorktreePolicySetRequest = OperationRequestBody<"setTaskWorktreePolicy">;
 
 // Run reviews (review gate)
 export type TaskRunReview = OperationResponse<"listTaskRunReviews", 200>["reviews"][number];

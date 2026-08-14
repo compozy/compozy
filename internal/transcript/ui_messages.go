@@ -304,7 +304,7 @@ func (b *uiMessageBuilder) appendDataPart(partType string, partID string, payloa
 }
 
 func uiPermissionDataPartID(event acp.AgentEvent) string {
-	if requestID := strings.TrimSpace(event.RequestID); requestID != "" {
+	if requestID := strings.TrimSpace(event.RequestIDValue()); requestID != "" {
 		return requestID
 	}
 	if turnID := strings.TrimSpace(event.TurnID); turnID != "" {
