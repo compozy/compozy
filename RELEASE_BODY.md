@@ -93,11 +93,14 @@
 - Use exact Cursor ACP model values (#392)
 - Preserve dead session history (#393)
 - Validate desktop release smoke wiring
+- Validate public CLI version command
+- Clarify missing config path errors (#401)
 
 ### 🧪 Testing
 
 - Guard ACP initialize protocol version (#318)
 - Align nightly runtime fixtures
+- Align dead session recovery coverage
 
 ### Release Notes
 
