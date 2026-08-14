@@ -506,6 +506,17 @@ func TestHostedProxyHelpers(t *testing.T) {
 		if got := hostedToolErrorMessage(transportErr); got != want {
 			t.Fatalf("hostedToolErrorMessage(transport) = %q, want reason and public message", got)
 		}
+
+		missingPathResponse := contract.ToolErrorResponse{Error: contract.ToolErrorPayload{
+			Code:        tools.ErrorCodeNotFound,
+			ToolID:      tools.ToolIDConfigGet,
+			Message:     "config path not found",
+			ReasonCodes: []tools.ReasonCode{tools.ReasonConfigPathNotFound},
+		}}
+		got := hostedToolErrorMessage(hostedToolResponseError{response: missingPathResponse})
+		if want := "config_path_not_found: config path not found"; got != want {
+			t.Fatalf("hostedToolErrorMessage(missing config path) = %q, want %q", got, want)
+		}
 	})
 }
 
