@@ -59,6 +59,7 @@ vi.mock("../use-session-window-controller", () => ({
 vi.mock("@/systems/session", () => ({
   hasUnrecoverableRuntime: (session: SessionPayload) =>
     session.failure?.kind === "process_exit" && session.health?.health === "dead",
+  SessionEnvironmentControl: () => null,
   SessionPromptRuntimeSelector: () => null,
   SessionResumeFailure: ({ onRetry, retryLabel }: { onRetry: () => void; retryLabel?: string }) => (
     <button type="button" onClick={onRetry}>
