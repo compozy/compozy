@@ -64,10 +64,10 @@
         </div>
       </div>
       <div class="spec">
-        <div class="spec__note"><b>Ready in dense lists</b>Inside the switcher / menubar nest, ready rows drop the chip and keep only the quiet dot — the chip appears when any other state needs saying.</div>
+        <div class="spec__note"><b>Ready in dense lists</b>Inside the side submenu, ready rows drop the chip and keep only the quiet dot — the chip appears when any other state needs saying.</div>
         <div class="spec__demo chip-grid">
           <span class="d d--ok" title="ready"></span>
-          <span style="font-size:11px;color:var(--subtle)">← the whole "ready" signal in a nested row</span>
+          <span style="font-size:11px;color:var(--subtle)">← the whole "ready" signal in a submenu row</span>
         </div>
       </div>
     </section>
@@ -274,40 +274,62 @@
     <!-- ════ 05 · DENSITY VARIANTS ════ -->
     <section class="lab-sec" data-od-id="lab-density">
       <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Density variants</h2>
-        <span class="lab-sec__gist">nested 30px rows inside .wt-nest · rail, never box glyphs</span></div>
+        <span class="lab-sec__gist">two-line nest rows inside the 320px side submenu · never an inline nest</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Nested projection</b>The switcher / menubar / overview consume the same rows at 30px inside <code>.wt-nest</code> (15px indent + 1px rail). Ready drops the chip; every other state keeps it. State dots come from <code>.wt-dot[data-state]</code> — this sheet is the shape source of truth.</div>
+        <div class="spec__note"><b>Side submenu</b>The switcher / menubar / overview consume the same <code>WorktreeRow</code> nest density inside <code>.wt-sub</code> (locked 320px frame): name, then path + sm chip. Ready drops the chip; every other state keeps it. State dots come from <code>.wt-dot[data-state]</code> — this sheet is the shape source of truth.</div>
         <div class="spec__demo">
-          <div class="panelbox" style="padding:6px 8px;max-width:360px">
-            <div class="cs-item" aria-selected="true">
-              <span class="command-select__avatar">CO</span>
-              <span class="cs-item__label">compozy<span class="sub">~/dev/compozy</span></span>
-              <svg class="cs-item__check" data-lucide="check"></svg>
+          <div class="wt-fly" data-wt-static>
+            <div class="cs-pop" style="width:260px">
+              <div class="cs-pop__list">
+                <div class="cs-item" aria-selected="true" aria-haspopup="menu" aria-expanded="true">
+                  <span class="command-select__avatar">CO</span>
+                  <span class="cs-item__label">compozy<span class="sub">~/dev/compozy</span></span>
+                  <svg class="cs-item__check" data-lucide="check"></svg>
+                  <svg class="cs-chev" data-lucide="chevron-right" aria-hidden="true"></svg>
+                </div>
+              </div>
             </div>
-            <div class="wt-nest">
-              <div class="wt-row">
-                <span class="d d--ok" style="justify-self:center"></span>
-                <span class="wt-row__main"><span class="wt-row__name"><b>payments-retry</b></span></span>
-                <span class="wt-row__trail"><span class="wt-agent"><span class="d d--run d--pulse"></span></span></span>
+            <div class="wt-sub" role="menu" aria-label="Worktrees in compozy">
+              <div class="wt-sub-row">
+                <div class="wt-row">
+                  <span class="d d--ok" style="justify-self:center"></span>
+                  <span class="wt-row__main">
+                    <span class="wt-row__name"><b>payments-retry</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/payments-retry</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-agent"><span class="d d--run d--pulse"></span></span></span>
+                </div>
+                <button class="wt-more" aria-label="Actions for payments-retry"><svg data-lucide="ellipsis"></svg></button>
               </div>
-              <div class="wt-row">
-                <span class="d d--ok" style="justify-self:center"></span>
-                <span class="wt-row__main"><span class="wt-row__name"><b>auth-refresh</b></span></span>
-                <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+              <div class="wt-sub-row">
+                <div class="wt-row">
+                  <span class="d d--ok" style="justify-self:center"></span>
+                  <span class="wt-row__main">
+                    <span class="wt-row__name"><b>auth-refresh</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/auth-refresh</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                </div>
+                <button class="wt-more" aria-label="Actions for auth-refresh"><svg data-lucide="ellipsis"></svg></button>
               </div>
-              <div class="wt-row" data-inert aria-disabled="true">
-                <!-- pending = FILLED warning diamond (.wt-dot mirrors the chip's ::before) — never the
-                     hollow ring, which is the discovered/missing shape -->
-                <span class="wt-dot" data-state="pending"></span>
-                <span class="wt-row__main"><span class="wt-row__name"><b>docs-refresh</b><span class="wt-chip" data-state="pending">pending</span></span></span>
+              <div class="wt-sub-row">
+                <div class="wt-row" data-inert aria-disabled="true">
+                  <span class="wt-dot" data-state="pending"></span>
+                  <span class="wt-row__main">
+                    <span class="wt-row__name"><b>docs-refresh</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/docs-refresh</span>
+                        <span class="wt-chip" data-state="pending">pending</span></span>
+                  </span>
+                  </div>
+                <button class="wt-more" aria-label="Actions for docs-refresh"><svg data-lucide="ellipsis"></svg></button>
               </div>
             </div>
           </div>
         </div>
       </div>
       <div class="spec">
-        <div class="spec__note"><b>Collapsed parent aggregate</b>A collapsed workspace keeps one quiet signal: live-agent dot + count. Zero renders nothing (badge budget — zero counts render nothing).</div>
+        <div class="spec__note"><b>Workspace-row aggregate</b>A resting git-backed row keeps one quiet signal: live-agent dot + count. Zero renders nothing (badge budget — zero counts render nothing).</div>
         <div class="spec__demo chip-grid">
           <span class="wt-agg"><span class="d d--run d--pulse"></span>2 active</span>
         </div>

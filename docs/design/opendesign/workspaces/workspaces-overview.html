@@ -24,6 +24,24 @@
                             New workspace is a trailing dashed tile; many workspaces
                             stay ONE ROW with a fluid horizontal track + edge fades
                             (never wrap)
+    production worktrees  — projection from os-workspaces-overview.tsx (meta line
+                            "N agents · N sessions · N worktrees", Show/Hide worktrees
+                            expander, WorktreeNestList) + worktree-display.ts /
+                            worktree-sort.ts: enum ready·pending·discovered·missing·error,
+                            adopted-only counts, sort ready→pending→discovered→missing→error,
+                            1-signal budget (agent → dirty → ahead/behind → merged),
+                            git_backed gating (absent, never disabled)
+    authorized delta      — worktrees render as a subordinate VERTICAL menu, always
+                            visible under the caption for the focused git-backed
+                            workspace (never a horizontal strip competing with the
+                            tiles); zero worktrees → only the quiet New worktree
+                            button; non-git → nothing. ↓ enters the menu, ↑/esc
+                            return, ↵ scopes (US-011); discovered ↵ reaches the
+                            Adopt confirm (US-009/ADR-002). Rows keep the S1 nest
+                            vocabulary (.wt-row 30px, .wt-dot shapes, 1 signal).
+                            Scoped worktree = check on the menu row, branch badge
+                            on the parent tile (one check per layer). Caption is
+                            identity only (name + path) — agents/sessions dropped.
 -->
 </head>
 <body data-wallpaper="ember" data-motion="full">
@@ -214,41 +232,54 @@
   <div class="overlay wsov" id="wsov" data-od-id="workspaces-overview" role="dialog" aria-modal="true" aria-labelledby="wsovTitle" aria-describedby="wsovSub">
     <div class="wsov-stage">
       <h1 class="wsov-title" id="wsovTitle">Workspaces</h1>
-      <p class="wsov-sub" id="wsovSub">12 workspaces · 18 agents</p>
+      <p class="wsov-sub" id="wsovSub">12 workspaces · 8 worktrees</p>
       <p class="wsov-notice" id="wsovNotice" hidden>Global scope is on — picking a workspace turns it off.</p>
-      <div class="wsov-strip" id="wsovStrip" data-od-id="wsov-strip" data-overflow="end">
+      <div class="wsov-strip wsov-strip--ws" id="wsovStrip" data-od-id="wsov-strip" data-overflow="end">
         <span class="wsov-edge wsov-edge--start" aria-hidden="true"></span>
         <span class="wsov-edge wsov-edge--end" aria-hidden="true"></span>
         <div class="wsov-track" id="wsovTrack" data-od-id="wsov-track">
           <div class="wsov-row" id="wsovRow" role="listbox" aria-label="Workspaces" aria-activedescendant="tile-compozy">
-            <button class="wsov-tile is-on" role="option" id="tile-compozy" data-od-id="tile-compozy" data-id="compozy" data-current aria-selected="true" tabindex="0"><span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">compozy</span></button>
-            <button class="wsov-tile" role="option" id="tile-branas-site" data-od-id="tile-branas-site" data-id="branas-site" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">B</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">branas-site</span></button>
-            <button class="wsov-tile" role="option" id="tile-notes" data-od-id="tile-notes" data-id="notes" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">N</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">notes</span></button>
-            <button class="wsov-tile" role="option" id="tile-agh-docs" data-od-id="tile-agh-docs" data-id="agh-docs" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">AG</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">agh-docs</span></button>
-            <button class="wsov-tile" role="option" id="tile-payments" data-od-id="tile-payments" data-id="payments" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">PA</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">payments</span></button>
-            <button class="wsov-tile" role="option" id="tile-infra" data-od-id="tile-infra" data-id="infra" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">IN</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">infra</span></button>
-            <button class="wsov-tile" role="option" id="tile-design-system" data-od-id="tile-design-system" data-id="design-system" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">DS</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">design-system</span></button>
-            <button class="wsov-tile" role="option" id="tile-sandbox" data-od-id="tile-sandbox" data-id="sandbox" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">SA</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">sandbox</span></button>
-            <button class="wsov-tile" role="option" id="tile-branas-ia" data-od-id="tile-branas-ia" data-id="branas-ia" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">IA</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">branas-ia</span></button>
-            <button class="wsov-tile" role="option" id="tile-compozy-ext" data-od-id="tile-compozy-ext" data-id="compozy-ext" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">CE</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">compozy-ext</span></button>
-            <button class="wsov-tile" role="option" id="tile-site" data-od-id="tile-site" data-id="site" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">SI</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">site</span></button>
-            <button class="wsov-tile" role="option" id="tile-cli" data-od-id="tile-cli" data-id="cli" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">CL</span><span class="wsov-check" aria-hidden="true"><svg data-lucide="check"></svg></span></span><span class="wsov-name">cli</span></button>
+            <button class="wsov-tile is-on" role="option" id="tile-compozy" data-od-id="tile-compozy" data-id="compozy" data-current aria-selected="true" tabindex="0"><span class="wsov-well"><span class="wsov-mono">CO</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">compozy</span></button>
+            <button class="wsov-tile" role="option" id="tile-branas-site" data-od-id="tile-branas-site" data-id="branas-site" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">B</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">branas-site</span></button>
+            <button class="wsov-tile" role="option" id="tile-notes" data-od-id="tile-notes" data-id="notes" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">N</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">notes</span></button>
+            <button class="wsov-tile" role="option" id="tile-agh-docs" data-od-id="tile-agh-docs" data-id="agh-docs" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">AG</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">agh-docs</span></button>
+            <button class="wsov-tile" role="option" id="tile-payments" data-od-id="tile-payments" data-id="payments" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">PA</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">payments</span></button>
+            <button class="wsov-tile" role="option" id="tile-infra" data-od-id="tile-infra" data-id="infra" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">IN</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">infra</span></button>
+            <button class="wsov-tile" role="option" id="tile-design-system" data-od-id="tile-design-system" data-id="design-system" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">DS</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">design-system</span></button>
+            <button class="wsov-tile" role="option" id="tile-sandbox" data-od-id="tile-sandbox" data-id="sandbox" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">SA</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">sandbox</span></button>
+            <button class="wsov-tile" role="option" id="tile-branas-ia" data-od-id="tile-branas-ia" data-id="branas-ia" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">IA</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">branas-ia</span></button>
+            <button class="wsov-tile" role="option" id="tile-compozy-ext" data-od-id="tile-compozy-ext" data-id="compozy-ext" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">CE</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">compozy-ext</span></button>
+            <button class="wsov-tile" role="option" id="tile-site" data-od-id="tile-site" data-id="site" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">SI</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">site</span></button>
+            <button class="wsov-tile" role="option" id="tile-cli" data-od-id="tile-cli" data-id="cli" aria-selected="false" tabindex="-1"><span class="wsov-well"><span class="wsov-mono">CL</span><span class="wsov-check" aria-hidden="true"><svg class="ic-check" data-lucide="check"></svg><svg class="ic-branch" data-lucide="git-branch"></svg></span></span><span class="wsov-name">cli</span></button>
             <button class="wsov-tile wsov-tile--add" role="option" id="tileAdd" data-od-id="tile-add" aria-selected="false" tabindex="-1"><span class="wsov-well wsov-well--add"><svg data-lucide="plus"></svg></span><span class="wsov-name">New</span></button>
           </div>
         </div>
       </div>
       <div class="wsov-caption" id="wsovCaption" data-od-id="wsov-caption">
         <b>compozy</b>
-        <span class="meta">3 agents · 5 sessions</span>
         <span class="path">~/dev/compozy</span>
       </div>
-      <p class="wsov-hint" data-od-id="wsov-hint">
+      <!-- worktree menu — vertical, subordinate, ALWAYS visible for the focused
+           git-backed workspace (zero worktrees → only the New worktree button;
+           non-git → nothing). gating: GET /api/workspaces/:id/worktrees →
+           {worktrees[], discovered[], repo.git_backed}. ↓ enters the menu,
+           ↑/esc return to the strip, ↵ scopes (US-011); discovered ↵ reaches
+           the Adopt confirm (US-009/ADR-002). Rows built from data; projection
+           parity with S1/S2/S3 (worktree set) — enum, sort, adopted-only counts. -->
+      <div class="wsov-below" id="wsovBelow" data-od-id="wsov-worktree-menu"></div>
+      <p class="wsov-hint" id="wsovHintWs" data-od-id="wsov-hint">
         <span>scroll or <kbd class="mono">←</kbd> <kbd class="mono">→</kbd></span>
         <span><kbd class="mono">a–z</kbd> jump</span>
+        <span id="wsovHintDrill"><kbd class="mono">↓</kbd> worktrees</span>
         <span><kbd class="mono">↵</kbd> switch</span>
         <span><kbd class="mono">esc</kbd> close</span>
         <span><kbd class="mono">⇧⌘W</kbd> open</span>
         <span><kbd class="mono">⇧⌘G</kbd> global</span>
+      </p>
+      <p class="wsov-hint" id="wsovHintWt" data-od-id="wsov-hint-menu" hidden>
+        <span><kbd class="mono">↑</kbd> <kbd class="mono">↓</kbd> move</span>
+        <span><kbd class="mono">↵</kbd> scope</span>
+        <span><kbd class="mono">esc</kbd> back</span>
       </p>
     </div>
   </div>
@@ -259,21 +290,40 @@
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script>
 (function () {
-  /* gating: GET /api/workspaces → project items; meta from use-workspace-details */
+  /* gating: GET /api/workspaces → project items; identity only in the caption.
+     worktrees: GET /api/workspaces/:id/worktrees → {worktrees[], discovered[],
+     repo.git_backed} — projection parity with workspace-command-select.tsx +
+     worktree-display.ts / worktree-sort.ts. Counts are adopted-only (discovered
+     listed, never counted). Content illustrative; runtime truth owns values. */
+  const WT_HOME = (ws, name) => "~/.compozy/worktrees/" + ws + "/" + name;
   const WORKSPACES = [
-    { id: "compozy", name: "compozy", mono: "CO", path: "~/dev/compozy", agents: 3, sessions: 5 },
-    { id: "branas-site", name: "branas-site", mono: "B", path: "~/dev/branas/site", agents: 1, sessions: 2 },
-    { id: "notes", name: "notes", mono: "N", path: "~/notes", agents: 1, sessions: 1 },
-    { id: "agh-docs", name: "agh-docs", mono: "AG", path: "~/dev/agh/docs", agents: 2, sessions: 3 },
-    { id: "payments", name: "payments", mono: "PA", path: "~/dev/payments", agents: 2, sessions: 4 },
-    { id: "infra", name: "infra", mono: "IN", path: "~/dev/infra", agents: 2, sessions: 2 },
-    { id: "design-system", name: "design-system", mono: "DS", path: "~/dev/compozy/packages/ui", agents: 1, sessions: 1 },
-    { id: "sandbox", name: "sandbox", mono: "SA", path: "~/dev/sandbox", agents: 1, sessions: 0 },
-    { id: "branas-ia", name: "branas-ia", mono: "IA", path: "~/dev/branas/ia", agents: 2, sessions: 1 },
-    { id: "compozy-ext", name: "compozy-ext", mono: "CE", path: "~/dev/compozy-extensions", agents: 1, sessions: 2 },
-    { id: "site", name: "site", mono: "SI", path: "~/dev/compozy/packages/site", agents: 1, sessions: 1 },
-    { id: "cli", name: "cli", mono: "CL", path: "~/dev/compozy/cmd", agents: 1, sessions: 0 }
+    { id: "compozy", name: "compozy", mono: "CO", path: "~/dev/compozy", git: true, worktrees: [
+      { id: "payments-retry", branch: "feat/payments-retry", state: "ready", live: "running" },
+      { id: "auth-refresh", branch: "feat/auth-refresh", state: "ready", behind: 2 },
+      { id: "fix-flaky-e2e", branch: "fix/flaky-e2e", state: "ready", merged: true },
+      { id: "docs-refresh", branch: "docs/refresh", state: "pending", why: "materializing" },
+      { id: "spike-sqlite-vacuum", branch: "spike/sqlite-vacuum", state: "discovered", path: "../compozy-spike" },
+      { id: "hotfix-cors", branch: "hotfix/cors", state: "missing", why: "directory missing" }
+    ] },
+    { id: "branas-site", name: "branas-site", mono: "B", path: "~/dev/branas/site", git: true, worktrees: [] },
+    { id: "notes", name: "notes", mono: "N", path: "~/notes", git: false, worktrees: [] },
+    { id: "agh-docs", name: "agh-docs", mono: "AG", path: "~/dev/agh/docs", git: true, worktrees: [] },
+    { id: "payments", name: "payments", mono: "PA", path: "~/dev/payments", git: true, worktrees: [
+      { id: "chargeback-flow", branch: "feat/chargeback-flow", state: "ready", live: "running" },
+      { id: "webhook-retries", branch: "fix/webhook-retries", state: "ready", ahead: 3 }
+    ] },
+    { id: "infra", name: "infra", mono: "IN", path: "~/dev/infra", git: true, worktrees: [
+      { id: "tf-upgrade", branch: "chore/tf-upgrade", state: "ready", setup: "failed" }
+    ] },
+    { id: "design-system", name: "design-system", mono: "DS", path: "~/dev/compozy/packages/ui", git: false, worktrees: [] },
+    { id: "sandbox", name: "sandbox", mono: "SA", path: "~/dev/sandbox", git: true, worktrees: [] },
+    { id: "branas-ia", name: "branas-ia", mono: "IA", path: "~/dev/branas/ia", git: true, worktrees: [] },
+    { id: "compozy-ext", name: "compozy-ext", mono: "CE", path: "~/dev/compozy-extensions", git: true, worktrees: [] },
+    { id: "site", name: "site", mono: "SI", path: "~/dev/compozy/packages/site", git: false, worktrees: [] },
+    { id: "cli", name: "cli", mono: "CL", path: "~/dev/compozy/cmd", git: false, worktrees: [] }
   ];
+  /* locked sort — worktree-sort.ts: state group, activity desc within group */
+  const WT_ORDER = { ready: 0, pending: 1, discovered: 2, missing: 3, error: 4 };
 
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -281,6 +331,7 @@
   const strip = $("#wsovStrip");
   const track = $("#wsovTrack");
   const row = $("#wsovRow");
+  const below = $("#wsovBelow");
   const addBtn = $("#tileAdd");
   const trigger = $("#wsTrigger");
   const toggle = $("#gwToggle");
@@ -288,17 +339,23 @@
   const desktop = $("#desktop");
   const dock = $(".dock-zone");
 
+  /* scope = workspace root OR workspace/worktree (US-011) — the opening state
+     is worktree-scoped so the chip and the branch badge read true */
   let currentId = "compozy";
-  let remembered = "compozy";
+  let currentWt = "payments-retry";
+  let remembered = { ws: "compozy", wt: "payments-retry" };
   let scope = "workspace";
   let open = true;
+  let layer = "ws";
   let focusIndex = 0;
+  let menuIndex = 0;
+  let belowFor = null;
   let typeBuf = "";
   let typeTimer = 0;
   let scrollingFromFocus = false;
   let scrollEndTimer = 0;
   let scrollLockTimer = 0;
-  let drag = null;
+  let lastCaption = "";
 
   function reducedMotion() {
     return matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -307,14 +364,21 @@
   function items() {
     return $$(".wsov-tile", row);
   }
-  function metaLine(ws) {
-    const parts = [];
-    if (ws.agents) parts.push(ws.agents === 1 ? "1 agent" : ws.agents + " agents");
-    if (ws.sessions) parts.push(ws.sessions === 1 ? "1 session" : ws.sessions + " sessions");
-    return parts.join(" · ");
+  function navRows() {
+    return $$("[data-nav]", below);
   }
-  function totalAgents() {
-    return WORKSPACES.reduce((n, w) => n + w.agents, 0);
+  function wsById(id) {
+    return WORKSPACES.find((w) => w.id === id);
+  }
+  /* adopted-only — discovered never enters the number (locked count rule) */
+  function adoptedCount(ws) {
+    return ws.worktrees.filter((w) => w.state !== "discovered").length;
+  }
+  function totalWorktrees() {
+    return WORKSPACES.reduce((n, w) => n + adoptedCount(w), 0);
+  }
+  function sortedWts(ws) {
+    return ws.worktrees.slice().sort((a, b) => (WT_ORDER[a.state] || 0) - (WT_ORDER[b.state] || 0));
   }
   function toast(html) {
     const el = document.createElement("div");
@@ -329,17 +393,12 @@
       else n.removeAttribute("inert");
     });
   }
-  function captionFor(el) {
+
+  /* ---- caption — identity only: name + path ---- */
+  function swapCaption(html) {
+    if (lastCaption === html) return;
+    lastCaption = html;
     const cap = $("#wsovCaption");
-    let html;
-    if (el === addBtn) {
-      html = "<b>New workspace</b><span class=\"meta\">Register a project folder</span><span class=\"path\">directory picker</span>";
-    } else {
-      const ws = WORKSPACES.find((w) => w.id === el.dataset.id);
-      if (!ws) return;
-      html = "<b>" + ws.name + "</b><span class=\"meta\">" + metaLine(ws) + "</span><span class=\"path\">" + ws.path + "</span>";
-    }
-    if (cap.innerHTML === html) return;
     cap.innerHTML = html;
     if (!reducedMotion()) {
       cap.classList.remove("is-swap");
@@ -347,6 +406,89 @@
       cap.classList.add("is-swap");
     }
   }
+  function captionFor(el) {
+    if (el === addBtn) {
+      swapCaption("<b>New workspace</b><span class=\"meta\">Register a project folder</span><span class=\"path\">directory picker</span>");
+      return;
+    }
+    const ws = wsById(el.dataset.id);
+    if (!ws) return;
+    swapCaption("<b>" + ws.name + "</b><span class=\"path\">" + ws.path + "</span>");
+  }
+
+  /* ---- worktree menu — vertical, always visible for the focused git repo ---- */
+  function rowHtml(ws, wt) {
+    const isCur = scope === "workspace" && ws.id === currentId && wt.id === currentWt;
+    const inert = wt.state === "pending" || wt.state === "missing";
+    const path = wt.path || WT_HOME(ws.id, wt.id);
+    /* small chip on line 2 for non-ready; ready renders no chip (production) */
+    const chip = wt.state !== "ready"
+      ? "<span class=\"wsov-mchip\" data-state=\"" + wt.state + "\">" + wt.state + "</span>" : "";
+    /* one trailing signal max — agent → ahead/behind → merged → setup flag */
+    let signal = "";
+    if (wt.live) signal = "<span class=\"wsov-magent\" data-live=\"" + wt.live + "\" title=\"agent " + (wt.live === "running" ? "running" : "waiting") + "\"></span>";
+    else if (wt.behind) signal = "<span class=\"wsov-mab\"><span class=\"behind\" data-hot>" + wt.behind + "</span></span>";
+    else if (wt.ahead) signal = "<span class=\"wsov-mab\"><span class=\"ahead\">" + wt.ahead + "</span></span>";
+    else if (wt.merged) signal = "<span class=\"wsov-mmerged\"><svg data-lucide=\"git-merge\"></svg>Merged</span>";
+    else if (wt.setup === "failed") signal = "<span class=\"wsov-mflag\" title=\"setup failed — worktree is usable\"><svg data-lucide=\"triangle-alert\"></svg></span>";
+    let trail = "";
+    if (inert) trail = "<span class=\"wsov-mwhy\">" + (wt.why || "") + "</span>";
+    else if (wt.state === "discovered") trail = "<span class=\"wsov-madopt\">Adopt</span>";
+    else trail = signal;
+    if (isCur) trail += "<span class=\"wsov-mcheck\" aria-hidden=\"true\"><svg data-lucide=\"check\"></svg></span>";
+    /* kebab — Copy path · Delete (real flows own the dialogs) */
+    trail += "<button class=\"wsov-mkebab\" type=\"button\" tabindex=\"-1\" aria-haspopup=\"menu\""
+      + " aria-expanded=\"false\" aria-label=\"Actions for " + wt.id + "\">"
+      + "<svg data-lucide=\"ellipsis-vertical\"></svg></button>";
+    return "<div class=\"wsov-mrow wsov-mrow--wt\" data-state=\"" + wt.state + "\" data-id=\"" + wt.id + "\" data-path=\"" + path + "\""
+      + (inert ? " data-inert aria-disabled=\"true\"" : " role=\"option\" data-nav data-act=\""
+        + (wt.state === "discovered" ? "adopt" : "scope") + "\" tabindex=\"-1\" aria-selected=\"" + (isCur ? "true" : "false") + "\"")
+      + " data-od-id=\"wt-row-" + wt.id + "\">"
+      + "<span class=\"wsov-mdot\" data-state=\"" + wt.state + "\" aria-hidden=\"true\"></span>"
+      + "<span class=\"wsov-mmain\">"
+      + "<span class=\"wsov-mname\"><b>" + wt.id + "</b></span>"
+      + "<span class=\"wsov-mline2\">" + chip + "<span class=\"wsov-mpath\">" + path + "</span></span>"
+      + "</span>"
+      + "<span class=\"wsov-mtrail\">" + trail + "</span>"
+      + "</div>";
+  }
+  function renderBelow(el, force) {
+    closeActions();
+    const key = el === addBtn ? "__add" : el && el.dataset.id;
+    if (!force && key === belowFor) return;
+    belowFor = key;
+    menuIndex = 0;
+    const ws = el && el.dataset.id ? wsById(el.dataset.id) : null;
+    /* non-git → nothing: the affordance is absent, never disabled */
+    if (!ws || !ws.git) {
+      below.innerHTML = "";
+      return;
+    }
+    /* git-backed, zero worktrees → only the quiet create entry point (S1 rule) */
+    if (!ws.worktrees.length) {
+      below.innerHTML = "<a class=\"wsov-newbtn\" href=\"../worktree/worktree-create-dialog.html\""
+        + " data-nav data-act=\"new\" tabindex=\"-1\" data-od-id=\"wt-new-btn\">"
+        + "<svg data-lucide=\"plus\"></svg>New worktree</a>";
+      lucide.createIcons();
+      return;
+    }
+    /* truncate at 5 + "All N worktrees" (adopted-only count) — locked nest rule */
+    const sorted = sortedWts(ws);
+    let html = sorted.slice(0, 5).map((wt) => rowHtml(ws, wt)).join("");
+    if (sorted.length > 5) {
+      html += "<a class=\"wsov-mrow wsov-mrow--foot\" href=\"../worktree/worktree-overview.html\""
+        + " data-nav data-act=\"all\" tabindex=\"-1\" data-od-id=\"wt-all-row\">"
+        + "<svg data-lucide=\"ellipsis\"></svg><span class=\"wsov-mname\"><b>All " + adoptedCount(ws) + " worktrees</b></span></a>";
+    }
+    html += "<div class=\"wsov-msep\" aria-hidden=\"true\"></div>"
+      + "<a class=\"wsov-mrow wsov-mrow--foot\" href=\"../worktree/worktree-create-dialog.html\""
+      + " data-nav data-act=\"new\" tabindex=\"-1\" data-od-id=\"wt-new-row\">"
+      + "<svg data-lucide=\"plus\"></svg><span class=\"wsov-mname\"><b>New worktree</b></span></a>";
+    below.innerHTML = "<div class=\"wsov-menu\" role=\"listbox\" aria-label=\"Worktrees of " + ws.name + "\" data-od-id=\"wt-menu\">" + html + "</div>";
+    lucide.createIcons();
+  }
+
+  /* ---- overflow + scroll ---- */
   function paintOverflow() {
     const max = track.scrollWidth - track.clientWidth;
     if (max <= 2) {
@@ -393,31 +535,54 @@
     });
     return best;
   }
+
+  /* ---- focus (roving: strip ↔ menu) ---- */
+  function paintHints() {
+    $("#wsovHintDrill").hidden = navRows().length === 0;
+    $("#wsovHintWs").hidden = layer !== "ws";
+    $("#wsovHintWt").hidden = layer !== "menu";
+  }
   function paintFocus(opts) {
+    closeActions();
     const skipScroll = opts && opts.skipScroll;
     const instant = opts && opts.instant;
     const list = items();
     list.forEach((el, i) => {
+      /* the plate stays on the focused tile while the menu owns key focus —
+         it anchors which workspace the menu belongs to */
       const on = i === focusIndex;
       el.classList.toggle("is-on", on);
-      el.tabIndex = on ? 0 : -1;
+      el.tabIndex = layer === "ws" && on ? 0 : -1;
       el.setAttribute("aria-selected", on ? "true" : "false");
     });
     const active = list[focusIndex];
     row.setAttribute("aria-activedescendant", active.id);
     captionFor(active);
-    if (open) active.focus({ preventScroll: true });
+    renderBelow(active);
+    const rows = navRows();
+    rows.forEach((el, i) => {
+      const on = layer === "menu" && i === menuIndex;
+      el.classList.toggle("is-on", on);
+      el.tabIndex = on ? 0 : -1;
+    });
+    if (open) {
+      if (layer === "menu" && rows[menuIndex]) rows[menuIndex].focus({ preventScroll: true });
+      else active.focus({ preventScroll: true });
+    }
     if (!skipScroll) keepInView(active, instant);
     else paintOverflow();
+    paintHints();
   }
   function paintChrome() {
     const n = WORKSPACES.length;
-    $("#wsovSub").textContent = n + " workspace" + (n === 1 ? "" : "s") + " · " + totalAgents() + " agents";
+    $("#wsovSub").textContent = n + " workspace" + (n === 1 ? "" : "s") + " · " + totalWorktrees() + " worktrees";
     overlay.dataset.scope = scope;
     const notice = $("#wsovNotice");
     notice.hidden = scope !== "global";
+    /* current = check; a worktree scope moves the check into the menu and the
+       parent tile carries the branch badge instead (one marker per layer) */
     $$(".wsov-tile[data-id]", row).forEach((el) => {
-      if (el.dataset.id === currentId && scope === "workspace") el.setAttribute("data-current", "");
+      if (el.dataset.id === currentId && scope === "workspace") el.setAttribute("data-current", currentWt ? "wt" : "");
       else el.removeAttribute("data-current");
     });
     const avatar = $("#wsAvatar");
@@ -430,17 +595,36 @@
     } else {
       trigger.dataset.scope = "workspace";
       avatar.classList.remove("ws-avatar--path");
-      const ws = WORKSPACES.find((w) => w.id === currentId);
+      const ws = wsById(currentId);
       avatar.textContent = ws.mono;
-      name.textContent = ws.name;
+      /* trigger parity with S1: workspace / worktree when a worktree is the scope */
+      name.textContent = currentWt ? ws.name + " / " + currentWt : ws.name;
     }
     toggle.setAttribute("aria-pressed", scope === "global" ? "true" : "false");
   }
+
+  function enterMenu() {
+    const rows = navRows();
+    if (!rows.length) return;
+    layer = "menu";
+    let idx = rows.findIndex((el) => el.getAttribute("aria-selected") === "true");
+    if (idx < 0) idx = 0;
+    menuIndex = idx;
+    paintFocus({ skipScroll: true });
+  }
+  function leaveMenu() {
+    if (layer !== "menu") return;
+    layer = "ws";
+    paintFocus({ skipScroll: true });
+  }
+
   function openOverlay() {
     open = true;
     overlay.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
     setInert(true);
+    layer = "ws";
+    belowFor = null;
     const idx = Math.max(0, WORKSPACES.findIndex((w) => w.id === currentId));
     focusIndex = scope === "global" ? 0 : idx;
     paintChrome();
@@ -449,6 +633,7 @@
   }
   function closeOverlay() {
     open = false;
+    layer = "ws";
     overlay.hidden = true;
     trigger.setAttribute("aria-expanded", "false");
     setInert(false);
@@ -457,26 +642,55 @@
   function toggleScope() {
     if (scope === "global") {
       scope = "workspace";
-      currentId = remembered;
+      currentId = remembered.ws;
+      currentWt = remembered.wt;
     } else {
-      remembered = currentId;
+      remembered = { ws: currentId, wt: currentWt };
       scope = "global";
     }
+    belowFor = null;
     paintChrome();
     if (open) paintFocus();
   }
+  function activateMenu(el) {
+    const act = el.dataset.act;
+    if (act === "adopt") {
+      /* adopt-on-select reaches the same confirm as S1/S3 (US-009 / ADR-002) */
+      toast("<b>" + el.dataset.id + "</b> opens the Adopt confirm — metadata validated, bootstrap is not re-run.");
+      return;
+    }
+    if (act === "all" || act === "new") {
+      /* real cross-links into the worktree set */
+      window.location.href = el.getAttribute("href");
+      return;
+    }
+    const ws = wsById(items()[focusIndex].dataset.id);
+    if (!ws) return;
+    if (scope === "global") scope = "workspace";
+    currentId = ws.id;
+    currentWt = el.dataset.id;
+    remembered = { ws: currentId, wt: currentWt };
+    belowFor = null;
+    paintChrome();
+    closeOverlay();
+  }
   function activate() {
+    if (layer === "menu") {
+      const el = navRows()[menuIndex];
+      if (el) activateMenu(el);
+      return;
+    }
     const el = items()[focusIndex];
     if (el === addBtn) {
       toast("Add workspace opens the directory picker — the existing product flow.");
       return;
     }
     const id = el.dataset.id;
-    if (scope === "global") {
-      scope = "workspace";
-    }
+    if (scope === "global") scope = "workspace";
     currentId = id;
-    remembered = id;
+    currentWt = null; /* Enter on the tile lands on the workspace root */
+    remembered = { ws: id, wt: null };
+    belowFor = null;
     paintChrome();
     closeOverlay();
   }
@@ -484,11 +698,22 @@
     const list = items();
     const next = (focusIndex + dir + list.length) % list.length;
     const wrapping = (dir > 0 && next < focusIndex) || (dir < 0 && next > focusIndex);
+    layer = "ws";
     focusIndex = next;
     paintFocus({ instant: wrapping });
   }
-  /* type-to-jump — listbox typeahead: prefix match on workspace names;
-     repeating one letter cycles its matches. No visible UI. */
+  function moveMenu(dir) {
+    const rows = navRows();
+    if (!rows.length) return;
+    const next = menuIndex + dir;
+    if (next < 0) {
+      leaveMenu();
+      return;
+    }
+    menuIndex = Math.min(rows.length - 1, next);
+    paintFocus({ skipScroll: true });
+  }
+  /* type-to-jump — listbox typeahead on workspace names (strip layer only) */
   function typeJump(ch) {
     window.clearTimeout(typeTimer);
     typeTimer = window.setTimeout(() => { typeBuf = ""; }, 650);
@@ -501,7 +726,11 @@
     for (let s = 0; s < list.length; s++) {
       const i = (start + s) % list.length;
       if (names[i].startsWith(prefix)) {
-        if (i !== focusIndex) { focusIndex = i; paintFocus(); }
+        if (i !== focusIndex) {
+          layer = "ws";
+          focusIndex = i;
+          paintFocus();
+        }
         return;
       }
     }
@@ -512,15 +741,43 @@
   });
   overlay.addEventListener("keydown", (e) => {
     if (!open) return;
-    if (e.key === "Escape") { e.preventDefault(); closeOverlay(); return; }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (actionsEl) { closeActions(); return; }
+      if (layer === "menu") leaveMenu();
+      else closeOverlay();
+      return;
+    }
     if (e.key === "ArrowRight") { e.preventDefault(); move(1); return; }
     if (e.key === "ArrowLeft") { e.preventDefault(); move(-1); return; }
-    if (e.key === "Home") { e.preventDefault(); focusIndex = 0; paintFocus({ instant: true }); return; }
-    if (e.key === "End") { e.preventDefault(); focusIndex = items().length - 1; paintFocus({ instant: true }); return; }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (layer === "menu") moveMenu(1);
+      else enterMenu();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (layer === "menu") moveMenu(-1);
+      return;
+    }
+    if (e.key === "Home") {
+      e.preventDefault();
+      if (layer === "menu") { menuIndex = 0; paintFocus({ skipScroll: true }); }
+      else { focusIndex = 0; paintFocus({ instant: true }); }
+      return;
+    }
+    if (e.key === "End") {
+      e.preventDefault();
+      if (layer === "menu") { menuIndex = navRows().length - 1; paintFocus({ skipScroll: true }); }
+      else { focusIndex = items().length - 1; paintFocus({ instant: true }); }
+      return;
+    }
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); return; }
     if (e.key === "Tab") {
       e.preventDefault();
-      move(e.shiftKey ? -1 : 1);
+      if (layer === "menu") moveMenu(e.shiftKey ? -1 : 1);
+      else move(e.shiftKey ? -1 : 1);
       return;
     }
     if (e.key.length === 1 && /[a-z0-9-]/i.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -532,16 +789,101 @@
     if (track.dataset.dragged) return;
     const tile = e.target.closest(".wsov-tile");
     if (!tile) return;
+    layer = "ws";
     focusIndex = items().indexOf(tile);
     paintFocus();
     activate();
   });
   row.addEventListener("mousemove", (e) => {
-    if (drag && drag.moved) return;
+    if (track.classList.contains("is-dragging")) return;
     const tile = e.target.closest(".wsov-tile");
-    if (!tile || tile === items()[focusIndex]) return;
+    if (!tile || (layer === "ws" && tile === items()[focusIndex])) return;
+    layer = "ws";
     focusIndex = items().indexOf(tile);
     paintFocus({ skipScroll: true });
+  });
+  /* ---- row actions popover — Copy path · Delete ---- */
+  let actionsEl = null;
+  let actionsFor = null;
+  function closeActions() {
+    if (!actionsEl) return;
+    const kebab = actionsFor && actionsFor.querySelector(".wsov-mkebab");
+    if (kebab) kebab.setAttribute("aria-expanded", "false");
+    actionsEl.remove();
+    actionsEl = null;
+    actionsFor = null;
+  }
+  function openActions(kebab) {
+    const rowEl = kebab.closest(".wsov-mrow");
+    if (actionsFor === rowEl) {
+      closeActions();
+      return;
+    }
+    closeActions();
+    const menuEl = $(".wsov-menu", below);
+    if (!menuEl || !rowEl) return;
+    actionsFor = rowEl;
+    kebab.setAttribute("aria-expanded", "true");
+    actionsEl = document.createElement("div");
+    actionsEl.className = "wsov-actions";
+    actionsEl.setAttribute("role", "menu");
+    actionsEl.setAttribute("aria-label", "Worktree actions");
+    actionsEl.innerHTML =
+      "<button class=\"wsov-actitem\" type=\"button\" role=\"menuitem\" data-action=\"copy\"><svg data-lucide=\"copy\"></svg>Copy path</button>"
+      + "<button class=\"wsov-actitem wsov-actitem--danger\" type=\"button\" role=\"menuitem\" data-action=\"delete\"><svg data-lucide=\"trash-2\"></svg>Delete worktree…</button>";
+    menuEl.appendChild(actionsEl);
+    actionsEl.style.top = (rowEl.offsetTop + rowEl.offsetHeight - 8) + "px";
+    lucide.createIcons();
+  }
+  function runAction(btn) {
+    const rowEl = actionsFor;
+    const action = btn.dataset.action;
+    closeActions();
+    if (!rowEl) return;
+    const path = rowEl.dataset.path || "";
+    const name = rowEl.dataset.id || "";
+    if (action === "copy") {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(path).then(
+          () => toast("Path copied — <span class=\"mono\">" + path + "</span>"),
+          () => toast("<span class=\"mono\">" + path + "</span>")
+        );
+      } else toast("<span class=\"mono\">" + path + "</span>");
+      return;
+    }
+    /* gating: DELETE /api/workspaces/:id/worktrees/:wt — dirty/unpushed refuse
+       without force; the S13 remove dialogs own the real flow */
+    toast("Remove <b>" + name + "</b> opens the confirm — dirty or unpushed work requires force.");
+  }
+  document.addEventListener("pointerdown", (e) => {
+    if (!actionsEl) return;
+    if (e.target.closest(".wsov-actions") || e.target.closest(".wsov-mkebab")) return;
+    closeActions();
+  });
+
+  below.addEventListener("click", (e) => {
+    const kebab = e.target.closest(".wsov-mkebab");
+    if (kebab) {
+      e.preventDefault();
+      e.stopPropagation();
+      openActions(kebab);
+      return;
+    }
+    const item = e.target.closest(".wsov-actitem");
+    if (item) {
+      e.preventDefault();
+      runAction(item);
+      return;
+    }
+    const el = e.target.closest("[data-act]");
+    if (!el) return;
+    const act = el.dataset.act;
+    if (act === "all" || act === "new") return; /* native anchor navigation */
+    e.preventDefault();
+    layer = "menu";
+    menuIndex = navRows().indexOf(el);
+    paintFocus({ skipScroll: true });
+    activateMenu(el);
   });
 
   track.addEventListener("scroll", () => {
@@ -551,6 +893,7 @@
     scrollEndTimer = window.setTimeout(() => {
       const i = nearestIndex();
       if (i !== focusIndex) {
+        layer = "ws";
         focusIndex = i;
         paintFocus({ skipScroll: true });
       }
@@ -559,6 +902,7 @@
 
   function scrubWheel(e) {
     if (strip.dataset.overflow === "none") return;
+    if (e.target.closest(".wsov-menu")) return;
     const dominant = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
     if (dominant === 0) return;
     e.preventDefault();
@@ -566,6 +910,7 @@
   }
   overlay.addEventListener("wheel", scrubWheel, { passive: false });
 
+  let drag = null;
   track.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
     drag = { pid: e.pointerId, x: e.clientX, sl: track.scrollLeft, moved: false };
@@ -590,8 +935,8 @@
     if (!moved) return;
     track.dataset.dragged = "1";
     requestAnimationFrame(() => { delete track.dataset.dragged; });
-    const i = nearestIndex();
-    focusIndex = i;
+    layer = "ws";
+    focusIndex = nearestIndex();
     paintFocus();
   }
   track.addEventListener("pointerup", endDrag);

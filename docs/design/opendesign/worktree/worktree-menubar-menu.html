@@ -15,23 +15,23 @@
   worktree-menubar-menu · S2 — OS menubar workspace menu + chip.
   Spec: .compozy/tasks/worktree-support/_uiux.md §S2 · stories US-010, US-011 (EC-1).
   Provenance:
-    production            — 44px menubar + chip anatomy from os-menubar.tsx:135-142
-                            (18px monogram per tokens.css --size-workspace-avatar, name 12.5/600,
-                            chevrons-up-down); menu skeleton from workspace-menu.tsx:32-59
-                            (monogram square items, accent check on active, separator,
-                            "Workspaces overview…", "Add workspace…"); menubar chrome classes
-                            from ds-shell.css (.menubar/.ws-trigger/.ws-avatar/.popover)
-    spec worktree-support — nested worktree projection identical to S1 (one query, two surfaces —
-                            they must not diverge); chip states parent + selected worktree
-                            ("compozy / payments-retry"); missing fallback per US-011 EC-1
-    authorized delta      — .popover is position:fixed in ds-shell; demos pin it static
-                            (.popover--demo) so states render inline
+    production            — 44px menubar + chip anatomy from os-menubar.tsx
+                            (18px monogram, name 12.5/600, chevrons-up-down); menu
+                            skeleton from workspace-menu.tsx (monogram square items,
+                            accent check on active, separator, "Workspaces overview…",
+                            "Add workspace…"); menubar chrome from ds-shell.css
+    spec worktree-support — same WorktreeSubmenuPanel as S1 (one query, two hosts —
+                            they must not diverge); chip states parent + selected
+                            worktree; missing fallback per US-011 EC-1
+    authorized delta      — git-backed rows are MenubarSub: hover / ArrowRight opens
+                            a 320px side panel. Pointer click on the workspace selects
+                            it and closes. No inline nest. .popover is position:fixed
+                            in ds-shell; demos pin it static (.popover--demo).
 -->
 <style>
-  /* page-local, bare tokens only */
   a{color:inherit;text-decoration:none}
   .popover--demo{position:static;animation:none;width:300px}
-  .mb-demo{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--rail)}
+  .mb-demo{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:visible;background:var(--rail)}
   .mb-demo .menubar{border-bottom:0}
   .mb-drop{display:flex;gap:0;align-items:flex-start;padding:0 0 18px 46px;background:var(--rail)}
   .ws-sep{font-size:12px;color:var(--faint);padding:0 1px}
@@ -40,6 +40,9 @@
     background:var(--info-tint);color:var(--info);font-size:11px;line-height:1.4}
   .mb-notice svg{width:12px;height:12px;flex:none}
   .pop-item .pi-check--accent{margin-left:auto;color:var(--accent);width:12px;height:12px}
+  .pop-item .cs-chev{margin-left:0}
+  .pop-trail{margin-left:auto;display:flex;align-items:center;gap:4px;flex:none}
+  .page{max-width:1100px}
 </style>
 </head>
 <body>
@@ -67,7 +70,7 @@
         <span class="lab-sec__gist">the shell always says where new work will run</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Workspace only</b>Production chip verbatim — monogram square, name, chevrons (<code>os-menubar.tsx:135-142</code>). Scope is the workspace root.</div>
+        <div class="spec__note"><b>Workspace only</b>Production chip verbatim — monogram square, name, chevrons (<code>os-menubar.tsx</code>). Scope is the workspace root.</div>
         <div class="spec__demo">
           <div class="mb-demo">
             <header class="menubar" data-od-id="mb-strip-workspace">
@@ -119,13 +122,13 @@
       </div>
     </section>
 
-    <!-- ════ 02 · MENU · NESTED PROJECTION ════ -->
+    <!-- ════ 02 · MENU · SIDE SUBMENU ════ -->
     <section class="lab-sec" data-od-id="s2-menu">
-      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Menu — nested projection</h2>
-        <span class="lab-sec__gist">same query as S1, condensed · the two surfaces must not diverge</span></div>
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Menu — side submenu</h2>
+        <span class="lab-sec__gist">same panel as S1 · hover or ArrowRight · click selects the workspace</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Workspace scope active</b>Same query, same set, same locked sort as the S1 mixed nest (ready → pending → discovered → missing; activity desc within group) — the two surfaces render identically. Discovered is selectable (adopt-on-select, S1 §05); pending/missing rest inert with the reason in the right lane. Accent check marks the active workspace (production <code>workspace-menu.tsx:47</code>).</div>
+        <div class="spec__note"><b>Workspace scope active</b>Git-backed rows are a <code>MenubarSub</code>: chevron-right in the trailing lane, check when the workspace is active. Hover opens the 320px panel. Pointer click selects the workspace and closes; Enter / screen-reader activation keeps the submenu open. notes has no submenu.</div>
         <div class="spec__demo">
           <div class="mb-demo">
             <header class="menubar">
@@ -145,61 +148,102 @@
               </div>
             </header>
             <div class="mb-drop">
-              <div class="popover popover--demo" role="menu" data-od-id="mb-menu-nested">
-                <!-- gating: GET /api/workspaces → items[]; same query as S1 switcher (must not diverge) -->
-                <button class="pop-item" data-od-id="mb-item-compozy">
-                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>
-                  compozy
-                  <svg class="pi-check pi-check--accent" data-lucide="check"></svg>
-                </button>
-                <!-- gating: GET /api/workspaces/:id/worktrees → items[]; nest only when workspace.git.backed.
-                     Locked sort: ready → pending → discovered → missing · activity desc within group -->
-                <div class="wt-nest" role="group" aria-label="Worktrees in compozy" data-od-id="mb-nest-compozy">
-                  <div class="wt-row" role="menuitemradio" aria-checked="false">
-                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>payments-retry</b></span></span>
-                    <span class="wt-row__trail"><span class="wt-agent" title="Fix payment retries · claude"><span class="d d--run d--pulse"></span></span></span>
+              <div class="wt-fly" data-wt-fly data-od-id="mb-menu-nested">
+                <div class="popover popover--demo" role="menu">
+                  <!-- gating: GET /api/workspaces → items[]; same query as S1 switcher -->
+                  <button class="pop-item" data-wt-host="compozy" aria-haspopup="menu" aria-expanded="true" data-od-id="mb-item-compozy">
+                    <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>
+                    compozy
+                    <span class="wt-agg"><span class="d d--run d--pulse"></span>1 active</span>
+                    <span class="pop-trail">
+                      <svg class="pi-check pi-check--accent" data-lucide="check"></svg>
+                      <svg class="cs-chev" data-lucide="chevron-right" aria-hidden="true"></svg>
+                    </span>
+                  </button>
+                  <button class="pop-item" data-wt-host="branas" aria-haspopup="menu" aria-expanded="false">
+                    <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">B</span>
+                    branas-site
+                    <span class="pop-trail"><svg class="cs-chev" data-lucide="chevron-right" aria-hidden="true"></svg></span>
+                  </button>
+                  <!-- notes: workspace.git.backed = false → no nest, no worktree affordance -->
+                  <button class="pop-item">
+                    <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">N</span>
+                    notes
+                  </button>
+                  <div class="pop-sep"></div>
+                  <button class="pop-item" data-od-id="mb-overview">Workspaces overview…</button>
+                  <button class="pop-item" data-od-id="mb-add">Add workspace…</button>
+                </div>
+                <div class="wt-sub" role="menu" aria-label="Worktrees in compozy" data-wt-sub="compozy" data-od-id="mb-sub-compozy">
+                  <!-- gating: GET /api/workspaces/:id/worktrees; locked sort ready → pending → discovered → missing -->
+                  <div class="wt-sub-row">
+                    <div class="wt-row" role="menuitemradio" aria-checked="false">
+                      <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>payments-retry</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/payments-retry</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-agent" title="Fix payment retries · claude"><span class="d d--run d--pulse"></span></span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for payments-retry"><svg data-lucide="ellipsis"></svg></button>
                   </div>
-                  <div class="wt-row" role="menuitemradio" aria-checked="false">
-                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>auth-refresh</b></span></span>
-                    <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                  <div class="wt-sub-row">
+                    <div class="wt-row" role="menuitemradio" aria-checked="false">
+                      <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>auth-refresh</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/auth-refresh</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for auth-refresh"><svg data-lucide="ellipsis"></svg></button>
                   </div>
-                  <div class="wt-row" data-inert aria-disabled="true">
-                    <span class="wt-dot" data-state="pending"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>docs-refresh</b><span class="wt-chip" data-state="pending">pending</span></span></span>
-                    <span class="wt-row__trail"><span class="wt-inert-why">materializing</span></span>
+                  <div class="wt-sub-row">
+                    <div class="wt-row" data-inert aria-disabled="true">
+                      <span class="wt-dot" data-state="pending"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>docs-refresh</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/docs-refresh</span>
+                        <span class="wt-chip" data-state="pending">pending</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-inert-why">materializing</span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for docs-refresh"><svg data-lucide="ellipsis"></svg></button>
                   </div>
-                  <!-- gating: discovered → selectable; selecting adopts after identity validation
-                       (US-009 AC-1, ADR-002 adopt-on-select) — confirm dialog in S1 §05 -->
-                  <div class="wt-row" data-state="discovered" role="menuitemradio" aria-checked="false" data-od-id="mb-wt-discovered">
-                    <span class="wt-dot" data-state="discovered"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>spike-sqlite-vacuum</b><span class="wt-chip" data-state="discovered">discovered</span></span></span>
-                    <span class="wt-row__trail"><span class="wt-adopt">Adopt</span></span>
+                  <div class="wt-sub-row">
+                    <div class="wt-row" data-state="discovered" role="menuitemradio" aria-checked="false" data-od-id="mb-wt-discovered">
+                      <span class="wt-dot" data-state="discovered"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>spike-sqlite-vacuum</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">../compozy-spike</span>
+                        <span class="wt-chip" data-state="discovered">discovered</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-adopt">Adopt</span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for spike-sqlite-vacuum"><svg data-lucide="ellipsis"></svg></button>
                   </div>
-                  <div class="wt-row" data-state="missing" data-inert aria-disabled="true">
-                    <span class="wt-dot" data-state="missing"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>hotfix-cors</b><span class="wt-chip" data-state="missing">missing</span></span></span>
-                    <span class="wt-row__trail"><span class="wt-inert-why">directory missing</span></span>
+                  <div class="wt-sub-row">
+                    <div class="wt-row" data-state="missing" data-inert aria-disabled="true">
+                      <span class="wt-dot" data-state="missing"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>hotfix-cors</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/hotfix-cors</span>
+                        <span class="wt-chip" data-state="missing">missing</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-inert-why">directory missing</span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for hotfix-cors"><svg data-lucide="ellipsis"></svg></button>
                   </div>
-                  <!-- gating: POST /api/workspaces/:id/worktrees; hidden when !workspace.git.backed -->
-                  <a class="pop-item" href="worktree-create-dialog.html" style="color:var(--muted)" data-od-id="mb-new-worktree">
+                  <div class="wt-sub-sep"></div>
+                  <a class="wt-sub-foot" href="worktree-create-dialog.html" data-od-id="mb-new-worktree">
                     <svg data-lucide="plus"></svg>New worktree
                   </a>
                 </div>
-                <button class="pop-item">
-                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">B</span>
-                  branas-site
-                </button>
-                <!-- notes: workspace.git.backed = false → no nest, no worktree affordance -->
-                <button class="pop-item">
-                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">N</span>
-                  notes
-                </button>
-                <div class="pop-sep"></div>
-                <!-- production: workspace-menu.tsx:52-57 -->
-                <button class="pop-item" data-od-id="mb-overview">Workspaces overview…</button>
-                <button class="pop-item" data-od-id="mb-add">Add workspace…</button>
+                <div class="wt-sub" role="menu" aria-label="Worktrees in branas-site" data-wt-sub="branas" hidden>
+                  <a class="wt-sub-foot" href="worktree-create-dialog.html">
+                    <svg data-lucide="plus"></svg>New worktree
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -207,7 +251,7 @@
       </div>
 
       <div class="spec">
-        <div class="spec__note"><b>Worktree scope active</b>The accent check moves to the scoped worktree row and the chip states both halves — chip and menu never disagree.</div>
+        <div class="spec__note"><b>Worktree scope active</b>The workspace row keeps its accent check (it is still the active workspace). The scoped worktree adds a second check inside the panel — chip and menu never disagree.</div>
         <div class="spec__demo">
           <div class="mb-demo">
             <header class="menubar">
@@ -229,40 +273,65 @@
               </div>
             </header>
             <div class="mb-drop">
-              <div class="popover popover--demo" role="menu" data-od-id="mb-menu-worktree-scope">
-                <button class="pop-item">
-                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>
-                  compozy
-                </button>
-                <div class="wt-nest" role="group" aria-label="Worktrees in compozy">
+              <div class="wt-fly" data-wt-static data-od-id="mb-menu-worktree-scope">
+                <div class="popover popover--demo" role="menu">
+                  <button class="pop-item" data-wt-host="compozy-sel" aria-haspopup="menu" aria-expanded="true">
+                    <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>
+                    compozy
+                    <span class="pop-trail">
+                      <svg class="pi-check pi-check--accent" data-lucide="check"></svg>
+                      <svg class="cs-chev" data-lucide="chevron-right" aria-hidden="true"></svg>
+                    </span>
+                  </button>
+                  <button class="pop-item">
+                    <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">B</span>
+                    branas-site
+                    <span class="pop-trail"><svg class="cs-chev" data-lucide="chevron-right" aria-hidden="true"></svg></span>
+                  </button>
+                  <button class="pop-item">
+                    <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">N</span>
+                    notes
+                  </button>
+                  <div class="pop-sep"></div>
+                  <button class="pop-item">Workspaces overview…</button>
+                  <button class="pop-item">Add workspace…</button>
+                </div>
+                <div class="wt-sub" role="menu" aria-label="Worktrees in compozy" data-wt-sub="compozy-sel">
                   <!-- gating: context.scope.worktree_id = wt_payments_retry (US-011) -->
-                  <div class="wt-row" data-selected role="menuitemradio" aria-checked="true">
-                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>payments-retry</b></span></span>
-                    <span class="wt-row__trail"><span class="wt-agent"><span class="d d--run d--pulse"></span></span><svg class="pi-check pi-check--accent" data-lucide="check" style="margin-left:0"></svg></span>
+                  <div class="wt-sub-row">
+                    <div class="wt-row" data-selected role="menuitemradio" aria-checked="true">
+                      <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>payments-retry</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/payments-retry</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-agent"><span class="d d--run d--pulse"></span></span><svg class="pi-check pi-check--accent" data-lucide="check" style="margin-left:0"></svg></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for payments-retry"><svg data-lucide="ellipsis"></svg></button>
                   </div>
-                  <div class="wt-row" role="menuitemradio" aria-checked="false">
-                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>auth-refresh</b></span></span>
-                    <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                  <div class="wt-sub-row">
+                    <div class="wt-row" role="menuitemradio" aria-checked="false">
+                      <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>auth-refresh</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/auth-refresh</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for auth-refresh"><svg data-lucide="ellipsis"></svg></button>
                   </div>
-                  <div class="wt-row" role="menuitemradio" aria-checked="false">
-                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>fix-flaky-e2e</b></span></span>
-                    <span class="wt-row__trail"><span class="wt-merged"><svg data-lucide="git-merge"></svg>Merged</span></span>
+                  <div class="wt-sub-row">
+                    <div class="wt-row" role="menuitemradio" aria-checked="false">
+                      <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>fix-flaky-e2e</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/fix-flaky-e2e</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-merged"><svg data-lucide="git-merge"></svg>Merged</span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for fix-flaky-e2e"><svg data-lucide="ellipsis"></svg></button>
                   </div>
                 </div>
-                <button class="pop-item">
-                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">B</span>
-                  branas-site
-                </button>
-                <button class="pop-item">
-                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">N</span>
-                  notes
-                </button>
-                <div class="pop-sep"></div>
-                <button class="pop-item">Workspaces overview…</button>
-                <button class="pop-item">Add workspace…</button>
               </div>
             </div>
           </div>
@@ -276,7 +345,7 @@
         <span class="lab-sec__gist">US-011 EC-1 · chip reverts to the workspace root, one quiet notice explains why</span></div>
 
       <div class="spec">
-        <div class="spec__note"><b>Fallback</b><code>hotfix-cors</code> was the scope; its directory vanished out of band. The chip drops the worktree half — it never shows a scope that cannot receive work — and the menu opens with one info-tone notice row. The missing row keeps its chip; resolution lives in S15.</div>
+        <div class="spec__note"><b>Fallback</b><code>hotfix-cors</code> was the scope; its directory vanished out of band. The chip drops the worktree half — it never shows a scope that cannot receive work — and the menu opens with one info-tone notice row. The missing row keeps its chip inside the side panel; resolution lives in S15.</div>
         <div class="spec__demo">
           <div class="mb-demo">
             <header class="menubar" data-od-id="mb-strip-fallback">
@@ -297,39 +366,61 @@
               </div>
             </header>
             <div class="mb-drop" style="flex-direction:column;align-items:flex-start;gap:6px">
-              <!-- notice = functional label (why the scope changed), info tone, once, dismissed on
-                   next scope change; sits OUTSIDE the menu (role="menu" holds menu items only) -->
               <div class="mb-notice" role="status" style="width:300px" data-od-id="mb-missing-notice">
                 <svg data-lucide="info"></svg>
                 hotfix-cors is missing — new work runs at the workspace root
               </div>
-              <div class="popover popover--demo" role="menu" data-od-id="mb-menu-fallback">
-                <button class="pop-item">
-                  <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>
-                  compozy
-                  <svg class="pi-check pi-check--accent" data-lucide="check"></svg>
-                </button>
-                <div class="wt-nest" role="group" aria-label="Worktrees in compozy">
-                  <div class="wt-row" role="menuitemradio" aria-checked="false">
-                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>payments-retry</b></span></span>
-                    <span class="wt-row__trail"><span class="wt-agent"><span class="d d--run d--pulse"></span></span></span>
+              <div class="wt-fly" data-wt-static data-od-id="mb-menu-fallback">
+                <div class="popover popover--demo" role="menu">
+                  <button class="pop-item" data-wt-host="compozy-miss" aria-haspopup="menu" aria-expanded="true">
+                    <span class="ws-avatar" style="width:16px;height:16px;font-size:8px">CO</span>
+                    compozy
+                    <span class="pop-trail">
+                      <svg class="pi-check pi-check--accent" data-lucide="check"></svg>
+                      <svg class="cs-chev" data-lucide="chevron-right" aria-hidden="true"></svg>
+                    </span>
+                  </button>
+                  <div class="pop-sep"></div>
+                  <button class="pop-item">Workspaces overview…</button>
+                  <button class="pop-item">Add workspace…</button>
+                </div>
+                <div class="wt-sub" role="menu" aria-label="Worktrees in compozy" data-wt-sub="compozy-miss">
+                  <div class="wt-sub-row">
+                    <div class="wt-row" role="menuitemradio" aria-checked="false">
+                      <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>payments-retry</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/payments-retry</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-agent"><span class="d d--run d--pulse"></span></span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for payments-retry"><svg data-lucide="ellipsis"></svg></button>
                   </div>
-                  <div class="wt-row" role="menuitemradio" aria-checked="false">
-                    <span class="d d--ok" style="justify-self:center" title="ready"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>auth-refresh</b></span></span>
-                    <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                  <div class="wt-sub-row">
+                    <div class="wt-row" role="menuitemradio" aria-checked="false">
+                      <span class="d d--ok" style="justify-self:center" title="ready"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>auth-refresh</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/auth-refresh</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-ab"><span class="behind" data-hot>2</span></span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for auth-refresh"><svg data-lucide="ellipsis"></svg></button>
                   </div>
                   <!-- gating: selection blocked while state === "missing"; resolve path = S15 dialogs -->
-                  <div class="wt-row" data-state="missing" data-inert aria-disabled="true">
-                    <span class="wt-dot" data-state="missing"></span>
-                    <span class="wt-row__main"><span class="wt-row__name"><b>hotfix-cors</b><span class="wt-chip" data-state="missing">missing</span></span></span>
-                    <span class="wt-row__trail"><span class="wt-inert-why">directory missing</span></span>
+                  <div class="wt-sub-row">
+                    <div class="wt-row" data-state="missing" data-inert aria-disabled="true">
+                      <span class="wt-dot" data-state="missing"></span>
+                      <span class="wt-row__main">
+                    <span class="wt-row__name"><b>hotfix-cors</b></span>
+                    <span class="wt-row__line2"><span class="wt-row__path">~/.compozy/worktrees/compozy/hotfix-cors</span>
+                        <span class="wt-chip" data-state="missing">missing</span></span>
+                  </span>
+                  <span class="wt-row__trail"><span class="wt-inert-why">directory missing</span></span>
+                    </div>
+                    <button class="wt-more" aria-label="Actions for hotfix-cors"><svg data-lucide="ellipsis"></svg></button>
                   </div>
                 </div>
-                <div class="pop-sep"></div>
-                <button class="pop-item">Workspaces overview…</button>
-                <button class="pop-item">Add workspace…</button>
               </div>
             </div>
           </div>
@@ -338,14 +429,15 @@
     </section>
 
     <p style="font-size:11px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px;max-width:66ch">
-      S2 of the worktree set — mirrors the switcher (<a href="worktree-nav-switcher.html" style="color:var(--subtle)">S1</a>) nested
-      projection from the same query; overview at <a href="worktree-overview.html" style="color:var(--subtle)">S3</a>.
+      S2 of the worktree set — hosts the same side submenu as the switcher (<a href="worktree-nav-switcher.html" style="color:var(--subtle)">S1</a>);
+      overview at <a href="worktree-overview.html" style="color:var(--subtle)">S3</a>.
       Spec <span class="mono">.compozy/tasks/worktree-support/_uiux.md §S2</span> · content illustrative, runtime truth owns final values.
     </p>
 
   </div></div>
 </div></div>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="worktree.js"></script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

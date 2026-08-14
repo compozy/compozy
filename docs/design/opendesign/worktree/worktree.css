@@ -195,11 +195,91 @@
 .wt-row__meta{display:flex;align-items:center;gap:8px}
 .wt-row__time{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);font-variant-numeric:tabular-nums}
 
-/* ============ S1/S2/S3 · NESTED PROJECTION (indent + 1px rail — never box-drawing glyphs) ============ */
-.wt-nest{position:relative;margin-left:15px;padding-left:12px}
-.wt-nest::before{content:"";position:absolute;left:0;top:2px;bottom:2px;width:1px;background:var(--line-strong)}
-.wt-nest .cs-item,.wt-nest .wt-row{min-height:30px;padding-block:4px}
-/* non-selectable nest rows (pending/missing) — resting cursor, no hover fill; the right lane
+/* ============ S1/S2/S3 · SIDE SUBMENU (hover flyout — never an inline nest) ============
+   Production: WorktreeHoverSubmenu Popover (side=right, align=start, sideOffset=0,
+   w-80, p-1, 120ms close) and MenubarSub. The fly is [host | 320px panel].
+   Host is the switcher/menubar popover, or ONE overview card group — never the
+   whole overlay. Click on the workspace still selects it. */
+.spec__demo,.scrim--demo,.lab-sec{overflow:visible}
+.wt-fly{position:relative;display:flex;align-items:flex-start;gap:0;overflow:visible}
+.wt-sub{
+  width:320px;min-width:320px;max-width:320px;overflow-x:hidden;flex:none;
+  padding:4px;background:var(--elevated);border:1px solid var(--line-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-overlay);
+}
+.wt-sub[hidden]{display:none}
+/* WorktreeRow density="nest": two lines — name, then path + sm chip. */
+.wt-sub .wt-row{
+  grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:8px;
+  min-height:0;padding:4px 6px;
+}
+.wt-sub .wt-row__main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.wt-sub .wt-row__line2{display:flex;align-items:center;gap:6px;min-width:0}
+.wt-sub .wt-row__path{margin-top:0;flex:1;min-width:0;font-size:9.5px}
+.wt-sub .wt-chip{height:16px;padding:0 6px;font-size:9px;font-weight:500;gap:4px}
+.wt-sub-row{display:grid;grid-template-columns:minmax(0,1fr) 24px;align-items:center;gap:2px;min-width:0}
+.wt-sub-row .wt-row{min-width:0;overflow:hidden}
+.wt-sub-row .wt-row:hover{background:var(--row-hover)}
+.wt-sub-row .wt-row:focus-visible{background:var(--row-hover);outline:2px solid var(--fg);outline-offset:2px}
+.wt-more{width:24px;height:24px;display:grid;place-items:center;border-radius:var(--radius-sm);color:var(--faint)}
+.wt-more:hover{background:var(--row-hover);color:var(--fg)}
+.wt-more:focus-visible{color:var(--fg);outline:2px solid var(--fg);outline-offset:2px}
+.wt-more svg{width:14px;height:14px}
+.wt-sub-foot{display:flex;width:100%;align-items:center;gap:8px;min-height:30px;padding:0 6px;
+  border-radius:var(--radius-sm);font-size:12px;color:var(--subtle);text-align:left}
+.wt-sub-foot:hover{background:var(--row-hover);color:var(--fg)}
+.wt-sub-foot:focus-visible{color:var(--fg);outline:2px solid var(--fg);outline-offset:2px}
+.wt-sub-foot svg{width:12px;height:12px;flex:none;color:var(--faint)}
+.wt-sub-foot:hover svg,.wt-sub-foot:focus-visible svg{color:var(--subtle)}
+.wt-sub-sep{height:1px;background:var(--line);margin:4px 3px}
+.cs-chev{width:12px;height:12px;flex:none;margin-left:auto;color:var(--faint)}
+.cs-item[aria-haspopup="menu"][aria-expanded="true"],
+.pop-item[aria-haspopup="menu"][aria-expanded="true"]{background:var(--row-hover)}
+/* Overview sibling trigger — os-workspaces-overview.tsx (card is a button). */
+.wt-trig{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:0 8px;align-self:flex-start;
+  border-radius:var(--radius-md);font-size:12px;font-weight:500;color:var(--subtle)}
+.wt-trig:hover{background:var(--row-hover);color:var(--fg)}
+.wt-trig:focus-visible{color:var(--fg);outline:2px solid var(--fg);outline-offset:2px}
+.wt-trig svg{width:12px;height:12px;color:var(--faint)}
+.wt-trig:hover svg,.wt-trig:focus-visible svg{color:var(--subtle)}
+.wt-trig[aria-expanded="true"]{background:var(--row-hover);color:var(--fg)}
+/* S3 cards — os-workspaces-overview.tsx (264px, rounded-xl, accent border when current). */
+.ov-stage{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:12px 8px 20px}
+.ov-head{display:flex;width:100%;max-width:calc(3 * 264px + 2 * 18px);align-items:flex-start;justify-content:space-between;gap:16px;padding:0 8px}
+.ov-head h3{margin:0;font-size:18px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
+.ov-head p{margin:4px 0 0;font-size:12.5px;color:var(--muted)}
+.ov-cards{display:flex;flex-wrap:wrap;justify-content:center;gap:18px;max-width:100%;padding:8px}
+.ov-group{display:flex;flex-direction:column;gap:4px;width:264px;flex:none}
+.ov-card{display:flex;flex-direction:column;gap:12px;width:100%;padding:16px;text-align:left;
+  background:var(--canvas-soft);border:1px solid var(--line-strong);border-radius:var(--radius-xl);
+  transition:transform var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+.ov-card:hover{border-color:var(--line-strong);transform:translateY(-2px)}
+.ov-card:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.ov-card[data-current]{border-color:var(--accent)}
+.ov-card__top{display:flex;align-items:center;gap:10px;min-width:0}
+.ov-card__name{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--fg-strong);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-card__meta{font-size:12px;color:var(--subtle)}
+.ov-card__members{display:flex;flex-direction:column;gap:6px}
+.ov-card__members .eyebrow{font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.ov-avs{display:flex;align-items:center}
+.ov-av{width:22px;height:22px;margin-left:-6px;border-radius:var(--radius-pill);display:grid;place-items:center;
+  background:var(--elevated);border:2px solid var(--canvas-soft);color:var(--muted);
+  font-family:var(--font-mono);font-size:8.5px;font-weight:600}
+.ov-av:first-child{margin-left:0}
+.ov-av-more{margin-left:6px;font-family:var(--font-mono);font-size:10.5px;color:var(--subtle)}
+.ov-card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  border-top:1px solid var(--line-soft);padding-top:10px}
+.ov-card__path{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-card__enter{display:inline-flex;align-items:center;gap:4px;flex:none;font-size:12px;font-weight:500;color:var(--muted)}
+.ov-card:hover .ov-card__enter{color:var(--fg)}
+.ov-card__enter svg{width:12px;height:12px}
+@media (prefers-reduced-motion: reduce){
+  .ov-card{transition:border-color var(--dur) var(--ease)}
+  .ov-card:hover{transform:none}
+}
+/* non-selectable submenu rows (pending/missing) — resting cursor, no hover fill; the right lane
    carries the functional reason ("materializing", "directory missing") */
 .wt-row[data-inert]{cursor:default}
 .wt-row[data-inert]:hover{background:transparent}
@@ -320,4 +400,7 @@
   .grid-2{grid-template-columns:1fr}
   .wt-strip{flex-direction:column;align-items:stretch}
   .wt-strip__cell + .wt-strip__cell{border-left:0;border-top:1px solid var(--line-soft)}
+  .wt-fly{flex-direction:column}
+  .wt-sub{width:100%;min-width:0;max-width:none}
+  .ov-group,.ov-head{max-width:100%;width:100%}
 }
