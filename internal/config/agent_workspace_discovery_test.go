@@ -101,17 +101,6 @@ func TestLoadWorkspaceAgentDefsReturnsLexicalDirectoryOrder(t *testing.T) {
 	t.Run("Should return valid same-root agents in lexical directory order", func(t *testing.T) {
 		t.Parallel()
 
-		caseProbe := t.TempDir()
-		if err := os.Mkdir(filepath.Join(caseProbe, "probe"), 0o700); err != nil {
-			t.Fatalf("os.Mkdir(lowercase probe) error = %v", err)
-		}
-		if err := os.Mkdir(filepath.Join(caseProbe, "PROBE"), 0o700); err != nil {
-			if os.IsExist(err) {
-				t.Skip("case-distinct directory names cannot coexist on this filesystem")
-			}
-			t.Fatalf("os.Mkdir(uppercase probe) error = %v", err)
-		}
-
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 		if err != nil {
 			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -123,15 +112,15 @@ func TestLoadWorkspaceAgentDefsReturnsLexicalDirectoryOrder(t *testing.T) {
 		root := t.TempDir()
 		writeAgentDefinition(
 			t,
-			filepath.Join(root, DirName, AgentsDirName, "worker", agentDefName),
-			"worker",
+			filepath.Join(root, DirName, AgentsDirName, "worker-z", agentDefName),
+			"worker-z",
 			"claude",
 			"created-first",
 		)
 		writeAgentDefinition(
 			t,
-			filepath.Join(root, DirName, AgentsDirName, "Worker", agentDefName),
-			"Worker",
+			filepath.Join(root, DirName, AgentsDirName, "worker-a", agentDefName),
+			"worker-a",
 			"claude",
 			"lexical-first",
 		)
@@ -143,13 +132,13 @@ func TestLoadWorkspaceAgentDefsReturnsLexicalDirectoryOrder(t *testing.T) {
 		if got, want := len(agents), 2; got != want {
 			t.Fatalf("len(LoadWorkspaceAgentDefs()) = %d, want %d", got, want)
 		}
-		if got, want := agents[0].Name, "Worker"; got != want {
+		if got, want := agents[0].Name, "worker-a"; got != want {
 			t.Fatalf("LoadWorkspaceAgentDefs()[0].Name = %q, want %q", got, want)
 		}
 		if got, want := agents[0].Model, "lexical-first"; got != want {
 			t.Fatalf("LoadWorkspaceAgentDefs()[0].Model = %q, want %q", got, want)
 		}
-		if got, want := agents[1].Name, "worker"; got != want {
+		if got, want := agents[1].Name, "worker-z"; got != want {
 			t.Fatalf("LoadWorkspaceAgentDefs()[1].Name = %q, want %q", got, want)
 		}
 	})
