@@ -105,16 +105,21 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     enabled: liveDataEnabled && activeWorkspaceId !== null,
   });
   const worktreeSelection = useActiveWorktree(worktreeScopeId, worktreesQuery.data);
-  const activeTaskScope = taskScopeForActiveWorkspace(
-    scope,
-    activeWorkspaceId,
-    worktreeSelection.activeWorktree?.id ?? null
-  );
+  const worktreeScopeResolved = scope !== "workspace" || worktreeSelection.resolved;
+  const activeTaskScope = worktreeScopeResolved
+    ? taskScopeForActiveWorkspace(
+        scope,
+        activeWorkspaceId,
+        worktreeSelection.activeWorktree?.id ?? null
+      )
+    : null;
   const hasActiveTaskScope = activeTaskScope !== null;
   const scopeSourceError =
     scope === "workspace" && !activeWorkspaceId ? (workspace.error ?? null) : null;
   const scopeLoading =
-    !hasActiveTaskScope && !scopeSourceError && (!workspace.hasHydrated || workspace.pending);
+    !hasActiveTaskScope &&
+    !scopeSourceError &&
+    (!worktreeScopeResolved || !workspace.hasHydrated || workspace.pending);
   const scopeError = resolveTaskScopeError(hasActiveTaskScope, scopeLoading, scopeSourceError);
   const listFilters: TaskListFilter = activeTaskScope
     ? taskListFilterFromRouteSearch(activeTaskScope, {

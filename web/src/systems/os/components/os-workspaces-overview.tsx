@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, ChevronDown, Plus } from "lucide-react";
+import { ArrowRight, ChevronRight, Plus } from "lucide-react";
 
 import {
   Button,
@@ -21,7 +21,8 @@ import type { OsPresentation } from "../lib/os-types";
 import {
   groupWorkspaceTree,
   WorktreeAggregate,
-  WorktreeNestList,
+  WorktreeHoverSubmenu,
+  WorktreeSubmenuPanel,
   type WorkspacePayload,
   type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
@@ -124,9 +125,9 @@ export function OsWorkspacesOverview({
   onResolveMissing,
   onOpenWorktreeContext,
 }: OsWorkspacesOverviewProps) {
-  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<ReadonlySet<string>>(new Set());
+  const [submenuWorkspaceId, setSubmenuWorkspaceId] = useState<string | null>(null);
   const selectWorkspace = (workspaceId: string) => {
-    if (workspaceId !== activeWorkspaceId) onSelectWorkspace(workspaceId);
+    onSelectWorkspace(workspaceId);
     onOpenChange(false);
   };
 
@@ -201,9 +202,8 @@ export function OsWorkspacesOverview({
             const detail = details.byWorkspaceId.get(workspace.id);
             const node = nodeByWorkspaceId.get(workspace.id);
             const meta = workspaceMetaLine(detail, node?.adoptedCount ?? 0);
-            const expanded = expandedWorkspaceIds.has(workspace.id);
             return (
-              // The card is a button, so the nest and its expander are siblings:
+              // The card is a button, so the worktree trigger is a sibling:
               // interactive worktree rows cannot live inside a button.
               <div
                 key={workspace.id}
@@ -264,66 +264,65 @@ export function OsWorkspacesOverview({
                   </span>
                 </button>
 
-                {node?.gitBacked && node.worktrees.length > 0 ? (
-                  <>
-                    <button
-                      type="button"
-                      // 24px floor: the expander is a real target, not a
-                      // hover-revealed glyph.
-                      className="flex min-h-6 items-center gap-1.5 self-start rounded-md px-2 text-form-label text-subtle hover:bg-row-hover"
-                      aria-expanded={expanded}
-                      aria-label={
-                        expanded
-                          ? `Collapse worktrees in ${workspace.name}`
-                          : `Expand worktrees in ${workspace.name}`
+                {node?.gitBacked ? (
+                  <WorktreeHoverSubmenu
+                    open={submenuWorkspaceId === workspace.id}
+                    onOpenChange={next => setSubmenuWorkspaceId(next ? workspace.id : null)}
+                    testId={`os-worktree-submenu-${workspace.id}`}
+                    label={`Worktrees in ${workspace.name}`}
+                    trigger={
+                      <button
+                        type="button"
+                        className="flex min-h-6 items-center gap-1.5 self-start rounded-md px-2 text-form-label text-subtle hover:bg-row-hover"
+                        aria-haspopup="dialog"
+                        aria-expanded={submenuWorkspaceId === workspace.id}
+                        aria-label={`Worktrees in ${workspace.name}`}
+                        data-testid={`os-workspace-worktrees-toggle-${workspace.id}`}
+                      >
+                        <ChevronRight aria-hidden="true" className="size-3" />
+                        Worktrees
+                        <WorktreeAggregate runningAgents={node.runningAgents} />
+                      </button>
+                    }
+                  >
+                    <WorktreeSubmenuPanel
+                      node={node}
+                      limit={node.worktrees.length}
+                      selectedWorktreeId={selectedWorktreeId}
+                      testIdPrefix="os"
+                      onSelectWorktree={
+                        onSelectWorktree
+                          ? entry => {
+                              onSelectWorktree(workspace.id, entry);
+                              onOpenChange(false);
+                            }
+                          : undefined
                       }
-                      data-testid={`os-workspace-worktrees-toggle-${workspace.id}`}
-                      onClick={() =>
-                        setExpandedWorkspaceIds(current => {
-                          const next = new Set(current);
-                          if (next.has(workspace.id)) next.delete(workspace.id);
-                          else next.add(workspace.id);
-                          return next;
-                        })
+                      onCreateWorktree={
+                        onCreateWorktree
+                          ? () => {
+                              onCreateWorktree(workspace.id);
+                              onOpenChange(false);
+                            }
+                          : undefined
                       }
-                    >
-                      <ChevronDown
-                        aria-hidden="true"
-                        className={cn("size-3 transition-transform", !expanded && "-rotate-90")}
-                      />
-                      {expanded ? "Hide worktrees" : "Show worktrees"}
-                      {expanded ? null : <WorktreeAggregate runningAgents={node.runningAgents} />}
-                    </button>
-
-                    {expanded ? (
-                      <WorktreeNestList
-                        entries={node.worktrees}
-                        workspaceName={workspace.name}
-                        adoptedCount={node.adoptedCount}
-                        selectedWorktreeId={selectedWorktreeId}
-                        testIdPrefix={`os-workspace-nest-${workspace.id}`}
-                        onSelectWorktree={entry => onSelectWorktree?.(workspace.id, entry)}
-                        onCreateWorktree={
-                          onCreateWorktree ? () => onCreateWorktree(workspace.id) : undefined
-                        }
-                        onRemoveWorktree={
-                          onRemoveWorktree
-                            ? entry => onRemoveWorktree(workspace.id, entry)
-                            : undefined
-                        }
-                        onResolveMissing={
-                          onResolveMissing
-                            ? entry => onResolveMissing(workspace.id, entry)
-                            : undefined
-                        }
-                        onOpenContext={
-                          onOpenWorktreeContext
-                            ? entry => onOpenWorktreeContext(workspace.id, entry)
-                            : undefined
-                        }
-                      />
-                    ) : null}
-                  </>
+                      onRemoveWorktree={
+                        onRemoveWorktree
+                          ? entry => onRemoveWorktree(workspace.id, entry)
+                          : undefined
+                      }
+                      onResolveMissing={
+                        onResolveMissing
+                          ? entry => onResolveMissing(workspace.id, entry)
+                          : undefined
+                      }
+                      onOpenContext={
+                        onOpenWorktreeContext
+                          ? entry => onOpenWorktreeContext(workspace.id, entry)
+                          : undefined
+                      }
+                    />
+                  </WorktreeHoverSubmenu>
                 ) : null}
               </div>
             );

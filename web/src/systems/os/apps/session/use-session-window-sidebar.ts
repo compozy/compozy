@@ -52,8 +52,13 @@ export function useSessionWindowSidebar({
     enabled: sidebar.open,
   });
   const sessionsQuery = useSessions(workspaceId, {
-    enabled: sidebar.open,
-    filters: { include_health: true, limit: 100, sort: "last_activity", worktree },
+    enabled: sidebar.open && worktree.resolved,
+    filters: {
+      include_health: true,
+      limit: 100,
+      sort: "last_activity",
+      worktree: worktree.worktreeId,
+    },
   });
 
   const onSelectSession = (target: SessionPayload) => {
@@ -72,7 +77,7 @@ export function useSessionWindowSidebar({
     open: sidebar.open,
     toggle: sidebar.toggle,
     sessions: sessionsQuery.data ?? [],
-    disconnected: sidebar.open && sessionsQuery.isError,
+    disconnected: sidebar.open && worktree.resolved && sessionsQuery.isError,
     collapsedAgentIds,
     collapsedThreadIds: sidebar.collapsedThreadIds,
     onToggleGroup: agentName => manager.toggleRailGroup(agentName),

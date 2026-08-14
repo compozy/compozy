@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
 import type {
@@ -210,9 +210,16 @@ export const HelpMenuOpen: Story = {
 /**
  * VC-15 — workspace menu with the shared nested worktree projection.
  * Compact listing keeps discovered and missing inside the five-row nest.
+ * Play hovers the git-backed parent so the side submenu is capturable.
  */
 export const WorkspaceMenuOpen: Story = {
   args: { workspace: { name: "compozy", monogram: "CO" } },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.hover(await body.findByTestId(`os-workspace-option-${WORKSPACES[0].id}`));
+    await body.findByTestId(`os-worktree-submenu-${WORKSPACES[0].id}`);
+  },
   render: () => <MenubarFixture overlay="workspace-menu" listing={MENUBAR_NEST_LISTING} />,
 };
 
@@ -244,6 +251,7 @@ export const WorkspaceAndWorktreeChip: Story = {
       worktreeSelection={{
         selectedWorktreeId: READY_WORKTREE.id,
         activeWorktree: READY_WORKTREE,
+        resolved: true,
         fallback: null,
       }}
     />
@@ -252,10 +260,17 @@ export const WorkspaceAndWorktreeChip: Story = {
 
 /**
  * VC-18 — a missing selection falls back to the parent and states why.
- * Menu stays open so the missing row and the bar notice are both capturable.
+ * Play hovers the parent so the missing row and the bar notice are both
+ * capturable.
  */
 export const MissingWorktreeFallback: Story = {
   args: { workspace: { name: "compozy", monogram: "CO" } },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.hover(await body.findByTestId(`os-workspace-option-${WORKSPACES[0].id}`));
+    await body.findByTestId(`os-worktree-submenu-${WORKSPACES[0].id}`);
+  },
   render: () => (
     <MenubarFixture
       overlay="workspace-menu"
@@ -263,6 +278,7 @@ export const MissingWorktreeFallback: Story = {
       worktreeSelection={{
         selectedWorktreeId: MISSING_WORKTREE.id,
         activeWorktree: null,
+        resolved: true,
         fallback: {
           worktreeId: MISSING_WORKTREE.id,
           name: MISSING_WORKTREE.name,

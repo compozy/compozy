@@ -80,7 +80,7 @@ describe("useOsAttention", () => {
       scope: "workspace",
       activeWorkspaceId: "ws_alpha",
     } as never);
-    vi.mocked(useScopedWorktreeFilter).mockReturnValue(undefined);
+    vi.mocked(useScopedWorktreeFilter).mockReturnValue({ worktreeId: undefined, resolved: true });
     vi.mocked(taskScopeForActiveWorkspace).mockReturnValue({} as never);
     vi.mocked(useTaskDashboard).mockReturnValue({
       data: { freshness: { stale: false }, totals: { awaiting_approval_tasks: 0 } },
@@ -103,7 +103,10 @@ describe("useOsAttention", () => {
   });
 
   it("Should keep attention badges workspace-wide while the modal follows the worktree scope", () => {
-    vi.mocked(useScopedWorktreeFilter).mockReturnValue("wt_payments");
+    vi.mocked(useScopedWorktreeFilter).mockReturnValue({
+      worktreeId: "wt_payments",
+      resolved: true,
+    });
     const attentionSessions = [waitingSession("sess_other_worktree")];
     vi.mocked(useSessions)
       .mockReturnValueOnce(sessionsQuery({ data: attentionSessions }))
@@ -123,7 +126,7 @@ describe("useOsAttention", () => {
   });
 
   it("Should drop the worktree filter entirely when the scope falls back to the workspace", () => {
-    vi.mocked(useScopedWorktreeFilter).mockReturnValue(undefined);
+    vi.mocked(useScopedWorktreeFilter).mockReturnValue({ worktreeId: undefined, resolved: true });
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
 
     renderHook(() => useOsAttention(workspace, "live"));
@@ -136,7 +139,10 @@ describe("useOsAttention", () => {
   });
 
   it("Should not let a scoped page make attention badges look fresh", () => {
-    vi.mocked(useScopedWorktreeFilter).mockReturnValue("wt_payments");
+    vi.mocked(useScopedWorktreeFilter).mockReturnValue({
+      worktreeId: "wt_payments",
+      resolved: true,
+    });
     vi.mocked(useSessions)
       // Attention query failed; the scoped modal queries succeeded.
       .mockReturnValueOnce(sessionsQuery({ data: undefined, isError: true }))

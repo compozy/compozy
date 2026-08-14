@@ -82,6 +82,11 @@ export function WorktreeSignals({
       ),
     },
     {
+      key: "setup",
+      visible: isNest && setupState === "failed",
+      node: <WorktreeSetupFlagSignal setupState={setupState} setupError={setupError} iconOnly />,
+    },
+    {
       key: "ahead-behind",
       visible:
         (typeof ahead === "number" && ahead > 0) || (typeof behind === "number" && behind > 0),
@@ -104,11 +109,15 @@ export function WorktreeSignals({
     <span
       data-slot="worktree-signals"
       data-density={density}
-      className={cn("inline-flex min-w-0 items-center gap-2.5", className)}
+      className={cn(
+        "inline-flex shrink-0 items-center",
+        isNest ? "gap-1.5" : "min-w-0 gap-2.5",
+        className
+      )}
       {...props}
     >
       {visible}
-      <WorktreeSetupFlagSignal setupState={setupState} setupError={setupError} iconOnly={isNest} />
+      {isNest ? null : <WorktreeSetupFlagSignal setupState={setupState} setupError={setupError} />}
       {isNest ? null : <WorktreeOriginSignal origin={origin} />}
       {isNest ? null : <WorktreeStaleSignal label={staleLabel} />}
     </span>

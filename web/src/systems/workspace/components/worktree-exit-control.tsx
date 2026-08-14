@@ -62,7 +62,7 @@ export function WorktreeExitControl({
 
   return (
     <div
-      className="mt-3 flex items-center gap-2"
+      className="flex items-center gap-2"
       data-blocked={ladder.blocked ? "" : undefined}
       data-forge={ladder.forge ? undefined : "absent"}
       data-pause={ladder.blockedReason}

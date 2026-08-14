@@ -6,6 +6,7 @@ import type { WorkspacePayload } from "@/systems/workspace";
 import {
   discoveredOnlyWorktreeListingFixture,
   emptyWorktreeListingFixture,
+  scrollableWorktreesListingFixture,
   worktreeListingFixture,
 } from "@/systems/workspace/mocks";
 
@@ -46,7 +47,7 @@ const meta: Meta<typeof OsWorkspacesOverview> = {
     docs: {
       description: {
         component:
-          "Workspace overview cards with an expandable worktree nest. The nest is a sibling of the card button, because interactive rows cannot live inside a button.",
+          "Workspace overview cards with a side worktree submenu. Hover or focus the Worktrees control to open the same nest the menubar uses; a click on the card still enters the workspace.",
       },
     },
   },
@@ -55,18 +56,19 @@ const meta: Meta<typeof OsWorkspacesOverview> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const expandLaunchHqWorktrees: Story["play"] = async ({ canvasElement }) => {
+const openLaunchHqWorktrees: Story["play"] = async ({ canvasElement }) => {
   const body = within(canvasElement.ownerDocument.body);
-  await userEvent.click(
+  await userEvent.hover(
     await body.findByTestId(`os-workspace-worktrees-toggle-${GIT_WORKSPACE.id}`)
   );
+  await body.findByTestId(`os-worktree-submenu-${GIT_WORKSPACE.id}`);
 };
 
-/** VC-19 — a workspace card with its worktree count and expandable nest. */
+/** VC-19 — a workspace card with its worktree count and a hover side submenu. */
 export const WithWorktrees: Story = {
   args: {},
   tags: ["play-fn"],
-  play: expandLaunchHqWorktrees,
+  play: openLaunchHqWorktrees,
   render: () => (
     <StorySurface>
       <OsWorkspacesOverview
@@ -88,7 +90,32 @@ export const WithWorktrees: Story = {
   ),
 };
 
-/** VC-20 — git-backed with none created: no count, no chevron, no nest. */
+export const ScrollableWorktrees: Story = {
+  args: {},
+  tags: ["play-fn"],
+  play: openLaunchHqWorktrees,
+  render: () => (
+    <StorySurface>
+      <OsWorkspacesOverview
+        open
+        onOpenChange={fn()}
+        workspaces={[GIT_WORKSPACE]}
+        activeWorkspaceId={GIT_WORKSPACE.id}
+        onSelectWorkspace={fn()}
+        onNewWorkspace={fn()}
+        details={details([GIT_WORKSPACE])}
+        presentation="floating"
+        reducedMotion
+        worktreesByWorkspace={{ [GIT_WORKSPACE.id]: scrollableWorktreesListingFixture }}
+        userHomeDir="/Users/ada"
+        onSelectWorktree={fn()}
+        onCreateWorktree={fn()}
+      />
+    </StorySurface>
+  ),
+};
+
+/** VC-20 — git-backed with none created: no count; the chevron still opens New worktree. */
 export const WithoutWorktrees: Story = {
   args: {},
   render: () => (
@@ -116,7 +143,7 @@ export const WithoutWorktrees: Story = {
 export const DiscoveredExternal: Story = {
   args: {},
   tags: ["play-fn"],
-  play: expandLaunchHqWorktrees,
+  play: openLaunchHqWorktrees,
   render: () => (
     <StorySurface>
       <OsWorkspacesOverview

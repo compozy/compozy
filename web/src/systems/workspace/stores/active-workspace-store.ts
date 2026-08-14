@@ -20,7 +20,7 @@ export interface ActiveWorkspaceContext {
   selectedWorkspaceId: string | null;
   /**
    * Per-scope worktree selection: each OS window carries its own worktree
-   * without a second window-manager binding (US-011 EC-3).
+   * without a second window-manager binding.
    */
   worktreeByScope: Record<string, string | null>;
 }
@@ -41,17 +41,42 @@ function withScope(
   return { ...context, worktreeByScope: { ...context.worktreeByScope, [scopeId]: worktreeId } };
 }
 
+/**
+ * A scope with no entry of its own follows the shell selection: the selected
+ * worktree is the default target for new work. An explicit entry — including
+ * `null`, the workspace root — overrides inheritance.
+ */
+export function resolveScopedWorktreeId(
+  byScope: Record<string, string | null>,
+  scopeId: string
+): string | null {
+  if (Object.hasOwn(byScope, scopeId)) return byScope[scopeId] ?? null;
+  return byScope[SHELL_WORKTREE_SCOPE] ?? null;
+}
+
 export const activeWorkspaceStore = createStore({
   context: initialActiveWorkspaceContext,
   on: {
-    workspaceSelected: (context, event: { workspaceId: string }) => ({
-      ...context,
-      scope: "workspace" as const,
-      selectedWorkspaceId: event.workspaceId,
-      // A worktree belongs to exactly one workspace, so it can never survive its
-      // parent changing — in any scope.
-      worktreeByScope: {},
-    }),
+    workspaceSelected: (context, event: { workspaceId: string; scopeId?: string }) => {
+      if (context.selectedWorkspaceId === event.workspaceId) {
+        const base = { ...context, scope: "workspace" as const };
+        if (event.scopeId === undefined) return base;
+        return {
+          ...base,
+          worktreeByScope: {
+            ...context.worktreeByScope,
+            [event.scopeId]: null,
+            [SHELL_WORKTREE_SCOPE]: null,
+          },
+        };
+      }
+      return {
+        ...context,
+        scope: "workspace" as const,
+        selectedWorkspaceId: event.workspaceId,
+        worktreeByScope: {},
+      };
+    },
     globalScopeEnabled: context => ({
       ...context,
       scope: "global" as const,
@@ -73,7 +98,6 @@ export const activeWorkspaceStore = createStore({
       context,
       event: { scopeId: string; workspaceId: string; worktreeId: string }
     ) => {
-      // Picking a worktree is a project destination — Global cannot bind one.
       const rebased =
         context.selectedWorkspaceId === event.workspaceId
           ? { ...context, scope: "workspace" as const }
@@ -83,7 +107,11 @@ export const activeWorkspaceStore = createStore({
               selectedWorkspaceId: event.workspaceId,
               worktreeByScope: {},
             };
-      return withScope(rebased, event.scopeId, event.worktreeId);
+      return withScope(
+        withScope(rebased, event.scopeId, event.worktreeId),
+        SHELL_WORKTREE_SCOPE,
+        event.worktreeId
+      );
     },
     worktreeSelectionCleared: (context, event: { scopeId: string }) =>
       withScope(context, event.scopeId, null),
@@ -102,8 +130,6 @@ export const activeWorkspaceStore = createStore({
   },
 }).with(
   persist({
-    // v3 had two incompatible shapes on the rebased branches. Discard it
-    // rather than hydrating a selection without the required worktree map.
     name: ACTIVE_WORKSPACE_PERSIST_KEY,
     pick: context => ({
       scope: context.scope,
@@ -119,12 +145,15 @@ export const activeWorkspaceSelectors = {
   worktreeByScope: activeWorkspaceStore.select(context => context.worktreeByScope),
 };
 
-export function setActiveWorkspaceId(workspaceId: string | null): void {
+export function setActiveWorkspaceId(
+  workspaceId: string | null,
+  options: { scopeId?: string } = {}
+): void {
   if (workspaceId === null) {
     activeWorkspaceStore.trigger.workspaceSelectionCleared();
     return;
   }
-  activeWorkspaceStore.trigger.workspaceSelected({ workspaceId });
+  activeWorkspaceStore.trigger.workspaceSelected({ workspaceId, scopeId: options.scopeId });
 }
 
 export function enableGlobalScope(): void {

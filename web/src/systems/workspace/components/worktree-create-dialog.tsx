@@ -23,6 +23,7 @@ import {
 
 import type { WorktreeCreateDialogModel } from "../hooks/use-worktree-create-dialog";
 import { WorktreeCreateAdvancedFields } from "./worktree-create-advanced-fields";
+import { WorktreePath } from "./worktree-path";
 
 export interface WorktreeCreateDialogProps {
   open: boolean;
@@ -46,7 +47,7 @@ export function WorktreeCreateDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={`grid-rows-[auto_minmax(0,1fr)_auto] ${dialogShellClass("md")}`}
+        className={`grid-rows-[auto_minmax(0,1fr)_auto] ${dialogShellClass("sm")}`}
         data-testid="worktree-create-dialog"
         showCloseButton={false}
         unframed
@@ -202,12 +203,12 @@ function WorktreeCreatePreviewLine({ model }: { model: WorktreeCreateDialogModel
   if (!model.preview || model.fieldError === "branch") return null;
 
   return (
-    <span className="inline-flex min-w-0 items-center gap-1.5">
-      <MonoId value={model.preview.branch} preserveCase size="sm" />
+    <span className="flex min-w-0 w-full items-center gap-1.5 overflow-hidden">
+      <MonoId className="shrink-0" value={model.preview.branch} preserveCase size="sm" />
       {model.preview.path ? (
         <>
-          <Icon as={ArrowRight} size="xs" className="text-faint" />
-          <MonoId value={model.preview.path} preserveCase size="sm" />
+          <Icon as={ArrowRight} size="xs" className="shrink-0 text-faint" />
+          <WorktreePath className="min-w-0 flex-1" path={model.preview.path} />
         </>
       ) : null}
       {model.isSubmitting ? <Spinner className="size-3" /> : null}

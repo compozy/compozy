@@ -109,7 +109,7 @@ func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*
 		}
 		_, statErr := os.Stat(entry.Path)
 		listing.Discovered = append(listing.Discovered, DiscoveredWorktree{
-			Name: SanitizeName(filepath.Base(entry.Path)), Branch: entry.Branch, Path: entry.Path,
+			Name: discoveredLabel(entry), Branch: entry.Branch, Path: entry.Path,
 			Detached: entry.Detached, Stale: entry.Prunable, Selectable: !entry.Prunable && statErr == nil,
 			Unavailable: statErr != nil, Reason: entry.PrunableReason,
 		})

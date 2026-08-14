@@ -6,13 +6,13 @@ persona: Ada
 journey: J-worktree-management
 expected: The command switcher, menubar workspace menu, workspaces overview, and shared row/status component render the same nested worktree tree from one query — same rows, locked order, full state vocabulary, adopted-only counts, discovered rows marked and selectable, and pending, missing, or error rows inert with their reason. Hover or ArrowRight opens a side submenu of that nest on S1, S2, and S3; a pointer click on a workspace selects it. Keyboard-only traversal reaches nested entries. Selecting a worktree scopes session and task reads server-side and the menubar chip reads `workspace / worktree`. A window opened after the pick inherits the selection — the chip never resets to the parent on window open or focus. A window that makes its own pick keeps it independently of later shell gestures; re-selecting the active workspace roots only the acting scope, leaving other windows' picks intact.
 entry_points: S1 command switcher workspace row (hover/ArrowRight side submenu); S2 OS menubar workspace menu/chip; S3 Workspaces overview Worktrees control; S5 Worktree row/status chip
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260813-desktop-shell-context-order; BUG-20260813-pending-worktree-marked-missing
 fix_status: fixed
 retest_status: pass
 fix_commits: 8ec45d75; b6eb94d0
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/screenshots/nested-worktree-selected.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/worktree-list-ready.json
-last_report: docs/qa/reports/2026-08-13-worktree-support.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/screenshots/nested-worktree-selected.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/worktree-list-ready.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-scroll-area-20260814-184457-553088-lab/qa-artifacts/qa/web-worktree-scroll-before.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-scroll-area-20260814-184457-553088-lab/qa-artifacts/qa/web-worktree-scroll-after.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-scroll-area-20260814-184457-553088-lab/qa-artifacts/qa/cli-list-worktrees.json
+last_report: docs/qa/reports/2026-08-14-worktree-scroll-area.md
 overlaps: RT-worktree-web-create-adopt
 ---
 
@@ -57,3 +57,8 @@ side on hover or ArrowRight/focus; a pointer click on the workspace still select
 the picker. The overview card stays a card — its Worktrees control is the submenu trigger.
 Covered by the workspace-command-select unit suite and the WorktreeNavSwitcher /
 OsWorkspacesOverview story captures.
+
+2026-08-14 focused rewalk (large catalog): an isolated workspace with 18 real linked worktrees
+matched the structured CLI catalog. The S3 submenu used a 380px `ScrollArea` for 864px of content,
+reached `scrollTop=484` without moving the document, and kept New worktree fixed and visible.
+Pointer hover, ArrowRight entry, ArrowLeft return focus, and a full-page refresh all passed.

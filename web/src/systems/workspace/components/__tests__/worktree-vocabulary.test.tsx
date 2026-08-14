@@ -151,21 +151,30 @@ describe("WorktreeSignals", () => {
   });
 
   it("Should hold nested rows to a single trailing signal", () => {
-    const { container } = renderSignals({
+    renderSignals({
       density: "nest",
       dirty: true,
       ahead: 3,
       agentActivity: "running",
+      setupState: "failed",
     });
 
-    // The nest density budget is one signal; the name must survive a busy row.
-    const rendered = container.querySelectorAll("[data-slot^='worktree-']");
-    const budgeted = [...rendered].filter(node =>
-      ["worktree-agent", "worktree-dirty", "worktree-ahead-behind", "worktree-merged"].includes(
-        node.getAttribute("data-slot") ?? ""
-      )
-    );
-    expect(budgeted).toHaveLength(1);
+    expect(screen.getByText("agent running")).toBeInTheDocument();
+    expect(screen.queryByText("uncommitted")).not.toBeInTheDocument();
+    expect(screen.queryByText(/ahead by/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/setup failed/i)).not.toBeInTheDocument();
+  });
+
+  it("Should keep a nest setup flag from stacking on ahead or behind", () => {
+    renderSignals({
+      density: "nest",
+      ahead: 1,
+      setupState: "failed",
+      setupError: "bun install exited 1",
+    });
+
+    expect(screen.queryByText(/ahead by/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/setup failed.*bun install exited 1/i)).toBeVisible();
   });
 });
 

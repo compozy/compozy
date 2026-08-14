@@ -48,6 +48,7 @@ export function useOsAttention(
   const worktree = useScopedWorktreeFilter(workspaceId, useFocusedWorktreeScopeId(), {
     enabled: sessionsEnabled && scope === "workspace",
   });
+  const scopedSessionsEnabled = sessionsEnabled && worktree.resolved;
   // Attention authority: workspace-wide and never worktree-filtered. A pending
   // approval in another worktree is still a notification, so deriving badges or
   // rows from a scoped page would silently hide work.
@@ -58,17 +59,22 @@ export function useOsAttention(
   // Sessions-modal content: a shell surface, so it follows the focused window's
   // scope exactly like the menubar chip. Distinct query key, no shared snapshot.
   const modalSessionsQuery = useSessions(workspaceId, {
-    enabled: sessionsEnabled,
-    filters: { include_health: true, limit: 100, sort: "last_activity", worktree },
+    enabled: scopedSessionsEnabled,
+    filters: {
+      include_health: true,
+      limit: 100,
+      sort: "last_activity",
+      worktree: worktree.worktreeId,
+    },
   });
   const archivedSessionsQuery = useSessions(workspaceId, {
-    enabled: sessionsEnabled,
+    enabled: scopedSessionsEnabled,
     filters: {
       archive: "only",
       include_health: true,
       limit: 100,
       sort: "last_activity",
-      worktree,
+      worktree: worktree.worktreeId,
     },
   });
   const dashboardQuery = useTaskDashboard(taskScope ?? {}, {
@@ -102,11 +108,12 @@ export function useOsAttention(
     attentionSessionsQuery.data === undefined;
   const sessionsDisconnected =
     !sessionsEnabled ||
-    sessionCatalogStreamStatus !== "live" ||
-    modalSessionsQuery.isError ||
-    archivedSessionsQuery.isError ||
-    modalSessionsQuery.data === undefined ||
-    archivedSessionsQuery.data === undefined;
+    (worktree.resolved &&
+      (sessionCatalogStreamStatus !== "live" ||
+        modalSessionsQuery.isError ||
+        archivedSessionsQuery.isError ||
+        modalSessionsQuery.data === undefined ||
+        archivedSessionsQuery.data === undefined));
   const tasksDisconnected =
     !tasksEnabled ||
     dashboardQuery.isError ||
@@ -138,7 +145,8 @@ export function useOsAttention(
     tasksDisconnected: taskRowsDisconnected,
     loading:
       (sessionsEnabled &&
-        (attentionSessionsQuery.isLoading ||
+        (!worktree.resolved ||
+          attentionSessionsQuery.isLoading ||
           modalSessionsQuery.isLoading ||
           archivedSessionsQuery.isLoading)) ||
       (tasksEnabled && (dashboardQuery.isLoading || tasksQuery.isLoading)),

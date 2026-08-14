@@ -2,8 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Eyebrow } from "@compozy/ui";
 
-import { StorySurface } from "@/storybook/story-layout";
+import { CenteredSurface } from "@/storybook/story-layout";
 import {
+  LONG_WORKTREE_PATH,
   discoveredWorktreeFixture,
   worktreeBehindFixture,
   worktreeErrorFixture,
@@ -23,6 +24,14 @@ import { WorktreeStateDot } from "../worktree-state-dot";
 const CHIP_STATES = ["pending", "discovered", "missing", "error", "failed"] as const;
 const DOT_STATES = CHIP_STATES;
 
+function Sheet({ children }: { children: React.ReactNode }) {
+  return (
+    <CenteredSurface>
+      <div className="w-full max-w-3xl">{children}</div>
+    </CenteredSurface>
+  );
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-4 border-b border-line-soft py-3 last:border-b-0">
@@ -32,8 +41,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-const meta: Meta = {
+const meta: Meta<typeof WorktreeRow> = {
   title: "systems/workspace/components/WorktreeVocabulary",
+  component: WorktreeRow,
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -55,7 +65,7 @@ type Story = StoryObj<typeof meta>;
 export const StateChips: Story = {
   args: {},
   render: () => (
-    <StorySurface className="max-w-3xl">
+    <Sheet>
       <Row label="ready">
         <span className="text-form-hint text-subtle">
           no chip — the quiet success dot is the whole signal
@@ -66,7 +76,7 @@ export const StateChips: Story = {
           <WorktreeStateChip state={state} />
         </Row>
       ))}
-    </StorySurface>
+    </Sheet>
   ),
 };
 
@@ -74,7 +84,7 @@ export const StateChips: Story = {
 export const Signals: Story = {
   args: {},
   render: () => (
-    <StorySurface className="max-w-3xl">
+    <Sheet>
       <Row label="dirty · counts known">
         <WorktreeSignals
           dirty
@@ -177,7 +187,7 @@ export const Signals: Story = {
       <Row label="unknown (no upstream)">
         <span className="font-mono text-mono-id text-faint">no upstream</span>
       </Row>
-    </StorySurface>
+    </Sheet>
   ),
 };
 
@@ -195,11 +205,7 @@ export const RowReadyDirtyRunning: Story = {
       worktrees: [worktreeReadyDirtyRunningFixture],
       discovered: [],
     });
-    return (
-      <StorySurface className="max-w-3xl">
-        {entry ? <WorktreeRow entry={entry} /> : null}
-      </StorySurface>
-    );
+    return <Sheet>{entry ? <WorktreeRow entry={entry} /> : null}</Sheet>;
   },
 };
 
@@ -222,7 +228,7 @@ export const RowStates: Story = {
       discovered: [discoveredWorktreeFixture],
     });
     return (
-      <StorySurface className="max-w-3xl">
+      <Sheet>
         {entries.map(entry => (
           <WorktreeRow
             key={entry.key}
@@ -235,7 +241,7 @@ export const RowStates: Story = {
             }
           />
         ))}
-      </StorySurface>
+      </Sheet>
     );
   },
 };
@@ -249,7 +255,7 @@ export const NestDotsAndDetached: Story = {
   args: {},
   render: () => {
     const [nested] = toWorktreeNestEntries({
-      worktrees: [worktreeReadyDirtyRunningFixture],
+      worktrees: [{ ...worktreeReadyDirtyRunningFixture, path: LONG_WORKTREE_PATH }],
       discovered: [],
     });
     const [detached] = toWorktreeNestEntries({
@@ -257,7 +263,7 @@ export const NestDotsAndDetached: Story = {
       discovered: [],
     });
     return (
-      <StorySurface className="max-w-3xl">
+      <Sheet>
         {DOT_STATES.map(state => (
           <Row key={state} label={`dot · ${state}`}>
             <WorktreeStateDot state={state} />
@@ -270,7 +276,7 @@ export const NestDotsAndDetached: Story = {
             {nested ? <WorktreeRow entry={nested} density="nest" /> : null}
           </div>
         </Row>
-      </StorySurface>
+      </Sheet>
     );
   },
 };

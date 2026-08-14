@@ -3,6 +3,7 @@ import { fn } from "storybook/test";
 
 import { StorySurface } from "@/storybook/story-layout";
 import {
+  LONG_WORKTREE_PATH,
   buildWorktreeFixture,
   discoveredWorktreeFixture,
   worktreeMissingFixture,
@@ -33,10 +34,15 @@ function refusal(overrides: Partial<WorktreeRefusal>): WorktreeRefusal {
   };
 }
 
-const cleanWorktree = buildWorktreeFixture({ name: "fix-flaky-e2e", branch: "run/fix-flaky-e2e" });
+const cleanWorktree = buildWorktreeFixture({
+  name: "fix-flaky-e2e",
+  branch: "run/fix-flaky-e2e",
+  path: LONG_WORKTREE_PATH,
+});
 
-const meta: Meta = {
+const meta: Meta<typeof WorktreeAdoptDialog> = {
   title: "systems/workspace/components/WorktreeLifecycleDialogs",
+  component: WorktreeAdoptDialog,
   parameters: {
     layout: "fullscreen",
     docs: {

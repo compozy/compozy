@@ -95,7 +95,7 @@ function DialogOverlay({ className, style, ...props }: DialogPrimitive.Backdrop.
 type DialogChromeVariant = "default" | "ruled";
 
 const DIALOG_CONTENT_BASE =
-  "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-canvas-soft text-small-body text-fg shadow-overlay outline-none sm:max-w-sm";
+  "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] grid-cols-[minmax(0,1fr)] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-canvas-soft text-small-body text-fg shadow-overlay outline-none sm:max-w-sm";
 const DIALOG_CONTENT_FRAMED = "gap-4 p-4";
 const DIALOG_CONTENT_UNFRAMED = "gap-0 p-0";
 
@@ -105,10 +105,10 @@ const DIALOG_HEADER_DEFAULT = "flex flex-col gap-2";
 const DIALOG_HEADER_RULED = "flex flex-col gap-2 border-b border-line bg-canvas-soft px-5 py-4";
 
 const DIALOG_FOOTER_DEFAULT =
-  "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-lg border-t border-line bg-canvas-tint p-4 sm:flex-row sm:justify-end";
+  "-mx-4 -mb-4 flex min-w-0 flex-col-reverse gap-2 rounded-b-lg border-t border-line bg-canvas-tint p-4 sm:flex-row sm:justify-end";
 // The ruled footer uses the same horizontal gutter as the rest of the shell.
 const DIALOG_FOOTER_RULED =
-  "flex flex-col-reverse gap-2 border-t border-line bg-canvas-tint px-5 py-3 sm:flex-row sm:justify-end";
+  "flex min-w-0 flex-col-reverse gap-2 border-t border-line bg-canvas-tint px-5 py-3 sm:flex-row sm:justify-end";
 
 interface DialogContentProps extends DialogPrimitive.Popup.Props {
   showCloseButton?: boolean;

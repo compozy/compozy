@@ -17,6 +17,10 @@ function worktreePath(name: string): string {
   return `/Users/ada/.compozy/worktrees/${WORKSPACE_NAME}/${name}`;
 }
 
+/** Deep enough to overflow compact dialogs and nest rows (ADR-005 form). */
+export const LONG_WORKTREE_PATH =
+  "/Users/ada/.compozy/worktrees/launch-hq/payments-retry-across-a-deep-operator-home-directory";
+
 export function buildWorktreeFixture(overrides: Partial<WorktreePayload> = {}): WorktreePayload {
   const name = overrides.name ?? "payments-retry";
   return {
@@ -190,5 +194,18 @@ export const manyWorktreesListingFixture: WorktreesResponse = {
     buildWorktreeFixture({ name: "webhook-retry", updated_at: "2026-04-16T08:00:00Z" }),
   ],
   discovered: [discoveredWorktreeFixture],
+  repo: GIT_BACKED_REPO,
+};
+
+export const scrollableWorktreesListingFixture: WorktreesResponse = {
+  worktrees: Array.from({ length: 18 }, (_, index) => {
+    const suffix = String(index + 1).padStart(2, "0");
+    return buildWorktreeFixture({
+      name: `detached-${suffix}`,
+      branch: `feature/detached-${suffix}`,
+      updated_at: `2026-04-${suffix}T08:00:00Z`,
+    });
+  }),
+  discovered: [],
   repo: GIT_BACKED_REPO,
 };

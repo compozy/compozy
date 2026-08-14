@@ -1,9 +1,10 @@
 import { FolderGit2Icon } from "lucide-react";
 
-import { Button, MonoId, PillDot } from "@compozy/ui";
+import { Button, PillDot } from "@compozy/ui";
 
 import { toWorktreeDisplayState } from "../lib/worktree-display";
 import type { WorktreePayload } from "../types";
+import { WorktreePath } from "./worktree-path";
 import { WorktreeAgentSignal } from "./worktree-signal-parts";
 import { WorktreeStateChip } from "./worktree-state-chip";
 
@@ -31,7 +32,7 @@ export function WorktreeDetailHeader({
 
   return (
     <header
-      className="mb-3.5 flex items-center gap-[11px]"
+      className="flex items-center gap-3"
       data-agent={worktree.agent_activity}
       data-slot="worktree-detail-header"
       data-state={state}
@@ -56,12 +57,10 @@ export function WorktreeDetailHeader({
           <WorktreeAgentSignal activity={worktree.agent_activity} showLabel title={sessionTitle} />
         </div>
         {worktree.path ? (
-          <span className="mt-0.5 block">
-            <MonoId copy={false} preserveCase size="sm" value={worktree.path} />
-          </span>
+          <WorktreePath className="mt-0.5 block w-full" path={worktree.path} />
         ) : null}
       </div>
-      {onRemove && worktree.state !== "pending" ? (
+      {onRemove && state === "ready" ? (
         <div
           className="flex shrink-0 items-center gap-1.5"
           data-slot="worktree-detail-header-actions"

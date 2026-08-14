@@ -92,12 +92,12 @@ function EntityDialogFooter({
       ) : null}
       {hint ? (
         <div
-          className="flex min-w-0 flex-1 items-center gap-2 text-form-hint text-muted"
+          className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-form-hint text-muted"
           data-slot="entity-dialog-footer-hint"
           data-testid={hintTestId}
         >
           <Info aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
-          <span className="min-w-0">{hint}</span>
+          <span className="block min-w-0 flex-1 overflow-hidden">{hint}</span>
         </div>
       ) : null}
       {leading && !hint ? (

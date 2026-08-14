@@ -12,6 +12,7 @@ import {
   removeDialogTitle,
   resolveRemoveStage,
 } from "./worktree-remove-copy";
+import { WorktreePath } from "./worktree-path";
 import { WorktreeRemovalRiskRows } from "./worktree-remove-risk-rows";
 
 export interface WorktreeRemoveDialogProps {
@@ -58,7 +59,7 @@ export function WorktreeRemoveDialog({
         <MonoId value={worktree.branch} preserveCase size="sm" />
       </MetadataList.Row>
       <MetadataList.Row label="Path">
-        <MonoId value={worktree.path} preserveCase size="sm" />
+        <WorktreePath className="w-full" path={worktree.path} />
       </MetadataList.Row>
     </MetadataList>
   );

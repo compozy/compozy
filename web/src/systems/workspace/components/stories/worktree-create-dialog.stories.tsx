@@ -3,7 +3,11 @@ import { useState } from "react";
 import { fn, userEvent, within } from "storybook/test";
 
 import { StorySurface } from "@/storybook/story-layout";
-import { buildWorktreeFixture, worktreeListingFixture } from "@/systems/workspace/mocks";
+import {
+  LONG_WORKTREE_PATH,
+  buildWorktreeFixture,
+  worktreeListingFixture,
+} from "@/systems/workspace/mocks";
 
 import type {
   WorktreeCreateDialogModel,
@@ -83,8 +87,9 @@ function refusal(overrides: Partial<WorktreeRefusal>): WorktreeRefusal {
   };
 }
 
-const meta: Meta = {
+const meta: Meta<typeof WorktreeCreateDialog> = {
   title: "systems/workspace/components/WorktreeCreateDialog",
+  component: WorktreeCreateDialog,
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -100,7 +105,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /** VC-22 — simple: one field plus the generated-name placeholder. */
-export const Simple: Story = { args: {}, render: () => <Harness /> };
+export const Simple: Story = {
+  args: {},
+  render: () => <Harness preview={{ branch: GENERATED_NAME, path: LONG_WORKTREE_PATH }} />,
+};
 
 /**
  * VC-23 — advanced expanded: branch, base ref, and the held-branch picker.

@@ -56,22 +56,29 @@ func TestServiceDiscovery(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("seed registered worktree: %v", err)
 		}
+		detachedPath := t.TempDir()
 		fixture.listOutput = []byte(
 			"worktree " + fixture.workspace.Root + "\x00HEAD root\x00branch refs/heads/main\x00\x00" +
 				"worktree " + registeredPath + "\x00HEAD registered\x00branch refs/heads/registered\x00\x00" +
-				"worktree " + discoveredPath + "\x00HEAD discovered\x00branch refs/heads/discovered\x00\x00" +
-				"worktree " + missingPath + "\x00HEAD stale\x00branch refs/heads/stale\x00prunable missing admin dir\x00\x00",
+				"worktree " + discoveredPath + "\x00HEAD discovered\x00branch refs/heads/spike/sqlite-vacuum\x00\x00" +
+				"worktree " + missingPath + "\x00HEAD stale\x00branch refs/heads/stale\x00prunable missing admin dir\x00\x00" +
+				"worktree " + detachedPath + "\x00HEAD abc1234567890def\x00detached\x00\x00",
 		)
 		listing, err := fixture.service.List(context.Background(), fixture.workspace.ID, true)
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
-		if len(listing.Worktrees) != 1 || len(listing.Discovered) != 2 {
-			t.Fatalf("List() = %#v, want one registered and two discovered", listing)
+		if len(listing.Worktrees) != 1 || len(listing.Discovered) != 3 {
+			t.Fatalf("List() = %#v, want one registered and three discovered", listing)
 		}
 		if !listing.Discovered[0].Selectable || !listing.Discovered[1].Stale ||
 			listing.Discovered[1].Selectable || !listing.Discovered[1].Unavailable {
 			t.Fatalf("discovered states = %#v, want selectable live plus stale unavailable", listing.Discovered)
+		}
+		if listing.Discovered[0].Name != "spike-sqlite-vacuum" ||
+			listing.Discovered[1].Name != "stale" ||
+			listing.Discovered[2].Name != "detached-abc12345" {
+			t.Fatalf("discovered labels = %#v, want branch-derived and commit-derived names", listing.Discovered)
 		}
 	})
 

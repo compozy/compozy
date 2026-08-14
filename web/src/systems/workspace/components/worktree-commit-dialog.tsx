@@ -5,6 +5,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogFooter,
   dialogShellClass,
   DropdownMenuItem,
   Empty,
@@ -90,7 +91,7 @@ export function WorktreeCommitDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className={dialogShellClass("sm")}
+        className={`grid-rows-[auto_minmax(0,1fr)_auto] ${dialogShellClass("sm")}`}
         data-agent-staged={
           onStagePrompt
             ? promptStaged
@@ -104,13 +105,16 @@ export function WorktreeCommitDialog({
         data-slot="worktree-commit-dialog"
         data-state={hookError ? "hook-failed" : empty ? "empty" : "scope"}
         data-submitting={isSubmitting ? "" : undefined}
+        showCloseButton={false}
+        unframed
       >
         <EntityDialogHeader
           eyebrow={worktreeName}
           icon={GitCommitHorizontalIcon}
+          onClose={() => onOpenChange(false)}
           title="Commit your changes"
         />
-        <EntityDialogBody>
+        <EntityDialogBody className="flex flex-col gap-4">
           {empty ? (
             <Empty framed role="status" title={blockedReason ?? "Nothing to commit."} />
           ) : (
@@ -165,7 +169,10 @@ export function WorktreeCommitDialog({
             ) : null}
           </Field>
         </EntityDialogBody>
-        <div className="flex items-center gap-2 border-t border-line px-5 py-3">
+        <DialogFooter
+          className="min-h-editor-footer items-center gap-3 max-[760px]:flex-col max-[760px]:items-stretch"
+          variant="ruled"
+        >
           {branch ? (
             <span
               className="mr-auto flex items-center gap-1.5 [&_svg]:size-3 [&_svg]:text-muted"
@@ -203,7 +210,7 @@ export function WorktreeCommitDialog({
               </DropdownMenuItem>
             ))}
           </SplitButton>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

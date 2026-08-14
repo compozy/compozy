@@ -38,7 +38,10 @@ function MetadataListRow({
     return (
       <div
         data-slot="metadata-list-row"
-        className={cn("grid grid-cols-[var(--width-kv-label)_1fr] items-center gap-3", className)}
+        className={cn(
+          "grid min-w-0 grid-cols-[var(--width-kv-label)_minmax(0,1fr)] items-center gap-3",
+          className
+        )}
         {...props}
       >
         <MetadataListTerm className={termClassName} {...restTermProps}>

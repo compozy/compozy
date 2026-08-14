@@ -1,6 +1,6 @@
 // Suite: worktree nest ordering
 // Invariant (UT-134, pure half): the locked sort is state group then last-activity descending with
-// unknown last; truncation keeps the most recently active five; counts are adopted-only.
+// unknown last; truncation keeps the most recently active five and exposes every hidden row.
 // Owning layer: workspace sort lib. Canonical suite: this lib test.
 import { describe, expect, it } from "vitest";
 
@@ -101,6 +101,33 @@ describe("truncateWorktreeNest", () => {
 
     expect(visible).toHaveLength(1);
     expect(overflowCount).toBe(0);
+  });
+
+  it("Should expose overflow when hidden rows are discovered entries", () => {
+    const entries = [
+      entry({ key: "adopted-a" }),
+      entry({ key: "adopted-b" }),
+      ...Array.from({ length: 6 }, (_, index) =>
+        entry({ key: `found-${index}`, kind: "discovered", displayState: "discovered" })
+      ),
+    ];
+
+    const { visible, overflowCount } = truncateWorktreeNest(entries);
+
+    expect(visible).toHaveLength(5);
+    expect(overflowCount).toBe(3);
+  });
+
+  it("Should render the overflow row when adopted records overflow the fold", () => {
+    const entries = [
+      ...Array.from({ length: 6 }, (_, index) => entry({ key: `adopted-${index}` })),
+      entry({ key: "found", kind: "discovered", displayState: "discovered" }),
+    ];
+
+    const { visible, overflowCount } = truncateWorktreeNest(entries);
+
+    expect(visible).toHaveLength(5);
+    expect(overflowCount).toBe(2);
   });
 });
 

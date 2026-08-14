@@ -133,8 +133,8 @@ export function useOsCommandPalette(
   });
   // Session labels follow the daemon binding — in Global scope that is the home row.
   const sessions = useSessions(runtimeWorkspaceId, {
-    enabled: open && runtimeWorkspaceId !== null,
-    filters: scope === "workspace" ? { worktree: paletteWorktreeFilter } : undefined,
+    enabled: open && runtimeWorkspaceId !== null && paletteWorktreeFilter.resolved,
+    filters: scope === "workspace" ? { worktree: paletteWorktreeFilter.worktreeId } : undefined,
   });
   const windowCommands = useOsWindowCommands();
   const { commandsAvailable } = windowCommands;
@@ -319,7 +319,8 @@ export function useOsCommandPalette(
           route: { pathname: "/settings/appearance", search: {} },
         });
       }),
-    switchWorkspace: workspaceId => run(() => setActiveWorkspaceId(workspaceId)),
+    switchWorkspace: workspaceId =>
+      run(() => setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })),
     toggleGlobalScope: () => run(() => toggleGlobalScope()),
     globalScopeOn: scope === "global",
     canDisableGlobal,

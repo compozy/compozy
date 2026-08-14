@@ -72,9 +72,18 @@ async function openWorkspaceMenu(page: Page) {
   await expect(page.getByTestId("os-workspace-menu")).toBeVisible();
 }
 
+async function openWorkspaceNest(page: Page, workspaceId: string) {
+  await openWorkspaceMenu(page);
+  // Hovering the workspace row opens the side submenu holding the nest.
+  await page.getByTestId(`os-workspace-option-${workspaceId}`).hover();
+  await expect(page.getByTestId(`os-worktree-submenu-${workspaceId}`)).toBeVisible();
+}
+
 async function selectWorkspace(page: Page, workspaceId: string) {
   await openWorkspaceMenu(page);
+  // A pointer click on the workspace row selects it and closes the menu.
   await page.getByTestId(`os-workspace-option-${workspaceId}`).click();
+  await expect(page.getByTestId("os-workspace-menu")).toHaveCount(0);
 }
 
 async function openOverviewNest(page: Page, workspaceId: string) {
@@ -82,7 +91,17 @@ async function openOverviewNest(page: Page, workspaceId: string) {
   await page.getByTestId("os-workspace-overview").click();
   const toggle = page.getByTestId(`os-workspace-worktrees-toggle-${workspaceId}`);
   await expect(toggle).toBeVisible();
-  await toggle.click();
+  await toggle.hover();
+  await expect(page.getByTestId(`os-worktree-submenu-${workspaceId}`)).toBeVisible();
+}
+
+async function chooseOverviewRowAction(
+  page: Page,
+  worktreeId: string,
+  action: "remove" | "resolve" | "context"
+) {
+  await page.getByTestId(`os-worktree-actions-${worktreeId}`).click();
+  await page.getByTestId(`os-worktree-${action}-${worktreeId}`).click();
 }
 
 // E2E-006: create dialog — name-first with a generated placeholder, derived
@@ -97,7 +116,7 @@ test("operator creates a worktree name-first and can cancel the pending creation
   const workspace = await runtime.resolveWorkspace(repo.rootDir);
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  await openWorkspaceMenu(appPage);
+  await openWorkspaceNest(appPage, workspace.id);
   await appPage.getByTestId(`os-worktree-create-${workspace.id}`).click();
 
   const dialog = appPage.getByTestId("worktree-create-dialog");
@@ -143,7 +162,7 @@ test("operator sees an accepted worktree remain pending until setup finishes", a
   const workspace = await runtime.resolveWorkspace(repo.rootDir);
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  await openWorkspaceMenu(appPage);
+  await openWorkspaceNest(appPage, workspace.id);
   await appPage.getByTestId(`os-worktree-create-${workspace.id}`).click();
   await appPage.getByTestId("worktree-create-name").fill("docs-refresh");
   await appPage.getByTestId("worktree-create-submit").click();
@@ -170,7 +189,7 @@ test("operator is refused a colliding name, a held branch, and a missing base re
   const existing = await seedReadyWorktree(runtime, workspace.id, "payments-retry");
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  await openWorkspaceMenu(appPage);
+  await openWorkspaceNest(appPage, workspace.id);
   await appPage.getByTestId(`os-worktree-create-${workspace.id}`).click();
 
   // Name collision: the reason lands on the name field and blocks the primary.
@@ -209,7 +228,7 @@ test("operator adopts a discovered worktree by selecting it", async ({ appPage, 
   await repo.addExternalWorktree("northstar-spike", "spike/sqlite-vacuum");
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
-  await openWorkspaceMenu(appPage);
+  await openWorkspaceNest(appPage, workspace.id);
   const discoveredRow = appPage.getByTestId(/^os-worktree-option-discovered:/).first();
   await expect(discoveredRow).toBeVisible();
   await discoveredRow.click();
@@ -244,7 +263,7 @@ test("operator sees adoption refused for the main checkout with the directory un
 
   // Keep the discovered row mounted, then make its path resolve to the main
   // checkout. The daemon must revalidate identity instead of trusting discovery.
-  await openWorkspaceMenu(appPage);
+  await openWorkspaceNest(appPage, workspace.id);
   const discoveredRow = appPage.getByTestId(/^os-worktree-option-discovered:/).first();
   await expect(discoveredRow).toBeVisible();
   await repo.replaceDirectoryWithSymlink(external, repo.rootDir);
@@ -278,7 +297,7 @@ test("operator must pass the force doorway before a dirty worktree is removed", 
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
   await openOverviewNest(appPage, workspace.id);
-  await appPage.getByTestId(`os-workspace-nest-${workspace.id}-remove-${worktree.id}`).click();
+  await chooseOverviewRowAction(appPage, worktree.id, "remove");
 
   const dialog = appPage.getByTestId("worktree-remove-dialog");
   await expect(dialog).toBeVisible();
@@ -328,7 +347,7 @@ test("operator dismisses a missing worktree record without losing its history", 
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
   await openOverviewNest(appPage, workspace.id);
-  await appPage.getByTestId(`os-workspace-nest-${workspace.id}-resolve-${worktree.id}`).click();
+  await chooseOverviewRowAction(appPage, worktree.id, "resolve");
 
   const dialog = appPage.getByTestId("worktree-missing-dialog");
   await expect(dialog).toBeVisible();
@@ -373,7 +392,7 @@ test("operator restores a missing worktree when its checkout comes back", async 
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
   await openOverviewNest(appPage, workspace.id);
-  await appPage.getByTestId(`os-workspace-nest-${workspace.id}-resolve-${worktree.id}`).click();
+  await chooseOverviewRowAction(appPage, worktree.id, "resolve");
   await expect(appPage.getByTestId("worktree-missing-dialog")).toBeVisible();
 
   await appPage.getByTestId("worktree-missing-restore").click();
@@ -567,7 +586,7 @@ test("operator runs the assisted exit from the worktree context", async ({ appPa
   await repo.dirtyWorktree(worktree.path);
 
   await openOverviewNest(appPage, workspace.id);
-  await appPage.getByTestId(`os-workspace-nest-${workspace.id}-context-${worktree.id}`).click();
+  await chooseOverviewRowAction(appPage, worktree.id, "context");
 
   const strip = appPage.locator('[data-slot="worktree-status-strip"]');
   await expect(strip).toBeVisible();
@@ -610,7 +629,7 @@ test("operator reads cleanup evidence before removing a finished worktree", asyn
   const worktree = await seedReadyWorktree(runtime, workspace.id, "fix-flaky-e2e");
 
   await openOverviewNest(appPage, workspace.id);
-  await appPage.getByTestId(`os-workspace-nest-${workspace.id}-context-${worktree.id}`).click();
+  await chooseOverviewRowAction(appPage, worktree.id, "context");
 
   const evidence = appPage.locator('[data-slot="worktree-merged-evidence"]');
   await expect(evidence).toBeVisible();
@@ -644,7 +663,7 @@ test("operator sees no PR affordances without a credential", async ({ appPage, r
   await appPage.reload({ waitUntil: "domcontentloaded" });
 
   await openOverviewNest(appPage, workspace.id);
-  await appPage.getByTestId(`os-workspace-nest-${workspace.id}-context-${worktree.id}`).click();
+  await chooseOverviewRowAction(appPage, worktree.id, "context");
 
   const strip = appPage.locator('[data-slot="worktree-status-strip"]');
   await expect(strip).toBeVisible();

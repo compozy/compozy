@@ -61,6 +61,7 @@ export function SplitButton({
   className,
   ...props
 }: SplitButtonProps) {
+  const { className: menuClassName, ...restMenuProps } = menuProps ?? {};
   const reasonId = useId();
   const [internalOpen, setInternalOpen] = useState(false);
   const hasMenu = Boolean(children);
@@ -138,7 +139,11 @@ export function SplitButton({
           >
             <ChevronDownIcon aria-hidden="true" className="size-3" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72 p-1" {...menuProps}>
+          <DropdownMenuContent
+            align="end"
+            className={cn("w-max max-w-72 p-1", menuClassName)}
+            {...restMenuProps}
+          >
             {children}
           </DropdownMenuContent>
         </DropdownMenu>

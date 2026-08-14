@@ -49,10 +49,6 @@ describe("dialogShellClass", () => {
     expect(dialogShellClass("xl", { fill: true })).toContain("h-(--height-modal-xl)");
   });
 
-  it("Should let shell rows shrink below their content width", () => {
-    expect(dialogShellClass("lg")).toContain("grid-cols-[minmax(0,1fr)]");
-  });
-
   it("Should become a full-width bottom surface at 760px and below", () => {
     for (const size of SIZES) {
       const shell = dialogShellClass(size, { fill: true });

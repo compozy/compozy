@@ -165,7 +165,11 @@ export {
   useScopedWorktreeFilter,
   useSelectedWorktreeId,
 } from "./hooks/use-active-worktree";
-export type { ActiveWorktreeSelection, WorktreeFallbackReason } from "./hooks/use-active-worktree";
+export type {
+  ActiveWorktreeSelection,
+  ScopedWorktreeFilter,
+  WorktreeFallbackReason,
+} from "./hooks/use-active-worktree";
 export {
   useAdoptWorktree,
   useCancelWorktreeCreate,
@@ -241,6 +245,8 @@ export type { WorktreeSignalsProps } from "./components/worktree-signals";
 export { WorktreeOriginSignal } from "./components/worktree-signal-parts";
 export { WorktreeRow } from "./components/worktree-row";
 export type { WorktreeRowProps } from "./components/worktree-row";
+export { WorktreePath } from "./components/worktree-path";
+export type { WorktreePathProps } from "./components/worktree-path";
 export { WorktreeCreateDialog } from "./components/worktree-create-dialog";
 export type { WorktreeCreateDialogProps } from "./components/worktree-create-dialog";
 export { useWorktreeCreateDialog } from "./hooks/use-worktree-create-dialog";
@@ -260,11 +266,15 @@ export {
   deriveWorktreeParentDir,
   sanitizeWorktreeName,
 } from "./lib/worktree-naming";
-export { WorktreeAggregate, WorktreeNestList } from "./components/worktree-nest-list";
-export type {
-  WorktreeAggregateProps,
-  WorktreeNestListProps,
-} from "./components/worktree-nest-list";
+export { WorktreeAggregate } from "./components/worktree-aggregate";
+export type { WorktreeAggregateProps } from "./components/worktree-aggregate";
+export {
+  WORKTREE_SUBMENU_FRAME_CLASS,
+  WorktreeSubmenuPanel,
+} from "./components/worktree-submenu-panel";
+export type { WorktreeSubmenuPanelProps } from "./components/worktree-submenu-panel";
+export { WorktreeHoverSubmenu } from "./components/worktree-hover-submenu";
+export type { WorktreeHoverSubmenuProps } from "./components/worktree-hover-submenu";
 export { WorkspaceSetupDialog } from "./components/workspace-setup";
 export type { WorkspaceSetupModel } from "./components/workspace-setup";
 export { useWorkspaceSetupContent } from "./hooks/use-workspace-setup-content";

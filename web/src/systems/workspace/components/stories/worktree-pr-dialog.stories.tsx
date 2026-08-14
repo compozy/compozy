@@ -25,7 +25,7 @@ const meta: Meta<typeof WorktreePrDialog> = {
     docs: {
       description: {
         component:
-          "The pull-request step. Every row exists because the plan offers the action behind it: with no forge serving the remote the create path is absent entirely, and template resolution happens server-side, so the browser never prefills on its own.",
+          "The pull-request step. Actions live in the ruled footer like commit: compact Cancel plus a SplitButton. Draft and the compare link are menu alternatives of create. With no forge serving the remote the create path is absent entirely, and template resolution happens server-side, so the browser never prefills on its own.",
       },
     },
   },
@@ -55,12 +55,12 @@ export const BaseResolvedWithPrefill: Story = {
 };
 
 /**
- * VC-53 — the provider supports drafts, so draft is a peer row rather than a
- * checkbox hidden inside the primary action.
+ * VC-53 — the provider supports drafts, so draft is a SplitButton alternative
+ * rather than a checkbox or a second footer button.
  */
 export const DraftPeerRow: Story = { args: baseArgs };
 
-/** VC-54 — a request is already open: viewing it is the only row left. */
+/** VC-54 — a request is already open: viewing it is the only footer action left. */
 export const OpenedExisting: Story = {
   args: { ...baseArgs, ladder: toWorktreeExitLadder(exitPlanViewPrFixture) },
 };

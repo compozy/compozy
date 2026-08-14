@@ -60,6 +60,7 @@ export interface DesktopMenubarProps {
   worktreeSelection?: ActiveWorktreeSelection;
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onCreateWorktree?: (workspaceId: string) => void;
+  onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
 
 /**
@@ -95,6 +96,7 @@ export function DesktopMenubar({
   worktreeSelection,
   onSelectWorktree,
   onCreateWorktree,
+  onRemoveWorktree,
 }: DesktopMenubarProps) {
   const { coordinator } = useOsShell();
   const hydration = useDesktop(state => state.hydration);
@@ -215,6 +217,7 @@ export function DesktopMenubar({
           selectedWorktreeId={globalOn ? null : (worktreeSelection?.selectedWorktreeId ?? null)}
           onSelectWorktree={onSelectWorktree}
           onCreateWorktree={onCreateWorktree}
+          onRemoveWorktree={onRemoveWorktree}
         />
       )}
       menus={

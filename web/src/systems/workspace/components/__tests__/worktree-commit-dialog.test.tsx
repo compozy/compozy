@@ -45,6 +45,23 @@ function renderDialog(overrides: Partial<React.ComponentProps<typeof WorktreeCom
   return { onCommit };
 }
 
+describe("WorktreeCommitDialog entity shell", () => {
+  it("Should mount as an unframed ruled shell so chrome padding is not stacked", () => {
+    renderDialog();
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("data-frame", "unframed");
+    expect(dialog.querySelector('[data-slot="dialog-header"]')).toHaveAttribute(
+      "data-variant",
+      "ruled"
+    );
+    expect(dialog.querySelector('[data-slot="dialog-footer"]')).toHaveAttribute(
+      "data-variant",
+      "ruled"
+    );
+  });
+});
+
 describe("WorktreeCommitDialog agent affordance", () => {
   it("Should stage a reviewable prompt without committing when a session is bound", async () => {
     const user = userEvent.setup();

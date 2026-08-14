@@ -363,6 +363,8 @@
   /* Empty / menu primitives. */
   --size-empty-icon: 38px;
   --width-menu-sub-min: 96px;
+  --width-worktree-submenu: 320px;
+  --height-worktree-submenu-max: 420px;
 
   /* QR geometry — fixed physical sizes preserve a scanable quiet zone. */
   --size-qr-code-sm: 128px;

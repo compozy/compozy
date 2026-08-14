@@ -4,6 +4,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogTitle,
   dialogShellClass,
   Spinner,
 } from "@compozy/ui";
@@ -32,9 +33,12 @@ interface WorktreeDetailDialogProps {
 export function WorktreeDetailDialog({ open, onOpenChange, model }: WorktreeDetailDialogProps) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className={dialogShellClass("md")} data-slot="worktree-detail-dialog">
+      <DialogContent className={dialogShellClass("sm")} data-slot="worktree-detail-dialog" unframed>
+        <DialogTitle className="sr-only">
+          {model.worktree ? `${model.worktree.name} worktree details` : "Worktree details"}
+        </DialogTitle>
         {model.state === "ready" && model.worktree ? (
-          <div className="p-4">
+          <div className="flex flex-col gap-4 px-5 py-4">
             <WorktreeDetailHeader
               onRemove={model.onRemove}
               sessionTitle={model.sessionTitle}
@@ -56,34 +60,32 @@ export function WorktreeDetailDialog({ open, onOpenChange, model }: WorktreeDeta
               />
             ) : null}
             {model.ladder ? (
-              <div className="mt-3">
-                <WorktreeMergedEvidence
-                  cleanup={model.ladder.cleanup}
-                  onCleanUp={model.onCleanUp}
-                  staleLabel={model.staleLabel}
-                />
-              </div>
+              <WorktreeMergedEvidence
+                cleanup={model.ladder.cleanup}
+                onCleanUp={model.onCleanUp}
+                staleLabel={model.staleLabel}
+              />
             ) : null}
           </div>
         ) : model.state === "loading" ? (
-          <div className="flex items-center justify-center p-8">
+          <div className="flex items-center justify-center px-5 py-8">
             <Spinner className="size-4" />
           </div>
         ) : model.state === "error" ? (
-          <div className="p-4">
+          <div className="flex flex-col gap-3 px-5 py-4">
             <Alert variant="danger">
               <AlertDescription>
                 {model.error || "Worktree details could not be loaded."}
               </AlertDescription>
             </Alert>
             {model.retry ? (
-              <Button className="mt-3" onClick={model.retry} size="sm" variant="outline">
+              <Button onClick={model.retry} size="sm" variant="outline">
                 Retry
               </Button>
             ) : null}
           </div>
         ) : (
-          <div className="p-4 text-small-body text-subtle">
+          <div className="px-5 py-4 text-small-body text-subtle">
             This worktree is no longer available.
           </div>
         )}

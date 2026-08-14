@@ -1,4 +1,4 @@
-import { Check, Ellipsis, Info, Plus } from "lucide-react";
+import { Check, ChevronRight, Info } from "lucide-react";
 
 import {
   Alert,
@@ -6,17 +6,18 @@ import {
   MenubarContent,
   MenubarItem,
   MenubarMenu,
-  MenubarRadioGroup,
-  MenubarRadioItem,
   MenubarSeparator,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
 } from "@compozy/ui";
 
 import {
   GLOBAL_SCOPE_COPY,
   groupWorkspaceTree,
-  truncateWorktreeNest,
   WorktreeAggregate,
-  WorktreeRow,
+  WorktreeSubmenuPanel,
+  WORKTREE_SUBMENU_FRAME_CLASS,
   type WorkspacePayload,
   type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
@@ -41,10 +42,29 @@ export interface WorkspaceMenuProps {
   selectedWorktreeId?: string | null;
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onCreateWorktree?: (workspaceId: string) => void;
+  /** Opens the remove dialog for an adopted worktree (row actions menu). */
+  onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
 }
 
-/** Indent + rail. Depth is fixed at 2, so no row here can nest further. */
-const NEST_ROW_CLASS = "ml-[15px] border-l border-line-strong pl-3";
+function WorkspaceRowLabel({
+  monogram,
+  name,
+  runningAgents,
+}: {
+  monogram: string;
+  name: string;
+  runningAgents: number;
+}) {
+  return (
+    <>
+      <span className="grid size-4 shrink-0 place-items-center rounded-xs border border-line-strong bg-elevated font-mono text-micro font-semibold">
+        {monogram}
+      </span>
+      {name}
+      <WorktreeAggregate runningAgents={runningAgents} />
+    </>
+  );
+}
 
 /** Workspace switcher: the bound set, then the overview and creation paths. */
 export function WorkspaceMenu({
@@ -64,6 +84,7 @@ export function WorkspaceMenu({
   selectedWorktreeId,
   onSelectWorktree,
   onCreateWorktree,
+  onRemoveWorktree,
 }: WorkspaceMenuProps) {
   const notice = deletionNotice ?? (globalScopeOn ? GLOBAL_SCOPE_COPY.menuNotice : null);
   const tree = worktreesByWorkspace
@@ -89,80 +110,71 @@ export function WorkspaceMenu({
         ) : null}
         {orderedWorkspaces.map(workspace => {
           const node = nodeByWorkspaceId.get(workspace.id);
-          // A non-git workspace gets no nest at all — absent, never disabled.
-          const nest = node?.gitBacked ? truncateWorktreeNest(node.worktrees) : null;
-          return (
-            <div key={workspace.id}>
+          // A non-git workspace gets no worktree affordance — absent, never disabled.
+          const gitBacked = Boolean(node?.gitBacked);
+          const isActive = !globalScopeOn && workspace.id === activeWorkspaceId;
+          const rowLabel = (
+            <WorkspaceRowLabel
+              monogram={monogram(workspace.name)}
+              name={workspace.name}
+              runningAgents={node?.runningAgents ?? 0}
+            />
+          );
+          if (!gitBacked || !node) {
+            return (
               <MenubarItem
+                key={workspace.id}
                 data-testid={`os-workspace-option-${workspace.id}`}
                 onClick={() => onSelectWorkspace(workspace.id)}
               >
-                <span className="grid size-4 place-items-center rounded-xs border border-line-strong bg-elevated font-mono text-micro font-semibold">
-                  {monogram(workspace.name)}
-                </span>
-                {workspace.name}
-                <WorktreeAggregate runningAgents={node?.runningAgents ?? 0} />
-                {!globalScopeOn && workspace.id === activeWorkspaceId ? (
-                  <Check className="ml-auto size-3 text-accent" />
-                ) : null}
+                {rowLabel}
+                {isActive ? <Check className="ml-auto size-3 text-accent" /> : null}
               </MenubarItem>
-
-              {/* Radio semantics come from the primitive: exactly one worktree
-                  can scope a workspace, and `role="menu"` keeps holding only
-                  menu items. Global cannot bind a worktree, so nothing is
-                  selected while Global is on. */}
-              {nest ? (
-                <MenubarRadioGroup
-                  value={globalScopeOn ? "" : (selectedWorktreeId ?? "")}
-                  aria-label={`Worktrees in ${workspace.name}`}
-                >
-                  {nest.visible.map(entry => (
-                    <MenubarRadioItem
-                      key={entry.key}
-                      value={entry.worktree?.id ?? entry.key}
-                      disabled={!entry.selectable}
-                      className={NEST_ROW_CLASS}
-                      data-testid={`os-worktree-option-${entry.key}`}
-                      onClick={() => {
-                        if (!entry.selectable) return;
-                        onSelectWorktree?.(workspace.id, entry);
-                      }}
-                    >
-                      <WorktreeRow
-                        entry={entry}
-                        density="nest"
-                        className="w-full px-0 hover:bg-transparent"
-                        trailing={
-                          entry.adoptable ? (
-                            <span className="text-mono-id font-semibold text-info">Adopt</span>
-                          ) : null
-                        }
-                      />
-                    </MenubarRadioItem>
-                  ))}
-                  {nest.overflowCount > 0 ? (
-                    <MenubarItem
-                      className={NEST_ROW_CLASS}
-                      data-testid={`os-worktree-overflow-${workspace.id}`}
-                      onClick={onOpenWorkspaces}
-                    >
-                      <Ellipsis className="size-3 text-faint" />
-                      All {node?.adoptedCount ?? 0} worktrees
-                    </MenubarItem>
-                  ) : null}
-                  {onCreateWorktree ? (
-                    <MenubarItem
-                      className={NEST_ROW_CLASS}
-                      data-testid={`os-worktree-create-${workspace.id}`}
-                      onClick={() => onCreateWorktree(workspace.id)}
-                    >
-                      <Plus className="size-3 text-faint" />
-                      New worktree
-                    </MenubarItem>
-                  ) : null}
-                </MenubarRadioGroup>
-              ) : null}
-            </div>
+            );
+          }
+          return (
+            <MenubarSub key={workspace.id}>
+              <MenubarSubTrigger
+                // The primitive appends its own ml-auto chevron; hide it so the
+                // active check and the chevron share one trailing lane.
+                className="[&>svg:last-child]:hidden"
+                data-testid={`os-workspace-option-${workspace.id}`}
+                onClick={event => {
+                  // Enter and screen-reader activation (detail 0) keep opening
+                  // the submenu per the menu contract; a pointer click selects.
+                  if (event.detail === 0) return;
+                  onSelectWorkspace(workspace.id);
+                  onOpenChange(false);
+                }}
+              >
+                {rowLabel}
+                <span className="ml-auto flex shrink-0 items-center gap-1">
+                  {isActive ? <Check className="size-3 text-accent" /> : null}
+                  <ChevronRight aria-hidden="true" className="size-3 text-faint" />
+                </span>
+              </MenubarSubTrigger>
+              <MenubarSubContent
+                className={WORKTREE_SUBMENU_FRAME_CLASS}
+                data-testid={`os-worktree-submenu-${workspace.id}`}
+              >
+                <WorktreeSubmenuPanel
+                  node={node}
+                  selectedWorktreeId={globalScopeOn ? null : selectedWorktreeId}
+                  testIdPrefix="os"
+                  variant="menu"
+                  onSelectWorktree={
+                    onSelectWorktree ? entry => onSelectWorktree(workspace.id, entry) : undefined
+                  }
+                  onCreateWorktree={
+                    onCreateWorktree ? () => onCreateWorktree(workspace.id) : undefined
+                  }
+                  onShowAllWorktrees={onOpenWorkspaces}
+                  onRemoveWorktree={
+                    onRemoveWorktree ? entry => onRemoveWorktree(workspace.id, entry) : undefined
+                  }
+                />
+              </MenubarSubContent>
+            </MenubarSub>
           );
         })}
         <MenubarSeparator />

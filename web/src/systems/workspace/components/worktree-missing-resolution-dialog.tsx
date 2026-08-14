@@ -23,6 +23,7 @@ import {
 
 import type { WorktreeRefusal } from "../lib/worktree-refusal";
 import type { WorktreePayload } from "../types";
+import { WorktreePath } from "./worktree-path";
 
 export interface WorktreeMissingResolutionDialogProps {
   open: boolean;
@@ -75,7 +76,7 @@ export function WorktreeMissingResolutionDialog({
               <MonoId value={worktree.branch} preserveCase size="sm" />
             </MetadataList.Row>
             <MetadataList.Row label="Expected path">
-              <MonoId value={worktree.path} preserveCase size="sm" />
+              <WorktreePath className="w-full" path={worktree.path} />
             </MetadataList.Row>
           </MetadataList>
 

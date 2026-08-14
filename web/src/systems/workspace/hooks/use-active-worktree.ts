@@ -4,6 +4,7 @@ import { toWorktreeDisplayState } from "../lib/worktree-display";
 import {
   activeWorkspaceSelectors,
   clearActiveWorktreeSelection,
+  resolveScopedWorktreeId,
   setActiveWorktreeId,
   SHELL_WORKTREE_SCOPE,
 } from "../stores/active-workspace-store";
@@ -20,6 +21,8 @@ export interface ActiveWorktreeSelection {
   selectedWorktreeId: string | null;
   /** Resolved only when the worktree exists and can receive work. */
   activeWorktree: WorktreePayload | null;
+  /** False until a stored selection has been checked against the live list. */
+  resolved: boolean;
   /**
    * Set when a stored selection cannot receive work. The selection is kept, not
    * cleared: if the directory comes back, the scope resumes on its own.
@@ -29,7 +32,7 @@ export interface ActiveWorktreeSelection {
 
 export function useSelectedWorktreeId(scopeId: string): string | null {
   const byScope = useSelector(activeWorkspaceSelectors.worktreeByScope);
-  return byScope[scopeId] ?? null;
+  return resolveScopedWorktreeId(byScope, scopeId);
 }
 
 /**
@@ -44,16 +47,20 @@ export function useActiveWorktree(
 ): ActiveWorktreeSelection {
   const selectedWorktreeId = useSelectedWorktreeId(scopeId);
   if (selectedWorktreeId === null) {
-    return { selectedWorktreeId: null, activeWorktree: null, fallback: null };
+    return { selectedWorktreeId: null, activeWorktree: null, resolved: true, fallback: null };
   }
 
-  const match = listing?.worktrees.find(worktree => worktree.id === selectedWorktreeId);
+  if (listing === undefined) {
+    return { selectedWorktreeId, activeWorktree: null, resolved: false, fallback: null };
+  }
+
+  const match = listing.worktrees.find(worktree => worktree.id === selectedWorktreeId);
   if (!match) {
-    // The list is the authority; an id it does not carry cannot be scoped to.
     return {
       selectedWorktreeId,
       activeWorktree: null,
-      fallback: listing ? { worktreeId: selectedWorktreeId, name: null, reason: "missing" } : null,
+      resolved: true,
+      fallback: { worktreeId: selectedWorktreeId, name: null, reason: "missing" },
     };
   }
 
@@ -62,6 +69,7 @@ export function useActiveWorktree(
     return {
       selectedWorktreeId,
       activeWorktree: null,
+      resolved: true,
       fallback: {
         worktreeId: selectedWorktreeId,
         name: match.name,
@@ -70,7 +78,13 @@ export function useActiveWorktree(
     };
   }
 
-  return { selectedWorktreeId, activeWorktree: match, fallback: null };
+  return { selectedWorktreeId, activeWorktree: match, resolved: true, fallback: null };
+}
+
+export interface ScopedWorktreeFilter {
+  worktreeId: string | undefined;
+  /** True only after a stored selection is known to be ready or a valid fallback. */
+  resolved: boolean;
 }
 
 /**
@@ -85,12 +99,12 @@ export function useScopedWorktreeFilter(
   workspaceId: string | null,
   scopeId: string,
   options: { enabled?: boolean } = {}
-): string | undefined {
+): ScopedWorktreeFilter {
   const enabled = (options.enabled ?? true) && workspaceId !== null;
-  // Shares the canonical worktree query key, so scoped lists add no fetch.
   const worktrees = useWorktrees(workspaceId, { enabled });
   const selection = useActiveWorktree(scopeId, worktrees.data);
-  return selection.activeWorktree?.id;
+  if (!enabled) return { worktreeId: undefined, resolved: true };
+  return { worktreeId: selection.activeWorktree?.id, resolved: selection.resolved };
 }
 
 export function selectWorktreeForScope(

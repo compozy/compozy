@@ -34,8 +34,9 @@ const (
 	startupMemorySectionBudget    = 24_000
 	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
-	startupToolsSectionBudget     = 42_000
-	startupNetworkSectionBudget   = 512
+	// Keep enough headroom to avoid truncating canonical tool guidance.
+	startupToolsSectionBudget   = 48_000
+	startupNetworkSectionBudget = 512
 )
 
 // PromptSectionPosition identifies whether a startup section renders before or

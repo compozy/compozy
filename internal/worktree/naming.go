@@ -39,6 +39,17 @@ func DeriveNames(value string) DerivedNames {
 	return DerivedNames{Branch: slug, Directory: slug}
 }
 
+func discoveredLabel(entry GitWorktree) string {
+	if branch := strings.TrimSpace(entry.Branch); branch != "" {
+		return SanitizeName(branch)
+	}
+	sha := strings.TrimSpace(entry.HeadSHA)
+	if len(sha) > 8 {
+		sha = sha[:8]
+	}
+	return SanitizeName("detached-" + sha)
+}
+
 func GenerateName(taken func(string) bool) string {
 	base := nameAdjectives[0] + "-" + nameNouns[0]
 	if taken == nil || !taken(base) {

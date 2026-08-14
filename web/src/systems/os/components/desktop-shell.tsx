@@ -7,16 +7,10 @@ import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-action
 import { useDesktopChrome } from "../hooks/use-desktop-chrome";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-desktop-shell-model";
-import { useDesktopWorktreeScope } from "../hooks/use-worktree-scope";
+import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
-import {
-  WorktreeAdoptDialogBoundary,
-  WorktreeContextDialogBoundary,
-  WorktreeCreateDialogBoundary,
-  WorktreeMissingDialogBoundary,
-  WorktreeRemoveDialogBoundary,
-} from "./worktree-dialog-boundaries";
 import { DesktopGate } from "./desktop-gate";
+import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
 import { DesktopMenubar } from "./desktop-menubar";
 import { DesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
@@ -122,20 +116,35 @@ function DesktopChrome({ firstRun }: { firstRun: boolean }) {
   );
 }
 
-function DesktopShellBody({
-  model,
-  firstRun,
-  workspaceSetupDefaults,
-  worktreeDialogs,
-}: {
+interface DesktopShellBodyProps {
   model: DesktopShellModel;
   firstRun: boolean;
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
   worktreeDialogs: ReturnType<typeof useWorktreeDialogTargets>;
-}) {
+}
+
+type DesktopWorktreeScope = ReturnType<typeof useDesktopWorktreeScope>;
+
+function DesktopShellBody(props: DesktopShellBodyProps) {
+  const worktreeScope = useDesktopWorktreeScope(props.model.worktreeListing);
+
+  return (
+    <WindowScopeContext value={worktreeScope.worktreeScopeId}>
+      <DesktopShellScopedBody {...props} {...worktreeScope} />
+    </WindowScopeContext>
+  );
+}
+
+function DesktopShellScopedBody({
+  model,
+  firstRun,
+  workspaceSetupDefaults,
+  worktreeDialogs,
+  worktreeScopeId,
+  worktreeSelection,
+}: DesktopShellBodyProps & DesktopWorktreeScope) {
   const sessionCreate = useSessionCreateActions();
   const sessionLifecycle = useSessionLifecycleActions({ workspaceId: model.runtimeWorkspaceId });
-  const { worktreeScopeId, worktreeSelection } = useDesktopWorktreeScope(model.worktreeListing);
   const openNewSession = () => {
     sessionCreate.openForAgent("");
   };
@@ -190,7 +199,9 @@ function DesktopShellBody({
         deletionNotice={model.deletionNotice}
         rememberedWorkspaceName={model.rememberedWorkspace?.name ?? null}
         onToggleGlobalScope={model.toggleGlobalScope}
-        onSelectWorkspace={model.setActiveWorkspaceId}
+        onSelectWorkspace={workspaceId =>
+          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
+        }
         onAddWorkspace={model.openWorkspaceSetup}
         onNewSession={openNewSession}
         onOpenPalette={() => overlays.setOverlayOpen("palette", true)}
@@ -211,6 +222,7 @@ function DesktopShellBody({
           }
         }}
         onCreateWorktree={model.openWorktreeCreate}
+        onRemoveWorktree={worktreeDialogs.requestRemove}
       />
       <div data-slot="os-desk" className="relative min-h-0 flex-1 overflow-hidden">
         <OsWallpaper wallpaper={desktop.wallpaper} />
@@ -319,7 +331,9 @@ function DesktopShellBody({
         onOpenChange={open => overlays.setOverlayOpen("workspaces", open)}
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
-        onSelectWorkspace={model.setActiveWorkspaceId}
+        onSelectWorkspace={workspaceId =>
+          model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
+        }
         onNewWorkspace={model.openWorkspaceSetup}
         details={workspaceDetails}
         presentation={pager.presentation}
@@ -344,50 +358,11 @@ function DesktopShellBody({
         onWorkspaceResolved={model.setActiveWorkspaceId}
         open={model.isWorkspaceSetupOpen}
       />
-      {model.worktreeCreateWorkspaceId ? (
-        <WorktreeCreateDialogBoundary
-          workspaceId={model.worktreeCreateWorkspaceId}
-          workspaceName={
-            model.workspaces.find(workspace => workspace.id === model.worktreeCreateWorkspaceId)
-              ?.name ?? "workspace"
-          }
-          listing={model.worktreesByWorkspace[model.worktreeCreateWorkspaceId]}
-          scopeId={worktreeScopeId}
-          onOpenChange={open =>
-            model.setWorktreeCreateWorkspaceId(open ? model.worktreeCreateWorkspaceId : null)
-          }
-        />
-      ) : null}
-      {worktreeDialogs.adoptTarget ? (
-        <WorktreeAdoptDialogBoundary
-          workspaceId={worktreeDialogs.adoptTarget.workspaceId}
-          discovered={worktreeDialogs.adoptTarget.discovered}
-          scopeId={worktreeScopeId}
-          onClose={worktreeDialogs.closeAdopt}
-        />
-      ) : null}
-      {worktreeDialogs.removeTarget ? (
-        <WorktreeRemoveDialogBoundary
-          workspaceId={worktreeDialogs.removeTarget.workspaceId}
-          worktree={worktreeDialogs.removeTarget.worktree}
-          onClose={worktreeDialogs.closeRemove}
-        />
-      ) : null}
-      {worktreeDialogs.missingTarget ? (
-        <WorktreeMissingDialogBoundary
-          workspaceId={worktreeDialogs.missingTarget.workspaceId}
-          worktree={worktreeDialogs.missingTarget.worktree}
-          onClose={worktreeDialogs.closeMissing}
-        />
-      ) : null}
-      {worktreeDialogs.contextTarget ? (
-        <WorktreeContextDialogBoundary
-          workspaceId={worktreeDialogs.contextTarget.workspaceId}
-          worktree={worktreeDialogs.contextTarget.worktree}
-          onCleanUp={worktreeDialogs.requestContextCleanup}
-          onClose={worktreeDialogs.closeContext}
-        />
-      ) : null}
+      <DesktopWorktreeDialogs
+        model={model}
+        scopeId={worktreeScopeId}
+        worktreeDialogs={worktreeDialogs}
+      />
       <AgentCreateDialog
         draft={model.agentCreate.draft}
         hasActiveWorkspace={model.agentCreate.hasActiveWorkspace}

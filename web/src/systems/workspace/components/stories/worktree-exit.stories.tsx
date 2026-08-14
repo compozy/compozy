@@ -4,7 +4,10 @@ import { fn, userEvent, within } from "storybook/test";
 import { StorySurface } from "@/storybook/story-layout";
 
 import type { WorktreeDetailModel } from "../../hooks/use-worktree-detail-context";
-import { worktreeReadyDirtyRunningFixture } from "../../mocks/worktree-fixtures";
+import {
+  LONG_WORKTREE_PATH,
+  worktreeReadyDirtyRunningFixture,
+} from "../../mocks/worktree-fixtures";
 import { toWorktreeExitLadder, type WorktreeExitLadder } from "../../lib/worktree-exit-ladder";
 import {
   exitPlanAwaitingInputFixture,
@@ -84,7 +87,11 @@ export const DetailContextHero: Story = {
     <WorktreeDetailDialog
       model={detailModel({
         ladder: toWorktreeExitLadder(exitPlanAwaitingInputFixture),
-        worktree: { ...worktreeReadyDirtyRunningFixture, agent_activity: "awaiting-input" },
+        worktree: {
+          ...worktreeReadyDirtyRunningFixture,
+          agent_activity: "awaiting-input",
+          path: LONG_WORKTREE_PATH,
+        },
       })}
       onOpenChange={() => {}}
       open

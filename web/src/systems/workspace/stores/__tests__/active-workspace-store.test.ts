@@ -1,14 +1,13 @@
 // Suite: active-workspace store transitions
 // Invariant: the persisted scope contract — selecting a workspace turns Global off in one
 // gesture, leaving Global requires a remembered project, clearing resets to Global, and the
-// toggle flips relative to the *resolved* scope, never the stored one. Worktree selection is
-// per window scope; two windows keep independent selections; a selection that stops resolving
-// falls back to the parent; picking a worktree leaves Global.
+// toggle flips relative to the resolved scope. Worktree selections are per-window, while a
+// scope without an explicit pick inherits the shell selection. An explicit root remains local.
 // Boundary IN: the module-scoped @xstate/store and its imperative API.
 // Boundary OUT: resolution (lib/active-workspace) and persistence envelope (use-workspaces suite).
 
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { useActiveWorktree } from "../../hooks/use-active-worktree";
 import {
@@ -18,6 +17,7 @@ import {
   worktreeReadyDirtyRunningFixture,
 } from "../../mocks/worktree-fixtures";
 import {
+  ACTIVE_WORKSPACE_PERSIST_KEY,
   activeWorkspaceStore,
   clearActiveWorkspaceSelection,
   disableGlobalScope,
@@ -112,42 +112,24 @@ describe("activeWorkspaceStore", () => {
   });
 });
 
-describe("active workspace store v3", () => {
+describe("active workspace worktree scope", () => {
   beforeEach(() => {
     clearActiveWorkspaceSelection();
     window.localStorage.clear();
   });
 
-  it("Should persist under the v3 key and ignore v2 state entirely", () => {
+  it("Should persist the selected workspace", () => {
     setActiveWorkspaceId(WORKSPACE);
 
-    expect(window.localStorage.getItem("compozy:active-workspace:v4")).toContain(WORKSPACE);
-    // v2 is a hard cut: nothing reads it and nothing writes it.
-    expect(window.localStorage.getItem("compozy:active-workspace:v3")).toBeNull();
-  });
-
-  it("Should ignore a seeded v2 selection during store initialization", async () => {
-    window.localStorage.setItem(
-      "compozy:active-workspace:v2",
-      JSON.stringify({ selectedWorkspaceId: "ws_legacy" })
-    );
-    vi.resetModules();
-
-    const isolatedModule = await import("../active-workspace-store");
-
-    expect(
-      isolatedModule.activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId
-    ).toBeNull();
+    expect(window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)).toContain(WORKSPACE);
   });
 
   it("Should keep two window scopes independently selectable", () => {
     setActiveWorktreeId(WINDOW_ONE, WORKSPACE, "wt_payments_retry");
     setActiveWorktreeId(WINDOW_TWO, WORKSPACE, "wt_auth_refresh");
 
-    // US-011 EC-3: each open window carries its own worktree.
     expect(context().worktreeByScope[WINDOW_ONE]).toBe("wt_payments_retry");
     expect(context().worktreeByScope[WINDOW_TWO]).toBe("wt_auth_refresh");
-    // And the workspace stays shared, because the layout is bound to one.
     expect(context().selectedWorkspaceId).toBe(WORKSPACE);
   });
 
@@ -167,7 +149,6 @@ describe("active workspace store v3", () => {
 
     setActiveWorkspaceId("ws_risk_ops");
 
-    // A worktree belongs to exactly one workspace and never survives its parent.
     expect(context().worktreeByScope).toEqual({});
   });
 
@@ -194,8 +175,6 @@ describe("active workspace store v3", () => {
 
     pruneWorktreeScopes([WINDOW_TWO]);
 
-    // Windows close from any client, so readers prune rather than wait for a
-    // release that may never come.
     expect(context().worktreeByScope[WINDOW_ONE]).toBeUndefined();
     expect(context().worktreeByScope[WINDOW_TWO]).toBe("wt_auth_refresh");
   });
@@ -205,6 +184,32 @@ describe("active workspace store v3", () => {
 
     pruneWorktreeScopes([]);
 
+    expect(context().worktreeByScope[SHELL_WORKTREE_SCOPE]).toBe("wt_payments_retry");
+  });
+
+  it("Should make every selection gesture the shell ambient default", () => {
+    setActiveWorktreeId(WINDOW_ONE, WORKSPACE, "wt_payments_retry");
+
+    expect(context().worktreeByScope[SHELL_WORKTREE_SCOPE]).toBe("wt_payments_retry");
+  });
+
+  it("Should root only the acting scope when the active workspace is re-selected", () => {
+    setActiveWorktreeId(WINDOW_ONE, WORKSPACE, "wt_payments_retry");
+    setActiveWorktreeId(WINDOW_TWO, WORKSPACE, "wt_auth_refresh");
+
+    setActiveWorkspaceId(WORKSPACE, { scopeId: WINDOW_ONE });
+
+    expect(context().worktreeByScope[WINDOW_ONE]).toBeNull();
+    expect(context().worktreeByScope[SHELL_WORKTREE_SCOPE]).toBeNull();
+    expect(context().worktreeByScope[WINDOW_TWO]).toBe("wt_auth_refresh");
+  });
+
+  it("Should preserve worktree scopes on a programmatic re-selection", () => {
+    setActiveWorktreeId(WINDOW_ONE, WORKSPACE, "wt_payments_retry");
+
+    setActiveWorkspaceId(WORKSPACE);
+
+    expect(context().worktreeByScope[WINDOW_ONE]).toBe("wt_payments_retry");
     expect(context().worktreeByScope[SHELL_WORKTREE_SCOPE]).toBe("wt_payments_retry");
   });
 });
@@ -228,7 +233,6 @@ describe("worktree selection resolution", () => {
 
     const selection = resolve(WINDOW_ONE);
 
-    // The scope degrades to the workspace and says why, without a store write.
     expect(selection.activeWorktree).toBeNull();
     expect(selection.fallback?.reason).toBe("missing");
     expect(selection.selectedWorktreeId).toBe(worktreeMissingFixture.id);
@@ -255,7 +259,6 @@ describe("worktree selection resolution", () => {
   it("Should restore a persisted selection while the worktree is still present", () => {
     setActiveWorktreeId(WINDOW_ONE, WORKSPACE, worktreeReadyDirtyRunningFixture.id);
 
-    // A later read with the same listing resolves the stored id again.
     expect(resolve(WINDOW_ONE).activeWorktree?.id).toBe(worktreeReadyDirtyRunningFixture.id);
   });
 
@@ -265,5 +268,47 @@ describe("worktree selection resolution", () => {
     expect(selection.selectedWorktreeId).toBeNull();
     expect(selection.activeWorktree).toBeNull();
     expect(selection.fallback).toBeNull();
+    expect(selection.resolved).toBe(true);
+  });
+
+  it("Should keep a stored selection unresolved until the live list arrives", () => {
+    setActiveWorktreeId(WINDOW_ONE, WORKSPACE, worktreeReadyDirtyRunningFixture.id);
+
+    const selection = renderHook(() => useActiveWorktree(WINDOW_ONE, undefined)).result.current;
+
+    expect(selection.selectedWorktreeId).toBe(worktreeReadyDirtyRunningFixture.id);
+    expect(selection.activeWorktree).toBeNull();
+    expect(selection.fallback).toBeNull();
+    expect(selection.resolved).toBe(false);
+  });
+
+  it("Should ignore inherited object properties when resolving a scope", () => {
+    setActiveWorktreeId(SHELL_WORKTREE_SCOPE, WORKSPACE, worktreeReadyDirtyRunningFixture.id);
+
+    expect(resolve("constructor").selectedWorktreeId).toBe(worktreeReadyDirtyRunningFixture.id);
+  });
+
+  it("Should inherit the shell selection in a window with no pick of its own", () => {
+    setActiveWorktreeId(SHELL_WORKTREE_SCOPE, WORKSPACE, worktreeReadyDirtyRunningFixture.id);
+
+    const selection = resolve(WINDOW_ONE);
+
+    expect(selection.activeWorktree?.id).toBe(worktreeReadyDirtyRunningFixture.id);
+    expect(selection.fallback).toBeNull();
+  });
+
+  it("Should keep an explicit pick independent of the shell selection", () => {
+    setActiveWorktreeId(WINDOW_ONE, WORKSPACE, worktreeReadyDirtyRunningFixture.id);
+    setActiveWorktreeId(SHELL_WORKTREE_SCOPE, WORKSPACE, "wt_other_pick");
+
+    expect(resolve(WINDOW_ONE).selectedWorktreeId).toBe(worktreeReadyDirtyRunningFixture.id);
+  });
+
+  it("Should let an explicit root override the inherited selection", () => {
+    setActiveWorktreeId(SHELL_WORKTREE_SCOPE, WORKSPACE, worktreeReadyDirtyRunningFixture.id);
+    setActiveWorktreeId(WINDOW_ONE, WORKSPACE, null);
+
+    expect(resolve(WINDOW_ONE).selectedWorktreeId).toBeNull();
+    expect(resolve(WINDOW_TWO).selectedWorktreeId).toBe(worktreeReadyDirtyRunningFixture.id);
   });
 });

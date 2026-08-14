@@ -56,7 +56,7 @@ vi.mock("@/systems/workspace/hooks/use-worktrees", () => ({
   useWorktrees: () => ({ data: undefined }),
 }));
 vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
-  useScopedWorktreeFilter: () => undefined,
+  useScopedWorktreeFilter: () => ({ worktreeId: undefined, resolved: true }),
   useActiveWorktree: () => ({ selectedWorktreeId: null, activeWorktree: null, fallback: null }),
 }));
 vi.mock("@/systems/session/hooks/use-sessions", () => ({

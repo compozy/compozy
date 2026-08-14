@@ -34,6 +34,29 @@ func TestServiceAdopt(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve the discovered label when adopting a detached worktree", func(t *testing.T) {
+		t.Parallel()
+		fixture := newAdoptionTestFixture(t)
+		baseRun := fixture.runner.run
+		fixture.runner.run = func(call gitInvocation) gitResponse {
+			if strings.Contains(strings.Join(call.args, " "), "worktree list --porcelain -z") {
+				return gitResponse{stdout: []byte(
+					"worktree " + fixture.workspace.Root + "\x00HEAD root\x00branch refs/heads/main\x00\x00" +
+						"worktree " + fixture.candidate + "\x00HEAD abc1234567890def\x00detached\x00\x00",
+				)}
+			}
+			return baseRun(call)
+		}
+
+		item, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		if err != nil {
+			t.Fatalf("Adopt() error = %v", err)
+		}
+		if item.Name != "detached-abc12345" || item.Branch != "" {
+			t.Fatalf("Adopt() = %#v, want detached discovery identity", item)
+		}
+	})
+
 	t.Run("Should return the existing row on repeated adoption", func(t *testing.T) {
 		t.Parallel()
 		fixture := newAdoptionTestFixture(t)

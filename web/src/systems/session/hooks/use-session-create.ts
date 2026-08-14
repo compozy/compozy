@@ -4,7 +4,8 @@ import { toast } from "sonner";
 
 import { SessionCreateContext } from "../contexts/session-create-context-value";
 import type { SessionCreateStore } from "../stores/session-create-store";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useWorktreeScopeId } from "@/hooks/use-window-scope";
+import { useActiveWorkspace, useScopedWorktreeFilter } from "@/systems/workspace";
 
 export function useSessionCreateStore(): SessionCreateStore {
   const store = use(SessionCreateContext);
@@ -16,13 +17,28 @@ export function useSessionCreateStore(): SessionCreateStore {
 
 export function useSessionCreateActions() {
   const store = useSessionCreateStore();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const { runtimeWorkspaceId, scope } = useActiveWorkspace();
+  const scopeId = useWorktreeScopeId();
+  const scopedWorktree = useScopedWorktreeFilter(
+    scope === "workspace" ? runtimeWorkspaceId : null,
+    scopeId
+  );
   const openForAgent = (agentName: string) => {
     if (runtimeWorkspaceId === null) {
       toast.error("Select an active workspace before starting a session.");
       return;
     }
-    store.trigger.dialogOpened({ agentName, workspaceId: runtimeWorkspaceId });
+    if (!scopedWorktree.resolved) {
+      toast.error("Worktrees are not available yet. Try again.");
+      return;
+    }
+    store.trigger.dialogOpened({
+      agentName,
+      workspaceId: runtimeWorkspaceId,
+      ...(scopedWorktree.worktreeId
+        ? { environment: { kind: "worktree", worktreeId: scopedWorktree.worktreeId } }
+        : {}),
+    });
   };
 
   /**

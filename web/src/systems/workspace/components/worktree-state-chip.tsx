@@ -41,18 +41,28 @@ const CHIP_LABEL: Record<WorktreeChipState, string> = {
 
 export interface WorktreeStateChipProps extends Omit<React.ComponentProps<"span">, "children"> {
   state: WorktreeDisplayState;
+  /** `sm` is the quiet metadata form nested rows carry on their second line. */
+  size?: "default" | "sm";
 }
 
-export function WorktreeStateChip({ state, className, ...props }: WorktreeStateChipProps) {
+export function WorktreeStateChip({
+  state,
+  size = "default",
+  className,
+  ...props
+}: WorktreeStateChipProps) {
   if (state === "ready") return null;
 
   return (
     <span
       data-slot="worktree-state-chip"
       data-state={state}
+      data-size={size}
       className={cn(
-        "inline-flex h-[19px] shrink-0 items-center gap-[5px] rounded-xs px-2",
-        "text-badge font-semibold leading-none",
+        "inline-flex shrink-0 items-center rounded-xs leading-none",
+        size === "sm"
+          ? "h-4 gap-1 px-1.5 text-micro font-medium"
+          : "h-[19px] gap-[5px] px-2 text-badge font-semibold",
         CHIP_TONE[state],
         className
       )}

@@ -34,13 +34,19 @@ export function useAgentSessions(
   // selection fell back, which drops the filter instead of sending an empty one.
   const scopeId = useWorktreeScopeId();
   const worktree = useScopedWorktreeFilter(workspaceId, scopeId, { enabled });
+  const queryEnabled = enabled && worktree.resolved;
   const sessionsQuery = useSessions(workspaceId, {
-    enabled,
-    filters: { agent: agentName, sort: "last_activity", worktree },
+    enabled: queryEnabled,
+    filters: { agent: agentName, sort: "last_activity", worktree: worktree.worktreeId },
   });
   const archivedSessionsQuery = useSessions(workspaceId, {
-    enabled,
-    filters: { agent: agentName, archive: "only", sort: "last_activity", worktree },
+    enabled: queryEnabled,
+    filters: {
+      agent: agentName,
+      archive: "only",
+      sort: "last_activity",
+      worktree: worktree.worktreeId,
+    },
   });
 
   return {
@@ -57,7 +63,8 @@ export function useAgentSessions(
     loadMoreArchived: () => {
       void archivedSessionsQuery.fetchNextPage();
     },
-    isLoading: sessionsQuery.isLoading || archivedSessionsQuery.isLoading,
+    isLoading:
+      (enabled && !worktree.resolved) || sessionsQuery.isLoading || archivedSessionsQuery.isLoading,
     isError: sessionsQuery.isError || archivedSessionsQuery.isError,
   };
 }

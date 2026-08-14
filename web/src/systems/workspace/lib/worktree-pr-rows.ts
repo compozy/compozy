@@ -11,7 +11,7 @@ export interface WorktreePrDialogModel {
 }
 
 /**
- * Derives the PR step's rows from the exit plan alone.
+ * Derives the PR step's footer actions from the exit plan alone.
  *
  * Every row exists because the payload offers the action behind it: with no
  * forge serving the remote there is no create row at all, only the compare link

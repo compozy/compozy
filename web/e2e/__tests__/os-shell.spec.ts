@@ -3578,17 +3578,23 @@ test("operator sees one nested worktree tree across all three workspace-listing 
       if (worktreeID === null) parentRequests.push(url);
     });
 
-    // Surface 1 — the menubar workspace menu.
+    // Surface 1 — the menubar workspace menu. Keyboard-only traversal opens
+    // the side submenu and selects the nested entry.
     await appPage.locator('[data-slot="os-menubar-workspace"]').click();
+    await appPage.getByTestId(`os-workspace-option-${workspace.id}`).focus();
+    await appPage.keyboard.press("ArrowRight");
     const menuRow = appPage.getByTestId(/^os-worktree-option-/).first();
     await expect(menuRow).toBeVisible();
     await expect(menuRow).toContainText("payments-retry");
 
-    // Keyboard-only traversal reaches the nested entry and selects it.
     await menuRow.focus();
     await appPage.keyboard.press("Enter");
 
     // The chip states where new work will run: `workspace / worktree`.
+    await expect(appPage.locator('[data-slot="os-menubar-worktree"]')).toHaveText("payments-retry");
+
+    // A fresh window inherits the shell selection and issues scoped reads.
+    await openDockApp(appPage, "Tasks", "tasks");
     await expect(appPage.locator('[data-slot="os-menubar-worktree"]')).toHaveText("payments-retry");
 
     // Surface 2 — the real command palette switcher renders and selects the
@@ -3606,9 +3612,10 @@ test("operator sees one nested worktree tree across all three workspace-listing 
     await appPage.getByTestId("os-workspace-overview").click();
     const overviewToggle = appPage.getByTestId(`os-workspace-worktrees-toggle-${workspace.id}`);
     await expect(overviewToggle).toBeVisible();
-    await overviewToggle.click();
+    await overviewToggle.hover();
+    await expect(appPage.getByTestId(`os-worktree-submenu-${workspace.id}`)).toBeVisible();
     const overviewRows = await appPage
-      .getByTestId(new RegExp(`^os-workspace-nest-${workspace.id}-item-`))
+      .getByTestId(new RegExp(`^os-worktree-option-`))
       .allTextContents();
     expect(overviewRows.join(" ")).toContain("payments-retry");
     // Both surfaces project the same tree, so their row order matches.

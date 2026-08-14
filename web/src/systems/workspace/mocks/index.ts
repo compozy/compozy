@@ -2,6 +2,7 @@ export { handlers } from "./handlers";
 export { primaryWorkspaceFixture, workspaceDetailFixture, workspaceFixtures } from "./fixtures";
 export { worktreeHandlers } from "./worktree-handlers";
 export {
+  LONG_WORKTREE_PATH,
   buildWorktreeFixture,
   discoveredOnlyWorktreeListingFixture,
   discoveredStaleWorktreeFixture,
@@ -9,6 +10,7 @@ export {
   emptyWorktreeListingFixture,
   manyWorktreesListingFixture,
   nonGitWorktreeListingFixture,
+  scrollableWorktreesListingFixture,
   worktreeBehindFixture,
   worktreeErrorFixture,
   worktreeFailedFixture,
