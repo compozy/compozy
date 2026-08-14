@@ -29,6 +29,10 @@
 - Consumes: `tools.ToolError{Code, ReasonCodes}` and `core.ToolErrorResponseForError(error, int, bool)`.
 - Produces: `safeToolErrorMessage(status int, code tools.ErrorCode, reasons []tools.ReasonCode) string` behavior consumed by HTTP/UDS serialization and the existing hosted MCP proxy.
 
+**Web/Docs Impact:**
+- Web: no route, component, hook, or generated client change; the existing HTTP/UDS error envelope keeps its schema and only corrects the safe message for an existing reason.
+- Docs: no `packages/site` change; the operator-facing configuration surface is unchanged, while managed-agent guidance is updated in the official skill in Task 2.
+
 - [ ] **Step 1: Write the failing transport tests**
 
 Add a `TestToolErrorResponses/Should describe a missing config path without reporting the tool missing`
@@ -36,8 +40,8 @@ case that constructs a `ToolError` with `ErrorCodeNotFound` and
 `ReasonConfigPathNotFound`. Assert HTTP 404, unchanged code/reason, message
 `config path not found`, and absence of `tool not found`.
 
-Add a hosted proxy case that builds the response through `core.ToolErrorResponseForError`, wraps it
-in the existing `hostedToolResponseError`, and expects exactly
+Add a hosted proxy case that constructs the serialized `contract.ToolErrorResponse` fixture at the
+MCP boundary, wraps it in the existing `hostedToolResponseError`, and expects exactly
 `config_path_not_found: config path not found`.
 
 - [ ] **Step 2: Run tests to verify RED**
@@ -75,6 +79,10 @@ Expected: PASS with no warnings.
 **Interfaces:**
 - Consumes: the real hosted MCP client bound to an extension-published managed agent.
 - Produces: an end-to-end assertion that the provider sees the exact reason/message pair for a neutral absent config path.
+
+**Web/Docs Impact:**
+- Web: no route, component, or hook change; the existing managed-session flow is exercised through the hosted MCP transport.
+- Docs: update `skills/compozy/references/configuration.md`; no `packages/site` change because no operator workflow, configuration key, or schema changes.
 
 - [ ] **Step 1: Strengthen the existing E2E assertion**
 

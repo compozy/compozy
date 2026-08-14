@@ -311,6 +311,7 @@ func TestToolErrorResponses(t *testing.T) {
 
 		if status != http.StatusNotFound ||
 			payload.Error.Code != toolspkg.ErrorCodeNotFound ||
+			payload.Error.ToolID != toolspkg.ToolIDConfigGet ||
 			payload.Error.Message != "config path not found" ||
 			!slices.Equal(payload.Error.ReasonCodes, []toolspkg.ReasonCode{toolspkg.ReasonConfigPathNotFound}) {
 			t.Fatalf("missing config payload = %#v status=%d, want reason-aware 404", payload.Error, status)
