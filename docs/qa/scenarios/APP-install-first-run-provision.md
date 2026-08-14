@@ -6,13 +6,13 @@ persona: Lea
 journey: J-desktop-first-run
 expected: A machine with no runtime goes installer → guided provisioning with visible phases → download, verify, install, and self-start → full product UI; relaunch lands directly in the product with exactly one daemon and `compozy status` healthy. A startup failure keeps the boot window available for redacted diagnostics, local copy, and explicit local export.
 entry_points: CompozyOS installer (macOS dmg, Linux package); app first launch
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260810-desktop-dev-shell-crashes; BUG-20260810-desktop-runtime-stalls; BUG-20260810-initial-boot-window-absent; BUG-20260810-boot-controls-unavailable
 fix_status: fixed
-retest_status: pending
-fix_commits: 01a45c49; b415f24b; b3aa3d27; bd610cfa; 02b55a46; f081a1e; working tree
-evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-362-runtime-manifest-20260813-004336-922826-lab/qa-artifacts/qa/candidate-preconditions.md; /Users/pedronauck/dev/qa-labs/compozy-issue-362-runtime-manifest-20260813-004336-922826-lab/qa-artifacts/qa/qa-audit-report.md
-last_report: docs/qa/reports/2026-08-12-runtime-manifest-verification.md
+retest_status: pass
+fix_commits: 01a45c49; b415f24b; b3aa3d27; bd610cfa; 02b55a46; f081a1e; 107890a0; c38ba0fa
+evidence: https://github.com/compozy/compozy/actions/runs/31817112935/job/94855708220; https://github.com/compozy/compozy/actions/runs/31817112935/job/94855708350; https://github.com/compozy/compozy/actions/runs/31817112935/job/94856203430
+last_report: docs/qa/reports/2026-08-13-release-pipeline-recovery.md
 overlaps:
 ---
 
@@ -39,3 +39,7 @@ QA impact 2026-08-13: the live beta.13 runtime manifest predates canonical feed 
 rejected by the packaged app before first-run provisioning. The signed feed repair preserves every
 manifest value, canonicalizes and re-signs the exact live version, then verifies the published
 bytes. Reset to `untested` for the repaired live-feed macOS and Linux package walks.
+
+QA result 2026-08-14: the repaired beta.13 feed passed canonical signature verification, then the
+beta.16 DMG and AppImage each provisioned from an empty isolated home. The publication job rebuilt,
+signed, uploaded, and publicly re-read the beta.16 desktop feed and every referenced payload.

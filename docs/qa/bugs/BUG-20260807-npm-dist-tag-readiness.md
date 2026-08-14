@@ -1,6 +1,6 @@
 # BUG-20260807-npm-dist-tag-readiness: A published beta can fail while npm channel metadata propagates
 
-- **Status:** open
+- **Status:** closed
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -40,11 +40,11 @@ after npm accepted beta.6. A later public read showed beta.6 without any republi
 
 - **Root cause:** the workflow made one immediate dist-tag query even though npm registry metadata is
   eventually consistent and publicly cacheable.
-- **Fix commit:** pending
+- **Fix commit:** a46b424e
 - **Regression test:** `internal/config/release_config_test.go::TestNPMReleasePolicyWaitsForRegistryReadiness`
 
 ## Verification
 
-- **Retested:** pending the next hosted production release under the same Dora journey.
-- **Result:** local regressions cover convergence, bounded timeout evidence, and immediate terminal
-  policy rejection; hosted verification remains required.
+- **Retested:** 2026-08-14 in the beta.16 production release.
+- **Result:** pass; https://github.com/compozy/compozy/actions/runs/31817112935/job/94858267424
+  observed both npm `beta` tags at `0.3.0-beta.16` and completed successfully.
