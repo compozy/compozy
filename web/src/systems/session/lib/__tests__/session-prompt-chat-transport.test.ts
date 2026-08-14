@@ -8,6 +8,12 @@ const userMessage = (id: string, text = "Continue the durable transcript") => ({
   role: "user" as const,
 });
 
+const assistantMessage = (id: string, text: string) => ({
+  id,
+  parts: [{ text, type: "text" as const }],
+  role: "assistant" as const,
+});
+
 function streamResponse() {
   return new Response(
     [
@@ -22,6 +28,31 @@ function streamResponse() {
 }
 
 describe("session prompt chat transport", () => {
+  it("sends only the latest user message when the durable transcript exceeds the API body limit", async () => {
+    const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => streamResponse()
+    );
+    const transport = createSessionPromptChatTransport({ api: "/prompt", fetch });
+    const latest = userMessage("message-latest", "Continue with the next task.");
+
+    await transport.sendMessages({
+      abortSignal: undefined,
+      chatId: "session-001",
+      messageId: undefined,
+      messages: [
+        userMessage("message-old"),
+        assistantMessage("message-large", "x".repeat(4 * 1024 * 1024)),
+        latest,
+      ],
+      trigger: "submit-message",
+    });
+
+    const serializedBody = String(fetch.mock.calls[0]?.[1]?.body);
+    const body = JSON.parse(serializedBody) as Record<string, unknown>;
+    expect(body).toMatchObject({ message_id: "message-latest", messages: [latest] });
+    expect(serializedBody.length).toBeLessThan(1024);
+  });
+
   it("sends the optimistic user id as message_id and retains one idempotency key for retries", async () => {
     const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () => streamResponse()

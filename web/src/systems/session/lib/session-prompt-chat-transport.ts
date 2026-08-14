@@ -52,7 +52,7 @@ export function createSessionPromptChatTransport({
       const body: SessionPromptRequestBody = {
         idempotency_key: idempotencyKey,
         message_id: messageId,
-        messages,
+        messages: [message],
         ...(runtime ? { runtime } : {}),
       };
       return { body };
