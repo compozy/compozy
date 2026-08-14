@@ -855,6 +855,25 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stage workflow tools before the production desktop smoke", func(t *testing.T) {
+		t.Parallel()
+
+		start := strings.Index(workflow, "  desktop-smoke:")
+		end := strings.Index(workflow, "  desktop-finalize:")
+		if start == -1 || end == -1 || start >= end {
+			t.Fatal("release workflow is missing the production desktop smoke job")
+		}
+		smoke := workflow[start:end]
+		loadTools := strings.Index(smoke, "- *load-release-workflow-tools")
+		invokeSmoke := strings.Index(smoke, `bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh"`)
+		if loadTools == -1 || invokeSmoke == -1 {
+			t.Fatal("production desktop smoke must load and invoke workflow-version tools")
+		}
+		if loadTools > invokeSmoke {
+			t.Fatal("production desktop smoke must load workflow-version tools before invoking them")
+		}
+	})
+
 	t.Run("Should repair only the exact signed beta feed from main", func(t *testing.T) {
 		t.Parallel()
 
