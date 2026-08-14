@@ -139,11 +139,11 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 }
 
 func safeToolErrorMessage(status int, code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) string {
-	if slices.Contains(reasons, toolspkg.ReasonConfigPathNotFound) {
-		return "config path not found"
-	}
 	switch code {
 	case toolspkg.ErrorCodeNotFound:
+		if slices.Contains(reasons, toolspkg.ReasonConfigPathNotFound) {
+			return "config path not found"
+		}
 		return "tool not found"
 	case toolspkg.ErrorCodeConflict:
 		return "tool conflict"

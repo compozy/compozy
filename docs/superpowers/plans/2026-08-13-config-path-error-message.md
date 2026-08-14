@@ -56,9 +56,9 @@ Expected: both new assertions fail with `tool not found` in the actual message.
 
 - [ ] **Step 3: Implement the minimal reason-aware selector**
 
-Pass `ToolError.ReasonCodes` into `safeToolErrorMessage`. Before the existing code switch, return
-`config path not found` when the reasons contain `ReasonConfigPathNotFound`. Pass `nil` reasons for
-code-only fallback paths. Do not change any other message.
+Pass `ToolError.ReasonCodes` into `safeToolErrorMessage`. Within the `ErrorCodeNotFound` case, return
+`config path not found` when the reasons contain `ReasonConfigPathNotFound`; otherwise retain
+`tool not found`. Pass `nil` reasons for code-only fallback paths. Do not change any other message.
 
 - [ ] **Step 4: Run tests to verify GREEN**
 

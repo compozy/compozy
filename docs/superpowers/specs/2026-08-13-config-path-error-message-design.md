@@ -29,13 +29,15 @@ own explicitly reviewed mapping in a future change. Internal error strings remai
 ## Implementation
 
 Extend the existing safe-message selector in `internal/api/core/tool_errors.go` to receive reason
-codes. It checks for the one public reason-specific mapping before falling back to the existing
-error-code switch. This fixes the source transport envelope; the hosted MCP proxy already combines
-the primary reason with that public message and needs no production special case.
+codes. The error-code switch remains authoritative, and its `ErrorCodeNotFound` case uses the one
+public reason-specific mapping before falling back to `tool not found`. This fixes the source
+transport envelope; the hosted MCP proxy already combines the primary reason with that public
+message and needs no production special case.
 
 ## Verification
 
 - A core API test proves the stable code, reason, status, and reason-aware message.
+- A core API test proves that a mismatched reason cannot override another error code.
 - A hosted MCP proxy test passes the real serialized response through the existing projection and
   asserts the exact provider-visible text.
 - The existing extension-agent daemon E2E uses a neutral absent Loop-input path, asserts the exact

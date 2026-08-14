@@ -321,6 +321,28 @@ func TestToolErrorResponses(t *testing.T) {
 		}
 	})
 
+	t.Run("Should let the error code control the message before a mismatched reason", func(t *testing.T) {
+		t.Parallel()
+
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCodeBackendFailed,
+			toolspkg.ToolIDConfigGet,
+			"backend failed",
+			toolspkg.ErrToolBackendFailed,
+			toolspkg.ReasonConfigPathNotFound,
+		)
+		status := core.StatusForToolError(err)
+		payload := core.ToolErrorResponseForError(err, status, false)
+
+		if status != http.StatusBadGateway || payload.Error.Message != "tool backend failed" {
+			t.Fatalf(
+				"mismatched reason payload = %#v status=%d, want code-specific backend failure",
+				payload.Error,
+				status,
+			)
+		}
+	})
+
 	t.Run("Should sanitize cross workspace denial details", func(t *testing.T) {
 		t.Parallel()
 
