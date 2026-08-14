@@ -4,7 +4,6 @@ import type {
   LoopConfig,
   LoopContract,
   LoopDefinition,
-  LoopDefinitionGraph,
   LoopDetail,
   LoopEffectiveConfig,
   LoopRun,
@@ -13,100 +12,12 @@ import type {
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { isTerminalLoopStatus } from "../lib/loop-formatters";
 import { heroEffectiveLifecycle, heroRunFixtures } from "./fixture-hero-path";
-import { implementTasksGraph } from "./fixture-implement-tasks";
+import { fixtureGraph } from "./fixture-graph";
+import { graphByName } from "./fixture-graphs";
+import { qualityGateGraph } from "./fixture-quality-gate";
 import { buildLoopRunDetailFixtures } from "./fixture-run-details";
 
 export const MOCK_WORKSPACE_ID = "ws_default";
-
-// The daemon serializes a full dsl.Graph, but OpenAPI types nodes/edges as opaque
-// records (see lib/loop-graph.ts); the fixtures carry the real node shape and cast.
-function graph(
-  nodes: ReadonlyArray<Record<string, unknown>>,
-  edges: ReadonlyArray<{ from: string; to: string }>
-): LoopDefinitionGraph {
-  return { nodes, edges } as unknown as LoopDefinitionGraph;
-}
-
-const qualityGateGraph = graph(
-  [
-    { id: "slug", class: "source", kind: "input" },
-    { id: "load_tasks", class: "source", kind: "file-import" },
-    {
-      id: "implement",
-      class: "control",
-      kind: "fan-out",
-      batch_size: 1,
-      max_parallel: 1,
-      max_fan_out: 64,
-    },
-    {
-      id: "execute_task",
-      class: "action",
-      kind: "run-agent",
-      timeout: "45m0s",
-      deadline: "2h0m0s",
-    },
-    { id: "collect", class: "control", kind: "collect" },
-    { id: "review", class: "control", kind: "gate", verdict_policy: "revise_until_clean" },
-    { id: "verify", class: "control", kind: "gate", verdict_policy: "fixed_passes" },
-    { id: "approve", class: "control", kind: "gate", verdict_policy: "fixed_passes" },
-  ],
-  [
-    { from: "slug", to: "load_tasks" },
-    { from: "load_tasks", to: "implement" },
-    { from: "implement", to: "execute_task" },
-    { from: "execute_task", to: "collect" },
-    { from: "collect", to: "review" },
-    { from: "review", to: "verify" },
-    { from: "verify", to: "approve" },
-  ]
-);
-
-const reviewGraph = graph(
-  [
-    { id: "review", class: "action", kind: "run-agent" },
-    {
-      id: "has_issues",
-      class: "control",
-      kind: "branch",
-      condition: "size(nodes.review.output.issues) > 0",
-    },
-    { id: "write_artifacts", class: "action", kind: "ext__spec_cycle__write_review_artifacts" },
-    {
-      id: "fix_batches",
-      class: "control",
-      kind: "fan-out",
-      batch_size: 1,
-      max_parallel: 1,
-      max_fan_out: 64,
-    },
-    { id: "fix_batch", class: "action", kind: "run-agent" },
-    { id: "collect_fixes", class: "control", kind: "collect" },
-    {
-      id: "finalize_round",
-      class: "action",
-      kind: "ext__spec_cycle__finalize_review_round",
-    },
-  ],
-  [
-    { from: "review", to: "has_issues" },
-    { from: "has_issues", to: "write_artifacts" },
-    { from: "write_artifacts", to: "fix_batches" },
-    { from: "fix_batches", to: "fix_batch" },
-    { from: "fix_batch", to: "collect_fixes" },
-    { from: "collect_fixes", to: "finalize_round" },
-  ]
-);
-
-const graphByName: Record<string, LoopDefinitionGraph> = {
-  "implement-tasks": implementTasksGraph,
-  "review-and-fix": reviewGraph,
-  "quality-gate-demo": qualityGateGraph,
-};
-
-// The catalog contains the two bundled spec-cycle Loops. `quality-gate-demo` is a
-// workspace-only detail fixture used to cover generic gate UI without attributing
-// those states to the bundled `implement-tasks` Loop.
 
 const implementTasksContract: LoopContract = {
   goal: "Implement every authored task under .compozy/tasks/{{ .inputs.slug }} in dependency order.",
@@ -115,6 +26,16 @@ const implementTasksContract: LoopContract = {
   iteration_cap: 50,
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
   no_progress: { window: 3 },
+  terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
+};
+
+const orchestrateTasksContract: LoopContract = {
+  goal: "Drive every authored task under .compozy/tasks/{{ .inputs.slug }} to completed by delegating each task to its own worker session.",
+  definition_of_done:
+    "Every task frontmatter carries status completed and no orchestrator-created worker session is nonterminal.",
+  iteration_cap: 3,
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+  no_progress: { window: 2 },
   terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
 };
 
@@ -395,6 +316,33 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
     success_rate_30d: 0.9,
   },
   {
+    name: "orchestrate-tasks",
+    source: "marketplace",
+    version: 0,
+    description:
+      "Delegate every authored task for one slug to a dedicated worker session conducted by an orchestrator agent.",
+    catalog: {
+      category: "Engineering",
+      use_when:
+        "You have authored tasks under .compozy/tasks/<slug> and want one orchestrator agent to conduct them in dependency order.",
+      keywords: ["tasks", "orchestrate", "sessions", "engineering"],
+    },
+    contract: orchestrateTasksContract,
+    inputs: {
+      slug: { type: "string", required: true },
+      orchestrator: { type: "agent", required: false, default: "general" },
+    },
+    start: [
+      { kind: "manual" },
+      { kind: "cli" },
+      { kind: "http" },
+      { kind: "uds" },
+      { kind: "native_tool" },
+    ],
+    aggregate_30d: { runs: 0, succeeded: 0, failed: 0 },
+    success_rate_30d: 0,
+  },
+  {
     name: "review-and-fix",
     source: "marketplace",
     version: 0,
@@ -440,7 +388,7 @@ function buildDefinition(entry: LoopCatalogEntry): LoopDefinition {
     },
     contract: entry.contract,
     concurrency: entry.name === "quality-gate-demo" ? undefined : "forbid",
-    graph: graphByName[entry.name] ?? graph([], []),
+    graph: graphByName[entry.name] ?? fixtureGraph([], []),
     inputs: entry.inputs,
     start: entry.start,
   };

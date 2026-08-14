@@ -1,4 +1,5 @@
 import type { LoopDefinitionGraph } from "../types";
+import { SPEC_CYCLE_IMPORT_TASKS_KIND } from "./fixture-action-kinds";
 
 const executeTaskPrompt = `Kickoff directive:
 Begin work on {{ .item.title }} immediately. This run is the operator's authorization
@@ -64,7 +65,7 @@ export const implementTasksGraph = {
     {
       id: "load_tasks",
       class: "action",
-      kind: "ext__spec_cycle__import_tasks",
+      kind: SPEC_CYCLE_IMPORT_TASKS_KIND,
       params: { pattern: ".compozy/tasks/{{ .inputs.slug }}/task_*.md" },
       produces: { tasks: "array" },
     },

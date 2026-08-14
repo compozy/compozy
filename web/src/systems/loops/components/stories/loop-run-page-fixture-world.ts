@@ -1,4 +1,8 @@
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
+import {
+  SPEC_CYCLE_FINALIZE_REVIEW_ROUND_KIND,
+  SPEC_CYCLE_WRITE_REVIEW_ARTIFACTS_KIND,
+} from "../../mocks/fixture-action-kinds";
 
 import type {
   LoopDefinition,
@@ -61,7 +65,7 @@ export const reviewAndFixDefinition: LoopDefinition = {
       {
         id: "write_artifacts",
         class: "action",
-        kind: "ext__spec_cycle__write_review_artifacts",
+        kind: SPEC_CYCLE_WRITE_REVIEW_ARTIFACTS_KIND,
       },
       {
         id: "fix_batches",
@@ -77,7 +81,7 @@ export const reviewAndFixDefinition: LoopDefinition = {
       {
         id: "finalize_round",
         class: "action",
-        kind: "ext__spec_cycle__finalize_review_round",
+        kind: SPEC_CYCLE_FINALIZE_REVIEW_ROUND_KIND,
       },
     ],
     edges: [

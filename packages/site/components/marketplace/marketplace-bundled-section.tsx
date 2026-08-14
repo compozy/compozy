@@ -1,5 +1,9 @@
 import { Eyebrow } from "@compozy/ui";
-import { bundledSkills, specCycleExtension } from "@/lib/marketplace-bundled";
+import {
+  BUNDLED_SPEC_CYCLE_PATH,
+  bundledSkills,
+  specCycleExtension,
+} from "@/lib/marketplace-bundled";
 import { BundledExtensionCard, BundledSkillCard } from "./marketplace-bundled-card";
 
 /**
@@ -39,7 +43,7 @@ export function MarketplaceBundledSection() {
 
       <div className="flex flex-col gap-4">
         <BundledExtensionCard
-          href="/marketplace/bundled/spec-cycle"
+          href={BUNDLED_SPEC_CYCLE_PATH}
           name={specCycleExtension.displayName}
           version={specCycleExtension.version}
           description={specCycleExtension.description}

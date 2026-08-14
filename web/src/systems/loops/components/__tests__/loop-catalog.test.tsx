@@ -19,6 +19,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 
 const { LoopCatalog } = await import("../catalog/loop-catalog");
 const { loopCatalogFixtures } = await import("../../mocks/fixtures");
+const reviewCatalogEntry = loopCatalogFixtures.find(entry => entry.name === "review-and-fix")!;
 type LoopCatalogEntry = import("../../types").LoopCatalogEntry;
 type ListingViewMode = import("@compozy/ui").ListingViewMode;
 
@@ -84,7 +85,7 @@ describe("LoopCatalog", () => {
   });
 
   it("Should render exactly the server-filtered entries it receives", () => {
-    render(<Harness entries={[loopCatalogFixtures[1]]} onRun={() => {}} />);
+    render(<Harness entries={[reviewCatalogEntry]} onRun={() => {}} />);
     expect(screen.queryByTestId("loop-group-workspace")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-group-read-only")).toBeInTheDocument();
     expect(screen.getByText("review-and-fix")).toBeInTheDocument();

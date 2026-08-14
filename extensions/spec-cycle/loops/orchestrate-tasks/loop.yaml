@@ -58,13 +58,29 @@ graph:
           Implementation belongs to the workers — leave every code edit to them.
 
           Return `status`, `summary`, and `tasks`, naming each task with the worker session id that
-          executed it. Use `completed` only when every task file carries `status: completed`.
+          executed it. Use `completed` only when every task file carries `status: completed` in its
+          frontmatter and no orchestrator-created worker is starting, active, or stopping. If any
+          worker cannot be stopped, return `blocked`.
         judge:
           - id: tasks_completed
             type: command
             check: >-
-              for f in .compozy/tasks/{{ .inputs.slug | shellQuote }}/task_*.md; do
-              grep -q '^status: completed' "$f" || exit 1; done
+              slug={{ .inputs.slug | shellQuote }};
+              task_dir=".compozy/tasks/$slug";
+              set -- "$task_dir"/task_*.md;
+              [ -e "$1" ] || exit 1;
+              for f in "$@"; do
+              awk '
+              NR == 1 { if ($0 != "---") exit 1; frontmatter = 1; next }
+              frontmatter && $0 == "---" { frontmatter = 0; found_end = 1; next }
+              frontmatter && /^status:/ { status_count++; completed = ($0 == "status: completed") }
+              END { if (!found_end || status_count != 1 || !completed) exit 1 }
+              ' "$f" || exit 1;
+              done;
+              for state in starting active stopping; do
+              sessions="$(compozy session list --type spawned --state "$state" --query "orchestrate-${slug}-" --limit 1 -o jsonl)" || exit 1;
+              if printf '%s\n' "$sessions" | grep -q '"id"[[:space:]]*:'; then exit 1; fi;
+              done
         max_turns: 12
         output_schema:
           type: object

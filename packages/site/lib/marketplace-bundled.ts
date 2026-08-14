@@ -22,6 +22,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", ".
 const specCycleRoot = resolve(repoRoot, "extensions", "spec-cycle");
 const bundledSkillsRoot = resolve(repoRoot, "skills");
 
+export const BUNDLED_SPEC_CYCLE_PATH = "/marketplace/bundled/spec-cycle";
+
 const toolSchema = z.object({
   display_title: z.string().min(1),
   description: z.string().min(1),
@@ -160,7 +162,7 @@ function readSpecCycle(): BundledExtension {
         visibility: tool.visibility,
       }))
       .sort((left, right) => left.name.localeCompare(right.name)),
-    repositoryUrl: `${siteConfig.repoUrl}/tree/main/extensions/spec-cycle`,
+    repositoryUrl: `${siteConfig.repoUrl}/tree/${siteConfig.repoBranch}/extensions/spec-cycle`,
     statusCommand: `compozy extension status ${manifest.extension.name}`,
   };
 }
@@ -185,7 +187,7 @@ function readBundledSkills(): BundledSkill[] {
     skills.push({
       name,
       description,
-      repositoryUrl: `${siteConfig.repoUrl}/tree/main/skills/${entry.name}`,
+      repositoryUrl: `${siteConfig.repoUrl}/tree/${siteConfig.repoBranch}/skills/${entry.name}`,
     });
   }
   return skills.sort((left, right) => left.name.localeCompare(right.name));

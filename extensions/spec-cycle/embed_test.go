@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -892,11 +893,49 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		if !ok {
 			t.Fatalf("orchestrate judge check = %#v, want string", judge["check"])
 		}
-		if !strings.Contains(check, ".compozy/tasks/{{ .inputs.slug | shellQuote }}/task_*.md") {
+		if !strings.Contains(check, `task_dir=".compozy/tasks/$slug"`) ||
+			!strings.Contains(check, `"$task_dir"/task_*.md`) {
 			t.Fatalf("orchestrate judge check = %q, want a workspace-relative task glob", check)
 		}
 		if strings.Contains(check, "cd /") || strings.Contains(check, "$HOME") {
 			t.Fatalf("orchestrate judge check = %q, want no absolute or home-anchored path", check)
+		}
+		// Invariant: the bundled Goal accepts completion only when every task frontmatter is completed
+		// and no orchestrator-created worker remains nonterminal. This embedded bundle contract suite
+		// owns the invariant because it executes the exact shipped judge command.
+		cases := []struct {
+			name         string
+			task         string
+			activeWorker bool
+			wantSuccess  bool
+		}{
+			{
+				name: "Should reject a completed marker outside pending frontmatter",
+				task: "---\nstatus: pending\n---\n\nstatus: completed\n",
+			},
+			{
+				name:        "Should accept completed frontmatter without nonterminal workers",
+				task:        "---\nstatus: completed\n---\n\nDone.\n",
+				wantSuccess: true,
+			},
+			{
+				name:         "Should reject completed frontmatter while a worker remains active",
+				task:         "---\nstatus: completed\n---\n\nDone.\n",
+				activeWorker: true,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				output, err := runOrchestrateJudgeForTest(t, check, tc.task, tc.activeWorker)
+				if tc.wantSuccess && err != nil {
+					t.Fatalf("judge command error = %v, output = %s", err, output)
+				}
+				if !tc.wantSuccess && err == nil {
+					t.Fatalf("judge command succeeded unexpectedly, output = %s", output)
+				}
+			})
 		}
 		outputSchema := requireSchemaObject(t, orchestrate.Params, "output_schema")
 		properties := requireSchemaObject(t, outputSchema, "properties")
@@ -905,10 +944,63 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		if !ok || len(statuses) != 2 || statuses[0] != compozyTaskStatusCompletedValue || statuses[1] != "blocked" {
 			t.Fatalf("orchestrate status enum = %#v, want [completed blocked]", status["enum"])
 		}
-		if _, exists := def.Graph.Nodes[1].Params["runtime_defaults"]; exists {
+		if _, exists := orchestrate.Params["runtime_defaults"]; exists {
 			t.Fatal("orchestrate params retain provider pinning via runtime_defaults")
 		}
 	})
+}
+
+func runOrchestrateJudgeForTest(
+	t *testing.T,
+	check string,
+	task string,
+	activeWorker bool,
+) ([]byte, error) {
+	t.Helper()
+
+	workspace := t.TempDir()
+	taskDir := filepath.Join(workspace, ".compozy", "tasks", "review-fixture")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", taskDir, err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "task_01.md"), []byte(task), 0o600); err != nil {
+		t.Fatalf("WriteFile(task) error = %v", err)
+	}
+	fakeBin := filepath.Join(workspace, "bin")
+	if err := os.MkdirAll(fakeBin, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", fakeBin, err)
+	}
+	fakeCompozy := `#!/bin/sh
+case " $* " in
+  *" --state active "*)
+    if [ "${COMPOZY_TEST_ACTIVE_WORKER:-}" = "1" ]; then
+      printf '{"id":"sess-active","name":"orchestrate-review-fixture-task_01"}\n'
+    fi
+    ;;
+esac
+printf '{"type":"list_page","page":{"total":0}}\n'
+`
+	if err := os.WriteFile(filepath.Join(fakeBin, "compozy"), []byte(fakeCompozy), 0o755); err != nil {
+		t.Fatalf("WriteFile(fake compozy) error = %v", err)
+	}
+	rendered, err := refs.RenderTemplateString(
+		"orchestrate-tasks.tasks_completed.check",
+		check,
+		map[string]any{"inputs": map[string]any{"slug": "review-fixture"}},
+	)
+	if err != nil {
+		t.Fatalf("RenderTemplateString() error = %v", err)
+	}
+	command := exec.Command("sh", "-c", rendered)
+	command.Dir = workspace
+	command.Env = append(
+		os.Environ(),
+		"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	if activeWorker {
+		command.Env = append(command.Env, "COMPOZY_TEST_ACTIVE_WORKER=1")
+	}
+	return command.CombinedOutput()
 }
 
 func requireOrchestrateJudgeForTest(t *testing.T, node dsl.Node) map[string]any {

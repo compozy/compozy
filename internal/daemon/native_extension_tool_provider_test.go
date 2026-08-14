@@ -167,7 +167,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should anchor spec cycle import task patterns to workspace root", func(t *testing.T) {
+	t.Run("Should anchor spec-cycle import task patterns to workspace root", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -215,7 +215,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject relative spec cycle import task patterns that escape the workspace root", func(t *testing.T) {
+	t.Run("Should reject relative spec-cycle import task patterns that escape the workspace root", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -263,7 +263,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject spec cycle import task patterns that escape through a workspace symlink", func(t *testing.T) {
+	t.Run("Should reject spec-cycle import task patterns that escape through a workspace symlink", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -319,7 +319,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject empty spec cycle import task patterns before extension dispatch", func(t *testing.T) {
+	t.Run("Should reject empty spec-cycle import task patterns before extension dispatch", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -364,7 +364,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject absolute spec cycle import task patterns", func(t *testing.T) {
+	t.Run("Should reject absolute spec-cycle import task patterns", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -412,7 +412,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject spec cycle import task calls without workspace scope", func(t *testing.T) {
+	t.Run("Should reject spec-cycle import task calls without workspace scope", func(t *testing.T) {
 		t.Parallel()
 
 		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}

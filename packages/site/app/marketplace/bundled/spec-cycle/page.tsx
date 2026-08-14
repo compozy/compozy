@@ -11,7 +11,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { MarketplaceCrumbs } from "@/components/marketplace/marketplace-crumbs";
 import { MarketplaceInstallCommand } from "@/components/marketplace/marketplace-install-command";
-import { specCycleExtension } from "@/lib/marketplace-bundled";
+import { BUNDLED_SPEC_CYCLE_PATH, specCycleExtension } from "@/lib/marketplace-bundled";
 import { bundledSpecCycleDescription } from "@/lib/marketplace-copy";
 import { docsSource } from "@/lib/source";
 import { createPageMetadata } from "@/lib/site-config";
@@ -19,7 +19,7 @@ import { createPageMetadata } from "@/lib/site-config";
 export const metadata: Metadata = createPageMetadata({
   title: `${specCycleExtension.displayName} — Marketplace`,
   description: bundledSpecCycleDescription(specCycleExtension.description),
-  path: "/marketplace/bundled/spec-cycle",
+  path: BUNDLED_SPEC_CYCLE_PATH,
 });
 
 function SectionHead({

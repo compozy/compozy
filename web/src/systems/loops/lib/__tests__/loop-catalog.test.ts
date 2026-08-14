@@ -17,7 +17,8 @@ import {
   successRateLabel,
 } from "../loop-catalog";
 
-const [delivery, review] = loopCatalogFixtures;
+const delivery = loopCatalogFixtures.find(entry => entry.name === "implement-tasks")!;
+const review = loopCatalogFixtures.find(entry => entry.name === "review-and-fix")!;
 
 describe("loop-catalog", () => {
   it("Should classify read-only vs workspace loops by source", () => {
@@ -124,7 +125,7 @@ describe("loop-catalog", () => {
     });
     expect(all.map(group => group.kind)).toEqual(["read-only"]);
     expect(all.map(group => group.label)).toEqual(["Built-in"]);
-    expect(all[0].entries).toHaveLength(2);
+    expect(all[0].entries).toHaveLength(3);
 
     const readOnlyOnly = groupLoopCatalog(loopCatalogFixtures, {
       kind: "read-only",

@@ -409,10 +409,11 @@ func assertSpecCycleLoopCatalog(
 		}
 		return
 	}
-	if got, want := len(found), 3; got != want {
+	wantNames := []string{"implement-tasks", "orchestrate-tasks", "review-and-fix"}
+	if got, want := len(found), len(wantNames); got != want {
 		t.Fatalf("spec-cycle loops = %#v, want exactly %d bundled loops", found, want)
 	}
-	for _, name := range []string{"implement-tasks", "orchestrate-tasks", "review-and-fix"} {
+	for _, name := range wantNames {
 		spec, ok := found[name]
 		if !ok {
 			t.Fatalf("spec-cycle loop %q missing from catalog; found %#v", name, found)

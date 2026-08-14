@@ -5,7 +5,7 @@ import type { ChangelogRelease } from "@/lib/changelog/types";
 import { MARKETPLACE_KIND_META } from "@/components/marketplace/marketplace-kind-meta";
 import { docsGroupForUrl } from "@/lib/docs-navigation";
 import { bridgeProviders } from "@/lib/marketplace-bridges";
-import { specCycleExtension } from "@/lib/marketplace-bundled";
+import { BUNDLED_SPEC_CYCLE_PATH, specCycleExtension } from "@/lib/marketplace-bundled";
 import {
   bundledSpecCycleDescription,
   MARKETPLACE_DESCRIPTION,
@@ -248,8 +248,8 @@ function buildMarketplaceIndexes(): AdvancedIndex[] {
 
   const bundled: AdvancedIndex[] = [
     {
-      id: "/marketplace/bundled/spec-cycle",
-      url: "/marketplace/bundled/spec-cycle",
+      id: BUNDLED_SPEC_CYCLE_PATH,
+      url: BUNDLED_SPEC_CYCLE_PATH,
       title: `${specCycleExtension.displayName} — Marketplace`,
       description: bundledSpecCycleDescription(specCycleExtension.description),
       breadcrumbs: ["Marketplace"],

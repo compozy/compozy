@@ -358,7 +358,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should publish nine global skills while preserving workspace-local isolation", func(t *testing.T) {
+	t.Run("Should publish bundled skills while preserving workspace-local isolation", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)

@@ -1,0 +1,3 @@
+export const SPEC_CYCLE_IMPORT_TASKS_KIND = "ext__spec_cycle__import_tasks";
+export const SPEC_CYCLE_WRITE_REVIEW_ARTIFACTS_KIND = "ext__spec_cycle__write_review_artifacts";
+export const SPEC_CYCLE_FINALIZE_REVIEW_ROUND_KIND = "ext__spec_cycle__finalize_review_round";
