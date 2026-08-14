@@ -202,11 +202,8 @@ func (c *Controller) writeDecision(
 	targets []Target,
 	trace []memcontract.RuleHit,
 ) (memcontract.Decision, error) {
-	if collision := exactFilenameTarget(normalized, targets); collision != nil {
-		return c.updateDecision(normalized, *collision, append(
-			trace,
-			passedRule("exact_slug_collision", "target filename already exists", collision.ID),
-		))
+	if decision, matched, err := c.filenameCollisionDecision(normalized, targets, trace); matched {
+		return decision, err
 	}
 	slotMatches := entitySlotTargets(normalized, targets)
 	switch len(slotMatches) {

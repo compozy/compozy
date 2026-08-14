@@ -71,6 +71,36 @@ func TestScanContent(t *testing.T) {
 			ruleID:  "policy_debugging_session",
 		},
 		{
+			name:    "Should reject qualified native memory tool identifiers",
+			content: "The agent called compozy__memory_note before proposing durable content.",
+			action:  ActionReject,
+			ruleID:  memoryOperationalStateRuleID,
+		},
+		{
+			name:    "Should reject unqualified memory tool identifiers",
+			content: "The extractor mentioned memory_search in its operational summary.",
+			action:  ActionReject,
+			ruleID:  memoryOperationalStateRuleID,
+		},
+		{
+			name:    "Should reject memory operation identifiers",
+			content: "The operator ran memory.reindex after refreshing the catalog.",
+			action:  ActionReject,
+			ruleID:  memoryOperationalStateRuleID,
+		},
+		{
+			name:    "Should reject memory event identifiers",
+			content: "The controller emitted memory.write.reverted for the decision.",
+			action:  ActionReject,
+			ruleID:  memoryOperationalStateRuleID,
+		},
+		{
+			name:    "Should reject memory policy identifiers",
+			content: "The scanner matched policy_memory_operational_state.",
+			action:  ActionReject,
+			ruleID:  memoryOperationalStateRuleID,
+		},
+		{
 			name:    "Should reject already documented repository rules",
 			content: "This is already documented in AGENTS.md and should not be saved.",
 			action:  ActionReject,
