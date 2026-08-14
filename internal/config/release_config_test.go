@@ -682,6 +682,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 
 	root := findRepoRootForReleaseConfigTest(t)
 	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+	gitignore := readTextFile(t, root, ".gitignore")
 	repairWorkflow := readTextFile(t, root, filepath.Join(".github", "workflows", "desktop-feed-repair.yml"))
 	cargoManifest := readTextFile(t, root, filepath.Join("desktop", "src-tauri", "Cargo.toml"))
 	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
@@ -725,6 +726,9 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		assertContainsText(t, "isolated npm config", workflow, `render_goreleaser_config ".release-dist/npm"`)
 		assertContainsText(t, "isolated npm preparation", workflow, "--config=${{ runner.temp }}/.goreleaser-npm.yml")
 		assertContainsText(t, "isolated npm artifact", workflow, ".release-dist/npm/npm/@compozy/cli/*")
+		assertContainsText(t, "isolated release staging ignore", gitignore, ".release-dist/")
+		assertContainsText(t, "older release ref staging ignore", workflow, `printf '/.release-dist/\n'`)
+		assertContainsText(t, "isolated release staging check", workflow, "name: Validate isolated release directories")
 		assertContainsText(
 			t,
 			"isolated GitHub preparation",

@@ -184,6 +184,16 @@ jobs:
           }
           render_goreleaser_config ".release-dist/npm" "${RUNNER_TEMP}/.goreleaser-npm.yml"
           render_goreleaser_config ".release-dist/github" "${RUNNER_TEMP}/.goreleaser-github.yml"
+          git_exclude="$(git rev-parse --git-path info/exclude)"
+          grep -Fxq '/.release-dist/' "${git_exclude}" || printf '/.release-dist/\n' >>"${git_exclude}"
+
+      - name: Validate isolated release directories
+        run: |
+          set -euo pipefail
+          git_exclude="$(git rev-parse --git-path info/exclude)"
+          grep -Fxq '/.release-dist/' "${git_exclude}"
+          git check-ignore -q .release-dist/npm/artifact
+          git check-ignore -q .release-dist/github/artifact
 
       - name: Prepare Go temporary directory
         env:
