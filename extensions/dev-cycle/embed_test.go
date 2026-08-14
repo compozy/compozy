@@ -380,7 +380,7 @@ func TestEmbeddedSkillsShouldKeepBundleContract(t *testing.T) {
 		t.Fatalf("LoadManifest(%q) error = %v", root, err)
 	}
 
-	t.Run("Should embed exactly the nine manifest-declared skills", func(t *testing.T) {
+	t.Run("Should embed exactly the eight manifest-declared skills", func(t *testing.T) {
 		t.Parallel()
 
 		paths, err := fs.Glob(FS(), "skills/*/SKILL.md")
@@ -751,6 +751,9 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 		if strings.Contains(prompt, "verify_command") || strings.Contains(prompt, "`blocked`") {
 			t.Fatalf("execute_task prompt retains removed final-gate language: %q", prompt)
 		}
+		if strings.Contains(prompt, "_techspec.md") {
+			t.Fatalf("execute_task prompt retains retired _techspec.md reference")
+		}
 		outputSchema := requireSchemaObject(t, execute.Params, "output_schema")
 		properties := requireSchemaObject(t, outputSchema, "properties")
 		status := requireSchemaObject(t, properties, "status")
@@ -928,6 +931,9 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 			if !strings.Contains(prompt, required) {
 				t.Fatalf("code_implementer prompt missing %q", required)
 			}
+		}
+		if strings.Contains(prompt, "_techspec.md") {
+			t.Fatalf("code_implementer prompt retains retired _techspec.md reference")
 		}
 	})
 
