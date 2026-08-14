@@ -100,11 +100,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use exact Cursor ACP model values (#392)
 - Preserve dead session history (#393)
 - Validate desktop release smoke wiring
+- Validate public CLI version command
+- Clarify missing config path errors (#401)
 
 ### 🧪 Testing
 
 - Guard ACP initialize protocol version (#318)
 - Align nightly runtime fixtures
+- Align dead session recovery coverage
 
 ## 0.2.15 - 2026-07-17
 
