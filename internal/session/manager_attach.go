@@ -26,6 +26,13 @@ func (m *Manager) AttachSession(
 	if m.sessionCatalog == nil {
 		return store.SessionAttach{}, errors.New("session: attach catalog is required")
 	}
+	meta, err := m.readMetaWithContext(ctx, normalized.SessionID)
+	if err != nil {
+		return store.SessionAttach{}, err
+	}
+	if err := m.rejectDeadSessionAttachment(ctx, normalized.SessionID, meta); err != nil {
+		return store.SessionAttach{}, err
+	}
 	attach, err := m.sessionCatalog.AttachSession(ctx, normalized)
 	if err != nil {
 		return store.SessionAttach{}, fmt.Errorf("session: attach %q: %w", normalized.SessionID, err)

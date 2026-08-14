@@ -144,6 +144,9 @@ func (m *Manager) resolvePromptAdmissionTarget(
 	if err != nil {
 		return promptAdmissionTarget{}, err
 	}
+	if err := m.rejectDeadSessionAttachment(ctx, target, meta); err != nil {
+		return promptAdmissionTarget{}, err
+	}
 	resolved, err := normalizePromptRuntimeSelectionFromMeta(meta, requested)
 	if err != nil {
 		return promptAdmissionTarget{}, err

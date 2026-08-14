@@ -66,7 +66,26 @@ export function isUserControllableSession(session: SessionPayload): boolean {
   return (session.type ?? "user") === "user";
 }
 
+/**
+ * A process-exited session has durable history but no ACP peer to resume.
+ * Health alone cannot identify this state: intentionally stopped sessions are
+ * also reported as dead until they are resumed.
+ */
+export function hasUnrecoverableRuntime(session: SessionPayload): boolean {
+  const health = session.health;
+  return (
+    session.state === "stopped" &&
+    session.failure?.kind === "process_exit" &&
+    health?.health === "dead" &&
+    !health.attachable &&
+    !health.eligible_for_wake
+  );
+}
+
 export function canPromptSession(session: SessionPayload): boolean {
+  if (hasUnrecoverableRuntime(session)) {
+    return false;
+  }
   return (
     isUserControllableSession(session) &&
     session.archived_at === null &&

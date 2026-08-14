@@ -33,12 +33,12 @@ stopping --> stopped: finalization complete`}
   caption="CompozyOS creates an active logical session without starting ACP. Its first prompt binds a runtime; stopping normally finalizes the session through `stopping`."
 />
 
-| State      | Meaning                                                                                                                                                                              | Valid live transition |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
-| `starting` | A prompt to a stopped session is restoring the ACP process and durable provider history.                                                                                             | `starting -> active`  |
-| `active`   | CompozyOS has durably allocated the session ID, prepared its storage, and accepts prompts. Before the first prompt, its runtime is `unbound`; after binding, it can emit ACP events. | `active -> stopping`  |
-| `stopping` | CompozyOS has accepted a stop request and is draining the session toward a stopped state.                                                                                            | `stopping -> stopped` |
-| `stopped`  | Final metadata is written and the recorder is closed. Reads remain available, and a normal user prompt can restore the runtime against the same session ID and transcript.           | `stopped -> starting` |
+| State      | Meaning                                                                                                                                                                                                                                     | Valid live transition |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `starting` | A prompt to a stopped session is restoring the ACP process and durable provider history.                                                                                                                                                    | `starting -> active`  |
+| `active`   | CompozyOS has durably allocated the session ID, prepared its storage, and accepts prompts. Before the first prompt, its runtime is `unbound`; after binding, it can emit ACP events.                                                        | `active -> stopping`  |
+| `stopping` | CompozyOS has accepted a stop request and is draining the session toward a stopped state.                                                                                                                                                   | `stopping -> stopped` |
+| `stopped`  | Final metadata is written and the recorder is closed. Reads remain available. A normal user prompt can restore an eligible stopped user session; a terminal `process_exit` remains read-only history and must be forked into a new session. | `stopped -> starting` |
 
 ## Creating a session
 

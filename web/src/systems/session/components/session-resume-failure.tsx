@@ -13,13 +13,16 @@ export interface SessionResumeFailureProps {
   isRetrying: boolean;
   onRetry: () => void;
   onDismiss: () => void;
+  title?: string;
+  retryLabel?: string;
+  showDismiss?: boolean;
 }
 
 /**
  * The ONE banner the transcript budget allows — a session-level failure above
  * the transcript: 28% danger hairline on a 4% wash, plain body sentences (the
  * session id, provider, and agent read as text, never id pills), and the
- * retry/dismiss pair on the right.
+ * recovery actions on the right.
  */
 export function SessionResumeFailure({
   sessionId,
@@ -29,11 +32,15 @@ export function SessionResumeFailure({
   isRetrying,
   onRetry,
   onDismiss,
+  title,
+  retryLabel = "Retry attach",
+  showDismiss = true,
 }: SessionResumeFailureProps) {
   const normalizedMissingProvider = missingProvider?.trim() ?? "";
   const normalizedAgentName = agentName?.trim() ?? "";
   const hasProviderDetail = normalizedMissingProvider.length > 0;
-  const title = hasProviderDetail ? "Attach failed: provider no longer available" : "Attach failed";
+  const resolvedTitle =
+    title ?? (hasProviderDetail ? "Attach failed: provider no longer available" : "Attach failed");
 
   const handleEscape = useEffectEvent((event: KeyboardEvent) => {
     if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -49,7 +56,7 @@ export function SessionResumeFailure({
     <SessionDangerBanner
       data-testid="session-resume-failure"
       className="mt-3 mb-1 w-full"
-      title={<span data-testid="session-resume-failure-title">{title}</span>}
+      title={<span data-testid="session-resume-failure-title">{resolvedTitle}</span>}
     >
       <p data-testid="session-resume-failure-message" className="text-transcript-body text-muted">
         {hasProviderDetail
@@ -74,18 +81,20 @@ export function SessionResumeFailure({
           ) : (
             <RefreshCw aria-hidden="true" className="size-3" />
           )}
-          Retry attach
+          {retryLabel}
         </Button>
-        <Button
-          data-testid="session-resume-failure-dismiss"
-          onClick={onDismiss}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <X aria-hidden="true" className="size-3" />
-          Dismiss
-        </Button>
+        {showDismiss ? (
+          <Button
+            data-testid="session-resume-failure-dismiss"
+            onClick={onDismiss}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <X aria-hidden="true" className="size-3" />
+            Dismiss
+          </Button>
+        ) : null}
       </div>
     </SessionDangerBanner>
   );

@@ -2044,6 +2044,82 @@ func TestUDSTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing.
 	}
 }
 
+// Invariant: terminal process-exited sessions reject every attachment path before ACP session/load.
+// Owning layer: HTTP/UDS session transport parity.
+func TestUDSTransportTerminalProcessFailureRejectsAttachAndPromptBeforeACPResume(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	t.Run("Should reject attach and prompt before ACP resume after a terminal process failure", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			MockAgents: []e2etest.MockAgentSpec{{
+				FixturePath:  transportMockFixturePath(t, "driver_fault_fixture.json"),
+				FixtureAgent: "faulty",
+				AgentName:    transportUDSFaultyAgent,
+			}},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		created, err := runtimeHarness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+			AgentName:     transportUDSFaultyAgent,
+			WorkspacePath: runtimeHarness.WorkspaceRoot,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession() error = %v", err)
+		}
+		created = waitForTransportSessionActive(t, ctx, runtimeHarness, created)
+
+		stream, err := runtimeHarness.PromptSession(ctx, created.ID, "trigger crash mid-stream")
+		if err != nil {
+			t.Fatalf("PromptSession() error = %v", err)
+		}
+		if !udsSSEContainsEvent(stream, "error") {
+			t.Fatalf("UDS prompt stream = %#v, want error event", stream)
+		}
+		waitForTransportDeadSession(t, ctx, runtimeHarness, created.ID)
+
+		clients, err := runtimeHarness.TransportClients()
+		if err != nil {
+			t.Fatalf("TransportClients() error = %v", err)
+		}
+		path := transportHarnessSessionPath(t, runtimeHarness, created.ID, "/attach")
+		assertTransportDeadSessionRejection(t, clients.HTTPClient, runtimeHarness.HTTPURL(path), nil)
+		assertTransportDeadSessionRejection(t, clients.UDSClient, runtimeHarness.UDSURL(path), nil)
+
+		promptBody, err := json.Marshal(compozycontract.SendPromptRequest{
+			Message:        "retry a dead session",
+			MessageID:      "message-dead-session-retry",
+			IdempotencyKey: "idempotency-dead-session-retry",
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(dead session prompt) error = %v", err)
+		}
+		promptPath := transportHarnessSessionPath(t, runtimeHarness, created.ID, "/prompt")
+		assertTransportDeadSessionRejection(t, clients.HTTPClient, runtimeHarness.HTTPURL(promptPath), promptBody)
+		assertTransportDeadSessionRejection(t, clients.UDSClient, runtimeHarness.UDSURL(promptPath), promptBody)
+
+		registration, ok := runtimeHarness.MockAgentRegistration(transportUDSFaultyAgent)
+		if !ok {
+			t.Fatalf("MockAgentRegistration(%q) not found", transportUDSFaultyAgent)
+		}
+		diagnostics, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(%q) error = %v", registration.DiagnosticsPath, err)
+		}
+		for _, diagnostic := range acpmock.ProtocolDiagnostics(
+			acpmock.DiagnosticsForCompozySession(diagnostics, created.ID),
+		) {
+			if diagnostic.ProtocolMethod == "session/load" {
+				t.Fatalf("terminal session diagnostics = %#v, want no session/load", diagnostics)
+			}
+		}
+	})
+}
+
 func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()
@@ -2772,6 +2848,70 @@ func waitForTransportSessionActive(
 		t.Fatalf("WaitForSessionActive(%q) error = %v; accepted=%#v", accepted.ID, err, accepted)
 	}
 	return active
+}
+
+func waitForTransportDeadSession(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+) {
+	t.Helper()
+
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	path := transportHarnessSessionPath(t, harness, sessionID, "?include_health=true")
+	var last compozycontract.SessionPayload
+	var lastErr error
+	for {
+		var response compozycontract.SessionResponse
+		if err := harness.UDSJSON(waitCtx, http.MethodGet, path, nil, &response); err == nil {
+			last = response.Session
+			if last.State == session.StateStopped &&
+				last.Failure != nil && last.Failure.Kind == store.FailureProcess &&
+				last.Health != nil && last.Health.Health == compozycontract.SessionHealthDead &&
+				!last.Health.Attachable && !last.Health.EligibleForWake {
+				return
+			}
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-waitCtx.Done():
+			t.Fatalf(
+				"terminal session %q did not become dead and non-attachable: %v; last=%#v",
+				sessionID,
+				lastErr,
+				last,
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
+func assertTransportDeadSessionRejection(
+	t *testing.T,
+	client *http.Client,
+	targetURL string,
+	body []byte,
+) {
+	t.Helper()
+
+	response := mustUnixRequest(t, client, http.MethodPost, targetURL, body, nil)
+	payload := readAndCloseHTTPBody(t, response)
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("POST %s status = %d, want %d; body=%s", targetURL, response.StatusCode, http.StatusConflict, payload)
+	}
+	var failure compozycontract.ErrorPayload
+	if err := json.Unmarshal(payload, &failure); err != nil {
+		t.Fatalf("json.Unmarshal(%s) error = %v; body=%s", targetURL, err, payload)
+	}
+	if !strings.Contains(failure.Error, "not attachable") {
+		t.Fatalf("POST %s error = %q, want attachability context", targetURL, failure.Error)
+	}
 }
 
 func transportCatalogHasSingleTitle(

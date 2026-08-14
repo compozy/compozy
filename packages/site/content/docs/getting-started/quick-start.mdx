@@ -135,8 +135,9 @@ compozy session history sess_1234
 
 Stopping ends the live provider process and moves the session to `stopped`. It preserves the session
 directory, catalog record, runtime choice, and history. A later `compozy session resume sess_1234`
-is expected to fail because stopped sessions are not attachable. Send a normal prompt to restart the
-provider with the same history, or create a new session when you want a clean slate.
+is expected to fail because stopped sessions are not attachable. Send a normal prompt to restart an
+eligible stopped session with the same history. If status reports a terminal `process_exit`, keep the
+original as history, inspect its recap, and fork a new session with `compozy session new --parent sess_1234`.
 
 ## What you just proved
 

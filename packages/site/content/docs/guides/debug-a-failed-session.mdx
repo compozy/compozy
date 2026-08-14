@@ -132,16 +132,16 @@ compozy session resume sess_1234
 ```
 
 If a user session stopped after `process_exit`, use recap, history, events, and the crash bundle to
-decide what already happened. A new explicit prompt restarts the provider under the same session ID
-and retained transcript:
+decide what already happened. The original session remains readable, but a new prompt is rejected so
+CompozyOS does not retry ACP `session/load`. Create a child session with the original as provenance:
 
 ```bash
-compozy session prompt sess_1234 "Continue from the persisted output. Do not repeat completed actions."
+compozy session new --parent sess_1234 --agent <agent-name> --workspace <workspace>
 ```
 
 CompozyOS does not automatically replay the interrupted prompt because its external effects may be
-indeterminate. Create another session only when you intentionally want a separate history or the
-stopped session is archived or not a user session.
+indeterminate. The child leaves the original transcript and diagnostics intact; use recap to carry
+the relevant context forward.
 Read [Resume Attach and Replay](/docs/sessions/resume) before treating attach refusal as a
 data-loss problem.
 

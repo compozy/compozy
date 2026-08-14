@@ -257,6 +257,26 @@ describe("createSession", () => {
     });
   });
 
+  it("preserves parent session provenance when creating a recovery fork", async () => {
+    mockJsonResponse({ session: mockSession });
+
+    await createSession({
+      agent_name: "codex-agent",
+      parent_session_id: "sess-dead",
+      workspace: "ws_alpha",
+    });
+
+    await expectFetchRequest({
+      body: {
+        agent_name: "codex-agent",
+        parent_session_id: "sess-dead",
+        workspace: "ws_alpha",
+      },
+      method: "POST",
+      path: "/api/sessions",
+    });
+  });
+
   it("sends workspace_path when creating from an explicit path", async () => {
     mockJsonResponse({ session: mockSession });
 
@@ -299,7 +319,9 @@ describe("fetchSession", () => {
     const result = await fetchSession(WORKSPACE_ID, "sess-001");
 
     expect(result).toEqual(mockSession);
-    await expectFetchRequest({ path: "/api/workspaces/ws_alpha/sessions/sess-001" });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/sess-001?include_health=true",
+    });
   });
 
   it("throws 404 error for unknown session", async () => {
@@ -315,7 +337,9 @@ describe("fetchSession", () => {
 
     await fetchSession(WORKSPACE_ID, "id with spaces");
 
-    await expectFetchRequest({ path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces" });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces?include_health=true",
+    });
   });
 });
 

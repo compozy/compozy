@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"sync"
@@ -194,6 +195,51 @@ func TestManagerTranscriptPageLogsCleanupErrorsWithoutFailingSuccessfulRead(t *t
 
 func TestManagerTranscriptProjectionReads(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should read dead-session history repeatedly without starting ACP", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := &filteringTranscriptRecorder{}
+		h := newHarness(
+			t,
+			WithStore(func(_ context.Context, _ store.SessionDBOwner, _ string) (EventRecorder, error) {
+				return recorder, nil
+			}),
+		)
+		const sessionID = "dead-session-history"
+		writeStoppedSessionArtifacts(t, h, sessionID, true)
+		metaPath := store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, sessionID))
+		meta := readMeta(t, metaPath)
+		meta.Failure = &store.SessionFailure{
+			Kind:    store.FailureProcess,
+			Summary: "Codex exited before the response completed",
+		}
+		if err := store.WriteSessionMeta(metaPath, meta); err != nil {
+			t.Fatalf("WriteSessionMeta(%q) error = %v", metaPath, err)
+		}
+		recorder.Append(transcriptProjectionEvent(
+			t,
+			sessionID,
+			1,
+			"turn-dead",
+			acp.EventTypeAgentMessage,
+			"partial response preserved",
+		))
+
+		for range 2 {
+			page, err := h.manager.TranscriptPage(testutil.Context(t), sessionID, transcript.PageQuery{})
+			if err != nil {
+				t.Fatalf("TranscriptPage(%q) error = %v", sessionID, err)
+			}
+			messages := transcript.MessagesFromEntries(page.Entries)
+			if got := transcript.JoinUIMessageText(messages); got != "partial response preserved" {
+				t.Fatalf("TranscriptPage(%q) = %q, want preserved history", sessionID, got)
+			}
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("dead-session transcript reads started ACP %d times, want 0", got)
+		}
+	})
 
 	t.Run("Should read materialized pages without querying raw events", func(t *testing.T) {
 		t.Parallel()
