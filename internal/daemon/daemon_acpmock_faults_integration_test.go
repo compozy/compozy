@@ -3,9 +3,12 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -55,20 +58,43 @@ func TestDaemonE2EACPmockCrashMidStreamProjectsRuntimeFailure(t *testing.T) {
 			false,
 		)
 
-		recoveryStream, err := harness.PromptSessionHTTP(ctx, session.ID, "continue after disconnect")
+		assertDeadSessionPromptRejected(t, ctx, harness, session.ID)
+		parentTranscript := mustSessionTranscript(t, ctx, harness, session.ID)
+		parentContent := joinTranscriptContent(sessionTranscriptMessages(parentTranscript))
+		if !strings.Contains(parentContent, "partial before crash") ||
+			strings.Contains(parentContent, "recovered after disconnect") {
+			t.Fatalf("dead session transcript = %q, want preserved partial output only", parentContent)
+		}
+
+		child, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
+			AgentName:       faultyMockAgentName,
+			Name:            "faulty-recovery-child",
+			WorkspacePath:   harness.WorkspaceRoot,
+			ParentSessionID: session.ID,
+		})
 		if err != nil {
-			t.Fatalf("PromptSessionHTTP(recovery) error = %v", err)
+			t.Fatalf("CreateSession(recovery child) error = %v", err)
+		}
+		child, err = harness.WaitForSessionActive(ctx, child.ID)
+		if err != nil {
+			t.Fatalf("WaitForSessionActive(recovery child) error = %v", err)
+		}
+		if child.Lineage == nil || child.Lineage.ParentSessionID != session.ID {
+			t.Fatalf("recovery child lineage = %#v, want parent %q", child.Lineage, session.ID)
+		}
+		recoveryStream, err := harness.PromptSessionHTTP(ctx, child.ID, "continue after disconnect")
+		if err != nil {
+			t.Fatalf("PromptSessionHTTP(recovery child) error = %v", err)
 		}
 		if !e2etest.RecordsContainTextDelta(recoveryStream, "recovered after disconnect") ||
 			sseStreamContainsEvent(recoveryStream, "error") ||
 			!sseStreamContainsEvent(recoveryStream, "finish") {
-			t.Fatalf("recovery prompt stream = %#v, want recovered text and terminal finish", recoveryStream)
+			t.Fatalf("recovery child prompt stream = %#v, want recovered text and terminal finish", recoveryStream)
 		}
-		transcript := mustSessionTranscript(t, ctx, harness, session.ID)
-		content := joinTranscriptContent(sessionTranscriptMessages(transcript))
-		if !strings.Contains(content, "partial before crash") ||
-			!strings.Contains(content, "recovered after disconnect") {
-			t.Fatalf("recovered transcript = %q, want partial and recovered assistant output", content)
+		childTranscript := mustSessionTranscript(t, ctx, harness, child.ID)
+		childContent := joinTranscriptContent(sessionTranscriptMessages(childTranscript))
+		if !strings.Contains(childContent, "recovered after disconnect") {
+			t.Fatalf("recovery child transcript = %q, want recovered assistant output", childContent)
 		}
 
 		cliSession := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-cli-session")
@@ -374,6 +400,63 @@ func startFaultyMockSession(
 	defer cancel()
 	session := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-session")
 	return harness, session
+}
+
+func assertDeadSessionPromptRejected(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+) {
+	t.Helper()
+
+	messageID, err := store.NewID("msg")
+	if err != nil {
+		t.Fatalf("generate dead-session message id error = %v", err)
+	}
+	idempotencyKey, err := store.NewID("idem")
+	if err != nil {
+		t.Fatalf("generate dead-session idempotency key error = %v", err)
+	}
+	payload, err := json.Marshal(compozycontract.SendPromptRequest{
+		Message:        "continue after disconnect",
+		MessageID:      messageID,
+		IdempotencyKey: idempotencyKey,
+	})
+	if err != nil {
+		t.Fatalf("marshal dead-session prompt error = %v", err)
+	}
+	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+		"/sessions/" + url.PathEscape(sessionID) + "/prompt"
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		harness.HTTPURL(path),
+		bytes.NewReader(payload),
+	)
+	if err != nil {
+		t.Fatalf("create dead-session prompt request error = %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := harness.HTTPClient.Do(request)
+	if err != nil {
+		t.Fatalf("send dead-session prompt request error = %v", err)
+	}
+	body, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatalf("read dead-session prompt response error = %v", err)
+	}
+	if response.StatusCode != http.StatusConflict {
+		t.Fatalf("dead-session prompt status = %d, want %d; body=%s", response.StatusCode, http.StatusConflict, body)
+	}
+	var failure compozycontract.ErrorPayload
+	if err := json.Unmarshal(body, &failure); err != nil {
+		t.Fatalf("decode dead-session prompt response error = %v; body=%s", err, body)
+	}
+	if !strings.Contains(failure.Error, "not attachable") {
+		t.Fatalf("dead-session prompt error = %q, want attachability context", failure.Error)
+	}
 }
 
 func startFaultyMockHarness(

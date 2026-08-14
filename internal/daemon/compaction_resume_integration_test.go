@@ -30,7 +30,7 @@ import (
 const compactionIntegrationFact = "cobalt-archive-fact"
 
 func TestDaemonE2ECompactionResumeSafety(t *testing.T) {
-	t.Run("Should preserve compacted facts through crash-style degraded resume without raw replay", func(t *testing.T) {
+	t.Run("Should keep compacted facts durable when a dead session continues through a child without raw replay", func(t *testing.T) {
 		homePaths := integrationHomePaths(t)
 		cfg := testConfig(t, homePaths)
 		workspaceRoot := filepath.Join(homePaths.HomeDir, "workspace")
@@ -108,23 +108,32 @@ func TestDaemonE2ECompactionResumeSafety(t *testing.T) {
 			return nil
 		}
 		restarted := newHarnessIntegrationManager(t, homePaths, deps, resolved, restartDriver)
-		resumed, err := restarted.Resume(testutil.Context(t), created.ID)
-		if err != nil {
-			t.Fatalf("Resume(load unsupported) error = %v", err)
+		if _, err := restarted.Resume(testutil.Context(t), created.ID); !errors.Is(err, store.ErrSessionNotAttachable) {
+			t.Fatalf("Resume(dead session) error = %v, want ErrSessionNotAttachable", err)
 		}
-		drainCompactionPrompt(t, restarted, resumed.ID, "continue from durable context")
+		child, err := restarted.Create(testutil.Context(t), session.CreateOpts{
+			AgentName: resolved.Agents[0].Name,
+			Workspace: resolved.ID,
+			Lineage:   &store.SessionLineage{ParentSessionID: created.ID},
+		})
+		if err != nil {
+			t.Fatalf("Create(child session) error = %v", err)
+		}
+		if child.Info().Lineage == nil || child.Info().Lineage.ParentSessionID != created.ID {
+			t.Fatalf("child lineage = %#v, want parent %q", child.Info().Lineage, created.ID)
+		}
+		drainCompactionPrompt(t, restarted, child.ID, "continue from durable context")
 		if len(restartDriver.promptCalls) != 1 {
-			t.Fatalf("restart prompt calls = %d, want 1", len(restartDriver.promptCalls))
+			t.Fatalf("child prompt calls = %d, want 1", len(restartDriver.promptCalls))
 		}
 		prompt := restartDriver.promptCalls[0].Message
-		if !strings.Contains(prompt, compactionIntegrationFact) {
-			t.Fatalf("resumed prompt missing checkpoint fact: %q", prompt)
+		if strings.Contains(prompt, compactionIntegrationFact) {
+			t.Fatalf("child prompt inherited archived parent fact: %q", prompt)
 		}
-		replay := compactionReplayPayload(t, prompt)
-		if strings.Contains(replay, compactionIntegrationFact) {
-			t.Fatalf("raw replay re-inflated archived fact: %s", replay)
+		if strings.Contains(prompt, "<compozy_context_replay>") {
+			t.Fatalf("child prompt inherited parent replay: %q", prompt)
 		}
-		if err := restarted.Stop(testutil.Context(t), resumed.ID); err != nil {
+		if err := restarted.Stop(testutil.Context(t), child.ID); err != nil {
 			t.Fatalf("Stop(restarted) error = %v", err)
 		}
 		if err := restarted.Shutdown(testutil.Context(t)); err != nil {
