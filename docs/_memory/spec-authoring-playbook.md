@@ -1,14 +1,14 @@
 # Spec Authoring Playbook
 
-Mandatory preflight reading for `$cy-create-prd`, `$cy-create-techspec`, and `$cy-create-tasks`. Distilled from 8 forensic analyses of past PRDs, TechSpecs, task trees, and Codex sessions. Every directive carries an evidence reference — open the linked lesson or analysis to see the incident behind the rule.
+Mandatory preflight reading for `$cy-create-spec` and `$cy-create-tasks`. Distilled from 8 forensic analyses of past specs, task trees, and Codex sessions. Every directive carries an evidence reference — open the linked lesson or analysis to see the incident behind the rule.
 
-> **Loading contract**: agents authoring an `_idea.md`, `_prd.md`, `_techspec.md`, `_tasks.md`, or `task_NN.md` MUST read this playbook before producing the artifact. The `cy-spec-preflight` skill enforces this.
+> **Loading contract**: agents authoring an `_idea.md`, `_spec.md`, `_dx.md`, `_uiux.md`, `_tasks.md`, or `task_NN.md` MUST read this playbook before producing the artifact. The `cy-spec-preflight` skill enforces this.
 
 ---
 
 ## 1. Authoring Posture (cross-cutting)
 
-Applies to PRD + TechSpec + Tasks alike. See `docs/_memory/standing_directives.md` for full text.
+Applies to Spec + Tasks alike. See `docs/_memory/standing_directives.md` for full text.
 
 - **Greenfield-alpha = name delete targets.** Every breaking-change spec lists what disappears. No compat shims, no aliases, no schema fallbacks. → `lessons/L-006`, SD-002.
 - **Hard-cut renames.** Renames sweep code, storage, APIs, CLI, extensions, specs, RFCs, AND `.compozy/tasks/*` artifacts in the same change. → `analysis/analysis_codex_plans.md` Theme 4.
@@ -21,11 +21,15 @@ Applies to PRD + TechSpec + Tasks alike. See `docs/_memory/standing_directives.m
 
 ---
 
-## 2. Phase: PRD (`$cy-create-prd`)
+## 2. Phase: Spec (`$cy-create-spec`)
 
-PRDs frame **what** and **why**. They do not frame **how**.
+One `_spec.md`, two parts, two stages, one grill checkpoint between them. **Stage-gate = approval**: grill convergence at each stage is the approval; files are written at stage end and the user reviews the generated files — no draft-approval loops. The Stage 1 checkpoint (user confirms the product summary) is what opens Stage 2.
 
-### MUST contain
+### Stage 1 — Part I (Product)
+
+Part I frames **what** and **why**. It does not frame **how**.
+
+#### MUST contain
 
 - Problem statement, user/operator impact, current pain.
 - Agent/operator manageability outcome: who or what must inspect, configure, operate, or repair the capability outside the web UI.
@@ -33,26 +37,32 @@ PRDs frame **what** and **why**. They do not frame **how**.
 - Goals + non-goals listed explicitly (non-goals are not inferred — they're stated).
 - Success criteria observable from outside the system.
 - Open Questions capturing unresolved product choices without inventing answers.
-- Architecture Decision Records section linking any PRD decision ADRs.
+- Stage-1 ADRs recorded under `adrs/` for the decided direction.
 
-### MUST NOT contain
+#### MUST NOT contain
 
-- Framework names, storage engines, file formats, transport choices, error codes, schema details. Strip and push to TechSpec. → `lessons/L-013`.
+- Framework names, storage engines, file formats, transport choices, error codes, schema details. Strip and push to Part II. → `lessons/L-013`.
 - Open questions about decisions already constrained by accepted ADRs or product non-goals. Carry decided constraints forward; ask for single-option confirmation only. → codex_sessions §Engineering Principle 6.
 - Implementation milestones masquerading as user goals.
 
-### Validate before exit
+#### Validate before the checkpoint
 
-- Run the `cy-spec-preflight` PRD check and the implementation-leak script.
-- Get user approval on the complete draft before saving.
+- Run the `cy-spec-preflight` Part I checks and `check-spec-part1-leak.py`.
+- Present the Stage 1 summary; the user's confirmation opens Stage 2.
 
----
+### Stage 2, first — Surface contracts (`_dx.md`, `_uiux.md`)
 
-## 3. Phase: TechSpec (`$cy-create-techspec`)
+The public surface freezes before internals exist: draft the surface contracts as if the feature already shipped, grill their ergonomics, then design Part II to serve them. Internals never reshape a frozen surface silently — a surface change reopens the surface grill.
 
-The autonomy `_techspec.md` is the high-water mark. Six markers correlate with **clean execution** (one review round) vs. heavy rework. → `analysis/analysis_compozy_tasks.md` §PRD/TechSpec Quality Patterns.
+- **`_dx.md` (always)**: golden path first, then per-surface write→see pairs — YAML, CLI (+ structured output and exit codes), HTTP/UDS, SDK/bridges, `config.toml`, `compozy__*` native tools, deterministic errors. Zero internals. Quality test: pasted into the docs site as the usage page, a new user succeeds.
+- **`_uiux.md` (only when the feature touches `web/`)**: surface map with `file:line` anchors, states derived from story ACs/ECs, component plan justified against the `@compozy/ui` inventory, named opendesign artboards. Its presence is the deterministic UI-bearing signal `cy-tasks-tail-qa-pair` consumes.
+- Part II's Agent Manageability Plan and API sections MUST stay consistent with the frozen surfaces — divergence is a blocker at review.
 
-### Six quality markers (ALL six required)
+### Stage 2, second — Part II (Technical)
+
+The autonomy spec is the high-water mark. Six markers correlate with **clean execution** (one review round) vs. heavy rework. → `analysis/analysis_compozy_tasks.md` §PRD/TechSpec Quality Patterns.
+
+#### Six quality markers (ALL six required)
 
 1. **MVP Boundary statement** at the top. Names which numbered tasks compose MVP, what is post-MVP, what is explicitly out of scope.
 2. **Architectural Boundaries** section. Enumerates which packages can/cannot import which. Names new internal packages explicitly. References `daemon/` composition root.
@@ -63,20 +73,20 @@ The autonomy `_techspec.md` is the high-water mark. Six markers correlate with *
 
 → `lessons/L-012`.
 
-### MUST also contain
+#### MUST also contain
 
 - **Forensic frame** when the spec attacks a real incident: open with confirmed reproduction (timestamp, command, observed evidence). → SD-006, `analysis/analysis_codex_plans.md` Pattern 1.
 - **"No fallback / no compat shim / no placeholder" clauses** that pre-empt drift. → `analysis/analysis_codex_plans.md` Pattern 2.
 - **Phased plan**: safe cleanup phases separated from behavior-changing edits. Each phase has its own verification gate. → Pattern 3.
-- **Test plan = per-section bullet list** with concrete assertions and verification commands (`make verify`, `make web-test`, etc.). Not "tests will pass". → Pattern 4.
-- **Public Interfaces / Types** section enumerating routes/payloads/CLI verbs/config keys added/changed. → Pattern 5.
+- **Testing Approach = strategy only**; every concrete case lives in `_tests.md` with verification commands (`make verify`, `make gate`, etc.). Not "tests will pass". → Pattern 4.
+- **Developer Experience index** into `_dx.md`/`_uiux.md` — never a restated copy. The client-visible examples live in the surface contracts.
 - **Extensibility Integration Plan** section enumerating extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs that are added/changed/removed or explicitly unaffected. → SD-011.
 - **Agent Manageability Plan** section enumerating CLI verbs, HTTP endpoints, UDS routes, structured outputs, status/config discovery, and deterministic errors agents will use to operate the feature. UI-only control is incomplete. → SD-011.
 - **Config Lifecycle** section enumerating `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests that are added/changed/removed or explicitly unaffected. → SD-011.
 - **Assumptions/Defaults** section closing the spec, pre-empting "what if" questions. → Pattern 6.
 - **Web/Docs Impact** for any contract change (`internal/api/contract`, OpenAPI, CLI verb). Activate `cy-web-docs-impact`.
 
-### MUST refuse
+#### MUST refuse
 
 - Generic event bus, reflection-based routing, or remote-carrier infrastructure without a shipped consumer. → CLAUDE.md Architecture, `lessons/L-005`.
 - Parallel queue alongside `task_runs`. Add columns + side-tables instead. → `lessons/L-003`.
@@ -91,22 +101,23 @@ The autonomy `_techspec.md` is the high-water mark. Six markers correlate with *
 - Config keys added/renamed/removed without same-change structs, defaults, merge/overlay, validation, examples, docs, and tests. → SD-011.
 - Tying execution lifetime to request lifetime. Detached work uses `context.WithoutCancel`. → `lessons/L-001`.
 
-### Validate before exit
+#### Validate before exit
 
-- All six markers present (cy-spec-preflight checklist).
-- After the user approves the baseline draft and it is saved, offer peer review via `cy-spec-peer-review` (Opus xhigh). Run it only if the user opts in, summarize the findings, let the user choose what to incorporate, and ask whether to run another round or stop.
+- All six markers present (`check-spec-markers.py` via cy-spec-preflight).
+- Surface consistency: Part II matches `_dx.md`/`_uiux.md` promises.
+- After the user approves the complete spec and it is saved, offer peer review via `cy-spec-peer-review` (Opus xhigh). Run it only if the user opts in, summarize the findings, let the user choose what to incorporate, and ask whether to run another round or stop.
 
 ---
 
-## 4. Phase: Tasks (`$cy-create-tasks`)
+## 3. Phase: Tasks (`$cy-create-tasks`)
 
-Tasks turn a TechSpec into an implementable dependency graph. The structure of `_tasks.md` is load-bearing.
+Tasks turn a spec into an implementable dependency graph. The structure of `_tasks.md` is load-bearing.
 
 ### `_tasks.md` shape
 
 - Table columns: `# | Title | Status | Complexity | Dependencies`. Preserve column order across edits.
 - **MVP Boundary** section above the table: name which tasks implement the MVP, which trailing tasks cover QA planning/execution, and what remains post-MVP.
-- **Final two rows** are always `qa-report` (high) + `qa-execution` (critical), operating on the living `docs/qa/` tree (state.csv, journeys, charters, bug registry, dated reports). UI-bearing features include e2e in qa-execution. → `cy-tasks-tail-qa-pair` skill.
+- **Final two rows** are always `qa-report` (high) + `qa-execution` (critical), operating on the living `docs/qa/` tree (state.csv, journeys, charters, bug registry, dated reports). UI-bearing features (the slug has `_uiux.md`) include e2e in qa-execution. → `cy-tasks-tail-qa-pair` skill.
 
 ### Per-row directives
 
@@ -118,9 +129,9 @@ Tasks turn a TechSpec into an implementable dependency graph. The structure of `
 
 ### MUST contain (per task)
 
-- **`.resources/<competitor>` references** when the TechSpec drew on competitors. Each task body lists exact file paths so the implementer reads them. → codex_sessions §Engineering Principle 4.
+- **`.resources/<competitor>` references** when the spec drew on competitors. Each task body lists exact file paths so the implementer reads them. → codex_sessions §Engineering Principle 4.
 - **Agent-operability tests** when a task adds/changes CLI/HTTP/UDS behavior: compare structured CLI output with HTTP/UDS state where applicable and assert deterministic errors. → SD-011.
-- **Test density that is NOT "fraco"**. Plan unit + integration + e2e proportional to behaviors documented in the TechSpec. Reject lists with 1-2 tests for many behaviors. → `lessons/L-011`.
+- **Test density that is NOT "fraco"**. Plan unit + integration + e2e proportional to behaviors documented in the spec. Reject lists with 1-2 tests for many behaviors. → `lessons/L-011`.
 - **Reconciled status**. If `task_03` is `pending` while `task_10` is `completed`, fix the table — that's drift. → `analysis/analysis_compozy_tasks.md` §unified-capabilities drift.
 - **No TBD / placeholder rows**. → SD-006, codex_sessions §Engineering Principle 3.
 
@@ -132,15 +143,15 @@ Tasks turn a TechSpec into an implementable dependency graph. The structure of `
 
 ---
 
-## 5. Phase: Per-Task Body (`task_NN.md`)
+## 4. Phase: Per-Task Body (`task_NN.md`)
 
 Each task file is the unit of execution. The autonomy task files are the canonical pattern.
 
 ### Header
 
-- `<critical>ALWAYS READ _techspec.md, every per-task ADR file if present, and every per-task memory file before editing.</critical>` block at the top.
+- `<critical>ALWAYS READ _spec.md, every per-task ADR file if present, and every per-task memory file before editing.</critical>` block at the top.
 - `<critical>MINIMIZE CODE, TESTS REQUIRED, NO WORKAROUNDS</critical>` block.
-- Reference to the `_techspec.md` section being implemented.
+- Reference to the `_spec.md` Part II section being implemented.
 
 ### Body sections
 
@@ -150,7 +161,7 @@ Each task file is the unit of execution. The autonomy task files are the canonic
 - **Tests**: enumerated assertions covering happy path + failure paths + concurrency stress where relevant. → `eng-test-conventions` skill, `lessons/L-002`, `eng-cleanup-failure-paths` skill.
 - **Web/Docs Impact**: paths affected under `web/` and `packages/site`, OR explicit `none — backend-only` line. → `cy-web-docs-impact` skill. Includes the **QA impact** line: `docs/qa/scenarios/` ids to reset to `untested` and walk to a recorded verdict at completion when user-visible behavior changes (flag, then verify), OR `none — no user-visible behavior change`.
 - **Extensibility / Agent Manageability / Config Lifecycle**: affected extension hooks/manifests/skills/tools/resources/registries/bridge SDKs, CLI/HTTP/UDS agent operation paths, and `config.toml` keys/docs/tests, OR explicit `none — checked surfaces: ...` line.
-- **References**: `.resources/<competitor>/path` paths cited from the TechSpec.
+- **References**: `.resources/<competitor>/path` paths cited from the spec.
 - **Completion Notes** (filled at execution time): commands run, coverage %, "not changed" disclaimers for `web/`/`packages/site`.
 
 ### Memory template
@@ -168,7 +179,7 @@ Workflow memory under `.compozy/tasks/<slug>/memory/task_NN.md` follows the 6-se
 
 ---
 
-## 6. Anti-Patterns Refused (negative list)
+## 5. Anti-Patterns Refused (negative list)
 
 If the agent's draft contains any of these, refuse to mark the artifact ready:
 
@@ -180,8 +191,9 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 - **TUI quit auto-stops session** (already reverted; do not re-introduce).
 - **Boolean-prop proliferation** in UI components (favor many small components).
 - **Cron / schedule CI workflows** (heavy tests live in release PR `dry-run`). → user-memory `feedback_ci_no_cron.md`.
-- **PRD naming frameworks/storage/error codes/file formats.** → `lessons/L-013`.
-- **TechSpec prose-only without Go interface signatures.** → `lessons/L-012`.
+- **Part I naming frameworks/storage/error codes/file formats.** → `lessons/L-013`.
+- **Part II prose-only without Go interface signatures.** → `lessons/L-012`.
+- **Internals-flavored `_dx.md`** — surface contracts that explain architecture instead of showing what the user types and sees.
 - **`_tasks.md` test plan that is "fraco" / "leviano" / 1-2 tests for many behaviors.** → `lessons/L-011`.
 - **`EnsureSchema`-style boot reconciliation for column changes.** → `lessons/L-008`.
 - **Tying long-lived execution to request context.** → `lessons/L-001`.
@@ -193,7 +205,7 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 
 ---
 
-## 7. Cross-References
+## 6. Cross-References
 
 | Topic                                       | Where to read                                                          |
 | ------------------------------------------- | ---------------------------------------------------------------------- |
@@ -202,6 +214,7 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 | Vocabulary                                  | `docs/_memory/glossary.md`                                             |
 | Cross-source synthesis                      | `docs/_memory/_synthesis.md` and `docs/_memory/analysis/analysis_*.md` |
 | Spec quality evidence                       | `docs/_memory/lessons/L-012-techspec-prose-only-rework.md`             |
+| Skill: spec authoring                       | `.agents/skills/cy-create-spec/`                                       |
 | Skill: peer review                          | `.agents/skills/cy-spec-peer-review/`                                  |
 | Skill: tasks tail QA pair                   | `.agents/skills/cy-tasks-tail-qa-pair/`                                |
 | Skill: web/docs impact                      | `.agents/skills/cy-web-docs-impact/`                                   |

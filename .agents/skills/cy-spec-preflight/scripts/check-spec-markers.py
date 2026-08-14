@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Heuristic checker for the six Compozy TechSpec quality markers.
+"""Heuristic checker for the six Compozy Spec quality markers (Part II).
 
 Source: docs/_memory/lessons/L-012-techspec-prose-only-rework.md.
 
-Usage: python3 check-techspec-markers.py <path/to/_techspec.md>
+Usage: python3 check-spec-markers.py <path/to/_spec.md>
 
 Exit 0 = all six markers present, exit 1 = missing markers.
 """
@@ -21,7 +21,7 @@ def check_markers(text: str) -> dict[str, bool]:
 
     findings["1-mvp-boundary"] = bool(
         re.search(r"\bMVP\b.{0,120}\b(boundary|scope|out[- ]of[- ]scope|post[- ]MVP|deferred)\b", text, re.IGNORECASE | re.DOTALL)
-        or re.search(r"\b(out[- ]of[- ]scope|post[- ]MVP|deferred to|follow[- ]up TechSpec)\b.{0,120}\bMVP\b", text, re.IGNORECASE | re.DOTALL)
+        or re.search(r"\b(out[- ]of[- ]scope|post[- ]MVP|deferred to|follow[- ]up spec)\b.{0,120}\bMVP\b", text, re.IGNORECASE | re.DOTALL)
     )
 
     findings["2-architectural-boundaries"] = bool(
@@ -79,7 +79,7 @@ def check_markers(text: str) -> dict[str, bool]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("path", help="Path to the _techspec.md file")
+    parser.add_argument("path", help="Path to the _spec.md file")
     args = parser.parse_args()
     path = Path(args.path)
     if not path.exists():
@@ -89,14 +89,14 @@ def main() -> int:
     findings = check_markers(text)
     missing = [marker for marker, ok in findings.items() if not ok]
     if not missing:
-        print(f"OK: {args.path} carries all six TechSpec quality markers.")
+        print(f"OK: {args.path} carries all six Spec quality markers.")
         return 0
     print(f"MISSING {len(missing)} of 6 quality markers in {args.path}:", file=sys.stderr)
     for marker in missing:
         print(f"  - {marker}", file=sys.stderr)
     print(
         "\nSee docs/_memory/lessons/L-012-techspec-prose-only-rework.md "
-        "and references/techspec-six-markers.md.",
+        "and references/spec-six-markers.md.",
         file=sys.stderr,
     )
     return 1

@@ -91,7 +91,7 @@ graph:
 
           Scope and tracking:
           - Read repository AGENTS.md/CLAUDE.md and surface-specific instructions before editing.
-          - Read .compozy/tasks/{{ .inputs.slug }}/_techspec.md and _tasks.md when present and
+          - Read .compozy/tasks/{{ .inputs.slug }}/_spec.md and _tasks.md when present and
             treat them plus the task body below as the source of truth.
           - Keep scope tight to this task; record meaningful follow-up work instead of expanding
             scope silently.

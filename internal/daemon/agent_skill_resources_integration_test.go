@@ -33,9 +33,8 @@ import (
 )
 
 var devCycleIntegrationSkillNames = []string{
-	"cy-create-prd",
+	"cy-create-spec",
 	"cy-create-tasks",
-	"cy-create-techspec",
 	"cy-execute-task",
 	"cy-final-verify",
 	"cy-fix-reviews",

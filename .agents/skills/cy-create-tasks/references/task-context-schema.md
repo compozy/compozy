@@ -61,10 +61,11 @@ Task files must match the pattern `task_\d+\.md` with zero-padded numbers:
 
 The leading underscore prefix is reserved for meta documents:
 
-- `_prd.md` - Product Requirements Document
-- `_user_stories.md` - User-story catalog (companion to the PRD)
-- `_techspec.md` - Technical Specification
-- `_tests.md` - Test contract (companion to the TechSpec)
+- `_spec.md` - Unified spec (Part I Product + Part II Technical)
+- `_user_stories.md` - User-story catalog
+- `_dx.md` - Developer-experience contract
+- `_uiux.md` - UI change map (UI-bearing features only)
+- `_tests.md` - Test contract
 - `_tasks.md` - Task graph manifest
 
 ## Parser Compatibility

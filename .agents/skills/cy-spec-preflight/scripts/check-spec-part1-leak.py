@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Heuristic checker for Compozy PRD implementation leaks.
+"""Heuristic checker for implementation leaks in Part I of a Compozy Spec.
 
-Scans a PRD markdown file and surfaces tokens that should live in a TechSpec
-instead. Strips matches outside code fences (those may quote competitor refs).
+Scans the Product part of _spec.md (everything before the "# Part II" heading)
+and surfaces tokens that belong in Part II instead. Ignores code fences and
+inline code (those may quote competitor refs). When no Part II heading exists
+yet (Stage 1 draft), the whole file is treated as Part I.
 
-Usage: python3 check-prd-implementation-leak.py <path/to/_prd.md>
+Usage: python3 check-spec-part1-leak.py <path/to/_spec.md>
 
 Exit 0 = clean, exit 1 = leaks found.
 """
@@ -53,6 +55,11 @@ CATEGORIES = {
 }
 
 
+def extract_part1(text: str) -> str:
+    match = re.search(r"^#\s*Part II\b.*$", text, re.MULTILINE | re.IGNORECASE)
+    return text[: match.start()] if match else text
+
+
 def strip_code_fences(text: str) -> str:
     return re.sub(r"```[\s\S]*?```", "", text)
 
@@ -66,7 +73,7 @@ def find_leaks(path: Path) -> list[tuple[str, str, int]]:
         print(f"FILE ERROR: {path} not found", file=sys.stderr)
         sys.exit(2)
     text = path.read_text(encoding="utf-8")
-    cleaned = strip_inline_code(strip_code_fences(text))
+    cleaned = strip_inline_code(strip_code_fences(extract_part1(text)))
     leaks: list[tuple[str, str, int]] = []
     for category, patterns in CATEGORIES.items():
         for pattern in patterns:
@@ -78,18 +85,18 @@ def find_leaks(path: Path) -> list[tuple[str, str, int]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("path", help="Path to the _prd.md file")
+    parser.add_argument("path", help="Path to the _spec.md file")
     args = parser.parse_args()
     leaks = find_leaks(Path(args.path))
     if not leaks:
-        print(f"OK: {args.path} contains no implementation leaks.")
+        print(f"OK: Part I of {args.path} contains no implementation leaks.")
         return 0
-    print(f"FOUND {len(leaks)} potential implementation leaks in {args.path}:", file=sys.stderr)
+    print(f"FOUND {len(leaks)} potential implementation leaks in Part I of {args.path}:", file=sys.stderr)
     for category, token, line in leaks:
         print(f"  line {line:>4}: [{category}] '{token}'", file=sys.stderr)
     print(
-        "\nStrip these tokens unless the PRD is *about* the named technology "
-        "(see docs/_memory/lessons/L-013-prd-must-not-name-implementation.md).",
+        "\nMove these tokens to Part II unless the spec is *about* the named "
+        "technology (see docs/_memory/lessons/L-013-prd-must-not-name-implementation.md).",
         file=sys.stderr,
     )
     return 1

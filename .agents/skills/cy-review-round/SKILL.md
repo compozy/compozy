@@ -1,11 +1,11 @@
 ---
 name: cy-review-round
-description: Performs a comprehensive code review of a PRD implementation and generates a review round directory with issue files compatible with cy-fix-reviews. Use when reviewing implemented PRD tasks, creating a manual review round without an external provider, or performing a quality audit of code changes. Do not use for fetching reviews from external providers, fixing existing review issues, executing PRD tasks, or editing source code.
+description: Performs a comprehensive code review of a spec implementation and generates a review round directory with issue files compatible with cy-fix-reviews. Use when reviewing implemented spec tasks, creating a manual review round without an external provider, or performing a quality audit of code changes. Do not use for fetching reviews from external providers, fixing existing review issues, executing spec tasks, or editing source code.
 ---
 
 # Review Round
 
-Perform a structured code review of a PRD implementation and produce a review round directory that the `cy-fix-reviews` workflow can process.
+Perform a structured code review of a spec implementation and produce a review round directory that the `cy-fix-reviews` workflow can process.
 
 ## Required Inputs
 
@@ -15,16 +15,16 @@ Perform a structured code review of a PRD implementation and produce a review ro
 ## Workflow
 
 1. Determine the review round directory.
-   - Derive the PRD directory from the feature name: `.compozy/tasks/<name>/`.
-   - Verify the PRD directory exists. If it does not, stop and report the missing directory.
+   - Derive the spec directory from the feature name: `.compozy/tasks/<name>/`.
+   - Verify the spec directory exists. If it does not, stop and report the missing directory.
    - List existing `reviews-NNN/` subdirectories to determine the next round number. If none exist, use round 1.
    - If prior review rounds exist, read their issue files to build a list of already-known issues. The current round must only contain NEW issues not already tracked in prior rounds. Do not re-flag issues that are pending, valid, or resolved in earlier rounds.
    - Determine the review round directory path: `.compozy/tasks/<name>/reviews-NNN/` with the round number zero-padded to 3 digits. Do NOT create it yet — wait until step 4 confirms there are issues to write. This avoids leaving empty directories when the review finds no issues.
 
 2. Identify the review scope.
-   - Read `_prd.md`, `_techspec.md`, and `_tasks.md` from the PRD directory to understand what was implemented and why, plus the contract catalogs `_user_stories.md` and `_tests.md` when present.
+   - Read `_spec.md` and `_tasks.md` from the spec directory to understand what was implemented and why, plus the contract catalogs `_user_stories.md` and `_tests.md` when present.
    - Read ADRs from `.compozy/tasks/<name>/adrs/` for architectural decision context.
-   - If `_prd.md` and `_techspec.md` are both missing, warn that the review will lack requirements context but proceed with a code-quality-only review.
+   - If `_spec.md` is missing, warn that the review will lack requirements context but proceed with a code-quality-only review.
    - If the user provided specific files or directories, scope the review to those paths.
    - If no explicit scope was provided, run `git diff main...HEAD --name-only` to discover all files created or modified on the current branch. If the diff is empty or unhelpful, ask the user to specify files.
    - Spawn an Agent tool call to explore the identified files, their imports, and their dependencies to build a map of the implementation.
@@ -33,7 +33,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - Read `references/review-criteria.md` for severity definitions and evaluation areas.
    - **Prioritize the review scope.** If the scope contains more than 15 files, triage before deep-reading: identify the core implementation files (new packages, new exported APIs, files with the most additions) and review those in full first. Review remaining files (tests, minor edits, config changes) for obvious issues only. This prevents shallow reviews spread across too many files.
    - Read every file in the prioritized scope completely before forming conclusions.
-   - **Requirements validation**: If `_prd.md` or `_techspec.md` were available in step 2, cross-check the implementation against every stated requirement, acceptance criterion, and architectural decision — including every acceptance criterion and edge case in `_user_stories.md` when it exists. Flag any requirement that is missing, partially implemented, or implemented differently than specified. These are correctness issues — assign severity based on the gap's impact (critical if a core feature is missing, high if behavior deviates from spec, medium if an edge case from the spec is unhandled).
+   - **Requirements validation**: If `_spec.md` was available in step 2, cross-check the implementation against every stated requirement, acceptance criterion, and architectural decision — including every acceptance criterion and edge case in `_user_stories.md` when it exists. Flag any requirement that is missing, partially implemented, or implemented differently than specified. These are correctness issues — assign severity based on the gap's impact (critical if a core feature is missing, high if behavior deviates from spec, medium if an edge case from the spec is unhandled).
    - **Test-contract parity**: If `_tests.md` exists, verify that every test ID assigned in completed tasks' `## Tests` sections is implemented in the suite and asserts the behavior the contract specifies. A missing case, or a hollow one that exists without asserting the contracted behavior, is an issue — assign severity based on the impact of the behavior left unverified.
    - Evaluate each file against the nine evaluation areas: Security, Correctness, Concurrency, Performance and Scalability, Error Handling, Code Quality and Maintainability, Testing, Architecture, and Operations.
    - Identify issues in severity order: critical first, then high, medium, and low.
@@ -113,9 +113,9 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
 ## Error Handling
 
-- If the PRD directory does not exist, stop and report the missing directory.
+- If the spec directory does not exist, stop and report the missing directory.
 - If no files can be identified for review and the user did not provide explicit paths, ask the user to specify files.
-- If both `_prd.md` and `_techspec.md` are missing, warn about the lack of requirements context but proceed with code-quality-only review.
+- If `_spec.md` is missing, warn about the lack of requirements context but proceed with code-quality-only review.
 - If the review round directory cannot be created, stop and report the filesystem error.
 - If writing an issue file fails, stop and report which file could not be written.
 - If `make lint` fails to run (build errors, missing tools), note the failure in the summary and proceed with the review. Do not skip the review because linting failed — just acknowledge that linter-overlap filtering could not be applied.

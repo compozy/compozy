@@ -1,6 +1,6 @@
 # User Stories Template
 
-Structure for `_user_stories.md` — the canonical user-story catalog that ships alongside `_prd.md`. Every story, acceptance criterion, and edge case for the feature lives here and only here; the PRD's User Stories section is an index into this file. Downstream consumers depend on it: `_techspec.md` maps stories to components, `_tests.md` builds its coverage matrix on story IDs, and review rounds validate the implementation against the acceptance criteria recorded here.
+Structure for `_user_stories.md` — the canonical user-story catalog that ships alongside `_spec.md`. Every story, acceptance criterion, and edge case for the feature lives here and only here; the spec's User Stories section is an index into this file. Downstream consumers depend on it: `_spec.md` Part II maps stories to components, `_uiux.md` derives surface states from ACs/ECs, `_tests.md` builds its coverage matrix on story IDs, and review rounds validate the implementation against the acceptance criteria recorded here.
 
 ## ID Rules
 
@@ -12,8 +12,9 @@ Structure for `_user_stories.md` — the canonical user-story catalog that ships
 ```markdown
 # User Stories: [Feature Name]
 
-Canonical behavior catalog for [feature]. Companion to `_prd.md`; consumed by
-`_techspec.md` (component mapping) and `_tests.md` (coverage matrix).
+Canonical behavior catalog for [feature]. Companion to `_spec.md`; consumed by
+`_spec.md` Part II (component mapping), `_uiux.md` (surface states), and
+`_tests.md` (coverage matrix).
 
 ## Personas
 

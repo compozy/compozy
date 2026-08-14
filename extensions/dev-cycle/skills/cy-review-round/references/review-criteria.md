@@ -113,7 +113,7 @@ redundant type conversion, slightly misleading comment.
 
 ## Review Approach
 
-- Read the PRD and TechSpec before reviewing code to understand intent.
+- Read the spec (`_spec.md`) before reviewing code to understand intent.
 - Review in severity order: critical first, low last.
 - Focus on issues that matter. Skip style issues already caught by linters.
 - Provide actionable suggestions: state the problem and what the fix looks like.

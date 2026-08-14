@@ -11,9 +11,9 @@ Use the matrix below to decide what kind of artifact your change needs.
 | Add an index | YES | Add it beside its table in the owning declarative source; let Atlas plan the appended SQL. |
 | Drop an index | YES | Treat Atlas destructive diagnostics as a design review input. |
 | Add a CHECK constraint | YES | Same as table-rebuild for older SQLite versions. |
-| Add a unique constraint | YES | Risk of breaking existing data — surface in techspec. |
+| Add a unique constraint | YES | Risk of breaking existing data — surface in the spec. |
 | New table | YES | Add the complete table and indexes to the owning declarative source. |
-| Drop a table | YES | Greenfield-alpha: hard cut. Mention the delete target in the techspec. |
+| Drop a table | YES | Greenfield-alpha: hard cut. Mention the delete target in the spec. |
 | Add a row (seed data) | YES | Add bounded data SQL to the unpublished migration tail and test repeated open. |
 | Change default value | YES | Existing rows are unaffected by SQLite default changes — explicit backfill if needed. |
 | Touch struct field that round-trips through SQLite | YES (column add/rename) | The Go struct change is just the front of the migration. |

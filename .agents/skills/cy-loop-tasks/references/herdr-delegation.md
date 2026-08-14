@@ -75,7 +75,7 @@ claude --dangerously-skip-permissions --model opus --effort xhigh "<packet>"
 cursor-agent --yolo --model grok-4.5 "<packet>"
 ```
 
-Packet additions for this lane: read the task file / `_techspec.md` / design
+Packet additions for this lane: read the task file / `_spec.md` / design
 docs plus the scoped `AGENTS.md`/`CLAUDE.md` for the touched surfaces; apply
 `cy-spec-preflight` (task-body) and `cy-execute-task` discipline; use
 `cy-workflow-memory` with the provided memory paths; run the frontend

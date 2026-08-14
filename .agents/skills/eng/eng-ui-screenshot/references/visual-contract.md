@@ -63,7 +63,7 @@ doctrine in any other active skill.
    when the task or artifact defines them.
 7. Treat fidelity as `normative` by default; `normative` binds the
    visual-language axes only, expressed through the component map. An
-   authorized difference needs a cited PRD, TechSpec, ADR, or canonical-owner
+   authorized difference needs a cited spec, ADR, or canonical-owner
    rule (runtime truth, `COPY.md`, brand inventory, component identity, host
    chrome); implementation convenience is never authority.
 

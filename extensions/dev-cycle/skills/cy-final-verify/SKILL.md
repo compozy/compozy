@@ -145,9 +145,9 @@ If the full pipeline has not passed in this session after the last code change, 
 
 **Flag, don't retest.** Running QA is the QA cycle's job — `untested` scenarios are exactly its scope. Skipping the flag silently (when the companion skills and tracker are present) is a stale-verdict claim: the same dishonesty as claiming tests pass without running them.
 
-## Spec Contract Parity (PRD/spec workflows)
+## Spec Contract Parity (spec workflows)
 
-A green pipeline and ticked task checkboxes do not prove the deliverable matches the spec. When the work executes a task from a spec directory (PRD/TechSpec plus sibling artifacts), a "task complete" claim additionally requires:
+A green pipeline and ticked task checkboxes do not prove the deliverable matches the spec. When the work executes a task from a spec directory (`_spec.md` plus sibling artifacts), a "task complete" claim additionally requires:
 
 1. List the canonical contract artifacts for this task found during grounding (e.g. `_examples.md`, `_qa.md` input tables, `_tests.md` test contracts, `_user_stories.md` acceptance criteria, parity maps). If none are known, survey the spec directory now — absence must be proven, not assumed.
 2. Compare the deliverable to each artifact field by field: names, types, defaults, required flags, shapes, topologies, behaviors. Paraphrase-level similarity is not parity.

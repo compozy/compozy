@@ -1,6 +1,6 @@
 # Workflow Memory Guidelines
 
-Use these rules to keep CompozyOS workflow memory useful across repeated PRD task runs.
+Use these rules to keep CompozyOS workflow memory useful across repeated spec task runs.
 
 ## File Roles
 
@@ -19,7 +19,7 @@ Avoid:
 
 - step-by-step scratch notes
 - large code excerpts
-- facts that are already explicit in `_prd.md`, `_techspec.md`, `_tasks.md`, or the repo itself
+- facts that are already explicit in `_spec.md`, `_tasks.md`, or the repo itself
 
 ### Current task memory: `memory/<task filename>`
 

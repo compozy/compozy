@@ -27,9 +27,8 @@ import (
 // Boundary OUT: daemon publication and workspace projection, owned by internal/daemon integration tests.
 
 var bundledSkillNames = []string{
-	"cy-create-prd",
+	"cy-create-spec",
 	"cy-create-tasks",
-	"cy-create-techspec",
 	"cy-execute-task",
 	"cy-final-verify",
 	"cy-fix-reviews",
@@ -738,7 +737,7 @@ func TestEmbeddedLoopsShouldKeepDevCycleRuntimeContracts(t *testing.T) {
 			"cy-execute-task",
 			"cy-final-verify",
 			"do NOT ask for confirmation",
-			"_techspec.md",
+			"_spec.md",
 			"record meaningful follow-up work",
 			"promote only durable cross-task context",
 			"Execute every explicit Validation, Test Plan, or Testing item",
@@ -921,7 +920,7 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 			"cy-workflow-memory",
 			"cy-execute-task",
 			"cy-final-verify",
-			"_techspec.md",
+			"_spec.md",
 			"meaningful follow-up work",
 			"durable cross-task context",
 			"Never push",

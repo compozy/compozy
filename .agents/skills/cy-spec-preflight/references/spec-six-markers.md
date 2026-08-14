@@ -1,13 +1,13 @@
-# TechSpec Six Markers
+# Spec Six Markers
 
-A TechSpec is "ready for review" only when ALL six markers are present. Run `scripts/check-techspec-markers.py <techspec_path>` to validate. Source: `docs/_memory/lessons/L-012-techspec-prose-only-rework.md` and `docs/_memory/analysis/analysis_compozy_tasks.md` PRD/TechSpec quality patterns.
+A Spec's Part II is "ready for review" only when ALL six markers are present. Run `scripts/check-spec-markers.py <spec_path>` to validate. Source: `docs/_memory/lessons/L-012-techspec-prose-only-rework.md` and `docs/_memory/analysis/analysis_compozy_tasks.md` spec quality patterns.
 
 ## Marker 1 — MVP Boundary statement
 
-A sentence near the top spelling out which numbered tasks compose MVP, what is post-MVP, what is out of scope.
+A sentence near the top of Part II spelling out which numbered tasks compose MVP, what is post-MVP, what is out of scope.
 
 Example:
-> "MVP boundary: tasks 01-16 implement the autonomy kernel. Tasks 17-18 prepare and execute QA. Post-MVP network evolution, broad memory scopes, self-correction telemetry, eval/replay, and broad web visibility remain follow-up TechSpecs unless explicitly pulled into scope."
+> "MVP boundary: tasks 01-16 implement the autonomy kernel. Tasks 17-18 prepare and execute QA. Post-MVP network evolution, broad memory scopes, self-correction telemetry, eval/replay, and broad web visibility remain follow-up specs unless explicitly pulled into scope."
 
 ## Marker 2 — Architectural Boundaries section
 
@@ -70,10 +70,10 @@ If any marker fails, print which one and refuse to mark the spec ready.
 
 ## Compozy-specific mandatory sections
 
-The six quality markers are not the whole approval gate. Compozy TechSpecs must also include:
+The six quality markers are not the whole approval gate. Compozy Spec Part II must also include:
 
 - **Extensibility Integration Plan** — extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs added/changed/removed or explicitly unaffected.
-- **Agent Manageability Plan** — CLI verbs, HTTP endpoints, UDS routes, structured outputs, status/config discovery, and deterministic errors agents will use to operate the feature.
+- **Agent Manageability Plan** — CLI verbs, HTTP endpoints, UDS routes, structured outputs, status/config discovery, and deterministic errors agents will use to operate the feature. Must be consistent with `_dx.md`.
 - **Config Lifecycle** — `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests added/changed/removed or explicitly unaffected.
 
 If a section says "no impact", it must list the surfaces checked and why no change is needed.

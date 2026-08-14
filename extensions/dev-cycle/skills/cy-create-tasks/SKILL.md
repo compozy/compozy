@@ -1,6 +1,6 @@
 ---
 name: cy-create-tasks
-description: Decomposes PRDs and TechSpecs into robust, independently implementable task files, assigning every test case from _tests.md to exactly one task and enriching tasks from codebase exploration. Use when a PRD or TechSpec exists and needs to be broken down into executable tasks, or when task files need enrichment with implementation context. Do not use for PRD creation, TechSpec generation, or direct task execution.
+description: Decomposes Specs into robust, independently implementable task files, assigning every test case from _tests.md to exactly one task and enriching tasks from codebase exploration. Use when a spec exists and needs to be broken down into executable tasks, or when task files need enrichment with implementation context. Do not use for spec creation or direct task execution.
 ---
 
 # Create Tasks
@@ -22,8 +22,8 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 ## Required Inputs
 
 - Feature name identifying the `.compozy/tasks/<name>/` directory.
-- At minimum, `_prd.md` or `_techspec.md` in that directory.
-- When present: `_tests.md` (test contract) and `_user_stories.md` (story catalog).
+- At minimum, `_spec.md` in that directory.
+- When present: `_tests.md` (test contract), `_user_stories.md` (story catalog), `_dx.md` (developer-experience contract), and `_uiux.md` (UI change map).
 
 ## Workflow
 
@@ -32,20 +32,20 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
    - When the specification needs a distinct category, define one concise lowercase hyphenated slug in the proposed breakdown and use it consistently. Task `type` is free-form; ordered `loops.defaults.delivery.runtime_rules[].match.type` entries own type-based runtime routing.
 
 2. Load context.
-   - Read `_prd.md`, `_techspec.md`, `_user_stories.md`, and `_tests.md` from `.compozy/tasks/<name>/`.
+   - Read `_spec.md`, `_user_stories.md`, `_dx.md`, `_uiux.md` (when present), and `_tests.md` from `.compozy/tasks/<name>/`.
    - Read existing ADRs from `.compozy/tasks/<name>/adrs/` to understand the decision context behind requirements and design choices.
    - Resolve every local artifact path or glob cited as a contract, including repo-relative and absolute paths outside the task directory. Read textual contracts and use `eng-ui-screenshot` to render and inspect named visual artifacts; a path mention is an input, not optional background.
-   - If `_techspec.md` is missing:
-     - Warn the user that tasks will be higher-level without TechSpec implementation guidance.
-     - Derive tasks from PRD functional requirements and the `_user_stories.md` catalog instead of TechSpec implementation sections.
+   - If `_spec.md` lacks a Technical part (Part II):
+     - Warn the user that tasks will be higher-level without implementation guidance.
+     - Derive tasks from Part I functional requirements and the `_user_stories.md` catalog instead of Part II implementation sections.
      - During enrichment, rely more heavily on codebase exploration to fill `## Implementation Details`, `### Relevant Files`, and `### Dependent Files`.
-     - Mark `<requirements>` with PRD-derived behavioral requirements instead of TechSpec-derived technical requirements.
+     - Mark `<requirements>` with behavior-derived requirements instead of design-derived technical requirements.
      - Explicitly call out missing implementation detail gaps in the task body instead of inventing specifics.
-   - If both `_prd.md` and `_techspec.md` are missing, stop and ask the user to create at least one first.
+   - If `_spec.md` is missing, stop and ask the user to create it first via `cy-create-spec`.
    - Spawn an Agent tool call to explore the codebase for files to create or modify, test patterns, and coding conventions.
 
 3. Break down into tasks.
-   - Apply the Task Sizing doctrine above: slice the TechSpec's Build Order into the smallest number of robust tasks the real boundaries allow.
+   - Apply the Task Sizing doctrine above: slice the spec's Build Order into the smallest number of robust tasks the real boundaries allow.
    - **Each task MUST be independently implementable when all dependencies declared in `_tasks.md` graph edges are met.** No task may require undeclared work from another task. If two tasks share a tight coupling, merge them — or extract the shared piece into a dependency task only when a real boundary separates it.
    - **No circular dependencies.** If task A depends on task B, task B must NOT depend on task A (directly or transitively).
    - Each task must have: title, type, complexity, and dependency relationships in the graph plan.
@@ -94,14 +94,14 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 
 7. Enrich each task file.
    - For each task file, check whether it already has `## Overview`, `## Deliverables`, and `## Tests` sections, plus a complete `## Visual Contract` when it implements visible UI from a named reference. Skip enrichment only when every required and conditional section is complete.
-   - Map the task to PRD requirements, user stories, and TechSpec guidance.
+   - Map the task to Part I requirements, user stories, Part II guidance, and the `_dx.md`/`_uiux.md` surface contracts.
    - Spawn an Agent tool call to discover relevant files, dependent files, integration points, and project rules for this specific task.
    - Fill ALL template sections from `references/task-template.md`. Every task file MUST contain each of the following sections — omitting any is a failure:
      - `## Overview`: what slice of the system the task delivers and why, in 2-3 sentences.
      - `<critical>` block: the standard critical reminders block from the template.
      - `<requirements>` block: specific, numbered technical requirements using MUST/SHOULD language.
      - `## Subtasks`: checklist items describing WHAT, not HOW — one per coherent unit of work, typically 5-12 for a robust task.
-     - `## Implementation Details`: file paths to create or modify, integration points. Reference TechSpec for patterns.
+     - `## Implementation Details`: file paths to create or modify, integration points. Reference `_spec.md` Part II for patterns.
      - `### Relevant Files`: discovered paths from codebase exploration with brief reasons.
      - `### Dependent Files`: files that will be affected by this task with brief reasons.
      - `### Related ADRs`: links to relevant ADRs if any exist, or omit the subsection if none apply.
@@ -119,9 +119,9 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 
 ## Error Handling
 
-- If both `_prd.md` and `_techspec.md` are missing, stop and ask the user to create at least one first.
+- If `_spec.md` is missing, stop and ask the user to create it first via `cy-create-spec`.
 - If the user rejects the task breakdown, incorporate all feedback before presenting again.
-- If codebase exploration reveals task boundaries that do not match the TechSpec, note the discrepancy and ask the user how to proceed.
+- If codebase exploration reveals task boundaries that do not match the spec, note the discrepancy and ask the user how to proceed.
 - If a test case in `_tests.md` fits no task, the breakdown is missing a slice — fix the breakdown rather than dropping the case.
 - If the target directory does not exist, create it.
 - If a task file already exists and is fully enriched, skip it and move to the next.

@@ -318,7 +318,7 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             slug = "frontend"
             slug_dir = tasks_root / slug
             slug_dir.mkdir(parents=True)
-            (slug_dir / "_techspec.md").write_text("# spec\n", encoding="utf-8")
+            (slug_dir / "_spec.md").write_text("# spec\n", encoding="utf-8")
 
             result = self.run_script(
                 "init-state.py",
@@ -344,7 +344,7 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             slug = "multiline-goal"
             slug_dir = tasks_root / slug
             slug_dir.mkdir(parents=True)
-            (slug_dir / "_techspec.md").write_text("# spec\n", encoding="utf-8")
+            (slug_dir / "_spec.md").write_text("# spec\n", encoding="utf-8")
             goal = "ship the workflow\n- delegate frontend work"
 
             initialized = self.run_script(
@@ -426,7 +426,7 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             slug = "local-only"
             slug_dir = tasks_root / slug
             slug_dir.mkdir(parents=True)
-            (slug_dir / "_techspec.md").write_text("# spec\n", encoding="utf-8")
+            (slug_dir / "_spec.md").write_text("# spec\n", encoding="utf-8")
 
             result = self.run_script(
                 "init-state.py",
@@ -448,7 +448,7 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             slug = "stacked-tasks"
             slug_dir = tasks_root / slug
             slug_dir.mkdir(parents=True)
-            (slug_dir / "_techspec.md").write_text("# spec\n", encoding="utf-8")
+            (slug_dir / "_spec.md").write_text("# spec\n", encoding="utf-8")
             (slug_dir / "_tasks.md").write_text("# tasks\n", encoding="utf-8")
             (slug_dir / "task_01.md").write_text(
                 "---\nstatus: pending\ntitle: first\n---\n", encoding="utf-8"
@@ -475,7 +475,7 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             slug = "stacked-free"
             slug_dir = tasks_root / slug
             slug_dir.mkdir(parents=True)
-            (slug_dir / "_techspec.md").write_text("# spec\n", encoding="utf-8")
+            (slug_dir / "_spec.md").write_text("# spec\n", encoding="utf-8")
 
             result = self.run_script(
                 "init-state.py",

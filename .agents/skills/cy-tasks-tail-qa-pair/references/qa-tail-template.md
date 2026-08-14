@@ -17,11 +17,11 @@ Canonical row shape for the QA pair. Mirror this exactly when appending to a fre
 Body content for the task file (`task_NN.md`):
 
 - Frontmatter `type: qa-report` (required by the loop phase detector).
-- `<critical>ALWAYS READ _techspec.md, every ADR, and every per-task memory file before planning.</critical>`
+- `<critical>ALWAYS READ _spec.md, every ADR, and every per-task memory file before planning.</critical>`
 - Activate the `qa-report` skill with `qa-docs-path=docs/qa` (bootstrap the tree if absent).
 - Output: journey flowcharts updated in `docs/qa/journeys/`, scenario files minted/updated in `docs/qa/scenarios/`, session charters in `docs/qa/charters/` for this cycle.
 - Coverage: every public surface touched by tasks 01..N — CLI verbs, HTTP, UDS, web routes, doc pages, automation triggers, extension points, agent-operation paths, and `config.toml` keys — expressed as scenario `entry_points` on journey-derived rows, not as standalone test cases.
-- Map regression hot spots from `_techspec.md` invariants and ADRs into the cycle's charter selection (targeted tier + one adjacent canary journey).
+- Map regression hot spots from `_spec.md` Part II invariants and ADRs into the cycle's charter selection (targeted tier + one adjacent canary journey).
 
 ## qa-execution row template
 

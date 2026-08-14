@@ -1,13 +1,13 @@
-# TechSpec Quality Markers
+# Spec Quality Markers
 
-When the user opts into peer review, a TechSpec is "ready for peer review" only when all six markers are present. These correlate with smooth execution (one review round) vs heavy rework (multiple rounds). Source: `docs/_memory/analysis/analysis_compozy_tasks.md` (autonomy techspec vs. release-adjustments comparison).
+When the user opts into peer review, a Spec's Part II is "ready for peer review" only when all six markers are present. These correlate with smooth execution (one review round) vs heavy rework (multiple rounds). Source: `docs/_memory/analysis/analysis_compozy_tasks.md` (autonomy techspec vs. release-adjustments comparison).
 
 ## Marker 1: MVP Boundary Statement
 
 The spec opens with an explicit MVP boundary in plain language: which numbered tasks compose the MVP, which post-MVP work is deferred, and which features are explicitly out of scope.
 
 Example (autonomy):
-> "MVP boundary: tasks 01-16 implement the autonomy kernel. Tasks 17-18 prepare and execute QA. Post-MVP network evolution, broad memory scopes, self-correction telemetry, eval/replay, and broad web visibility remain follow-up TechSpecs unless explicitly pulled into scope later."
+> "MVP boundary: tasks 01-16 implement the autonomy kernel. Tasks 17-18 prepare and execute QA. Post-MVP network evolution, broad memory scopes, self-correction telemetry, eval/replay, and broad web visibility remain follow-up specs unless explicitly pulled into scope later."
 
 ## Marker 2: Architectural Boundaries Section
 

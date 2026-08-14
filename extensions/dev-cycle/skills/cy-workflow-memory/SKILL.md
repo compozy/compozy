@@ -1,6 +1,6 @@
 ---
 name: cy-workflow-memory
-description: Maintains workflow-scoped task memory for CompozyOS runs using .compozy/tasks/<name>/memory/ files. Use when a task prompt provides workflow memory paths and requires the agent to read, update, compact, and promote durable context across PRD task executions. Do not use for PR review remediation, global user preferences, or programmatic event-log summarization.
+description: Maintains workflow-scoped task memory for CompozyOS runs using .compozy/tasks/<name>/memory/ files. Use when a task prompt provides workflow memory paths and requires the agent to read, update, compact, and promote durable context across spec task executions. Do not use for PR review remediation, global user preferences, or programmatic event-log summarization.
 ---
 
 # Workflow Memory
@@ -35,7 +35,7 @@ Maintain the workflow memory files provided by the caller.
 
 - Do not invent history, decisions, or status that did not happen.
 - Do not copy large code blocks, stack traces, or task specs into memory files.
-- Do not duplicate facts that are obvious from the repository, git diff, task file, or PRD documents.
+- Do not duplicate facts that are obvious from the repository, git diff, task file, or spec documents.
 - Do not read unrelated task memory files unless the shared workflow memory or the caller explicitly points to them.
 - Keep shared memory durable and cross-task. Keep task memory local and operational.
 
@@ -45,7 +45,7 @@ Before promoting an item from task memory to shared workflow memory, ask:
 
 1. Will another task need this information to avoid a mistake or rediscovery?
 2. Is this fact durable across multiple runs, not just the current execution?
-3. Is this information NOT already obvious from the PRD, techspec, task files, or the repository itself?
+3. Is this information NOT already obvious from the spec, task files, or the repository itself?
 
 All three must be "yes" to promote. If any is "no," the item stays in task memory.
 

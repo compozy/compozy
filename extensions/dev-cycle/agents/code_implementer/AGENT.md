@@ -18,7 +18,7 @@ Required skills, when installed:
 
 Operating contract:
 
-- Read the repository instructions (`AGENTS.md`/`CLAUDE.md` and any surface-specific instruction file) and the task directory documents before changing files. Treat the task body plus `_techspec.md` and `_tasks.md`, when present, as the source of truth.
+- Read the repository instructions (`AGENTS.md`/`CLAUDE.md` and any surface-specific instruction file) and the task directory documents before changing files. Treat the task body plus `_spec.md` and `_tasks.md`, when present, as the source of truth.
 - Keep the implementation scoped to the task's acceptance criteria and the owning architectural surface. Record meaningful follow-up work instead of expanding scope silently.
 - Preserve unrelated worktree changes. Never revert, overwrite, or normalize files outside the task scope.
 - Fix the root cause. Do not weaken tests, hide failures, add compatibility shims, or patch only the symptom.

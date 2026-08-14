@@ -65,11 +65,11 @@ journey:
       expected_observable: "Success auto-clears the mark and restores normal cadence — no daemon restart, no manual revive control"
     - step: 5
       verb: "Enroll dev-cycle and inspect its managed-session skills"
-      expected_observable: "Exactly cy-create-prd, cy-create-techspec, cy-create-tasks, cy-execute-task, cy-workflow-memory, cy-review-round, cy-fix-reviews, cy-final-verify, and git-rebase project from immutable global resources; one workspace override does not change another workspace"
+      expected_observable: "Exactly cy-create-spec, cy-create-tasks, cy-execute-task, cy-workflow-memory, cy-review-round, cy-fix-reviews, cy-final-verify, and git-rebase project from immutable global resources; one workspace override does not change another workspace"
   goal:
     observable: "Advertised set = runnable set; dead entity suppressed then self-recovered"
     side_effects: [dead-entity-mark-clear-events, catalog-rebuild]
-  true_end_state: "Fresh catalog, status, doctor, extension, and managed-session reads agree: gated skills are inactive-with-reason, the revived sidecar is ready, the exact nine dev-cycle skills remain immutable and workspace-isolated, no duplicate official skill exists, and the measured advertised-token count dropped on the gated fixture."
+  true_end_state: "Fresh catalog, status, doctor, extension, and managed-session reads agree: gated skills are inactive-with-reason, the revived sidecar is ready, the exact eight dev-cycle skills remain immutable and workspace-isolated, no duplicate official skill exists, and the measured advertised-token count dropped on the gated fixture."
   exit:
     natural: "The agent proceeds with a truthful capability set; the operator trusts diagnostics over restarts."
   abandonment:
@@ -81,7 +81,7 @@ journey:
 
 ## Migration coverage
 
-- Safety invariant 12 and ADR-004 own the exact nine-skill bundle and immutable global source.
+- Safety invariant 12 and ADR-004 own the exact eight-skill bundle and immutable global source.
 - `ET-dev-cycle-skill-bundle` and `ET-dev-cycle-legacy-skill-retired` are the candidate rows.
 - `cy-capture-decisions`, every tenth skill, external CLI home writes, and an extension-owned
   `compozy` skill are explicit negative controls.

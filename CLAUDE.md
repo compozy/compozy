@@ -6,7 +6,7 @@ CompozyOS is an agent operating system: a Go single-binary daemon that manages A
 
 ## Greenfield Alpha — Zero Legacy Tolerance
 
-No production users. Never sacrifice quality for backward compatibility; never write migration/compat/defensive code for old state — **delete obsolete code instead**. Hard cuts, not bridges: a rename updates code, storage, APIs, CLI, extensions, specs, RFCs, and `.compozy/tasks/*` in one change — no aliases, dual fields, or schema fallbacks. Every breaking-change techspec MUST list its delete targets.
+No production users. Never sacrifice quality for backward compatibility; never write migration/compat/defensive code for old state — **delete obsolete code instead**. Hard cuts, not bridges: a rename updates code, storage, APIs, CLI, extensions, specs, RFCs, and `.compozy/tasks/*` in one change — no aliases, dual fields, or schema fallbacks. Every breaking-change spec MUST list its delete targets.
 
 ## Critical Rules
 
@@ -26,7 +26,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 
 ## Workflow Rules
 
-- **TechSpec peer review is opt-in, after draft approval.** `cy-create-techspec` presents + saves the approved draft first, then offers `cy-spec-peer-review`. Apply only user-selected findings.
+- **Spec peer review is opt-in, after approval.** `cy-create-spec` saves the approved spec first, then offers `cy-spec-peer-review`. Apply only user-selected findings.
 - **Every backend task carries a `Web/Docs Impact` subitem** — affected `web/` routes/components/hooks AND `packages/site` docs. "No impact" only after analysis.
 - **Every spec/feature carries an extensibility + agent-manageability + config-lifecycle analysis** — how it wires into extension surfaces (extensions, hooks, skills/capabilities, tools/resources, registries, bridge SDKs), which CLI/HTTP/UDS surfaces let agents manage it, and which `config.toml` keys/defaults/docs change. "No impact" needs explicit evidence.
 - **Reference competitors by file path in tasks.** `.resources/<repo>/`-backed tasks list explicit competitor paths; analysis files go under `.compozy/tasks/<slug>/analysis/`.
@@ -38,7 +38,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 - **Isolated Web QA exports `COMPOZY_WEB_API_PROXY_TARGET`** — derive it from the bootstrap manifest/env; never hardcode `:2123`.
 - **Never parallelize config writes against one isolated QA home** — `compozy config set` and peers run sequentially per provider/runtime home.
 - **Skill helpers use explicit repo-root paths** (`.agents/skills/<skill>/scripts/`), never ambiguous `scripts/...`.
-- **Conversation in Brazilian Portuguese; artifacts in English** (TechSpecs, ADRs, code, commits, docs).
+- **Conversation in Brazilian Portuguese; artifacts in English** (Specs, ADRs, code, commits, docs).
 
 ## Compozy Cross-Surface Impact Audit
 
@@ -99,11 +99,10 @@ Compozy Impact Audit:
 | Performance / hot paths                           | `extreme-software-optimization` + `golang-master`                                        |                                       |
 | Security review                                   | `security-review`                                                                        |                                       |
 | Creative / new features                           | `grill-me`                                                                               |                                       |
-| PRD creation                                      | `cy-spec-preflight` + `cy-create-prd`                                                    | `grill-me`                            |
-| TechSpec creation                                 | `cy-spec-preflight` + `cy-create-techspec`                                               | `cy-spec-peer-review`                 |
+| Spec creation                                     | `cy-spec-preflight` + `cy-create-spec`                                                   | `cy-spec-peer-review`                 |
 | Task generation                                   | `cy-spec-preflight` + `cy-create-tasks` + `cy-tasks-tail-qa-pair` + `cy-web-docs-impact` |                                       |
 | Research → executable issue backlog               | `cy-research-issues`                                                                     | `eng-consolidate-test-suites`         |
-| Execute a PRD task                                | `cy-execute-task`                                                                        | `cy-workflow-memory`                  |
+| Execute a spec task                               | `cy-execute-task`                                                                        | `cy-workflow-memory`                  |
 | Review round / fixes                              | `cy-review-round` + `cy-fix-reviews`                                                     |                                       |
 | Release / scenario QA                             | `eng-qa-bootstrap` + `eng-real-scenario-qa` + `qa-report` + `qa-execution`               | `eng-worktree-isolation`              |
 | Git rebase / conflicts                            | `git-rebase`                                                                             |                                       |
@@ -180,8 +179,8 @@ Any SQLite table/column/index/constraint change → activate `eng-schema-migrati
 
 `docs/_memory/` is institutional memory — authoritative when CLAUDE.md is silent. Read the relevant file before the matching work:
 
-- `standing_directives.md` — active engineering posture (SD-001..011); read before a TechSpec or architecture pivot.
-- `spec-authoring-playbook.md` — mandatory preflight for `cy-create-prd`/`techspec`/`tasks` (enforced by `cy-spec-preflight`).
+- `standing_directives.md` — active engineering posture (SD-001..011); read before a spec or architecture pivot.
+- `spec-authoring-playbook.md` — mandatory preflight for `cy-create-spec`/`cy-create-tasks` (enforced by `cy-spec-preflight`).
 - `lessons/` (`L-001..035` + README) — durable lessons with confirmed root cause + evidence; scan the index by issue class.
 - `glossary.md` — canonical vocabulary; read when naming anything or reviewing a rename.
 - `_synthesis.md` + `analysis/` — evidence corpus behind the rules; read when challenging one.

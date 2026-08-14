@@ -45,6 +45,6 @@ A backend task has downstream web/docs, agent-manageability, extensibility, or c
 
 ## Agent-manageability special case
 
-- New user-visible capabilities MUST provide a CLI/HTTP/UDS operation path for agents unless the TechSpec gives a concrete exception.
+- New user-visible capabilities MUST provide a CLI/HTTP/UDS operation path for agents unless the spec gives a concrete exception.
 - CLI commands MUST expose structured output (`-o json` or `-o jsonl`) where agents need to consume state.
 - HTTP and UDS routes that represent the same daemon state MUST stay behaviorally aligned.

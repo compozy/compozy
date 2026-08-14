@@ -4,7 +4,7 @@ description: >-
   Audits a backend Compozy change for downstream impact on web/, packages/site,
   agent-operable CLI/HTTP/UDS surfaces, extensibility surfaces, and config.toml.
   Adds explicit impact subitems to backend tasks, even when the conclusion is no
-  impact. Use when drafting tasks or reviewing TechSpec coverage for changes
+  impact. Use when drafting tasks or reviewing spec coverage for changes
   touching contracts, handlers, CLI verbs, config, extensions, hooks, skills,
   tools, resources, registries, bridges, MCP, or agent workflows. Do
   not use for purely internal refactors with no public, agent, config, docs, or
@@ -19,7 +19,7 @@ Pedro asks "não é preciso mudar nada na UI do web/ ... e nem melhorar nada no 
 
 ## Required Inputs
 
-- **task-or-spec-path** (optional): path to a single task file (`.compozy/tasks/<slug>/task_NN.md`) OR an entire `_techspec.md` to audit. When omitted, audit the most recently modified `_tasks.md`/`_techspec.md`.
+- **task-or-spec-path** (optional): path to a single task file (`.compozy/tasks/<slug>/task_NN.md`) OR an entire `_spec.md` to audit. When omitted, audit the most recently modified `_tasks.md`/`_spec.md`.
 
 ## Procedures
 
@@ -59,7 +59,7 @@ Pedro asks "não é preciso mudar nada na UI do web/ ... e nem melhorar nada no 
 1. For each user-visible or operator-visible capability, list CLI verbs, HTTP endpoints, UDS routes, structured outputs (`-o json` / `-o jsonl`), status/config discovery commands, and deterministic error contracts agents will use.
 2. List extensibility surfaces affected by the change: extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, protocol docs.
 3. For each touched config key or default, list structs, defaults, merge/overlay behavior, validation, examples, docs, and tests that must move with the change.
-4. If a feature is intentionally not agent-operable or extensible, flag it as a design blocker unless the TechSpec explains why.
+4. If a feature is intentionally not agent-operable or extensible, flag it as a design blocker unless the spec explains why.
 
 **Step 6: Append Impact Subitems**
 
@@ -85,4 +85,4 @@ Pedro asks "não é preciso mudar nada na UI do web/ ... e nem melhorar nada no 
 - **`web/src/systems/<system>/` missing for a touched API:** flag as a missing system module; do NOT auto-create one.
 - **Generated TS types path missing:** the project's codegen layout may have changed. Read `internal/codegen/openapits/generate.go` to confirm before writing impact items.
 - **Conflicting impact assertions across tasks:** when two tasks both claim ownership of the same web hook, surface the conflict for the user to resolve.
-- **Agent manageability missing for a user-visible capability:** block the task shape until CLI/HTTP/UDS structured paths are planned or the TechSpec gives a concrete exception.
+- **Agent manageability missing for a user-visible capability:** block the task shape until CLI/HTTP/UDS structured paths are planned or the spec gives a concrete exception.

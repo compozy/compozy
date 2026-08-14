@@ -1,13 +1,13 @@
 ---
 name: cy-research-issues
-description: Runs a multi-agent research pass over the codebase (and optional competitor sources under .resources/) and converts the findings into an executable Compozy task suite: seven-section analysis documents, a lightweight _techspec.md, and task_NN.md issue files wired into a compozy.tasks/v2 _tasks.md graph, each carrying evidence, competitor references, and unit/integration/e2e test plans so cy-execute-task can run them directly. Use when auditing a subsystem, investigating a bug class, or turning improvement research into a runnable backlog without the interactive PRD/TechSpec ceremony. Do not use for PRD creation (use cy-create-prd), formal TechSpec authoring with ADR review gates (use cy-create-techspec), decomposing an already-approved spec (use cy-create-tasks), or executing the generated tasks (use cy-execute-task).
+description: Runs a multi-agent research pass over the codebase (and optional competitor sources under .resources/) and converts the findings into an executable Compozy task suite: seven-section analysis documents, a lightweight _spec.md, and task_NN.md issue files wired into a compozy.tasks/v2 _tasks.md graph, each carrying evidence, competitor references, and unit/integration/e2e test plans so cy-execute-task can run them directly. Use when auditing a subsystem, investigating a bug class, or turning improvement research into a runnable backlog without the interactive spec ceremony. Do not use for formal spec authoring with grill and ADR review gates (use cy-create-spec), decomposing an already-approved spec (use cy-create-tasks), or executing the generated tasks (use cy-execute-task).
 argument-hint: "[slug] [research-prompt] [auto]"
 ---
 
 # Research Issues
 
 Turn a research question into an executable Compozy task suite. Pipeline:
-**scout → parallel explorer analyses → synthesis → lite techspec → issue-tasks → graph → validate.**
+**scout → parallel explorer analyses → synthesis → lite spec → issue-tasks → graph → validate.**
 The output directory is `.compozy/tasks/<slug>/` and its task files are directly consumable by
 `/compozy` / `cy-execute-task` — same parser contract as `cy-create-tasks` output.
 
@@ -20,14 +20,14 @@ pointer, not a substitute.
 | Phase                                                | MUST read                              |
 | ---------------------------------------------------- | -------------------------------------- |
 | Dispatching or resuming explorer agents (step 3)     | `references/explorer-dispatch.md`      |
-| Authoring `_techspec.md` (step 5)                    | `references/techspec-lite-template.md` |
+| Authoring `_spec.md` (step 5)                    | `references/spec-lite-template.md` |
 | Generating `task_NN.md` files + `_tasks.md` (step 7) | `references/issue-task-template.md`    |
 
 ## Reference Index
 
 - `references/explorer-dispatch.md` — explorer agent contract, the seven-section analysis schema,
   the dispatch prompt template, and the failure/resume protocol for agents killed mid-run.
-- `references/techspec-lite-template.md` — the full `_techspec.md` template (sections 1-10 incl.
+- `references/spec-lite-template.md` — the full `_spec.md` template (sections 1-10 incl.
   Compozy Impact Audit and Web/Docs Impact) plus authoring rules (YAGNI, Open Decisions instead of ADR
   ceremony).
 - `references/issue-task-template.md` — the complete `task_NN.md` template merging issue DNA with
@@ -64,7 +64,7 @@ pointer, not a substitute.
      values, otherwise use the defaults (`frontend`, `backend`, `docs`, `test`, `infra`,
      `refactor`, `chore`, `bugfix`).
    - Read `docs/_memory/standing_directives.md` and skim `docs/_memory/lessons/README.md` for
-     entries matching the research domain. Cite applicable directives/lessons in the techspec.
+     entries matching the research domain. Cite applicable directives/lessons in the spec.
    - If `.compozy/tasks/<slug>/analysis/` already contains the analyses for this research
      (resumed run), reuse them and skip steps 2-4.
 
@@ -97,10 +97,10 @@ pointer, not a substitute.
    - State the design verdict when competitors were analyzed (what to copy, what to reject, where
      the project should deliberately diverge).
    - End with a table mapping each analysis document to its top value, and a pointer to the
-     techspec and task files.
+     spec and task files.
 
-5. **Author `_techspec.md` (lite).**
-   - **STOP. Read `references/techspec-lite-template.md` in full before writing the techspec.**
+5. **Author `_spec.md` (lite).**
+   - **STOP. Read `references/spec-lite-template.md` in full before writing the spec.**
      Fill every section it defines — the Compozy Impact Audit and Web/Docs Impact sections are
      mandatory, and contested decisions go to its Open Decisions section instead of blocking on
      interactive rounds.
@@ -135,10 +135,10 @@ pointer, not a substitute.
 
 ## Anti-Patterns
 
-- **Analysis without line numbers.** Every claim in analyses, techspec, and tasks cites
+- **Analysis without line numbers.** Every claim in analyses, spec, and tasks cites
   `path:line`. An uncited claim is a hallucination gap for the executor.
 - **Mega-tasks.** >7 files or >7 subtasks → split with explicit graph edges.
-- **TechSpec duplication.** Tasks reference techspec sections by name; they never copy its
+- **Spec duplication.** Tasks reference spec sections by name; they never copy its
   diagrams/interfaces.
 - **Silent scope caps.** If slices, analyses, or issues were dropped for budget, say so in the
   report — never imply full coverage.

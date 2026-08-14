@@ -17,8 +17,8 @@ complexity: [low, medium, high, critical]
 [2-3 sentences: what slice of the system this task delivers and why it matters in the context of the project.]
 
 <critical>
-- ALWAYS READ the PRD, the TechSpec, and their catalogs (`_user_stories.md`, `_tests.md`) before starting
-- REFERENCE TECHSPEC for implementation details — do not duplicate here
+- ALWAYS READ `_spec.md` and its catalogs (`_user_stories.md`, `_dx.md`, `_uiux.md` when present, `_tests.md`) before starting
+- REFERENCE `_spec.md` Part II for implementation details — do not duplicate here
 - FOCUS ON "WHAT" — describe what needs to be accomplished, not how
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
 - TESTS REQUIRED — implement every test case assigned in ## Tests
@@ -51,7 +51,7 @@ Evidence for each row: `.compozy/tasks/<workflow>/evidence/visual/<task-id>/<con
 ## Implementation Details
 
 [File paths to create or modify and integration points.
-Reference the TechSpec implementation section for code patterns and interface designs.]
+Reference the `_spec.md` Part II Implementation Design for code patterns and interface designs.]
 
 ### Relevant Files
 
