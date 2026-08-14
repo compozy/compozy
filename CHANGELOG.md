@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-08-13
+## 0.3.0 - 2026-08-14
 
 ### ♻️ Refactoring
 
@@ -96,6 +96,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolve main lint regressions
 - Parse nanosecond daemon timestamps
 - Validate release workflow tools by type
+- Preserve awaited child loop state (#391)
+- Use exact Cursor ACP model values (#392)
+- Preserve dead session history (#393)
+- Validate desktop release smoke wiring
 
 ### 🧪 Testing
 
