@@ -10,6 +10,7 @@
 - Goals
 - Automation schedules
 - Session compaction
+- Session attachments
 - Auto-title role
 - Window manager
 
@@ -29,6 +30,13 @@ Use `compozy config reload -o json` to reconcile edited desired state with the a
 
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
+
+## Session Attachments
+
+`[session.attachments]` sets `max_file_bytes` (10 MiB), `max_files_per_prompt` (10), and the v1
+PNG/JPEG/WebP/PDF/Markdown/plain-text allowlist. `[session.attachments.retention]` bounds global
+count (200), bytes (1 GiB), and age (720h). Every key is restart-required. The v1 store preserves
+image bytes, including EXIF metadata; support bundles exclude the attachment tree.
 
 ## Gateway
 

@@ -33,6 +33,7 @@ type sessionPromptInput struct {
 	Workspace      string                                  `json:"workspace,omitempty"`
 	SessionID      string                                  `json:"session_id"`
 	Message        string                                  `json:"message"`
+	Attachments    []string                                `json:"attachments,omitempty"`
 	MessageID      string                                  `json:"message_id"`
 	IdempotencyKey string                                  `json:"idempotency_key"`
 	Mode           string                                  `json:"mode,omitempty"`
@@ -166,9 +167,12 @@ func (n *daemonNativeTools) sessionPrompt(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	message, err := requiredNativeString(req.ToolID, "message", input.Message)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
+	message := strings.TrimSpace(input.Message)
+	if message == "" && len(input.Attachments) == 0 {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(
+			req.ToolID,
+			errors.New("message or attachments is required"),
+		)
 	}
 	messageID, err := requiredNativeString(req.ToolID, "message_id", input.MessageID)
 	if err != nil {
@@ -198,10 +202,20 @@ func (n *daemonNativeTools) sessionPrompt(
 	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	attachments, err := n.resolveNativePromptAttachments(
+		ctx,
+		req.ToolID,
+		workspaceID,
+		sessionID,
+		input.Attachments,
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	result, err := n.deps.Sessions.SendPrompt(ctx, sessionID, session.SendPromptOpts{
 		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey,
 		Mode: mode, ExpectedTurnID: expectedTurnID,
-		Runtime: core.PromptRuntimeSelectionFromPayload(input.Runtime),
+		Runtime: core.PromptRuntimeSelectionFromPayload(input.Runtime), Attachments: attachments,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err

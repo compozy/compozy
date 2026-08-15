@@ -121,7 +121,13 @@ func (b *Builder) addHomeTreeArtifact(ctx context.Context, writer *bundleArchive
 	if err := buildContextError(ctx); err != nil {
 		return err
 	}
-	entries, err := collectHomeTree(ctx, b.HomePaths.HomeDir, BundlesDir(b.HomePaths), 2000)
+	entries, err := collectHomeTree(
+		ctx,
+		b.HomePaths.HomeDir,
+		2000,
+		BundlesDir(b.HomePaths),
+		b.HomePaths.SessionAttachmentsDir,
+	)
 	if err != nil {
 		manifest.omit("home-tree.json", diagnostics.RedactAndBound(err.Error(), 512))
 		return buildContextError(ctx)

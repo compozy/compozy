@@ -118,25 +118,25 @@ Those IDs can diverge after a resume that falls back to a fresh ACP session.
 
 The persisted event `type` values currently emitted by CompozyOS are:
 
-| Type                         | When it is recorded                                                                               | Key `content` fields                                                                           |
-| ---------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `user_message`               | After CompozyOS has bound or reconfigured the selected runtime, before it submits a prompt to ACP | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`, `message_id`, `prompt_runtime` |
-| `agent_message`              | Agent text chunk                                                                                  | `text`, plus the shared canonical fields                                                       |
-| `thought`                    | Agent reasoning chunk                                                                             | `text`, plus the shared canonical fields                                                       |
-| `tool_call`                  | Tool call started or updated before completion                                                    | `title`, `tool_name`, `tool_kind`, `tool_call_id`, optional `tool_input`, optional `raw`       |
-| `tool_result`                | Tool call completed or failed                                                                     | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                       |
-| `plan`                       | ACP plan update                                                                                   | optional `raw`; CompozyOS stores the canonical envelope even when the payload is sparse        |
-| `permission`                 | ACP permission request or resolved decision                                                       | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`                 |
-| `usage`                      | Token or context usage update                                                                     | `usage` with token counts, context counts, cost fields, and `timestamp`                        |
-| `runtime_progress`           | Low-frequency long-running prompt progress update                                                 | `text`, `runtime` activity payload                                                             |
-| `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                          | `text`, `runtime` activity payload, optional `raw`                                             |
-| `session.compaction_fired`   | Pressure compaction admitted for a complete prior-turn sequence span                              | `raw` with workspace/session/turn IDs, sequence bounds, usage, pressure, strategy              |
-| `transcript_marker.created`  | Durable runtime evidence added to the transcript                                                  | marker kind, summary, occurrence time, and optional evidence                                   |
-| `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                                             | marker kind, summary, occurrence time, and redaction metadata                                  |
-| `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates                     | `title`, optional `raw`                                                                        |
-| `done`                       | End of a prompt turn                                                                              | `stop_reason`, optional `usage`, optional `raw`                                                |
-| `error`                      | Prompt processing error                                                                           | `error`, optional `raw`                                                                        |
-| `session_stopped`            | Session finalization                                                                              | `stop_reason`, optional `failure`, optional `error`, optional `text`                           |
+| Type                         | When it is recorded                                                                               | Key `content` fields                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `user_message`               | After CompozyOS has bound or reconfigured the selected runtime, before it submits a prompt to ACP | `schema`, `type`, `session_id`, `turn_id`, `timestamp`, `text`, `message_id`, `attachments`, `prompt_runtime` |
+| `agent_message`              | Agent text chunk                                                                                  | `text`, plus the shared canonical fields                                                                      |
+| `thought`                    | Agent reasoning chunk                                                                             | `text`, plus the shared canonical fields                                                                      |
+| `tool_call`                  | Tool call started or updated before completion                                                    | `title`, `tool_name`, `tool_kind`, `tool_call_id`, optional `tool_input`, optional `raw`                      |
+| `tool_result`                | Tool call completed or failed                                                                     | `tool_call_id`, `tool_name`, `tool_result`, `tool_error`, optional `raw`                                      |
+| `plan`                       | ACP plan update                                                                                   | optional `raw`; CompozyOS stores the canonical envelope even when the payload is sparse                       |
+| `permission`                 | ACP permission request or resolved decision                                                       | `request_id`, `action`, `resource`, `decision`, `title`, `tool_call_id`, `raw`                                |
+| `usage`                      | Token or context usage update                                                                     | `usage` with token counts, context counts, cost fields, and `timestamp`                                       |
+| `runtime_progress`           | Low-frequency long-running prompt progress update                                                 | `text`, `runtime` activity payload                                                                            |
+| `runtime_warning`            | Runtime supervision warning or inactivity timeout notice                                          | `text`, `runtime` activity payload, optional `raw`                                                            |
+| `session.compaction_fired`   | Pressure compaction admitted for a complete prior-turn sequence span                              | `raw` with workspace/session/turn IDs, sequence bounds, usage, pressure, strategy                             |
+| `transcript_marker.created`  | Durable runtime evidence added to the transcript                                                  | marker kind, summary, occurrence time, and optional evidence                                                  |
+| `transcript_marker.redacted` | Durable marker whose diagnostic evidence was redacted                                             | marker kind, summary, occurrence time, and redaction metadata                                                 |
+| `system`                     | Available-command updates, mode updates, or other non-chat ACP system updates                     | `title`, optional `raw`                                                                                       |
+| `done`                       | End of a prompt turn                                                                              | `stop_reason`, optional `usage`, optional `raw`                                                               |
+| `error`                      | Prompt processing error                                                                           | `error`, optional `raw`                                                                                       |
+| `session_stopped`            | Session finalization                                                                              | `stop_reason`, optional `failure`, optional `error`, optional `text`                                          |
 
 ### Runtime supervision events
 
@@ -186,6 +186,7 @@ The stored canonical envelope can include these fields when they apply:
 | `session_id`     | ACP session ID from the runtime event                                                                          |
 | `turn_id`        | Prompt turn ID                                                                                                 |
 | `message_id`     | Durable authored user-message identity; it becomes the transcript `UIMessage.id`                               |
+| `attachments`    | Byte-free attachment metadata: ID, URI, name, MIME, byte count, digest, kind, and optional dimensions          |
 | `request_id`     | Permission request ID                                                                                          |
 | `timestamp`      | Event timestamp                                                                                                |
 | `text`           | User text, assistant text, or thought text                                                                     |

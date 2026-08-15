@@ -266,11 +266,12 @@ const sessionListInputSchema = `{
 
 const sessionPromptInputSchema = `{
 	"type":"object",
-	"required":["session_id","message","message_id","idempotency_key"],
+	"required":["session_id","message_id","idempotency_key"],
 	"properties":{
 		"workspace":{"type":"string"},
 		"session_id":{"type":"string","minLength":1},
-		"message":{"type":"string","minLength":1},
+		"message":{"type":"string"},
+		"attachments":{"type":"array","items":{"type":"string","minLength":1}},
 		"message_id":{"type":"string","minLength":1},
 		"idempotency_key":{"type":"string","minLength":1},
 		"mode":{"type":"string","enum":["queue","interrupt","steer"]},

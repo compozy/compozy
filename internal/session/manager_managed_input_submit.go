@@ -102,6 +102,7 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		setup.request.turnID,
 		setup.request.turnSource,
 		setup.request.message,
+		setup.request.attachments,
 	)
 	if err != nil {
 		m.failManagedInputPrompt(setup, err)

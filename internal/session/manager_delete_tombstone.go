@@ -28,6 +28,11 @@ func sessionDeleteTombstoneName(prefix string, target string, deletionID string)
 }
 
 func parseSessionDeleteTombstone(name string) (sessionDeleteTombstoneState, string, error) {
+	state, target, _, err := parseSessionDeleteTombstoneParts(name)
+	return state, target, err
+}
+
+func parseSessionDeleteTombstoneParts(name string) (sessionDeleteTombstoneState, string, string, error) {
 	cleanName := strings.TrimSpace(name)
 	state := sessionDeleteTombstoneState(0)
 	value := ""
@@ -39,21 +44,21 @@ func parseSessionDeleteTombstone(name string) (sessionDeleteTombstoneState, stri
 		state = sessionDeleteTombstoneCommitted
 		value = strings.TrimPrefix(cleanName, sessionDeleteCommittedPrefix)
 	default:
-		return 0, "", fmt.Errorf("session: invalid deletion tombstone name %q", name)
+		return 0, "", "", fmt.Errorf("session: invalid deletion tombstone name %q", name)
 	}
 	separator := strings.LastIndexByte(value, '.')
 	if separator <= 0 || separator == len(value)-1 {
-		return 0, "", fmt.Errorf("session: invalid deletion tombstone name %q", name)
+		return 0, "", "", fmt.Errorf("session: invalid deletion tombstone name %q", name)
 	}
 	decodedTarget, err := base64.RawURLEncoding.DecodeString(value[:separator])
 	if err != nil {
-		return 0, "", fmt.Errorf("session: decode deletion tombstone target %q: %w", name, err)
+		return 0, "", "", fmt.Errorf("session: decode deletion tombstone target %q: %w", name, err)
 	}
 	target, err := normalizeStoredSessionID(string(decodedTarget))
 	if err != nil {
-		return 0, "", fmt.Errorf("session: normalize deletion tombstone target %q: %w", name, err)
+		return 0, "", "", fmt.Errorf("session: normalize deletion tombstone target %q: %w", name, err)
 	}
-	return state, target, nil
+	return state, target, value[separator+1:], nil
 }
 
 func (m *Manager) cleanupDeleteTombstones() {
@@ -74,7 +79,7 @@ func (m *Manager) cleanupDeleteTombstones() {
 }
 
 func (m *Manager) cleanupSessionDeleteTombstone(path string, name string) (retErr error) {
-	state, target, err := parseSessionDeleteTombstone(name)
+	state, target, deletionID, err := parseSessionDeleteTombstoneParts(name)
 	if err != nil {
 		return err
 	}
@@ -130,18 +135,25 @@ func (m *Manager) cleanupSessionDeleteTombstone(path string, name string) (retEr
 	}
 
 	if state == sessionDeleteTombstoneStaged {
-		restored, err := m.restoreStagedSessionDelete(
-			ctx,
-			target,
-			owner,
-			canonicalDBPath,
-			parent,
-			directory,
-			database,
-		)
-		if err != nil || restored {
+		restore, err := m.shouldRestoreStagedSessionDelete(ctx, target, owner)
+		if err != nil {
 			return err
 		}
+		if err := m.recoverSessionAttachmentDelete(meta.WorkspaceID, target, deletionID, restore); err != nil {
+			return fmt.Errorf("session: recover staged attachment deletion for %q: %w", target, err)
+		}
+		if restore {
+			return m.restoreStagedSessionDelete(
+				ctx,
+				owner,
+				canonicalDBPath,
+				parent,
+				directory,
+				database,
+			)
+		}
+	} else if err := m.recoverSessionAttachmentDelete(meta.WorkspaceID, target, deletionID, false); err != nil {
+		return fmt.Errorf("session: finish committed attachment deletion for %q: %w", target, err)
 	}
 
 	if err := database.VerifyOwnerAt(ctx, owner, store.SessionDBFile(path)); err != nil {
@@ -152,12 +164,28 @@ func (m *Manager) cleanupSessionDeleteTombstone(path string, name string) (retEr
 
 func (m *Manager) restoreStagedSessionDelete(
 	ctx context.Context,
-	target string,
 	owner store.SessionDBOwner,
 	canonicalDBPath string,
 	parent *fileutil.Directory,
 	directory *fileutil.Directory,
 	database *sessiondb.FamilyFile,
+) error {
+	target := owner.SessionID
+	result, moveErr := directory.MoveTo(parent, target, false)
+	if !result.Committed() {
+		return errors.Join(moveErr, result.PostCommitErr)
+	}
+	return errors.Join(
+		moveErr,
+		result.PostCommitErr,
+		database.VerifyOwnerAt(ctx, owner, canonicalDBPath),
+	)
+}
+
+func (m *Manager) shouldRestoreStagedSessionDelete(
+	ctx context.Context,
+	target string,
+	owner store.SessionDBOwner,
 ) (bool, error) {
 	catalogOwner, exists, known, err := m.sessionCatalogOwnerState(ctx, target)
 	if err != nil {
@@ -174,15 +202,7 @@ func (m *Manager) restoreStagedSessionDelete(
 			catalogOwner,
 		)
 	}
-	result, moveErr := directory.MoveTo(parent, target, false)
-	if !result.Committed() {
-		return false, errors.Join(moveErr, result.PostCommitErr)
-	}
-	return true, errors.Join(
-		moveErr,
-		result.PostCommitErr,
-		database.VerifyOwnerAt(ctx, owner, canonicalDBPath),
-	)
+	return true, nil
 }
 
 func (m *Manager) sessionCatalogOwnerState(

@@ -42,6 +42,12 @@ func TestBuilderBuild(t *testing.T) {
 
 		homePaths := newSupportTestHome(t)
 		writeSupportTestFile(t, homePaths.LogFile, "before compozy_claim_logsecret_1234567890 after\n")
+		attachmentSecret := "attachment-content-must-not-enter-support-bundle"
+		writeSupportTestFile(
+			t,
+			filepath.Join(homePaths.SessionAttachmentsDir, "ws_1", "sess_1", "att_secret"),
+			attachmentSecret,
+		)
 		cfg := compozyconfig.DefaultWithHome(homePaths)
 		now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
 		builder := Builder{
@@ -83,6 +89,11 @@ func TestBuilderBuild(t *testing.T) {
 		}
 
 		files := readSupportBundleArchive(t, operation.FilePath)
+		for path, payload := range files {
+			if bytes.Contains(payload, []byte(attachmentSecret)) {
+				t.Fatalf("archive member %s leaked attachment bytes", path)
+			}
+		}
 		for _, path := range []string{
 			"status.json",
 			"doctor.json",
@@ -111,6 +122,15 @@ func TestBuilderBuild(t *testing.T) {
 		}
 		if !strings.Contains(string(files["event-summaries.json"]), "truncated") {
 			t.Fatalf("event-summaries.json = %s, want truncated marker", string(files["event-summaries.json"]))
+		}
+		var homeTree []HomeTreeEntry
+		if err := json.Unmarshal(files["home-tree.json"], &homeTree); err != nil {
+			t.Fatalf("json.Unmarshal(home-tree.json) error = %v", err)
+		}
+		for _, entry := range homeTree {
+			if strings.HasPrefix(entry.Path, "session-attachments") {
+				t.Fatalf("home-tree.json exposed attachment path %q", entry.Path)
+			}
 		}
 
 		var manifest Manifest

@@ -34,6 +34,7 @@ func TestManagerDelete(t *testing.T) {
 				catalog := newRecordingSessionCatalog()
 				h := newHarness(t, WithSessionCatalog(catalog))
 				session := createSession(t, h)
+				attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "delete-me")
 
 				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 					t.Fatalf("Stop() error = %v", err)
@@ -56,6 +57,9 @@ func TestManagerDelete(t *testing.T) {
 
 				if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("Stat(session dir after delete) error = %v, want os.ErrNotExist", err)
+				}
+				if _, err := os.Stat(attachmentPath); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("Stat(attachment after delete) error = %v, want os.ErrNotExist", err)
 				}
 				if _, err := h.manager.Status(testutil.Context(t), session.ID); !errors.Is(err, ErrSessionNotFound) {
 					t.Fatalf("Status(after delete) error = %v, want %v", err, ErrSessionNotFound)
@@ -328,6 +332,7 @@ func TestManagerDelete(t *testing.T) {
 				)
 				shutdownQueryStoreRuntimeForTest(t, h.manager)
 				session := createSession(t, h)
+				attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "restore-me")
 				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
 					t.Fatalf("Stop() error = %v", err)
 				}
@@ -340,6 +345,9 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if _, err := os.Stat(session.SessionDir()); err != nil {
 					t.Fatalf("Stat(restored session dir) error = %v", err)
+				}
+				if payload, err := os.ReadFile(attachmentPath); err != nil || string(payload) != "restore-me" {
+					t.Fatalf("ReadFile(restored attachment) = %q, %v", payload, err)
 				}
 				listed, err := catalog.ListSessions(testutil.Context(t), store.SessionListQuery{
 					WorkspaceID: h.workspaceID,
@@ -512,6 +520,7 @@ func TestManagerDelete(t *testing.T) {
 						}
 						h := newHarness(t, managerOptions...)
 						session := createSession(t, h)
+						attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "recover-me")
 						if err := h.manager.Stop(ctx, session.ID); err != nil {
 							t.Fatalf("Stop() error = %v", err)
 						}
@@ -550,8 +559,16 @@ func TestManagerDelete(t *testing.T) {
 							if err := reader.Close(ctx); err != nil {
 								t.Fatalf("Close(restored staged reader) error = %v", err)
 							}
+							if payload, err := os.ReadFile(attachmentPath); err != nil || string(payload) != "recover-me" {
+								t.Fatalf("ReadFile(restored staged attachment) = %q, %v", payload, err)
+							}
 						} else if !errors.Is(statErr, os.ErrNotExist) {
 							t.Fatalf("Stat(deleted staged session) error = %v, want os.ErrNotExist", statErr)
+						}
+						if !test.wantRestored {
+							if _, err := os.Stat(attachmentPath); !errors.Is(err, os.ErrNotExist) {
+								t.Fatalf("Stat(deleted staged attachment) error = %v, want os.ErrNotExist", err)
+							}
 						}
 						assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
 					})
@@ -731,6 +748,19 @@ func TestManagerDelete(t *testing.T) {
 					t.Fatalf("InsertWorkspace() error = %v", err)
 				}
 				session := createSession(t, h)
+				attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "workspace-session")
+				orphanPath := filepath.Join(
+					h.homePaths.SessionAttachmentsDir,
+					h.workspaceID,
+					"orphan-session",
+					"orphan.bin",
+				)
+				if err := os.MkdirAll(filepath.Dir(orphanPath), 0o700); err != nil {
+					t.Fatalf("MkdirAll(orphan attachment) error = %v", err)
+				}
+				if err := os.WriteFile(orphanPath, []byte("orphan"), 0o600); err != nil {
+					t.Fatalf("WriteFile(orphan attachment) error = %v", err)
+				}
 				if err := h.manager.Stop(ctx, session.ID); err != nil {
 					t.Fatalf("Stop() error = %v", err)
 				}
@@ -793,6 +823,11 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("Stat(session dir after prune) error = %v, want os.ErrNotExist", err)
+				}
+				for _, path := range []string{attachmentPath, orphanPath} {
+					if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("Stat(workspace attachment %q) error = %v, want os.ErrNotExist", path, err)
+					}
 				}
 				for _, table := range []string{"permission_log", "token_stats"} {
 					var count int
@@ -861,6 +896,18 @@ func assertNoSessionDeleteTombstones(t *testing.T, sessionsDir string) {
 			t.Fatalf("unexpected session deletion tombstone %q", entry.Name())
 		}
 	}
+}
+
+func writeSessionAttachmentFixture(t *testing.T, h *harness, sessionID string, contents string) string {
+	t.Helper()
+	path := filepath.Join(h.homePaths.SessionAttachmentsDir, h.workspaceID, sessionID, "attachment.bin")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatalf("MkdirAll(attachment fixture) error = %v", err)
+	}
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatalf("WriteFile(attachment fixture) error = %v", err)
+	}
+	return path
 }
 
 func assertDeletedUserSessionCatalogTruth(

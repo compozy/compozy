@@ -29,3 +29,5 @@ QA impact 2026-08-05 (review remediation): reset because programmatic assistant-
 QA verdict 2026-08-05 (reviewed head): passed. The composer and persisted transcript retained the Unicode text and repeated spacing in `Revisão 😊 /browser-qa /browser-qa antes   do lançamento`; the same text remained in the session history after a cold Web reload.
 
 QA impact 2026-08-05 (composer redesign): reset — the composer input moved from a textarea to a Lexical contenteditable (@assistant-ui/react-lexical). Re-walk exact character preservation (spaces, Unicode, newlines), draft persistence across remount/refresh/deep link, and runtime-selector interaction with the draft.
+
+QA impact 2026-08-15 (attachments): reset remains `untested` because paste, drop, picker, preview removal, and attachment-aware send now share the composer input path. Re-walk exact text and draft persistence beside attachment interactions.

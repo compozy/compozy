@@ -132,6 +132,7 @@ cannot be validated fail closed.
     compozy session new --agent general --name review-run
     compozy session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
     compozy session prompt <session-id> "Inspect the failing build." --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast
+    compozy session attachments upload <session-id> ./diagram.png -o json
     compozy session list --all -o json
     compozy session list --type user --state active --sort last_activity -o json
     compozy session list --resumable -o json
@@ -167,6 +168,12 @@ cannot be validated fail closed.
 unbound session; use its ID in a later `compozy session prompt`. A prompt to an unbound session must
 select `--provider`; `--model`, `--reasoning-effort`, and `--speed` refine that prompt's snapshot.
 `--speed` defaults to `normal`; `fast` applies only through an unambiguous ACP select/value-ID option.
+
+Session attachments are durable, workspace/session-scoped refs. Upload with
+`compozy session attachments upload`, then send the returned ref through HTTP/UDS or pass the
+`att_...` ID to `compozy__session_prompt`; that native tool also accepts daemon-local paths and can
+submit an attachment-only prompt. The selected ACP model must advertise the matching image or file
+capability. Archive and clear retain attachments; session delete removes them.
 
 `session runtime set` persists the complete default selection without starting or reconfiguring ACP;
 the next prompt applies it. `session runtime clear` returns resolution to the effective/agent default.

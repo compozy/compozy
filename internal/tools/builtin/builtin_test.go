@@ -1679,13 +1679,13 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
 	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"expected_turn_id", "idempotency_key", "message", "message_id", "mode", "runtime", "session_id", "workspace",
+		"attachments", "expected_turn_id", "idempotency_key", "message", "message_id", "mode", "runtime", "session_id", "workspace",
 	})
 	if !slices.Equal(input.Required, []string{
-		"session_id", "message", "message_id", "idempotency_key",
+		"session_id", "message_id", "idempotency_key",
 	}) {
 		t.Fatalf(
-			"%s input required = %#v, want session_id/message/message_id/idempotency_key",
+			"%s input required = %#v, want session_id/message_id/idempotency_key",
 			descriptor.ID,
 			input.Required,
 		)

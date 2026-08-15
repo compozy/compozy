@@ -157,6 +157,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if err := h.manager.Stop(ctx, stopped.ID); err != nil {
 			t.Fatalf("Stop(stopped) error = %v", err)
 		}
+		attachmentPath := writeSessionAttachmentFixture(t, h, stopped.ID, "preserve-on-archive")
 		catalog.durable = sessionCatalogInfoFromRuntime(stopped.Info())
 
 		archived, err := h.manager.Archive(ctx, h.workspaceID, stopped.ID)
@@ -165,6 +166,9 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 		if archived.ArchivedAt == nil || archived.State != StateStopped {
 			t.Fatalf("Archive() = %#v, want archived stopped session", archived)
+		}
+		if payload, err := os.ReadFile(attachmentPath); err != nil || string(payload) != "preserve-on-archive" {
+			t.Fatalf("ReadFile(attachment after archive) = %q, %v", payload, err)
 		}
 		defaultPage, err := h.manager.ListPage(ctx, ListQuery{WorkspaceID: h.workspaceID})
 		if err != nil {

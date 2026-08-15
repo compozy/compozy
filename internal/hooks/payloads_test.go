@@ -232,6 +232,9 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		InputClass:     "user_message",
 		Message:        "hello",
 		ContextBlocks:  sampleContextBlocks,
+		Attachments: []InputAttachmentMetadata{{
+			ID: "att_1", Name: "diagram.png", MIME: "image/png", Bytes: 42, Kind: "image",
+		}},
 	})
 	assertJSONRoundTrip(t, "InputPreSubmitPatch", InputPreSubmitPatch{
 		ControlPatch:  ControlPatch{Deny: true, DenyReason: "input"},

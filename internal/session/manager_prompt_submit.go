@@ -41,7 +41,14 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		session.finishPromptSetup()
 		slotReserved = false
 	}
-	message, err := m.dispatchInputPreSubmit(ctx, session, req.turnID, req.turnSource, req.message)
+	message, err := m.dispatchInputPreSubmit(
+		ctx,
+		session,
+		req.turnID,
+		req.turnSource,
+		req.message,
+		req.attachments,
+	)
 	if err != nil {
 		return nil, err
 	}

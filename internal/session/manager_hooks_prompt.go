@@ -19,6 +19,7 @@ func (m *Manager) dispatchInputPreSubmit(
 	turnID string,
 	turnSource TurnSource,
 	message string,
+	attachments []AttachmentMeta,
 ) (string, error) {
 	if m == nil {
 		return message, nil
@@ -34,12 +35,26 @@ func (m *Manager) dispatchInputPreSubmit(
 		TurnContext:    hookspkg.TurnContext{TurnID: strings.TrimSpace(turnID)},
 		InputClass:     inputClassForTurnSource(turnSource),
 		Message:        message,
+		Attachments:    hookAttachmentMetadata(attachments),
 	})
 	if err != nil {
 		return "", fmt.Errorf("session: dispatch input.pre_submit: %w", err)
 	}
 
 	return payload.Message, nil
+}
+
+func hookAttachmentMetadata(items []AttachmentMeta) []hookspkg.InputAttachmentMetadata {
+	if len(items) == 0 {
+		return nil
+	}
+	metadata := make([]hookspkg.InputAttachmentMetadata, 0, len(items))
+	for _, item := range items {
+		metadata = append(metadata, hookspkg.InputAttachmentMetadata{
+			ID: item.ID, Name: item.Name, MIME: item.MIMEType, Bytes: item.Bytes, Kind: item.Kind,
+		})
+	}
+	return metadata
 }
 
 func (m *Manager) dispatchPromptPostAssemble(

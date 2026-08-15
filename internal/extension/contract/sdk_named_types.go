@@ -54,6 +54,7 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 	"SandboxSyncAfterPatch":       {Name: "SandboxSyncAfterPatch", Value: hooks.SandboxSyncAfterPatch{}},
 	sdkSandboxStopPatchValue:      {Name: sdkSandboxStopPatchValue, Value: hooks.SandboxStopPatch{}},
 	sdkInputPreSubmitPayloadValue: {Name: sdkInputPreSubmitPayloadValue, Value: hooks.InputPreSubmitPayload{}},
+	"InputAttachmentMetadata":     {Name: "InputAttachmentMetadata", Value: hooks.InputAttachmentMetadata{}},
 	sdkInputPreSubmitPatchValue:   {Name: sdkInputPreSubmitPatchValue, Value: hooks.InputPreSubmitPatch{}},
 	sdkPromptPayloadValue:         {Name: sdkPromptPayloadValue, Value: hooks.PromptPayload{}},
 	sdkPromptPatchValue:           {Name: sdkPromptPatchValue, Value: hooks.PromptPatch{}},

@@ -27,11 +27,13 @@ type stagedSessionDelete struct {
 	stagedPath    string
 	committedPath string
 	capabilities  *sessionDeleteCapabilities
+	attachments   *stagedAttachmentDelete
 }
 
 type workspaceUnregisterPreparation struct {
 	manager                      *Manager
 	staged                       []stagedSessionDelete
+	attachments                  *stagedAttachmentDelete
 	conversationOperationUnlocks []func()
 	release                      sync.Once
 }
@@ -78,6 +80,18 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		releaseConversationOperations(operationUnlocks)
 		return nil, err
 	}
+	deletionID, err := store.NewID("")
+	if err != nil {
+		m.lifecycleMu.Unlock()
+		releaseConversationOperations(operationUnlocks)
+		return nil, fmt.Errorf("session: reserve workspace attachment deletion identity: %w", err)
+	}
+	workspaceAttachments, err := m.stageWorkspaceAttachmentDelete(targetWorkspace, deletionID)
+	if err != nil {
+		m.lifecycleMu.Unlock()
+		releaseConversationOperations(operationUnlocks)
+		return nil, err
+	}
 	staged := make([]stagedSessionDelete, 0)
 	for _, info := range infos {
 		if info == nil || strings.TrimSpace(info.WorkspaceID) != targetWorkspace {
@@ -85,6 +99,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		}
 		if info.State == StateStarting || info.State == StateActive || info.State == StateStopping {
 			rollbackErr := m.rollbackStagedSessionDeletes(ctx, staged)
+			rollbackErr = errors.Join(rollbackErr, rollbackStagedAttachmentDelete(workspaceAttachments))
 			m.lifecycleMu.Unlock()
 			releaseConversationOperations(operationUnlocks)
 			activeErr := fmt.Errorf(
@@ -98,6 +113,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		entry, stageErr := m.stageSessionDelete(ctx, info.ID, false)
 		if stageErr != nil {
 			rollbackErr := m.rollbackStagedSessionDeletes(ctx, staged)
+			rollbackErr = errors.Join(rollbackErr, rollbackStagedAttachmentDelete(workspaceAttachments))
 			m.lifecycleMu.Unlock()
 			releaseConversationOperations(operationUnlocks)
 			return nil, errors.Join(stageErr, rollbackErr)
@@ -108,6 +124,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 	return &workspaceUnregisterPreparation{
 		manager:                      m,
 		staged:                       staged,
+		attachments:                  workspaceAttachments,
 		conversationOperationUnlocks: operationUnlocks,
 	}, nil
 }
@@ -180,7 +197,10 @@ func (p *workspaceUnregisterPreparation) Commit(ctx context.Context) error {
 		return nil
 	}
 	defer p.releaseResources()
-	return p.manager.commitStagedSessionDeletes(ctx, p.staged)
+	return errors.Join(
+		p.manager.commitStagedSessionDeletes(ctx, p.staged),
+		commitStagedAttachmentDelete(p.attachments),
+	)
 }
 
 func (*workspaceUnregisterPreparation) BeforeDelete(context.Context) error {
@@ -192,7 +212,10 @@ func (p *workspaceUnregisterPreparation) Rollback(ctx context.Context) error {
 		return nil
 	}
 	defer p.releaseResources()
-	return p.manager.rollbackStagedSessionDeletes(ctx, p.staged)
+	return errors.Join(
+		p.manager.rollbackStagedSessionDeletes(ctx, p.staged),
+		rollbackStagedAttachmentDelete(p.attachments),
+	)
 }
 
 func (p *workspaceUnregisterPreparation) releaseResources() {
@@ -289,6 +312,14 @@ func (m *Manager) stageSessionDirectoryDelete(
 	if err := stageBoundSessionDelete(ctx, capabilities, owner, originalPath, stagedPath); err != nil {
 		return stagedSessionDelete{}, err
 	}
+	attachments, err := m.stageSessionAttachmentDelete(info.WorkspaceID, target, deletionID)
+	if err != nil {
+		entry := stagedSessionDelete{
+			info: info, owner: owner, originalPath: originalPath, stagedPath: stagedPath,
+			committedPath: committedPath, capabilities: capabilities,
+		}
+		return stagedSessionDelete{}, errors.Join(err, m.rollbackStagedSessionDeletes(ctx, []stagedSessionDelete{entry}))
+	}
 	return stagedSessionDelete{
 		info:          info,
 		owner:         owner,
@@ -296,6 +327,7 @@ func (m *Manager) stageSessionDirectoryDelete(
 		stagedPath:    stagedPath,
 		committedPath: committedPath,
 		capabilities:  capabilities,
+		attachments:   attachments,
 	}, nil
 }
 
@@ -318,7 +350,9 @@ func (m *Manager) commitStagedSessionDeletes(ctx context.Context, staged []stage
 					store.SessionDBFile(entry.committedPath),
 				)
 				cleanupErr = errors.Join(cleanupErr, verifyErr)
-				if verifyErr == nil {
+				attachmentErr := commitStagedAttachmentDelete(entry.attachments)
+				cleanupErr = errors.Join(cleanupErr, attachmentErr)
+				if verifyErr == nil && attachmentErr == nil {
 					cleanupErr = errors.Join(
 						cleanupErr,
 						m.removeStagedSessionDelete(entry, entry.committedPath),
@@ -326,7 +360,7 @@ func (m *Manager) commitStagedSessionDeletes(ctx context.Context, staged []stage
 				}
 			}
 		}
-		cleanupErr = errors.Join(cleanupErr, entry.capabilities.Release())
+		cleanupErr = errors.Join(cleanupErr, entry.capabilities.Release(), entry.attachments.Release())
 		if entry.info != nil {
 			m.remove(entry.info.ID)
 			m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventDeleted, entry.info))
@@ -338,6 +372,12 @@ func (m *Manager) commitStagedSessionDeletes(ctx context.Context, staged []stage
 func (m *Manager) rollbackStagedSessionDeletes(ctx context.Context, staged []stagedSessionDelete) error {
 	var rollbackErr error
 	for _, entry := range slices.Backward(staged) {
+		attachmentErr := rollbackStagedAttachmentDelete(entry.attachments)
+		rollbackErr = errors.Join(rollbackErr, attachmentErr)
+		if attachmentErr != nil {
+			rollbackErr = errors.Join(rollbackErr, entry.capabilities.Release())
+			continue
+		}
 		if err := verifyStagedSessionDelete(ctx, entry); err != nil {
 			rollbackErr = errors.Join(rollbackErr, err)
 		} else {
@@ -358,7 +398,7 @@ func (m *Manager) rollbackStagedSessionDeletes(ctx context.Context, staged []sta
 				)
 			}
 		}
-		rollbackErr = errors.Join(rollbackErr, entry.capabilities.Release())
+		rollbackErr = errors.Join(rollbackErr, entry.capabilities.Release(), entry.attachments.Release())
 	}
 	return rollbackErr
 }

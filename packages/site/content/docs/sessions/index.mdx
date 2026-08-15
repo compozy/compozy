@@ -18,6 +18,23 @@ Session-scoped Vault refs use `vault:sessions/<session_id>/<name>`. They are ord
 Vault records filtered by the session prefix, and the session inspector shows only redacted metadata
 for those refs.
 
+## Attach files to prompts
+
+Upload a file with `compozy session attachments upload <session-id> <file> -o json`. The response
+returns an opaque `att_...` ID and metadata. Prompt surfaces pass that reference; attachment bytes
+remain in the workspace/session-scoped store and are opened only when the selected ACP model accepts
+that attachment kind.
+
+The v1 store accepts PNG, JPEG, WebP, PDF, Markdown, and plain text. Each file is limited to 10 MiB
+and each prompt to 10 files by default. CompozyOS detects the MIME type from the bytes and preserves
+image bytes as received, including EXIF metadata. A text-only model rejects an attachment-bearing
+prompt before dispatch.
+
+Attachment metadata is durable in user-message events, so transcript and event reads can render the
+reference without embedding file contents. Archive and clear keep files for the same session;
+session deletion removes them, and workspace unregister removes the complete workspace attachment
+tree. Support bundles never include attachment bytes or paths.
+
 Use this section when a live run needs supervision or forensic detail: why it started, what state it
 entered, which events were persisted, whether it can be attached, and which permission checks apply while
 the agent works. If the problem is choosing an agent definition, use Agents first. If the problem is

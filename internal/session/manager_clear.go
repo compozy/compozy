@@ -18,7 +18,8 @@ import (
 // ClearConversation resets the persisted transcript and ACP conversation context
 // for an existing session while preserving the same session id. The session is
 // restarted on a fresh event store so subsequent prompts start from a clean
-// conversation.
+// conversation. Attachments are retained because they remain scoped to the
+// unchanged session identity and may still be referenced outside the cleared epoch.
 func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session, err error) {
 	if m == nil {
 		return nil, errors.New("session: manager is required")
