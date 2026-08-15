@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	atlasmigrate "ariga.io/atlas/sql/migrate"
 	atlasschema "ariga.io/atlas/sql/schema"
@@ -28,6 +30,16 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	_ "modernc.org/sqlite"
 )
+
+const migrationSchemaEquivalenceTimeout = 3 * time.Minute
+
+func migrationSchemaEquivalenceContext(t *testing.T) context.Context {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), migrationSchemaEquivalenceTimeout)
+	t.Cleanup(cancel)
+	return ctx
+}
 
 type productionMigrationStream struct {
 	name              string
@@ -401,7 +413,7 @@ func TestMigrationSchemaEquivalence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t)
+			ctx := migrationSchemaEquivalenceContext(t)
 			replayStream := item.stream
 			replayStream.Bootstrap = nil
 			migrationDB := openStreamTestDB(t, item.name+"-migration.db")
@@ -416,7 +428,6 @@ func TestMigrationSchemaEquivalence(t *testing.T) {
 			assertMigrationSchemaEquivalent(t, item.name, migrationDB, schemaDB, item.stream.VersionTable)
 
 			bootstrapDB := openStreamTestDB(t, item.name+"-bootstrap.db")
-			ctx = testutil.Context(t)
 			if err := store.Apply(ctx, bootstrapDB, item.stream); err != nil {
 				t.Fatalf("Apply(%s bootstrap) error = %v", item.name, err)
 			}

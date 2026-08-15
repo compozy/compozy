@@ -65,7 +65,7 @@ export function OsWindow({ frame }: OsWindowProps) {
   const dragging = useWindowManagerGestureDragging(frame.activeWindowId);
   const compact = presentation === "compact";
   const deckVisible = frame.members.length >= 2 && !compact;
-  const merge = useWindowMergeTarget(frame, !deckVisible && !compact);
+  const { chromeRef, mergeTargeted } = useWindowMergeTarget(frame, !deckVisible && !compact);
   const slotStores = new Map<string, TopbarSlotStore>(
     frame.members.map(member => [member, ensureWindowSlotStore(member)])
   );
@@ -114,7 +114,7 @@ export function OsWindow({ frame }: OsWindowProps) {
       }}
     >
       <OsWindowChrome
-        ref={merge.chromeRef}
+        ref={chromeRef}
         focused={focused}
         presentation={presentation}
         // Reduced opacity plus a slight shrink while dragging keeps the merge
@@ -152,7 +152,7 @@ export function OsWindow({ frame }: OsWindowProps) {
             onTrafficLight={handleTrafficLight}
           />
         ))}
-        {merge.mergeTargeted ? (
+        {mergeTargeted ? (
           <div
             aria-hidden="true"
             data-slot="os-window-merge-target"

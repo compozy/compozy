@@ -25,7 +25,7 @@ export interface OnboardingSetupFrameProps {
  * testable without a daemon.
  */
 export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
-  const body = useSetupBodyHeight();
+  const { height: bodyHeight, measureRef } = useSetupBodyHeight();
   const model = wizard.defaultModel;
   const summary = onboardingSummary({
     step: wizard.step,
@@ -93,10 +93,10 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
             "transition-[height] duration-shell-slow ease-spring motion-reduce:transition-none",
             "max-md:h-auto max-md:flex-1"
           )}
-          style={body.height === null ? undefined : { height: `${body.height}px` }}
+          style={bodyHeight === null ? undefined : { height: `${bodyHeight}px` }}
         >
           <div key={wizard.step} className="onboarding-setup-pane-in">
-            <div ref={body.measureRef} className="flex flex-col px-6 pt-5.5 pb-6.5 max-md:px-4">
+            <div ref={measureRef} className="flex flex-col px-6 pt-5.5 pb-6.5 max-md:px-4">
               <h3 className="text-compact-h1 font-semibold tracking-compact-h1 text-fg-strong">
                 {wizard.meta.title}
               </h3>

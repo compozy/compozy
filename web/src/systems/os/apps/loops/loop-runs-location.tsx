@@ -18,6 +18,7 @@ import {
   LOOP_NODE_INVENTORY_STATES,
   LoopNodeInventoryView,
   LoopRunsView,
+  useNowTick,
 } from "@/systems/loops";
 
 export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
@@ -38,6 +39,7 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
     setInventoryView,
     clearInventoryFilters,
   } = useLoopRunsRoute(search);
+  const nowMs = useNowTick(inventoryState !== undefined);
 
   const runs = runsQuery.data?.runs ?? [];
   const showToolbar = workspaceId !== "" && !runsQuery.isLoading && !runsQuery.error;
@@ -137,7 +139,7 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
           loadedCount={inventory.loadedCount}
           loopFilter={search.nodes_loop ?? ""}
           loopOptions={loopOptions}
-          nowMs={Date.now()}
+          nowMs={nowMs}
           onClearFilters={clearInventoryFilters}
           onLoadMore={inventory.fetchNextPage}
           onLoopFilterChange={setInventoryLoop}

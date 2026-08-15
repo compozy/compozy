@@ -1,9 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
+import { createElement } from "react";
 
 import { cn } from "@compozy/ui";
 
 import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
+import { useNowTick } from "../../hooks/use-now-tick";
 import { loopStartKindIcon } from "../../lib/loop-start-kind-icons";
 import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import { loopRunOriginLine } from "../../lib/loop-runs-view";
@@ -21,6 +23,8 @@ const recentRunRowClassName = cn(
 
 /** Recent runs of one Loop as a compact row list; each row opens the run detail. */
 export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
+  const nowMs = useNowTick(runs.some(run => run.status === "running"));
+
   if (runs.length === 0) {
     return (
       <div
@@ -68,7 +72,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
             className="col-start-2 row-start-1 justify-self-end text-right font-mono text-mono-id tabular-nums text-faint min-[720px]:col-auto min-[720px]:row-auto"
             data-testid="loop-recent-run-duration"
           >
-            {formatClockDuration(runElapsedSeconds(run, Date.now()))}
+            {formatClockDuration(runElapsedSeconds(run, nowMs))}
           </span>
           <span className="col-start-2 row-start-2 justify-self-end text-faint min-[720px]:col-auto min-[720px]:row-auto">
             <ChevronRight aria-hidden="true" className="size-3.5" />
@@ -81,7 +85,10 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
 
 function RecentRunOriginIcon({ run }: { run: LoopRun }) {
   const kind = run.started_origin_kind || run.started_by_kind || "";
-  const Icon = loopStartKindIcon(kind);
-  if (!Icon) return null;
-  return <Icon aria-hidden="true" className="size-3.5 shrink-0 text-muted" />;
+  const icon = loopStartKindIcon(kind);
+  if (!icon) return null;
+  return createElement(icon, {
+    "aria-hidden": true,
+    className: "size-3.5 shrink-0 text-muted",
+  });
 }

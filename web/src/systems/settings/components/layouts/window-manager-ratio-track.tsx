@@ -32,40 +32,52 @@ export function WindowManagerRatioTrack({
   draft: WindowManagerConfig;
   setDraft: Dispatch<SetStateAction<WindowManagerConfig>>;
 }) {
-  const model = useWindowManagerRatioTrack(draft, setDraft);
+  const {
+    addStop,
+    limits,
+    positionFromClientX,
+    preview,
+    ratios,
+    removeStop,
+    selected,
+    selectStop,
+    setRatioAt,
+    stopIdAt,
+    trackRef,
+  } = useWindowManagerRatioTrack(draft, setDraft);
 
   return (
     <div className="flex flex-col gap-3">
       <div
         className="relative h-20 overflow-hidden rounded-md border border-line-strong bg-canvas select-none"
         data-testid="window-manager-ratio-track"
-        ref={model.trackRef}
-        onPointerDown={model.addStop}
+        ref={trackRef}
+        onPointerDown={addStop}
       >
         <span
           aria-hidden="true"
           className="pointer-events-none absolute top-2.5 bottom-2.5 left-2.5 rounded-xxs border border-line-soft bg-surface-glaze"
-          style={{ width: `calc((100% - ${EDGE_PAD * 2}px) * ${model.preview})` }}
+          style={{ width: `calc((100% - ${EDGE_PAD * 2}px) * ${preview})` }}
         />
         <span
           aria-hidden="true"
           className="pointer-events-none absolute right-2.5 bottom-2.5 left-2.5 h-0.5 rounded-pill bg-line-strong"
         />
         <span className="pointer-events-none absolute top-2 right-3 text-form-hint text-faint">
-          {model.ratios.length} of {model.limits.max} stops
+          {ratios.length} of {limits.max} stops
         </span>
 
-        {model.ratios.map((ratio, index) => (
+        {ratios.map((ratio, index) => (
           <RatioStop
             index={index}
-            key={model.stopIdAt(index)}
+            key={stopIdAt(index)}
             ratio={ratio}
-            removable={model.ratios.length > model.limits.min}
-            selected={model.selected === index}
-            onChange={next => model.setRatioAt(index, next)}
-            onRemove={() => model.removeStop(index)}
-            onSelect={() => model.selectStop(index)}
-            positionFromClientX={model.positionFromClientX}
+            removable={ratios.length > limits.min}
+            selected={selected === index}
+            onChange={next => setRatioAt(index, next)}
+            onRemove={() => removeStop(index)}
+            onSelect={() => selectStop(index)}
+            positionFromClientX={positionFromClientX}
           />
         ))}
       </div>
@@ -74,14 +86,14 @@ export function WindowManagerRatioTrack({
         <span className="inline-flex items-baseline gap-1">
           Cycle
           <b className="font-mono text-form-hint font-medium tabular-nums text-fg">
-            {[...model.ratios]
+            {[...ratios]
               .sort((a, b) => b - a)
               .map(ratio => fractionLabel(ratio))
               .join(" → ")}
           </b>
         </span>
-        {model.ratios.length >= model.limits.max ? (
-          <span className="text-warning">{model.limits.max} stops is the maximum</span>
+        {ratios.length >= limits.max ? (
+          <span className="text-warning">{limits.max} stops is the maximum</span>
         ) : null}
       </div>
     </div>

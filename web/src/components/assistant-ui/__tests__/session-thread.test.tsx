@@ -1792,14 +1792,14 @@ describe("SessionThread transcript states", () => {
     try {
       vi.setSystemTime(new Date("2026-07-07T12:00:00Z"));
       const startedAt = Date.parse("2026-07-07T12:00:00Z");
-      let renders = 0;
+      const renderSpy = vi.fn();
       function Probe() {
-        renders += 1;
+        renderSpy();
         return <WorkingIndicator startedAt={startedAt} reducedMotion={false} />;
       }
 
       render(<Probe />);
-      expect(renders).toBe(1);
+      expect(renderSpy).toHaveBeenCalledTimes(1);
       const timer = screen.getByTestId("session-working-timer");
       expect(timer.textContent).toBe("0s");
 
@@ -1811,7 +1811,7 @@ describe("SessionThread transcript states", () => {
 
       // The text node advanced to 3s while the React tree never re-rendered.
       expect(timer.textContent).toBe("3s");
-      expect(renders).toBe(1);
+      expect(renderSpy).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

@@ -1523,10 +1523,10 @@ func TestGlobalDBSessionAttachmentsMigration(t *testing.T) {
 		prefixDB, err := openGlobalMigrationPrefixDatabase(
 			t,
 			path,
-			globalMigrationPrefixBefore(t, "00063_schema.sql"),
+			globalMigrationPrefixBefore(t, "00064_schema.sql"),
 		)
 		if err != nil {
-			t.Fatalf("open prefix before 00063 error = %v", err)
+			t.Fatalf("open prefix before 00064 error = %v", err)
 		}
 		prefixClosed := false
 		t.Cleanup(func() {
@@ -1543,14 +1543,14 @@ func TestGlobalDBSessionAttachmentsMigration(t *testing.T) {
 			t.Fatalf("tableColumns(session_input_queue) error = %v", err)
 		}
 		if _, ok := queueColumns["attachments_json"]; ok {
-			t.Fatal("attachments_json present before 00063, want absent")
+			t.Fatal("attachments_json present before 00064, want absent")
 		}
 		admissionColumns, err := tableColumns(testutil.Context(t), prefixDB, "session_prompt_admissions")
 		if err != nil {
 			t.Fatalf("tableColumns(session_prompt_admissions) error = %v", err)
 		}
 		if _, ok := admissionColumns["attachments_json"]; ok {
-			t.Fatal("session_prompt_admissions.attachments_json present before 00063, want absent")
+			t.Fatal("session_prompt_admissions.attachments_json present before 00064, want absent")
 		}
 		if _, err := prefixDB.ExecContext(testutil.Context(t), "PRAGMA foreign_keys = OFF"); err != nil {
 			t.Fatalf("disable foreign keys for pre-00063 fixture: %v", err)
@@ -1580,9 +1580,9 @@ func TestGlobalDBSessionAttachmentsMigration(t *testing.T) {
 		if err := applyGlobalMigrationPrefix(
 			t,
 			prefixDB,
-			globalMigrationPrefixThrough(t, "00063_schema.sql"),
+			globalMigrationPrefixThrough(t, "00064_schema.sql"),
 		); err != nil {
-			t.Fatalf("Apply(through 00063) error = %v", err)
+			t.Fatalf("Apply(through 00064) error = %v", err)
 		}
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("prefixDB.Close() error = %v", err)
@@ -1592,10 +1592,10 @@ func TestGlobalDBSessionAttachmentsMigration(t *testing.T) {
 		reopened, err := openGlobalMigrationPrefixDatabase(
 			t,
 			path,
-			globalMigrationPrefixThrough(t, "00063_schema.sql"),
+			globalMigrationPrefixThrough(t, "00064_schema.sql"),
 		)
 		if err != nil {
-			t.Fatalf("reopen through 00063 error = %v", err)
+			t.Fatalf("reopen through 00064 error = %v", err)
 		}
 		t.Cleanup(func() {
 			if closeErr := reopened.Close(); closeErr != nil {
