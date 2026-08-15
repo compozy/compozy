@@ -1,9 +1,8 @@
 import { AlertCircle, Clock3, RefreshCcw } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { CatalogEmptyDisclosureRow } from "@/components/catalog-empty-disclosure-row";
 import { CatalogEmptyPanel } from "@/components/catalog-empty-state";
-import { Button, Pill, Skeleton, Spinner } from "@compozy/ui";
+import { Button, CatalogEmptyDisclosureRow, Pill, Skeleton, Spinner } from "@compozy/ui";
 
 import {
   describeFireLimit,
@@ -124,15 +123,18 @@ function AutomationSuggestionActionButton({
   );
 }
 
-function suggestionFacts(suggestion: AutomationSuggestion): string {
+function suggestionFacts(
+  suggestion: AutomationSuggestion,
+  schedule: string,
+  target: ReturnType<typeof projectAutomationTarget>
+): string {
   const payload = suggestion.payload;
-  const target = projectAutomationTarget(payload);
   const targetLabel =
     target.kind === "loop"
       ? `loop ${target.loopName || "not selected"}`
       : `agent ${target.agentName || "unassigned"}`;
   return [
-    describeSchedule(payload.schedule),
+    schedule,
     targetLabel,
     describeFireLimit(payload.fire_limit),
     payload.enabled ? "starts enabled" : "starts disabled",
@@ -212,7 +214,7 @@ export function AutomationSuggestionsCard({
                     <p className="text-form-label leading-relaxed text-fg">{payload.prompt}</p>
                   </div>
                   <p className="font-mono text-mono-id text-subtle tabular-nums">
-                    {suggestionFacts(suggestion)}
+                    {suggestionFacts(suggestion, schedule, target)}
                   </p>
                 </>
               }

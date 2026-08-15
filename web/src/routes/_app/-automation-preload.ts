@@ -7,6 +7,7 @@ import {
   automationJobDetailOptions,
   automationJobRunsOptions,
   automationJobsListOptions,
+  automationRouteHasActiveFilters,
   type AutomationJobStableFilter,
   automationMatchesActiveWorkspace,
   automationSuggestionsListOptions,
@@ -44,16 +45,17 @@ export async function preloadAutomationJobsRoute(
     source: search.source,
   };
   if (scope.scope === "workspace" && !scope.workspace_id) return;
-  await settleRouteQueries([
-    queryClient.ensureInfiniteQueryData(automationJobsListOptions(filters)),
-    ...(activeWorkspaceID && search.scope !== "global"
-      ? [
-          queryClient.ensureQueryData(
+  const jobsQuery = queryClient.ensureInfiniteQueryData(automationJobsListOptions(filters));
+  const suggestionsQuery =
+    activeWorkspaceID && !automationRouteHasActiveFilters(search)
+      ? jobsQuery.then(result => {
+          if (result.pages[0]?.page.total !== 0) return undefined;
+          return queryClient.ensureQueryData(
             automationSuggestionsListOptions(activeWorkspaceID, "pending")
-          ),
-        ]
-      : []),
-  ]);
+          );
+        })
+      : undefined;
+  await settleRouteQueries([jobsQuery, ...(suggestionsQuery ? [suggestionsQuery] : [])]);
 }
 
 export async function preloadAutomationTriggersRoute(

@@ -1,5 +1,10 @@
 // Listing and record surfaces: rows, cards, toolbars, tables, inspectors.
 export {
+  CatalogEmptyDisclosureRow,
+  type CatalogEmptyDisclosureRowProps,
+  type CatalogEmptyTone,
+} from "../components/custom/catalog-empty-disclosure-row";
+export {
   CatalogCard,
   type CatalogCardActionsProps,
   type CatalogCardDescriptionProps,

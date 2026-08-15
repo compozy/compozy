@@ -1,9 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import * as taskTemplates from "../../lib/task-templates";
 import { TasksEmptyState } from "../tasks-empty-state";
 
 describe("TasksEmptyState", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("Should render the headline with the workspace name and exactly four template rows", () => {
     render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
 
@@ -68,16 +74,49 @@ describe("TasksEmptyState", () => {
     expect(
       screen.getByText(/A single task with one run. Good default for ad-hoc work./)
     ).toBeVisible();
+    expect(screen.getByText(/1 attempt/)).toBeVisible();
   });
 
-  it("Should only render the copy CLI command when the handler is provided", () => {
+  it("Should pluralize template attempt counts greater than one", () => {
+    const getTaskTemplate = taskTemplates.getTaskTemplate;
+    const oneShot = getTaskTemplate("one_shot");
+    vi.spyOn(taskTemplates, "getTaskTemplate").mockImplementation(templateID =>
+      templateID === "one_shot"
+        ? {
+            ...oneShot,
+            defaults: { ...oneShot.defaults, max_attempts: 3 },
+          }
+        : getTaskTemplate(templateID)
+    );
+
+    render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /One-shot/ }));
+
+    expect(screen.getByText(/3 attempts/)).toBeVisible();
+  });
+
+  it("Should render template-specific facts from the owning template metadata", async () => {
+    const user = userEvent.setup();
+    render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Recurring via automation/ }));
+    expect(screen.getByText(/schedule attached in Automation/)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /Remote from peer/ }));
+    expect(screen.getByText(/enqueued by remote peer/)).toBeVisible();
+  });
+
+  it("Should show an executable CLI command and only render Copy with a handler", async () => {
+    const user = userEvent.setup();
     const onCopyCli = vi.fn();
     const { rerender } = render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
     expect(screen.queryByTestId("tasks-empty-cta-cli")).not.toBeInTheDocument();
-    expect(screen.getByText(/compozy tasks new/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/compozy task create --scope workspace --title "Your task"/)
+    ).toBeInTheDocument();
 
     rerender(<TasksEmptyState onCopyCli={onCopyCli} onSelectTemplate={vi.fn()} />);
-    fireEvent.click(screen.getByTestId("tasks-empty-cta-cli"));
+    await user.click(screen.getByTestId("tasks-empty-cta-cli"));
     expect(onCopyCli).toHaveBeenCalledTimes(1);
   });
 });

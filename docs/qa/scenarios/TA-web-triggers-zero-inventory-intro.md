@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-start-from-empty-catalogs
 expected: The empty Triggers catalog explains the object, opens the existing create flow, renders no suggestion panel the runtime cannot support, and preserves filtered, loading, error, and populated precedence.
 entry_points: web /triggers
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .compozy/tasks/empty-states/evidence/visual/zero-inventory/VC-05; .compozy/tasks/empty-states/evidence/visual/zero-inventory/VC-06; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-triggers-entry.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-triggers-editor.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-triggers-filtered.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-compact-triggers.png
-last_report: docs/qa/reports/2026-08-14-empty-states.md
+evidence: docs/qa/evidence/2026-08-15-pr409-empty-states/triggers-empty.png; docs/qa/evidence/2026-08-15-pr409-empty-states/triggers-editor.png; docs/qa/evidence/2026-08-15-pr409-empty-states/triggers-filtered-empty.png; docs/qa/evidence/2026-08-15-pr409-empty-states/tasks-triggers-loading.png; docs/qa/evidence/2026-08-15-pr409-empty-states/tasks-triggers-error.png
+last_report: docs/qa/reports/2026-08-15-pr409-empty-states.md
 overlaps:
 ---
 
@@ -20,4 +20,8 @@ Introduced by the OpenDesign empty-states redesign (`docs/design/opendesign/empt
 
 ## 2026-08-14 walk
 
-Passed in the isolated workspace. The empty catalog showed only the supported create action, the real trigger editor opened and canceled without persistence, filtered-empty recovered through Clear filters, no suggestion panel appeared, and the 768 px layout had no horizontal overflow.
+Partial historical evidence only. The run covered the supported create path, cancel/refresh, filtered-empty recovery, absence of invented suggestions, and compact layout, but did not independently prove loading, error, or populated precedence. A fresh isolated walk owns the final verdict.
+
+## 2026-08-15 walk
+
+Pass. The fresh isolated walk confirmed the truthful zero-inventory intro, absence of unsupported suggestions, the existing create editor, cancel and refresh, filtered-empty precedence, and deliberate loading/error behavior. Canonical route coverage owns populated precedence.

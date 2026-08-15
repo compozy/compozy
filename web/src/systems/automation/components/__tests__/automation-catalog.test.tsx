@@ -155,22 +155,27 @@ describe("AutomationCatalogShell", () => {
     expect(loadMore).toHaveAttribute("aria-busy", "true");
   });
 
-  it("Should stretch a filtered empty envelope so Empty can fill remaining listing height", () => {
-    renderShell({ hasActiveFilters: true, itemCount: 0 });
+  it("Should stretch a filtered empty envelope and connect its recovery action", async () => {
+    const user = userEvent.setup();
+    const onClearFilters = vi.fn();
+    renderShell({ hasActiveFilters: true, itemCount: 0, onClearFilters });
 
     const empty = screen.getByTestId("jobs-list-empty");
     expect(empty.className).toContain("flex-1");
     expect(empty.className).toContain("min-h-0");
     expect(empty.querySelector('[data-slot="empty"]')).toHaveAttribute("data-fill", "true");
     expect(screen.getByTestId("jobs-list-clear-filters")).toBeInTheDocument();
+    await user.click(screen.getByTestId("jobs-list-clear-filters"));
+    expect(onClearFilters).toHaveBeenCalledTimes(1);
   });
 
-  it("Should compose an unfiltered zero-inventory intro with the next create action", () => {
+  it("Should compose an unfiltered zero-inventory intro and connect the create action", async () => {
+    const user = userEvent.setup();
     const onCreate = vi.fn();
     renderShell({
       itemCount: 0,
       onCreate,
-      unfilteredEmptyExtra: <div data-testid="jobs-empty-extra" />,
+      unfilteredEmptyPanel: <div data-testid="jobs-empty-panel" />,
     });
 
     const empty = screen.getByTestId("jobs-list-empty");
@@ -179,7 +184,9 @@ describe("AutomationCatalogShell", () => {
     expect(empty.querySelector('[data-slot="empty"]')).toHaveAttribute("data-fill", "false");
     expect(screen.getByRole("heading", { name: "No jobs yet" })).toBeInTheDocument();
     expect(screen.getByTestId("jobs-list-create")).toHaveTextContent("Create from scratch");
-    expect(screen.getByTestId("jobs-empty-extra")).toBeInTheDocument();
+    expect(screen.getByTestId("jobs-empty-panel")).toBeInTheDocument();
+    await user.click(screen.getByTestId("jobs-list-create"));
+    expect(onCreate).toHaveBeenCalledTimes(1);
   });
 
   it("Should keep trigger zero-inventory truthful without a suggestion panel", () => {

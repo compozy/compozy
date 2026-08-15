@@ -5,6 +5,7 @@
 // Boundary IN: Jobs catalog composition for active workspace and explicit global scope.
 // Boundary OUT: Suggestion fetching and actions, owned by automation hook/component suites.
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,11 +35,19 @@ vi.mock("@/systems/automation/components/automation-editor-dialog", () => ({
 vi.mock("@/systems/automation/components/automation-jobs-catalog", () => ({
   AutomationJobsCatalog: (props: {
     isLoading: boolean;
-    unfilteredEmptyExtra?: ReactNode;
+    onCreate: () => void;
+    unfilteredEmptyPanel?: ReactNode;
     view: string;
   }) => {
     jobsCatalog(props);
-    return <div data-testid="automation-jobs-catalog">{props.unfilteredEmptyExtra}</div>;
+    return (
+      <div data-testid="automation-jobs-catalog">
+        <button data-testid="automation-jobs-catalog-create" onClick={props.onCreate} type="button">
+          Create
+        </button>
+        {props.unfilteredEmptyPanel}
+      </div>
+    );
   },
 }));
 
@@ -133,7 +142,7 @@ describe("JobsCatalogLocation", () => {
 
     expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
     expect(jobsCatalog).toHaveBeenLastCalledWith(
-      expect.objectContaining({ unfilteredEmptyExtra: null })
+      expect.objectContaining({ unfilteredEmptyPanel: null })
     );
   });
 
@@ -144,7 +153,7 @@ describe("JobsCatalogLocation", () => {
 
     expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
     expect(jobsCatalog).toHaveBeenLastCalledWith(
-      expect.objectContaining({ unfilteredEmptyExtra: null })
+      expect.objectContaining({ unfilteredEmptyPanel: null })
     );
   });
 
@@ -158,5 +167,16 @@ describe("JobsCatalogLocation", () => {
       expect.objectContaining({ isLoading: true, view: "cards" })
     );
     expect(screen.queryByTestId("automation-suggestions-panel")).not.toBeInTheDocument();
+  });
+
+  it("Should pass the route create action through the catalog shell", async () => {
+    const user = userEvent.setup();
+    const handleCreate = vi.fn();
+    jobsPage.current = { ...jobsPage.current, handleCreate };
+
+    render(<JobsCatalogLocation search={{}} />);
+    await user.click(screen.getByTestId("automation-jobs-catalog-create"));
+
+    expect(handleCreate).toHaveBeenCalledTimes(1);
   });
 });

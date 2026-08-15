@@ -3,15 +3,15 @@ import type { ComponentProps, ComponentType, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Empty, Section } from "@compozy/ui";
 
-export interface CatalogEmptyStateProps extends Omit<ComponentProps<"div">, "title"> {
+export interface CatalogEmptyStateProps extends Omit<ComponentProps<"div">, "children" | "title"> {
   /** Neutral secondary action under the intro (e.g. "Create from scratch"). */
   action?: ReactNode;
   /** Intro glyph — rendered muted inside the bordered square, never accent. */
   icon: ComponentType<{ className?: string }>;
   /** Optional suggestions/templates panel; compose it with CatalogEmptyPanel. */
   panel?: ReactNode;
-  /** One-line object definition under the title. */
-  support: string;
+  /** Optional one-line object definition under the title. */
+  support?: string;
   title: ReactNode;
 }
 

@@ -3,6 +3,7 @@
 // Boundary IN: suggestion card rendering and operator actions.
 // Boundary OUT: TanStack mutations and HTTP adapters, covered by their canonical suites.
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { AutomationSuggestionsCard } from "../automation-suggestions-card";
@@ -57,7 +58,8 @@ const suggestion: AutomationSuggestion = {
 };
 
 describe("AutomationSuggestionsCard", () => {
-  it("explains the proposed consequence and exposes explicit consent actions", () => {
+  it("explains the proposed consequence and exposes explicit consent actions", async () => {
+    const user = userEvent.setup();
     const onAccept = vi.fn();
     const onDismiss = vi.fn();
     render(
@@ -72,12 +74,12 @@ describe("AutomationSuggestionsCard", () => {
     expect(screen.getByText("Cron 0 9 * * *")).toBeInTheDocument();
     expect(screen.getByText(/Review changes merged since the previous run/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Daily review/ }));
+    await user.click(screen.getByRole("button", { name: /Daily review/ }));
     expect(screen.getByText(/agent reviewer/)).toBeVisible();
     expect(screen.getByText(/starts enabled/)).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: "Create job" }));
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    await user.click(screen.getByRole("button", { name: "Create job" }));
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(onAccept).toHaveBeenCalledWith(suggestion.id);
     expect(onDismiss).toHaveBeenCalledWith(suggestion.id);
   });

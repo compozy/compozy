@@ -1,8 +1,10 @@
-import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+"use client";
 
-import { cn } from "@/lib/utils";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@compozy/ui";
+import { ChevronRight } from "lucide-react";
+import * as React from "react";
+
+import { cn } from "../../lib/utils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../collapsible";
 
 export type CatalogEmptyTone = "accent" | "info" | "warning" | "neutral";
 
@@ -13,21 +15,24 @@ const TONE_CLASS: Record<CatalogEmptyTone, string> = {
   neutral: "bg-canvas-tint text-muted",
 };
 
-export interface CatalogEmptyDisclosureRowProps extends Omit<React.ComponentProps<"li">, "title"> {
-  actions: ReactNode;
+export interface CatalogEmptyDisclosureRowProps extends Omit<
+  React.ComponentProps<"li">,
+  "children" | "title"
+> {
+  actions: React.ReactNode;
   busy?: boolean;
   description: string;
-  detail: ReactNode;
-  error?: ReactNode;
-  icon: ReactNode;
-  pill?: ReactNode;
+  detail: React.ReactNode;
+  error?: React.ReactNode;
+  icon: React.ReactNode;
+  pill?: React.ReactNode;
   title: string;
   tone?: CatalogEmptyTone;
 }
 
 /**
- * Shared zero-inventory disclosure row for task templates and job suggestions.
- * Collapsed by default; the opener owns review, and actions stay outside it.
+ * Generic disclosure row for compact catalog choices. The opener owns review,
+ * while action controls remain outside it.
  */
 export function CatalogEmptyDisclosureRow({
   actions,
@@ -47,6 +52,7 @@ export function CatalogEmptyDisclosureRow({
     <li
       aria-busy={busy || undefined}
       className={cn("border-t border-line-soft first:border-t-0", className)}
+      data-slot="catalog-empty-disclosure-row"
       data-tone={tone}
       ref={ref}
       {...props}

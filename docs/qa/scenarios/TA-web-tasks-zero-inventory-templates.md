@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-start-from-empty-catalogs
 expected: The empty Tasks catalog explains the object, offers Blank task and four collapsed templates, and opens the existing editor with the chosen real template while filtered, loading, and error states stay distinct.
 entry_points: web /tasks
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .compozy/tasks/empty-states/evidence/visual/zero-inventory/VC-01; .compozy/tasks/empty-states/evidence/visual/zero-inventory/VC-02; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-tasks-workspace.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-tasks-expanded.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-tasks-editor.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-compact-tasks.png
-last_report: docs/qa/reports/2026-08-14-empty-states.md
+evidence: docs/qa/evidence/2026-08-15-pr409-empty-states/tasks-empty.png; docs/qa/evidence/2026-08-15-pr409-empty-states/tasks-template-expanded-pointer.png; docs/qa/evidence/2026-08-15-pr409-empty-states/tasks-template-expanded-keyboard.png; docs/qa/evidence/2026-08-15-pr409-empty-states/tasks-template-editor.png; docs/qa/evidence/2026-08-15-pr409-empty-states/tasks-filtered-empty.png; docs/qa/evidence/2026-08-15-pr409-empty-states/tasks-triggers-loading.png; docs/qa/evidence/2026-08-15-pr409-empty-states/tasks-triggers-error.png
+last_report: docs/qa/reports/2026-08-15-pr409-empty-states.md
 overlaps: MS-web-task-editor-window-modal; TA-task-template-preserves-draft
 ---
 
@@ -20,4 +20,8 @@ Introduced by the OpenDesign empty-states redesign (`docs/design/opendesign/empt
 
 ## 2026-08-14 walk
 
-Passed in an isolated live workspace. Keyboard expansion exposed the One-shot details, Use template opened the real task editor in `empty-states`, cancel plus refresh kept the task count at zero, and the 768 px layout had no horizontal overflow.
+Partial historical evidence only. The run covered keyboard expansion, editor cancel/refresh, and compact layout, but did not independently prove pointer disclosure, filtered, loading, or error precedence. A fresh isolated walk owns the final verdict.
+
+## 2026-08-15 walk
+
+Pass. The fresh isolated walk covered the four-template zero-inventory catalog, pointer and keyboard disclosure, the real template-backed editor, cancel and refresh, filtered-empty precedence, and deliberate loading/error behavior.

@@ -529,13 +529,8 @@ const cases: PreloadCase[] = [
           source: "package",
           workspace_id: workspace.id,
         });
-        useAutomationSuggestions(workspace.id, "pending");
       }),
-    requests: [
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.listAutomationJobs,
-      adapterMocks.listAutomationSuggestions,
-    ],
+    requests: [adapterMocks.fetchWorkspaces, adapterMocks.listAutomationJobs],
   },
   {
     name: "triggers → exact filtered infinite catalog options",
@@ -961,6 +956,59 @@ describe("route query preloading", () => {
 
     expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
     expect(adapterMocks.fetchWorkspaces).not.toHaveBeenCalled();
+    expect(adapterMocks.listAutomationSuggestions).not.toHaveBeenCalled();
+    queryClient.clear();
+  });
+
+  it("Should preload pending suggestions only for an unfiltered zero-inventory catalog", async () => {
+    const queryClient = createQueryClient();
+
+    await invokeLoader(JobsRoute, {
+      ...context(queryClient),
+      deps: {},
+    });
+    await waitFor(() => expect(adapterMocks.listAutomationSuggestions).toHaveBeenCalledTimes(1));
+
+    const unmount = mountQueries(queryClient, () => {
+      useAutomationJobs({ limit: 50 });
+      useAutomationSuggestions(workspace.id, "pending");
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.listAutomationSuggestions).toHaveBeenCalledTimes(1);
+    unmount();
+    queryClient.clear();
+  });
+
+  it.each([
+    {
+      name: "a catalog with a non-zero total",
+      deps: {},
+      jobs: {
+        jobs: [],
+        page: { has_more: false, limit: 50, total: 1 },
+      },
+    },
+    {
+      name: "a filtered empty catalog",
+      deps: { q: "review" },
+      jobs: {
+        jobs: [],
+        page: { has_more: false, limit: 50, total: 0 },
+      },
+    },
+  ])("Should skip suggestions for $name", async ({ deps, jobs }) => {
+    const queryClient = createQueryClient();
+    adapterMocks.listAutomationJobs.mockResolvedValueOnce(jobs);
+
+    await invokeLoader(JobsRoute, {
+      ...context(queryClient),
+      deps,
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
     expect(adapterMocks.listAutomationSuggestions).not.toHaveBeenCalled();
     queryClient.clear();
   });

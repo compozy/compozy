@@ -1,12 +1,8 @@
 import { Copy, Globe, ListChecks, RefreshCcw, UserCheck, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import {
-  CatalogEmptyDisclosureRow,
-  type CatalogEmptyTone,
-} from "@/components/catalog-empty-disclosure-row";
 import { CatalogEmptyPanel, CatalogEmptyState } from "@/components/catalog-empty-state";
-import { Button, Pill } from "@compozy/ui";
+import { Button, CatalogEmptyDisclosureRow, type CatalogEmptyTone, Pill } from "@compozy/ui";
 
 import { getTaskTemplate, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
 
@@ -39,7 +35,8 @@ function templateFacts(template: TaskTemplate): string {
     parts.push(`priority ${template.defaults.priority}`);
   }
   if (template.defaults.max_attempts != null) {
-    parts.push(`${template.defaults.max_attempts} attempt`);
+    const attempts = template.defaults.max_attempts;
+    parts.push(`${attempts} attempt${attempts === 1 ? "" : "s"}`);
   }
   if (template.defaults.approval_policy === "manual") {
     parts.push("approval manual");
@@ -47,12 +44,7 @@ function templateFacts(template: TaskTemplate): string {
   if (template.defaults.draft) {
     parts.push("saves as draft");
   }
-  if (template.id === "recurring") {
-    parts.push("schedule attached in Automation");
-  }
-  if (template.id === "remote_peer") {
-    parts.push("enqueued by remote peer");
-  }
+  parts.push(...(template.preview.facts ?? []));
   if (template.preview.enqueueOnSubmit) {
     parts.push("enqueues on submit");
   }
@@ -95,7 +87,7 @@ export function TasksEmptyState({
               <span>
                 Or run{" "}
                 <code className="rounded-mono-badge bg-badge-fill px-1.5 py-px font-mono text-mono-id text-muted">
-                  compozy tasks new
+                  compozy task create --scope workspace --title &quot;Your task&quot;
                 </code>{" "}
                 from a session.
               </span>

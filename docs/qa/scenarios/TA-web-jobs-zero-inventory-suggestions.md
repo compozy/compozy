@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-start-from-empty-catalogs
 expected: The empty Jobs catalog explains the object, composes live workspace suggestions after the intro, keeps Create job and Dismiss server-backed, never renders the suggestions panel on a populated catalog, and preserves filtered, loading, error, Global-scope, and no-workspace behavior.
 entry_points: web /jobs
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .compozy/tasks/empty-states/evidence/visual/zero-inventory/VC-03; .compozy/tasks/empty-states/evidence/visual/zero-inventory/VC-04; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-jobs-entry.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-jobs-expanded.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-jobs-refresh.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-jobs-filtered.png; docs/qa/evidence/2026-08-14-empty-states/CH-empty-catalog-first-use-compact-jobs.png
-last_report: docs/qa/reports/2026-08-14-empty-states.md
+evidence: docs/qa/evidence/2026-08-15-pr409-empty-states/jobs-empty.png; docs/qa/evidence/2026-08-15-pr409-empty-states/jobs-suggestion-expanded-pointer.png; docs/qa/evidence/2026-08-15-pr409-empty-states/jobs-suggestion-expanded-keyboard.png; docs/qa/evidence/2026-08-15-pr409-empty-states/jobs-populated-after-refresh.png; docs/qa/evidence/2026-08-15-pr409-empty-states/jobs-filtered-empty.png; docs/qa/evidence/2026-08-15-pr409-empty-states/jobs-global-no-suggestions.png; docs/qa/evidence/2026-08-15-pr409-empty-states/jobs-loading.png; docs/qa/evidence/2026-08-15-pr409-empty-states/jobs-error.png
+last_report: docs/qa/reports/2026-08-15-pr409-empty-states.md
 overlaps: TA-automation-suggestions
 ---
 
@@ -20,4 +20,8 @@ Introduced by the OpenDesign empty-states redesign (`docs/design/opendesign/empt
 
 ## 2026-08-14 walk
 
-Passed against the live daemon. A keyboard-expanded suggestion disclosed server data, Create job persisted the accepted job, Dismiss stayed resolved after refresh, public API reads confirmed the workspace-scoped records, filtered-empty recovered through Clear filters, and the 768 px layout had no horizontal overflow.
+Partial historical evidence only. The run covered keyboard disclosure, accept/dismiss, refresh, filtered-empty recovery, and compact layout, but did not independently prove pointer disclosure, loading, error, Global-scope, no-workspace, or populated precedence. A fresh isolated walk owns the final verdict.
+
+## 2026-08-15 walk
+
+Pass. A fresh isolated workspace covered pointer and keyboard disclosure, Dismiss and Create job through the live daemon, persistence after refresh, filtered-empty recovery, populated precedence, Global-scope suppression, and deliberate loading/error behavior. Public API and structured CLI reads independently confirmed one accepted Job and two remaining pending suggestions.

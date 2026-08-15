@@ -6,7 +6,11 @@ import type { ListingViewMode } from "@compozy/ui";
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 
-import { automationListLoopFilter, type AutomationRouteSearch } from "@/systems/automation";
+import {
+  automationListLoopFilter,
+  automationRouteHasActiveFilters,
+  type AutomationRouteSearch,
+} from "@/systems/automation";
 
 import { automationCreateSeedLogic } from "./automation-create-seed-store";
 import {
@@ -166,12 +170,15 @@ export function useAutomationPageBase(
     });
   };
 
-  const hasActiveFilters =
-    searchQuery.trim() !== "" ||
-    scopeFilter !== "all" ||
-    sourceFilter !== null ||
-    enabledFilter !== null ||
-    eventFilter !== null;
+  const hasActiveFilters = automationRouteHasActiveFilters({
+    create: search.create,
+    enabled: enabledFilter ?? undefined,
+    event: eventFilter ?? undefined,
+    loop: search.loop,
+    q: searchQuery,
+    scope: scopeFilter,
+    source: sourceFilter ?? undefined,
+  });
 
   return {
     activeWorkspace,

@@ -125,7 +125,7 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
           }}
           runDisabled={page.runDisabled}
           runPendingIds={page.runPendingIds}
-          unfilteredEmptyExtra={
+          unfilteredEmptyPanel={
             showSuggestions && runtimeWorkspaceId ? (
               <AutomationSuggestionsPanel
                 key={runtimeWorkspaceId}

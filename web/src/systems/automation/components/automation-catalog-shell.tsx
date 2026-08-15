@@ -24,7 +24,7 @@ export interface AutomationCatalogShellProps {
   onClearFilters: () => void;
   onCreate: () => void;
   /** Zero-inventory extra, such as live job suggestions. Filtered empty never receives it. */
-  unfilteredEmptyExtra?: ReactNode;
+  unfilteredEmptyPanel?: ReactNode;
   children: ReactNode;
 }
 
@@ -42,7 +42,7 @@ export function AutomationCatalogShell({
   pagination,
   onClearFilters,
   onCreate,
-  unfilteredEmptyExtra,
+  unfilteredEmptyPanel,
   children,
 }: AutomationCatalogShellProps) {
   const { hasNextPage, isFetchingNextPage, onLoadMore } = pagination;
@@ -113,7 +113,7 @@ export function AutomationCatalogShell({
         }
         data-testid={`${noun}-list-empty`}
         icon={EmptyIcon}
-        panel={unfilteredEmptyExtra}
+        panel={unfilteredEmptyPanel}
         support={
           kind === "jobs"
             ? "A job runs an agent or a loop on a schedule."

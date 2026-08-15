@@ -22,7 +22,7 @@ export interface AutomationJobsCatalogProps {
   onClearFilters: () => void;
   onCreate: () => void;
   onRun: (id: string) => void;
-  unfilteredEmptyExtra?: ReactNode;
+  unfilteredEmptyPanel?: ReactNode;
 }
 
 /** Jobs catalog body: rows or cards with shared empty/loading/error/load-more. */
@@ -38,7 +38,7 @@ function AutomationJobsCatalog({
   onClearFilters,
   onCreate,
   onRun,
-  unfilteredEmptyExtra,
+  unfilteredEmptyPanel,
 }: AutomationJobsCatalogProps) {
   return (
     <AutomationCatalogShell
@@ -50,7 +50,7 @@ function AutomationJobsCatalog({
       onClearFilters={onClearFilters}
       onCreate={onCreate}
       pagination={pagination}
-      unfilteredEmptyExtra={unfilteredEmptyExtra}
+      unfilteredEmptyPanel={unfilteredEmptyPanel}
       view={view}
     >
       {jobs.map(job =>

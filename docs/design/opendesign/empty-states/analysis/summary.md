@@ -2,7 +2,7 @@
 
 ## Research Question
 
-$herdr-orchestration orquestre o `cursor-agent --yolo` (não precisa setar modelo, o modelo já está definido por default), para implementar o /Users/pedronauck/Dev/compozy/_worktrees/empty-states/docs/design/opendesign/empty-states, que são os redesigns de empty states de algumas paginas aqui, então você vai orquestrar e revisar para ver se tudo está feito corretamente
+How should the Tasks, Jobs, and Triggers zero-inventory redesigns translate the OpenDesign visual contract into the existing production surfaces while preserving responsive disclosure anatomy, truthful live data and actions, state precedence, runtime-owned differences, and canonical verification seams?
 
 ## Slice Map
 
@@ -42,4 +42,3 @@ $herdr-orchestration orquestre o `cursor-agent --yolo` (não precisa setar model
 
 - [Visual contracts](./01_analysis_visual-contracts.md)
 - [Production surfaces](./02_analysis_production-surfaces.md)
-
