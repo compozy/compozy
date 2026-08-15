@@ -1420,65 +1420,69 @@ func TestDaemonShutdownOperation(t *testing.T) {
 func TestBootExtensionsBuildsManagerWhenNoExtensionsInstalled(t *testing.T) {
 	t.Parallel()
 
-	db := openDaemonTestGlobalDB(t)
-	homePaths := testHomePaths(t)
-	d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+	t.Run("Should build an extension manager when no extensions are installed", func(t *testing.T) {
+		t.Parallel()
 
-	runtime := &fakeExtensionRuntime{}
-	var managerBuilt bool
-	d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
-		managerBuilt = true
-		return runtime
-	}
+		db := openDaemonTestGlobalDB(t)
+		homePaths := testHomePaths(t)
+		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
 
-	rebuilds := 0
-	state := &bootState{
-		logger:   discardLogger(),
-		registry: db,
-		sessions: &fakeSessionManager{},
-		observer: &fakeObserver{},
-		hooks: &fakeHookRuntime{
-			onRebuild: func(context.Context) error {
-				rebuilds++
-				return nil
+		runtime := &fakeExtensionRuntime{}
+		var managerBuilt bool
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			managerBuilt = true
+			return runtime
+		}
+
+		rebuilds := 0
+		state := &bootState{
+			logger:   discardLogger(),
+			registry: db,
+			sessions: &fakeSessionManager{},
+			observer: &fakeObserver{},
+			hooks: &fakeHookRuntime{
+				onRebuild: func(context.Context) error {
+					rebuilds++
+					return nil
+				},
 			},
-		},
-	}
-	cleanup := &bootCleanup{}
+		}
+		cleanup := &bootCleanup{}
 
-	if err := d.bootExtensions(testutil.Context(t), state, cleanup); err != nil {
-		t.Fatalf("bootExtensions() error = %v", err)
-	}
+		if err := d.bootExtensions(testutil.Context(t), state, cleanup); err != nil {
+			t.Fatalf("bootExtensions() error = %v", err)
+		}
 
-	if !managerBuilt {
-		t.Fatal("bootExtensions() did not build an extension manager")
-	}
-	if runtime.startCount != 1 {
-		t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
-	}
-	if rebuilds != 1 {
-		t.Fatalf("hook rebuild count = %d, want 1", rebuilds)
-	}
-	if state.extensions != runtime {
-		t.Fatalf("state.extensions = %#v, want runtime", state.extensions)
-	}
-	if state.deps.Extensions == nil {
-		t.Fatal("state.deps.Extensions = nil, want extension service")
-	}
-	if len(cleanup.fns) != 1 {
-		t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
-	}
-	extRegistry := extensionpkg.NewRegistry(db.DB())
-	info, err := extRegistry.Get(speccycle.Name)
-	if err != nil {
-		t.Fatalf("registry.Get(%s) error = %v", speccycle.Name, err)
-	}
-	if !info.Enabled || info.Source != extensionpkg.SourceBundled {
-		t.Fatalf("spec-cycle info = %#v, want installed and enabled bundled extension", info)
-	}
-	if got, want := filepath.Base(info.ManifestPath), "extension.json"; got != want {
-		t.Fatalf("spec-cycle manifest file = %q, want %q", got, want)
-	}
+		if !managerBuilt {
+			t.Fatal("bootExtensions() did not build an extension manager")
+		}
+		if runtime.startCount != 1 {
+			t.Fatalf("extension runtime start count = %d, want 1", runtime.startCount)
+		}
+		if rebuilds != 1 {
+			t.Fatalf("hook rebuild count = %d, want 1", rebuilds)
+		}
+		if state.extensions != runtime {
+			t.Fatalf("state.extensions = %#v, want runtime", state.extensions)
+		}
+		if state.deps.Extensions == nil {
+			t.Fatal("state.deps.Extensions = nil, want extension service")
+		}
+		if len(cleanup.fns) != 1 {
+			t.Fatalf("cleanup fns = %d, want 1", len(cleanup.fns))
+		}
+		extRegistry := extensionpkg.NewRegistry(db.DB())
+		info, err := extRegistry.Get(speccycle.Name)
+		if err != nil {
+			t.Fatalf("registry.Get(%s) error = %v", speccycle.Name, err)
+		}
+		if !info.Enabled || info.Source != extensionpkg.SourceBundled {
+			t.Fatalf("spec-cycle info = %#v, want installed and enabled bundled extension", info)
+		}
+		if got, want := filepath.Base(info.ManifestPath), "extension.json"; got != want {
+			t.Fatalf("spec-cycle manifest file = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestBootExtensionsPreservesSpecCycleDisableEnableState(t *testing.T) {

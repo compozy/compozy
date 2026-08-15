@@ -4,7 +4,7 @@
 # Analyzes git rebase conflicts and provides detailed information
 # Usage: bash analyze-conflicts.sh
 
-set -e
+set -eo pipefail
 
 echo "🔍 Git Rebase Conflict Analyzer"
 echo "======================================"
@@ -22,22 +22,32 @@ echo ""
 
 # Get conflicting files
 echo "📋 Conflicted Files:"
-CONFLICTED_FILES=$(git diff --name-only --diff-filter=U)
-CONFLICT_COUNT=$(echo "$CONFLICTED_FILES" | wc -l)
+CONFLICTED_FILES=()
+while IFS= read -r -d '' file; do
+    CONFLICTED_FILES+=("$file")
+done < <(git diff --name-only --diff-filter=U -z)
+CONFLICT_COUNT=${#CONFLICTED_FILES[@]}
 
 echo "   Found $CONFLICT_COUNT file(s) with conflicts:"
-echo "$CONFLICTED_FILES" | sed 's/^/   - /'
+for file in "${CONFLICTED_FILES[@]}"; do
+    printf '   - %q\n' "$file"
+done
 echo ""
 
 # Analyze each conflict
 echo "🔎 Conflict Analysis:"
 echo ""
 
-for file in $CONFLICTED_FILES; do
-    echo "📄 File: $file"
+for file in "${CONFLICTED_FILES[@]}"; do
+    printf '📄 File: %q\n' "$file"
     
     # Count conflict markers
-    MARKER_COUNT=$(($(grep -c "<<<<<<" "$file" || echo 0)))
+    marker_status=0
+    MARKER_COUNT=$(grep -c "<<<<<<" "$file") || marker_status=$?
+    if [ "$marker_status" -gt 1 ]; then
+        exit "$marker_status"
+    fi
+    MARKER_COUNT=${MARKER_COUNT:-0}
     echo "   Conflict sections: $MARKER_COUNT"
     
     # Show file size
@@ -58,7 +68,9 @@ for file in $CONFLICTED_FILES; do
         
         # Show context around first conflict (3 lines before and after markers)
         echo "   Context:"
-        sed -n "$((FIRST_CONFLICT-3)),$((FIRST_CONFLICT+10))p" "$file" | \
+        CONTEXT_START=$((FIRST_CONFLICT > 3 ? FIRST_CONFLICT - 3 : 1))
+        CONTEXT_END=$((FIRST_CONFLICT + 10))
+        sed -n "${CONTEXT_START},${CONTEXT_END}p" "$file" | \
             sed 's/^/      /'
     else
         echo "   Status: ✓ RESOLVED (no conflict markers)"
@@ -69,9 +81,16 @@ done
 
 # Summary
 echo "📊 Summary:"
-UNRESOLVED=$(for f in $CONFLICTED_FILES; do
-    grep -l "<<<<<<" "$f" 2>/dev/null || true
-done | wc -l)
+UNRESOLVED=0
+for file in "${CONFLICTED_FILES[@]}"; do
+    marker_status=0
+    grep -q "<<<<<<" "$file" || marker_status=$?
+    if [ "$marker_status" -eq 0 ]; then
+        UNRESOLVED=$((UNRESOLVED + 1))
+    elif [ "$marker_status" -gt 1 ]; then
+        exit "$marker_status"
+    fi
+done
 
 RESOLVED=$((CONFLICT_COUNT - UNRESOLVED))
 
@@ -91,17 +110,14 @@ fi
 echo "💡 Next Steps:"
 if [ "$UNRESOLVED" -gt 0 ]; then
     echo "   1. Edit conflicted files and resolve all markers"
-    echo "   2. Run: bash scripts/validate-merge.sh"
-    echo "   3. Run: npm run lint && npm test"
-    echo "   4. Run: git add ."
-    echo "   5. Run: git rebase --continue"
 else
     echo "   1. All conflicts appear resolved!"
-    echo "   2. Run: bash scripts/validate-merge.sh"
-    echo "   3. Run: npm run lint && npm test"
-    echo "   4. Run: git add ."
-    echo "   5. Run: git rebase --continue"
 fi
+echo "   2. Run from the repository root: bash .agents/skills/git-rebase/scripts/validate-merge.sh"
+echo "   3. Run from the repository root: make gate-full"
+echo "   4. For focused frontend checks, use bunx turbo run <task> --filter=<workspace> from the repository root"
+echo "   5. Run a manual smoke test if needed"
+echo "   6. Stage the resolved files explicitly, then run: git rebase --continue"
 
 echo ""
 echo "✅ Analysis complete"

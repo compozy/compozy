@@ -5,7 +5,7 @@ skills truthfully listed as inactive-with-reason — and a dead extension/bridge
 stop being hammered, stay diagnosable, and auto-recover on success without a daemon restart.
 Covers US-011 (ADR-009 §2 + ADR-010 §5, Safety Invariant 20).
 
-The v0.3 migration adds one exact immutable spec-cycle bundle: nine `cy-*` workflow skills plus
+The v0.3 migration adds one exact immutable spec-cycle bundle: eight `cy-*` workflow skills plus
 `git-rebase`. They publish globally into managed sessions, allow workspace-local shadowing without
 mutating the global source, and never recreate an extension-owned `compozy` skill or external CLI
 installer.
@@ -65,7 +65,7 @@ journey:
       expected_observable: "Success auto-clears the mark and restores normal cadence — no daemon restart, no manual revive control"
     - step: 5
       verb: "Enroll spec-cycle and inspect its managed-session skills"
-      expected_observable: "Exactly cy-create-spec, cy-create-tasks, cy-execute-task, cy-workflow-memory, cy-review-round, cy-fix-reviews, cy-final-verify, and git-rebase project from immutable global resources; one workspace override does not change another workspace"
+      expected_observable: "Exactly cy-create-spec, cy-create-tasks, cy-execute-task, cy-workflow-memory, cy-orchestrate-tasks, cy-review-round, cy-fix-reviews, cy-final-verify, and git-rebase project from immutable global resources; one workspace override does not change another workspace"
   goal:
     observable: "Advertised set = runnable set; dead entity suppressed then self-recovered"
     side_effects: [dead-entity-mark-clear-events, catalog-rebuild]

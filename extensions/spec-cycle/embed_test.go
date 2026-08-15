@@ -900,27 +900,37 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		if strings.Contains(check, "cd /") || strings.Contains(check, "$HOME") {
 			t.Fatalf("orchestrate judge check = %q, want no absolute or home-anchored path", check)
 		}
-		// Invariant: the bundled Goal accepts completion only when every task frontmatter is completed
-		// and no orchestrator-created worker remains nonterminal. This embedded bundle contract suite
-		// owns the invariant because it executes the exact shipped judge command.
 		cases := []struct {
 			name         string
-			task         string
+			tasks        []orchestrateJudgeTaskFile
 			activeWorker bool
 			wantSuccess  bool
 		}{
 			{
 				name: "Should reject a completed marker outside pending frontmatter",
-				task: "---\nstatus: pending\n---\n\nstatus: completed\n",
+				tasks: []orchestrateJudgeTaskFile{
+					{name: "task_01.md", content: "---\nstatus: pending\n---\n\nstatus: completed\n"},
+				},
 			},
 			{
-				name:        "Should accept completed frontmatter without nonterminal workers",
-				task:        "---\nstatus: completed\n---\n\nDone.\n",
+				name: "Should accept completed frontmatter without nonterminal workers",
+				tasks: []orchestrateJudgeTaskFile{
+					{name: "task_01.md", content: "---\nstatus: completed\n---\n\nDone.\n"},
+				},
 				wantSuccess: true,
 			},
 			{
-				name:         "Should reject completed frontmatter while a worker remains active",
-				task:         "---\nstatus: completed\n---\n\nDone.\n",
+				name: "Should reject when a second task remains pending",
+				tasks: []orchestrateJudgeTaskFile{
+					{name: "task_01.md", content: "---\nstatus: completed\n---\n\nDone.\n"},
+					{name: "task_02.md", content: "---\nstatus: pending\n---\n\nNot done.\n"},
+				},
+			},
+			{
+				name: "Should reject completed frontmatter while a worker remains active",
+				tasks: []orchestrateJudgeTaskFile{
+					{name: "task_01.md", content: "---\nstatus: completed\n---\n\nDone.\n"},
+				},
 				activeWorker: true,
 			},
 		}
@@ -928,7 +938,7 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				output, err := runOrchestrateJudgeForTest(t, check, tc.task, tc.activeWorker)
+				output, err := runOrchestrateJudgeForTest(t, check, tc.tasks, tc.activeWorker)
 				if tc.wantSuccess && err != nil {
 					t.Fatalf("judge command error = %v, output = %s", err, output)
 				}
@@ -950,10 +960,15 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 	})
 }
 
+type orchestrateJudgeTaskFile struct {
+	name    string
+	content string
+}
+
 func runOrchestrateJudgeForTest(
 	t *testing.T,
 	check string,
-	task string,
+	tasks []orchestrateJudgeTaskFile,
 	activeWorker bool,
 ) ([]byte, error) {
 	t.Helper()
@@ -963,8 +978,10 @@ func runOrchestrateJudgeForTest(
 	if err := os.MkdirAll(taskDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%q) error = %v", taskDir, err)
 	}
-	if err := os.WriteFile(filepath.Join(taskDir, "task_01.md"), []byte(task), 0o600); err != nil {
-		t.Fatalf("WriteFile(task) error = %v", err)
+	for _, task := range tasks {
+		if err := os.WriteFile(filepath.Join(taskDir, task.name), []byte(task.content), 0o600); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", task.name, err)
+		}
 	}
 	fakeBin := filepath.Join(workspace, "bin")
 	if err := os.MkdirAll(fakeBin, 0o755); err != nil {
@@ -991,7 +1008,7 @@ printf '{"type":"list_page","page":{"total":0}}\n'
 	if err != nil {
 		t.Fatalf("RenderTemplateString() error = %v", err)
 	}
-	command := exec.Command("sh", "-c", rendered)
+	command := exec.CommandContext(testutil.Context(t), "sh", "-c", rendered)
 	command.Dir = workspace
 	command.Env = append(
 		os.Environ(),

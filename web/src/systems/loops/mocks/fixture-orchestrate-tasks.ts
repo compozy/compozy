@@ -1,7 +1,7 @@
-import type { LoopDefinitionGraph } from "../types";
+import { fixtureGraph } from "./fixture-graph";
 
-export const orchestrateTasksGraph = {
-  nodes: [
+export const orchestrateTasksGraph = fixtureGraph(
+  [
     { id: "slug_input", class: "source", kind: "input", input_ref: "slug" },
     {
       id: "orchestrate",
@@ -24,5 +24,5 @@ export const orchestrateTasksGraph = {
       },
     },
   ],
-  edges: [{ from: "slug_input", to: "orchestrate" }],
-} as unknown as LoopDefinitionGraph;
+  [{ from: "slug_input", to: "orchestrate" }]
+);
