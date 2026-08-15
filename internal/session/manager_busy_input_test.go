@@ -45,7 +45,15 @@ func TestManagerBusyInputQueue(t *testing.T) {
 				operation: store.SessionPromptOperationPrompt,
 				mode:      store.SessionInputQueueModeQueue,
 				call: func(ctx context.Context, queue *inputqueue.Service, sessionID string, _ store.SessionPromptAdmissionRequest) error {
-					_, _, err := queue.Enqueue(ctx, sessionID, "queued prompt", 0, store.SessionInputRuntime{}, nil, nil)
+					_, _, err := queue.Enqueue(
+						ctx,
+						sessionID,
+						"queued prompt",
+						0,
+						store.SessionInputRuntime{},
+						nil,
+						nil,
+					)
 					return err
 				},
 			},
