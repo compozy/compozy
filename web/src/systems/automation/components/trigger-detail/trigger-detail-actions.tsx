@@ -52,7 +52,12 @@ export function TriggerDetailOverflow({
 }: TriggerDetailOverflowProps) {
   const isDynamic = trigger.source === "dynamic";
   const handleCopyId = () => {
-    void navigator.clipboard
+    const clipboard = navigator.clipboard;
+    if (!clipboard) {
+      toast.error("Could not copy the trigger id.");
+      return;
+    }
+    void clipboard
       .writeText(trigger.id)
       .then(() => toast.success(`Copied ${trigger.id}.`))
       .catch(() => toast.error("Could not copy the trigger id."));

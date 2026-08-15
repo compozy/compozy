@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { Workflow } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
@@ -11,11 +11,17 @@ import type { LoopTargetProjection } from "../../lib/automation-target";
 import type { AutomationTrigger } from "../../types";
 import { TriggerValueBadge } from "./trigger-value-badge";
 
-function TargetChip({ children }: { children: ReactNode }) {
+type TargetChipProps = Omit<ComponentProps<"span">, "children"> & { children: ReactNode };
+
+function TargetChip({ children, className, ...props }: TargetChipProps) {
   return (
     <span
       aria-hidden="true"
-      className="flex size-5.5 shrink-0 items-center justify-center rounded-md border border-line-strong bg-elevated font-mono text-badge font-semibold text-muted"
+      className={cn(
+        "flex size-5.5 shrink-0 items-center justify-center rounded-md border border-line-strong bg-elevated font-mono text-badge font-semibold text-muted",
+        className
+      )}
+      {...props}
     >
       {children}
     </span>
@@ -67,14 +73,22 @@ const MAPPING_ROW =
  * How the loop's declared inputs get filled: `←` reads a field off the event,
  * `=` is a value fixed at create time.
  */
-function TriggerLoopMapping({ target }: { target: LoopTargetProjection }) {
+type TriggerLoopMappingProps = Omit<ComponentProps<"div">, "children"> & {
+  target: LoopTargetProjection;
+};
+
+function TriggerLoopMapping({ target, className, ...props }: TriggerLoopMappingProps) {
   const mapped = Object.entries(target.inputMapping);
   const statics = Object.entries(target.inputs);
   if (mapped.length === 0 && statics.length === 0) return null;
   return (
     <div
-      className="mt-2 overflow-hidden rounded-md border border-line-soft bg-input-fill"
+      className={cn(
+        "mt-2 overflow-hidden rounded-md border border-line-soft bg-input-fill",
+        className
+      )}
       data-testid="trigger-loop-mapping"
+      {...props}
     >
       {mapped.map(([key, path]) => (
         <div className={MAPPING_ROW} key={`map-${key}`}>

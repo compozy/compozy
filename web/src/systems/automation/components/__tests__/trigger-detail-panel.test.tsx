@@ -8,6 +8,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
+import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
@@ -32,6 +33,13 @@ vi.mock("@tanstack/react-router", () => ({
     );
   },
   useNavigate: () => vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
 }));
 
 import { TriggerDetailPanel } from "../trigger-detail/trigger-detail-panel";
@@ -205,8 +213,29 @@ describe("TriggerDetailPanel", () => {
     const track = screen.getByTestId("trigger-enable-switch");
     expect(screen.getByTestId("trigger-enable-label")).toHaveTextContent("Enabling…");
     expect(track).toHaveAttribute("aria-checked", "false");
+    expect(track).toHaveAttribute("aria-disabled", "true");
+    expect(track).toHaveAttribute("tabindex", "-1");
     fireEvent.click(track);
     expect(onToggleEnabled).not.toHaveBeenCalled();
+  });
+
+  it("Should report copy failure when the browser has no Clipboard API", () => {
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+
+    try {
+      renderPanel();
+      fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+      fireEvent.click(screen.getByTestId("copy-trigger-id-btn"));
+
+      expect(toast.error).toHaveBeenCalledWith("Could not copy the trigger id.");
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, "clipboard");
+      }
+    }
   });
 
   it.each([
@@ -402,6 +431,10 @@ describe("TriggerDetailPanel", () => {
     const sheet = await screen.findByTestId("trigger-inspect-sheet");
     expect(sheet).toHaveTextContent("DYNAMIC");
     expect(sheet).toHaveTextContent("WORKSPACE");
+    expect(screen.getByTestId("trigger-inspect-tile-id")).toHaveTextContent(webhookTrigger.id);
+    expect(screen.getByTestId("trigger-inspect-tile-id")).not.toHaveTextContent(
+      webhookTrigger.name
+    );
     expect(screen.getByTestId("trigger-inspect-tile-secret")).toHaveTextContent("present");
     expect(screen.getByTestId("trigger-inspect-diagnostics")).toHaveTextContent(
       "Fire limit 6 / 1h."

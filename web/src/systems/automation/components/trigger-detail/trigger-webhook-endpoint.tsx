@@ -1,4 +1,6 @@
-import { CodeBlock, CopyIconButton } from "@compozy/ui";
+import type { ComponentProps } from "react";
+
+import { CodeBlock, CopyIconButton, Eyebrow, cn } from "@compozy/ui";
 
 import { triggerWebhookCurl } from "../../lib/trigger-sentence";
 
@@ -6,13 +8,17 @@ import { triggerWebhookCurl } from "../../lib/trigger-sentence";
  * Local delivery path for a webhook trigger — the POST that always answers on
  * this daemon. Public reachability is a separate fact and lives in the rail.
  */
-export function TriggerWebhookEndpoint({ path }: { path: string }) {
+type TriggerWebhookEndpointProps = Omit<ComponentProps<"div">, "children"> & { path: string };
+
+export function TriggerWebhookEndpoint({ path, className, ...props }: TriggerWebhookEndpointProps) {
   return (
-    <div className="mt-2.5 flex flex-col gap-2" data-testid="trigger-webhook-endpoint">
+    <div
+      className={cn("mt-2.5 flex flex-col gap-2", className)}
+      data-testid="trigger-webhook-endpoint"
+      {...props}
+    >
       <div className="flex items-center gap-2 rounded-sm border border-line-soft bg-rail px-2.5 py-2">
-        <span className="rounded-xs bg-success-tint px-1.5 py-0.5 font-mono text-badge font-semibold text-success">
-          POST
-        </span>
+        <Eyebrow className="rounded-xs bg-success-tint px-1.5 py-0.5 text-success">POST</Eyebrow>
         <span className="min-w-0 flex-1 truncate font-mono text-form-hint text-fg">{path}</span>
         <CopyIconButton
           copiedLabel="Webhook path copied"

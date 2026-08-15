@@ -1,8 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import { CircleDot, Database, Filter, Puzzle, Unplug, Webhook } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
-import { Eyebrow, Pill } from "@compozy/ui";
+import { Eyebrow, Pill, cn } from "@compozy/ui";
 
 import {
   describeTriggerIf,
@@ -24,20 +24,37 @@ const EVENT_ICONS: Record<EventIconKey, LucideIcon> = {
   extension: Puzzle,
 };
 
-function RuleRow({ label, children }: { label: string; children: ReactNode }) {
+type RuleRowProps = Omit<ComponentProps<"div">, "children"> & {
+  label: string;
+  children: ReactNode;
+};
+
+function RuleRow({ label, children, className, ...props }: RuleRowProps) {
   return (
-    <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-3 border-t border-line-soft px-3 py-3 first:border-t-0 md:grid-cols-[72px_minmax(0,1fr)] md:gap-3.5 md:px-4 md:py-3.5">
+    <div
+      className={cn(
+        "grid grid-cols-[56px_minmax(0,1fr)] gap-3 border-t border-line-soft px-3 py-3 first:border-t-0 md:grid-cols-[72px_minmax(0,1fr)] md:gap-3.5 md:px-4 md:py-3.5",
+        className
+      )}
+      {...props}
+    >
       <Eyebrow className="pt-0.5 text-subtle">{label}</Eyebrow>
       <div className="flex min-w-0 flex-col">{children}</div>
     </div>
   );
 }
 
-function RuleSubLine({ children }: { children: ReactNode }) {
-  return <span className="mt-1.5 text-small-body leading-relaxed text-muted">{children}</span>;
+type RuleSubLineProps = Omit<ComponentProps<"span">, "children"> & { children: ReactNode };
+
+function RuleSubLine({ children, className, ...props }: RuleSubLineProps) {
+  return (
+    <span className={cn("mt-1.5 text-small-body leading-relaxed text-muted", className)} {...props}>
+      {children}
+    </span>
+  );
 }
 
-interface TriggerRuleCardProps {
+interface TriggerRuleCardProps extends Omit<ComponentProps<"div">, "children"> {
   trigger: AutomationTrigger;
   workspaceName: string | null;
   loopWorkspaceName: string | null;
@@ -52,6 +69,8 @@ export function TriggerRuleCard({
   trigger,
   workspaceName,
   loopWorkspaceName,
+  className,
+  ...props
 }: TriggerRuleCardProps) {
   const when = describeTriggerWhen(trigger, workspaceName);
   const condition = describeTriggerIf(trigger);
@@ -60,8 +79,9 @@ export function TriggerRuleCard({
 
   return (
     <div
-      className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
+      className={cn("overflow-hidden rounded-lg border border-line bg-canvas-soft", className)}
       data-testid="trigger-rule-card"
+      {...props}
     >
       <RuleRow label="When">
         <span className="flex flex-wrap items-center gap-2">

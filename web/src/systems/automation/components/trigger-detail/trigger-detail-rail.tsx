@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { ChevronDown, Gauge, Globe, Hash, Info, Search } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import {
   Button,
@@ -78,7 +78,7 @@ const SOURCE_COPY: Record<AutomationTrigger["source"], string> = {
   package: "From an installed package",
 };
 
-interface TriggerDetailRailProps {
+interface TriggerDetailRailProps extends Omit<ComponentProps<"aside">, "children"> {
   trigger: AutomationTrigger;
   loopWorkspaceName: string | null;
   onInspect: () => void;
@@ -93,6 +93,8 @@ export function TriggerDetailRail({
   trigger,
   loopWorkspaceName,
   onInspect,
+  className,
+  ...props
 }: TriggerDetailRailProps) {
   const target = projectAutomationTarget(trigger);
   const scopeLabel = trigger.scope === "workspace" ? "This workspace" : "Global";
@@ -101,7 +103,11 @@ export function TriggerDetailRail({
   const kindLabel = target.kind === "loop" ? "Loop" : isWebhook ? "Webhook" : eventLabel;
 
   return (
-    <aside className="flex flex-col gap-3" data-testid="trigger-detail-rail">
+    <aside
+      className={cn("flex flex-col gap-3", className)}
+      data-testid="trigger-detail-rail"
+      {...props}
+    >
       <TriggerRailCard
         data-testid="trigger-rail-properties"
         defaultOpen

@@ -1,11 +1,11 @@
-import { useId } from "react";
+import { useId, type ComponentProps } from "react";
 
 import { Pill, Switch, Time, cn } from "@compozy/ui";
 
 import { buildTriggerLede, triggerEventLabel, triggerPauseLine } from "../../lib/trigger-sentence";
 import type { AutomationTrigger } from "../../types";
 
-interface TriggerEnableSwitchProps {
+interface TriggerEnableSwitchProps extends Omit<ComponentProps<"div">, "children"> {
   enabled: boolean;
   pending: boolean;
   onToggle: (enabled: boolean) => void;
@@ -18,7 +18,13 @@ interface TriggerEnableSwitchProps {
  * confirmed; the label announces the transition instead. An optimistic flip
  * would claim a state the runtime has not agreed to yet.
  */
-function TriggerEnableSwitch({ enabled, pending, onToggle }: TriggerEnableSwitchProps) {
+function TriggerEnableSwitch({
+  enabled,
+  pending,
+  onToggle,
+  className,
+  ...props
+}: TriggerEnableSwitchProps) {
   const labelId = useId();
   const label = pending ? (enabled ? "Disabling…" : "Enabling…") : enabled ? "Enabled" : "Disabled";
   return (
@@ -26,8 +32,10 @@ function TriggerEnableSwitch({ enabled, pending, onToggle }: TriggerEnableSwitch
       aria-busy={pending || undefined}
       className={cn(
         "mt-0.5 flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1",
-        pending && "pointer-events-none opacity-55"
+        pending && "pointer-events-none opacity-55",
+        className
       )}
+      {...props}
     >
       <span
         className={cn(
@@ -43,6 +51,7 @@ function TriggerEnableSwitch({ enabled, pending, onToggle }: TriggerEnableSwitch
         aria-labelledby={labelId}
         checked={enabled}
         data-testid="trigger-enable-switch"
+        disabled={pending}
         onCheckedChange={next => {
           if (!pending) onToggle(next);
         }}
@@ -55,7 +64,7 @@ const DOT_SEPARATOR = (
   <span aria-hidden="true" className="mx-1.5 inline-block size-0.5 rounded-full bg-faint" />
 );
 
-interface TriggerDetailHeadProps {
+interface TriggerDetailHeadProps extends Omit<ComponentProps<"div">, "children"> {
   trigger: AutomationTrigger;
   workspaceName: string | null;
   /** Most recent run start from the loaded run sample; omitted when unknown. */
@@ -74,10 +83,16 @@ export function TriggerDetailHead({
   lastRanAt,
   isTogglePending,
   onToggleEnabled,
+  className,
+  ...props
 }: TriggerDetailHeadProps) {
   const segments = buildTriggerLede(trigger, workspaceName);
   return (
-    <div className="mb-5.5 border-b border-line pb-4.5" data-testid="trigger-detail-head">
+    <div
+      className={cn("mb-5.5 border-b border-line pb-4.5", className)}
+      data-testid="trigger-detail-head"
+      {...props}
+    >
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0 flex-1">
           <h1

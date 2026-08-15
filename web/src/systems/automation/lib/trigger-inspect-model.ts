@@ -40,7 +40,7 @@ function retryTile(retry: AutomationRetry): string {
 export function buildTriggerDiagnostics(trigger: AutomationTrigger): TriggerDiagnosticTile[] {
   const isWebhook = trigger.event === "webhook";
   return [
-    { id: "id", label: "Id", value: trigger.name },
+    { id: "id", label: "Id", value: trigger.id },
     { id: "source", label: "Source", value: trigger.source.toUpperCase() },
     { id: "scope", label: "Scope", value: trigger.scope.toUpperCase() },
     { id: "kind", label: "Kind", value: trigger.event },
