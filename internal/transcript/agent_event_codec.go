@@ -77,6 +77,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Goal:              acp.CloneGoalPromptMeta(event.Goal),
 		AvailableCommands: event.AvailableCommands.Values(),
 		SkillInvocations:  event.SkillInvocations(),
+		Attachments:       event.Attachments(),
 		Usage:             event.Usage,
 		Runtime:           cloneRuntimeActivity(event.Runtime),
 		PromptRuntime:     event.PromptRuntimeSnapshot(),
@@ -152,6 +153,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}.WithRequestID(decoded.RequestID)
+	event = event.WithAttachments(decoded.Attachments)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)
 	event = event.WithPromptRuntime(decoded.PromptRuntime)
 	if messageID := strings.TrimSpace(decoded.MessageID); messageID != "" {

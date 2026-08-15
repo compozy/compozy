@@ -30,6 +30,7 @@ type promptRequest struct {
 	resumeStopped          bool
 	commitDispatch         func(context.Context) error
 	skillInvocations       []commandpkg.Invocation
+	attachments            []AttachmentMeta
 }
 
 func (m *Manager) recordPromptInputEvent(
@@ -40,7 +41,7 @@ func (m *Manager) recordPromptInputEvent(
 	if req.inputRecorded {
 		return nil
 	}
-	if strings.TrimSpace(req.authoredMessage) == "" {
+	if strings.TrimSpace(req.authoredMessage) == "" && len(req.attachments) == 0 {
 		return errors.New("session: authored prompt message is required")
 	}
 	if session == nil {
@@ -57,6 +58,7 @@ func (m *Manager) recordPromptInputEvent(
 	}
 	event = event.WithPromptRuntime(promptRuntimeFromSelectionPointer(req.runtime))
 	event = event.WithSkillInvocations(req.skillInvocations)
+	event = event.WithAttachments(promptEventAttachments(req.attachments))
 	if messageID := strings.TrimSpace(req.messageID); messageID != "" {
 		event = event.WithMessageID(messageID)
 	}
@@ -88,6 +90,26 @@ func (m *Manager) recordPromptInputEvent(
 	}
 	req.inputRecorded = true
 	return nil
+}
+
+func promptEventAttachments(attachments []AttachmentMeta) []acp.EventAttachment {
+	if len(attachments) == 0 {
+		return nil
+	}
+	result := make([]acp.EventAttachment, 0, len(attachments))
+	for _, attachment := range attachments {
+		result = append(result, acp.EventAttachment{
+			ID:       attachment.ID,
+			Name:     attachment.Name,
+			MIMEType: attachment.MIMEType,
+			Bytes:    attachment.Bytes,
+			SHA256:   attachment.SHA256,
+			Kind:     attachment.Kind,
+			Width:    attachment.Width,
+			Height:   attachment.Height,
+		})
+	}
+	return result
 }
 
 func (m *Manager) recordInactivePromptInputEvent(

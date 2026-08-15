@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	UIRoleSystem    = "system"
-	UIRoleUser      = "user"
-	UIRoleAssistant = "assistant"
+	UIRoleSystem          = "system"
+	UIRoleUser            = "user"
+	UIRoleAssistant       = "assistant"
+	UIMessagePartTypeFile = "file"
 
 	uiPartText           = "text"
 	uiPartReasoning      = "reasoning"
@@ -43,6 +44,9 @@ type UIMessagePart struct {
 	Type        string          `json:"type"`
 	ID          string          `json:"id,omitempty"`
 	Text        string          `json:"text,omitempty"`
+	MediaType   string          `json:"mediaType,omitempty"`
+	URL         string          `json:"url,omitempty"`
+	Filename    string          `json:"filename,omitempty"`
 	State       string          `json:"state,omitempty"`
 	ToolName    string          `json:"toolName,omitempty"`
 	ToolCallID  string          `json:"toolCallId,omitempty"`

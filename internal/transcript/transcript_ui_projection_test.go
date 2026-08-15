@@ -3,6 +3,7 @@ package transcript
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -168,6 +169,109 @@ func TestToUIMessagesPreservesUserMessageIdentity(t *testing.T) {
 			metadata.SkillInvocations[0].Start != 7 ||
 			metadata.SkillInvocations[0].End != 18 {
 			t.Fatalf("skill invocation metadata = %#v", metadata.SkillInvocations)
+		}
+	})
+}
+
+func TestToUIMessagesProjectsUserAttachments(t *testing.T) {
+	t.Run("Should project attachment file parts before authored text", func(t *testing.T) {
+		t.Parallel()
+
+		attachments := []acp.EventAttachment{
+			{ID: "att-image", Name: "diagram.png", MIMEType: "image/png", Bytes: 2048, SHA256: "sha-image", Kind: "image", Width: 1280, Height: 720},
+			{ID: "att-file", Name: "notes.pdf", MIMEType: "application/pdf", Bytes: 4096, SHA256: "sha-file", Kind: "file"},
+		}
+		event := mustUIAgentSessionEvent(t, "ev-user-attachments", 1, time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC),
+			(acp.AgentEvent{
+				Type:      acp.EventTypeUserMessage,
+				SessionID: "sess-attachments",
+				TurnID:    "turn-attachments",
+				Text:      "Review these files.",
+			}).WithAttachments(attachments),
+		)
+
+		messages, err := ToUIMessages([]store.SessionEvent{event})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+		parts := messages[0].Parts
+		if got, want := len(parts), 3; got != want {
+			t.Fatalf("len(parts) = %d, want %d; parts=%#v", got, want, parts)
+		}
+		if got, want := parts[0], (UIMessagePart{
+			Type: UIMessagePartTypeFile, MediaType: "image/png",
+			URL: "compozy://session-attachments/att-image", Filename: "diagram.png",
+		}); !reflect.DeepEqual(got, want) {
+			t.Fatalf("parts[0] = %#v, want %#v", got, want)
+		}
+		if got, want := parts[1], (UIMessagePart{
+			Type: UIMessagePartTypeFile, MediaType: "application/pdf",
+			URL: "compozy://session-attachments/att-file", Filename: "notes.pdf",
+		}); !reflect.DeepEqual(got, want) {
+			t.Fatalf("parts[1] = %#v, want %#v", got, want)
+		}
+		if got, want := parts[2], (UIMessagePart{Type: uiPartText, Text: "Review these files.", State: uiPartStateDone}); !reflect.DeepEqual(got, want) {
+			t.Fatalf("parts[2] = %#v, want %#v", got, want)
+		}
+
+		var metadata struct {
+			Attachments []acp.EventAttachment `json:"attachments"`
+		}
+		if err := json.Unmarshal(messages[0].Metadata, &metadata); err != nil {
+			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
+		}
+		if !slices.Equal(metadata.Attachments, attachments) {
+			t.Fatalf("metadata attachments = %#v, want %#v", metadata.Attachments, attachments)
+		}
+		encoded, err := json.Marshal(messages[0])
+		if err != nil {
+			t.Fatalf("json.Marshal(materialized message) error = %v", err)
+		}
+		var reopened UIMessage
+		if err := json.Unmarshal(encoded, &reopened); err != nil {
+			t.Fatalf("json.Unmarshal(materialized message) error = %v", err)
+		}
+		if !reflect.DeepEqual(reopened, messages[0]) {
+			t.Fatalf("reopened message = %#v, want %#v", reopened, messages[0])
+		}
+	})
+
+	t.Run("Should omit the text part for an image-only user message", func(t *testing.T) {
+		t.Parallel()
+
+		event := mustUIAgentSessionEvent(t, "ev-image-only", 1, time.Date(2026, 8, 14, 12, 1, 0, 0, time.UTC),
+			(acp.AgentEvent{Type: acp.EventTypeUserMessage, SessionID: "sess-image-only", TurnID: "turn-image-only"}).
+				WithAttachments([]acp.EventAttachment{{ID: "att-only", Name: "only.png", MIMEType: "image/png"}}),
+		)
+
+		messages, err := ToUIMessages([]store.SessionEvent{event})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if len(messages) != 1 || len(messages[0].Parts) != 1 {
+			t.Fatalf("messages = %#v, want one message with one file part", messages)
+		}
+		if got, want := messages[0].Parts[0].Type, UIMessagePartTypeFile; got != want {
+			t.Fatalf("part type = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should leave text-only user messages unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		event := mustUIAgentSessionEvent(t, "ev-text-only", 1, time.Date(2026, 8, 14, 12, 2, 0, 0, time.UTC), acp.AgentEvent{
+			Type: acp.EventTypeUserMessage, SessionID: "sess-text-only", TurnID: "turn-text-only", Text: "Text only.",
+		})
+		messages, err := ToUIMessages([]store.SessionEvent{event})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		want := []UIMessagePart{{Type: uiPartText, Text: "Text only.", State: uiPartStateDone}}
+		if len(messages) != 1 || !reflect.DeepEqual(messages[0].Parts, want) {
+			t.Fatalf("messages = %#v, want unchanged text-only parts %#v", messages, want)
 		}
 	})
 }
