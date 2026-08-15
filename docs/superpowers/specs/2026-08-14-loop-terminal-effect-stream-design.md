@@ -107,6 +107,21 @@ The test must fail against the current implementation because the terminal frame
 source contract before the later frame is accepted. Existing tests continue owning named-event
 registration, stale-source rejection, error forwarding, invalidation, and cleanup variants.
 
+## Compozy Impact Audit
+
+- **Native tools:** No impact. The fix changes no `compozy__*` ID, toolset, descriptor, schema
+  digest, risk flag, availability diagnostic, capability gate, or CLI/API fallback.
+- **Extensibility and hooks:** No impact. Extension tools, Loop effect delivery, hook dispatch,
+  skills/capabilities, resources, registries, bridge SDKs, MCP sidecars, and config lifecycle keep
+  their existing contracts. The Web continues consuming the existing `effect_results` event.
+- **Workspace data isolation:** No impact. The stream remains scoped by its workspace/run URL and
+  query key, and every frame must still match the active subscription's `workspace_id` and
+  `loop_run_id`. Subscription replacement, sequence fencing, and stale-frame rejection are
+  unchanged and remain covered by the canonical hook suite.
+- **Official Compozy skill:** No impact. The bundled skill already lists `effect_results` in the
+  Loop event vocabulary and describes the server stream as resumable; no documented tool, CLI,
+  hook, extension, or Loop behavior changes.
+
 ## QA
 
 After automated Web tests, typecheck, lint, build, and repository gates pass, isolated QA will use

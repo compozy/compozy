@@ -29,6 +29,21 @@ Testing Library, Turborepo, Playwright.
 - Persistent artifacts, source, tests, commits, issues, and PR text are English.
 - Run isolated combined visual QA with the #403 daemon fix before opening either PR.
 
+## Compozy Impact Audit
+
+- **Native tools:** No impact. The change does not alter `compozy__*` IDs, toolsets, descriptors,
+  input/output schemas, risk metadata, capability gates, or CLI/API fallbacks; it only changes how
+  the Web consumer owns an existing Loop SSE subscription.
+- **Extensibility and hooks:** No impact. Loop effect execution, `effect_results` production,
+  extension tools, hook dispatch, skills/capabilities, registries, bridge SDKs, MCP sidecars, and
+  config lifecycle are unchanged. The Web already understands the existing event kind and payload.
+- **Workspace data isolation:** No impact. The existing workspace-scoped stream URL, query keys,
+  `workspace_id`/`loop_run_id` frame checks, active-subscription identity fence, and sequence
+  deduplication remain unchanged. The regression suite must keep covering replacement and stale
+  subscription rejection.
+- **Official Compozy skill:** No impact. The bundled skill already documents the long-lived Loop
+  event stream and `effect_results`; no public tool, CLI, hook, extension, or Loop semantic changes.
+
 ---
 
 ### Task 1: Preserve post-terminal event delivery
@@ -168,8 +183,7 @@ Testing Library, Turborepo, Playwright.
   present, then run:
 
   ```bash
-  cd web && bun run test:e2e:install
-  cd ..
+  bash scripts/worktree.sh bootstrap --e2e --skip-install
   COMPOZY_TEST_DAEMON_BIN="$PWD/bin/compozy" make test-e2e-web
   ```
 
@@ -219,7 +233,13 @@ Testing Library, Turborepo, Playwright.
   Use `eng-qa-bootstrap` with the combined binary, distinct HOME, port, UDS, and Web proxy target.
   Register every daemon, Vite, browser, and helper PID in the lab before proceeding.
 
-- [ ] **Step 4: Prove structured success and denial**
+- [ ] **Step 4: Flag the affected QA tracker scenario**
+
+  Reset `docs/qa/scenarios/LP-terminal-outcome-notification.md` to `qa_status: untested` and append
+  a dated impact note before the acceptance walk. This is a changed user-visible Web behavior, not
+  a pure refactor. Preserve the scenario's full seven-outcome acceptance contract.
+
+- [ ] **Step 5: Prove structured success and denial**
 
   Publish a generic transform-only Loop with a same-workspace `on_done` tool effect. Confirm the
   retained event stream contains terminal `status_changed` followed by successful
@@ -227,7 +247,7 @@ Testing Library, Turborepo, Playwright.
   is retained with `outcome=failed` and `code=tool_denied`. Confirm `loop-effect` is absent from the
   public agent catalog.
 
-- [ ] **Step 5: Prove visual delivery live and after reload**
+- [ ] **Step 6: Prove visual delivery live and after reload**
 
   Open the successful run in the isolated Web app with the exact workspace selected. Confirm the
   timeline shows the successful terminal effect after the run reaches `Done`. Reload the page and
@@ -235,11 +255,15 @@ Testing Library, Turborepo, Playwright.
   effect is visible with its denial outcome. Capture screenshots and browser-console/network
   evidence.
 
-- [ ] **Step 6: Audit and tear down**
+- [ ] **Step 7: Record the tracker verdict, audit, and tear down**
 
-  Run the strict QA audit, then execute the exact bootstrap teardown. Require `clean: true`,
-  `survivors: []`, and no listeners on the lab HTTP/Vite ports. Remove the temporary integration
-  worktree only after evidence paths are recorded.
+  Update `LP-terminal-outcome-notification` with the structured reads, screenshots, console/network
+  evidence, and teardown reference. Mark it `pass` only if the complete acceptance walk passes; if
+  the public fixture still cannot seed all seven terminal outcomes, restore `blocked-verify` and
+  record that exact remaining blocker rather than broadening the focused QA claim. Run the strict QA
+  audit, then execute the exact bootstrap teardown. Require `clean: true`, `survivors: []`, and no
+  listeners on the lab HTTP/Vite ports. Remove the temporary integration worktree only after
+  evidence paths are recorded.
 
 ---
 
