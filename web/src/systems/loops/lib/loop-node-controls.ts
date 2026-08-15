@@ -116,7 +116,7 @@ export const LOOP_NODE_VERB_PRESENTATION: Record<LoopNodeVerb, LoopNodeVerbPrese
   },
   "resume-immediate": { label: "Resume now", mode: "immediate", destructive: false },
   "resume-wait": { label: "Resume with payload…", destructive: false },
-  cancel: { label: "Cancel", destructive: false },
+  cancel: { label: "Cancel…", destructive: false },
   kill: { label: "Kill…", destructive: true },
   requeue: { label: "Requeue…", destructive: false },
   "open-quarantine": { label: "Open quarantine entry", destructive: false },

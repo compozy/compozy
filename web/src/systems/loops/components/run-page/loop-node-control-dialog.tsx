@@ -1,15 +1,20 @@
 import { useState } from "react";
+import { Ban, Hourglass, Info, TriangleAlert } from "lucide-react";
 
-import { ConfirmDialog, Eyebrow, Label, RadioCard, Textarea } from "@compozy/ui";
+import { ConfirmDialog, Label, RadioCard, Textarea } from "@compozy/ui";
 
 import {
   LOOP_NODE_PAUSE_MODES,
   LOOP_NODE_RESUME_MODES,
+  type LoopControlAnswer,
   type LoopNodePauseMode,
   type LoopNodeVerb,
 } from "../../lib/loop-node-controls";
-import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
+import { isOpenWait, type LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
+import { LOOP_NODE_VERB_ICON_TONE, LOOP_NODE_VERB_ICONS } from "../../lib/loop-node-verb-icons";
 import { loopNodeStateStrip, loopNodeVerbConfirmCopy } from "../../lib/loop-node-verb-copy";
+import { checkLoopWaitPayload } from "../../lib/loop-node-wait-payload";
+import { LoopControlAnswerAlert } from "./loop-control-answer-alert";
 
 export interface LoopNodeVerbRequest {
   verb: LoopNodeVerb;
@@ -24,12 +29,16 @@ export interface LoopNodeVerbCommit {
   mode?: string;
   /** Raw JSON typed by the operator for a by-hand wait resume. */
   payload?: string;
+  /** Optional provenance posted on pause and requeue. */
+  reason?: string;
 }
 
 interface LoopNodeControlDialogProps {
   request: LoopNodeVerbRequest | null;
   isPending?: boolean;
-  /** The daemon's answer when the last attempt was rejected; shown inline. */
+  /** Deterministic daemon answer — rendered as information in the body. */
+  answer?: LoopControlAnswer;
+  /** Transport failure only. Deterministic answers must not land here. */
   error?: string;
   onOpenChange: (open: boolean) => void;
   onConfirm: (commit: LoopNodeVerbCommit) => void;
@@ -39,16 +48,23 @@ type OpenLoopNodeControlDialogProps = Omit<LoopNodeControlDialogProps, "request"
   request: LoopNodeVerbRequest;
 };
 
-const PAUSE_MODE_COPY: Record<LoopNodePauseMode, { title: string; description: string }> = {
+const PAUSE_MODE_COPY: Record<
+  LoopNodePauseMode,
+  { title: string; description: string; icon: typeof Hourglass }
+> = {
   drain: {
     title: "Let the current attempt finish",
     description: "Nothing is interrupted. The lane parks once the attempt in flight settles.",
+    icon: Hourglass,
   },
   cancel: {
     title: "Ask the current attempt to stop",
     description: "The in-flight attempt is asked to cancel, then the lane parks.",
+    icon: Ban,
   },
 };
+
+const DIALOG_WIDTH = { className: "sm:max-w-(--width-modal-sm)" };
 
 /**
  * The confirm surface for every node verb (VC-R3). It always shows the strip of
@@ -70,29 +86,53 @@ export function LoopNodeControlDialog({ request, ...props }: LoopNodeControlDial
 function LoopNodeControlDialogForm({
   request,
   isPending,
+  answer,
   error,
   onOpenChange,
   onConfirm,
 }: OpenLoopNodeControlDialogProps) {
   const [pauseMode, setPauseMode] = useState<LoopNodePauseMode>("drain");
   const [payload, setPayload] = useState("");
-  const copy = loopNodeVerbConfirmCopy(request.verb, request.node);
+  const [reason, setReason] = useState("");
+  const copy = loopNodeVerbConfirmCopy(request.verb, request.node, { pauseMode });
   if (!copy) return null;
   const isPause = request.verb === "pause";
+  const isRequeue = request.verb === "requeue";
   const isWaitResume = request.verb === "resume-wait";
+  const isKill = request.verb === "kill";
+  const offersReason = isPause || isRequeue;
+  const waitExpect = request.node.waits.find(isOpenWait)?.expect;
+  const waitCheck = isWaitResume ? checkLoopWaitPayload(payload, waitExpect) : null;
+  const waitInvalid = waitCheck !== null && !waitCheck.ok;
   const resumeMode =
     request.verb === "resume" ||
     request.verb === "resume-reset-attempts" ||
     request.verb === "resume-immediate"
       ? LOOP_NODE_RESUME_MODES[request.verb]
       : undefined;
+  const FootGlyph = isKill ? TriangleAlert : Info;
+  const confirmDisabled = Boolean(isPending) || waitInvalid;
   return (
     <ConfirmDialog
       cancelLabel={copy.cancelLabel}
+      confirmButtonProps={
+        isKill
+          ? { disabled: confirmDisabled, variant: "destructive-solid" }
+          : { disabled: confirmDisabled }
+      }
       confirmLabel={copy.confirmLabel}
-      contentProps={{ "data-testid": "loop-node-control-dialog" }}
+      contentProps={{ "data-testid": "loop-node-control-dialog", ...DIALOG_WIDTH }}
       description={copy.body}
       error={error}
+      eyebrow={copy.eyebrow}
+      footNote={
+        <>
+          <FootGlyph aria-hidden="true" />
+          <span>{copy.micro}</span>
+        </>
+      }
+      icon={LOOP_NODE_VERB_ICONS[request.verb]}
+      iconTone={LOOP_NODE_VERB_ICON_TONE[request.verb]}
       isPending={isPending}
       note={loopNodeStateStrip(request.node)}
       noteTone="info"
@@ -102,19 +142,16 @@ function LoopNodeControlDialogForm({
           node: request.node,
           mode: isPause ? LOOP_NODE_PAUSE_MODES[pauseMode] : resumeMode,
           payload: isWaitResume ? payload : undefined,
+          reason: offersReason ? reason : undefined,
         })
       }
       onOpenChange={onOpenChange}
       open
-      title={
-        <span className="flex flex-col gap-1">
-          <Eyebrow className="text-accent">{copy.eyebrow}</Eyebrow>
-          <span>{copy.title}</span>
-        </span>
-      }
+      title={copy.title}
       tone={copy.tone}
       body={
         <>
+          {answer ? <LoopControlAnswerAlert answer={answer} /> : null}
           {isPause ? (
             <fieldset className="flex flex-col gap-2">
               <legend className="sr-only">What happens to the attempt already in flight</legend>
@@ -122,6 +159,8 @@ function LoopNodeControlDialogForm({
                 <RadioCard
                   data-testid={`loop-node-pause-mode-${mode}`}
                   description={PAUSE_MODE_COPY[mode].description}
+                  icon={PAUSE_MODE_COPY[mode].icon}
+                  iconWellSize="lg"
                   key={mode}
                   onSelect={() => setPauseMode(mode)}
                   selected={pauseMode === mode}
@@ -132,11 +171,9 @@ function LoopNodeControlDialogForm({
           ) : null}
           {isWaitResume ? (
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="loop-node-wait-payload">
-                Payload{" "}
-                <span className="text-muted">validated against the wait&apos;s expectation</span>
-              </Label>
+              <Label htmlFor="loop-node-wait-payload">Payload</Label>
               <Textarea
+                aria-invalid={waitInvalid || undefined}
                 className="font-mono text-mono-id"
                 data-testid="loop-node-wait-payload"
                 id="loop-node-wait-payload"
@@ -144,12 +181,39 @@ function LoopNodeControlDialogForm({
                 rows={4}
                 value={payload}
               />
-              <p className="text-form-hint text-subtle">
-                One resume wins — a concurrent event claim answers with the winner.
-              </p>
+              {waitCheck?.hint ? (
+                <p
+                  className="font-mono text-form-hint text-subtle"
+                  data-testid="loop-node-wait-expect"
+                >
+                  {waitCheck.hint}
+                </p>
+              ) : null}
+              {waitCheck?.error ? (
+                <p
+                  className="text-form-hint text-danger"
+                  data-testid="loop-node-wait-invalid"
+                  role="alert"
+                >
+                  {waitCheck.error}
+                </p>
+              ) : null}
             </div>
           ) : null}
-          <p className="font-mono text-pill-group-badge text-faint">{copy.micro}</p>
+          {offersReason ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="loop-node-reason">
+                Reason <span className="text-muted">optional</span>
+              </Label>
+              <Textarea
+                data-testid="loop-node-reason"
+                id="loop-node-reason"
+                onChange={event => setReason(event.target.value)}
+                rows={3}
+                value={reason}
+              />
+            </div>
+          ) : null}
         </>
       }
     />

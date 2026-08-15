@@ -1,7 +1,11 @@
-import { ConfirmDialog, Eyebrow } from "@compozy/ui";
+import { Info, TriangleAlert } from "lucide-react";
 
-import { loopRunVerbConfirmCopy } from "../../lib/loop-node-verb-copy";
-import { loopStatusLabel } from "../../lib/loop-formatters";
+import { ConfirmDialog } from "@compozy/ui";
+
+import type { LoopControlAnswer } from "../../lib/loop-node-controls";
+import { LOOP_RUN_VERB_ICON_TONE, LOOP_RUN_VERB_ICONS } from "../../lib/loop-node-verb-icons";
+import { loopRunStateStrip, loopRunVerbConfirmCopy } from "../../lib/loop-node-verb-copy";
+import { LoopControlAnswerAlert } from "./loop-control-answer-alert";
 
 /** The run-level verbs that require a confirmation before they commit. */
 export type LoopRunConfirmVerb = "cancel" | "kill";
@@ -13,8 +17,13 @@ interface LoopRunControlDialogProps {
   /** The run's current status, restated in the strip the operator confirms against. */
   status: string;
   generation: number;
+  inFlightCount?: number;
+  waitingOnYouCount?: number;
+  elapsedLabel?: string;
   isPending?: boolean;
-  /** The daemon's answer when the last attempt was rejected; shown inline. */
+  /** Deterministic daemon answer — rendered as information in the body. */
+  answer?: LoopControlAnswer;
+  /** Transport failure only. Deterministic answers must not land here. */
   error?: string;
   onOpenChange: (open: boolean) => void;
   onConfirm: (verb: LoopRunConfirmVerb) => void;
@@ -34,36 +43,55 @@ export function LoopRunControlDialog({
   runId,
   status,
   generation,
+  inFlightCount,
+  waitingOnYouCount,
+  elapsedLabel,
   isPending,
+  answer,
   error,
   onOpenChange,
   onConfirm,
 }: LoopRunControlDialogProps) {
   if (!verb) return null;
   const copy = loopRunVerbConfirmCopy(verb, runId, status);
+  const isKill = verb === "kill";
+  const FootGlyph = isKill ? TriangleAlert : Info;
   return (
     <ConfirmDialog
       cancelLabel={copy.cancelLabel}
+      confirmButtonProps={isKill ? { variant: "destructive-solid" } : undefined}
       confirmLabel={copy.confirmLabel}
-      contentProps={{ "data-testid": "loop-run-control-dialog" }}
+      contentProps={{
+        "data-testid": "loop-run-control-dialog",
+        className: "sm:max-w-(--width-modal-sm)",
+      }}
       description={copy.body}
       error={error}
+      eyebrow={copy.eyebrow}
+      footNote={
+        <>
+          <FootGlyph aria-hidden="true" />
+          <span>{copy.micro}</span>
+        </>
+      }
+      icon={LOOP_RUN_VERB_ICONS[verb]}
+      iconTone={LOOP_RUN_VERB_ICON_TONE[verb]}
       isPending={isPending}
-      note={`${runId} is ${loopStatusLabel(status).toLowerCase()} · generation ${generation}`}
+      note={loopRunStateStrip({
+        runId,
+        status,
+        generation,
+        inFlightCount,
+        waitingOnYouCount,
+        elapsedLabel,
+      })}
       noteTone="info"
       onConfirm={() => onConfirm(verb)}
       onOpenChange={onOpenChange}
       open
-      title={
-        <span className="flex flex-col gap-1">
-          <Eyebrow className={verb === "kill" ? "text-danger" : "text-accent"}>
-            {copy.eyebrow}
-          </Eyebrow>
-          <span>{copy.title}</span>
-        </span>
-      }
+      title={copy.title}
       tone={copy.tone}
-      body={<p className="font-mono text-pill-group-badge text-faint">{copy.micro}</p>}
+      body={answer ? <LoopControlAnswerAlert answer={answer} /> : null}
     />
   );
 }

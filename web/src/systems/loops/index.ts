@@ -373,6 +373,7 @@ export { useLoopNodeInventory } from "./hooks/use-loop-node-inventory";
 export { type LoopNodeLifecycle, projectNodeLifecycles } from "./lib/loop-node-lifecycle";
 export {
   loopControlAnswer,
+  type LoopControlAnswer,
   type LoopNodeVerb,
   loopNodeWaitResumeItemIndex,
   loopRunVerbs,

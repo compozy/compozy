@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -36,10 +36,13 @@ const { LoopRunControlDialog } = await import("../run-page/loop-run-control-dial
 const { LoopNodeControlDialog } = await import("../run-page/loop-node-control-dialog");
 const { LoopQuarantineSheet } = await import("../run-page/loop-quarantine-sheet");
 const { LoopRunWaitsRail } = await import("../run-page/loop-run-waits-rail");
-const { loopNodeVerbs, loopNodeWaitResumeItemIndex } = await import("../../lib/loop-node-controls");
+const { LOOP_NODE_VERB_PRESENTATION, loopNodeVerbs, loopNodeWaitResumeItemIndex } =
+  await import("../../lib/loop-node-controls");
 const { buildNodeNowLines } = await import("../../lib/loop-node-now-view");
 const { quarantineChainRows } = await import("../../lib/loop-quarantine-entry");
-const { loopNodeVerbConfirmCopy } = await import("../../lib/loop-node-verb-copy");
+const { loopNodeStateStrip, loopNodeVerbConfirmCopy, loopRunStateStrip } =
+  await import("../../lib/loop-node-verb-copy");
+const { checkLoopWaitPayload } = await import("../../lib/loop-node-wait-payload");
 type LoopNodeLifecycle = import("../../lib/loop-node-lifecycle").LoopNodeLifecycle;
 const { LoopRunUsageRail } = await import("../run-page/loop-run-usage-rail");
 const { LoopRunAboutRail } = await import("../run-page/loop-run-about-rail");
@@ -715,6 +718,8 @@ describe("LoopRunControlDialog", () => {
     expect(dialog).toHaveTextContent("Kill run r-7c4e19?");
     // The strip is the guard against acting on a stale screen.
     expect(dialog).toHaveTextContent("r-7c4e19 is running · generation 2");
+    expect(dialog).not.toHaveTextContent("in flight");
+    expect(dialog).not.toHaveTextContent("waiting on you");
     expect(dialog).toHaveTextContent("interrupted mid-step");
     expect(dialog).toHaveTextContent("cause operator_kill");
     fireEvent.click(screen.getByRole("button", { name: "Kill run" }));
@@ -753,6 +758,25 @@ describe("LoopRunControlDialog", () => {
     );
     expect(screen.getByTestId("loop-run-control-dialog")).toHaveTextContent(
       "run already reached a terminal state"
+    );
+  });
+
+  it("Should append non-zero lane counts and elapsed to the run strip", () => {
+    render(
+      <LoopRunControlDialog
+        elapsedLabel="22m 14s"
+        generation={2}
+        inFlightCount={2}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        runId="r-7c4e19"
+        status="running"
+        verb="cancel"
+        waitingOnYouCount={1}
+      />
+    );
+    expect(screen.getByTestId("loop-run-control-dialog")).toHaveTextContent(
+      "r-7c4e19 is running · 2 lanes in flight · 1 waiting on you · generation 2 · 22m 14s"
     );
   });
 
@@ -1020,6 +1044,67 @@ describe("LoopNodeControlDialog", () => {
 
     expect(screen.getByTestId("loop-node-wait-payload")).toHaveValue("");
   });
+
+  it("Should disable wait-resume confirm until the payload matches expect", () => {
+    const waitingNode = loopNodeLifecycleFixture({
+      state: "waiting",
+      parked: true,
+      waits: [
+        {
+          nodeId: "task_03",
+          generation: 2,
+          itemIndex: 0,
+          kind: "event",
+          claimState: "waiting",
+          escalationCursor: 0,
+          admissionFailures: 0,
+          ageSeconds: 10,
+          createdAt: "2026-08-03T14:00:00Z",
+          expect: { type: "object", required: ["env"] },
+        },
+      ],
+    });
+    render(
+      <LoopNodeControlDialog
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        request={{ verb: "resume-wait", node: waitingNode }}
+      />
+    );
+    expect(screen.getByTestId("loop-node-wait-expect")).toHaveTextContent("env");
+    expect(screen.getByRole("button", { name: "Resume lane" })).toBeDisabled();
+    fireEvent.change(screen.getByTestId("loop-node-wait-payload"), {
+      target: { value: '{"environment":"staging"}' },
+    });
+    expect(screen.getByTestId("loop-node-wait-invalid")).toHaveTextContent("Missing key env");
+    expect(screen.getByRole("button", { name: "Resume lane" })).toBeDisabled();
+    fireEvent.change(screen.getByTestId("loop-node-wait-payload"), {
+      target: { value: '{"env":"staging"}' },
+    });
+    expect(screen.queryByTestId("loop-node-wait-invalid")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume lane" })).toBeEnabled();
+  });
+
+  it("Should render a deterministic answer as information, not a transport error", () => {
+    render(
+      <LoopNodeControlDialog
+        answer={{
+          allowedTransitions: ["pause"],
+          detail: "task_03 isn't paused — it's running.",
+          micro: "node_not_paused · state running",
+          title: "Nothing to resume",
+          tone: "info",
+        }}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+        request={{ verb: "resume", node }}
+      />
+    );
+    const answer = screen.getByTestId("loop-control-answer");
+    expect(answer).toHaveAttribute("data-variant", "info");
+    expect(answer).toHaveTextContent("Nothing to resume");
+    expect(answer).toHaveTextContent("node_not_paused · state running");
+  });
 });
 
 describe("LoopNodeControlMenu", () => {
@@ -1042,6 +1127,7 @@ describe("LoopNodeControlMenu", () => {
     const trigger = screen.getByTestId("loop-node-menu-trigger-task_03");
     fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
     await user.click(trigger);
+    expect(LOOP_NODE_VERB_PRESENTATION.cancel.label).toBe("Cancel…");
     expect(await screen.findByTestId("loop-node-verb-requeue")).toBeInTheDocument();
     expect(screen.getByTestId("loop-node-verb-open-quarantine")).toBeInTheDocument();
     // Resume is never offered for quarantine — requeue is the recovery verb.
@@ -1114,6 +1200,68 @@ describe("loopNodeVerbConfirmCopy", () => {
     );
     expect(copy?.body).not.toContain("episode");
   });
+
+  it("Should reflect the selected pause mode in the micro trail", () => {
+    const node = loopNodeLifecycleFixture();
+    expect(loopNodeVerbConfirmCopy("pause", node, { pauseMode: "drain" })?.micro).toBe(
+      "mode: drain"
+    );
+    expect(loopNodeVerbConfirmCopy("pause", node, { pauseMode: "cancel" })?.micro).toBe(
+      "mode: cancel"
+    );
+  });
+});
+
+describe("loopNodeStateStrip", () => {
+  it("Should append the attention clause and last evidence without a raw ISO", () => {
+    const strip = loopNodeStateStrip(
+      loopNodeLifecycleFixture({
+        attentionFlag: "silence",
+        attentionReason: "silent for 31m",
+        lastEvidenceAt: "2026-08-03T14:21:00Z",
+        outputStatus: "running",
+      })
+    );
+    expect(strip).toContain("flagged: silent for 31m");
+    expect(strip).toContain("last evidence");
+    expect(strip).not.toContain("2026-08-03T14:21:00Z");
+  });
+
+  it("Should surface nextAttemptAt on a retrying strip", () => {
+    const strip = loopNodeStateStrip(
+      loopNodeLifecycleFixture({
+        attempt: 2,
+        nextAttemptAt: "2099-01-01T00:00:00Z",
+        state: "retrying",
+      })
+    );
+    expect(strip).toContain("is retrying");
+    expect(strip).toContain("attempt 2");
+    expect(strip).toContain("next");
+    expect(strip).not.toContain("2099-01-01T00:00:00Z");
+  });
+});
+
+describe("loopRunStateStrip", () => {
+  it("Should omit zero lane counts", () => {
+    expect(
+      loopRunStateStrip({
+        generation: 2,
+        inFlightCount: 0,
+        runId: "r-7c4e19",
+        status: "running",
+        waitingOnYouCount: 0,
+      })
+    ).toBe("r-7c4e19 is running · generation 2");
+  });
+});
+
+describe("checkLoopWaitPayload", () => {
+  it("Should name the first missing required key", () => {
+    const check = checkLoopWaitPayload("{}", { type: "object", required: ["env"] });
+    expect(check.ok).toBe(false);
+    expect(check.error).toBe("Missing key env.");
+  });
 });
 
 describe("LoopQuarantineSheet", () => {
@@ -1137,7 +1285,7 @@ describe("LoopQuarantineSheet", () => {
 
   it("Should offer requeue only while refreshed truth still reports quarantine", async () => {
     const user = userEvent.setup();
-    const onRequeue = vi.fn();
+    const onVerb = vi.fn();
     const quarantined = loopNodeLifecycleFixture({
       state: "quarantined",
       parked: true,
@@ -1146,7 +1294,7 @@ describe("LoopQuarantineSheet", () => {
     });
     const props = {
       onOpenChange: vi.fn(),
-      onRequeue,
+      onVerb,
       open: true,
       runId: "r-1",
     };
@@ -1154,10 +1302,13 @@ describe("LoopQuarantineSheet", () => {
       <LoopQuarantineSheet {...props} isRequeuePending node={quarantined} />
     );
     expect(screen.getByTestId("loop-quarantine-requeue")).toBeDisabled();
+    expect(screen.getByTestId("loop-quarantine-cancel")).toBeInTheDocument();
 
     rerender(<LoopQuarantineSheet {...props} node={quarantined} />);
     await user.click(screen.getByTestId("loop-quarantine-requeue"));
-    expect(onRequeue).toHaveBeenCalledWith(quarantined);
+    expect(onVerb).toHaveBeenCalledWith("requeue", quarantined);
+    await user.click(screen.getByTestId("loop-quarantine-cancel"));
+    expect(onVerb).toHaveBeenCalledWith("cancel", quarantined);
 
     rerender(
       <LoopQuarantineSheet
@@ -1166,6 +1317,7 @@ describe("LoopQuarantineSheet", () => {
       />
     );
     expect(screen.queryByTestId("loop-quarantine-requeue")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-quarantine-cancel")).not.toBeInTheDocument();
   });
 
   it("Should pair a retained episode with the requeue from the same generation", () => {
@@ -1184,6 +1336,43 @@ describe("LoopQuarantineSheet", () => {
     });
     expect(rows[0].openedBy).toBeUndefined();
     expect(rows[1].openedBy?.actorId).toBe("correct");
+  });
+
+  it("Should carry the requeue reason on the episode boundary", async () => {
+    render(
+      <LoopQuarantineSheet
+        node={loopNodeLifecycleFixture({
+          quarantineEntry: {
+            ...entry,
+            episodes: [
+              { generation: 7, attempts: [{ attempt: 1, cause: "first fail" }] },
+              { generation: 9, attempts: [{ attempt: 1, cause: "second fail" }] },
+            ],
+            requeues: [
+              {
+                actorKind: "user",
+                actorId: "operator",
+                generation: 9,
+                reason: "rotated the token",
+              },
+            ],
+            attemptCount: 2,
+          },
+          quarantined: true,
+          state: "quarantined",
+        })}
+        onOpenChange={vi.fn()}
+        onVerb={vi.fn()}
+        open
+        runId="r-1"
+      />
+    );
+    expect(await screen.findByTestId("loop-quarantine-episode-1")).toHaveTextContent(
+      "rotated the token"
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("loop-quarantine-facts")).toBeInTheDocument();
+    });
   });
 });
 

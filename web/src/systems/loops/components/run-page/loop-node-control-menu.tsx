@@ -1,15 +1,4 @@
-import {
-  Ban,
-  MoreHorizontal,
-  Pause,
-  Play,
-  Redo2,
-  ShieldAlert,
-  SkipForward,
-  TimerReset,
-  Zap,
-} from "lucide-react";
-import type { ComponentType } from "react";
+import { MoreHorizontal } from "lucide-react";
 
 import {
   Button,
@@ -26,6 +15,7 @@ import {
   type LoopNodeVerb,
   loopNodeVerbs,
 } from "../../lib/loop-node-controls";
+import { LOOP_NODE_VERB_ICONS } from "../../lib/loop-node-verb-icons";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 
 interface LoopNodeControlMenuProps {
@@ -34,20 +24,6 @@ interface LoopNodeControlMenuProps {
   isPending?: boolean;
   onVerb: (verb: LoopNodeVerb, node: LoopNodeLifecycle) => void;
 }
-
-type IconComponent = ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" }>;
-
-const VERB_ICON: Record<LoopNodeVerb, IconComponent> = {
-  pause: Pause,
-  resume: Play,
-  "resume-reset-attempts": TimerReset,
-  "resume-immediate": SkipForward,
-  "resume-wait": Play,
-  cancel: Ban,
-  kill: Zap,
-  requeue: Redo2,
-  "open-quarantine": ShieldAlert,
-};
 
 /**
  * Verbs that end work sit below a separator so they are never the reflex click.
@@ -92,7 +68,7 @@ export function LoopNodeControlMenu({
       <DropdownMenuContent align="end" className="min-w-56">
         {safeVerbs.map(verb => {
           const presentation = LOOP_NODE_VERB_PRESENTATION[verb];
-          const Icon = VERB_ICON[verb];
+          const Icon = LOOP_NODE_VERB_ICONS[verb];
           return (
             <DropdownMenuItem
               data-testid={`loop-node-verb-${verb}`}
@@ -110,7 +86,7 @@ export function LoopNodeControlMenu({
         {safeVerbs.length > 0 && stoppingVerbs.length > 0 ? <DropdownMenuSeparator /> : null}
         {stoppingVerbs.map(verb => {
           const presentation = LOOP_NODE_VERB_PRESENTATION[verb];
-          const Icon = VERB_ICON[verb];
+          const Icon = LOOP_NODE_VERB_ICONS[verb];
           return (
             <DropdownMenuItem
               className={presentation.destructive ? "text-danger focus:text-danger" : undefined}

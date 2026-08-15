@@ -109,6 +109,7 @@ function LoopRunDetail({
     nodeControls.quarantineNodeId === null
       ? null
       : (page.nodesById.get(nodeControls.quarantineNodeId) ?? null);
+  const sheetNestsNodeDialog = quarantineNode !== null && nodeControls.request !== null;
 
   const loopName = page.run?.loop_name;
   useTopbarSlot({
@@ -245,17 +246,25 @@ function LoopRunDetail({
         onStartNewRun={page.handleStartNewRun}
       />
       <LoopNodeControlDialog
-        error={nodeControls.answer}
+        answer={sheetNestsNodeDialog ? undefined : nodeControls.answer}
+        error={sheetNestsNodeDialog ? undefined : nodeControls.error}
         isPending={nodeControls.isPending}
         onConfirm={nodeControls.commit}
         onOpenChange={open => {
           if (!open) nodeControls.closeDialog();
         }}
-        request={nodeControls.request}
+        request={sheetNestsNodeDialog ? null : nodeControls.request}
       />
       <LoopRunControlDialog
+        answer={runVerb === "kill" ? page.killAnswer : page.cancelAnswer}
+        elapsedLabel={page.elapsedLabel}
         error={runVerb === "kill" ? page.killError : page.cancelError}
         generation={page.effectiveRun.generation}
+        inFlightCount={
+          page.nodeLifecycles.filter(
+            node => !node.parked && node.state !== "canceled" && node.cancelState !== "canceled"
+          ).length
+        }
         isPending={page.isCancelPending || page.isKillPending}
         onConfirm={verb => {
           void confirmRunControl(verb);
@@ -269,6 +278,7 @@ function LoopRunDetail({
         runId={runId}
         status={page.effectiveRun.status}
         verb={runVerb}
+        waitingOnYouCount={page.waitingNodes.length}
       />
       <LoopQuarantineSheet
         isRequeuePending={nodeControls.isPending}
@@ -276,10 +286,23 @@ function LoopRunDetail({
         onOpenChange={open => {
           if (!open) nodeControls.closeQuarantine();
         }}
-        onRequeue={node => nodeControls.onVerb("requeue", node)}
+        onVerb={nodeControls.onVerb}
         open={quarantineNode !== null}
         runId={runId}
-      />
+      >
+        {sheetNestsNodeDialog ? (
+          <LoopNodeControlDialog
+            answer={nodeControls.answer}
+            error={nodeControls.error}
+            isPending={nodeControls.isPending}
+            onConfirm={nodeControls.commit}
+            onOpenChange={open => {
+              if (!open) nodeControls.closeDialog();
+            }}
+            request={nodeControls.request}
+          />
+        ) : null}
+      </LoopQuarantineSheet>
     </>
   );
 }
