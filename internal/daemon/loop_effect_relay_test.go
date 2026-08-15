@@ -9,8 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/testutil"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -51,6 +55,108 @@ func TestLoopEffectRelayShouldDrainCommittedEntriesInIsolation(t *testing.T) {
 		calls[0].scope.WorkspaceID != "ws-effect" || calls[0].scope.AgentName != loopEffectActorName ||
 		calls[0].scope.ActorKind != string(workspaceaccess.ActorDaemon) {
 		t.Fatalf("tool calls = %#v, want daemon:loop-effect workspace correlation", calls)
+	}
+}
+
+func TestLoopEffectRelayShouldDeliverNativePromptThroughDaemonWorkspaceScope(t *testing.T) {
+	t.Parallel()
+
+	entry := loopEffectEntryForTest(
+		"native-session-prompt",
+		0,
+		`{"kind":"tool","tool":"compozy__session_prompt","with":{"workspace":"ws-effect","session_id":"sess-target","message":"Continue the verified flow.","message_id":"msg-effect","idempotency_key":"idem-effect"}}`,
+	)
+	effectStore := newLoopEffectStoreFake(entry)
+	var (
+		promptCalls int
+		promptID    string
+		promptOpts  session.SendPromptOpts
+	)
+	sessions := testutil.StubSessionManager{
+		StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if id != "sess-target" {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{
+				ID:          "sess-target",
+				AgentName:   "worker",
+				WorkspaceID: "ws-effect",
+				State:       session.StateActive,
+			}, nil
+		},
+		SendPromptFn: func(
+			ctx context.Context,
+			id string,
+			opts session.SendPromptOpts,
+		) (session.SendPromptResult, error) {
+			if err := ctx.Err(); err != nil {
+				return session.SendPromptResult{}, err
+			}
+			promptCalls++
+			promptID = id
+			promptOpts = opts
+			return session.SendPromptResult{
+				Status:    "accepted",
+				Delivery:  store.SessionInputDeliveryDirect,
+				NewTurnID: "turn-effect",
+			}, nil
+		},
+	}
+	cfg := testConfig(t, testHomePaths(t))
+	cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+	agents := &nativeToolPolicyAgentResolverStub{
+		agent: compozyconfig.AgentDef{Name: "authored-agent", Provider: "opencode", Prompt: "Work."},
+	}
+	policyResolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+		Config:            &cfg,
+		Sessions:          sessions,
+		AgentResolver:     agents,
+		ApprovalAvailable: true,
+	})
+	if err != nil {
+		t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+	}
+	registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+		t,
+		&daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+		},
+		policyResolver,
+		nil,
+	)
+	tools := &loopEffectRegistryRecorder{registry: registry}
+	relay := &loopEffectRelay{store: effectStore, tools: tools}
+
+	report, err := relay.DrainPendingLoopEffects(t.Context(), looppkg.EffectDrainPage{})
+	if err != nil {
+		t.Fatalf("DrainPendingLoopEffects() error = %v", err)
+	}
+	acks := effectStore.acknowledgements()
+	if report.Read != 1 || report.Delivered != 1 || report.Failed != 0 ||
+		len(acks) != 1 || acks[0].Outcome != looppkg.EffectResultOK {
+		t.Fatalf("drain report/acknowledgements = %#v/%#v, want one successful delivery", report, acks)
+	}
+	if promptCalls != 1 || promptID != "sess-target" || promptOpts.Message != "Continue the verified flow." {
+		t.Fatalf(
+			"prompt calls/id/options = %d/%q/%#v, want one prompt to sess-target",
+			promptCalls,
+			promptID,
+			promptOpts,
+		)
+	}
+	calls := tools.callsSnapshot()
+	if len(calls) != 1 || calls[0].scope.ActorKind != string(workspaceaccess.ActorDaemon) ||
+		calls[0].scope.WorkspaceID != "ws-effect" ||
+		calls[0].request.ActorKind != string(workspaceaccess.ActorDaemon) ||
+		calls[0].request.CorrelationID != entry.DeliveryID {
+		t.Fatalf("native registry calls = %#v, want daemon actor and stable delivery correlation", calls)
+	}
+	if len(agents.calls) != 0 {
+		t.Fatalf("ResolveAgent calls = %#v, want no authored-agent lookup for daemon effect", agents.calls)
 	}
 }
 
@@ -354,6 +460,37 @@ func (s *loopEffectStoreFake) acknowledgements() []looppkg.EffectAcknowledgement
 type loopEffectToolCall struct {
 	scope   toolspkg.Scope
 	request toolspkg.CallRequest
+}
+
+type loopEffectRegistryRecorder struct {
+	mu       sync.Mutex
+	registry *toolspkg.RuntimeRegistry
+	calls    []loopEffectToolCall
+}
+
+func (r *loopEffectRegistryRecorder) Get(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	id toolspkg.ToolID,
+) (toolspkg.ToolView, error) {
+	return r.registry.Get(ctx, scope, id)
+}
+
+func (r *loopEffectRegistryRecorder) Call(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	r.mu.Lock()
+	r.calls = append(r.calls, loopEffectToolCall{scope: scope, request: req})
+	r.mu.Unlock()
+	return r.registry.Call(ctx, scope, req)
+}
+
+func (r *loopEffectRegistryRecorder) callsSnapshot() []loopEffectToolCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]loopEffectToolCall(nil), r.calls...)
 }
 
 type loopEffectToolsFake struct {

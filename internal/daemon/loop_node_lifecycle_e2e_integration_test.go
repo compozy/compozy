@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -19,12 +20,13 @@ import (
 )
 
 const (
-	lifecycleRetryLoopName      = "node-lifecycle-retry"
-	lifecycleRouteLoopName      = "node-lifecycle-route"
-	lifecycleEscalationLoopName = "node-lifecycle-escalation"
+	lifecycleRetryLoopName        = "node-lifecycle-retry"
+	lifecycleRouteLoopName        = "node-lifecycle-route"
+	lifecycleEscalationLoopName   = "node-lifecycle-escalation"
+	lifecycleTerminalToolLoopName = "node-lifecycle-terminal-tool"
 )
 
-func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteAndEscalate(t *testing.T) {
+func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteEscalateAndDeliverEffects(t *testing.T) {
 	acpmock.RequireDriver(t)
 	workspaceRoot := t.TempDir()
 	seedLoopNodeLifecycleDefinitions(t, workspaceRoot)
@@ -39,7 +41,12 @@ func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteAndEscalate(t *testing.T) {
 		StartTimeout: 30 * time.Second,
 	})
 
-	for _, name := range []string{lifecycleRetryLoopName, lifecycleRouteLoopName, lifecycleEscalationLoopName} {
+	for _, name := range []string{
+		lifecycleRetryLoopName,
+		lifecycleRouteLoopName,
+		lifecycleEscalationLoopName,
+		lifecycleTerminalToolLoopName,
+	} {
 		waitForLoopCatalogEntry(t, t.Context(), harness, name)
 	}
 
@@ -137,15 +144,52 @@ func TestDaemonE2ELoopNodeLifecycleShouldRetryRouteAndEscalate(t *testing.T) {
 			"escalation generation 2", "semantic escalation", `"disposition":"escalated"`,
 		})
 	})
+
+	t.Run("Should deliver a daemon-owned terminal tool effect without a public agent", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+		run := runLoopViaHTTP(t, ctx, harness, lifecycleTerminalToolLoopName)
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusDone)
+
+		events := readLoopRunSSEUntil(
+			t,
+			ctx,
+			harness,
+			loopRunEventsPath(harness.WorkspaceID, run.ID, 0),
+			func(events []loopRunSSEEvent) bool {
+				_, found := lifecycleEffectResultForTrigger(t, events, "on_done")
+				return found
+			},
+		)
+		result, found := lifecycleEffectResultForTrigger(t, events, "on_done")
+		if !found {
+			t.Fatalf("events = %#v, want a durable on_done effect result", events)
+		}
+		if result.Outcome != "ok" || result.DeliveryID == "" || result.Code != "" || result.Cause != "" {
+			t.Fatalf("on_done effect result = %#v, want a successful native delivery", result)
+		}
+
+		var agents compozycontract.AgentsResponse
+		agentsPath := "/api/agents?workspace=" + url.QueryEscape(harness.WorkspaceRoot)
+		if err := harness.HTTPJSON(ctx, http.MethodGet, agentsPath, nil, &agents); err != nil {
+			t.Fatalf("list authored agents after terminal effect error = %v", err)
+		}
+		for _, agent := range agents.Agents {
+			if agent.Name == loopEffectActorName {
+				t.Fatalf("authored agent catalog exposed daemon audit label %q: %#v", loopEffectActorName, agent)
+			}
+		}
+	})
 }
 
 func seedLoopNodeLifecycleDefinitions(t testing.TB, workspaceRoot string) {
 	t.Helper()
 	root := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
 	for name, source := range map[string]string{
-		lifecycleRetryLoopName:      lifecycleRetryLoopYAML(),
-		lifecycleRouteLoopName:      lifecycleRouteLoopYAML(),
-		lifecycleEscalationLoopName: lifecycleEscalationLoopYAML(),
+		lifecycleRetryLoopName:        lifecycleRetryLoopYAML(),
+		lifecycleRouteLoopName:        lifecycleRouteLoopYAML(),
+		lifecycleEscalationLoopName:   lifecycleEscalationLoopYAML(),
+		lifecycleTerminalToolLoopName: lifecycleTerminalToolLoopYAML(),
 	} {
 		if _, _, err := looppkg.WriteDefinition(root, []byte(source), looppkg.WriteDefinitionOptions{
 			Source: looppkg.SourceWorkspace,
@@ -153,6 +197,36 @@ func seedLoopNodeLifecycleDefinitions(t testing.TB, workspaceRoot string) {
 			t.Fatalf("WriteDefinition(%s) error = %v", name, err)
 		}
 	}
+}
+
+func lifecycleTerminalToolLoopYAML() string {
+	return `apiVersion: compozy.loop/v1
+kind: Loop
+meta: { name: node-lifecycle-terminal-tool, description: "E2E terminal tool effect probe." }
+concurrency: allow
+contract:
+  goal: "Read the current workspace after deterministic work completes."
+  definition_of_done: "The transform succeeds and its terminal native tool effect is delivered."
+  stop_when: "nodes.prepare.status == 'succeeded'"
+  verification: []
+  terminal_states: [done, failed, blocked, exhausted, stalled]
+  iteration_cap: 1
+  no_progress: { window: 2, hash_fields: ["nodes.prepare.output"] }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+  on_done:
+    - tool: compozy__workspace_info
+      with:
+        workspace: "{{ .effect.identity.workspace_id }}"
+graph:
+  nodes:
+    - id: prepare
+      class: action
+      kind: transform
+      params:
+        map: { status: { value: ready } }
+  edges: []
+start: [{ kind: http }, { kind: uds }]
+`
 }
 
 func lifecycleRetryLoopYAML() string {
@@ -276,6 +350,35 @@ func assertLifecycleEffectEventContains(
 		}
 	}
 	t.Fatalf("events = %#v, want %s payload containing %v", events, kind, fragments)
+}
+
+type lifecycleEffectResult struct {
+	DeliveryID string `json:"delivery_id"`
+	Trigger    string `json:"trigger"`
+	Outcome    string `json:"outcome"`
+	Code       string `json:"code"`
+	Cause      string `json:"cause"`
+}
+
+func lifecycleEffectResultForTrigger(
+	t testing.TB,
+	events []loopRunSSEEvent,
+	trigger string,
+) (lifecycleEffectResult, bool) {
+	t.Helper()
+	for _, event := range events {
+		if event.Kind != compozycontract.LoopRunEventEffectResults {
+			continue
+		}
+		var result lifecycleEffectResult
+		if err := json.Unmarshal(event.Payload, &result); err != nil {
+			t.Fatalf("decode effect_results payload %s error = %v", event.Payload, err)
+		}
+		if result.Trigger == trigger {
+			return result, true
+		}
+	}
+	return lifecycleEffectResult{}, false
 }
 
 func lifecycleEscalationLoopYAML() string {

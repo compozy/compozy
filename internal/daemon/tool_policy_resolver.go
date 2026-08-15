@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type nativeToolPolicyResolverDeps struct {
@@ -102,7 +103,8 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if err := applySessionToolPolicy(&inputs, info); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
-	if resolvedScope.AgentName != "" {
+	if resolvedScope.AgentName != "" &&
+		workspaceaccess.ActorKind(resolvedScope.ActorKind) != workspaceaccess.ActorDaemon {
 		if err := r.applyAgentToolPolicy(&inputs, resolvedScope.AgentName, resolvedWorkspace, cfg); err != nil {
 			if inputs.Session.Enforced && errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
 				return inputs, nil
@@ -320,6 +322,7 @@ func normalizeToolPolicyScope(scope toolspkg.Scope) toolspkg.Scope {
 		WorkspaceID: strings.TrimSpace(scope.WorkspaceID),
 		SessionID:   strings.TrimSpace(scope.SessionID),
 		AgentName:   strings.TrimSpace(scope.AgentName),
+		ActorKind:   strings.TrimSpace(scope.ActorKind),
 		Operator:    scope.Operator,
 	}
 }

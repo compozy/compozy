@@ -1760,6 +1760,70 @@ func TestDaemonNativeTools(t *testing.T) {
 		if !errors.Is(err, policyErr) {
 			t.Fatalf("AuthorizeCallInput(policy failure) error = %v, want preserved policy error", err)
 		}
+
+		daemonScope := toolspkg.Scope{
+			WorkspaceID: "ws-1",
+			AgentName:   loopEffectActorName,
+			ActorKind:   string(workspaceaccess.ActorDaemon),
+		}
+		daemonPolicy := &recordingNativeWorkspaceAccessPolicy{}
+		daemonBinder := newNativeWorkspaceInputBinder(
+			nativeNetworkTestWorkspaceService(t),
+			nil,
+			daemonPolicy,
+			nil,
+		)
+		daemonSameWorkspaceCall := toolspkg.CallRequest{
+			ToolID: descriptor.ID,
+			Input:  json.RawMessage(`{"workspace":"ws-1"}`),
+		}
+		if err := daemonBinder.AuthorizeCallInput(
+			t.Context(),
+			daemonScope,
+			descriptor,
+			daemonSameWorkspaceCall,
+		); err != nil {
+			t.Fatalf("AuthorizeCallInput(daemon same workspace) error = %v", err)
+		}
+		if daemonPolicy.calls != 0 {
+			t.Fatalf("daemon same-workspace policy calls = %d, want zero", daemonPolicy.calls)
+		}
+
+		daemonForeignWorkspaceCall := toolspkg.CallRequest{
+			ToolID: descriptor.ID,
+			Input:  json.RawMessage(`{"workspace":"ws-2"}`),
+		}
+		err = daemonBinder.AuthorizeCallInput(
+			t.Context(),
+			daemonScope,
+			descriptor,
+			daemonForeignWorkspaceCall,
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if daemonPolicy.calls != 1 ||
+			daemonPolicy.last.Actor.Kind != workspaceaccess.ActorDaemon ||
+			daemonPolicy.last.Actor.WorkspaceID != "ws-1" ||
+			daemonPolicy.last.TargetWorkspaceID != "ws-2" {
+			t.Fatalf(
+				"daemon foreign-workspace policy calls/request = %d/%#v, want daemon ws-1 to ws-2",
+				daemonPolicy.calls,
+				daemonPolicy.last,
+			)
+		}
+
+		err = daemonBinder.AuthorizeCallInput(
+			t.Context(),
+			toolspkg.Scope{
+				AgentName: loopEffectActorName,
+				ActorKind: string(workspaceaccess.ActorDaemon),
+			},
+			descriptor,
+			daemonSameWorkspaceCall,
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if !strings.Contains(err.Error(), "daemon scope has no workspace id") {
+			t.Fatalf("AuthorizeCallInput(daemon missing workspace) error = %v, want missing workspace identity", err)
+		}
 	})
 
 	t.Run("Should reject foreign workspace inputs for scoped session and skill native tools", func(t *testing.T) {
@@ -9326,6 +9390,88 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
 
+	t.Run("Should resolve daemon policy without treating its audit label as an authored agent", func(t *testing.T) {
+		t.Parallel()
+
+		globalConfig := testConfig(t, testHomePaths(t))
+		globalConfig.Permissions.Mode = compozyconfig.PermissionModeDenyAll
+		workspaceConfig := globalConfig
+		workspaceConfig.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		workspaceConfig.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultAsk
+		workspaces := apitest.StubWorkspaceService{ResolveFn: func(
+			ctx context.Context,
+			ref string,
+		) (workspacepkg.ResolvedWorkspace, error) {
+			if err := ctx.Err(); err != nil {
+				return workspacepkg.ResolvedWorkspace{}, err
+			}
+			if ref != "ws-effect" {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: "ws-effect", RootDir: t.TempDir()},
+				WorkspaceID: "ws-effect",
+				Config:      workspaceConfig,
+			}, nil
+		}}
+		agents := &nativeToolPolicyAgentResolverStub{
+			agent: compozyconfig.AgentDef{Name: "authored-agent", Provider: "opencode", Prompt: "Work."},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:            &globalConfig,
+			WorkspaceResolver: workspaces,
+			AgentResolver:     agents,
+			ApprovalAvailable: true,
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+
+		inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{
+			WorkspaceID: "ws-effect",
+			AgentName:   loopEffectActorName,
+			ActorKind:   string(workspaceaccess.ActorDaemon),
+		})
+		if err != nil {
+			t.Fatalf("Resolve(daemon policy) error = %v", err)
+		}
+		if inputs.SystemPermissionMode != toolspkg.PermissionModeApproveAll ||
+			inputs.ExternalDefault != toolspkg.ExternalDefaultAsk ||
+			!inputs.ApprovalAvailable {
+			t.Fatalf("Resolve(daemon policy) inputs = %#v, want workspace policy and approvals", inputs)
+		}
+		if len(agents.calls) != 0 {
+			t.Fatalf("ResolveAgent calls = %#v, want no authored-agent lookup for daemon audit label", agents.calls)
+		}
+	})
+
+	t.Run("Should reject an unknown audit label for non-daemon callers", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := testConfig(t, testHomePaths(t))
+		agents := &nativeToolPolicyAgentResolverStub{
+			agent: compozyconfig.AgentDef{Name: "authored-agent", Provider: "opencode", Prompt: "Work."},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:        &cfg,
+			AgentResolver: agents,
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+
+		_, err = resolver.Resolve(t.Context(), toolspkg.Scope{
+			AgentName: loopEffectActorName,
+			ActorKind: string(workspaceaccess.ActorAgentSession),
+		})
+		if !errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+			t.Fatalf("Resolve(non-daemon unknown agent) error = %v, want ErrAgentNotAvailable", err)
+		}
+		if !slices.Equal(agents.calls, []string{loopEffectActorName}) {
+			t.Fatalf("ResolveAgent calls = %#v, want one lookup for non-daemon caller", agents.calls)
+		}
+	})
+
 	t.Run("Should trust only development extensions linked to the registered runtime workspace", func(t *testing.T) {
 		t.Parallel()
 
@@ -10065,12 +10211,14 @@ func (s *nativeToolPolicySessionStub) Status(context.Context, string) (*session.
 type nativeToolPolicyAgentResolverStub struct {
 	agent compozyconfig.AgentDef
 	err   error
+	calls []string
 }
 
 func (r *nativeToolPolicyAgentResolverStub) ResolveAgent(
 	name string,
 	_ *workspacepkg.ResolvedWorkspace,
 ) (compozyconfig.AgentDef, error) {
+	r.calls = append(r.calls, name)
 	if r.err != nil {
 		return compozyconfig.AgentDef{}, r.err
 	}
