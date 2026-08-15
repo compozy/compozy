@@ -373,27 +373,33 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	cfg.Network.Enabled = false
 	registry := &recordingRegistry{path: homePaths.DatabaseFile}
 	ownerSawDisabledAvailability := false
+	ownerSawSessionAttachments := false
+	httpSawSessionAttachments := false
+	udsSawSessionAttachments := false
 
 	d := newTestDaemon(t, homePaths, &cfg)
 	d.openRegistry = func(context.Context, string) (Registry, error) {
 		return registry, nil
 	}
-	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+	d.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
 		availability, err := registry.GetNetworkAvailability(testutil.Context(t))
 		if err != nil {
 			t.Fatalf("GetNetworkAvailability() before session owner construction error = %v", err)
 		}
 		ownerSawDisabledAvailability = !availability.Enabled &&
 			availability.UpdatedBy == "config.reload.boot"
+		ownerSawSessionAttachments = deps.SessionAttachments != nil
 		return &fakeSessionManager{}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 		return &fakeObserver{}, nil
 	}
-	d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+	d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+		httpSawSessionAttachments = deps.SessionAttachments != nil
 		return &fakeServer{name: "http"}, nil
 	}
-	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+	d.udsFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+		udsSawSessionAttachments = deps.SessionAttachments != nil
 		return &fakeServer{name: "uds"}, nil
 	}
 
@@ -423,6 +429,15 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	}
 	if !ownerSawDisabledAvailability {
 		t.Fatal("session owner constructed before disabled network availability was persisted")
+	}
+	if !ownerSawSessionAttachments {
+		t.Fatal("session owner constructed before session attachment storage")
+	}
+	if !httpSawSessionAttachments {
+		t.Fatal("http server constructed without session attachment storage")
+	}
+	if !udsSawSessionAttachments {
+		t.Fatal("uds server constructed without session attachment storage")
 	}
 	if got, want := registry.networkAvailabilityWrites, []bool{false}; !slices.Equal(got, want) {
 		t.Fatalf("network availability boot writes = %#v, want %#v", got, want)
