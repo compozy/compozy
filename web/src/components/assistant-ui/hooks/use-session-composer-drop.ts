@@ -7,13 +7,7 @@ function transferHasFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
-function onDragOver(event: DragEvent<HTMLElement>) {
-  if (!transferHasFiles(event)) return;
-  event.preventDefault();
-  event.dataTransfer.dropEffect = "copy";
-}
-
-export function useSessionComposerDrop() {
+export function useSessionComposerDrop({ disabled = false }: { disabled?: boolean } = {}) {
   const aui = useAui();
   const attachmentCount = useAuiState(state => state.composer.attachments.length);
   const [dragDepth, setDragDepth] = useState(0);
@@ -29,24 +23,33 @@ export function useSessionComposerDrop() {
   const onDragEnter = (event: DragEvent<HTMLElement>) => {
     if (!transferHasFiles(event)) return;
     event.preventDefault();
+    if (disabled) return;
     setDragDepth(depth => depth + 1);
+  };
+
+  const onDragOver = (event: DragEvent<HTMLElement>) => {
+    if (!transferHasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = disabled ? "none" : "copy";
   };
 
   const onDragLeave = (event: DragEvent<HTMLElement>) => {
     if (!transferHasFiles(event)) return;
     event.preventDefault();
+    if (disabled) return;
     setDragDepth(depth => Math.max(0, depth - 1));
   };
 
   const onDrop = (event: DragEvent<HTMLElement>) => {
     if (!transferHasFiles(event)) return;
     event.preventDefault();
+    if (disabled) return;
     setDragDepth(0);
     addFiles(Array.from(event.dataTransfer.files));
   };
 
   return {
-    isDragging,
+    isDragging: !disabled && isDragging,
     dropProps: { onDragEnter, onDragOver, onDragLeave, onDrop },
   };
 }

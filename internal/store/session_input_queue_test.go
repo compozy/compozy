@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -38,19 +39,27 @@ func TestSessionInputQueueInsertAttachments(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject empty steer text even when attachments are present", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name string
+		text string
+	}{
+		{name: "Should reject steer attachments with empty text", text: ""},
+		{name: "Should reject steer attachments with non-empty text", text: "redirect with context"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		req := validSessionInputQueueInsert()
-		req.Mode = SessionInputQueueModeSteer
-		req.Delivery = SessionInputDeliveryInterruptThenPrompt
-		req.TargetTurnID = "turn-active"
-		req.Text = ""
-		req.Attachments = []SessionInputAttachment{validSessionInputAttachment()}
-		if err := req.Validate(); err == nil || !strings.Contains(err.Error(), "text is required") {
-			t.Fatalf("Validate() error = %v, want text is required", err)
-		}
-	})
+			req := validSessionInputQueueInsert()
+			req.Mode = SessionInputQueueModeSteer
+			req.Delivery = SessionInputDeliveryInterruptThenPrompt
+			req.TargetTurnID = "turn-active"
+			req.Text = tc.text
+			req.Attachments = []SessionInputAttachment{validSessionInputAttachment()}
+			if err := req.Validate(); !errors.Is(err, ErrSessionInputSteerTextOnly) {
+				t.Fatalf("Validate() error = %v, want %v", err, ErrSessionInputSteerTextOnly)
+			}
+		})
+	}
 }
 
 func validSessionInputQueueInsert() SessionInputQueueInsert {

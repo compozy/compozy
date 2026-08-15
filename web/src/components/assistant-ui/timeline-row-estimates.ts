@@ -8,6 +8,11 @@
 // guess reduces scroll drift on long, heterogeneous threads without pixel accuracy.
 
 import { userMessageHasAttachments } from "@/systems/session/lib/session-attachment-items";
+import {
+  isSessionAttachmentRef,
+  SESSION_ATTACHMENT_DATA_TYPE,
+  SESSION_ATTACHMENT_PART_NAME,
+} from "@/systems/session/lib/attachment-kinds";
 
 import { deriveSessionRows, type SessionRow } from "./session-timeline.logic";
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
@@ -73,6 +78,12 @@ function userGalleryEstimate(content: unknown): number {
     if (!isRecord(part)) return false;
     const type = part.type;
     if (type === "image") return true;
+    if (
+      type === SESSION_ATTACHMENT_DATA_TYPE ||
+      (type === "data" && part.name === SESSION_ATTACHMENT_PART_NAME)
+    ) {
+      return isSessionAttachmentRef(part.data) && part.data.mime_type.startsWith("image/");
+    }
     if (type !== "file") return false;
     const mime = typeof part.mimeType === "string" ? part.mimeType : "";
     return mime.startsWith("image/");

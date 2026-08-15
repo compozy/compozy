@@ -1,13 +1,14 @@
 // Suite: session-attachment-transcript
-// Invariant: Go-shaped file parts survive normalizeTranscriptMessages +
-// toThreadPart, and the view-model resolves them to the bytes route (never
-// data: or external URLs). Size/dimensions come from metadata.attachments.
+// Invariant: durable file parts and validated optimistic attachment refs resolve
+// to the session bytes route (never data: or external URLs). Metadata joins the
+// durable shape while the optimistic ref supplies its own size and dimensions.
 // Owning layer: unit (systems/session/lib)
 // No existing suite owned repository/schema file-part preservation.
 
 import { describe, expect, it } from "vitest";
 
 import { normalizeTranscriptMessages } from "../message-schemas";
+import { SESSION_ATTACHMENT_DATA_TYPE } from "../attachment-kinds";
 import {
   userMessageAttachmentItems,
   userMessageHasAttachments,
@@ -172,5 +173,37 @@ describe("session attachment transcript projection", () => {
     const likes = toThreadMessageLikes(normalized);
     expect(userMessageHasText(likes[0]?.content)).toBe(false);
     expect(userMessageHasAttachments(likes[0]?.content)).toBe(true);
+  });
+
+  it("Should render a validated local image-only attachment before transcript replacement", () => {
+    const content = [
+      {
+        type: SESSION_ATTACHMENT_DATA_TYPE,
+        data: {
+          bytes: 3072,
+          height: 900,
+          id: "att-local-image",
+          kind: "image",
+          mime_type: "image/png",
+          name: "local-shot.png",
+          sha256: "c".repeat(64),
+          width: 1440,
+        },
+      },
+    ];
+
+    expect(userMessageHasText(content)).toBe(false);
+    expect(userMessageHasAttachments(content)).toBe(true);
+    expect(userMessageAttachmentItems(content, {}, WORKSPACE_ID, SESSION_ID)).toEqual([
+      {
+        kind: "image",
+        id: "att-local-image",
+        href: `/api/workspaces/${WORKSPACE_ID}/sessions/${SESSION_ID}/attachments/att-local-image/bytes`,
+        src: `/api/workspaces/${WORKSPACE_ID}/sessions/${SESSION_ID}/attachments/att-local-image/bytes`,
+        filename: "local-shot.png",
+        width: 1440,
+        height: 900,
+      },
+    ]);
   });
 });

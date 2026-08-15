@@ -1,12 +1,12 @@
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
 import {
   attachmentExtensionMark,
   isImageAttachmentMime,
 } from "@/systems/session/lib/attachment-kinds";
-import { Button, Spinner } from "@compozy/ui";
+import { Button, Eyebrow, Spinner } from "@compozy/ui";
 
 import type { SessionAttachmentTileModel } from "./session-attachment-tile-model";
 
@@ -19,15 +19,19 @@ function isPersistFailureLabel(label: string): boolean {
   return label === "Couldn't save" || label.startsWith("Couldn't save");
 }
 
+export interface SessionAttachmentTileProps extends ComponentProps<"li"> {
+  model: SessionAttachmentTileModel;
+  onRemove: () => void;
+  onRetry?: () => void;
+}
+
 export function SessionAttachmentTile({
   model,
   onRemove,
   onRetry,
-}: {
-  model: SessionAttachmentTileModel;
-  onRemove: () => void;
-  onRetry?: () => void;
-}) {
+  className,
+  ...props
+}: SessionAttachmentTileProps) {
   const isImage = isImageAttachmentMime(model.mimeType) && Boolean(model.file);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(
@@ -59,12 +63,14 @@ export function SessionAttachmentTile({
 
   return (
     <li
+      {...props}
       data-state={model.state}
       data-testid="composer-attachment-tile"
       className={cn(
         "flex max-w-60 min-h-9 shrink-0 items-center gap-2 rounded-md",
         "transition-colors duration-base ease-out",
-        "hover:bg-row-hover focus-within:bg-row-hover"
+        "hover:bg-row-hover focus-within:bg-row-hover",
+        className
       )}
     >
       <span
@@ -84,16 +90,15 @@ export function SessionAttachmentTile({
             )}
           />
         ) : (
-          <span
+          <Eyebrow
             className={cn(
-              "font-mono text-[9px] font-semibold leading-none",
+              "leading-none",
               model.state === "rejected" ? "text-danger" : "text-subtle",
               model.state === "uploading" ? "opacity-45" : null
             )}
-            style={{ letterSpacing: "0.06em" }}
           >
             {attachmentExtensionMark(model.name, model.mimeType)}
-          </span>
+          </Eyebrow>
         )}
         {model.state === "uploading" ? (
           <span className="absolute inset-0 grid place-items-center text-fg">

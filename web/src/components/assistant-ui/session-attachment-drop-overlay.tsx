@@ -11,12 +11,11 @@ export function SessionComposerDropRoot({
   children: (state: { isDragging: boolean }) => ReactNode;
   disabled?: boolean;
 }) {
-  const { isDragging, dropProps } = useSessionComposerDrop();
-  const active = !disabled && isDragging;
+  const { isDragging, dropProps } = useSessionComposerDrop({ disabled });
   return (
-    <div className="relative" {...(disabled ? {} : dropProps)}>
-      {children({ isDragging: active })}
-      <SessionAttachmentDropOverlay visible={active} />
+    <div className="relative" {...dropProps}>
+      {children({ isDragging })}
+      <SessionAttachmentDropOverlay visible={isDragging} />
     </div>
   );
 }

@@ -1494,6 +1494,24 @@ func compileNativeOutputSchema(t *testing.T, descriptor toolspkg.Descriptor) *js
 	return compiled
 }
 
+func compileNativeInputSchema(t *testing.T, descriptor toolspkg.Descriptor) *jsonschema.Schema {
+	t.Helper()
+	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(descriptor.InputSchema))
+	if err != nil {
+		t.Fatalf("%s input schema parse error = %v", descriptor.ID, err)
+	}
+	compiler := jsonschema.NewCompiler()
+	resource := descriptor.ID.String() + "-input.json"
+	if err := compiler.AddResource(resource, schemaValue); err != nil {
+		t.Fatalf("%s input schema add error = %v", descriptor.ID, err)
+	}
+	compiled, err := compiler.Compile(resource)
+	if err != nil {
+		t.Fatalf("%s input schema compile error = %v", descriptor.ID, err)
+	}
+	return compiled
+}
+
 type nativeObjectSchema struct {
 	Type                 string                     `json:"type"`
 	Properties           map[string]json.RawMessage `json:"properties"`
@@ -1712,6 +1730,47 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	}
 	if expectedTurn.Type != "string" || expectedTurn.MinLength != 1 {
 		t.Fatalf("%s expected_turn_id schema = %#v, want non-empty string", descriptor.ID, expectedTurn)
+	}
+	compiled := compileNativeInputSchema(t, descriptor)
+	for _, tc := range []struct {
+		name    string
+		payload string
+		valid   bool
+	}{
+		{
+			name:    "text prompt",
+			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","message":"hello"}`,
+			valid:   true,
+		},
+		{
+			name:    "attachment-only prompt",
+			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","attachments":["att"]}`,
+			valid:   true,
+		},
+		{
+			name:    "missing prompt content",
+			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k"}`,
+		},
+		{
+			name:    "empty message",
+			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","message":""}`,
+		},
+		{
+			name:    "empty attachments",
+			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","attachments":[]}`,
+		},
+	} {
+		instance, err := jsonschema.UnmarshalJSON(strings.NewReader(tc.payload))
+		if err != nil {
+			t.Fatalf("%s %s payload parse error = %v", descriptor.ID, tc.name, err)
+		}
+		err = compiled.Validate(instance)
+		if tc.valid && err != nil {
+			t.Fatalf("%s input schema rejected %s: %v", descriptor.ID, tc.name, err)
+		}
+		if !tc.valid && err == nil {
+			t.Fatalf("%s input schema accepted %s", descriptor.ID, tc.name)
+		}
 	}
 	assertSessionPromptMutationOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
 }

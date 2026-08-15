@@ -194,6 +194,8 @@ func (r SessionInputQueueInsert) Validate() error {
 		return errors.New("store: session input queue id is required")
 	case normalized.SessionID == "":
 		return errors.New("store: session input queue session id is required")
+	case normalized.Mode == SessionInputQueueModeSteer && len(normalized.Attachments) > 0:
+		return ErrSessionInputSteerTextOnly
 	case normalized.Text == "" &&
 		(normalized.Mode == SessionInputQueueModeSteer || len(normalized.Attachments) == 0):
 		return errors.New("store: session input queue text is required")

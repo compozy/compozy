@@ -13,6 +13,10 @@ import {
   userMessageAttachmentItems,
   userMessageHasText,
 } from "@/systems/session/lib/session-attachment-items";
+import {
+  isSessionAttachmentRef,
+  SESSION_ATTACHMENT_PART_NAME,
+} from "@/systems/session/lib/attachment-kinds";
 
 import { sessionSkillInvocationDirectives } from "./session-directive-registry";
 import { SessionDirectiveText } from "./session-directive-text";
@@ -120,6 +124,12 @@ export function UserMessage() {
                   return <SessionTextPart {...part} directives={directives} />;
                 }
                 if (part.type === "data") {
+                  if (
+                    part.name === SESSION_ATTACHMENT_PART_NAME &&
+                    isSessionAttachmentRef(part.data)
+                  ) {
+                    return null;
+                  }
                   return part.dataRendererUI ?? <SessionDataPart {...part} />;
                 }
                 return null;

@@ -173,4 +173,24 @@ describe("session MSW handlers", () => {
       error: `Session not found: ${sample.id}`,
     });
   });
+
+  it("Should scope attachment deletion to the session workspace", async () => {
+    const sample = sessionFixtures[0]!;
+    const wrongWorkspace = await fetch(
+      `${API}/api/workspaces/workspace_other/sessions/${sample.id}/attachments/att_demo`,
+      { method: "DELETE" }
+    );
+
+    expect(wrongWorkspace.status).toBe(404);
+    await expect(wrongWorkspace.json()).resolves.toEqual({
+      error: `Session not found: ${sample.id}`,
+    });
+
+    const owned = await fetch(
+      `${API}/api/workspaces/${sample.workspace_id}/sessions/${sample.id}/attachments/att_demo`,
+      { method: "DELETE" }
+    );
+    expect(owned.status).toBe(204);
+    await expect(owned.text()).resolves.toBe("");
+  });
 });

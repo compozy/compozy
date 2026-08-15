@@ -2,6 +2,9 @@ import {
   attachmentExtensionMark,
   formatAttachmentSize,
   isImageAttachmentMime,
+  isSessionAttachmentRef,
+  SESSION_ATTACHMENT_DATA_TYPE,
+  SESSION_ATTACHMENT_PART_NAME,
 } from "./attachment-kinds";
 import { sessionAttachmentBytesURL, sessionAttachmentIdFromURI } from "./attachment-url";
 
@@ -89,8 +92,27 @@ function filePartFields(part: Record<string, unknown>): {
   uri: string;
   mediaType: string;
   filename: string;
+  meta?: AttachmentRecordMeta;
 } | null {
   const type = stringField(part, "type");
+  if (
+    type === SESSION_ATTACHMENT_DATA_TYPE ||
+    (type === "data" && stringField(part, "name") === SESSION_ATTACHMENT_PART_NAME)
+  ) {
+    const ref = part.data;
+    if (!isSessionAttachmentRef(ref)) return null;
+    return {
+      uri: `compozy://session-attachments/${ref.id}`,
+      mediaType: ref.mime_type,
+      filename: ref.name,
+      meta: {
+        id: ref.id,
+        bytes: ref.bytes,
+        width: ref.width,
+        height: ref.height,
+      },
+    };
+  }
   if (type === "file") {
     const uri = stringField(part, "data") ?? stringField(part, "url");
     const mediaType = stringField(part, "mimeType") ?? stringField(part, "mediaType");
@@ -126,7 +148,12 @@ export function userMessageHasAttachments(content: unknown): boolean {
   return content.some(part => {
     if (!isRecord(part)) return false;
     const type = stringField(part, "type");
-    return type === "file" || type === "image";
+    if (type === "file" || type === "image") return true;
+    return (
+      (type === SESSION_ATTACHMENT_DATA_TYPE ||
+        (type === "data" && stringField(part, "name") === SESSION_ATTACHMENT_PART_NAME)) &&
+      isSessionAttachmentRef(part.data)
+    );
   });
 }
 
@@ -148,7 +175,7 @@ export function userMessageAttachmentItems(
     const href = sessionAttachmentBytesURL(workspaceId, sessionId, fields.uri);
     if (!href) continue;
     const attachmentId = sessionAttachmentIdFromURI(fields.uri) ?? fields.uri;
-    const meta = metaById.get(attachmentId);
+    const meta = metaById.get(attachmentId) ?? fields.meta;
     if (isImageMediaType(fields.mediaType)) {
       items.push({
         kind: "image",

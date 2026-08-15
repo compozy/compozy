@@ -5,7 +5,6 @@ import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
 import { reportGatewayResponse } from "@/lib/gateway-access-signal";
 
-import { useSessionAttachmentAdapter } from "@/components/assistant-ui/hooks/use-session-attachment-adapter";
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
@@ -14,6 +13,7 @@ import { createSessionPromptChatTransport } from "../lib/session-prompt-chat-tra
 import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { getSessionPromptRuntimeSnapshot } from "./use-session-prompt-runtime";
+import { useSessionAttachmentAdapter } from "./use-session-attachment-adapter";
 import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
 import { loopsKeys } from "@/systems/loops";
 

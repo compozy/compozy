@@ -97,21 +97,23 @@ func TestNewPromptTurnDispatchStateNormalizesInputClass(t *testing.T) {
 }
 
 func TestInputPreSubmitAttachmentMetadata(t *testing.T) {
-	t.Parallel()
+	t.Run("Should expose byte-free attachment metadata to input pre-submit hooks", func(t *testing.T) {
+		t.Parallel()
 
-	metadata := hookAttachmentMetadata([]AttachmentMeta{{
-		ID: "att_123", Name: "diagram.png", MIMEType: "image/png", Bytes: 42,
-		SHA256: "not-exposed", Kind: AttachmentKindImage, Width: 10, Height: 20,
-	}})
-	if len(metadata) != 1 {
-		t.Fatalf("len(hookAttachmentMetadata()) = %d, want 1", len(metadata))
-	}
-	want := hookspkg.InputAttachmentMetadata{
-		ID: "att_123", Name: "diagram.png", MIME: "image/png", Bytes: 42, Kind: AttachmentKindImage,
-	}
-	if metadata[0] != want {
-		t.Fatalf("hookAttachmentMetadata() = %#v, want %#v", metadata[0], want)
-	}
+		metadata := hookAttachmentMetadata([]AttachmentMeta{{
+			ID: "att_123", Name: "diagram.png", MIMEType: "image/png", Bytes: 42,
+			SHA256: "not-exposed", Kind: AttachmentKindImage, Width: 10, Height: 20,
+		}})
+		if len(metadata) != 1 {
+			t.Fatalf("len(hookAttachmentMetadata()) = %d, want 1", len(metadata))
+		}
+		want := hookspkg.InputAttachmentMetadata{
+			ID: "att_123", Name: "diagram.png", MIME: "image/png", Bytes: 42, Kind: AttachmentKindImage,
+		}
+		if metadata[0] != want {
+			t.Fatalf("hookAttachmentMetadata() = %#v, want %#v", metadata[0], want)
+		}
+	})
 }
 
 func TestPromptSyntheticUsesSyntheticInputClass(t *testing.T) {

@@ -1,6 +1,6 @@
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { Paperclip } from "lucide-react";
-import { useRef } from "react";
+import { useRef, type ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -8,27 +8,28 @@ import {
   ATTACHMENT_PICKER_ACCEPT,
 } from "@/systems/session/lib/attachment-kinds";
 
+export interface SessionAttachButtonViewProps extends ComponentProps<"button"> {}
+
 export function SessionAttachButtonView({
   disabled = false,
-  onClick,
-}: {
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
+  className,
+  ...props
+}: SessionAttachButtonViewProps) {
   return (
     <button
       type="button"
       aria-label="Attach"
       data-testid="composer-attach-button"
       disabled={disabled}
-      onClick={onClick}
       className={cn(
         "grid size-[26px] shrink-0 place-items-center rounded-md text-muted",
         "transition-colors duration-fast ease-out",
         "hover:bg-row-hover hover:text-fg-strong",
         "focus-visible:shadow-focus-ring focus-visible:outline-none",
-        "disabled:pointer-events-none disabled:opacity-50"
+        "disabled:pointer-events-none disabled:opacity-50",
+        className
       )}
+      {...props}
     >
       <Paperclip className="size-3.5" />
     </button>

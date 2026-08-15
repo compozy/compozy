@@ -288,6 +288,12 @@ const sessionPromptInputSchema = `{
 			"additionalProperties":false
 		}
 	},
+	"not":{
+		"allOf":[
+			{"not":{"required":["message"],"properties":{"message":{"type":"string","minLength":1}}}},
+			{"not":{"required":["attachments"],"properties":{"attachments":{"type":"array","minItems":1}}}}
+		]
+	},
 	"additionalProperties":false
 }`
 

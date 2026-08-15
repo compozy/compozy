@@ -769,6 +769,39 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("user-message-actions-copy")).not.toBeInTheDocument();
   });
 
+  it("Should render a local image-only attachment before transcript replacement", async () => {
+    const transcript = [
+      {
+        id: "user-local-image-only",
+        role: "user",
+        parts: [
+          {
+            type: "data-compozy-attachment",
+            data: {
+              bytes: 2048,
+              height: 720,
+              id: "att-local-shot",
+              kind: "image",
+              mime_type: "image/png",
+              name: "local-shot.png",
+              sha256: "c".repeat(64),
+              width: 1280,
+            },
+          },
+        ],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("user-message-attachment-gallery")).toBeInTheDocument();
+    expect(screen.getByTestId("user-message-attachment-frame")).toHaveAttribute(
+      "href",
+      `/api/workspaces/${fixtureWorkspaceId()}/sessions/${primarySessionFixture.id}/attachments/att-local-shot/bytes`
+    );
+    expect(screen.queryByTestId("user-message-bubble")).not.toBeInTheDocument();
+  });
+
   it("Should leave a text-only user turn without a gallery", async () => {
     const transcript = [
       {
@@ -2696,6 +2729,41 @@ describe("SessionThread composer attachments", () => {
     const tile = await screen.findByTestId("composer-attachment-tile");
     expect(tile).toHaveTextContent("shot.png");
     await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should add an attachment when browser crypto is unavailable", async () => {
+    vi.stubGlobal("crypto", undefined);
+    renderComposer({ promptImage: true });
+    await screen.findByTestId("composer-input");
+
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("fallback-id.png"));
+    });
+
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveTextContent("fallback-id.png");
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
+  });
+
+  it("Should prevent disabled file drops without adding an attachment", async () => {
+    renderComposer({ canPrompt: false, promptImage: true });
+    await screen.findByTestId("composer-input");
+    const overlay = screen.getByTestId("composer-drop-overlay");
+    const dropRoot = overlay.parentElement;
+    if (!dropRoot) {
+      throw new Error("composer drop root is not mounted");
+    }
+    const transfer = {
+      dropEffect: "copy",
+      files: [pngFile()],
+      types: ["Files"],
+    };
+
+    expect(fireEvent.dragOver(dropRoot, { dataTransfer: transfer })).toBe(false);
+    expect(transfer.dropEffect).toBe("none");
+    expect(fireEvent.drop(dropRoot, { dataTransfer: transfer })).toBe(false);
+    expect(overlay).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
   });
 
   it("Should turn a picker file into a draft tile", async () => {

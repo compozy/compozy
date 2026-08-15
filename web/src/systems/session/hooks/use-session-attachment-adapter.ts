@@ -10,15 +10,15 @@ import {
   deleteSessionAttachment,
   SessionAttachmentApiError,
   uploadSessionAttachment,
-} from "@/systems/session/adapters/session-attachment-api";
+} from "../adapters/session-attachment-api";
 import {
   ATTACHMENT_ALLOWED_REASON,
   ATTACHMENT_MAX_FILE_BYTES,
   attachmentOversizeMessage,
   SESSION_ATTACHMENT_PART_NAME,
   sniffAttachmentFile,
-} from "@/systems/session/lib/attachment-kinds";
-import type { SessionAttachment } from "@/systems/session/types";
+} from "../lib/attachment-kinds";
+import type { SessionAttachment } from "../types";
 
 export const SESSION_ATTACHMENT_ADAPTER_ACCEPT = "*";
 
@@ -28,8 +28,12 @@ interface SessionAttachmentAdapterOptions {
 }
 
 function pendingId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  const crypto = globalThis.crypto;
+  if (typeof crypto?.randomUUID === "function") {
     return crypto.randomUUID();
+  }
+  if (typeof crypto?.getRandomValues !== "function") {
+    return `pending-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   }
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);

@@ -26,6 +26,8 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should restart the same session with fresh provider and transcript state", func(t *testing.T) {
+		t.Parallel()
+
 		h := newHarness(t)
 		session := createSession(t, h)
 		attachmentPath := writeSessionAttachmentFixture(t, h, session.ID, "preserve-on-clear")
