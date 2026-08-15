@@ -1,20 +1,80 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FIRST_PROMPT_SEND_FAILED, sendFirstPrompt } from "../../lib/session-first-prompt";
-import { sessionStore } from "../session-store";
+import { SESSION_DRAFTS_STORAGE_KEY, sessionStore } from "../session-store";
 
 const { mockNotifyUser } = vi.hoisted(() => ({ mockNotifyUser: vi.fn() }));
 
 vi.mock("@/lib/user-feedback", () => ({ notifyUser: mockNotifyUser }));
 
 // Suite: session store transitions
-// Invariant: Empty drafts are removed, session-scoped operations never affect another session, goal
-// feedback keeps command, result, and error acknowledgement coherent, and a first prompt typed before
-// its session existed is delivered at most once and never destroyed by a refusal.
+// Invariant: Only validated non-empty drafts survive browser rehydration; session-scoped operations
+// never affect another session; Goal feedback remains coherent; and a first prompt typed before its
+// session existed is delivered at most once and never persisted or destroyed by a refusal.
 // Boundary IN: Session-local drafts, first-prompt handoff (store transitions + `sendFirstPrompt`),
 // and Goal feedback transitions.
 // Boundary OUT: React subscriptions and prompt transport, owned by their consumer suites.
 describe("session store", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    sessionStore.trigger.allDraftsDiscarded();
+  });
+
+  afterEach(() => {
+    sessionStore.trigger.sessionInteractionRemoved({ sessionId: "session-persisted" });
+    sessionStore.trigger.sessionInteractionRemoved({ sessionId: "session-transient" });
+  });
+
+  it("Should persist and rehydrate only non-empty session drafts", () => {
+    sessionStore.trigger.composerDraftChanged({
+      sessionId: "session-persisted",
+      text: "Revisão 😊 antes   do lançamento",
+    });
+    sessionStore.trigger.firstPromptQueued({
+      sessionId: "session-transient",
+      text: "Do not persist this handoff",
+    });
+    sessionStore.trigger.goalCommandReported({
+      sessionId: "session-transient",
+      result: {
+        outcome: "error",
+        reason_code: "goal_agent_refused",
+        replaced_run_id: null,
+        snapshot: null,
+      },
+    });
+
+    expect(JSON.parse(window.localStorage.getItem(SESSION_DRAFTS_STORAGE_KEY) ?? "{}")).toEqual({
+      drafts: { "session-persisted": "Revisão 😊 antes   do lançamento" },
+      version: 1,
+    });
+
+    sessionStore.trigger.allDraftsDiscarded();
+    const storedValue = JSON.stringify({
+      drafts: {
+        "session-persisted": "Revisão 😊 antes   do lançamento",
+        blank: "",
+        invalid: 42,
+      },
+      firstPrompts: { unsafe: { text: "must not hydrate", claimed: false } },
+      goalFeedback: { unsafe: { errorVisible: true } },
+      version: 1,
+    });
+    window.localStorage.setItem(SESSION_DRAFTS_STORAGE_KEY, storedValue);
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: SESSION_DRAFTS_STORAGE_KEY,
+        newValue: storedValue,
+      })
+    );
+
+    expect(sessionStore.getSnapshot().context.drafts).toEqual({
+      "session-persisted": "Revisão 😊 antes   do lançamento",
+    });
+    expect(sessionStore.getSnapshot().context.firstPrompts.unsafe).toBeUndefined();
+    expect(sessionStore.getSnapshot().context.goalFeedback.unsafe).toBeUndefined();
+  });
+
   it("removes an empty composer draft and reports discard availability", () => {
     const initial = sessionStore.getInitialSnapshot();
 

@@ -1,5 +1,6 @@
 // Suite: OS session-window controller
 // Invariant: inspector-only projections fetch only while the inspector is open in a live window.
+// Invariant: runtime snapshot projection remains render-stable while the runtime store is unchanged.
 // Boundary IN: retained-window liveness and inspector query admission.
 // Boundary OUT: query transport behavior, owned by each domain hook suite.
 import { renderHook } from "@testing-library/react";
@@ -7,6 +8,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
 import { primarySessionFixture } from "@/systems/session/mocks";
+import {
+  sessionPromptRuntimeInput,
+  sessionPromptRuntimeStoreLogic,
+  type SessionPromptRuntimeStore,
+} from "@/systems/session/stores/session-prompt-runtime-store";
 
 const mocks = vi.hoisted(() => ({
   inspectorOpen: false,
@@ -15,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   sessionTopbar: vi.fn(),
   sessionUsage: vi.fn(),
   sessionVault: vi.fn(),
+  promptRuntimeStore: null as SessionPromptRuntimeStore | null,
   worktreeBinding: {
     worktreeId: "",
     worktree: undefined as { id: string; state: string } | undefined,
@@ -61,7 +68,7 @@ vi.mock("../use-session-window-sidebar", () => ({
 }));
 
 vi.mock("@/systems/session", () => ({
-  getSessionPromptRuntimeSnapshot: vi.fn(),
+  getSessionPromptRuntimeSnapshot: () => ({ model: "gpt-5.6-terra", provider: "codex" }),
   SessionGoalHeadAction: () => null,
   useSessionCommands: (...args: unknown[]) => {
     mocks.sessionCommands(...args);
@@ -80,7 +87,7 @@ vi.mock("@/systems/session", () => ({
     mocks.sessionLedger(...args);
     return { data: undefined, error: null, isLoading: false };
   },
-  useSessionPromptRuntimeContext: () => null,
+  useSessionPromptRuntimeContext: () => mocks.promptRuntimeStore,
   useSessionTopbarSlot: (...args: unknown[]) => mocks.sessionTopbar(...args),
   useSessionWorktreeBinding: () => mocks.worktreeBinding,
   useSessionUsage: (...args: unknown[]) => {
@@ -113,6 +120,17 @@ describe("useSessionWindowController", () => {
     mocks.sessionTopbar.mockReset();
     mocks.sessionUsage.mockReset();
     mocks.sessionVault.mockReset();
+    mocks.promptRuntimeStore = sessionPromptRuntimeStoreLogic.createStore(
+      sessionPromptRuntimeInput({
+        agentName: "attachments_qa",
+        canPrompt: true,
+        effectiveRuntime: { model: "gpt-5.6-terra", provider: "codex" },
+        selectedRuntime: undefined,
+        selectionRevision: 0,
+        sessionId: "sess-1",
+        workspaceId: "ws-1",
+      })
+    );
     mocks.worktreeBinding.worktreeId = "";
     mocks.worktreeBinding.worktree = undefined;
     mocks.worktreeBinding.bound = false;
@@ -177,5 +195,23 @@ describe("useSessionWindowController", () => {
 
     expect(onOpenWorktreeContext).toHaveBeenCalledWith("ws-1", worktree);
     expect(onResolveMissingWorktree).toHaveBeenCalledWith("ws-1", worktree);
+  });
+
+  it("Should derive a stable runtime snapshot without re-rendering indefinitely", () => {
+    const { result } = renderHook(() =>
+      useSessionWindowController({
+        windowId: "window:sess-1",
+        sessionId: "sess-1",
+        workspaceId: "ws-1",
+        session,
+        onDeleteSuccess: vi.fn(),
+        liveDataEnabled: true,
+      })
+    );
+
+    expect(result.current.promptRuntimeSnapshot).toEqual({
+      model: "gpt-5.6-terra",
+      provider: "codex",
+    });
   });
 });

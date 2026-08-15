@@ -44,7 +44,7 @@ type UnsupportedMIMEError struct {
 	Allowed []string
 }
 
-var _ error = (*UnsupportedMIMEError)(nil)
+var _ error = &UnsupportedMIMEError{}
 
 // DefaultAllowedMIMEs returns the v1 sniff allowlist. Client Content-Type is ignored.
 func DefaultAllowedMIMEs() []string {

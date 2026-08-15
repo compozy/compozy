@@ -56,7 +56,12 @@ func (w *PeriodicWorker) Start(ctx context.Context) error {
 		return fmt.Errorf("%s context is required: %w", w.label, ErrPeriodicWorkerContextRequired)
 	}
 	if w.interval <= 0 {
-		return fmt.Errorf("%s interval must be greater than zero: %s: %w", w.label, w.interval, ErrPeriodicWorkerInvalidInterval)
+		return fmt.Errorf(
+			"%s interval must be greater than zero: %s: %w",
+			w.label,
+			w.interval,
+			ErrPeriodicWorkerInvalidInterval,
+		)
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()

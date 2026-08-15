@@ -30,7 +30,11 @@ func TestSessionPromptAdmissionRequestAttachments(t *testing.T) {
 		}
 		wantAttachment := validSessionInputAttachment()
 		if len(normalized.Attachments) != 1 || normalized.Attachments[0] != wantAttachment {
-			t.Fatalf("Normalize().Attachments = %#v, want %#v", normalized.Attachments, []SessionInputAttachment{wantAttachment})
+			t.Fatalf(
+				"Normalize().Attachments = %#v, want %#v",
+				normalized.Attachments,
+				[]SessionInputAttachment{wantAttachment},
+			)
 		}
 	})
 

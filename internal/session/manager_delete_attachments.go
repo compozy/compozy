@@ -62,11 +62,15 @@ func (m *Manager) stageWorkspaceAttachmentDelete(
 	deletionID string,
 ) (*stagedAttachmentDelete, error) {
 	return m.stageAttachmentDirectoryDeleteWithLease(ctx, attachmentDeleteStageSpec{
-		workspaceID:   workspaceID,
-		parentPath:    m.homePaths.SessionAttachmentsDir,
-		target:        workspaceID,
-		stagedName:    attachmentWorkspaceTombstoneName(workspaceAttachmentDeleteStagedPrefix, workspaceID, deletionID),
-		committedName: attachmentWorkspaceTombstoneName(workspaceAttachmentDeleteCommittedPrefix, workspaceID, deletionID),
+		workspaceID: workspaceID,
+		parentPath:  m.homePaths.SessionAttachmentsDir,
+		target:      workspaceID,
+		stagedName:  attachmentWorkspaceTombstoneName(workspaceAttachmentDeleteStagedPrefix, workspaceID, deletionID),
+		committedName: attachmentWorkspaceTombstoneName(
+			workspaceAttachmentDeleteCommittedPrefix,
+			workspaceID,
+			deletionID,
+		),
 	})
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -33,16 +34,32 @@ func (c *daemonClient) UploadSessionAttachment(
 		return SessionAttachmentRecord{}, err
 	}
 	response, err := c.doRequestWithReaderAndClient(ctx, clientReaderRequest{
-		Method:      http.MethodPost,
-		Path:        path,
-		Body:        body,
-		ContentType: contentType,
-		Credentials: agentidentity.Credentials{},
-		Client:      c.httpClient,
+		Method:         http.MethodPost,
+		Path:           path,
+		Body:           body,
+		ContentType:    contentType,
+		ContentLength:  body.contentLength,
+		ExpectContinue: true,
+		Credentials:    agentidentity.Credentials{},
+		Client:         c.httpClient,
 	})
-	bodyErr := body.Close()
-	if err != nil || bodyErr != nil {
+	bodyErr := body.Wait()
+	if err != nil {
 		return SessionAttachmentRecord{}, cleanupSessionAttachmentUpload(filePath, err, bodyErr, response)
+	}
+	if response == nil {
+		return SessionAttachmentRecord{}, cleanupSessionAttachmentUpload(
+			filePath,
+			errors.New("cli: session attachment upload returned no response"),
+			bodyErr,
+			nil,
+		)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return SessionAttachmentRecord{}, sessionAttachmentUploadRejection(filePath, bodyErr, response)
+	}
+	if bodyErr != nil {
+		return SessionAttachmentRecord{}, cleanupSessionAttachmentUpload(filePath, nil, bodyErr, response)
 	}
 	defer mergeResponseBodyCloseError(&err, response, http.MethodPost, path)
 
@@ -53,6 +70,45 @@ func (c *daemonClient) UploadSessionAttachment(
 		return SessionAttachmentRecord{}, decodeErr
 	}
 	return result.Attachment, nil
+}
+
+func sessionAttachmentUploadRejection(
+	filePath string,
+	bodyErr error,
+	response *http.Response,
+) error {
+	apiErr := readAPIError(response)
+	responseCloseErr := response.Body.Close()
+	if errorTreeOnlyMatches(bodyErr, io.ErrClosedPipe) {
+		bodyErr = nil
+	}
+	return errors.Join(
+		apiErr,
+		wrapSessionAttachmentBodyError(filePath, bodyErr),
+		wrapSessionAttachmentResponseCloseError(responseCloseErr),
+	)
+}
+
+func errorTreeOnlyMatches(err error, target error) bool {
+	if err == nil || target == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		children := joined.Unwrap()
+		if len(children) == 0 {
+			return false
+		}
+		for _, child := range children {
+			if !errorTreeOnlyMatches(child, target) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		return errorTreeOnlyMatches(wrapped.Unwrap(), target)
+	}
+	return errors.Is(err, target)
 }
 
 func cleanupSessionAttachmentUpload(
@@ -75,10 +131,11 @@ func cleanupSessionAttachmentUpload(
 }
 
 type sessionAttachmentMultipartBody struct {
-	reader *io.PipeReader
-	done   <-chan error
-	once   sync.Once
-	err    error
+	reader        *io.PipeReader
+	done          <-chan error
+	contentLength int64
+	once          sync.Once
+	err           error
 }
 
 func (b *sessionAttachmentMultipartBody) Read(p []byte) (int, error) {
@@ -86,12 +143,24 @@ func (b *sessionAttachmentMultipartBody) Read(p []byte) (int, error) {
 }
 
 func (b *sessionAttachmentMultipartBody) Close() error {
+	b.finish()
+	// net/http may close a streaming request as soon as the daemon rejects it.
+	// Returning that expected producer interruption here makes Client.Do discard
+	// the daemon's useful response. Wait reports the retained error to the owner.
+	return nil
+}
+
+func (b *sessionAttachmentMultipartBody) Wait() error {
+	b.finish()
+	return b.err
+}
+
+func (b *sessionAttachmentMultipartBody) finish() {
 	b.once.Do(func() {
 		readerErr := b.reader.Close()
 		producerErr := <-b.done
 		b.err = errors.Join(readerErr, producerErr)
 	})
-	return b.err
 }
 
 func sessionAttachmentMultipart(
@@ -126,8 +195,24 @@ func sessionAttachmentMultipart(
 		)
 	}
 
+	boundary, contentLength, err := sessionAttachmentMultipartMetadata(name, info.Size())
+	if err != nil {
+		closeErr := file.Close()
+		return nil, "", errors.Join(err, wrapSessionAttachmentFileCloseError(filePath, closeErr))
+	}
 	reader, pipeWriter := io.Pipe()
 	writer := multipart.NewWriter(pipeWriter)
+	if err := writer.SetBoundary(boundary); err != nil {
+		readerCloseErr := reader.Close()
+		writerCloseErr := pipeWriter.Close()
+		fileCloseErr := file.Close()
+		return nil, "", errors.Join(
+			fmt.Errorf("cli: set session attachment multipart boundary: %w", err),
+			readerCloseErr,
+			writerCloseErr,
+			wrapSessionAttachmentFileCloseError(filePath, fileCloseErr),
+		)
+	}
 	done := make(chan error, 1)
 	go func() {
 		producerErr := writeSessionAttachmentMultipart(filePath, name, file, writer)
@@ -135,7 +220,44 @@ func sessionAttachmentMultipart(
 		done <- errors.Join(producerErr, pipeErr)
 		close(done)
 	}()
-	return &sessionAttachmentMultipartBody{reader: reader, done: done}, writer.FormDataContentType(), nil
+	return &sessionAttachmentMultipartBody{
+		reader:        reader,
+		done:          done,
+		contentLength: contentLength,
+	}, writer.FormDataContentType(), nil
+}
+
+type sessionAttachmentByteCounter struct {
+	bytes int64
+}
+
+func (c *sessionAttachmentByteCounter) Write(data []byte) (int, error) {
+	if int64(len(data)) > math.MaxInt64-c.bytes {
+		return 0, errors.New("cli: session attachment multipart length overflows int64")
+	}
+	c.bytes += int64(len(data))
+	return len(data), nil
+}
+
+func sessionAttachmentMultipartMetadata(name string, fileBytes int64) (string, int64, error) {
+	if fileBytes < 0 {
+		return "", 0, fmt.Errorf("cli: session attachment has negative size %d", fileBytes)
+	}
+	counter := &sessionAttachmentByteCounter{}
+	writer := multipart.NewWriter(counter)
+	if _, err := writer.CreateFormFile("file", name); err != nil {
+		return "", 0, errors.Join(
+			fmt.Errorf("cli: size session attachment multipart field: %w", err),
+			wrapSessionAttachmentMultipartCloseError(writer.Close()),
+		)
+	}
+	if err := writer.Close(); err != nil {
+		return "", 0, wrapSessionAttachmentMultipartCloseError(err)
+	}
+	if fileBytes > math.MaxInt64-counter.bytes {
+		return "", 0, errors.New("cli: session attachment multipart length overflows int64")
+	}
+	return writer.Boundary(), counter.bytes + fileBytes, nil
 }
 
 func writeSessionAttachmentMultipart(

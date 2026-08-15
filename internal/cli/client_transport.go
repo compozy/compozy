@@ -211,14 +211,16 @@ func (c *daemonClient) doRequestWithCredentialsAndClient(
 }
 
 type clientReaderRequest struct {
-	Method      string
-	Path        string
-	Query       url.Values
-	Body        io.Reader
-	ContentType string
-	LastEventID string
-	Credentials agentidentity.Credentials
-	Client      *http.Client
+	Method         string
+	Path           string
+	Query          url.Values
+	Body           io.Reader
+	ContentType    string
+	ContentLength  int64
+	ExpectContinue bool
+	LastEventID    string
+	Credentials    agentidentity.Credentials
+	Client         *http.Client
 }
 
 func (c *daemonClient) doRequestWithReaderAndClient(
@@ -245,6 +247,12 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 		return nil, fmt.Errorf("cli: build %s %s request: %w", options.Method, options.Path, err)
 	}
 	req.Header.Set("User-Agent", defaultUserAgentName)
+	if options.ContentLength > 0 {
+		req.ContentLength = options.ContentLength
+	}
+	if options.ExpectContinue {
+		req.Header.Set("Expect", "100-continue")
+	}
 	if strings.TrimSpace(options.ContentType) != "" {
 		req.Header.Set("Content-Type", options.ContentType)
 	}

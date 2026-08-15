@@ -458,14 +458,17 @@ func TestBootSessionAttachmentRetentionPinsQueuedInputs(t *testing.T) {
 		cfg.Session.Attachments.Retention.MaxBytes = 1 << 20
 		cfg.Session.Attachments.Retention.MaxAge = 24 * time.Hour
 
-		preBootStore, err := attachmentspkg.OpenFilesystemAttachmentStore(t.Context(), attachmentspkg.FilesystemStoreConfig{
-			Root:      homePaths.SessionAttachmentsDir,
-			Retention: attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: 24 * time.Hour},
-			Limits: attachmentspkg.StoreLimits{
-				MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
-				AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+		preBootStore, err := attachmentspkg.OpenFilesystemAttachmentStore(
+			t.Context(),
+			attachmentspkg.FilesystemStoreConfig{
+				Root:      homePaths.SessionAttachmentsDir,
+				Retention: attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: 24 * time.Hour},
+				Limits: attachmentspkg.StoreLimits{
+					MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
+					AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+				},
 			},
-		})
+		)
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore(pre-boot) error = %v", err)
 		}
@@ -546,7 +549,15 @@ func TestBootSessionAttachmentRetentionPinsQueuedInputs(t *testing.T) {
 		if _, err := bootAttachments.Stat(t.Context(), "ws-queued", "sess-queued", queued.ID); err != nil {
 			t.Fatalf("Stat(queued attachment) error = %v", err)
 		}
-		if _, err := bootAttachments.Stat(t.Context(), "ws-queued", "sess-queued", unrelated.ID); !errors.Is(err, attachmentspkg.ErrNotFound) {
+		if _, err := bootAttachments.Stat(
+			t.Context(),
+			"ws-queued",
+			"sess-queued",
+			unrelated.ID,
+		); !errors.Is(
+			err,
+			attachmentspkg.ErrNotFound,
+		) {
 			t.Fatalf("Stat(unrelated attachment) error = %v, want %v", err, attachmentspkg.ErrNotFound)
 		}
 	})

@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: qa-artifacts/qa/deletion-isolation.json
-last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412.md
+evidence: qa-artifacts/qa/delete-fixture.json; qa-artifacts/qa/delete-result.json; qa-artifacts/qa/api-wrong-workspace.json
+last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412-final.md
 overlaps: RT-014;RT-session-delete-owned-history
 ---

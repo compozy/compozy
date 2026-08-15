@@ -2170,6 +2170,17 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 						), nil
 					case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/attachments":
 						uploadCalls++
+						rawBody, err := io.ReadAll(req.Body)
+						if err != nil {
+							t.Fatalf("io.ReadAll(upload body) error = %v", err)
+						}
+						if req.ContentLength != int64(len(rawBody)) {
+							t.Fatalf("ContentLength = %d, want %d", req.ContentLength, len(rawBody))
+						}
+						if got := req.Header.Get("Expect"); got != "100-continue" {
+							t.Fatalf("Expect = %q, want 100-continue", got)
+						}
+						req.Body = io.NopCloser(bytes.NewReader(rawBody))
 						reader, err := req.MultipartReader()
 						if err != nil {
 							t.Fatalf("Request.MultipartReader() error = %v", err)
@@ -2265,6 +2276,41 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 			}
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for multipart producer completion")
+		}
+	})
+
+	t.Run("Should preserve the daemon rejection when it stops reading the upload early", func(t *testing.T) {
+		t.Parallel()
+
+		filePath := filepath.Join(t.TempDir(), "oversize-frame.png")
+		if err := os.WriteFile(filePath, bytes.Repeat([]byte("x"), 1<<20), 0o600); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method == http.MethodGet {
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+					), nil
+				}
+				if err := req.Body.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+					t.Fatalf("request body Close() error = %v", err)
+				}
+				return newHTTPResponse(
+					http.StatusRequestEntityTooLarge,
+					`{"error":"session attachment exceeds maximum file size of 10485760 bytes"}`,
+				), nil
+			})},
+		}
+
+		_, err := client.UploadSessionAttachment(context.Background(), "sess-1", filePath)
+		if err == nil || !strings.Contains(err.Error(), "exceeds maximum file size") {
+			t.Fatalf("UploadSessionAttachment() error = %v, want daemon size rejection", err)
+		}
+		if strings.Contains(err.Error(), "closed pipe") {
+			t.Fatalf("UploadSessionAttachment() error = %v, want no expected pipe interruption", err)
 		}
 	})
 

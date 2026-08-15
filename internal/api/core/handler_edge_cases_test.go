@@ -626,7 +626,9 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/workspaces/ws-workspace/sessions/sess-123/prompt",
-			[]byte(`{"message":"inspect attachment","message_id":"msg-missing-attachment","idempotency_key":"idem-missing-attachment"}`),
+			[]byte(
+				`{"message":"inspect attachment","message_id":"msg-missing-attachment","idempotency_key":"idem-missing-attachment"}`,
+			),
 		)
 		if recorder.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNotFound, recorder.Body.String())

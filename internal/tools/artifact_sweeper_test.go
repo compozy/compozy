@@ -61,7 +61,14 @@ func TestToolArtifactSweeperLifecycle(t *testing.T) {
 			t.Fatal("Start(nil store) error = nil, want store-required error")
 		}
 		store := &sweeperTestArtifactStore{}
-		if err := NewToolArtifactSweeper(store, 0, nil).Start(t.Context()); !errors.Is(err, retention.ErrPeriodicWorkerInvalidInterval) {
+		if err := NewToolArtifactSweeper(
+			store,
+			0,
+			nil,
+		).Start(t.Context()); !errors.Is(
+			err,
+			retention.ErrPeriodicWorkerInvalidInterval,
+		) {
 			t.Fatalf("Start(zero interval) error = %v, want interval validation error", err)
 		}
 		worker := NewToolArtifactSweeper(store, time.Hour, nil)

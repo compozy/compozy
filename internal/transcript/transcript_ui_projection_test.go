@@ -259,7 +259,6 @@ func TestToUIMessagesProjectsMixedUserAttachments(t *testing.T) {
 			t.Fatalf("reopened message = %#v, want %#v", reopened, messages[0])
 		}
 	})
-
 }
 
 func TestToUIMessagesProjectsImageOnlyUserAttachment(t *testing.T) {
@@ -285,7 +284,6 @@ func TestToUIMessagesProjectsImageOnlyUserAttachment(t *testing.T) {
 			t.Fatalf("messages = %#v, want image-only parts %#v", messages, want)
 		}
 	})
-
 }
 
 func TestToUIMessagesProjectsTextOnlyUserMessage(t *testing.T) {

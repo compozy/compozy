@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412/05-unsupported-type-refused.png
-last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412.md
+evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412-final/14-unsupported-file-error.png; qa-artifacts/qa/cli-unsupported.json
+last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412-final.md
 overlaps: 
 ---

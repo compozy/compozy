@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412/03-attachment-queued.png; qa-artifacts/qa/queued-attachment.json
-last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412.md
+evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412-final/07-busy-attachment-ready.png; docs/qa/evidence/2026-08-15-session-attachments-pr-412-final/08-queued-attachment.png; docs/qa/evidence/2026-08-15-session-attachments-pr-412-final/09-queued-attachment-delivered.png
+last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412-final.md
 overlaps: RT-019
 ---

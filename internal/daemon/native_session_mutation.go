@@ -209,7 +209,7 @@ func (n *daemonNativeTools) sessionPrompt(
 		ctx,
 		req.ToolID,
 		workspaceID,
-		nativeWorkspaceAttachmentRoots(resolved),
+		nativeWorkspaceAttachmentRoots(&resolved),
 		sessionID,
 		input.Attachments,
 	)

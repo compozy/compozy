@@ -142,60 +142,115 @@ func (s *FilesystemAttachmentStore) listSessionAttachments(
 		if err := attachmentContextErr(ctx); err != nil {
 			return nil, err
 		}
-		id := entry.Name()
-		if entry.IsDir() {
-			continue
-		}
-		if strings.HasSuffix(id, ".json") && attachmentIDPattern.MatchString(strings.TrimSuffix(id, ".json")) {
-			contentPath := filepath.Join(sessionPath, strings.TrimSuffix(id, ".json"))
-			if _, statErr := os.Lstat(contentPath); errors.Is(statErr, os.ErrNotExist) {
-				if err := attachmentContextErr(ctx); err != nil {
-					return nil, err
-				}
-				if removeErr := fileutil.AtomicRemoveFile(filepath.Join(sessionPath, id)); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-					return nil, fmt.Errorf("%w: remove incomplete attachment sidecar: %w", ErrPersistence, removeErr)
-				}
-			}
-			continue
-		}
-		if !attachmentIDPattern.MatchString(id) {
-			continue
-		}
-		contentPath := filepath.Join(sessionPath, id)
-		info, err := entry.Info()
+		item, err := s.retainedAttachmentFromEntry(ctx, sessionPath, entry)
 		if err != nil {
-			return nil, fmt.Errorf("%w: stat retained attachment: %w", ErrPersistence, err)
-		}
-		if err := attachmentContextErr(ctx); err != nil {
 			return nil, err
 		}
-		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-			return nil, fmt.Errorf("%w: retained attachment is not a regular file", ErrCorrupt)
+		if item != nil {
+			items = append(items, *item)
 		}
-		meta, err := readSidecar(ctx, contentPath)
-		if err != nil {
-			if errors.Is(err, ErrCorrupt) {
-				if _, statErr := os.Lstat(metaPath(contentPath)); errors.Is(statErr, os.ErrNotExist) {
-					if removeErr := s.removePair(contentPath); removeErr != nil && !errors.Is(removeErr, ErrNotFound) {
-						return nil, fmt.Errorf("%w: remove incomplete attachment: %w", ErrPersistence, removeErr)
-					}
-					continue
-				}
-			}
-			return nil, err
-		}
-		if meta.SHA256 != attachmentSHA256(id) || meta.Bytes != info.Size() || meta.CreatedAt.IsZero() {
-			return nil, fmt.Errorf("%w: sidecar metadata mismatch", ErrCorrupt)
-		}
-		items = append(items, retainedAttachment{
-			contentPath: contentPath,
-			id:          id,
-			sessionID:   filepath.Base(sessionPath),
-			createdAt:   meta.CreatedAt.UTC(),
-			bytes:       info.Size(),
-		})
 	}
 	return items, nil
+}
+
+func (s *FilesystemAttachmentStore) retainedAttachmentFromEntry(
+	ctx context.Context,
+	sessionPath string,
+	entry os.DirEntry,
+) (*retainedAttachment, error) {
+	id := entry.Name()
+	if entry.IsDir() {
+		return nil, nil
+	}
+	if isAttachmentSidecarName(id) {
+		return nil, removeOrphanedAttachmentSidecar(ctx, sessionPath, id)
+	}
+	if !attachmentIDPattern.MatchString(id) {
+		return nil, nil
+	}
+	return s.readRetainedAttachment(ctx, sessionPath, id, entry)
+}
+
+func isAttachmentSidecarName(name string) bool {
+	return strings.HasSuffix(name, ".json") &&
+		attachmentIDPattern.MatchString(strings.TrimSuffix(name, ".json"))
+}
+
+func removeOrphanedAttachmentSidecar(ctx context.Context, sessionPath string, sidecarName string) error {
+	contentPath := filepath.Join(sessionPath, strings.TrimSuffix(sidecarName, ".json"))
+	if _, err := os.Lstat(contentPath); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("%w: inspect attachment content for sidecar: %w", ErrPersistence, err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return err
+	}
+	if err := fileutil.AtomicRemoveFile(
+		filepath.Join(sessionPath, sidecarName),
+	); err != nil &&
+		!errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("%w: remove incomplete attachment sidecar: %w", ErrPersistence, err)
+	}
+	return nil
+}
+
+func (s *FilesystemAttachmentStore) readRetainedAttachment(
+	ctx context.Context,
+	sessionPath string,
+	id string,
+	entry os.DirEntry,
+) (*retainedAttachment, error) {
+	contentPath := filepath.Join(sessionPath, id)
+	info, err := entry.Info()
+	if err != nil {
+		return nil, fmt.Errorf("%w: stat retained attachment: %w", ErrPersistence, err)
+	}
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("%w: retained attachment is not a regular file", ErrCorrupt)
+	}
+	meta, err := readSidecar(ctx, contentPath)
+	if err != nil {
+		removed, cleanupErr := s.removeIncompleteAttachment(contentPath, err)
+		if cleanupErr != nil {
+			return nil, cleanupErr
+		}
+		if removed {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if meta.SHA256 != attachmentSHA256(id) || meta.Bytes != info.Size() || meta.CreatedAt.IsZero() {
+		return nil, fmt.Errorf("%w: sidecar metadata mismatch", ErrCorrupt)
+	}
+	return &retainedAttachment{
+		contentPath: contentPath,
+		id:          id,
+		sessionID:   filepath.Base(sessionPath),
+		createdAt:   meta.CreatedAt.UTC(),
+		bytes:       info.Size(),
+	}, nil
+}
+
+func (s *FilesystemAttachmentStore) removeIncompleteAttachment(
+	contentPath string,
+	readErr error,
+) (bool, error) {
+	if !errors.Is(readErr, ErrCorrupt) {
+		return false, nil
+	}
+	if _, err := os.Lstat(metaPath(contentPath)); err == nil {
+		return false, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("%w: inspect attachment sidecar: %w", ErrPersistence, err)
+	}
+	if err := s.removePair(contentPath); err != nil && !errors.Is(err, ErrNotFound) {
+		return false, fmt.Errorf("%w: remove incomplete attachment: %w", ErrPersistence, err)
+	}
+	return true, nil
 }
 
 func compareRetainedAttachments(left retainedAttachment, right retainedAttachment) int {

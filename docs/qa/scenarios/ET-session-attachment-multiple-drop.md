@@ -11,7 +11,7 @@ bug_ids: BUG-20260815-session-attachment-store-unavailable
 fix_status: fixed
 retest_status: pass
 fix_commits: 2603eed
-evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412/08-multiple-files-dropped.png
-last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412.md
+evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412-final/12-drop-overlay.png; docs/qa/evidence/2026-08-15-session-attachments-pr-412-final/13-multiple-drop-ready.png
+last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412-final.md
 overlaps: ET-session-attachment-paste-reload
 ---

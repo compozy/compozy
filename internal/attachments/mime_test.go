@@ -20,33 +20,116 @@ func TestSniffMIME(t *testing.T) {
 	t.Run("Should detect binary formats", func(t *testing.T) {
 		t.Parallel()
 		testSniffMIMECases(t, []sniffMIMECase{
-			{name: "Should detect PNG from magic bytes", data: pngBytes, filename: "note.txt", wantMIME: MIMEImagePNG, wantKind: KindImage, wantW: 3, wantH: 2},
-			{name: "Should detect JPEG when the extension claims PNG", data: jpegBytes, filename: "shot.png", wantMIME: MIMEImageJPEG, wantKind: KindImage, wantW: 4, wantH: 5},
-			{name: "Should detect extended WebP dimensions", data: testWebPVP8X(6, 7), filename: "canvas.bin", wantMIME: MIMEImageWebP, wantKind: KindImage, wantW: 6, wantH: 7},
-			{name: "Should detect lossy WebP dimensions", data: testWebPVP8(8, 9), filename: "canvas.bin", wantMIME: MIMEImageWebP, wantKind: KindImage, wantW: 8, wantH: 9},
-			{name: "Should detect lossless WebP dimensions", data: testWebPVP8L(10, 11), filename: "canvas.bin", wantMIME: MIMEImageWebP, wantKind: KindImage, wantW: 10, wantH: 11},
-			{name: "Should detect PDF from the percent-PDF signature", data: []byte("%PDF-1.4\n%"), filename: "spec.md", wantMIME: MIMEApplicationPDF, wantKind: KindFile},
+			{
+				name:     "Should detect PNG from magic bytes",
+				data:     pngBytes,
+				filename: "note.txt",
+				wantMIME: MIMEImagePNG,
+				wantKind: KindImage,
+				wantW:    3,
+				wantH:    2,
+			},
+			{
+				name:     "Should detect JPEG when the extension claims PNG",
+				data:     jpegBytes,
+				filename: "shot.png",
+				wantMIME: MIMEImageJPEG,
+				wantKind: KindImage,
+				wantW:    4,
+				wantH:    5,
+			},
+			{
+				name:     "Should detect extended WebP dimensions",
+				data:     testWebPVP8X(6, 7),
+				filename: "canvas.bin",
+				wantMIME: MIMEImageWebP,
+				wantKind: KindImage,
+				wantW:    6,
+				wantH:    7,
+			},
+			{
+				name:     "Should detect lossy WebP dimensions",
+				data:     testWebPVP8(8, 9),
+				filename: "canvas.bin",
+				wantMIME: MIMEImageWebP,
+				wantKind: KindImage,
+				wantW:    8,
+				wantH:    9,
+			},
+			{
+				name:     "Should detect lossless WebP dimensions",
+				data:     testWebPVP8L(10, 11),
+				filename: "canvas.bin",
+				wantMIME: MIMEImageWebP,
+				wantKind: KindImage,
+				wantW:    10,
+				wantH:    11,
+			},
+			{
+				name:     "Should detect PDF from the percent-PDF signature",
+				data:     []byte("%PDF-1.4\n%"),
+				filename: "spec.md",
+				wantMIME: MIMEApplicationPDF,
+				wantKind: KindFile,
+			},
 		})
 	})
 
 	t.Run("Should classify text", func(t *testing.T) {
 		t.Parallel()
 		testSniffMIMECases(t, []sniffMIMECase{
-			{name: "Should treat valid UTF-8 with a markdown extension as markdown", data: []byte("# notes\n"), filename: "notes.md", wantMIME: MIMETextMarkdown, wantKind: KindFile},
-			{name: "Should treat valid UTF-8 without a markdown extension as plain text", data: []byte("hello"), filename: "notes.txt", wantMIME: MIMETextPlain, wantKind: KindFile},
+			{
+				name:     "Should treat valid UTF-8 with a markdown extension as markdown",
+				data:     []byte("# notes\n"),
+				filename: "notes.md",
+				wantMIME: MIMETextMarkdown,
+				wantKind: KindFile,
+			},
+			{
+				name:     "Should treat valid UTF-8 without a markdown extension as plain text",
+				data:     []byte("hello"),
+				filename: "notes.txt",
+				wantMIME: MIMETextPlain,
+				wantKind: KindFile,
+			},
 		})
 	})
 
 	t.Run("Should reject unsupported bytes", func(t *testing.T) {
 		t.Parallel()
 		testSniffMIMECases(t, []sniffMIMECase{
-			{name: "Should reject GIF bytes even when named as PNG", data: []byte("GIF89a"), filename: "anim.png", wantErr: true},
+			{
+				name:     "Should reject GIF bytes even when named as PNG",
+				data:     []byte("GIF89a"),
+				filename: "anim.png",
+				wantErr:  true,
+			},
 			{name: "Should reject ZIP bytes", data: []byte("PK\x03\x04archive"), filename: "notes.md", wantErr: true},
-			{name: "Should reject non-WebP RIFF bytes", data: []byte("RIFF\x04\x00\x00\x00WAVE"), filename: "audio.wav", wantErr: true},
+			{
+				name:     "Should reject non-WebP RIFF bytes",
+				data:     []byte("RIFF\x04\x00\x00\x00WAVE"),
+				filename: "audio.wav",
+				wantErr:  true,
+			},
 			{name: "Should reject SVG markup", data: []byte("<svg></svg>"), filename: "drawing.txt", wantErr: true},
-			{name: "Should reject XML-wrapped SVG markup", data: []byte("<?xml version=\"1.0\"?><svg></svg>"), filename: "drawing.txt", wantErr: true},
-			{name: "Should reject binary that is not valid UTF-8", data: []byte{0x00, 0xff, 0xfe, 0x01}, filename: "notes.txt", wantErr: true},
-			{name: "Should reject UTF-8 control bytes disguised as markdown", data: []byte{'n', 'o', 't', 'e', 0x01}, filename: "notes.md", wantErr: true},
+			{
+				name:     "Should reject XML-wrapped SVG markup",
+				data:     []byte("<?xml version=\"1.0\"?><svg></svg>"),
+				filename: "drawing.txt",
+				wantErr:  true,
+			},
+			{
+				name:     "Should reject binary that is not valid UTF-8",
+				data:     []byte{0x00, 0xff, 0xfe, 0x01},
+				filename: "notes.txt",
+				wantErr:  true,
+			},
+			{
+				name:     "Should reject UTF-8 control bytes disguised as markdown",
+				data:     []byte{'n', 'o', 't', 'e', 0x01},
+				filename: "notes.md",
+				wantErr:  true,
+			},
 		})
 	})
 }

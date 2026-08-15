@@ -25,8 +25,8 @@ func (p sessionAttachmentRetentionPins) PinnedAttachmentIDs(
 		return nil, err
 	}
 	pins := make(map[string]struct{})
-	for _, entry := range entries {
-		for _, attachment := range entry.Attachments {
+	for index := range entries {
+		for _, attachment := range entries[index].Attachments {
 			pins[attachment.ID] = struct{}{}
 		}
 	}

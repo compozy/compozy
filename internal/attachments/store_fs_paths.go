@@ -123,7 +123,11 @@ func ensurePrivateDir(ctx context.Context, dir string, label string) error {
 	return nil
 }
 
-func (s *FilesystemAttachmentStore) readMeta(ctx context.Context, contentPath string, id string) (attachmentMeta, error) {
+func (s *FilesystemAttachmentStore) readMeta(
+	ctx context.Context,
+	contentPath string,
+	id string,
+) (attachmentMeta, error) {
 	content, err := readAttachmentFile(ctx, contentPath, id)
 	if err != nil {
 		return attachmentMeta{}, err

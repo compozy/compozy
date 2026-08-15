@@ -75,7 +75,11 @@ func TestDispatchInputPreSubmitAsyncHookSeesStablePayloadSnapshot(t *testing.T) 
 				t.Fatalf("async hook saw soul digest %q, want digest-before", got.SoulDigest)
 			}
 			if len(got.Attachments) != 1 || got.Attachments[0] != wantAttachment {
-				t.Fatalf("async hook saw attachments %#v, want %#v", got.Attachments, []InputAttachmentMetadata{wantAttachment})
+				t.Fatalf(
+					"async hook saw attachments %#v, want %#v",
+					got.Attachments,
+					[]InputAttachmentMetadata{wantAttachment},
+				)
 			}
 		case <-t.Context().Done():
 			t.Fatal("timed out waiting for async hook")

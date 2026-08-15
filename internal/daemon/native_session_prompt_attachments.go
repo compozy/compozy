@@ -156,7 +156,7 @@ func resolveNativeAttachmentPath(workspaceRoots []string, path string) (string, 
 	return "", errors.New("attachment path must be inside the workspace")
 }
 
-func nativeWorkspaceAttachmentRoots(resolved workspacepkg.ResolvedWorkspace) []string {
+func nativeWorkspaceAttachmentRoots(resolved *workspacepkg.ResolvedWorkspace) []string {
 	roots := make([]string, 0, 1+len(resolved.AdditionalDirs))
 	for _, root := range append([]string{resolved.RootDir}, resolved.AdditionalDirs...) {
 		if root = strings.TrimSpace(root); root != "" {

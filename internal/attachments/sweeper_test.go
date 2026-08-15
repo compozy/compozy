@@ -57,11 +57,25 @@ func TestSweeperLifecycle(t *testing.T) {
 	t.Run("Should reject invalid start state and duplicate starts", func(t *testing.T) {
 		t.Parallel()
 
-		if err := NewSweeper(nil, time.Hour, nil).Start(t.Context()); !errors.Is(err, ErrAttachmentSweeperStoreRequired) {
+		if err := NewSweeper(
+			nil,
+			time.Hour,
+			nil,
+		).Start(t.Context()); !errors.Is(
+			err,
+			ErrAttachmentSweeperStoreRequired,
+		) {
 			t.Fatalf("Start(nil store) error = %v, want store-required error", err)
 		}
 		store := &sweeperTestStore{}
-		if err := NewSweeper(store, 0, nil).Start(t.Context()); !errors.Is(err, retention.ErrPeriodicWorkerInvalidInterval) {
+		if err := NewSweeper(
+			store,
+			0,
+			nil,
+		).Start(t.Context()); !errors.Is(
+			err,
+			retention.ErrPeriodicWorkerInvalidInterval,
+		) {
 			t.Fatalf("Start(zero interval) error = %v, want interval validation error", err)
 		}
 		worker := NewSweeper(store, time.Hour, nil)

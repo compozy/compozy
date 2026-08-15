@@ -292,14 +292,17 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 		workspaceRoot := t.TempDir()
-		attachmentStore, err := attachmentspkg.OpenFilesystemAttachmentStore(t.Context(), attachmentspkg.FilesystemStoreConfig{
-			Root:      t.TempDir(),
-			Retention: attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: time.Hour},
-			Limits: attachmentspkg.StoreLimits{
-				MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
-				AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+		attachmentStore, err := attachmentspkg.OpenFilesystemAttachmentStore(
+			t.Context(),
+			attachmentspkg.FilesystemStoreConfig{
+				Root:      t.TempDir(),
+				Retention: attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: time.Hour},
+				Limits: attachmentspkg.StoreLimits{
+					MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
+					AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+				},
 			},
-		})
+		)
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
 		}
@@ -374,14 +377,17 @@ func TestDaemonNativeTools(t *testing.T) {
 		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
 		workspaceRoot := t.TempDir()
 		attachmentRoot := t.TempDir()
-		attachmentStore, err := attachmentspkg.OpenFilesystemAttachmentStore(t.Context(), attachmentspkg.FilesystemStoreConfig{
-			Root:      attachmentRoot,
-			Retention: attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: time.Hour},
-			Limits: attachmentspkg.StoreLimits{
-				MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
-				AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+		attachmentStore, err := attachmentspkg.OpenFilesystemAttachmentStore(
+			t.Context(),
+			attachmentspkg.FilesystemStoreConfig{
+				Root:      attachmentRoot,
+				Retention: attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: time.Hour},
+				Limits: attachmentspkg.StoreLimits{
+					MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
+					AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
+				},
 			},
-		})
+		)
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
 		}
