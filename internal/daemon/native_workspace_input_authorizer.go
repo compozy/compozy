@@ -111,6 +111,19 @@ func (b *nativeWorkspaceInputBinder) nativeWorkspaceAccessActor(
 	ctx context.Context,
 	scope toolspkg.Scope,
 ) (workspaceaccess.ActorRef, error) {
+	if workspaceaccess.ActorKind(strings.TrimSpace(scope.ActorKind)) == workspaceaccess.ActorDaemon {
+		workspaceID := strings.TrimSpace(scope.WorkspaceID)
+		if workspaceID == "" {
+			return workspaceaccess.ActorRef{}, errors.New(
+				"daemon: native workspace access daemon scope has no workspace id",
+			)
+		}
+		return workspaceaccess.ActorRef{
+			Kind:        workspaceaccess.ActorDaemon,
+			WorkspaceID: workspaceID,
+			AgentName:   strings.TrimSpace(scope.AgentName),
+		}, nil
+	}
 	sessionID := strings.TrimSpace(scope.SessionID)
 	if sessionID == "" {
 		return workspaceaccess.ActorRef{}, errors.New("daemon: native workspace access requires a session id")
