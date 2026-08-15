@@ -38,7 +38,8 @@ func piCredentialEnv(
 // the provider as the bearer token itself instead of interpolating the value
 // CompozyOS injects into the subprocess environment.
 func piEnvInterpolationRef(targetEnv string) string {
-	return "$" + strings.TrimPrefix(targetEnv, "$")
+	return "$" + strings.TrimLeft(targetEnv, "$")
+}
 }
 
 func injectedProviderTargetEnv(targetEnv string, injectedTargetEnvs map[string]struct{}) bool {
