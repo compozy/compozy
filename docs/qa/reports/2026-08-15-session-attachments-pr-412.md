@@ -2,7 +2,7 @@
 
 - **Scope:** PR #412 session attachment upload, preview, dispatch, persistence, queueing, capability gates, and cleanup
 - **Cadence tier:** targeted
-- **Build:** `2603eed` · **Environment:** isolated local daemon and web app from `session-attachments-pr-412-20260815-103704-955265`
+- **Build:** behavioral walk `2603eed`; reviewed head `87c02571` · **Environment:** isolated local daemon and web app from `session-attachments-pr-412-20260815-103704-955265`
 - **Started:** 2026-08-15T10:37:32Z · **Status:** PASS
 
 ## Personas
@@ -49,11 +49,11 @@ Théo attached files through picker, paste, and drop; each path produced truthfu
 
 ## Human Verifications Needed
 
-None identified yet.
+None.
 
 ## Decisions for a Human
 
-None identified yet.
+None.
 
 ## Learnings
 
@@ -64,8 +64,10 @@ None identified yet.
 ## Final Status
 
 - **Behavioral evidence:** `docs/qa/evidence/2026-08-15-session-attachments-pr-412/`
-- **Automated verify:** `/Users/pedronauck/dev/qa-labs/compozy-session-attachments-pr-412-20260815-103704-955265-lab/qa-artifacts/qa/intermediate-make-verify.log`
-- **Exit gate (full automated suite):** pending final branch-close record; intermediate full gate passed at fingerprint `b531f503d9a098a46dd65d01faf0c7594c7343fa`.
+- **Automated verify:** `/Users/pedronauck/dev/qa-labs/compozy-session-attachments-pr-412-20260815-103704-955265-lab/qa-artifacts/qa/final-make-verify.log`
+- **Exit gate (full automated suite):** `make gate-full`; the branch-close log is copied to the automated verify path above after the gate completes.
+- **React validation:** React Doctor 100/100 with no findings; root Bun lint, typecheck, and test gates passed.
+- **Teardown:** `/Users/pedronauck/dev/qa-labs/compozy-session-attachments-pr-412-20260815-103704-955265-lab/qa-artifacts/qa/teardown.json` records `"clean": true` with no survivors.
 - **Issues by user impact:** Blocks-Completion 1 fixed · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0
 - **Coverage:** 8/8 scenarios walked
 - **Verdict:** PASS — all attachment lifecycle scenarios passed after the daemon boot-order fix.
