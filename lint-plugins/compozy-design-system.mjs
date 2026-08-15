@@ -29,13 +29,15 @@ import {
  * stay in arbitrary form.
  */
 const PREFER_BARE_UTILITY_WHITELIST = new Set([
-  // Radix-injected (popover, tooltip, dropdown, select, menu)
+  // Radix-injected (popover, tooltip, dropdown, select, menu, accordion)
   "anchor-width",
   "anchor-height",
   "available-width",
   "available-height",
   "transform-origin",
   "accordion-panel-height",
+  // Base UI-injected (collapsible)
+  "collapsible-panel-height",
   "fd-docs-row-1",
   // App-injected runtime
   "detail-inspector-width",

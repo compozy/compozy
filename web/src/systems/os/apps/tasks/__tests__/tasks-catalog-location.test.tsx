@@ -3,7 +3,8 @@
 // Owning layer: Tasks catalog route composition.
 // Canonical suite: TasksCatalogLocation component tests.
 import { screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
@@ -112,7 +113,17 @@ vi.mock("@/systems/os/hooks/use-os-shell", () => ({
 
 vi.mock("@/systems/tasks/components/public-api", () => ({
   TasksDashboardView: () => <div data-testid="tasks-dashboard-view" />,
-  TasksEmptyState: () => <div data-testid="tasks-empty-state" />,
+  TasksEmptyState: ({ onSelectTemplate }: { onSelectTemplate: (id: string) => void }) => (
+    <div data-testid="tasks-empty-state">
+      <button
+        data-testid="tasks-empty-blank"
+        onClick={() => onSelectTemplate("blank")}
+        type="button"
+      >
+        Blank task
+      </button>
+    </div>
+  ),
   TasksInboxView: () => <div data-testid="tasks-inbox-view" />,
   TasksKanbanBoard: () => <div data-testid="tasks-kanban-view" />,
   TasksListSurface: () => <div data-testid="tasks-list-surface" />,
@@ -140,6 +151,11 @@ function renderCatalog(mode?: "dashboard" | "kanban") {
 }
 
 describe("TasksCatalogLocation", () => {
+  beforeEach(() => {
+    mocks.page.isEmpty = false;
+    mocks.userOpen.mockReset();
+  });
+
   it("Should lead the strip with List and Kanban views while keeping them out of the head [UT-130]", () => {
     renderCatalog();
 
@@ -166,5 +182,18 @@ describe("TasksCatalogLocation", () => {
     expect(toolbar).toContainElement(views);
     expect(screen.queryByTestId("tasks-list-toolbar")).not.toBeInTheDocument();
     expect(toolbar?.children).toHaveLength(1);
+  });
+
+  it("Should open the create route with the blank template from zero inventory", async () => {
+    const user = userEvent.setup();
+    mocks.page.isEmpty = true;
+
+    renderCatalog();
+    await user.click(screen.getByTestId("tasks-empty-blank"));
+
+    expect(mocks.userOpen).toHaveBeenCalledWith({
+      app: "tasks",
+      route: { pathname: "/tasks/new", search: { mode: "list", template: "blank" } },
+    });
   });
 });

@@ -1,21 +1,25 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import * as taskTemplates from "../../lib/task-templates";
 import { TasksEmptyState } from "../tasks-empty-state";
 
 describe("TasksEmptyState", () => {
-  it("Should render the headline with the workspace name and exactly four template cards", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should render the headline with the workspace name and exactly four template rows", () => {
     render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
 
     expect(screen.getByRole("heading", { name: "No tasks yet in Polybot" })).toBeInTheDocument();
     expect(screen.getByTestId("tasks-empty-templates")).toBeInTheDocument();
-
-    const grid = screen.getByTestId("tasks-empty-templates");
-    const cards = grid.querySelectorAll("[data-testid^=tasks-empty-template-]");
-    expect(cards).toHaveLength(4);
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(4);
   });
 
-  it("Should paint each template card with the accent / info / warning / neutral tone vocabulary (drop violet/amber)", () => {
+  it("Should paint each template row with the accent / info / warning / neutral tone vocabulary", () => {
     render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
 
     const expected: Record<string, string> = {
@@ -26,21 +30,18 @@ describe("TasksEmptyState", () => {
     };
 
     for (const [templateId, tone] of Object.entries(expected)) {
-      const card = screen.getByTestId(`tasks-empty-template-${templateId}`);
-      expect(card).toHaveAttribute("data-tone", tone);
+      expect(screen.getByTestId(`tasks-empty-template-${templateId}`)).toHaveAttribute(
+        "data-tone",
+        tone
+      );
     }
-
-    const grid = screen.getByTestId("tasks-empty-templates");
-    expect(grid.querySelector('[data-tone="violet"]')).toBeNull();
-    expect(grid.querySelector('[data-tone="amber"]')).toBeNull();
   });
 
-  it("Should use the Eyebrow primitive for the templates header", () => {
+  it("Should label the templates panel with a live count", () => {
     render(<TasksEmptyState onSelectTemplate={vi.fn()} workspaceName="Polybot" />);
 
-    const eyebrow = screen.getByTestId("tasks-empty-templates-eyebrow");
-    expect(eyebrow).toHaveAttribute("data-slot", "eyebrow");
-    expect(eyebrow.className).toContain("eyebrow");
+    expect(screen.getByRole("heading", { name: /Start from a template/i })).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
   });
 
   it("Should fall back to a generic headline when no workspace is provided", () => {
@@ -48,27 +49,74 @@ describe("TasksEmptyState", () => {
     expect(screen.getByRole("heading", { name: "No tasks yet" })).toBeInTheDocument();
   });
 
-  it("Should invoke onSelectTemplate from the primary CTA and from any template card", () => {
+  it("Should invoke onSelectTemplate from Blank task and from Use template", () => {
     const onSelectTemplate = vi.fn();
     render(<TasksEmptyState onSelectTemplate={onSelectTemplate} />);
 
     fireEvent.click(screen.getByTestId("tasks-empty-cta-new"));
-    expect(onSelectTemplate).toHaveBeenLastCalledWith("one_shot");
+    expect(onSelectTemplate).toHaveBeenLastCalledWith("blank");
 
-    fireEvent.click(screen.getByTestId("tasks-empty-template-recurring"));
+    fireEvent.click(screen.getByTestId("tasks-empty-template-recurring-use"));
     expect(onSelectTemplate).toHaveBeenLastCalledWith("recurring");
 
-    fireEvent.click(screen.getByTestId("tasks-empty-template-remote_peer"));
+    fireEvent.click(screen.getByTestId("tasks-empty-template-remote_peer-use"));
     expect(onSelectTemplate).toHaveBeenLastCalledWith("remote_peer");
   });
 
-  it("Should only render the copy CLI command when the handler is provided", () => {
+  it("Should reveal template review details only after the opener is expanded", () => {
+    render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
+
+    expect(
+      screen.queryByText(/A single task with one run. Good default for ad-hoc work./)
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /One-shot/ }));
+    expect(
+      screen.getByText(/A single task with one run. Good default for ad-hoc work./)
+    ).toBeVisible();
+    expect(screen.getByText(/1 attempt/)).toBeVisible();
+  });
+
+  it("Should pluralize template attempt counts greater than one", () => {
+    const getTaskTemplate = taskTemplates.getTaskTemplate;
+    const oneShot = getTaskTemplate("one_shot");
+    vi.spyOn(taskTemplates, "getTaskTemplate").mockImplementation(templateID =>
+      templateID === "one_shot"
+        ? {
+            ...oneShot,
+            defaults: { ...oneShot.defaults, max_attempts: 3 },
+          }
+        : getTaskTemplate(templateID)
+    );
+
+    render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /One-shot/ }));
+
+    expect(screen.getByText(/3 attempts/)).toBeVisible();
+  });
+
+  it("Should render template-specific facts from the owning template metadata", async () => {
+    const user = userEvent.setup();
+    render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Recurring via automation/ }));
+    expect(screen.getByText(/schedule attached in Automation/)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: /Remote from peer/ }));
+    expect(screen.getByText(/enqueued by remote peer/)).toBeVisible();
+  });
+
+  it("Should show an executable CLI command and only render Copy with a handler", async () => {
+    const user = userEvent.setup();
     const onCopyCli = vi.fn();
     const { rerender } = render(<TasksEmptyState onSelectTemplate={vi.fn()} />);
     expect(screen.queryByTestId("tasks-empty-cta-cli")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/compozy task create --scope workspace --title "Your task"/)
+    ).toBeInTheDocument();
 
     rerender(<TasksEmptyState onCopyCli={onCopyCli} onSelectTemplate={vi.fn()} />);
-    fireEvent.click(screen.getByTestId("tasks-empty-cta-cli"));
+    await user.click(screen.getByTestId("tasks-empty-cta-cli"));
     expect(onCopyCli).toHaveBeenCalledTimes(1);
   });
 });

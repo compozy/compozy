@@ -4,6 +4,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import {
   automationJobFixtures,
   automationRunFixtures,
+  automationSuggestionFixtures,
   automationTriggerFixtures,
   primaryAutomationJobFixture,
   primaryAutomationTriggerFixture,
@@ -163,5 +164,17 @@ export const handlers: HttpHandler[] = [
   }),
   compozyApiMock.get("/api/automation/runs", () =>
     HttpResponse.json({ runs: automationRunFixtures })
+  ),
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/automation/suggestions",
+    ({ params, request }) => {
+      const status = new URL(request.url).searchParams.get("status")?.trim() || "pending";
+      return HttpResponse.json({
+        suggestions: automationSuggestionFixtures.filter(
+          suggestion =>
+            suggestion.workspace_id === String(params.workspace_id) && suggestion.status === status
+        ),
+      });
+    }
   ),
 ];

@@ -50,6 +50,7 @@ export interface TaskTemplateDefaults {
 
 export interface TaskTemplatePreview {
   enqueueOnSubmit: boolean;
+  facts?: readonly string[];
   notice?: string;
 }
 
@@ -77,6 +78,7 @@ const RECURRING_TEMPLATE: TaskTemplate = {
   badges: [{ label: "Automation", tone: "info" }],
   preview: {
     enqueueOnSubmit: false,
+    facts: ["schedule attached in Automation"],
     notice: "Saves as a draft so Automation can attach the schedule later.",
   },
 };
@@ -104,7 +106,7 @@ const REMOTE_PEER_TEMPLATE: TaskTemplate = {
   simpleDescription: "",
   defaults: { draft: false, priority: "medium" },
   badges: [{ label: "Network", tone: "info" }],
-  preview: { enqueueOnSubmit: true },
+  preview: { enqueueOnSubmit: true, facts: ["enqueued by remote peer"] },
 };
 
 const HUMAN_IN_LOOP_TEMPLATE: TaskTemplate = {

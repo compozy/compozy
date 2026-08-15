@@ -85,6 +85,15 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
     );
   }
 
+  // Suggestions exist only in the unfiltered zero-inventory state; loading,
+  // filtered-empty, error, and populated catalogs never render the panel.
+  const showSuggestions =
+    !page.isLoading &&
+    page.total === 0 &&
+    !page.hasActiveFilters &&
+    search.scope !== "global" &&
+    Boolean(runtimeWorkspaceId);
+
   return (
     <>
       <ListingPage
@@ -101,9 +110,6 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
         }
         data-testid="jobs-shell"
       >
-        {!page.isLoading && runtimeWorkspaceId && search.scope !== "global" ? (
-          <AutomationSuggestionsPanel key={runtimeWorkspaceId} workspaceID={runtimeWorkspaceId} />
-        ) : null}
         <AutomationJobsCatalog
           errorMessage={page.errorMessage}
           hasActiveFilters={page.hasActiveFilters}
@@ -119,6 +125,14 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
           }}
           runDisabled={page.runDisabled}
           runPendingIds={page.runPendingIds}
+          unfilteredEmptyPanel={
+            showSuggestions && runtimeWorkspaceId ? (
+              <AutomationSuggestionsPanel
+                key={runtimeWorkspaceId}
+                workspaceID={runtimeWorkspaceId}
+              />
+            ) : null
+          }
           view={page.view}
         />
       </ListingPage>

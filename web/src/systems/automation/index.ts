@@ -119,6 +119,7 @@ export {
 } from "./lib/automation-list-filters";
 export {
   automationListLoopFilter,
+  automationRouteHasActiveFilters,
   parseAutomationEnabled,
   parseAutomationScope,
   parseAutomationSource,

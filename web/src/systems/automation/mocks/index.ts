@@ -3,6 +3,7 @@ export {
   automationJobFixtures,
   automationRunFixtures,
   automationRunSkipFixtures,
+  automationSuggestionFixtures,
   automationTriggerFixtures,
   primaryAutomationJobFixture,
   primaryAutomationTriggerFixture,

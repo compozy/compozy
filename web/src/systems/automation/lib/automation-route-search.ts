@@ -18,6 +18,17 @@ export function automationListLoopFilter(search: AutomationRouteSearch): string 
   return search.create === "loop" ? undefined : search.loop;
 }
 
+export function automationRouteHasActiveFilters(search: AutomationRouteSearch): boolean {
+  return (
+    (search.q?.trim() ?? "") !== "" ||
+    automationListLoopFilter(search) !== undefined ||
+    (search.scope !== undefined && search.scope !== "all") ||
+    search.source !== undefined ||
+    search.enabled !== undefined ||
+    search.event !== undefined
+  );
+}
+
 export function parseAutomationScope(value: unknown): AutomationScopeFilter | undefined {
   return value === "all" || value === "global" || value === "workspace" ? value : undefined;
 }

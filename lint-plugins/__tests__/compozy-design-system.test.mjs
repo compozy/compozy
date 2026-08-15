@@ -849,6 +849,18 @@ describe("compozy-design-system lint plugin", () => {
       });
     });
 
+    it("allows the panel height injected by Base UI Collapsible", async () => {
+      await expectAllowed({
+        filename: "web/src/foo.tsx",
+        rule,
+        source: `
+          export function View() {
+            return <div className="h-(--collapsible-panel-height)">x</div>;
+          }
+        `,
+      });
+    });
+
     it("allows component-internal tokens kept in :root (modal width, PillGroup heights)", async () => {
       await expectAllowed({
         filename: "web/src/foo.tsx",

@@ -1,6 +1,7 @@
-import { AlertCircle, Clock3, Plus, Zap } from "lucide-react";
+import { AlertCircle, Clock3, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { CatalogEmptyState } from "@/components/catalog-empty-state";
 import { Button, Empty, Skeleton, SkeletonRows, type ListingViewMode } from "@compozy/ui";
 
 import type { AutomationKind } from "../types";
@@ -22,6 +23,8 @@ export interface AutomationCatalogShellProps {
   pagination: AutomationCatalogPagination;
   onClearFilters: () => void;
   onCreate: () => void;
+  /** Zero-inventory extra, such as live job suggestions. Filtered empty never receives it. */
+  unfilteredEmptyPanel?: ReactNode;
   children: ReactNode;
 }
 
@@ -39,6 +42,7 @@ export function AutomationCatalogShell({
   pagination,
   onClearFilters,
   onCreate,
+  unfilteredEmptyPanel,
   children,
 }: AutomationCatalogShellProps) {
   const { hasNextPage, isFetchingNextPage, onLoadMore } = pagination;
@@ -66,7 +70,7 @@ export function AutomationCatalogShell({
     );
   }
 
-  if (isEmpty) {
+  if (isEmpty && hasActiveFilters) {
     return (
       <div
         className="flex min-h-0 flex-1 items-center justify-center p-4"
@@ -74,40 +78,49 @@ export function AutomationCatalogShell({
       >
         <Empty
           action={
-            hasActiveFilters ? (
-              <Button
-                data-testid={`${noun}-list-clear-filters`}
-                onClick={onClearFilters}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                Clear filters
-              </Button>
-            ) : (
-              <Button
-                data-testid={`${noun}-list-create`}
-                onClick={onCreate}
-                size="sm"
-                type="button"
-              >
-                <Plus aria-hidden="true" className="size-3" />
-                {kind === "jobs" ? "Create job" : "Create trigger"}
-              </Button>
-            )
+            <Button
+              data-testid={`${noun}-list-clear-filters`}
+              onClick={onClearFilters}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Clear filters
+            </Button>
           }
           className="max-w-sm"
-          description={
-            hasActiveFilters
-              ? "Try clearing search or filters."
-              : kind === "jobs"
-                ? "Create your first job to run a configured target on a schedule."
-                : "Create your first trigger to react to daemon events and run its target."
-          }
+          description="Try clearing search or filters."
           icon={EmptyIcon}
-          title={hasActiveFilters ? `No ${noun} match` : `No ${noun} yet`}
+          title={`No ${noun} match`}
         />
       </div>
+    );
+  }
+
+  if (isEmpty) {
+    return (
+      <CatalogEmptyState
+        action={
+          <Button
+            data-testid={`${noun}-list-create`}
+            onClick={onCreate}
+            size="sm"
+            type="button"
+            variant="neutral"
+          >
+            Create from scratch
+          </Button>
+        }
+        data-testid={`${noun}-list-empty`}
+        icon={EmptyIcon}
+        panel={unfilteredEmptyPanel}
+        support={
+          kind === "jobs"
+            ? "A job runs an agent or a loop on a schedule."
+            : "A trigger reacts to a daemon event and runs its target."
+        }
+        title={`No ${noun} yet`}
+      />
     );
   }
 
