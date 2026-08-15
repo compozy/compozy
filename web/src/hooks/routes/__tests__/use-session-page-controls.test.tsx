@@ -35,6 +35,7 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/systems/session", async () => {
   const { canPromptSession } = await import("@/systems/session/lib/session-running");
+  const { queuedPromptAttachmentSummary } = await import("@/systems/session/lib/queued-prompt");
   return {
     canPromptSession,
     cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
@@ -46,6 +47,7 @@ vi.mock("@/systems/session", async () => {
       session.state !== "stopped" &&
       (Boolean(session.activity?.turn_id) || session.badge === "running"),
     isUserControllableSession: (session: { type?: string }) => (session.type ?? "user") === "user",
+    queuedPromptAttachmentSummary,
     useCancelSessionInput: () => routeHookMocks.cancelInputMutation,
     useClearSessionConversation: () => routeHookMocks.clearMutation,
     useDeleteSession: () => routeHookMocks.deleteMutation,
@@ -250,9 +252,9 @@ describe("useSessionPageControls", () => {
     routeHookMocks.queuePromptMutation.mutateAsync.mockReturnValue(admission.promise);
     const { result } = renderControls();
 
-    let request!: Promise<void>;
+    let request!: Promise<unknown>;
     act(() => {
-      request = result.current.handleQueuePrompt("queue me")!;
+      request = result.current.handleQueuePrompt({ message: "queue me", attachments: [] })!;
     });
     expect(result.current.isBusyInputPending).toBe(true);
     expect(routeHookMocks.queuePromptMutation.mutateAsync).toHaveBeenCalledWith({
@@ -275,8 +277,22 @@ describe("useSessionPageControls", () => {
     const { result } = renderControls(makeSession("active", "turn-live"));
 
     await act(async () => {
-      await result.current.handleSteerPrompt("new constraint");
-      await result.current.handleInterruptPrompt("replace the work");
+      await result.current.handleSteerPrompt({ message: "new constraint", attachments: [] });
+      await result.current.handleInterruptPrompt({
+        message: "replace the work",
+        attachments: [
+          {
+            bytes: 4,
+            height: 10,
+            id: `att_${"a".repeat(64)}`,
+            kind: "image",
+            mime_type: "image/png",
+            name: "interrupt.png",
+            sha256: "a".repeat(64),
+            width: 10,
+          },
+        ],
+      });
     });
 
     expect(routeHookMocks.steerPromptMutation.mutateAsync).toHaveBeenCalledWith({
@@ -288,6 +304,18 @@ describe("useSessionPageControls", () => {
       expectedTurnId: "turn-live",
       id: "sess-1",
       message: "replace the work",
+      attachments: [
+        {
+          bytes: 4,
+          height: 10,
+          id: `att_${"a".repeat(64)}`,
+          kind: "image",
+          mime_type: "image/png",
+          name: "interrupt.png",
+          sha256: "a".repeat(64),
+          width: 10,
+        },
+      ],
     });
   });
 
@@ -296,8 +324,8 @@ describe("useSessionPageControls", () => {
     const { result } = renderControls(makeSession("active"));
 
     await act(async () => {
-      await result.current.handleSteerPrompt("new constraint");
-      await result.current.handleInterruptPrompt("replace the work");
+      await result.current.handleSteerPrompt({ message: "new constraint", attachments: [] });
+      await result.current.handleInterruptPrompt({ message: "replace the work", attachments: [] });
     });
 
     expect(routeHookMocks.steerPromptMutation.mutateAsync).not.toHaveBeenCalled();
@@ -404,7 +432,9 @@ describe("useSessionPageControls", () => {
     const { result } = renderControls();
 
     await act(async () => {
-      await expect(result.current.handleQueuePrompt("keep draft")).rejects.toThrow("queue failed");
+      await expect(
+        result.current.handleQueuePrompt({ message: "keep draft", attachments: [] })
+      ).rejects.toThrow("queue failed");
     });
     await waitFor(() => expect(result.current.isBusyInputPending).toBe(false));
   });

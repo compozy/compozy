@@ -43,19 +43,27 @@ var _ workspacepkg.UnregisterPreparation = (*workspaceUnregisterPreparation)(nil
 // PrepareWorkspaceRemoval atomically stages every stopped session directory so
 // the workspace store can delete its database-owned rows without orphaning
 // transcript state. Commit or Rollback releases the serialized deletion lease.
+func workspaceRemovalTarget(ctx context.Context, m *Manager, workspaceID string) (string, error) {
+	if m == nil {
+		return "", errors.New("session: manager is required")
+	}
+	if ctx == nil {
+		return "", errors.New("session: workspace removal context is required")
+	}
+	targetWorkspace := strings.TrimSpace(workspaceID)
+	if targetWorkspace == "" {
+		return "", errors.New("session: workspace id is required")
+	}
+	return targetWorkspace, nil
+}
+
 func (m *Manager) PrepareWorkspaceRemoval(
 	ctx context.Context,
 	workspaceID string,
 ) (workspacepkg.UnregisterPreparation, error) {
-	if m == nil {
-		return nil, errors.New("session: manager is required")
-	}
-	if ctx == nil {
-		return nil, errors.New("session: workspace removal context is required")
-	}
-	targetWorkspace := strings.TrimSpace(workspaceID)
-	if targetWorkspace == "" {
-		return nil, errors.New("session: workspace id is required")
+	targetWorkspace, err := workspaceRemovalTarget(ctx, m, workspaceID)
+	if err != nil {
+		return nil, err
 	}
 
 	ctx, lockedSessionIDs, operationUnlocks, err := m.lockWorkspaceConversationOperations(ctx, targetWorkspace)
@@ -86,7 +94,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		releaseConversationOperations(operationUnlocks)
 		return nil, fmt.Errorf("session: reserve workspace attachment deletion identity: %w", err)
 	}
-	workspaceAttachments, err := m.stageWorkspaceAttachmentDelete(targetWorkspace, deletionID)
+	workspaceAttachments, err := m.stageWorkspaceAttachmentDelete(ctx, targetWorkspace, deletionID)
 	if err != nil {
 		m.lifecycleMu.Unlock()
 		releaseConversationOperations(operationUnlocks)
@@ -312,13 +320,16 @@ func (m *Manager) stageSessionDirectoryDelete(
 	if err := stageBoundSessionDelete(ctx, capabilities, owner, originalPath, stagedPath); err != nil {
 		return stagedSessionDelete{}, err
 	}
-	attachments, err := m.stageSessionAttachmentDelete(info.WorkspaceID, target, deletionID)
+	attachments, err := m.stageSessionAttachmentDelete(ctx, info.WorkspaceID, target, deletionID)
 	if err != nil {
 		entry := stagedSessionDelete{
 			info: info, owner: owner, originalPath: originalPath, stagedPath: stagedPath,
 			committedPath: committedPath, capabilities: capabilities,
 		}
-		return stagedSessionDelete{}, errors.Join(err, m.rollbackStagedSessionDeletes(ctx, []stagedSessionDelete{entry}))
+		return stagedSessionDelete{}, errors.Join(
+			err,
+			m.rollbackStagedSessionDeletes(ctx, []stagedSessionDelete{entry}),
+		)
 	}
 	return stagedSessionDelete{
 		info:          info,

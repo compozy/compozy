@@ -83,6 +83,15 @@ func ParseAttachmentURI(uri string) (string, error) {
 	return id, nil
 }
 
+// ParseAttachmentID validates a persisted content-addressed attachment identity.
+func ParseAttachmentID(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed != value || !attachmentIDPattern.MatchString(trimmed) {
+		return "", fmt.Errorf("%w: %q", ErrInvalidID, value)
+	}
+	return trimmed, nil
+}
+
 // ValidateSize rejects a negative count or a payload over the configured per-file ceiling.
 func ValidateSize(bytes int64, maxFileBytes int64) error {
 	if maxFileBytes <= 0 {

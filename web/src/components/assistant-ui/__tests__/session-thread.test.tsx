@@ -71,6 +71,10 @@ function pngFile(name = "shot.png") {
   return new File([header, new Uint8Array(24)], name, { type: "image/png" });
 }
 
+function pdfFile(name = "report.pdf") {
+  return new File(["%PDF-1.7\nattachment"], name, { type: "application/pdf" });
+}
+
 function zipFile() {
   return new File([Uint8Array.of(0x50, 0x4b, 0x03, 0x04)], "archive.zip", {
     type: "application/zip",
@@ -182,7 +186,10 @@ function createPromptRecordingFetchMock(promptCalls: string[]) {
   });
 }
 
-function createFetchMock(options?: { beforeAttachmentUpload?: () => Promise<void> }) {
+function createFetchMock(options?: {
+  attachmentUploadName?: string;
+  beforeAttachmentUpload?: () => Promise<void>;
+}) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const pathname = getPathname(input);
 
@@ -225,7 +232,7 @@ function createFetchMock(options?: { beforeAttachmentUpload?: () => Promise<void
       if (options?.beforeAttachmentUpload) {
         await options.beforeAttachmentUpload();
       }
-      return jsonResponse(attachmentUploadPayload(), { status: 201 });
+      return jsonResponse(attachmentUploadPayload(options?.attachmentUploadName), { status: 201 });
     }
 
     if (
@@ -720,6 +727,12 @@ describe("SessionThread transcript states", () => {
             url: "compozy://session-attachments/att-notes",
             filename: "notes.pdf",
           },
+          {
+            type: "file",
+            mediaType: "image/png",
+            url: "compozy://session-attachments/att-image",
+            filename: "diagram.png",
+          },
           { type: "text", text: "Flatten both.", state: "done" },
         ],
       } as SessionMessage,
@@ -731,18 +744,26 @@ describe("SessionThread transcript states", () => {
     const bubble = screen.getByTestId("user-message-bubble");
     expect(bubble).toHaveTextContent("Flatten both.");
     expect(gallery.compareDocumentPosition(bubble) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByTestId("user-message-attachment-frame")).toHaveAttribute(
+    const imageFrames = screen.getAllByTestId("user-message-attachment-frame");
+    expect(imageFrames).toHaveLength(2);
+    expect(imageFrames[0]).toHaveAttribute(
       "href",
       `/api/workspaces/${workspaceId}/sessions/${sessionId}/attachments/att-image/bytes`
     );
+    expect(imageFrames[0]).not.toHaveAttribute("role");
     expect(screen.getByTestId("user-message-attachment-file-card")).toHaveAttribute(
       "href",
       `/api/workspaces/${workspaceId}/sessions/${sessionId}/attachments/att-notes/bytes`
     );
+    expect(screen.getByTestId("user-message-attachment-file-card")).not.toHaveAttribute("role");
     expect(screen.getByTestId("user-message-attachment-file-card")).toHaveTextContent("notes.pdf");
-    expect(screen.queryByRole("img", { name: "diagram.png" })?.getAttribute("src")).not.toMatch(
-      /^data:/
-    );
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(within(gallery).getAllByRole("link")).toHaveLength(3);
+    const images = screen.getAllByRole("img", { name: "diagram.png" });
+    expect(images).toHaveLength(2);
+    expect(images[0]).toHaveAttribute("width", "1280");
+    expect(images[0]).toHaveAttribute("height", "720");
+    expect(images[0]?.getAttribute("src")).not.toMatch(/^data:/);
   });
 
   it("Should skip the empty bubble on an image-only user turn", async () => {
@@ -2355,7 +2376,10 @@ describe("SessionThread composer running semantics", () => {
     });
 
     await waitFor(() => {
-      expect(onQueuePrompt).toHaveBeenCalledWith("queue this follow-up");
+      expect(onQueuePrompt).toHaveBeenCalledWith({
+        message: "queue this follow-up",
+        attachments: [],
+      });
     });
     expect(onQueuePrompt).toHaveBeenCalledTimes(1);
     await waitFor(() => {
@@ -2385,6 +2409,44 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
     resolveQueue?.();
     await waitFor(() => expect(composerText()).toBe(""));
+  });
+
+  it("Should queue ready attachment refs and keep steer text-only", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() => Promise.resolve());
+    const onSteerPrompt = vi.fn(() => Promise.resolve());
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUploadName: "queued.png" }));
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt,
+      onSteerPrompt,
+      promptImage: true,
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("review this image");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile("queued.png"));
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getByTestId("composer-steer-button")).toBeDisabled();
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    await waitFor(() => expect(onQueuePrompt).toHaveBeenCalledOnce());
+    expect(onQueuePrompt).toHaveBeenCalledWith({
+      message: "review this image",
+      attachments: [
+        expect.objectContaining({
+          id: `att_${"a".repeat(64)}`,
+          name: "queued.png",
+          mime_type: "image/png",
+        }),
+      ],
+    });
+    expect(onSteerPrompt).not.toHaveBeenCalled();
   });
 
   it("Should show an error toast and preserve the draft when queue fails", async () => {
@@ -2429,7 +2491,10 @@ describe("SessionThread composer running semantics", () => {
     await user.click(screen.getByTestId("composer-steer-button"));
 
     await waitFor(() => {
-      expect(onSteerPrompt).toHaveBeenCalledWith("steer with this constraint");
+      expect(onSteerPrompt).toHaveBeenCalledWith({
+        message: "steer with this constraint",
+        attachments: [],
+      });
       expect(composerText()).toBe("");
     });
   });
@@ -2450,7 +2515,10 @@ describe("SessionThread composer running semantics", () => {
     });
 
     await waitFor(() => {
-      expect(onSteerPrompt).toHaveBeenCalledWith("steer to the new direction");
+      expect(onSteerPrompt).toHaveBeenCalledWith({
+        message: "steer to the new direction",
+        attachments: [],
+      });
       expect(composerText()).toBe("");
     });
   });
@@ -2766,6 +2834,27 @@ describe("SessionThread composer attachments", () => {
     expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
   });
 
+  it("Should clear an active file drag when prompt capability becomes unavailable", async () => {
+    const view = renderComposerRerenderable({ canPrompt: true, promptImage: true });
+    await screen.findByTestId("composer-input");
+    const overlay = screen.getByTestId("composer-drop-overlay");
+    const dropRoot = overlay.parentElement;
+    if (!dropRoot) {
+      throw new Error("composer drop root is not mounted");
+    }
+    const transfer = {
+      dropEffect: "copy",
+      files: [pngFile()],
+      types: ["Files"],
+    };
+
+    fireEvent.dragEnter(dropRoot, { dataTransfer: transfer });
+    expect(overlay).toHaveAttribute("aria-hidden", "false");
+
+    view.rerender({ canPrompt: false, promptImage: true });
+    await waitFor(() => expect(overlay).toHaveAttribute("aria-hidden", "true"));
+  });
+
   it("Should turn a picker file into a draft tile", async () => {
     const user = userEvent.setup();
     renderComposer({ promptImage: true });
@@ -2842,6 +2931,24 @@ describe("SessionThread composer attachments", () => {
     expect(send).toHaveAttribute("title", "This model does not accept images");
   });
 
+  it("Should show the capability gate for PDF files without embedded context", async () => {
+    vi.stubGlobal("fetch", createFetchMock({ attachmentUploadName: "report.pdf" }));
+    renderComposer({ promptEmbeddedContext: false, promptImage: true });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pdfFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getByTestId("composer-attachment-gate")).toHaveTextContent(
+      "This model does not accept PDF files."
+    );
+    const send = screen.getByTestId("composer-send-button");
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "This model does not accept PDF files");
+  });
+
   it("Should remove a draft tile from the strip", async () => {
     const user = userEvent.setup();
     renderComposer({ promptImage: true });
@@ -2870,8 +2977,7 @@ describe("SessionThread composer attachments", () => {
           attachments: {
             fileCount: 1,
             imageCount: 2,
-            previewKind: "file",
-            previewMark: "PDF",
+            preview: { kind: "file", mark: "PDF" },
           },
         },
       ],

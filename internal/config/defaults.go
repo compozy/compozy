@@ -10,6 +10,16 @@ import (
 const DefaultMCPClientMetadataURL = "https://compozy.com/.well-known/mcp-client.json"
 
 // DefaultWithHome returns the built-in default configuration for the supplied Compozy home.
+func defaultSessionConfig() SessionConfig {
+	return SessionConfig{
+		Limits:      SessionLimitsConfig{},
+		Supervision: DefaultSessionSupervisionConfig(),
+		BusyInput:   DefaultSessionBusyInputConfig(),
+		Compaction:  DefaultSessionCompactionConfig(),
+		Attachments: DefaultSessionAttachmentsConfig(),
+	}
+}
+
 func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
 		Daemon:        defaultDaemonConfig(homePaths),
@@ -26,13 +36,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Limits: LimitsConfig{
 			MaxConcurrentAgents: 20,
 		},
-		Session: SessionConfig{
-			Limits:      SessionLimitsConfig{},
-			Supervision: DefaultSessionSupervisionConfig(),
-			BusyInput:   DefaultSessionBusyInputConfig(),
-			Compaction:  DefaultSessionCompactionConfig(),
-			Attachments: DefaultSessionAttachmentsConfig(),
-		},
+		Session: defaultSessionConfig(),
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,
 		},

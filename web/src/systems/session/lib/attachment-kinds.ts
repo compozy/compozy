@@ -1,6 +1,3 @@
-export const ATTACHMENT_PICKER_ACCEPT =
-  "image/png,image/jpeg,image/webp,application/pdf,text/markdown,text/plain,.md,.txt,.pdf";
-
 /** Client pre-check only — server 413/415 is the authority. */
 export const ATTACHMENT_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const ATTACHMENT_MAX_COUNT = 10;
@@ -18,9 +15,16 @@ const WEBP_MARKER = [0x57, 0x45, 0x42, 0x50] as const;
 
 export type AttachmentKind = "image" | "file";
 export type AttachmentFileMark = "PDF" | "MD" | "TXT";
+export type AttachmentMIME =
+  | "image/png"
+  | "image/jpeg"
+  | "image/webp"
+  | "application/pdf"
+  | "text/markdown"
+  | "text/plain";
 
 export type AttachmentSniffResult =
-  | { ok: true; kind: AttachmentKind; mimeType: string; mark?: AttachmentFileMark }
+  | { ok: true; kind: AttachmentKind; mimeType: AttachmentMIME; mark?: AttachmentFileMark }
   | { ok: false; reason: "unsupported" | "too-large" };
 
 export interface SessionAttachmentRef {
@@ -74,7 +78,7 @@ function extensionOf(name: string): string {
 
 function sniffTextFile(file: File): AttachmentSniffResult | null {
   const ext = extensionOf(file.name);
-  if (file.type === "text/markdown" || ext === "md" || ext === "markdown") {
+  if (file.type === "text/markdown" || ext === "md" || ext === "markdown" || ext === "mdown") {
     return { ok: true, kind: "file", mimeType: "text/markdown", mark: "MD" };
   }
   if (file.type === "text/plain" || ext === "txt") {
@@ -89,8 +93,22 @@ export async function sniffAttachmentFile(file: File): Promise<AttachmentSniffRe
   }
   const textHit = sniffTextFile(file);
   if (textHit) return textHit;
-  const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-  return sniffAttachmentBytes(header);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const binary = sniffAttachmentBytes(bytes);
+  if (binary.ok) return binary;
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    const hasUnsupportedControl = Array.from(text).some(character => {
+      const code = character.codePointAt(0) ?? 0;
+      return code < 0x20 && character !== "\n" && character !== "\r" && character !== "\t";
+    });
+    if (!hasUnsupportedControl) {
+      return { ok: true, kind: "file", mimeType: "text/plain", mark: "TXT" };
+    }
+  } catch {
+    // The daemon remains authoritative for unsupported binary input.
+  }
+  return { ok: false, reason: "unsupported" };
 }
 
 export function attachmentExtensionMark(name: string, mimeType?: string): string {
@@ -141,12 +159,15 @@ export function isSessionAttachmentRef(value: unknown): value is SessionAttachme
 }
 
 export function attachmentsFromPromptMessageParts(
-  parts: readonly { type?: string; data?: unknown }[] | undefined
+  parts: readonly { type?: string; name?: string; data?: unknown }[] | undefined
 ): SessionAttachmentRef[] {
   if (!parts) return [];
   const attachments: SessionAttachmentRef[] = [];
   for (const part of parts) {
-    if (part.type !== SESSION_ATTACHMENT_DATA_TYPE) continue;
+    const isAttachmentPart =
+      part.type === SESSION_ATTACHMENT_DATA_TYPE ||
+      (part.type === "data" && part.name === SESSION_ATTACHMENT_PART_NAME);
+    if (!isAttachmentPart) continue;
     if (!isSessionAttachmentRef(part.data)) continue;
     attachments.push(part.data);
   }

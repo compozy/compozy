@@ -53,9 +53,7 @@ export function SessionAttachmentGallery({
         )}
       />
       <ul
-        ref={node => {
-          trackRef.current = node as typeof trackRef.current;
-        }}
+        ref={trackRef}
         aria-label="Attachments"
         className={cn(
           "att-rail__track m-0 flex list-none flex-nowrap items-start justify-end gap-1.5 overflow-x-auto overflow-y-hidden px-0 py-0.5",
@@ -63,15 +61,16 @@ export function SessionAttachmentGallery({
           "overscroll-x-contain [scroll-padding-inline:var(--att-fade)] [touch-action:pan-x]"
         )}
       >
-        {items.map(item => (
-          <li key={item.id} className="shrink-0">
+        {items.map((item, occurrence) => (
+          <li key={`${item.id}:${occurrence}`} data-attachment-rail-item className="shrink-0">
             {item.kind === "image" ? (
               <SessionAttachmentFrame
                 href={item.href}
                 src={item.src}
                 filename={item.filename}
                 title={imageTitle(item)}
-                role="listitem"
+                width={item.width}
+                height={item.height}
               />
             ) : (
               <SessionAttachmentFileCard
@@ -79,7 +78,6 @@ export function SessionAttachmentGallery({
                 filename={item.filename}
                 extension={item.extension}
                 sizeLabel={item.sizeLabel}
-                role="listitem"
               />
             )}
           </li>

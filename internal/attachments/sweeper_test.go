@@ -115,12 +115,51 @@ func TestSweeperLifecycle(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("Should retain worker ownership after a timed-out shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		started := make(chan struct{}, 1)
+		release := make(chan struct{})
+		store := &sweeperTestStore{started: started, release: release}
+		worker := NewSweeper(store, time.Millisecond, nil)
+		if err := worker.Start(t.Context()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for blocking sweep")
+		}
+
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
+		defer cancel()
+		if err := worker.Shutdown(shutdownCtx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Shutdown(timeout) error = %v, want deadline exceeded", err)
+		}
+		if err := worker.Start(t.Context()); err == nil || err.Error() != "attachment sweeper is already started" {
+			t.Fatalf("Start(after timeout) error = %v, want already-started error", err)
+		}
+
+		close(release)
+		if err := worker.Shutdown(t.Context()); err != nil {
+			t.Fatalf("Shutdown(join) error = %v", err)
+		}
+		if err := worker.Start(t.Context()); err != nil {
+			t.Fatalf("Start(after join) error = %v", err)
+		}
+		if err := worker.Shutdown(t.Context()); err != nil {
+			t.Fatalf("Shutdown(restarted) error = %v", err)
+		}
+	})
 }
 
 type sweeperTestStore struct {
-	mu    sync.Mutex
-	count int
-	err   error
+	mu      sync.Mutex
+	count   int
+	err     error
+	started chan<- struct{}
+	release <-chan struct{}
 }
 
 var _ Store = (*sweeperTestStore)(nil)
@@ -158,6 +197,15 @@ func (s *sweeperTestStore) Delete(context.Context, string, string, string) error
 }
 
 func (s *sweeperTestStore) Sweep(context.Context) error {
+	if s.started != nil {
+		select {
+		case s.started <- struct{}{}:
+		default:
+		}
+	}
+	if s.release != nil {
+		<-s.release
+	}
 	s.mu.Lock()
 	s.count++
 	err := s.err

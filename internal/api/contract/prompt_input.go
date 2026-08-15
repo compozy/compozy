@@ -16,6 +16,11 @@ type PromptInput struct {
 
 // ExtractPromptInput validates explicit command identity and AI SDK message correlation.
 func ExtractPromptInput(req SendPromptRequest) (PromptInput, error) {
+	return ExtractPromptInputWithAttachmentLimit(req, DefaultPromptAttachmentLimit)
+}
+
+// ExtractPromptInputWithAttachmentLimit validates prompt input against the effective attachment limit.
+func ExtractPromptInputWithAttachmentLimit(req SendPromptRequest, maxAttachments int) (PromptInput, error) {
 	if err := req.ValidateBusyInputFence(); err != nil {
 		return PromptInput{}, err
 	}
@@ -28,8 +33,7 @@ func ExtractPromptInput(req SendPromptRequest) (PromptInput, error) {
 		return PromptInput{}, errors.New("idempotency_key is required")
 	}
 	attachments := append([]PromptAttachmentRef(nil), req.Attachments...)
-	// seam: config [session.attachments].max_files_per_prompt
-	if err := ValidatePromptAttachments(attachments, DefaultPromptAttachmentLimit); err != nil {
+	if err := ValidatePromptAttachments(attachments, maxAttachments); err != nil {
 		return PromptInput{}, err
 	}
 	topLevelMessage := strings.TrimSpace(req.Message)

@@ -1,10 +1,16 @@
 import type { ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  SESSION_ATTACHMENT_IMAGE_MAX_HEIGHT,
+  SESSION_ATTACHMENT_IMAGE_MAX_WIDTH,
+} from "../lib/session-attachment-geometry";
 
 export interface SessionAttachmentFrameProps extends ComponentProps<"a"> {
   filename: string;
   src: string;
+  width?: number;
+  height?: number;
 }
 
 export function SessionAttachmentFrame({
@@ -12,6 +18,8 @@ export function SessionAttachmentFrame({
   src,
   className,
   title,
+  width,
+  height,
   ...props
 }: SessionAttachmentFrameProps) {
   return (
@@ -29,7 +37,15 @@ export function SessionAttachmentFrame({
       <img
         src={src}
         alt={filename}
-        className="block h-auto max-h-[168px] w-auto max-w-[280px] object-cover"
+        {...(width && width > 0 ? { width } : {})}
+        {...(height && height > 0 ? { height } : {})}
+        style={{
+          aspectRatio:
+            width && height && width > 0 && height > 0 ? `${width} / ${height}` : "4 / 3",
+          maxHeight: SESSION_ATTACHMENT_IMAGE_MAX_HEIGHT,
+          maxWidth: SESSION_ATTACHMENT_IMAGE_MAX_WIDTH,
+        }}
+        className="block h-auto w-auto object-cover"
       />
       <span
         className={cn(

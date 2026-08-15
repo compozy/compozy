@@ -53,8 +53,14 @@ export async function uploadSessionAttachment(
   if (apiRequestFailed(response, error)) {
     throwAttachmentError(response, error, "Couldn't save the attachment");
   }
-  const payload = requireResponseData(data, response, "Couldn't save the attachment");
-  return payload.attachment;
+  try {
+    return requireResponseData(data, response, "Couldn't save the attachment").attachment;
+  } catch (error) {
+    throw new SessionAttachmentApiError(
+      error instanceof Error ? error.message : "Couldn't save the attachment",
+      response.status
+    );
+  }
 }
 
 export async function deleteSessionAttachment(

@@ -263,7 +263,12 @@ func TestDocumentDescribesSessionAttachmentContracts(t *testing.T) {
 	t.Run("Should describe multipart upload and binary attachment reads", func(t *testing.T) {
 		t.Parallel()
 
-		upload := operationFor(t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments", http.MethodPost)
+		upload := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
+			http.MethodPost,
+		)
 		if upload.RequestBody == nil || upload.RequestBody.Value == nil {
 			t.Fatal("attachment upload is missing a request body")
 		}
@@ -280,6 +285,7 @@ func TestDocumentDescribesSessionAttachmentContracts(t *testing.T) {
 		if form.Schema.Value.Type == nil || !form.Schema.Value.Type.Is("object") {
 			t.Fatalf("upload schema type = %#v, want object", form.Schema.Value.Type)
 		}
+		assertSchemaHasAdditionalProperties(t, form.Schema.Value, false)
 		assertRequired(t, form.Schema.Value, "file")
 		file := propertySchema(t, form.Schema.Value, "file")
 		if file.Type == nil || !file.Type.Is("string") || file.Format != "binary" {
@@ -292,7 +298,7 @@ func TestDocumentDescribesSessionAttachmentContracts(t *testing.T) {
 			"/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes",
 			http.MethodGet,
 		)
-		bytesSchema := responseSchema(t, bytesRead, http.StatusOK, "application/octet-stream")
+		bytesSchema := responseSchema(t, bytesRead, http.StatusOK, "*/*")
 		if bytesSchema.Type == nil || !bytesSchema.Type.Is("string") || bytesSchema.Format != "binary" {
 			t.Fatalf("bytes response schema = %#v, want string/binary", bytesSchema)
 		}

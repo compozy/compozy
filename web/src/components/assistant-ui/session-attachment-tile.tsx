@@ -39,21 +39,12 @@ export function SessionAttachmentTile({
   );
 
   useEffect(() => {
-    if (!isImage || !model.file) return;
+    if (!isImage || !model.file || typeof URL.createObjectURL !== "function") return;
     const file = model.file;
-    const reader = new FileReader();
-    const handleLoad = () => {
-      if (typeof reader.result === "string") {
-        setPreview({ file, url: reader.result });
-      }
-    };
-    reader.addEventListener("load", handleLoad);
-    reader.readAsDataURL(file);
+    const url = URL.createObjectURL(file);
+    setPreview({ file, url });
     return () => {
-      reader.removeEventListener("load", handleLoad);
-      if (reader.readyState === FileReader.LOADING) {
-        reader.abort();
-      }
+      URL.revokeObjectURL(url);
     };
   }, [isImage, model.file]);
 
@@ -139,20 +130,17 @@ export function SessionAttachmentTile({
           Retry
         </Button>
       ) : null}
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-xs"
         aria-label={`Remove ${model.name}`}
         data-testid="composer-attachment-remove"
         onClick={onRemove}
-        className={cn(
-          "grid size-[22px] shrink-0 place-items-center rounded-sm text-faint",
-          "transition-colors duration-fast ease-out",
-          "hover:bg-danger-tint hover:text-danger",
-          "focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
+        className="text-faint hover:bg-danger-tint hover:text-danger"
       >
         <X className="size-[11.5px]" />
-      </button>
+      </Button>
     </li>
   );
 }

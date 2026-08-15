@@ -15,7 +15,7 @@ func TestAttachmentContentBlocks(t *testing.T) {
 
 		data := []byte("image-bytes")
 		blocks, err := attachmentContentBlocks(PromptRequest{Attachments: []PromptAttachment{{
-			Name: "diagram.png", MIMEType: "image/png", Kind: "image", Data: data,
+			Name: "diagram.png", MIMEType: "image/png", Data: data,
 		}}}, Caps{PromptImage: true})
 		if err != nil {
 			t.Fatalf("attachmentContentBlocks() error = %v", err)
@@ -36,7 +36,7 @@ func TestAttachmentContentBlocks(t *testing.T) {
 
 		data := []byte("pdf-bytes")
 		blocks, err := attachmentContentBlocks(PromptRequest{Attachments: []PromptAttachment{{
-			Name: "report.pdf", MIMEType: "application/pdf", Kind: "file", Data: data,
+			Name: "report.pdf", MIMEType: "application/pdf", Data: data,
 		}}}, Caps{PromptEmbeddedContext: true})
 		if err != nil {
 			t.Fatalf("attachmentContentBlocks() error = %v", err)
@@ -58,7 +58,7 @@ func TestAttachmentContentBlocks(t *testing.T) {
 		t.Parallel()
 
 		blocks, err := attachmentContentBlocks(PromptRequest{Attachments: []PromptAttachment{{
-			Name: "notes.md", MIMEType: "text/markdown", Kind: "file", Data: []byte("# Notes"),
+			Name: "notes.md", MIMEType: "text/markdown", Data: []byte("# Notes"),
 		}}}, Caps{PromptEmbeddedContext: true})
 		if err != nil {
 			t.Fatalf("attachmentContentBlocks() error = %v", err)
@@ -76,7 +76,7 @@ func TestAttachmentContentBlocks(t *testing.T) {
 		t.Parallel()
 
 		blocks, err := attachmentContentBlocks(PromptRequest{Attachments: []PromptAttachment{{
-			Name: "notes.txt", MIMEType: "text/plain", Kind: "file", Data: []byte("plain notes"),
+			Name: "notes.txt", MIMEType: "text/plain", Data: []byte("plain notes"),
 		}}}, Caps{})
 		if err != nil {
 			t.Fatalf("attachmentContentBlocks() error = %v", err)

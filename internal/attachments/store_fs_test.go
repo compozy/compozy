@@ -2,6 +2,7 @@ package attachments
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -160,6 +161,7 @@ func TestFilesystemAttachmentStoreSizeLimit(t *testing.T) {
 			root,
 			testAttachmentRetention(),
 			StoreLimits{MaxFileBytes: 4, AllowedMIME: DefaultAllowedMIME},
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
@@ -180,6 +182,7 @@ func TestFilesystemAttachmentStoreSizeLimit(t *testing.T) {
 			filepath.Join(t.TempDir(), "session-attachments"),
 			retention,
 			StoreLimits{MaxFileBytes: 8, AllowedMIME: DefaultAllowedMIME},
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
@@ -198,6 +201,7 @@ func TestFilesystemAttachmentStoreSizeLimit(t *testing.T) {
 			filepath.Join(t.TempDir(), "session-attachments"),
 			testAttachmentRetention(),
 			StoreLimits{MaxFileBytes: 1024, AllowedMIME: []string{MIMETextPlain}},
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
@@ -207,6 +211,33 @@ func TestFilesystemAttachmentStoreSizeLimit(t *testing.T) {
 			t.Fatalf("Put() error = %v, want unsupported MIME", err)
 		}
 	})
+}
+
+func TestFilesystemAttachmentStoreRedactsPersistedFilename(t *testing.T) {
+	t.Parallel()
+
+	store := openTestAttachmentStore(
+		t,
+		filepath.Join(t.TempDir(), "session-attachments"),
+		testAttachmentRetention(),
+	)
+	const leakedName = "token=attachment-name-secret compozy_claim_attachment_123.txt"
+
+	stored, err := store.Put(t.Context(), "ws_a", "sess_1", leakedName, []byte("plain notes"))
+	if err != nil {
+		t.Fatalf("Put() error = %v", err)
+	}
+	if strings.Contains(stored.Name, "attachment-name-secret") ||
+		strings.Contains(stored.Name, "compozy_claim_attachment_123") {
+		t.Fatalf("Put() Name = %q, leaked filename credentials", stored.Name)
+	}
+	reopened, err := store.Stat(t.Context(), "ws_a", "sess_1", stored.ID)
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	if reopened.Name != stored.Name {
+		t.Fatalf("Stat() Name = %q, want persisted redacted name %q", reopened.Name, stored.Name)
+	}
 }
 
 func TestOpenFilesystemAttachmentStoreValidation(t *testing.T) {
@@ -264,6 +295,7 @@ func TestOpenFilesystemAttachmentStoreValidation(t *testing.T) {
 				tc.root,
 				tc.retention,
 				tc.limits,
+				nil,
 			); err == nil {
 				t.Fatal("OpenFilesystemAttachmentStore() error = nil, want validation error")
 			}
@@ -285,6 +317,7 @@ func TestFilesystemAttachmentStoreRetention(t *testing.T) {
 			filepath.Join(t.TempDir(), "session-attachments"),
 			retention,
 			testAttachmentLimits(),
+			nil,
 			withAttachmentStoreNow(func() time.Time { return now }),
 		)
 		if err != nil {
@@ -321,6 +354,7 @@ func TestFilesystemAttachmentStoreRetention(t *testing.T) {
 			filepath.Join(t.TempDir(), "session-attachments"),
 			retention,
 			testAttachmentLimits(),
+			nil,
 			withAttachmentStoreNow(func() time.Time { return now }),
 		)
 		if err != nil {
@@ -341,6 +375,42 @@ func TestFilesystemAttachmentStoreRetention(t *testing.T) {
 		now = now.Add(time.Hour + time.Second)
 		assertAttachmentMissing(t, store, "ws_b", "sess_2", current.ID)
 	})
+
+	t.Run("Should preserve pending-input pins until the queue releases them", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 14, 8, 0, 0, 0, time.UTC)
+		retention := testAttachmentRetention()
+		retention.MaxAge = time.Hour
+		pins := &testRetentionPinSource{bySession: map[string]map[string]struct{}{}}
+		store, err := OpenFilesystemAttachmentStore(
+			t.Context(),
+			filepath.Join(t.TempDir(), "session-attachments"),
+			retention,
+			testAttachmentLimits(),
+			pins,
+			withAttachmentStoreNow(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
+		}
+		ref, err := store.Put(t.Context(), "ws_a", "sess_queued", "queued.txt", []byte("queued"))
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+		pins.bySession["sess_queued"] = map[string]struct{}{ref.ID: {}}
+		now = now.Add(2 * time.Hour)
+		if err := store.Sweep(t.Context()); err != nil {
+			t.Fatalf("Sweep(pinned) error = %v", err)
+		}
+		assertAttachmentPresent(t, store, "ws_a", "sess_queued", ref.ID)
+
+		pins.bySession["sess_queued"] = map[string]struct{}{}
+		if err := store.Sweep(t.Context()); err != nil {
+			t.Fatalf("Sweep(released) error = %v", err)
+		}
+		assertAttachmentMissing(t, store, "ws_a", "sess_queued", ref.ID)
+	})
 }
 
 func TestFilesystemAttachmentStoreFailureCleanup(t *testing.T) {
@@ -355,6 +425,7 @@ func TestFilesystemAttachmentStoreFailureCleanup(t *testing.T) {
 			root,
 			testAttachmentRetention(),
 			testAttachmentLimits(),
+			nil,
 			withAttachmentStoreWriteFile(func(path string, content []byte, perm os.FileMode) error {
 				if writeErr := os.WriteFile(path, content, perm); writeErr != nil {
 					return writeErr
@@ -475,7 +546,7 @@ func openTestAttachmentStore(
 	retention AttachmentRetention,
 ) *FilesystemAttachmentStore {
 	t.Helper()
-	store, err := OpenFilesystemAttachmentStore(t.Context(), root, retention, testAttachmentLimits())
+	store, err := OpenFilesystemAttachmentStore(t.Context(), root, retention, testAttachmentLimits(), nil)
 	if err != nil {
 		t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
 	}
@@ -484,6 +555,17 @@ func openTestAttachmentStore(
 
 func testAttachmentRetention() AttachmentRetention {
 	return AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: 24 * time.Hour}
+}
+
+type testRetentionPinSource struct {
+	bySession map[string]map[string]struct{}
+}
+
+func (s *testRetentionPinSource) PinnedAttachmentIDs(
+	_ context.Context,
+	sessionID string,
+) (map[string]struct{}, error) {
+	return s.bySession[sessionID], nil
 }
 
 func testAttachmentLimits() StoreLimits {

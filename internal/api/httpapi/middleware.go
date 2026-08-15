@@ -363,7 +363,8 @@ func requestBodyLimitMiddlewareWithUploadLimit(maxBytes int64, uploadMaxBytes in
 			return
 		}
 		limit := maxBytes
-		if c.Request.Method == http.MethodPost && c.FullPath() == sessionAttachmentUploadRoutePath && uploadMaxBytes > 0 {
+		if c.Request.Method == http.MethodPost && c.FullPath() == sessionAttachmentUploadRoutePath &&
+			uploadMaxBytes > 0 {
 			limit = uploadMaxBytes
 		}
 		if c.Request.ContentLength > limit {

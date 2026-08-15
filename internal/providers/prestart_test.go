@@ -184,7 +184,7 @@ func TestPreStarterPinsAuthStatusExecutableIdentity(t *testing.T) {
 
 		resolverErr := errors.New("final status executable resolver sentinel")
 		var calls atomic.Int32
-		probe := probeEnvWithResolvedLaunch(ProbeEnv{
+		probe := probeEnvWithResolvedLaunch(&ProbeEnv{
 			ProviderName: "provider-a",
 			CommandEnv:   append([]string(nil), finalEnv...),
 			CommandDir:   finalDir,
@@ -235,7 +235,7 @@ func TestPreStarterPinsAuthStatusExecutableIdentity(t *testing.T) {
 		t.Parallel()
 
 		var calls atomic.Int32
-		probe := probeEnvWithResolvedLaunch(ProbeEnv{
+		probe := probeEnvWithResolvedLaunch(&ProbeEnv{
 			ProviderName: "provider-a",
 			CommandEnv:   append([]string(nil), finalEnv...),
 			CommandDir:   finalDir,
@@ -268,7 +268,7 @@ func TestPreStarterPinsAuthStatusExecutableIdentity(t *testing.T) {
 		t.Parallel()
 
 		var calls atomic.Int32
-		probe := probeEnvWithResolvedLaunch(ProbeEnv{
+		probe := probeEnvWithResolvedLaunch(&ProbeEnv{
 			ProviderName: "provider-a",
 			CommandEnv:   append([]string(nil), finalEnv...),
 			CommandDir:   finalDir,
@@ -532,23 +532,24 @@ func TestPreStarterCachesOnlyMatchingFinalProbeIdentity(t *testing.T) {
 
 		var fingerprintKey preStartCacheHMACKey
 		fingerprintKey[0] = 1
+		baseEnv := ProbeEnv{CommandEnv: commandEnv}
 		baseFingerprint, ok := preStartSemanticFingerprint(
 			fingerprintKey,
 			provider,
-			ProbeEnv{CommandEnv: commandEnv},
+			&baseEnv,
 		)
 		if !ok {
 			t.Fatal("base pre-start fingerprint failed")
 		}
 		resolvedEnv := probeEnvWithResolvedLaunch(
-			ProbeEnv{CommandEnv: commandEnv},
+			&ProbeEnv{CommandEnv: commandEnv},
 			provider.Command,
 			"/provider/bin/provider-resolved",
 		)
 		resolvedFingerprint, ok := preStartSemanticFingerprint(
 			fingerprintKey,
 			provider,
-			resolvedEnv,
+			&resolvedEnv,
 		)
 		if !ok {
 			t.Fatal("resolved pre-start fingerprint failed")
@@ -556,10 +557,11 @@ func TestPreStarterCachesOnlyMatchingFinalProbeIdentity(t *testing.T) {
 		if baseFingerprint == resolvedFingerprint {
 			t.Fatal("resolved launch executable did not change the opaque fingerprint")
 		}
+		workingDirEnv := ProbeEnv{CommandEnv: commandEnv, CommandDir: "/provider/workspace-next"}
 		workingDirFingerprint, ok := preStartSemanticFingerprint(
 			fingerprintKey,
 			provider,
-			ProbeEnv{CommandEnv: commandEnv, CommandDir: "/provider/workspace-next"},
+			&workingDirEnv,
 		)
 		if !ok {
 			t.Fatal("working-directory pre-start fingerprint failed")
@@ -737,7 +739,7 @@ func TestPreStarterDoesNotCacheCanceledProbe(t *testing.T) {
 		resolverErr := errors.New("status resolution sentinel")
 		var calls atomic.Int32
 		probeEnv := func() *ProbeEnv {
-			probe := probeEnvWithResolvedLaunch(ProbeEnv{
+			probe := probeEnvWithResolvedLaunch(&ProbeEnv{
 				ProviderName:  "provider-a",
 				PreStartScope: preStartTestScope("resolution-failure"),
 				CommandEnv:    []string{"PATH=/provider/bin"},
@@ -896,7 +898,7 @@ func TestPreStarterDoesNotRetainSecretsOrMutableReports(t *testing.T) {
 			SecretRef: "secret:provider-token",
 			Required:  true,
 		}}
-		probe := probeEnvWithResolvedLaunch(ProbeEnv{
+		probe := probeEnvWithResolvedLaunch(&ProbeEnv{
 			ProviderName:  "provider-a",
 			PreStartScope: preStartTestScope("one"),
 			CommandEnv:    []string{"PROVIDER_TOKEN=" + secret},
@@ -1035,7 +1037,7 @@ func preStartTestProvider() compozyconfig.ProviderConfig {
 }
 
 func probeEnvWithResolvedLaunch(
-	env ProbeEnv,
+	env *ProbeEnv,
 	command string,
 	executable string,
 ) ProbeEnv {

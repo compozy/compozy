@@ -16,6 +16,8 @@ import {
   sessionTranscriptFixture,
 } from "./fixtures";
 import type { CreateSessionParams } from "../types";
+import type { SessionAttachment } from "../types";
+import { sniffAttachmentFile } from "../lib/attachment-kinds";
 
 const sessionById = new Map(sessionFixtures.map(session => [session.id, session]));
 const storyWorkspaceNameById = new Map(
@@ -25,6 +27,28 @@ const storyWorkspaceNameById = new Map(
   ])
 );
 const sessionCatalogStreamEncoder = new TextEncoder();
+const attachmentBytes = new Map<string, { bytes: Uint8Array; attachment: SessionAttachment }>();
+
+export function seedSessionAttachmentMock(
+  workspaceId: string,
+  sessionId: string,
+  attachment: SessionAttachment,
+  bytes: Uint8Array
+): void {
+  attachmentBytes.set(attachmentStoreKey(workspaceId, sessionId, attachment.id), {
+    attachment,
+    bytes: Uint8Array.from(bytes),
+  });
+}
+
+function attachmentStoreKey(workspaceId: string, sessionId: string, attachmentId: string): string {
+  return `${workspaceId}\u0000${sessionId}\u0000${attachmentId}`;
+}
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
 
 function createSessionCatalogStreamResponse(): Response {
   const stream = new ReadableStream<Uint8Array>({
@@ -210,23 +234,50 @@ export const handlers: HttpHandler[] = [
       }
       const form = await request.formData();
       const uploaded = form.get("file");
-      const filename = uploaded instanceof File ? uploaded.name : "upload.bin";
-      return HttpResponse.json(
-        {
-          attachment: {
-            bytes: 32,
-            created_at: "2026-04-17T18:11:00Z",
-            height: 0,
-            id: `att_${"a".repeat(64)}`,
-            kind: filename.endsWith(".png") ? "image" : "file",
-            mime_type: filename.endsWith(".png") ? "image/png" : "application/octet-stream",
-            name: filename,
-            sha256: "b".repeat(64),
-            width: 0,
+      if (uploaded === null || typeof uploaded === "string") {
+        return HttpResponse.json({ error: "file is required" }, { status: 400 });
+      }
+      const sniff = await sniffAttachmentFile(uploaded);
+      if (!sniff.ok) {
+        return HttpResponse.json(
+          {
+            error:
+              sniff.reason === "too-large" ? "file exceeds upload limit" : "unsupported mime type",
           },
-        },
-        { status: 201 }
-      );
+          { status: sniff.reason === "too-large" ? 413 : 415 }
+        );
+      }
+      const bytes = new Uint8Array(await uploaded.arrayBuffer());
+      const digest = await sha256Hex(bytes);
+      const attachment: SessionAttachment = {
+        bytes: bytes.byteLength,
+        created_at: "2026-04-17T18:11:00Z",
+        height: 0,
+        id: `att_${digest}`,
+        kind: sniff.kind,
+        mime_type: sniff.mimeType,
+        name: uploaded.name,
+        sha256: digest,
+        width: 0,
+      };
+      seedSessionAttachmentMock(workspaceId, id, attachment, bytes);
+      return HttpResponse.json({ attachment }, { status: 201 });
+    }
+  ),
+  compozyApiMock.get(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes",
+    ({ params }) => {
+      const workspaceId = String(params.workspace_id);
+      const sessionId = String(params.session_id);
+      const attachmentId = String(params.attachment_id);
+      const stored = attachmentBytes.get(attachmentStoreKey(workspaceId, sessionId, attachmentId));
+      if (!stored) {
+        return HttpResponse.json({ error: "Attachment not found" }, { status: 404 });
+      }
+      return new Response(Uint8Array.from(stored.bytes).buffer, {
+        status: 200,
+        headers: { "Content-Type": stored.attachment.mime_type },
+      });
     }
   ),
   compozyApiMock.delete(
@@ -237,6 +288,11 @@ export const handlers: HttpHandler[] = [
       const session = sessionById.get(id);
       if (!session || session.workspace_id !== workspaceId) {
         return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      const attachmentId = String(params.attachment_id);
+      const key = attachmentStoreKey(workspaceId, id, attachmentId);
+      if (!attachmentBytes.delete(key)) {
+        return HttpResponse.json({ error: "Attachment not found" }, { status: 404 });
       }
       return new HttpResponse(null, { status: 204 });
     }

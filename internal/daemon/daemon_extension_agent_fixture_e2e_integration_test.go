@@ -262,7 +262,10 @@ func assertExtensionHostedMCPTools(
 		t.Fatalf("extension hosted config_get missing path message = %q, want %q", missingConfigMessage, want)
 	}
 	if strings.Contains(missingConfigMessage, "tool not found") {
-		t.Fatalf("extension hosted config_get missing path message = %q, must not identify the tool as missing", missingConfigMessage)
+		t.Fatalf(
+			"extension hosted config_get missing path message = %q, must not identify the tool as missing",
+			missingConfigMessage,
+		)
 	}
 
 	var foreign compozycontract.WorkspaceResponse

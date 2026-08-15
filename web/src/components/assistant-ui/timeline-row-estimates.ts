@@ -9,6 +9,11 @@
 
 import { userMessageHasAttachments } from "@/systems/session/lib/session-attachment-items";
 import {
+  SESSION_ATTACHMENT_FILE_HEIGHT,
+  SESSION_ATTACHMENT_GALLERY_GAP,
+  SESSION_ATTACHMENT_IMAGE_MAX_HEIGHT,
+} from "@/systems/session/lib/session-attachment-geometry";
+import {
   isSessionAttachmentRef,
   SESSION_ATTACHMENT_DATA_TYPE,
   SESSION_ATTACHMENT_PART_NAME,
@@ -23,9 +28,6 @@ export const VIRTUAL_MESSAGE_ESTIMATE = 144;
 
 // A right-aligned user prompt is typically one or two lines.
 const USER_MESSAGE_ESTIMATE = 64;
-const USER_GALLERY_FRAME_ESTIMATE = 168;
-const USER_GALLERY_FILE_ESTIMATE = 36;
-const USER_GALLERY_GAP = 4;
 
 // Vertical rhythm around an assistant message (`pt-1` + content-aware `pb-2`/`pb-4`).
 const MESSAGE_VERTICAL_PADDING = 28;
@@ -72,7 +74,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function userGalleryEstimate(content: unknown): number {
   if (!Array.isArray(content)) {
-    return USER_GALLERY_FILE_ESTIMATE;
+    return SESSION_ATTACHMENT_FILE_HEIGHT;
   }
   const hasImage = content.some(part => {
     if (!isRecord(part)) return false;
@@ -88,7 +90,7 @@ function userGalleryEstimate(content: unknown): number {
     const mime = typeof part.mimeType === "string" ? part.mimeType : "";
     return mime.startsWith("image/");
   });
-  return hasImage ? USER_GALLERY_FRAME_ESTIMATE : USER_GALLERY_FILE_ESTIMATE;
+  return hasImage ? SESSION_ATTACHMENT_IMAGE_MAX_HEIGHT : SESSION_ATTACHMENT_FILE_HEIGHT;
 }
 
 function computeMessageEstimate(message: {
@@ -110,7 +112,7 @@ function computeMessageEstimate(message: {
           part.text.trim()
       );
     const textHeight = hasText ? USER_MESSAGE_ESTIMATE : 28;
-    return userGalleryEstimate(message.content) + USER_GALLERY_GAP + textHeight;
+    return userGalleryEstimate(message.content) + SESSION_ATTACHMENT_GALLERY_GAP + textHeight;
   }
   const parts = toTimelineParts(message);
   if (parts.length === 0) {

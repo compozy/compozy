@@ -3,6 +3,7 @@ package session
 import (
 	"strings"
 
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -23,22 +24,30 @@ type AttachmentMeta struct {
 	Height   int
 }
 
+// AttachmentMetaFromRef converts retained metadata into the session-owned prompt snapshot.
+func AttachmentMetaFromRef(ref attachmentspkg.AttachmentRef) AttachmentMeta {
+	return normalizeAttachmentMeta(AttachmentMeta{
+		ID: ref.ID, Name: ref.Name, MIMEType: ref.MIMEType, Bytes: ref.Bytes,
+		SHA256: ref.SHA256, Kind: ref.Kind, Width: ref.Width, Height: ref.Height,
+	})
+}
+
+func normalizeAttachmentMeta(item AttachmentMeta) AttachmentMeta {
+	item.ID = strings.TrimSpace(item.ID)
+	item.Name = strings.TrimSpace(item.Name)
+	item.MIMEType = strings.TrimSpace(item.MIMEType)
+	item.SHA256 = strings.TrimSpace(item.SHA256)
+	item.Kind = strings.TrimSpace(item.Kind)
+	return item
+}
+
 func cloneAttachmentMeta(items []AttachmentMeta) []AttachmentMeta {
 	if len(items) == 0 {
 		return nil
 	}
 	cloned := make([]AttachmentMeta, 0, len(items))
 	for _, item := range items {
-		cloned = append(cloned, AttachmentMeta{
-			ID:       strings.TrimSpace(item.ID),
-			Name:     strings.TrimSpace(item.Name),
-			MIMEType: strings.TrimSpace(item.MIMEType),
-			Bytes:    item.Bytes,
-			SHA256:   strings.TrimSpace(item.SHA256),
-			Kind:     strings.TrimSpace(item.Kind),
-			Width:    item.Width,
-			Height:   item.Height,
-		})
+		cloned = append(cloned, normalizeAttachmentMeta(item))
 	}
 	return cloned
 }
@@ -49,13 +58,14 @@ func storeAttachments(items []AttachmentMeta) []store.SessionInputAttachment {
 	}
 	out := make([]store.SessionInputAttachment, 0, len(items))
 	for _, item := range items {
+		item = normalizeAttachmentMeta(item)
 		out = append(out, store.SessionInputAttachment{
-			ID:       strings.TrimSpace(item.ID),
-			Name:     strings.TrimSpace(item.Name),
-			MIMEType: strings.TrimSpace(item.MIMEType),
+			ID:       item.ID,
+			Name:     item.Name,
+			MIMEType: item.MIMEType,
 			Bytes:    item.Bytes,
-			SHA256:   strings.TrimSpace(item.SHA256),
-			Kind:     strings.TrimSpace(item.Kind),
+			SHA256:   item.SHA256,
+			Kind:     item.Kind,
 			Width:    item.Width,
 			Height:   item.Height,
 		})
@@ -69,13 +79,14 @@ func attachmentMetaFromStore(items []store.SessionInputAttachment) []AttachmentM
 	}
 	out := make([]AttachmentMeta, 0, len(items))
 	for _, item := range items {
+		normalized := item.Normalize()
 		out = append(out, AttachmentMeta{
-			ID:       strings.TrimSpace(item.ID),
-			Name:     strings.TrimSpace(item.Name),
-			MIMEType: strings.TrimSpace(item.MIMEType),
+			ID:       normalized.ID,
+			Name:     normalized.Name,
+			MIMEType: normalized.MIMEType,
 			Bytes:    item.Bytes,
-			SHA256:   strings.TrimSpace(item.SHA256),
-			Kind:     strings.TrimSpace(item.Kind),
+			SHA256:   normalized.SHA256,
+			Kind:     normalized.Kind,
 			Width:    item.Width,
 			Height:   item.Height,
 		})

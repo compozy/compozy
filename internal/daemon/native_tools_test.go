@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -197,6 +198,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				MaxFileBytes: cfg.Session.Attachments.MaxFileBytes,
 				AllowedMIME:  cfg.Session.Attachments.AllowedMIME,
 			},
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
@@ -205,7 +207,24 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := os.WriteFile(path, []byte("path attachment"), 0o600); err != nil {
 			t.Fatalf("WriteFile(path attachment) error = %v", err)
 		}
-		stored, err := attachmentStore.Put(t.Context(), "ws-native", "sess-native", "stored.txt", []byte("stored attachment"))
+		prefixedPath := filepath.Join(t.TempDir(), "att_from-path.txt")
+		if err := os.WriteFile(prefixedPath, []byte("prefixed path attachment"), 0o600); err != nil {
+			t.Fatalf("WriteFile(prefixed path attachment) error = %v", err)
+		}
+		maxIntData, err := readNativeAttachmentPath(t.Context(), prefixedPath, math.MaxInt64)
+		if err != nil {
+			t.Fatalf("readNativeAttachmentPath(MaxInt64) error = %v", err)
+		}
+		if got, want := string(maxIntData), "prefixed path attachment"; got != want {
+			t.Fatalf("readNativeAttachmentPath(MaxInt64) = %q, want %q", got, want)
+		}
+		stored, err := attachmentStore.Put(
+			t.Context(),
+			"ws-native",
+			"sess-native",
+			"stored.txt",
+			[]byte("stored attachment"),
+		)
 		if err != nil {
 			t.Fatalf("Put(stored attachment) error = %v", err)
 		}
@@ -227,7 +246,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		input, err := json.Marshal(map[string]any{
 			"workspace": "ws-native", "session_id": "sess-native",
 			"message_id": "msg-native", "idempotency_key": "idem-native",
-			"attachments": []string{path, stored.ID},
+			"attachments": []string{path, prefixedPath, stored.ID},
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(input) error = %v", err)
@@ -237,10 +256,12 @@ func TestDaemonNativeTools(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Registry.Call(session_prompt attachments) error = %v", err)
 		}
-		if submitted.Message != "" || len(submitted.Attachments) != 2 {
-			t.Fatalf("session_prompt opts = %#v, want attachment-only prompt with two refs", submitted)
+		if submitted.Message != "" || len(submitted.Attachments) != 3 {
+			t.Fatalf("session_prompt opts = %#v, want attachment-only prompt with three refs", submitted)
 		}
-		if submitted.Attachments[0].Name != "from-path.txt" || submitted.Attachments[1].ID != stored.ID {
+		if submitted.Attachments[0].Name != "from-path.txt" ||
+			submitted.Attachments[1].Name != "att_from-path.txt" ||
+			submitted.Attachments[2].ID != stored.ID {
 			t.Fatalf("session_prompt attachments = %#v", submitted.Attachments)
 		}
 	})

@@ -27,11 +27,6 @@ func sessionDeleteTombstoneName(prefix string, target string, deletionID string)
 	return prefix + encodedTarget + "." + deletionID
 }
 
-func parseSessionDeleteTombstone(name string) (sessionDeleteTombstoneState, string, error) {
-	state, target, _, err := parseSessionDeleteTombstoneParts(name)
-	return state, target, err
-}
-
 func parseSessionDeleteTombstoneParts(name string) (sessionDeleteTombstoneState, string, string, error) {
 	cleanName := strings.TrimSpace(name)
 	state := sessionDeleteTombstoneState(0)
@@ -78,6 +73,17 @@ func (m *Manager) cleanupDeleteTombstones() {
 	}
 }
 
+func (m *Manager) acquireDeleteTombstoneLease(
+	ctx context.Context,
+	canonicalDBPath string,
+) (*sessiondb.FamilyLease, error) {
+	acquireLease := m.acquireSessionDBFamilyLease
+	if acquireLease == nil {
+		acquireLease = sessiondb.AcquireFamilyLease
+	}
+	return acquireLease(ctx, canonicalDBPath)
+}
+
 func (m *Manager) cleanupSessionDeleteTombstone(path string, name string) (retErr error) {
 	state, target, deletionID, err := parseSessionDeleteTombstoneParts(name)
 	if err != nil {
@@ -87,11 +93,7 @@ func (m *Manager) cleanupSessionDeleteTombstone(path string, name string) (retEr
 	defer cancel()
 
 	canonicalDBPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
-	acquireLease := m.acquireSessionDBFamilyLease
-	if acquireLease == nil {
-		acquireLease = sessiondb.AcquireFamilyLease
-	}
-	lease, err := acquireLease(ctx, canonicalDBPath)
+	lease, err := m.acquireDeleteTombstoneLease(ctx, canonicalDBPath)
 	if err != nil {
 		return err
 	}

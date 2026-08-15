@@ -106,7 +106,10 @@ func (n *daemonNativeTools) sessionCreate(
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 
-const nativeSessionWorktreeRollbackTimeout = 30 * time.Second
+const (
+	nativeSessionWorktreeRollbackTimeout = 30 * time.Second
+	nativeSessionMessageIDKey            = "message_id"
+)
 
 type nativeSessionWorktreeTarget struct {
 	ID          string
@@ -174,7 +177,7 @@ func (n *daemonNativeTools) sessionPrompt(
 			errors.New("message or attachments is required"),
 		)
 	}
-	messageID, err := requiredNativeString(req.ToolID, "message_id", input.MessageID)
+	messageID, err := requiredNativeString(req.ToolID, nativeSessionMessageIDKey, input.MessageID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -241,7 +244,7 @@ func (n *daemonNativeTools) sessionRewind(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	messageID, err := requiredNativeString(req.ToolID, "message_id", input.MessageID)
+	messageID, err := requiredNativeString(req.ToolID, nativeSessionMessageIDKey, input.MessageID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

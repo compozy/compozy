@@ -35,7 +35,11 @@ func uploadSessionAttachmentOperationSpec() OperationSpec {
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 413, Description: "Attachment exceeds configured size limit", Body: contract.ErrorPayload{}},
 			{Status: 415, Description: "Attachment MIME type is not allowed", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specServiceUnavailableDependentServiceMissingDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -51,10 +55,19 @@ func readSessionAttachmentBytesOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters:  sessionAttachmentParameters(true),
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "Attachment bytes", Body: binaryResponse{}, ContentType: "application/octet-stream"},
+			{
+				Status:      200,
+				Description: "Attachment bytes",
+				Body:        binaryResponse{},
+				ContentType: "*/*",
+			},
 			{Status: 400, Description: "Invalid attachment id", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specServiceUnavailableDependentServiceMissingDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -73,7 +86,11 @@ func deleteSessionAttachmentOperationSpec() OperationSpec {
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 400, Description: "Invalid attachment id", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specServiceUnavailableDependentServiceMissingDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

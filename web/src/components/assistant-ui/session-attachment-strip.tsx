@@ -11,9 +11,11 @@ import { SessionAttachmentTile } from "./session-attachment-tile";
 import { sessionAttachmentTileModel } from "./session-attachment-tile-model";
 
 export function SessionAttachmentCapabilityGate({
-  onRemoveImages,
+  message,
+  onRemove,
 }: {
-  onRemoveImages: () => void;
+  message: string;
+  onRemove: () => void;
 }) {
   return (
     <div
@@ -23,10 +25,9 @@ export function SessionAttachmentCapabilityGate({
     >
       <TriangleAlert className="size-[13px] shrink-0 text-warning" />
       <span>
-        <b className="font-medium text-warning">This model does not accept images.</b> Remove them
-        or pick another model.
+        <b className="font-medium text-warning">{message}</b>
       </span>
-      <Button type="button" variant="ghost" size="sm" onClick={onRemoveImages} className="ml-auto">
+      <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="ml-auto">
         Remove
       </Button>
     </div>
@@ -37,24 +38,47 @@ function isImageTile(attachment: Attachment): boolean {
   return attachment.type === "image" || isImageAttachmentMime(attachment.contentType);
 }
 
-export function SessionAttachmentStrip({ promptImage }: { promptImage: boolean }) {
+export function SessionAttachmentStrip({
+  promptEmbeddedContext,
+  promptImage,
+}: {
+  promptEmbeddedContext: boolean;
+  promptImage: boolean;
+}) {
   const aui = useAui();
   const attachments = useAuiState(state => state.composer.attachments);
   const { overflow, railRef, trackRef } = useAttachmentRail(attachments.length);
   const imageAttachments = attachments.filter(isImageTile);
-  const showGate = !promptImage && imageAttachments.length > 0;
+  const pdfAttachments = attachments.filter(
+    attachment => attachment.contentType === "application/pdf"
+  );
+  const blockedAttachments = [
+    ...(!promptImage ? imageAttachments : []),
+    ...(!promptEmbeddedContext ? pdfAttachments : []),
+  ];
+  const gateMessage =
+    !promptImage && imageAttachments.length > 0
+      ? "This model does not accept images."
+      : !promptEmbeddedContext && pdfAttachments.length > 0
+        ? "This model does not accept PDF files."
+        : null;
 
   if (attachments.length === 0) return null;
 
-  const removeImages = () => {
-    for (const attachment of imageAttachments) {
+  const removeBlockedAttachments = () => {
+    for (const attachment of blockedAttachments) {
       void aui.composer.attachment({ id: attachment.id }).remove();
     }
   };
 
   return (
     <div data-testid="composer-attachment-strip" className="flex min-w-0 flex-col gap-1.5">
-      {showGate ? <SessionAttachmentCapabilityGate onRemoveImages={removeImages} /> : null}
+      {gateMessage ? (
+        <SessionAttachmentCapabilityGate
+          message={gateMessage}
+          onRemove={removeBlockedAttachments}
+        />
+      ) : null}
       <div
         ref={railRef}
         data-overflow={overflow}

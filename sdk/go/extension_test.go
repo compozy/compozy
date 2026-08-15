@@ -808,8 +808,14 @@ func TestStdioRuntimeValidatesForgeProviderRequests(t *testing.T) {
 		}{
 			{name: "capabilities remotes", method: compozysdk.ExtensionServiceMethodForgeCapabilities,
 				params: map[string]any{}, want: "remote_urls are required"},
-			{name: "status branch", method: compozysdk.ExtensionServiceMethodForgeStatus,
-				params: map[string]any{"remote_urls": []string{"git@example.test:repo.git"}}, want: "branch is required"},
+			{
+				name:   "status branch",
+				method: compozysdk.ExtensionServiceMethodForgeStatus,
+				params: map[string]any{
+					"remote_urls": []string{"git@example.test:repo.git"},
+				},
+				want: "branch is required",
+			},
 			{name: "create fields", method: compozysdk.ExtensionServiceMethodForgePRCreate,
 				params: map[string]any{"remote_urls": []string{"git@example.test:repo.git"}},
 				want:   "head, base, and title are required"},
@@ -819,7 +825,12 @@ func TestStdioRuntimeValidatesForgeProviderRequests(t *testing.T) {
 				response := runtime.call(t, index+2, testCase.method, testCase.params)
 				if response.Error == nil || response.Error.Code != -32602 ||
 					!strings.Contains(string(response.Error.Data), testCase.want) {
-					t.Fatalf("%s error = %#v, want invalid params containing %q", testCase.method, response.Error, testCase.want)
+					t.Fatalf(
+						"%s error = %#v, want invalid params containing %q",
+						testCase.method,
+						response.Error,
+						testCase.want,
+					)
 				}
 			})
 		}

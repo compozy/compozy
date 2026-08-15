@@ -3,7 +3,7 @@ id: ET-session-attachment-paste-reload
 area: ET
 title: Paste, send, and reload a session image
 persona: Bruno
-journey: J-17
+journey: J-session-attachments
 expected: Pasting one supported image into the session composer shows a removable preview; sending succeeds, and a cold reload renders the same attachment from persisted event metadata and the scoped file route.
 entry_points: web session composer; session transcript reload
 qa_status: untested

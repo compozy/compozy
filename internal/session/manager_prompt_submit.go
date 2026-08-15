@@ -9,12 +9,40 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 )
 
+func (m *Manager) reservePromptSlot(
+	ctx context.Context,
+	session *Session,
+	runtime *RuntimeSelection,
+) (*AgentProcess, error) {
+	proc, err := session.beginExclusivePromptSetup()
+	if err != nil {
+		return nil, err
+	}
+	if err := m.validateReservedRuntimeModel(session, proc, runtime); err != nil {
+		session.finishPromptSetup()
+		return nil, err
+	}
+	proc, err = m.ensurePromptRuntime(ctx, session, runtime, proc)
+	if err != nil {
+		session.finishPromptSetup()
+		return nil, err
+	}
+	return proc, nil
+}
+
+func commitPromptDispatch(ctx context.Context, commit func(context.Context) error) error {
+	if commit == nil {
+		return nil
+	}
+	return commit(ctx)
+}
+
 func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<-chan acp.AgentEvent, error) {
 	session, err := m.lookupPromptRequestSession(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	proc, err := session.beginExclusivePromptSetup()
+	proc, err := m.reservePromptSlot(ctx, session, req.runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -24,17 +52,10 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 			session.finishPromptSetup()
 		}
 	}()
-	if err := m.validateReservedRuntimeModel(session, proc, req.runtime); err != nil {
+	if err := validatePromptAttachmentCaps(req.attachments, proc.CapsSnapshot()); err != nil {
 		return nil, err
 	}
-	if req.commitDispatch != nil {
-		if err := req.commitDispatch(ctx); err != nil {
-			return nil, err
-		}
-		req.commitDispatch = nil
-	}
-	proc, err = m.ensurePromptRuntime(ctx, session, req.runtime, proc)
-	if err != nil {
+	if err := commitPromptDispatch(ctx, req.commitDispatch); err != nil {
 		return nil, err
 	}
 	if req.releaseSlotBeforeHooks {
@@ -54,18 +75,11 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	}
 	req.skillInvocations = commandpkg.ReconcileInvocations(message, req.skillInvocations)
 	if !slotReserved {
-		proc, err = session.beginExclusivePromptSetup()
+		proc, err = m.reservePromptSlot(ctx, session, req.runtime)
 		if err != nil {
 			return nil, err
 		}
 		slotReserved = true
-		if err := m.validateReservedRuntimeModel(session, proc, req.runtime); err != nil {
-			return nil, err
-		}
-		proc, err = m.ensurePromptRuntime(ctx, session, req.runtime, proc)
-		if err != nil {
-			return nil, err
-		}
 	}
 	resolvedAttachments, err := m.resolvePromptAttachments(
 		ctx,
@@ -77,21 +91,11 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err != nil {
 		return nil, err
 	}
-	session.setCurrentTurnID(req.turnID)
-	session.setCurrentTurnSource(req.turnSource)
-	session.setCurrentPromptMessage(req.authoredMessage)
-	session.setCurrentPromptMeta(req.meta)
-	session.setCurrentSkillInvocations(req.skillInvocations)
+	releasePromptState := claimPromptState(session, req)
 	stateOwned := true
 	defer func() {
 		if stateOwned {
-			session.clearPromptCancellation(req.turnID)
-			session.clearCurrentTurnID()
-			session.clearCurrentTurnSource()
-			session.clearCurrentPromptMessage()
-			session.clearCurrentPromptMeta()
-			session.clearCurrentSkillInvocations()
-			session.finishCurrentPromptCompletion()
+			releasePromptState()
 		}
 	}()
 	dispatchMessage, err := m.promptDispatchMessage(ctx, session, message)

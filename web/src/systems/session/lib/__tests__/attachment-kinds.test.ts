@@ -8,6 +8,7 @@ import {
   attachmentsFromPromptMessageParts,
   formatAttachmentSize,
   SESSION_ATTACHMENT_DATA_TYPE,
+  SESSION_ATTACHMENT_PART_NAME,
   sniffAttachmentBytes,
   sniffAttachmentFile,
 } from "../attachment-kinds";
@@ -62,6 +63,19 @@ describe("attachment-kinds", () => {
     expect(markdown).toEqual({ ok: true, kind: "file", mimeType: "text/markdown", mark: "MD" });
     const plain = await sniffAttachmentFile(new File(["log"], "error-log.txt", { type: "" }));
     expect(plain).toEqual({ ok: true, kind: "file", mimeType: "text/plain", mark: "TXT" });
+    const markdownAlias = await sniffAttachmentFile(
+      new File(["# release notes"], "release.mdown", { type: "" })
+    );
+    expect(markdownAlias).toEqual({
+      ok: true,
+      kind: "file",
+      mimeType: "text/markdown",
+      mark: "MD",
+    });
+    const utf8Log = await sniffAttachmentFile(
+      new File(["service ready ✓"], "service.log", { type: "" })
+    );
+    expect(utf8Log).toEqual({ ok: true, kind: "file", mimeType: "text/plain", mark: "TXT" });
   });
 
   it("Should pre-check oversized files before reading bytes", async () => {
@@ -93,7 +107,8 @@ describe("attachment-kinds", () => {
       attachmentsFromPromptMessageParts([
         { type: "text", data: "ignore" },
         { type: SESSION_ATTACHMENT_DATA_TYPE, data: ref },
+        { type: "data", name: SESSION_ATTACHMENT_PART_NAME, data: ref },
       ])
-    ).toEqual([ref]);
+    ).toEqual([ref, ref]);
   });
 });

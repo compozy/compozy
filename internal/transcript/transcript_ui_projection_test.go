@@ -178,8 +178,24 @@ func TestToUIMessagesProjectsUserAttachments(t *testing.T) {
 		t.Parallel()
 
 		attachments := []acp.EventAttachment{
-			{ID: "att-image", Name: "diagram.png", MIMEType: "image/png", Bytes: 2048, SHA256: "sha-image", Kind: "image", Width: 1280, Height: 720},
-			{ID: "att-file", Name: "notes.pdf", MIMEType: "application/pdf", Bytes: 4096, SHA256: "sha-file", Kind: "file"},
+			{
+				ID:       "att-image",
+				Name:     "diagram.png",
+				MIMEType: "image/png",
+				Bytes:    2048,
+				SHA256:   "sha-image",
+				Kind:     "image",
+				Width:    1280,
+				Height:   720,
+			},
+			{
+				ID:       "att-file",
+				Name:     "notes.pdf",
+				MIMEType: "application/pdf",
+				Bytes:    4096,
+				SHA256:   "sha-file",
+				Kind:     "file",
+			},
 		}
 		event := mustUIAgentSessionEvent(t, "ev-user-attachments", 1, time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC),
 			(acp.AgentEvent{
@@ -213,7 +229,10 @@ func TestToUIMessagesProjectsUserAttachments(t *testing.T) {
 		}); !reflect.DeepEqual(got, want) {
 			t.Fatalf("parts[1] = %#v, want %#v", got, want)
 		}
-		if got, want := parts[2], (UIMessagePart{Type: uiPartText, Text: "Review these files.", State: uiPartStateDone}); !reflect.DeepEqual(got, want) {
+		if got, want := parts[2], (UIMessagePart{Type: uiPartText, Text: "Review these files.", State: uiPartStateDone}); !reflect.DeepEqual(
+			got,
+			want,
+		) {
 			t.Fatalf("parts[2] = %#v, want %#v", got, want)
 		}
 
@@ -262,9 +281,18 @@ func TestToUIMessagesProjectsUserAttachments(t *testing.T) {
 	t.Run("Should leave text-only user messages unchanged", func(t *testing.T) {
 		t.Parallel()
 
-		event := mustUIAgentSessionEvent(t, "ev-text-only", 1, time.Date(2026, 8, 14, 12, 2, 0, 0, time.UTC), acp.AgentEvent{
-			Type: acp.EventTypeUserMessage, SessionID: "sess-text-only", TurnID: "turn-text-only", Text: "Text only.",
-		})
+		event := mustUIAgentSessionEvent(
+			t,
+			"ev-text-only",
+			1,
+			time.Date(2026, 8, 14, 12, 2, 0, 0, time.UTC),
+			acp.AgentEvent{
+				Type:      acp.EventTypeUserMessage,
+				SessionID: "sess-text-only",
+				TurnID:    "turn-text-only",
+				Text:      "Text only.",
+			},
+		)
 		messages, err := ToUIMessages([]store.SessionEvent{event})
 		if err != nil {
 			t.Fatalf("ToUIMessages() error = %v", err)

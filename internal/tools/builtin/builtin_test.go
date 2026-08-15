@@ -1795,12 +1795,7 @@ func validationErrorHasNotCause(err *jsonschema.ValidationError) bool {
 	if _, ok := err.ErrorKind.(*jsonschemakind.Not); ok {
 		return true
 	}
-	for _, cause := range err.Causes {
-		if validationErrorHasNotCause(cause) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(err.Causes, validationErrorHasNotCause)
 }
 
 func assertSessionRuntimeMutationSchemas(

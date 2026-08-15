@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 
-import { handlers } from "../handlers";
+import { handlers, seedSessionAttachmentMock } from "../handlers";
 import { sessionFixtures } from "../fixtures";
 
 const server = setupServer(...handlers);
@@ -176,8 +176,30 @@ describe("session MSW handlers", () => {
 
   it("Should scope attachment deletion to the session workspace", async () => {
     const sample = sessionFixtures[0]!;
+    const workspaceId = sample.workspace_id;
+    if (!workspaceId) {
+      throw new Error("session fixture must include workspace_id");
+    }
+    const attachmentId = `att_${"a".repeat(64)}`;
+    seedSessionAttachmentMock(
+      workspaceId,
+      sample.id,
+      {
+        bytes: 16,
+        created_at: "2026-04-17T18:11:00Z",
+        height: 0,
+        id: attachmentId,
+        kind: "file",
+        mime_type: "text/plain",
+        name: "owned.txt",
+        sha256: "a".repeat(64),
+        width: 0,
+      },
+      new TextEncoder().encode("owned attachment")
+    );
+
     const wrongWorkspace = await fetch(
-      `${API}/api/workspaces/workspace_other/sessions/${sample.id}/attachments/att_demo`,
+      `${API}/api/workspaces/workspace_other/sessions/${sample.id}/attachments/${attachmentId}`,
       { method: "DELETE" }
     );
 
@@ -187,7 +209,7 @@ describe("session MSW handlers", () => {
     });
 
     const owned = await fetch(
-      `${API}/api/workspaces/${sample.workspace_id}/sessions/${sample.id}/attachments/att_demo`,
+      `${API}/api/workspaces/${sample.workspace_id}/sessions/${sample.id}/attachments/${attachmentId}`,
       { method: "DELETE" }
     );
     expect(owned.status).toBe(204);

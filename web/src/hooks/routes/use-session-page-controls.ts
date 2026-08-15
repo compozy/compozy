@@ -23,8 +23,10 @@ import {
   canPromptSession,
   isSessionRunning,
   isUserControllableSession,
+  queuedPromptAttachmentSummary,
   useUnarchiveSession,
   type QueuedPrompt,
+  type SessionBusyInputHandler,
   type SessionPayload,
   type SessionPromptRuntimeSnapshot,
 } from "@/systems/session";
@@ -83,12 +85,16 @@ export function useSessionPageControls(
   );
   const controlsState = useSelector(store, snapshot => snapshot.context);
   const queuedPrompts: QueuedPrompt[] =
-    sessionInputs.data?.inputs.map(input => ({
-      id: input.id,
-      mode: input.mode,
-      status: input.status,
-      text: input.text,
-    })) ?? [];
+    sessionInputs.data?.inputs.map(input => {
+      const attachments = queuedPromptAttachmentSummary(input.attachments, workspaceId, sessionId);
+      return {
+        id: input.id,
+        mode: input.mode,
+        status: input.status,
+        text: input.text,
+        ...(attachments ? { attachments } : {}),
+      };
+    }) ?? [];
   const handleCancelPrompt = () => {
     if (!promptControlsAvailable) {
       return;
@@ -122,9 +128,13 @@ export function useSessionPageControls(
   const hasConversationContent = messages.length > 0 || transcriptMessages.length > 0;
   const canClear = hasConversationContent && !controlsBusy && !effectiveRunning;
 
-  const handleQueuePrompt = (message: string) => {
-    const text = message.trim();
-    if (!promptControlsAvailable || busyInputIsPending(store) || text.length === 0) {
+  const handleQueuePrompt: SessionBusyInputHandler = draft => {
+    const text = draft.message.trim();
+    if (
+      !promptControlsAvailable ||
+      busyInputIsPending(store) ||
+      (text.length === 0 && draft.attachments.length === 0)
+    ) {
       return;
     }
     const runtime = getRuntimeSnapshot?.() ?? null;
@@ -135,6 +145,7 @@ export function useSessionPageControls(
           queuePromptMutation.mutateAsync({
             id: sessionId,
             message: text,
+            ...(draft.attachments.length > 0 ? { attachments: draft.attachments } : {}),
             ...(runtime ? { runtime } : {}),
           }),
         kind: "queue",
@@ -143,12 +154,12 @@ export function useSessionPageControls(
     );
   };
 
-  const handleInterruptPrompt = (message: string) => {
-    const text = message.trim();
+  const handleInterruptPrompt: SessionBusyInputHandler = draft => {
+    const text = draft.message.trim();
     if (
       !promptControlsAvailable ||
       busyInputIsPending(store) ||
-      text.length === 0 ||
+      (text.length === 0 && draft.attachments.length === 0) ||
       activeTurnId.length === 0
     ) {
       return;
@@ -162,6 +173,7 @@ export function useSessionPageControls(
             expectedTurnId: activeTurnId,
             id: sessionId,
             message: text,
+            ...(draft.attachments.length > 0 ? { attachments: draft.attachments } : {}),
             ...(runtime ? { runtime } : {}),
           }),
         kind: "interrupt",
@@ -170,11 +182,12 @@ export function useSessionPageControls(
     );
   };
 
-  const handleSteerPrompt = (message: string) => {
-    const text = message.trim();
+  const handleSteerPrompt: SessionBusyInputHandler = draft => {
+    const text = draft.message.trim();
     if (
       !promptControlsAvailable ||
       busyInputIsPending(store) ||
+      draft.attachments.length > 0 ||
       text.length === 0 ||
       activeTurnId.length === 0
     ) {

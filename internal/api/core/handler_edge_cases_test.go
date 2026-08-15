@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -537,6 +538,57 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 		deliveryContext := <-deliveryContexts
 		if !errors.Is(deliveryContext.Err(), context.Canceled) {
 			t.Fatalf("delivery context err = %v, want context.Canceled after response", deliveryContext.Err())
+		}
+	})
+
+	t.Run("Should enforce the configured attachment count before manager dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		managerCalled := false
+		manager := testutil.StubSessionManager{
+			SendPromptFn: func(
+				context.Context,
+				string,
+				session.SendPromptOpts,
+			) (session.SendPromptResult, error) {
+				managerCalled = true
+				return session.SendPromptResult{}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Session.Attachments.MaxFilesPerPrompt = 1
+		fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
+			fixture.Handlers.DispatchSessionPrompt(c)
+		})
+		attachmentID := "att_" + strings.Repeat("a", 64)
+		body := fmt.Appendf(nil,
+			`{"message_id":"msg-count","idempotency_key":"idem-count","attachments":[`+
+				`{"id":%q,"name":"one.txt","mime_type":"text/plain","bytes":1,"sha256":%q,"kind":"file"},`+
+				`{"id":%q,"name":"two.txt","mime_type":"text/plain","bytes":1,"sha256":%q,"kind":"file"}]}`,
+			attachmentID,
+			strings.Repeat("a", 64),
+			attachmentID,
+			strings.Repeat("a", 64),
+		)
+		recorder := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-123/prompt",
+			body,
+		)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+		if managerCalled {
+			t.Fatal("SendPrompt() called after configured attachment-count rejection")
 		}
 	})
 }

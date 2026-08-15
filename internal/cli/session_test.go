@@ -1917,7 +1917,7 @@ func TestSessionAttachmentsUploadRendersAttachmentPayload(t *testing.T) {
 					MIMEType:  "image/png",
 					Bytes:     10,
 					SHA256:    "sha256:abc",
-					Kind:      "image",
+					Kind:      contract.PromptAttachmentKindImage,
 					Width:     4,
 					Height:    3,
 					CreatedAt: fixedTestNow,
@@ -1934,7 +1934,13 @@ func TestSessionAttachmentsUploadRendersAttachmentPayload(t *testing.T) {
 			t.Fatalf("executeRootCommand(session attachments upload) error = %v", err)
 		}
 		if gotSessionID != "sess-1" || gotFilePath != filePath {
-			t.Fatalf("UploadSessionAttachment() = (%q, %q), want (%q, %q)", gotSessionID, gotFilePath, "sess-1", filePath)
+			t.Fatalf(
+				"UploadSessionAttachment() = (%q, %q), want (%q, %q)",
+				gotSessionID,
+				gotFilePath,
+				"sess-1",
+				filePath,
+			)
 		}
 
 		var decoded SessionAttachmentRecord

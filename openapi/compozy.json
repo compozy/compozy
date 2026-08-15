@@ -277944,6 +277944,7 @@
           "content": {
             "multipart/form-data": {
               "schema": {
+                "additionalProperties": false,
                 "properties": {
                   "file": {
                     "format": "binary",
@@ -278844,7 +278845,7 @@
         "responses": {
           "200": {
             "content": {
-              "application/octet-stream": {
+              "*/*": {
                 "schema": {
                   "format": "binary",
                   "type": "string"
@@ -286187,6 +286188,49 @@
                     "inputs": {
                       "items": {
                         "properties": {
+                          "attachments": {
+                            "items": {
+                              "properties": {
+                                "bytes": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "height": {
+                                  "type": "integer"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "mime_type": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "sha256": {
+                                  "type": "string"
+                                },
+                                "width": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "bytes",
+                                "height",
+                                "id",
+                                "kind",
+                                "mime_type",
+                                "name",
+                                "sha256",
+                                "width"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "delivery": {
                             "type": "string"
                           },
@@ -287090,6 +287134,49 @@
                   "properties": {
                     "input": {
                       "properties": {
+                        "attachments": {
+                          "items": {
+                            "properties": {
+                              "bytes": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "height": {
+                                "type": "integer"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "mime_type": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "sha256": {
+                                "type": "string"
+                              },
+                              "width": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "bytes",
+                              "height",
+                              "id",
+                              "kind",
+                              "mime_type",
+                              "name",
+                              "sha256",
+                              "width"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "delivery": {
                           "type": "string"
                         },

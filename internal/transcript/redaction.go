@@ -40,6 +40,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	}
 	redacted.Runtime = redactRuntimeActivity(event.Runtime)
 	redacted = redacted.WithPromptRuntime(event.PromptRuntimeSnapshot())
+	redacted = redacted.WithAttachments(redactEventAttachments(event.Attachments()))
 	redacted.Raw = redactRawMessage(event.Raw)
 	return redacted
 }
@@ -64,12 +65,25 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	payload.Failure = redactSessionFailure(payload.Failure)
 	payload.Synthetic = redactPromptSyntheticMeta(payload.Synthetic)
 	payload.Goal = redactGoalPromptMeta(payload.Goal)
+	payload.Attachments = redactEventAttachments(payload.Attachments)
 	payload.Runtime = redactRuntimeActivity(payload.Runtime)
 	payload.Raw = redactRawMessage(payload.Raw)
 }
 
+func redactEventAttachments(attachments []acp.EventAttachment) []acp.EventAttachment {
+	if len(attachments) == 0 {
+		return nil
+	}
+	redacted := append([]acp.EventAttachment(nil), attachments...)
+	for index := range redacted {
+		redacted[index].Name = redactDisplayString(redacted[index].Name)
+	}
+	return redacted
+}
+
 func redactTranscriptEvent(parsed event) event {
 	parsed.Text = redactDisplayString(parsed.Text)
+	parsed.Attachments = redactEventAttachments(parsed.Attachments)
 	parsed.StopReason = redactStructuralString(parsed.StopReason)
 	parsed.Error = redactDisplayString(parsed.Error)
 	parsed.Failure = redactSessionFailure(parsed.Failure)
@@ -172,7 +186,7 @@ func redactRawMessage(raw json.RawMessage) json.RawMessage {
 }
 
 var displayJSONFields = []string{
-	"", "authored_text", "body", "command", "content", "description", "detail", "error",
+	"", "authored_text", "body", "command", legacyEventContentKey, "description", "detail", "error",
 	"message", "output", "payload", "raw_input", "raw_output", "reason",
 	"result", "stderr", transcriptStdoutFieldKey, "summary", "text", "title", "tool_input",
 	"tool_result",

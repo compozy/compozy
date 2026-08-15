@@ -1,5 +1,5 @@
-import { useAui, useAuiState } from "@assistant-ui/react";
-import { useState, type DragEvent } from "react";
+import { useAui } from "@assistant-ui/react";
+import { useEffect, useState, type DragEvent } from "react";
 
 import { ATTACHMENT_MAX_COUNT } from "@/systems/session/lib/attachment-kinds";
 
@@ -9,12 +9,16 @@ function transferHasFiles(event: DragEvent): boolean {
 
 export function useSessionComposerDrop({ disabled = false }: { disabled?: boolean } = {}) {
   const aui = useAui();
-  const attachmentCount = useAuiState(state => state.composer.attachments.length);
   const [dragDepth, setDragDepth] = useState(0);
   const isDragging = dragDepth > 0;
 
+  useEffect(() => {
+    if (disabled) setDragDepth(0);
+  }, [disabled]);
+
   const addFiles = (files: File[]) => {
-    const remaining = Math.max(0, ATTACHMENT_MAX_COUNT - attachmentCount);
+    const currentCount = aui.composer.getState().attachments.length;
+    const remaining = Math.max(0, ATTACHMENT_MAX_COUNT - currentCount);
     for (const file of files.slice(0, remaining)) {
       void aui.composer.addAttachment(file);
     }
@@ -36,15 +40,14 @@ export function useSessionComposerDrop({ disabled = false }: { disabled?: boolea
   const onDragLeave = (event: DragEvent<HTMLElement>) => {
     if (!transferHasFiles(event)) return;
     event.preventDefault();
-    if (disabled) return;
     setDragDepth(depth => Math.max(0, depth - 1));
   };
 
   const onDrop = (event: DragEvent<HTMLElement>) => {
     if (!transferHasFiles(event)) return;
     event.preventDefault();
-    if (disabled) return;
     setDragDepth(0);
+    if (disabled) return;
     addFiles(Array.from(event.dataTransfer.files));
   };
 

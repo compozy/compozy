@@ -42,13 +42,17 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 	return operation, nil
 }
 
+const schemaFormatBinary = "binary"
+
 func buildRequestBody(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.RequestBodyRef, error) {
 	if spec.RequestContentType == RequestUploadForm {
 		if spec.RequestBody != nil {
 			return nil, fmt.Errorf("operation %s: upload form requests do not take a body schema", spec.OperationID)
 		}
-		fileSchema := openapi3.NewStringSchema().WithFormat("binary")
-		formSchema := openapi3.NewObjectSchema().WithProperty("file", fileSchema)
+		fileSchema := openapi3.NewStringSchema().WithFormat(schemaFormatBinary)
+		formSchema := openapi3.NewObjectSchema().
+			WithProperty("file", fileSchema).
+			WithoutAdditionalProperties()
 		formSchema.Required = []string{"file"}
 		body := openapi3.NewRequestBody().
 			WithContent(openapi3.Content{
@@ -59,7 +63,11 @@ func buildRequestBody(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.R
 		return &openapi3.RequestBodyRef{Value: body}, nil
 	}
 	if spec.RequestContentType != "" && spec.RequestContentType != "application/json" {
-		return nil, fmt.Errorf("operation %s: unsupported request content type %q", spec.OperationID, spec.RequestContentType)
+		return nil, fmt.Errorf(
+			"operation %s: unsupported request content type %q",
+			spec.OperationID,
+			spec.RequestContentType,
+		)
 	}
 	if spec.RequestBody == nil {
 		return nil, nil

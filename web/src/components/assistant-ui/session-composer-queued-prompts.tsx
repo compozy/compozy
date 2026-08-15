@@ -24,14 +24,14 @@ function SessionQueuedAttachmentWell({ summary }: { summary: QueuedPromptAttachm
         data-testid="composer-queued-attachment-well"
         className="grid size-4 shrink-0 place-items-center overflow-hidden rounded-xs border border-line bg-canvas-soft"
       >
-        {summary.previewKind === "image" && summary.previewUrl ? (
-          <img src={summary.previewUrl} alt="" className="size-full object-cover" />
+        {summary.preview?.kind === "image" ? (
+          <img src={summary.preview.url} alt="" className="size-full object-cover" />
         ) : (
           <span
             className="font-mono text-[6px] font-semibold leading-none text-subtle"
             style={{ letterSpacing: "0.06em" }}
           >
-            {summary.previewMark ?? "FILE"}
+            {summary.preview?.kind === "file" ? summary.preview.mark : "FILE"}
           </span>
         )}
       </span>

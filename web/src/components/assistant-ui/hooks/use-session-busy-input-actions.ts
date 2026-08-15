@@ -1,10 +1,14 @@
 import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
-import { sessionBusyInputLogic, type SessionBusyInputHandler } from "./session-busy-input-store";
-import type { QueuedPrompt } from "@/systems/session";
+import { sessionBusyInputLogic } from "./session-busy-input-store";
+import type {
+  QueuedPrompt,
+  SessionBusyInputDraft,
+  SessionBusyInputHandler,
+} from "@/systems/session";
 
-export type { SessionBusyInputHandler } from "./session-busy-input-store";
+export type { SessionBusyInputHandler } from "@/systems/session";
 
 interface UseSessionBusyInputActionsOptions {
   canSubmitBusyInput: boolean;
@@ -16,7 +20,7 @@ interface UseSessionBusyInputActionsOptions {
   onSteerPrompt?: SessionBusyInputHandler;
   queuedPrompts: QueuedPrompt[];
   setComposerText: (text: string) => void;
-  trimmedComposerText: string;
+  draft: SessionBusyInputDraft;
 }
 
 function describeComposerActionError(error: unknown, fallback: string): string {
@@ -42,7 +46,7 @@ export function useSessionBusyInputActions({
   onSteerPrompt,
   queuedPrompts,
   setComposerText,
-  trimmedComposerText,
+  draft,
 }: UseSessionBusyInputActionsOptions) {
   const store = useStore(sessionBusyInputLogic);
   const editingQueuedPromptId = useSelector(
@@ -59,7 +63,10 @@ export function useSessionBusyInputActions({
       canSubmit: canSubmitBusyInput,
       clearComposer,
       handler,
-      message: trimmedComposerText,
+      draft: {
+        attachments: draft.attachments.map(attachment => ({ ...attachment })),
+        message: draft.message,
+      },
       onFailure: error => {
         if (!isAbortError(error)) {
           toast.error(describeComposerActionError(error, failureMessage));
@@ -78,7 +85,7 @@ export function useSessionBusyInputActions({
         return;
       }
       handleBusyInputAction(
-        message => onReplaceQueuedPrompt(editingQueuedPrompt, message),
+        nextDraft => onReplaceQueuedPrompt(editingQueuedPrompt, nextDraft.message),
         "Couldn't update queued prompt.",
         () => {
           store.trigger.editCompleted();
@@ -90,6 +97,10 @@ export function useSessionBusyInputActions({
   };
 
   const handleSteerAction = () => {
+    if (draft.attachments.length > 0) {
+      toast.error("Remove attachments before steering the active turn.");
+      return;
+    }
     handleBusyInputAction(onSteerPrompt, "Couldn't steer prompt.");
   };
 
@@ -98,7 +109,10 @@ export function useSessionBusyInputActions({
   };
 
   const handleEditQueuedPrompt = (prompt: QueuedPrompt) => {
-    if (trimmedComposerText.length > 0 && trimmedComposerText !== prompt.text.trim()) {
+    if (
+      draft.attachments.length > 0 ||
+      (draft.message.length > 0 && draft.message !== prompt.text.trim())
+    ) {
       toast.warning("Send or clear the current draft before editing a queued prompt.");
       return;
     }

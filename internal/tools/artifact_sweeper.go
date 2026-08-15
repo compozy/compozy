@@ -65,8 +65,6 @@ func (w *ToolArtifactSweeper) Shutdown(ctx context.Context) error {
 	w.mu.Lock()
 	cancel := w.cancel
 	done := w.done
-	w.cancel = nil
-	w.done = nil
 	w.mu.Unlock()
 	if cancel == nil || done == nil {
 		return nil
@@ -74,9 +72,19 @@ func (w *ToolArtifactSweeper) Shutdown(ctx context.Context) error {
 	cancel()
 	select {
 	case <-done:
+		w.clearRun(done)
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("shutdown tool artifact sweeper: %w", ctx.Err())
+	}
+}
+
+func (w *ToolArtifactSweeper) clearRun(done <-chan struct{}) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.done == done {
+		w.cancel = nil
+		w.done = nil
 	}
 }
 

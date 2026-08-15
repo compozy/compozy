@@ -135,10 +135,10 @@ func (e *ProbeEnv) Normalize() ProbeEnv {
 }
 
 // WithLaunchExecutableResolution returns a copy carrying one terminal launch identity.
-func (e ProbeEnv) WithLaunchExecutableResolution(
+func (e *ProbeEnv) WithLaunchExecutableResolution(
 	resolution subprocess.ExecutableResolution,
 ) ProbeEnv {
-	next := e
+	next := *e
 	next.CommandEnv = append([]string(nil), e.CommandEnv...)
 	next.launchExecutableResolution = cloneExecutableResolution(&resolution)
 	return next
@@ -154,7 +154,7 @@ func cloneExecutableResolution(
 	return &clone
 }
 
-func (e ProbeEnv) launchResolution() subprocess.ExecutableResolution {
+func (e *ProbeEnv) launchResolution() subprocess.ExecutableResolution {
 	if e.launchExecutableResolution == nil {
 		return subprocess.ExecutableResolution{}
 	}
@@ -181,7 +181,7 @@ func PrepareAuthStatusCommand(
 		return ProviderAuthCommandSpec{}, nil
 	}
 	if env.authStatusCommandResolution != nil {
-		return env.authStatusCommandResolution.consume(command, *env)
+		return env.authStatusCommandResolution.consume(command, env)
 	}
 
 	resolveExecutable := func(command string, _ []string, _ string) (string, error) {
@@ -199,14 +199,14 @@ func PrepareAuthStatusCommand(
 		Timeout: DefaultProviderAuthCommandTimeout,
 		NoTTY:   true,
 	}, resolveExecutable)
-	resolution := newAuthStatusCommandResolution(command, *env, prepared, err)
+	resolution := newAuthStatusCommandResolution(command, env, prepared, err)
 	env.authStatusCommandResolution = resolution
-	return resolution.consume(command, *env)
+	return resolution.consume(command, env)
 }
 
 func newAuthStatusCommandResolution(
 	command string,
-	env ProbeEnv,
+	env *ProbeEnv,
 	prepared ProviderAuthCommandSpec,
 	cause error,
 ) *authStatusCommandResolution {
@@ -231,7 +231,7 @@ func newAuthStatusCommandResolution(
 
 func (r *authStatusCommandResolution) consume(
 	command string,
-	env ProbeEnv,
+	env *ProbeEnv,
 ) (ProviderAuthCommandSpec, error) {
 	if r == nil {
 		return ProviderAuthCommandSpec{}, errors.New("providers: auth status command resolution is required")
@@ -384,7 +384,7 @@ func CredentialStatuses(
 	}
 	statuses := make([]CredentialStatus, 0, len(slots))
 	for _, slot := range slots {
-		status, err := credentialStatus(ctx, slot, normalized)
+		status, err := credentialStatus(ctx, slot, &normalized)
 		if err != nil {
 			return nil, err
 		}
@@ -396,7 +396,7 @@ func CredentialStatuses(
 func credentialStatus(
 	ctx context.Context,
 	slot compozyconfig.ProviderCredentialSlot,
-	env ProbeEnv,
+	env *ProbeEnv,
 ) (CredentialStatus, error) {
 	secretRef := vault.NormalizeRef(slot.SecretRef)
 	status := CredentialStatus{

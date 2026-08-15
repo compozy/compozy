@@ -1,12 +1,9 @@
-import { useAui, useAuiState } from "@assistant-ui/react";
+import { useAui } from "@assistant-ui/react";
 import { Paperclip } from "lucide-react";
 import { useRef, type ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
-import {
-  ATTACHMENT_MAX_COUNT,
-  ATTACHMENT_PICKER_ACCEPT,
-} from "@/systems/session/lib/attachment-kinds";
+import { ATTACHMENT_MAX_COUNT } from "@/systems/session/lib/attachment-kinds";
 
 export interface SessionAttachButtonViewProps extends ComponentProps<"button"> {}
 
@@ -18,7 +15,7 @@ export function SessionAttachButtonView({
   return (
     <button
       type="button"
-      aria-label="Attach"
+      aria-label="Attach files"
       data-testid="composer-attach-button"
       disabled={disabled}
       className={cn(
@@ -38,7 +35,6 @@ export function SessionAttachButtonView({
 
 export function SessionAttachButton({ disabled = false }: { disabled?: boolean }) {
   const aui = useAui();
-  const attachmentCount = useAuiState(state => state.composer.attachments.length);
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -47,14 +43,14 @@ export function SessionAttachButton({ disabled = false }: { disabled?: boolean }
         ref={inputRef}
         type="file"
         aria-label="Choose attachments"
-        accept={ATTACHMENT_PICKER_ACCEPT}
         multiple
         className="sr-only"
         tabIndex={-1}
         onChange={event => {
           const files = Array.from(event.target.files ?? []);
           event.target.value = "";
-          const remaining = Math.max(0, ATTACHMENT_MAX_COUNT - attachmentCount);
+          const currentCount = aui.composer.getState().attachments.length;
+          const remaining = Math.max(0, ATTACHMENT_MAX_COUNT - currentCount);
           for (const file of files.slice(0, remaining)) {
             void aui.composer.addAttachment(file);
           }

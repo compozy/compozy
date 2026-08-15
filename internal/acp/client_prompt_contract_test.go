@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -366,6 +367,64 @@ func TestBuildWirePromptRequestAppendsAttachments(t *testing.T) {
 			t.Fatalf("Prompt = %#v, want one image block", request.Prompt)
 		}
 	})
+}
+
+func TestPromptAttachmentBuildFailurePreservesFirstTurnSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	proc := &AgentProcess{
+		SessionID:    "sess-system-after-attachment-error",
+		systemPrompt: "Keep this first-turn guidance.",
+	}
+	_, err := buildWirePromptRequest(proc, PromptRequest{
+		TurnID: "turn-invalid-attachment",
+		Attachments: []PromptAttachment{{
+			Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
+		}},
+	})
+	if !errors.Is(err, ErrPromptImagesUnsupported) {
+		t.Fatalf("buildWirePromptRequest(invalid attachment) error = %v, want ErrPromptImagesUnsupported", err)
+	}
+
+	request, err := buildWirePromptRequest(proc, PromptRequest{
+		TurnID:  "turn-first-delivered",
+		Message: "first accepted request",
+	})
+	if err != nil {
+		t.Fatalf("buildWirePromptRequest(first accepted) error = %v", err)
+	}
+	if len(request.Prompt) != 1 || request.Prompt[0].Text == nil {
+		t.Fatalf("Prompt = %#v, want first-turn text block", request.Prompt)
+	}
+	if !strings.Contains(request.Prompt[0].Text.Text, "Keep this first-turn guidance.") {
+		t.Fatalf("first accepted prompt = %q, want preserved system guidance", request.Prompt[0].Text.Text)
+	}
+}
+
+func TestPromptSendsAttachmentBlocksThroughACPSubprocess(t *testing.T) {
+	t.Parallel()
+
+	driver := New()
+	proc := startHelperProcess(t, driver, "echo_prompt_blocks", "", StartOpts{})
+	defer stopProcess(t, driver, proc)
+
+	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+		TurnID: "turn-subprocess-attachment",
+		Attachments: []PromptAttachment{{
+			Name: "diagram.png", MIMEType: "image/png", Data: []byte("image-through-acp"),
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	events := collectEvents(t, eventsCh)
+	if len(events) == 0 {
+		t.Fatal("Prompt() returned no events")
+	}
+	if !strings.Contains(events[0].Text, "image/png") ||
+		!strings.Contains(events[0].Text, "aW1hZ2UtdGhyb3VnaC1hY3A=") {
+		t.Fatalf("subprocess prompt blocks = %q, want encoded image block", events[0].Text)
+	}
 }
 
 func TestPromptSkipsFirstTurnPrefixForNativeSystemPromptDelivery(t *testing.T) {

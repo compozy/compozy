@@ -179,34 +179,34 @@ with stop reason `timeout` and stop detail `activity_timeout`.
 
 The stored canonical envelope can include these fields when they apply:
 
-| Field            | Meaning                                                                                                        |
-| ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| `schema`         | Currently `compozy.session.event.v1`                                                                           |
-| `type`           | Inner event type                                                                                               |
-| `session_id`     | ACP session ID from the runtime event                                                                          |
-| `turn_id`        | Prompt turn ID                                                                                                 |
-| `message_id`     | Durable authored user-message identity; it becomes the transcript `UIMessage.id`                               |
-| `attachments`    | Byte-free attachment metadata: ID, URI, name, MIME, byte count, digest, kind, and optional dimensions          |
-| `request_id`     | Permission request ID                                                                                          |
-| `timestamp`      | Event timestamp                                                                                                |
-| `text`           | User text, assistant text, or thought text                                                                     |
-| `title`          | Tool or update title                                                                                           |
-| `tool_name`      | Derived tool name                                                                                              |
-| `tool_kind`      | Canonical ACP tool kind, including `edit` for file-mutation reduction                                          |
-| `tool_call_id`   | Stable tool correlation ID                                                                                     |
-| `tool_input`     | Structured tool input when present                                                                             |
-| `tool_result`    | Structured tool output (`stdout`, `stderr`, `file_path`, `content`, `structured_patch`, `error`, `raw_output`) |
-| `tool_error`     | Whether CompozyOS classified the tool result as failed                                                         |
-| `stop_reason`    | Turn or session termination reason                                                                             |
-| `failure`        | Typed lifecycle failure object with `kind`, redacted `summary`, and optional `crash_bundle_path`               |
-| `action`         | Permission action name                                                                                         |
-| `resource`       | Permission resource target                                                                                     |
-| `decision`       | Permission decision                                                                                            |
-| `error`          | Error text                                                                                                     |
-| `usage`          | Token and cost payload                                                                                         |
-| `runtime`        | Long-running prompt activity payload with current tool, last activity, progress, idle, and elapsed fields      |
-| `prompt_runtime` | Immutable prompt-bound runtime snapshot: `provider`, `model`, `reasoning_effort`, and `speed`                  |
-| `raw`            | Raw ACP update payload CompozyOS preserved                                                                     |
+| Field            | Meaning                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`         | Currently `compozy.session.event.v1`                                                                                                        |
+| `type`           | Inner event type                                                                                                                            |
+| `session_id`     | ACP session ID from the runtime event                                                                                                       |
+| `turn_id`        | Prompt turn ID                                                                                                                              |
+| `message_id`     | Durable authored user-message identity; it becomes the transcript `UIMessage.id`                                                            |
+| `attachments`    | Byte-free attachment metadata: ID, name, MIME, byte count, digest, kind, and optional dimensions; clients derive the scoped URI from the ID |
+| `request_id`     | Permission request ID                                                                                                                       |
+| `timestamp`      | Event timestamp                                                                                                                             |
+| `text`           | User text, assistant text, or thought text                                                                                                  |
+| `title`          | Tool or update title                                                                                                                        |
+| `tool_name`      | Derived tool name                                                                                                                           |
+| `tool_kind`      | Canonical ACP tool kind, including `edit` for file-mutation reduction                                                                       |
+| `tool_call_id`   | Stable tool correlation ID                                                                                                                  |
+| `tool_input`     | Structured tool input when present                                                                                                          |
+| `tool_result`    | Structured tool output (`stdout`, `stderr`, `file_path`, `content`, `structured_patch`, `error`, `raw_output`)                              |
+| `tool_error`     | Whether CompozyOS classified the tool result as failed                                                                                      |
+| `stop_reason`    | Turn or session termination reason                                                                                                          |
+| `failure`        | Typed lifecycle failure object with `kind`, redacted `summary`, and optional `crash_bundle_path`                                            |
+| `action`         | Permission action name                                                                                                                      |
+| `resource`       | Permission resource target                                                                                                                  |
+| `decision`       | Permission decision                                                                                                                         |
+| `error`          | Error text                                                                                                                                  |
+| `usage`          | Token and cost payload                                                                                                                      |
+| `runtime`        | Long-running prompt activity payload with current tool, last activity, progress, idle, and elapsed fields                                   |
+| `prompt_runtime` | Immutable prompt-bound runtime snapshot: `provider`, `model`, `reasoning_effort`, and `speed`                                               |
+| `raw`            | Raw ACP update payload CompozyOS preserved                                                                                                  |
 
 `prompt_runtime` is carried by every persisted turn event, including the authored `user_message`.
 It records the runtime that was accepted for that prompt, not the session's current binding at read

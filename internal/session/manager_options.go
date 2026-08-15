@@ -263,6 +263,9 @@ func WithSessionPromptAdmissionStore(admissionStore store.SessionPromptAdmission
 func WithAttachmentOpener(opener AttachmentOpener) Option {
 	return func(manager *Manager) {
 		manager.attachmentOpener = opener
+		if scopeLease, ok := opener.(attachmentScopeLease); ok {
+			manager.attachmentScopeLease = scopeLease
+		}
 	}
 }
 

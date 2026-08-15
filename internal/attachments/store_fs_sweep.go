@@ -12,8 +12,11 @@ import (
 
 type retainedAttachment struct {
 	contentPath string
+	id          string
+	sessionID   string
 	createdAt   time.Time
 	bytes       int64
+	pinned      bool
 }
 
 func (s *FilesystemAttachmentStore) sweepLocked(
@@ -27,14 +30,27 @@ func (s *FilesystemAttachmentStore) sweepLocked(
 	}
 	now := s.now().UTC()
 	retained := items[:0]
-	for _, item := range items {
-		if now.Sub(item.createdAt) > s.retention.MaxAge {
+	pinsBySession := make(map[string]map[string]struct{})
+	for index := range items {
+		item := &items[index]
+		if s.retentionPins != nil {
+			pins, ok := pinsBySession[item.sessionID]
+			if !ok {
+				pins, err = s.retentionPins.PinnedAttachmentIDs(ctx, item.sessionID)
+				if err != nil {
+					return fmt.Errorf("read attachment retention pins for session %q: %w", item.sessionID, err)
+				}
+				pinsBySession[item.sessionID] = pins
+			}
+			_, item.pinned = pins[item.id]
+		}
+		if !item.pinned && now.Sub(item.createdAt) > s.retention.MaxAge {
 			if err := s.removePair(item.contentPath); err != nil {
 				return fmt.Errorf("%w: remove expired attachment: %w", ErrPersistence, err)
 			}
 			continue
 		}
-		retained = append(retained, item)
+		retained = append(retained, *item)
 	}
 	slices.SortFunc(retained, compareRetainedAttachments)
 	totalBytes := int64(0)
@@ -48,12 +64,19 @@ func (s *FilesystemAttachmentStore) sweepLocked(
 				ErrPersistence,
 			)
 		}
-		oldest := retained[0]
+		evictIndex := slices.IndexFunc(retained, func(item retainedAttachment) bool { return !item.pinned })
+		if evictIndex < 0 {
+			if reserveCount == 0 && reserveBytes == 0 {
+				return nil
+			}
+			return fmt.Errorf("%w: retained attachments are pinned by pending input", ErrPersistence)
+		}
+		oldest := retained[evictIndex]
 		if err := s.removePair(oldest.contentPath); err != nil {
 			return fmt.Errorf("%w: evict attachment: %w", ErrPersistence, err)
 		}
 		totalBytes -= oldest.bytes
-		retained = retained[1:]
+		retained = slices.Delete(retained, evictIndex, evictIndex+1)
 	}
 	return nil
 }
@@ -125,6 +148,8 @@ func (s *FilesystemAttachmentStore) listSessionAttachments(
 		}
 		items = append(items, retainedAttachment{
 			contentPath: contentPath,
+			id:          id,
+			sessionID:   filepath.Base(sessionPath),
 			createdAt:   meta.CreatedAt.UTC(),
 			bytes:       info.Size(),
 		})

@@ -32,7 +32,11 @@ func (h *BaseHandlers) UploadSessionAttachment(c *gin.Context) {
 	}
 	maxFileBytes := h.Config.Session.Attachments.MaxFileBytes
 	if maxFileBytes <= 0 {
-		h.respondError(c, http.StatusInternalServerError, errors.New("session attachment max_file_bytes is not configured"))
+		h.respondError(
+			c,
+			http.StatusInternalServerError,
+			errors.New("session attachment max_file_bytes is not configured"),
+		)
 		return
 	}
 	name, data, err := readSessionAttachmentUpload(c, maxFileBytes)
@@ -43,7 +47,7 @@ func (h *BaseHandlers) UploadSessionAttachment(c *gin.Context) {
 	}
 	ref, err := h.SessionAttachments.Put(
 		c.Request.Context(),
-		scope.ID,
+		scope.SessionWorkspaceID(),
 		sessionID,
 		name,
 		data,
@@ -73,7 +77,9 @@ func (h *BaseHandlers) ReadSessionAttachmentBytes(c *gin.Context) {
 		h.respondError(c, statusForSessionAttachmentError(err), err)
 		return
 	}
-	reader, ref, err := h.SessionAttachments.Open(c.Request.Context(), scope.ID, sessionID, id)
+	reader, ref, err := h.SessionAttachments.Open(
+		c.Request.Context(), scope.SessionWorkspaceID(), sessionID, id,
+	)
 	if err != nil {
 		h.respondError(c, statusForSessionAttachmentError(err), fmt.Errorf("open session attachment: %w", err))
 		return
@@ -93,7 +99,7 @@ func (h *BaseHandlers) ReadSessionAttachmentBytes(c *gin.Context) {
 			sessionID,
 			readErr,
 			"workspace_id",
-			scope.ID,
+			scope.SessionWorkspaceID(),
 			"attachment_id",
 			id,
 		)
@@ -115,7 +121,9 @@ func (h *BaseHandlers) DeleteSessionAttachment(c *gin.Context) {
 		h.respondError(c, statusForSessionAttachmentError(err), err)
 		return
 	}
-	if err := h.SessionAttachments.Delete(c.Request.Context(), scope.ID, sessionID, id); err != nil {
+	if err := h.SessionAttachments.Delete(
+		c.Request.Context(), scope.SessionWorkspaceID(), sessionID, id,
+	); err != nil {
 		h.respondError(c, statusForSessionAttachmentError(err), fmt.Errorf("delete session attachment: %w", err))
 		return
 	}
@@ -199,7 +207,11 @@ func readSessionAttachmentUpload(c *gin.Context, maxFileBytes int64) (string, []
 }
 
 func sessionAttachmentTooLargeError(maxFileBytes int64) error {
-	return fmt.Errorf("%w: uploaded file exceeds configured max_file_bytes %d", attachmentspkg.ErrTooLarge, maxFileBytes)
+	return fmt.Errorf(
+		"%w: uploaded file exceeds configured max_file_bytes %d",
+		attachmentspkg.ErrTooLarge,
+		maxFileBytes,
+	)
 }
 
 func sessionAttachmentUploadError(err error, maxFileBytes int64) error {

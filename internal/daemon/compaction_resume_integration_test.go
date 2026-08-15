@@ -30,119 +30,128 @@ import (
 const compactionIntegrationFact = "cobalt-archive-fact"
 
 func TestDaemonE2ECompactionResumeSafety(t *testing.T) {
-	t.Run("Should keep compacted facts durable when a dead session continues through a child without raw replay", func(t *testing.T) {
-		homePaths := integrationHomePaths(t)
-		cfg := testConfig(t, homePaths)
-		workspaceRoot := filepath.Join(homePaths.HomeDir, "workspace")
-		resolved := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
-		writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
+	t.Run(
+		"Should keep compacted facts durable when a dead session continues through a child without raw replay",
+		func(t *testing.T) {
+			homePaths := integrationHomePaths(t)
+			cfg := testConfig(t, homePaths)
+			workspaceRoot := filepath.Join(homePaths.HomeDir, "workspace")
+			resolved := newHarnessIntegrationWorkspace(t, homePaths, cfg, workspaceRoot)
+			writeDaemonMemoryIndex(t, cfg.Memory.GlobalDir, workspaceRoot)
 
-		daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
-		t.Cleanup(func() {
-			if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
-				t.Errorf("Shutdown(daemon) error = %v", err)
+			daemonInstance, deps := bootHarnessPolicyDaemon(t, homePaths, &cfg)
+			t.Cleanup(func() {
+				if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {
+					t.Errorf("Shutdown(daemon) error = %v", err)
+				}
+			})
+			runtime := newCompactionIntegrationRuntime(t, daemonInstance, resolved)
+			driver := newHarnessIntegrationDriver()
+			driver.promptHook = compactionIntegrationPromptHook()
+			manager := newHarnessIntegrationManager(
+				t,
+				homePaths,
+				deps,
+				resolved,
+				driver,
+				session.WithSessionCompactionConfig(compozyconfig.DefaultSessionCompactionConfig()),
+				session.WithCompactionHandler(runtime),
+			)
+			created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+				AgentName: resolved.Agents[0].Name,
+				Workspace: resolved.ID,
+			})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
 			}
-		})
-		runtime := newCompactionIntegrationRuntime(t, daemonInstance, resolved)
-		driver := newHarnessIntegrationDriver()
-		driver.promptHook = compactionIntegrationPromptHook()
-		manager := newHarnessIntegrationManager(
-			t,
-			homePaths,
-			deps,
-			resolved,
-			driver,
-			session.WithSessionCompactionConfig(compozyconfig.DefaultSessionCompactionConfig()),
-			session.WithCompactionHandler(runtime),
-		)
-		created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-			AgentName: resolved.Agents[0].Name,
-			Workspace: resolved.ID,
-		})
-		if err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-		drainCompactionPrompt(t, manager, created.ID, "remember the archive fact")
-		drainCompactionPrompt(t, manager, created.ID, "cross the pressure threshold")
+			drainCompactionPrompt(t, manager, created.ID, "remember the archive fact")
+			drainCompactionPrompt(t, manager, created.ID, "cross the pressure threshold")
 
-		waitForCondition(t, "prior turn archived", func() bool {
-			archived, queryErr := manager.Events(
+			waitForCondition(t, "prior turn archived", func() bool {
+				archived, queryErr := manager.Events(
+					testutil.Context(t),
+					created.ID,
+					store.EventQuery{Archive: store.EventArchiveArchived},
+				)
+				return queryErr == nil && eventContentsContain(archived, compactionIntegrationFact)
+			})
+			history, err := manager.History(testutil.Context(t), created.ID, store.EventQuery{})
+			if err != nil {
+				t.Fatalf("History() error = %v", err)
+			}
+			if !historyContains(history, compactionIntegrationFact) {
+				t.Fatalf("History() = %#v, want archived fact retained", history)
+			}
+			unarchived, err := manager.Events(
 				testutil.Context(t),
 				created.ID,
-				store.EventQuery{Archive: store.EventArchiveArchived},
+				store.EventQuery{Archive: store.EventArchiveUnarchived},
 			)
-			return queryErr == nil && eventContentsContain(archived, compactionIntegrationFact)
-		})
-		history, err := manager.History(testutil.Context(t), created.ID, store.EventQuery{})
-		if err != nil {
-			t.Fatalf("History() error = %v", err)
-		}
-		if !historyContains(history, compactionIntegrationFact) {
-			t.Fatalf("History() = %#v, want archived fact retained", history)
-		}
-		unarchived, err := manager.Events(
-			testutil.Context(t),
-			created.ID,
-			store.EventQuery{Archive: store.EventArchiveUnarchived},
-		)
-		if err != nil {
-			t.Fatalf("Events(unarchived) error = %v", err)
-		}
-		if eventContentsContain(unarchived, compactionIntegrationFact) {
-			t.Fatal("unarchived replay projection contains compacted raw fact")
-		}
-		checkpoint := readCompactionCheckpoint(t, workspaceRoot)
-		if !strings.Contains(checkpoint, compactionIntegrationFact) ||
-			!strings.Contains(checkpoint, "compozy:checkpoint-compaction:v1") {
-			t.Fatalf("checkpoint = %q, want fact and durable coverage", checkpoint)
-		}
-
-		if err := manager.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown(pre-crash manager) error = %v", err)
-		}
-		restartDriver := newHarnessIntegrationDriver()
-		restartDriver.startHook = func(opts acp.StartOpts, _ int) error {
-			if opts.ResumeSessionID != "" {
-				return fmt.Errorf("%w: integration fixture", acp.ErrAgentDoesNotSupportSession)
+			if err != nil {
+				t.Fatalf("Events(unarchived) error = %v", err)
 			}
-			return nil
-		}
-		restarted := newHarnessIntegrationManager(t, homePaths, deps, resolved, restartDriver)
-		if _, err := restarted.Resume(testutil.Context(t), created.ID); !errors.Is(err, store.ErrSessionNotAttachable) {
-			t.Fatalf("Resume(dead session) error = %v, want ErrSessionNotAttachable", err)
-		}
-		child, err := restarted.Create(testutil.Context(t), session.CreateOpts{
-			AgentName: resolved.Agents[0].Name,
-			Workspace: resolved.ID,
-			Lineage:   &store.SessionLineage{ParentSessionID: created.ID},
-		})
-		if err != nil {
-			t.Fatalf("Create(child session) error = %v", err)
-		}
-		if child.Info().Lineage == nil || child.Info().Lineage.ParentSessionID != created.ID {
-			t.Fatalf("child lineage = %#v, want parent %q", child.Info().Lineage, created.ID)
-		}
-		drainCompactionPrompt(t, restarted, child.ID, "continue from durable context")
-		if len(restartDriver.promptCalls) != 1 {
-			t.Fatalf("child prompt calls = %d, want 1", len(restartDriver.promptCalls))
-		}
-		prompt := restartDriver.promptCalls[0].Message
-		if strings.Contains(prompt, compactionIntegrationFact) {
-			t.Fatalf("child prompt inherited archived parent fact: %q", prompt)
-		}
-		if strings.Contains(prompt, "<compozy_context_replay>") {
-			t.Fatalf("child prompt inherited parent replay: %q", prompt)
-		}
-		if err := restarted.Stop(testutil.Context(t), child.ID); err != nil {
-			t.Fatalf("Stop(restarted) error = %v", err)
-		}
-		if err := restarted.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown(restarted) error = %v", err)
-		}
-		if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
-			t.Fatalf("Stop(pre-crash manager cleanup) error = %v", err)
-		}
-	})
+			if eventContentsContain(unarchived, compactionIntegrationFact) {
+				t.Fatal("unarchived replay projection contains compacted raw fact")
+			}
+			checkpoint := readCompactionCheckpoint(t, workspaceRoot)
+			if !strings.Contains(checkpoint, compactionIntegrationFact) ||
+				!strings.Contains(checkpoint, "compozy:checkpoint-compaction:v1") {
+				t.Fatalf("checkpoint = %q, want fact and durable coverage", checkpoint)
+			}
+
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown(pre-crash manager) error = %v", err)
+			}
+			restartDriver := newHarnessIntegrationDriver()
+			restartDriver.startHook = func(opts acp.StartOpts, _ int) error {
+				if opts.ResumeSessionID != "" {
+					return fmt.Errorf("%w: integration fixture", acp.ErrAgentDoesNotSupportSession)
+				}
+				return nil
+			}
+			restarted := newHarnessIntegrationManager(t, homePaths, deps, resolved, restartDriver)
+			if _, err := restarted.Resume(
+				testutil.Context(t),
+				created.ID,
+			); !errors.Is(
+				err,
+				store.ErrSessionNotAttachable,
+			) {
+				t.Fatalf("Resume(dead session) error = %v, want ErrSessionNotAttachable", err)
+			}
+			child, err := restarted.Create(testutil.Context(t), session.CreateOpts{
+				AgentName: resolved.Agents[0].Name,
+				Workspace: resolved.ID,
+				Lineage:   &store.SessionLineage{ParentSessionID: created.ID},
+			})
+			if err != nil {
+				t.Fatalf("Create(child session) error = %v", err)
+			}
+			if child.Info().Lineage == nil || child.Info().Lineage.ParentSessionID != created.ID {
+				t.Fatalf("child lineage = %#v, want parent %q", child.Info().Lineage, created.ID)
+			}
+			drainCompactionPrompt(t, restarted, child.ID, "continue from durable context")
+			if len(restartDriver.promptCalls) != 1 {
+				t.Fatalf("child prompt calls = %d, want 1", len(restartDriver.promptCalls))
+			}
+			prompt := restartDriver.promptCalls[0].Message
+			if strings.Contains(prompt, compactionIntegrationFact) {
+				t.Fatalf("child prompt inherited archived parent fact: %q", prompt)
+			}
+			if strings.Contains(prompt, "<compozy_context_replay>") {
+				t.Fatalf("child prompt inherited parent replay: %q", prompt)
+			}
+			if err := restarted.Stop(testutil.Context(t), child.ID); err != nil {
+				t.Fatalf("Stop(restarted) error = %v", err)
+			}
+			if err := restarted.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown(restarted) error = %v", err)
+			}
+			if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
+				t.Fatalf("Stop(pre-crash manager cleanup) error = %v", err)
+			}
+		},
+	)
 
 	t.Run("Should leave raw replay readable when archive fails after summary coverage", func(t *testing.T) {
 		homePaths := integrationHomePaths(t)

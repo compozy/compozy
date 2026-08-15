@@ -57,10 +57,12 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 		testutil.DecodeJSONResponse(t, upload, &uploadPayload)
 		ref := uploadPayload.Attachment
 		if ref.ID == "" || ref.Name != "notes.txt" || ref.MIMEType != attachmentspkg.MIMETextPlain ||
-			ref.Bytes != int64(len(data)) || ref.SHA256 == "" || ref.Kind != attachmentspkg.KindFile || ref.CreatedAt.IsZero() {
+			ref.Bytes != int64(
+				len(data),
+			) || ref.SHA256 == "" || ref.Kind != attachmentspkg.KindFile || ref.CreatedAt.IsZero() {
 			t.Fatalf("upload attachment = %#v, want complete stored metadata", ref)
 		}
-		stored, storedRef, err := fixture.Store.Open(t.Context(), "stable-workspace", "sess-1", ref.ID)
+		stored, storedRef, err := fixture.Store.Open(t.Context(), "registry-workspace", "sess-1", ref.ID)
 		if err != nil {
 			t.Fatalf("Store.Open() error = %v", err)
 		}
@@ -106,9 +108,15 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 			data,
 		))
 		if response.Code != http.StatusRequestEntityTooLarge {
-			t.Fatalf("oversized status = %d, want %d; body=%s", response.Code, http.StatusRequestEntityTooLarge, response.Body.String())
+			t.Fatalf(
+				"oversized status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusRequestEntityTooLarge,
+				response.Body.String(),
+			)
 		}
-		if !strings.Contains(response.Body.String(), "max_file_bytes") || !strings.Contains(response.Body.String(), "64") {
+		if !strings.Contains(response.Body.String(), "max_file_bytes") ||
+			!strings.Contains(response.Body.String(), "64") {
 			t.Fatalf("oversized body = %q, want actionable configured limit", response.Body.String())
 		}
 	})
@@ -125,7 +133,12 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 			[]byte{0, 1, 2},
 		))
 		if response.Code != http.StatusUnsupportedMediaType {
-			t.Fatalf("unsupported MIME status = %d, want %d; body=%s", response.Code, http.StatusUnsupportedMediaType, response.Body.String())
+			t.Fatalf(
+				"unsupported MIME status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusUnsupportedMediaType,
+				response.Body.String(),
+			)
 		}
 		if !strings.Contains(response.Body.String(), "allowed types are") ||
 			!strings.Contains(response.Body.String(), attachmentspkg.MIMETextPlain) {
@@ -142,7 +155,12 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 			"/api/workspaces/workspace/sessions/sess-1/attachments",
 		))
 		if response.Code != http.StatusBadRequest {
-			t.Fatalf("extra field status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+			t.Fatalf(
+				"extra field status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusBadRequest,
+				response.Body.String(),
+			)
 		}
 		if !strings.Contains(response.Body.String(), "exactly one attachment file field") {
 			t.Fatalf("extra field body = %q, want single-file error", response.Body.String())
@@ -155,16 +173,35 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 		data := []byte("same bytes")
 		path := "/api/workspaces/workspace/sessions/sess-1/attachments"
 
-		first := serveSessionAttachmentRequest(t, fixture.Engine, newMultipartAttachmentRequest(t, http.MethodPost, path, "same.txt", data))
-		second := serveSessionAttachmentRequest(t, fixture.Engine, newMultipartAttachmentRequest(t, http.MethodPost, path, "same.txt", data))
+		first := serveSessionAttachmentRequest(
+			t,
+			fixture.Engine,
+			newMultipartAttachmentRequest(t, http.MethodPost, path, "same.txt", data),
+		)
+		second := serveSessionAttachmentRequest(
+			t,
+			fixture.Engine,
+			newMultipartAttachmentRequest(t, http.MethodPost, path, "same.txt", data),
+		)
 		if first.Code != http.StatusCreated || second.Code != http.StatusCreated {
-			t.Fatalf("duplicate upload statuses = %d, %d, want %d; bodies=%s / %s", first.Code, second.Code, http.StatusCreated, first.Body.String(), second.Body.String())
+			t.Fatalf(
+				"duplicate upload statuses = %d, %d, want %d; bodies=%s / %s",
+				first.Code,
+				second.Code,
+				http.StatusCreated,
+				first.Body.String(),
+				second.Body.String(),
+			)
 		}
 		var firstPayload, secondPayload contract.SessionAttachmentUploadResponse
 		testutil.DecodeJSONResponse(t, first, &firstPayload)
 		testutil.DecodeJSONResponse(t, second, &secondPayload)
 		if firstPayload.Attachment.ID != secondPayload.Attachment.ID {
-			t.Fatalf("duplicate IDs = %q, %q, want the same content identity", firstPayload.Attachment.ID, secondPayload.Attachment.ID)
+			t.Fatalf(
+				"duplicate IDs = %q, %q, want the same content identity",
+				firstPayload.Attachment.ID,
+				secondPayload.Attachment.ID,
+			)
 		}
 	})
 
@@ -180,7 +217,12 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 			data,
 		))
 		if response.Code != http.StatusNotFound {
-			t.Fatalf("foreign workspace status = %d, want %d; body=%s", response.Code, http.StatusNotFound, response.Body.String())
+			t.Fatalf(
+				"foreign workspace status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusNotFound,
+				response.Body.String(),
+			)
 		}
 
 		digest := sha256.Sum256(data)
@@ -201,7 +243,11 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 		t.Parallel()
 		fixture := newSessionAttachmentFixture(t)
 		path := "/api/workspaces/workspace/sessions/sess-1/attachments"
-		upload := serveSessionAttachmentRequest(t, fixture.Engine, newMultipartAttachmentRequest(t, http.MethodPost, path, "delete.txt", []byte("delete me")))
+		upload := serveSessionAttachmentRequest(
+			t,
+			fixture.Engine,
+			newMultipartAttachmentRequest(t, http.MethodPost, path, "delete.txt", []byte("delete me")),
+		)
 		if upload.Code != http.StatusCreated {
 			t.Fatalf("upload status = %d, want %d; body=%s", upload.Code, http.StatusCreated, upload.Body.String())
 		}
@@ -215,7 +261,11 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 			http.NoBody,
 		))
 		if deleteResponse.Code != http.StatusNoContent || deleteResponse.Body.Len() != 0 {
-			t.Fatalf("delete response = status %d body %q, want 204 with empty body", deleteResponse.Code, deleteResponse.Body.String())
+			t.Fatalf(
+				"delete response = status %d body %q, want 204 with empty body",
+				deleteResponse.Code,
+				deleteResponse.Body.String(),
+			)
 		}
 
 		readResponse := serveSessionAttachmentRequest(t, fixture.Engine, httptest.NewRequestWithContext(
@@ -225,7 +275,12 @@ func TestSessionAttachmentHandlers(t *testing.T) {
 			http.NoBody,
 		))
 		if readResponse.Code != http.StatusNotFound {
-			t.Fatalf("read after delete status = %d, want %d; body=%s", readResponse.Code, http.StatusNotFound, readResponse.Body.String())
+			t.Fatalf(
+				"read after delete status = %d, want %d; body=%s",
+				readResponse.Code,
+				http.StatusNotFound,
+				readResponse.Body.String(),
+			)
 		}
 	})
 }
@@ -241,6 +296,7 @@ func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 		filepath.Join(t.TempDir(), "session-attachments"),
 		attachmentspkg.AttachmentRetention{MaxCount: 16, MaxBytes: 1 << 20, MaxAge: time.Hour},
 		attachmentspkg.StoreLimits{MaxFileBytes: maxFileBytes, AllowedMIME: cfg.Session.Attachments.AllowedMIME},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
@@ -256,25 +312,27 @@ func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 		info.WorkspaceID = "registry-workspace"
 		return info, nil
 	}}
-	workspaces := testutil.StubWorkspaceService{ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-		if err := ctx.Err(); err != nil {
-			return workspacepkg.ResolvedWorkspace{}, err
-		}
-		switch strings.TrimSpace(ref) {
-		case "workspace":
-			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "registry-workspace", Name: "workspace"},
-				WorkspaceID: "stable-workspace",
-			}, nil
-		case "other-workspace":
-			return workspacepkg.ResolvedWorkspace{
-				Workspace:   workspacepkg.Workspace{ID: "registry-other-workspace", Name: "other-workspace"},
-				WorkspaceID: "stable-other-workspace",
-			}, nil
-		default:
-			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
-		}
-	}}
+	workspaces := testutil.StubWorkspaceService{
+		ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			if err := ctx.Err(); err != nil {
+				return workspacepkg.ResolvedWorkspace{}, err
+			}
+			switch strings.TrimSpace(ref) {
+			case "workspace":
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "registry-workspace", Name: "workspace"},
+					WorkspaceID: "stable-workspace",
+				}, nil
+			case "other-workspace":
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "registry-other-workspace", Name: "other-workspace"},
+					WorkspaceID: "stable-other-workspace",
+				}, nil
+			default:
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+		},
+	}
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 		Sessions:           manager,
 		Workspaces:         workspaces,
@@ -290,7 +348,13 @@ func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 	return sessionAttachmentFixture{Engine: engine, Store: store, MaxFileBytes: maxFileBytes}
 }
 
-func newMultipartAttachmentRequest(t *testing.T, method string, path string, filename string, data []byte) *http.Request {
+func newMultipartAttachmentRequest(
+	t *testing.T,
+	method string,
+	path string,
+	filename string,
+	data []byte,
+) *http.Request {
 	t.Helper()
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -333,7 +397,11 @@ func newMultipartAttachmentRequestWithExtraField(t *testing.T, path string) *htt
 	return request
 }
 
-func serveSessionAttachmentRequest(t *testing.T, engine http.Handler, request *http.Request) *httptest.ResponseRecorder {
+func serveSessionAttachmentRequest(
+	t *testing.T,
+	engine http.Handler,
+	request *http.Request,
+) *httptest.ResponseRecorder {
 	t.Helper()
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)

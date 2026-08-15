@@ -172,8 +172,9 @@ select `--provider`; `--model`, `--reasoning-effort`, and `--speed` refine that 
 Session attachments are durable, workspace/session-scoped refs. Upload with
 `compozy session attachments upload`, then send the returned ref through HTTP/UDS or pass the
 `att_...` ID to `compozy__session_prompt`; that native tool also accepts daemon-local paths and can
-submit an attachment-only prompt. The selected ACP model must advertise the matching image or file
-capability. Archive and clear retain attachments; session delete removes them.
+submit an attachment-only prompt. Images require ACP image input and PDFs require embedded context.
+Markdown and plain text fall back to text blocks when embedded context is unavailable. Archive and
+clear retain attachments; session delete removes them.
 
 `session runtime set` persists the complete default selection without starting or reconfiguring ACP;
 the next prompt applies it. `session runtime clear` returns resolution to the effective/agent default.

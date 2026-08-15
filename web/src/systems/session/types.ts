@@ -58,6 +58,13 @@ export type SessionPromptAttachment = NonNullable<
   OperationRequestBody<"sendSessionPrompt">["attachments"]
 >[number];
 
+export interface SessionBusyInputDraft {
+  attachments: SessionPromptAttachment[];
+  message: string;
+}
+
+export type SessionBusyInputHandler = (draft: SessionBusyInputDraft) => void | Promise<unknown>;
+
 export interface SessionPromptRequest {
   attachments?: SessionPromptAttachment[];
   expected_turn_id?: string;

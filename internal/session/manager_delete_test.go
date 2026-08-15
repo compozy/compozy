@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -20,6 +21,70 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+func TestManagerAttachmentDeleteFencesConcurrentUpload(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	attachmentStore, err := attachmentspkg.OpenFilesystemAttachmentStore(
+		ctx,
+		homePaths.SessionAttachmentsDir,
+		attachmentspkg.AttachmentRetention{MaxCount: 20, MaxBytes: 1 << 20, MaxAge: 24 * time.Hour},
+		attachmentspkg.StoreLimits{MaxFileBytes: 1 << 20, AllowedMIME: attachmentspkg.DefaultAllowedMIME},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
+	}
+	const workspaceID = "ws-delete-race"
+	const sessionID = "sess-delete-race"
+	if _, err := attachmentStore.Put(ctx, workspaceID, sessionID, "before.txt", []byte("before")); err != nil {
+		t.Fatalf("Put(before delete) error = %v", err)
+	}
+	manager := &Manager{homePaths: homePaths, attachmentScopeLease: attachmentStore}
+	staged, err := manager.stageSessionAttachmentDelete(ctx, workspaceID, sessionID, "delete-race")
+	if err != nil {
+		t.Fatalf("stageSessionAttachmentDelete() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if releaseErr := staged.Release(); releaseErr != nil {
+			t.Errorf("Release(staged attachment delete) error = %v", releaseErr)
+		}
+	})
+
+	putStarted := make(chan struct{})
+	putDone := make(chan error, 1)
+	go func() {
+		close(putStarted)
+		_, putErr := attachmentStore.Put(ctx, workspaceID, sessionID, "after.txt", []byte("after"))
+		putDone <- putErr
+	}()
+	<-putStarted
+	select {
+	case putErr := <-putDone:
+		t.Fatalf("Put(concurrent) returned before deletion commit: %v", putErr)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	if err := commitStagedAttachmentDelete(staged); err != nil {
+		t.Fatalf("commitStagedAttachmentDelete() error = %v", err)
+	}
+	select {
+	case putErr := <-putDone:
+		if !errors.Is(putErr, attachmentspkg.ErrNotFound) {
+			t.Fatalf("Put(after committed delete) error = %v, want attachment not found", putErr)
+		}
+	case <-ctx.Done():
+		t.Fatalf("Put(concurrent) did not finish after delete released the lease: %v", ctx.Err())
+	}
+}
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
@@ -559,7 +624,10 @@ func TestManagerDelete(t *testing.T) {
 							if err := reader.Close(ctx); err != nil {
 								t.Fatalf("Close(restored staged reader) error = %v", err)
 							}
-							if payload, err := os.ReadFile(attachmentPath); err != nil || string(payload) != "recover-me" {
+							if payload, err := os.ReadFile(
+								attachmentPath,
+							); err != nil ||
+								string(payload) != "recover-me" {
 								t.Fatalf("ReadFile(restored staged attachment) = %q, %v", payload, err)
 							}
 						} else if !errors.Is(statErr, os.ErrNotExist) {

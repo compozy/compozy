@@ -104,7 +104,7 @@ func (s *PreStarter) PreStart(
 	if s == nil || !preStartContextCacheable(ctx) {
 		return runPreStart(ctx, provider, &normalized)
 	}
-	key, cacheable := s.newPreStartCacheKey(provider, normalized)
+	key, cacheable := s.newPreStartCacheKey(provider, &normalized)
 	if !cacheable {
 		return runPreStart(ctx, provider, &normalized)
 	}
@@ -126,7 +126,7 @@ func (s *PreStarter) PreStart(
 	s.mu.Unlock()
 
 	report := runPreStart(ctx, provider, &normalized)
-	if !preStartContextCacheable(ctx) || !preStartReportSafeForCache(report, provider, normalized) {
+	if !preStartContextCacheable(ctx) || !preStartReportSafeForCache(report, provider, &normalized) {
 		return report
 	}
 	cachedReport, cloneable := clonePreStartReport(report)
@@ -186,7 +186,7 @@ func withPreStartClock(now func() time.Time) preStarterOption {
 
 func (s *PreStarter) newPreStartCacheKey(
 	provider compozyconfig.ProviderConfig,
-	env ProbeEnv,
+	env *ProbeEnv,
 ) (preStartCacheKey, bool) {
 	if s == nil || !s.cacheReady {
 		return preStartCacheKey{}, false
@@ -338,7 +338,7 @@ func clonePreStartReport(report PreStartReport) (PreStartReport, bool) {
 func preStartReportSafeForCache(
 	report PreStartReport,
 	provider compozyconfig.ProviderConfig,
-	env ProbeEnv,
+	env *ProbeEnv,
 ) bool {
 	if report.Cause != nil {
 		return false
@@ -354,7 +354,7 @@ func preStartReportSafeForCache(
 	return true
 }
 
-func preStartSensitiveInputs(provider compozyconfig.ProviderConfig, env ProbeEnv) []string {
+func preStartSensitiveInputs(provider compozyconfig.ProviderConfig, env *ProbeEnv) []string {
 	launchResolution := env.launchResolution()
 	values := []string{
 		strings.TrimSpace(provider.Command),

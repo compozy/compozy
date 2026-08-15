@@ -20,20 +20,20 @@ func runPreStart(
 	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
 ) PreStartReport {
+	normalized := env.Normalize()
 	if ctx == nil {
-		return preStartErrorReport(env.Normalize(), errors.New("providers: pre-start context is required"))
+		return preStartErrorReport(&normalized, errors.New("providers: pre-start context is required"))
 	}
 	if err := ctx.Err(); err != nil {
-		return preStartErrorReport(env.Normalize(), err)
+		return preStartErrorReport(&normalized, err)
 	}
 
-	normalized := env.Normalize()
 	if provider.EffectiveAuthMode() == compozyconfig.ProviderAuthModeNone {
 		return PreStartReport{}
 	}
 	launchCLI, err := LaunchCommandStatus(ctx, provider, &normalized)
 	if err != nil {
-		return preStartErrorReport(normalized, err)
+		return preStartErrorReport(&normalized, err)
 	}
 	if launchCLI != nil && launchCLI.Command != "" && !launchCLI.Present {
 		classification := Classification{
@@ -48,7 +48,7 @@ func runPreStart(
 	}
 	classification, err := ClassifyDeclared(ctx, provider, &normalized)
 	if err != nil {
-		return preStartErrorReport(normalized, err)
+		return preStartErrorReport(&normalized, err)
 	}
 	if classification.Code != "" && classification.State != ProviderAuthStateUnknown {
 		item := DiagnosticItem(normalized.ProviderName, classification)
@@ -59,14 +59,14 @@ func runPreStart(
 	}
 	commandSpec, err := PrepareAuthStatusCommand(ctx, provider, &normalized)
 	if err != nil {
-		return preStartErrorReport(normalized, err)
+		return preStartErrorReport(&normalized, err)
 	}
 	result, err := normalized.RunCommand(ctx, commandSpec)
 	if err != nil {
-		return preStartErrorReport(normalized, err)
+		return preStartErrorReport(&normalized, err)
 	}
 	if err := ctx.Err(); err != nil {
-		return preStartErrorReport(normalized, err)
+		return preStartErrorReport(&normalized, err)
 	}
 	probeClassification := ClassifyProbeResultContext(ctx, provider, ProbeOutcome{
 		ExitCode: result.ExitCode,
@@ -80,7 +80,7 @@ func runPreStart(
 	return PreStartReport{Item: &item}
 }
 
-func preStartErrorReport(env ProbeEnv, cause error) PreStartReport {
+func preStartErrorReport(env *ProbeEnv, cause error) PreStartReport {
 	item := DiagnosticItem(env.ProviderName, ClassifyError(cause))
 	return PreStartReport{Item: &item, Cause: cause}
 }

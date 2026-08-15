@@ -112,6 +112,7 @@ func SessionInputPayloadFromSession(input session.PendingInput) contract.Session
 	if input.Runtime != nil {
 		payload.Runtime = contract.PromptRuntimeSelectionPayloadFromSelection(input.Runtime)
 	}
+	payload.Attachments = contract.PromptAttachmentRefsFromMeta(input.Attachments)
 	for _, invocation := range input.SkillInvocations {
 		payload.SkillInvocations = append(payload.SkillInvocations, contract.SessionSkillInvocationPayload{
 			CommandID: invocation.Ref.CommandID, Token: invocation.Token, Name: invocation.Ref.Name,

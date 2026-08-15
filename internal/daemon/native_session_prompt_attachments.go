@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,7 +49,7 @@ func (n *daemonNativeTools) resolveNativePromptAttachments(
 				fmt.Errorf("resolve attachments[%d]: %w", index, err),
 			)
 		}
-		resolved = append(resolved, nativeAttachmentMeta(ref))
+		resolved = append(resolved, session.AttachmentMetaFromRef(ref))
 	}
 	return resolved, nil
 }
@@ -59,17 +60,23 @@ func (n *daemonNativeTools) resolveNativePromptAttachment(
 	sessionID string,
 	value string,
 ) (attachmentspkg.AttachmentRef, error) {
-	if strings.HasPrefix(value, "att_") {
-		return n.deps.SessionAttachments.Stat(ctx, workspaceID, sessionID, value)
+	if id, err := attachmentspkg.ParseAttachmentID(value); err == nil {
+		return n.deps.SessionAttachments.Stat(ctx, workspaceID, sessionID, id)
 	}
-	data, err := readNativeAttachmentPath(value, n.deps.Config.Session.Attachments.MaxFileBytes)
+	data, err := readNativeAttachmentPath(ctx, value, n.deps.Config.Session.Attachments.MaxFileBytes)
 	if err != nil {
 		return attachmentspkg.AttachmentRef{}, err
 	}
 	return n.deps.SessionAttachments.Put(ctx, workspaceID, sessionID, filepath.Base(value), data)
 }
 
-func readNativeAttachmentPath(path string, maxBytes int64) (data []byte, retErr error) {
+func readNativeAttachmentPath(ctx context.Context, path string, maxBytes int64) (data []byte, retErr error) {
+	if ctx == nil {
+		return nil, errors.New("attachment path context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if maxBytes <= 0 {
 		return nil, errors.New("session.attachments.max_file_bytes must be greater than zero")
 	}
@@ -90,7 +97,11 @@ func readNativeAttachmentPath(path string, maxBytes int64) (data []byte, retErr 
 	if err := attachmentspkg.ValidateSize(info.Size(), maxBytes); err != nil {
 		return nil, err
 	}
-	data, err = io.ReadAll(io.LimitReader(file, maxBytes+1))
+	reader := io.Reader(&nativeAttachmentContextReader{ctx: ctx, reader: file})
+	if maxBytes < math.MaxInt64 {
+		reader = io.LimitReader(reader, maxBytes+1)
+	}
+	data, err = io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("read attachment path: %w", err)
 	}
@@ -100,15 +111,14 @@ func readNativeAttachmentPath(path string, maxBytes int64) (data []byte, retErr 
 	return data, nil
 }
 
-func nativeAttachmentMeta(ref attachmentspkg.AttachmentRef) session.AttachmentMeta {
-	return session.AttachmentMeta{
-		ID:       ref.ID,
-		Name:     ref.Name,
-		MIMEType: ref.MIMEType,
-		Bytes:    ref.Bytes,
-		SHA256:   ref.SHA256,
-		Kind:     ref.Kind,
-		Width:    ref.Width,
-		Height:   ref.Height,
+type nativeAttachmentContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r *nativeAttachmentContextReader) Read(buffer []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
 	}
+	return r.reader.Read(buffer)
 }

@@ -111290,7 +111290,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/octet-stream": string;
+          "*/*": string;
         };
       };
       /** @description Invalid attachment id */
@@ -114302,6 +114302,17 @@ export interface operations {
         content: {
           "application/json": {
             inputs: {
+              attachments?: {
+                /** Format: int64 */
+                bytes: number;
+                height: number;
+                id: string;
+                kind: string;
+                mime_type: string;
+                name: string;
+                sha256: string;
+                width: number;
+              }[];
               delivery: string;
               /** Format: date-time */
               enqueued_at: string;
@@ -114433,6 +114444,17 @@ export interface operations {
         content: {
           "application/json": {
             input: {
+              attachments?: {
+                /** Format: int64 */
+                bytes: number;
+                height: number;
+                id: string;
+                kind: string;
+                mime_type: string;
+                name: string;
+                sha256: string;
+                width: number;
+              }[];
               delivery: string;
               /** Format: date-time */
               enqueued_at: string;

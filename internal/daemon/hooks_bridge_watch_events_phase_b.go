@@ -295,7 +295,7 @@ func (n *hooksNotifier) notifyNetworkWatchObservers(
 			"network",
 			[]any{
 				daemonHookEventKey, event,
-				"message_id", payload.MessageID,
+				watchEventsPayloadMessageIDKey, payload.MessageID,
 				"work_id", payload.WorkID,
 				daemonWorkspaceIDKey, payload.WorkspaceID,
 			},

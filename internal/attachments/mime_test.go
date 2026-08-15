@@ -202,10 +202,10 @@ func testWebPVP8X(width int, height int) []byte {
 	payload[9] = byte(h >> 16)
 
 	out := make([]byte, 30)
-	copy(out[0:4], []byte("RIFF"))
+	copy(out[0:4], "RIFF")
 	out[4] = 22
-	copy(out[8:12], []byte("WEBP"))
-	copy(out[12:16], []byte("VP8X"))
+	copy(out[8:12], "WEBP")
+	copy(out[12:16], "VP8X")
 	out[16] = 10
 	copy(out[20:30], payload)
 	return out
@@ -237,14 +237,14 @@ func testWebPVP8L(width int, height int) []byte {
 func testWebPChunk(kind string, payload []byte) []byte {
 	size := len(payload)
 	out := make([]byte, 20+size+(size&1))
-	copy(out[0:4], []byte("RIFF"))
+	copy(out[0:4], "RIFF")
 	riffSize := len(out) - 8
 	out[4] = byte(riffSize)
 	out[5] = byte(riffSize >> 8)
 	out[6] = byte(riffSize >> 16)
 	out[7] = byte(riffSize >> 24)
-	copy(out[8:12], []byte("WEBP"))
-	copy(out[12:16], []byte(kind))
+	copy(out[8:12], "WEBP")
+	copy(out[12:16], kind)
 	out[16] = byte(size)
 	out[17] = byte(size >> 8)
 	out[18] = byte(size >> 16)

@@ -191,6 +191,7 @@ export function SessionWindowContent({
             return true;
           }}
           promptImage={session.runtime.acp_caps?.prompt_image ?? false}
+          promptEmbeddedContext={session.runtime.acp_caps?.prompt_embedded_context ?? false}
         />
       </div>
       {inspector.open ? (

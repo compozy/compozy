@@ -162,6 +162,7 @@ type Manager struct {
 	inputQueueStore              store.SessionInputQueueStore
 	promptAdmissionStore         store.SessionPromptAdmissionStore
 	attachmentOpener             AttachmentOpener
+	attachmentScopeLease         attachmentScopeLease
 	managedInputLifecycle        ManagedInputLifecycle
 	workAdmission                admission.Checker
 	goalCommandHandler           GoalCommandHandler

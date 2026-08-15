@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	"github.com/compozy/compozy/internal/fileutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -22,20 +23,24 @@ const (
 
 type stagedAttachmentDelete struct {
 	originalPath  string
-	stagedPath    string
 	committedPath string
 	parent        *fileutil.Directory
 	directory     *fileutil.Directory
 	release       func() error
+	lease         attachmentspkg.ScopeLeaseGuard
 }
 
 func (m *Manager) stageSessionAttachmentDelete(
+	ctx context.Context,
 	workspaceID string,
 	sessionID string,
 	deletionID string,
 ) (*stagedAttachmentDelete, error) {
 	parentPath := filepath.Join(m.homePaths.SessionAttachmentsDir, workspaceID)
-	return m.stageAttachmentDirectoryDelete(
+	return m.stageAttachmentDirectoryDeleteWithLease(
+		ctx,
+		workspaceID,
+		sessionID,
 		parentPath,
 		sessionID,
 		sessionDeleteTombstoneName(sessionDeleteStagedPrefix, sessionID, deletionID),
@@ -44,15 +49,54 @@ func (m *Manager) stageSessionAttachmentDelete(
 }
 
 func (m *Manager) stageWorkspaceAttachmentDelete(
+	ctx context.Context,
 	workspaceID string,
 	deletionID string,
 ) (*stagedAttachmentDelete, error) {
-	return m.stageAttachmentDirectoryDelete(
+	return m.stageAttachmentDirectoryDeleteWithLease(
+		ctx,
+		workspaceID,
+		"",
 		m.homePaths.SessionAttachmentsDir,
 		workspaceID,
 		attachmentWorkspaceTombstoneName(workspaceAttachmentDeleteStagedPrefix, workspaceID, deletionID),
 		attachmentWorkspaceTombstoneName(workspaceAttachmentDeleteCommittedPrefix, workspaceID, deletionID),
 	)
+}
+
+func (m *Manager) stageAttachmentDirectoryDeleteWithLease(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	parentPath string,
+	target string,
+	stagedName string,
+	committedName string,
+) (*stagedAttachmentDelete, error) {
+	var lease attachmentspkg.ScopeLeaseGuard
+	if m.attachmentScopeLease != nil {
+		var err error
+		lease, err = m.attachmentScopeLease.AcquireScopeLease(
+			ctx,
+			workspaceID,
+			sessionID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("session: acquire attachment deletion lease: %w", err)
+		}
+	}
+	entry, err := m.stageAttachmentDirectoryDelete(parentPath, target, stagedName, committedName)
+	if err != nil {
+		if lease != nil {
+			lease.Release()
+		}
+		return nil, err
+	}
+	if entry == nil {
+		entry = &stagedAttachmentDelete{}
+	}
+	entry.lease = lease
+	return entry, nil
 }
 
 func (m *Manager) stageAttachmentDirectoryDelete(
@@ -74,13 +118,16 @@ func (m *Manager) stageAttachmentDirectoryDelete(
 	}
 	if err != nil {
 		return nil, errors.Join(
-			fmt.Errorf("session: bind attachment directory %q for deletion: %w", filepath.Join(parentPath, target), err),
+			fmt.Errorf(
+				"session: bind attachment directory %q for deletion: %w",
+				filepath.Join(parentPath, target),
+				err,
+			),
 			parent.Close(),
 		)
 	}
 	entry := &stagedAttachmentDelete{
 		originalPath:  filepath.Join(parentPath, target),
-		stagedPath:    filepath.Join(parentPath, stagedName),
 		committedPath: filepath.Join(parentPath, committedName),
 		parent:        parent,
 		directory:     directory,
@@ -114,6 +161,10 @@ func commitStagedAttachmentDelete(entry *stagedAttachmentDelete) error {
 	if entry == nil {
 		return nil
 	}
+	if entry.parent == nil && entry.directory == nil {
+		entry.MarkDeleted()
+		return entry.Release()
+	}
 	if entry.parent == nil || entry.directory == nil {
 		return errors.New("session: staged attachment deletion capabilities are required")
 	}
@@ -121,6 +172,7 @@ func commitStagedAttachmentDelete(entry *stagedAttachmentDelete) error {
 	if !result.Committed() {
 		return errors.Join(moveErr, result.PostCommitErr, entry.Release())
 	}
+	entry.MarkDeleted()
 	return errors.Join(moveErr, result.PostCommitErr, entry.directory.RemoveBoundTree(), entry.Release())
 }
 
@@ -128,21 +180,34 @@ func rollbackStagedAttachmentDelete(entry *stagedAttachmentDelete) error {
 	if entry == nil {
 		return nil
 	}
+	if entry.parent == nil && entry.directory == nil {
+		return entry.Release()
+	}
 	if entry.parent == nil || entry.directory == nil {
 		return errors.New("session: staged attachment deletion capabilities are required")
 	}
 	result, moveErr := entry.directory.MoveTo(entry.parent, filepath.Base(entry.originalPath), false)
-	if !result.Committed() {
-		return errors.Join(moveErr, result.PostCommitErr, entry.Release())
-	}
 	return errors.Join(moveErr, result.PostCommitErr, entry.Release())
 }
 
 func (entry *stagedAttachmentDelete) Release() error {
-	if entry == nil || entry.release == nil {
+	if entry == nil {
 		return nil
 	}
-	return entry.release()
+	var err error
+	if entry.release != nil {
+		err = entry.release()
+	}
+	if entry.lease != nil {
+		entry.lease.Release()
+	}
+	return err
+}
+
+func (entry *stagedAttachmentDelete) MarkDeleted() {
+	if entry != nil && entry.lease != nil {
+		entry.lease.MarkDeleted()
+	}
 }
 
 func (m *Manager) recoverSessionAttachmentDelete(

@@ -28,7 +28,7 @@ func newPreStartCacheHMACKey() (preStartCacheHMACKey, bool) {
 func preStartSemanticFingerprint(
 	cacheKey preStartCacheHMACKey,
 	provider compozyconfig.ProviderConfig,
-	env ProbeEnv,
+	env *ProbeEnv,
 ) (preStartCacheFingerprint, bool) {
 	mac := hmac.New(sha256.New, cacheKey[:])
 	slots := provider.EffectiveCredentialSlots()
@@ -78,7 +78,7 @@ func preStartSemanticFingerprint(
 	return fingerprint, true
 }
 
-func authStatusCommandExecutable(env ProbeEnv) string {
+func authStatusCommandExecutable(env *ProbeEnv) string {
 	resolution := env.authStatusCommandResolution
 	if resolution == nil || resolution.state != authStatusCommandResolutionResolved {
 		return ""

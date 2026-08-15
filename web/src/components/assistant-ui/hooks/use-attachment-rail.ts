@@ -63,7 +63,9 @@ export function useAttachmentRail(itemCount: number) {
       const handleFocusIn = (event: FocusEvent) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        const item = target.closest("[data-testid='composer-attachment-tile'], [role='listitem']");
+        const item = target.closest(
+          "[data-testid='composer-attachment-tile'], [data-attachment-rail-item]"
+        );
         if (item instanceof HTMLElement && rail.contains(item)) {
           keepInView(rail, track, item);
           paint();

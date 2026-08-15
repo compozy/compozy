@@ -6,9 +6,11 @@ import { sessionAttachmentTileState } from "../session-attachment-tile-model";
 
 export function sessionComposerSendBlocker({
   attachments,
+  promptEmbeddedContext,
   promptImage,
 }: {
   attachments: readonly Attachment[];
+  promptEmbeddedContext: boolean;
   promptImage: boolean;
 }): string | null {
   const uploading = attachments.find(
@@ -40,6 +42,9 @@ export function sessionComposerSendBlocker({
     attachment => attachment.type === "image" || isImageAttachmentMime(attachment.contentType)
   );
   if (hasImages && !promptImage) return "This model does not accept images";
+
+  const hasPDF = attachments.some(attachment => attachment.contentType === "application/pdf");
+  if (hasPDF && !promptEmbeddedContext) return "This model does not accept PDF files";
 
   const notReady = attachments.find(
     attachment => sessionAttachmentTileState(attachment) !== "ready"

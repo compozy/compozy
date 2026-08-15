@@ -145,7 +145,6 @@ type PromptRequest struct {
 type PromptAttachment struct {
 	Name     string
 	MIMEType string
-	Kind     string
 	Data     []byte
 }
 
@@ -159,13 +158,14 @@ func (r PromptRequest) Validate() error {
 	}
 	for index, attachment := range r.Attachments {
 		if len(attachment.Data) == 0 {
-			return fmt.Errorf("acp: prompt attachment %d data is required", index)
+			return fmt.Errorf("acp: prompt attachment %d: %w", index, ErrPromptAttachmentDataRequired)
 		}
-		if !isAllowedPromptAttachmentMIME(attachment.MIMEType) {
+		if classifyPromptAttachmentMIME(attachment.MIMEType) == promptAttachmentUnsupported {
 			return fmt.Errorf(
-				"acp: prompt attachment %d has unsupported mime type %q",
+				"acp: prompt attachment %d mime type %q: %w",
 				index,
 				strings.TrimSpace(attachment.MIMEType),
+				ErrPromptAttachmentMIMEUnsupported,
 			)
 		}
 	}

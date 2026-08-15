@@ -31,6 +31,14 @@ type AttachmentOpener interface {
 	) (io.ReadCloser, attachmentspkg.AttachmentRef, error)
 }
 
+type attachmentScopeLease interface {
+	AcquireScopeLease(
+		ctx context.Context,
+		workspaceID string,
+		sessionID string,
+	) (attachmentspkg.ScopeLeaseGuard, error)
+}
+
 func (m *Manager) resolvePromptAttachments(
 	ctx context.Context,
 	workspaceID string,
@@ -80,18 +88,9 @@ func (m *Manager) canonicalPromptAttachments(
 		if err := reader.Close(); err != nil {
 			return nil, wrapPromptAttachmentCloseError(ref.Name, err)
 		}
-		canonical = append(canonical, attachmentMetaFromRef(ref))
+		canonical = append(canonical, AttachmentMetaFromRef(ref))
 	}
 	return canonical, nil
-}
-
-func attachmentMetaFromRef(ref attachmentspkg.AttachmentRef) AttachmentMeta {
-	return AttachmentMeta{
-		ID: strings.TrimSpace(ref.ID), Name: strings.TrimSpace(ref.Name),
-		MIMEType: strings.TrimSpace(ref.MIMEType), Bytes: ref.Bytes,
-		SHA256: strings.TrimSpace(ref.SHA256), Kind: strings.TrimSpace(ref.Kind),
-		Width: ref.Width, Height: ref.Height,
-	}
 }
 
 const (
@@ -148,8 +147,7 @@ func (m *Manager) readPromptAttachment(
 
 	name := strings.TrimSpace(ref.Name)
 	mimeType := strings.TrimSpace(ref.MIMEType)
-	kind := strings.TrimSpace(ref.Kind)
-	return acp.PromptAttachment{Name: name, MIMEType: mimeType, Kind: kind, Data: data}, nil
+	return acp.PromptAttachment{Name: name, MIMEType: mimeType, Data: data}, nil
 }
 
 func wrapPromptAttachmentReadError(name string, err error) error {

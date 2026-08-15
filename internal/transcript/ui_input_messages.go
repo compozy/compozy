@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	commandpkg "github.com/compozy/compozy/internal/command"
 )
 
@@ -19,7 +20,7 @@ func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
 		parts = append(parts, UIMessagePart{
 			Type:      UIMessagePartTypeFile,
 			MediaType: attachment.MIMEType,
-			URL:       "compozy://session-attachments/" + attachment.ID,
+			URL:       attachmentspkg.AttachmentURIPrefix + attachment.ID,
 			Filename:  attachment.Name,
 		})
 	}

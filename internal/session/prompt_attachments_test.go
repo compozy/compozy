@@ -225,26 +225,50 @@ func TestSendPromptDispatchesAttachments(t *testing.T) {
 	t.Run("Should reject unsupported image input before calling the driver", func(t *testing.T) {
 		t.Parallel()
 
+		attachmentID := "att_" + strings.Repeat("b", 64)
 		data := []byte("image attachment")
 		opener := &promptAttachmentOpenerStub{
-			data: map[string][]byte{"att-image": data},
+			data: map[string][]byte{attachmentID: data},
 			refs: map[string]attachmentspkg.AttachmentRef{
-				"att-image": storedPromptAttachmentRef("att-image", "photo.png", "image/png", data),
+				attachmentID: storedPromptAttachmentRef(attachmentID, "photo.png", "image/png", data),
 			},
 		}
-		h := newHarness(t, WithAttachmentOpener(opener))
+		admissionStore := openManagerInputQueueStore(t)
+		h := newHarness(
+			t,
+			WithAttachmentOpener(opener),
+			WithSessionPromptAdmissionStore(admissionStore),
+		)
+		registerManagerInputQueueWorkspace(t, admissionStore, h)
 		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, admissionStore, h, sess)
 		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
 
-		_, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
-			Message:     "inspect this",
-			Attachments: []AttachmentMeta{promptAttachmentMeta("att-image", "spoofed.txt", "text/plain", data)},
-		})
+		opts := SendPromptOpts{
+			Message: "inspect this", MessageID: "message-capability-retry",
+			IdempotencyKey: "idempotency-capability-retry",
+			Attachments: []AttachmentMeta{
+				promptAttachmentMeta(attachmentID, "spoofed.txt", "text/plain", data),
+			},
+		}
+		_, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
 		if !errors.Is(err, ErrPromptImagesUnsupported) {
 			t.Fatalf("SendPrompt() error = %v, want %v", err, ErrPromptImagesUnsupported)
 		}
 		if got := len(managerPromptCalls(h)); got != 0 {
 			t.Fatalf("driver prompt calls = %d, want 0 after capability rejection", got)
+		}
+		if h.driver.lastProc == nil {
+			t.Fatal("runtime process = nil after capability preflight")
+		}
+		h.driver.lastProc.handle.setCaps(acp.Caps{PromptImage: true})
+		retried, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
+		if err != nil {
+			t.Fatalf("SendPrompt(retry after capability change) error = %v", err)
+		}
+		collectEvents(t, retried.Events)
+		if got := len(managerPromptCalls(h)); got != 1 {
+			t.Fatalf("driver prompt calls after retry = %d, want 1", got)
 		}
 	})
 }

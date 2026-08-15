@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type {
   Attachment,
   AttachmentAdapter,
@@ -13,7 +12,6 @@ import {
 } from "../adapters/session-attachment-api";
 import {
   ATTACHMENT_ALLOWED_REASON,
-  ATTACHMENT_MAX_FILE_BYTES,
   attachmentOversizeMessage,
   SESSION_ATTACHMENT_PART_NAME,
   sniffAttachmentFile,
@@ -45,7 +43,7 @@ function pendingId(): string {
 
 function persistFailureMessage(error: unknown): string {
   if (error instanceof SessionAttachmentApiError) {
-    if (error.statusCode === 413) return attachmentOversizeMessage(ATTACHMENT_MAX_FILE_BYTES + 1);
+    if (error.statusCode === 413) return "File exceeds the server upload limit";
     if (error.statusCode === 415) return ATTACHMENT_ALLOWED_REASON;
   }
   return "Couldn't save";
@@ -54,11 +52,14 @@ function persistFailureMessage(error: unknown): string {
 export class SessionAttachmentAdapter implements AttachmentAdapter {
   /**
    * Wildcard so drop/paste of unsupported types still enter `add()` and become
-   * in-place rejected tiles. The paperclip picker uses ATTACHMENT_PICKER_ACCEPT.
+   * in-place rejected tiles. The paperclip picker allows every file so this
+   * content-based check stays authoritative on the client.
    */
   public accept = SESSION_ATTACHMENT_ADAPTER_ACCEPT;
 
   private readonly uploads = new Map<string, SessionAttachment>();
+  private readonly inFlightUploads = new Map<string, Promise<SessionAttachment>>();
+  private readonly removedWhileUploading = new Set<string>();
   private readonly workspaceId: string;
   private readonly sessionId: string;
 
@@ -105,12 +106,22 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
     };
 
     try {
-      const uploaded = await uploadSessionAttachment(this.workspaceId, this.sessionId, file);
+      const upload = uploadSessionAttachment(this.workspaceId, this.sessionId, file);
+      this.inFlightUploads.set(id, upload);
+      const uploaded = await upload;
+      if (this.removedWhileUploading.has(id)) return;
       this.uploads.set(id, uploaded);
       yield {
         ...base,
         contentType: uploaded.mime_type,
         status: { type: "requires-action", reason: "composer-send" },
+        content: [
+          {
+            type: "data",
+            name: SESSION_ATTACHMENT_PART_NAME,
+            data: uploaded,
+          },
+        ],
       };
     } catch (error) {
       yield {
@@ -121,15 +132,36 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
           message: persistFailureMessage(error),
         },
       };
+    } finally {
+      this.inFlightUploads.delete(id);
     }
   }
 
   public async remove(attachment: Attachment): Promise<void> {
+    const pending = this.inFlightUploads.get(attachment.id);
+    if (pending) {
+      this.removedWhileUploading.add(attachment.id);
+      try {
+        const uploaded = await pending;
+        try {
+          await deleteSessionAttachment(this.workspaceId, this.sessionId, uploaded.id);
+        } catch (error) {
+          this.uploads.set(attachment.id, uploaded);
+          throw error;
+        }
+      } catch (error) {
+        if (this.uploads.has(attachment.id)) throw error;
+        return;
+      } finally {
+        this.removedWhileUploading.delete(attachment.id);
+      }
+      return;
+    }
     const uploaded = this.uploads.get(attachment.id);
-    this.uploads.delete(attachment.id);
     if (!uploaded) return;
     if (attachment.status.type === "complete") return;
     await deleteSessionAttachment(this.workspaceId, this.sessionId, uploaded.id);
+    this.uploads.delete(attachment.id);
   }
 
   public async send(attachment: PendingAttachment): Promise<CompleteAttachment> {
@@ -167,15 +199,5 @@ export function useSessionAttachmentAdapter(
   workspaceId: string,
   sessionId: string
 ): SessionAttachmentAdapter {
-  const [scope, setScope] = useState({ workspaceId, sessionId });
-  const [adapter, setAdapter] = useState(
-    () => new SessionAttachmentAdapter({ workspaceId, sessionId })
-  );
-  if (scope.workspaceId !== workspaceId || scope.sessionId !== sessionId) {
-    const next = new SessionAttachmentAdapter({ workspaceId, sessionId });
-    setScope({ workspaceId, sessionId });
-    setAdapter(next);
-    return next;
-  }
-  return adapter;
+  return new SessionAttachmentAdapter({ workspaceId, sessionId });
 }

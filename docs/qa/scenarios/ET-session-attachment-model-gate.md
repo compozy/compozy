@@ -1,10 +1,10 @@
 ---
 id: ET-session-attachment-model-gate
 area: ET
-title: Refuse attachments for a text-only model
+title: Gate attachments by negotiated model capability
 persona: Bruno
-journey: J-17
-expected: When the selected ACP model lacks the required image or file capability, an attachment-bearing prompt is refused before dispatch while the draft and previews remain available for correction.
+journey: J-session-attachments
+expected: Images are refused without ACP image input and PDFs are refused without embedded context, while Markdown and plain text still dispatch as text blocks; rejected drafts and previews remain available for correction.
 entry_points: web session composer runtime selector; prompt API
 qa_status: untested
 bug_ids:

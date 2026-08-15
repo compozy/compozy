@@ -27,8 +27,8 @@ that attachment kind.
 
 The v1 store accepts PNG, JPEG, WebP, PDF, Markdown, and plain text. Each file is limited to 10 MiB
 and each prompt to 10 files by default. CompozyOS detects the MIME type from the bytes and preserves
-image bytes as received, including EXIF metadata. A text-only model rejects an attachment-bearing
-prompt before dispatch.
+image bytes as received, including EXIF metadata. Images require ACP image input and PDFs require
+embedded context. Markdown and plain text fall back to text blocks when embedded context is unavailable.
 
 Attachment metadata is durable in user-message events, so transcript and event reads can render the
 reference without embedding file contents. Archive and clear keep files for the same session;

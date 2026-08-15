@@ -1,10 +1,10 @@
-import { ComposerPrimitive, useAui } from "@assistant-ui/react";
+import { ComposerPrimitive, useAui, useAuiState } from "@assistant-ui/react";
 import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import { CornerDownRight, ListPlus, Scissors, Square } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import type { QueuedPrompt } from "@/systems/session";
+import { attachmentsFromPromptMessageParts, type QueuedPrompt } from "@/systems/session";
 import { Button } from "@compozy/ui";
 import { createSessionCommandFormatter } from "./session-command-formatter";
 import { commandItemPresentation } from "./session-command-menu-model";
@@ -31,6 +31,7 @@ import {
   type SessionBusyInputHandler,
 } from "./hooks/use-session-busy-input-actions";
 import type { SessionComposerState } from "./hooks/use-session-composer-state";
+import { sessionComposerSendBlocker } from "./hooks/use-session-composer-send-gate";
 import {
   SESSION_THREAD_CONTENT_INSET_DEFAULT,
   ThreadContentRail,
@@ -113,6 +114,8 @@ export interface SessionComposerProps {
   environmentControl?: ReactNode;
   /** Session ACP prompt_image cap. Absent/false refuses image tiles. */
   promptImage?: boolean;
+  /** Session ACP prompt_embedded_context cap. Absent/false refuses PDF tiles. */
+  promptEmbeddedContext?: boolean;
 }
 
 export type { SessionComposerCommandCatalog } from "./session-composer-command-menu";
@@ -149,6 +152,7 @@ export function SessionComposer({
   onCommandCatalogOpen,
   onCommandAction,
   promptImage = false,
+  promptEmbeddedContext = false,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
   const aui = useAui();
   const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
@@ -158,12 +162,22 @@ export function SessionComposer({
     commandCatalog ?? { standaloneSections: [], inlineSkills: [] }
   );
   const trimmedComposerText = composerText.trim();
+  const composerAttachments = useAuiState(state => state.composer.attachments);
+  const promptAttachments = composerAttachments.flatMap(attachment =>
+    attachmentsFromPromptMessageParts(attachment.content)
+  );
+  const attachmentBlocker = sessionComposerSendBlocker({
+    attachments: composerAttachments,
+    promptEmbeddedContext,
+    promptImage,
+  });
   const runtimeRunning = isRunning || isSessionRunning;
   const canSubmitBusyInput =
     runtimeRunning &&
     canPrompt &&
     allowBusyInput &&
-    trimmedComposerText.length > 0 &&
+    (trimmedComposerText.length > 0 || promptAttachments.length > 0) &&
+    attachmentBlocker === null &&
     !isBusyInputPending;
   const showBusyControls = runtimeRunning || isBusyInputPending;
   const canQueueFromInput = allowBusyInput && Boolean(onQueuePrompt);
@@ -185,7 +199,7 @@ export function SessionComposer({
     onSteerPrompt,
     queuedPrompts,
     setComposerText,
-    trimmedComposerText,
+    draft: { attachments: promptAttachments, message: trimmedComposerText },
   });
 
   return (
@@ -229,7 +243,10 @@ export function SessionComposer({
                     isDragging ? "border-accent-dim" : null
                   )}
                 >
-                  <SessionAttachmentStrip promptImage={promptImage} />
+                  <SessionAttachmentStrip
+                    promptEmbeddedContext={promptEmbeddedContext}
+                    promptImage={promptImage}
+                  />
                   <LexicalComposerInput
                     data-testid="composer-input"
                     inert={!canPrompt}
@@ -319,7 +336,11 @@ export function SessionComposer({
                             variant="ghost"
                             size="sm"
                             onClick={handleSteerAction}
-                            disabled={!canSubmitBusyInput || !busyInputFenceAvailable}
+                            disabled={
+                              !canSubmitBusyInput ||
+                              composerAttachments.length > 0 ||
+                              !busyInputFenceAvailable
+                            }
                             data-testid="composer-steer-button"
                           >
                             <CornerDownRight className="size-3" />
@@ -355,7 +376,11 @@ export function SessionComposer({
                         </button>
                       </>
                     ) : (
-                      <SessionComposerSendButton canPrompt={canPrompt} promptImage={promptImage} />
+                      <SessionComposerSendButton
+                        canPrompt={canPrompt}
+                        promptEmbeddedContext={promptEmbeddedContext}
+                        promptImage={promptImage}
+                      />
                     )}
                   </div>
                 </ComposerPrimitive.Root>

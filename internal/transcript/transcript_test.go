@@ -141,6 +141,51 @@ func TestAssembleRendersSyntheticReentryAsSystemMessage(t *testing.T) {
 	)
 }
 
+func TestAssemblePreservesAttachmentOnlyUserTurns(t *testing.T) {
+	t.Parallel()
+
+	wantAttachments := []acp.EventAttachment{{
+		ID:       "att-replay",
+		Name:     "diagram.png",
+		MIMEType: "image/png",
+		Bytes:    128,
+		SHA256:   "sha-replay",
+		Kind:     "image",
+		Width:    640,
+		Height:   480,
+	}}
+	timestamp := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	payload, err := MarshalAgentEvent((acp.AgentEvent{
+		Type:      acp.EventTypeUserMessage,
+		SessionID: "sess-replay",
+		TurnID:    "turn-replay",
+		Timestamp: timestamp,
+	}).WithAttachments(wantAttachments))
+	if err != nil {
+		t.Fatalf("MarshalAgentEvent() error = %v", err)
+	}
+
+	messages, err := Assemble([]store.SessionEvent{{
+		ID:        "event-replay",
+		SessionID: "sess-replay",
+		TurnID:    "turn-replay",
+		Sequence:  1,
+		Type:      acp.EventTypeUserMessage,
+		Content:   payload,
+		Timestamp: timestamp,
+	}})
+	if err != nil {
+		t.Fatalf("Assemble() error = %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("len(messages) = %d, want one attachment-only turn", len(messages))
+	}
+	if messages[0].Content != "" || len(messages[0].Attachments) != 1 ||
+		messages[0].Attachments[0] != wantAttachments[0] {
+		t.Fatalf("messages[0] = %#v, want preserved attachment-only user turn", messages[0])
+	}
+}
+
 func TestAssemblePreservesMixedTurnOrderingAndToolPairingAcrossTurns(t *testing.T) {
 	t.Run(
 		"Should preserve mixed-turn ordering and runtime tool pairing",

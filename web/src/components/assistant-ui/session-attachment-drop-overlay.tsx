@@ -13,7 +13,7 @@ export function SessionComposerDropRoot({
 }) {
   const { isDragging, dropProps } = useSessionComposerDrop({ disabled });
   return (
-    <div className="relative" {...dropProps}>
+    <div className="relative" data-dragging={isDragging || undefined} {...dropProps}>
       {children({ isDragging })}
       <SessionAttachmentDropOverlay visible={isDragging} />
     </div>
@@ -26,8 +26,10 @@ export function SessionAttachmentDropOverlay({ visible }: { visible: boolean }) 
       data-testid="composer-drop-overlay"
       aria-hidden={!visible}
       className={cn(
-        "pointer-events-none absolute inset-0 z-2 grid place-items-center rounded-[inherit] p-4 text-center",
-        "bg-[color-mix(in_oklch,var(--elevated)_88%,transparent)] shadow-[inset_0_0_0_1px_var(--accent-dim)]",
+        "pointer-events-none absolute inset-0 z-2 grid place-items-center rounded-[inherit]",
+        "p-4 text-center",
+        "bg-[color-mix(in_oklch,var(--elevated)_88%,transparent)]",
+        "shadow-[inset_0_0_0_1px_var(--accent-dim)]",
         visible ? "grid" : "hidden"
       )}
     >

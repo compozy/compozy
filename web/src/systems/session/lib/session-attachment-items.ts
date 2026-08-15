@@ -30,7 +30,6 @@ export interface SessionAttachmentFileItem {
 export type SessionAttachmentItem = SessionAttachmentImageItem | SessionAttachmentFileItem;
 
 interface AttachmentRecordMeta {
-  id: string;
   bytes?: number;
   width?: number;
   height?: number;
@@ -79,7 +78,6 @@ function attachmentMetaById(metadata: unknown): Map<string, AttachmentRecordMeta
     const id = stringField(record, "id");
     if (!id) continue;
     byId.set(id, {
-      id,
       bytes: numberField(record, "bytes"),
       width: numberField(record, "width"),
       height: numberField(record, "height"),
@@ -106,7 +104,6 @@ function filePartFields(part: Record<string, unknown>): {
       mediaType: ref.mime_type,
       filename: ref.name,
       meta: {
-        id: ref.id,
         bytes: ref.bytes,
         width: ref.width,
         height: ref.height,
@@ -172,9 +169,10 @@ export function userMessageAttachmentItems(
     if (!isRecord(part)) continue;
     const fields = filePartFields(part);
     if (!fields) continue;
+    const attachmentId = sessionAttachmentIdFromURI(fields.uri);
+    if (!attachmentId) continue;
     const href = sessionAttachmentBytesURL(workspaceId, sessionId, fields.uri);
     if (!href) continue;
-    const attachmentId = sessionAttachmentIdFromURI(fields.uri) ?? fields.uri;
     const meta = metaById.get(attachmentId) ?? fields.meta;
     if (isImageMediaType(fields.mediaType)) {
       items.push({

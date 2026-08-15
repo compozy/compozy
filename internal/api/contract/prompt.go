@@ -100,6 +100,7 @@ type SessionInputPayload struct {
 	EnqueuedAt       time.Time                       `json:"enqueued_at"`
 	Runtime          *PromptRuntimeSelectionPayload  `json:"runtime,omitempty"`
 	SkillInvocations []SessionSkillInvocationPayload `json:"skill_invocations,omitempty"`
+	Attachments      []PromptAttachmentRef           `json:"attachments,omitempty"`
 }
 
 // SessionInputListResponse returns current-generation pending input in dispatch order.

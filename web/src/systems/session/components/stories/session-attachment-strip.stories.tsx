@@ -58,7 +58,12 @@ const tiles: SessionAttachmentTileModel[] = [
 function StripPreview({ showGate = false }: { showGate?: boolean }) {
   return (
     <div className="flex w-[28rem] flex-col gap-1.5 rounded-lg border border-line bg-elevated p-3">
-      {showGate ? <SessionAttachmentCapabilityGate onRemoveImages={() => {}} /> : null}
+      {showGate ? (
+        <SessionAttachmentCapabilityGate
+          message="This model can't read image attachments."
+          onRemove={() => {}}
+        />
+      ) : null}
       <div
         data-overflow="end"
         className="relative min-w-0 isolate [--att-fade:56px] [--att-fade-bg:var(--elevated)]"

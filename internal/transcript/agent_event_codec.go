@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+const legacyEventContentKey = "content"
+
 // MarshalAgentEvent converts a runtime ACP event into the canonical stored payload.
 func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 	return marshalAgentEvent(event, "")
@@ -112,7 +114,7 @@ func applyLegacyRawPayload(
 		payload.ToolResult = buildToolResult(
 			payload.ToolName,
 			effectiveToolError,
-			extractLegacyContentText(rawPayload["content"]),
+			extractLegacyContentText(rawPayload[legacyEventContentKey]),
 			rawPayload["rawOutput"],
 		)
 		payload.ToolError = effectiveToolError

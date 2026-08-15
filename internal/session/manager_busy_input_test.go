@@ -1737,7 +1737,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 			},
 		}
 		handlerCalls := 0
-		h := newHarness(t, WithSessionInputQueueStore(queueStore), WithAttachmentOpener(opener), WithGoalCommandHandler(GoalCommandHandlerFunc(func(
+		goalHandler := GoalCommandHandlerFunc(func(
 			_ context.Context,
 			workspaceID string,
 			sessionID string,
@@ -1760,7 +1760,13 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 					RunID: "run-1", Status: "active",
 				}},
 			}, nil
-		})))
+		})
+		h := newHarness(
+			t,
+			WithSessionInputQueueStore(queueStore),
+			WithAttachmentOpener(opener),
+			WithGoalCommandHandler(goalHandler),
+		)
 		registerManagerInputQueueWorkspace(t, queueStore, h)
 		sess := createSession(t, h)
 		registerManagerInputQueueSession(t, queueStore, h, sess)

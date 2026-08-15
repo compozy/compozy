@@ -29,6 +29,8 @@ export type {
   SessionOwnerResponse,
   SessionPayload,
   SessionAttachment,
+  SessionBusyInputDraft,
+  SessionBusyInputHandler,
   SessionPromptAttachment,
   SessionPromptPayload,
   SessionPromptRequest,
@@ -137,6 +139,7 @@ export {
 
 // Query infrastructure
 export { sessionAttachmentBytesURL, sessionAttachmentIdFromURI } from "./lib/attachment-url";
+export { attachmentsFromPromptMessageParts } from "./lib/attachment-kinds";
 export {
   attachmentExtensionMark,
   formatAttachmentBytes,
@@ -154,7 +157,12 @@ export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format
 export { isClarifyEventData } from "./lib/clarify-event";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
-export type { QueuedPrompt, QueuedPromptAttachmentSummary } from "./lib/queued-prompt";
+export { queuedPromptAttachmentSummary } from "./lib/queued-prompt";
+export type {
+  QueuedPrompt,
+  QueuedPromptAttachmentPreview,
+  QueuedPromptAttachmentSummary,
+} from "./lib/queued-prompt";
 export { sessionKeys } from "./lib/query-keys";
 export {
   cachedForeignSessionOwner,

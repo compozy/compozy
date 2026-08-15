@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/compozy/compozy/internal/acp"
 )
 
 const (
@@ -53,6 +55,7 @@ func cloneMessages(messages []Message) []Message {
 	cloned := make([]Message, len(messages))
 	for i := range messages {
 		cloned[i] = messages[i]
+		cloned[i].Attachments = append([]acp.EventAttachment(nil), messages[i].Attachments...)
 		cloned[i].ToolInput = cloneRawMessage(messages[i].ToolInput)
 		cloned[i].ToolResult = cloneToolResult(messages[i].ToolResult)
 	}

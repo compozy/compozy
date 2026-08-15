@@ -34,6 +34,8 @@ func TestTranscriptRedactsSecretsAcrossDisplaySurfaces(t *testing.T) {
 			"tool-name-secret",
 			"tool-input-secret",
 			"tool-credential-secret",
+			"attachment-name-secret",
+			"compozy_claim_attachment_123",
 		}
 		event := (acp.AgentEvent{
 			Type:      acp.EventTypeAgentMessage,
@@ -58,7 +60,11 @@ func TestTranscriptRedactsSecretsAcrossDisplaySurfaces(t *testing.T) {
 				`{"apiKey":"tool-input-secret","credential":"tool-credential-secret","command":"echo ok"}`,
 			),
 			false,
-		)
+		).WithAttachments([]acp.EventAttachment{{
+			ID:       "att-redact",
+			Name:     "token=attachment-name-secret compozy_claim_attachment_123.png",
+			MIMEType: "image/png",
+		}})
 
 		assertNoDisplayLeaks(t, RedactAgentEvent(event), leaks)
 		assertNoDisplayLeaks(t, UIAgentEventPayloadFromEvent(event), leaks)

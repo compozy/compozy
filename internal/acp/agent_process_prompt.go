@@ -138,7 +138,6 @@ func (p *AgentProcess) nextPromptText(message string) (string, bool, SystemPromp
 		return userMessage, false, ""
 	}
 
-	p.systemPromptSent = true
 	delivery := p.systemPromptDelivery
 	if delivery == "" {
 		delivery = SystemPromptDeliveryFirstTurnPrefix
@@ -152,6 +151,12 @@ func (p *AgentProcess) nextPromptText(message string) (string, bool, SystemPromp
 			"\n\nUser request:\n\n" +
 			userMessage,
 	), true, delivery
+}
+
+func (p *AgentProcess) markSystemPromptSent() {
+	p.systemPromptMu.Lock()
+	defer p.systemPromptMu.Unlock()
+	p.systemPromptSent = true
 }
 
 func (p *AgentProcess) emitPromptEvent(event AgentEvent) {

@@ -58,8 +58,7 @@ optional `runtime` snapshot. `attachments` is an array of daemon-local file path
 workspace/session-scoped `att_...` IDs; at least `message` or one attachment is required. Paths are
 uploaded through the attachment store before submission. Use
 `compozy session attachments upload <session-id> <file> -o json` when the caller needs a durable ID.
-A
-first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, and speed
+The first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, and speed
 are optional snapshot fields. Read the runtime semantics, queued/interrupt snapshot behavior, and
 rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
 `runtime` object rather than deriving it from the session state.

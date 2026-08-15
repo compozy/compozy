@@ -44,34 +44,36 @@ type ToolResult struct {
 
 // Message is the canonical replay message returned to transport callers.
 type Message struct {
-	ID               string          `json:"id"`
-	Role             Role            `json:"role"`
-	Content          string          `json:"content"`
-	Thinking         string          `json:"thinking,omitempty"`
-	ThinkingComplete bool            `json:"thinking_complete"`
-	ToolName         string          `json:"tool_name,omitempty"`
-	ToolInput        json.RawMessage `json:"tool_input,omitempty"`
-	ToolResult       *ToolResult     `json:"tool_result,omitempty"`
-	ToolError        bool            `json:"tool_error"`
-	Timestamp        time.Time       `json:"timestamp"`
+	ID               string                `json:"id"`
+	Role             Role                  `json:"role"`
+	Content          string                `json:"content"`
+	Attachments      []acp.EventAttachment `json:"attachments,omitempty"`
+	Thinking         string                `json:"thinking,omitempty"`
+	ThinkingComplete bool                  `json:"thinking_complete"`
+	ToolName         string                `json:"tool_name,omitempty"`
+	ToolInput        json.RawMessage       `json:"tool_input,omitempty"`
+	ToolResult       *ToolResult           `json:"tool_result,omitempty"`
+	ToolError        bool                  `json:"tool_error"`
+	Timestamp        time.Time             `json:"timestamp"`
 }
 
 type event struct {
-	ID         string
-	TurnID     string
-	Type       string
-	Text       string
-	StopReason string
-	Error      string
-	Failure    *store.SessionFailure
-	Runtime    *acp.RuntimeActivity
-	Marker     *Marker
-	ToolCallID string
-	ToolName   string
-	ToolInput  json.RawMessage
-	ToolResult *ToolResult
-	ToolError  bool
-	Timestamp  time.Time
+	ID          string
+	TurnID      string
+	Type        string
+	Text        string
+	Attachments []acp.EventAttachment
+	StopReason  string
+	Error       string
+	Failure     *store.SessionFailure
+	Runtime     *acp.RuntimeActivity
+	Marker      *Marker
+	ToolCallID  string
+	ToolName    string
+	ToolInput   json.RawMessage
+	ToolResult  *ToolResult
+	ToolError   bool
+	Timestamp   time.Time
 }
 
 type assistantBuffer struct {
@@ -162,14 +164,15 @@ func flushAssistantOnTurnChange(messages *[]Message, assistant *assistantBuffer,
 
 func appendInputTranscriptMessage(messages *[]Message, assistant *assistantBuffer, parsed event, role Role) {
 	flushAssistantBuffer(messages, assistant)
-	if strings.TrimSpace(parsed.Text) == "" {
+	if strings.TrimSpace(parsed.Text) == "" && len(parsed.Attachments) == 0 {
 		return
 	}
 	*messages = append(*messages, Message{
-		ID:        parsed.ID,
-		Role:      role,
-		Content:   parsed.Text,
-		Timestamp: parsed.Timestamp,
+		ID:          parsed.ID,
+		Role:        role,
+		Content:     parsed.Text,
+		Attachments: append([]acp.EventAttachment(nil), parsed.Attachments...),
+		Timestamp:   parsed.Timestamp,
 	})
 }
 

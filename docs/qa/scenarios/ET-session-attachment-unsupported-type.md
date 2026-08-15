@@ -3,7 +3,7 @@ id: ET-session-attachment-unsupported-type
 area: ET
 title: Refuse an unsupported attachment type
 persona: Bruno
-journey: J-17
+journey: J-session-attachments
 expected: A file whose detected MIME is outside the configured allowlist is refused before prompt dispatch; changing its extension does not bypass detection and no attachment ref is created.
 entry_points: web session composer; attachment upload API
 qa_status: untested

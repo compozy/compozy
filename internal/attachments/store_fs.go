@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
@@ -29,16 +30,79 @@ type attachmentStoreOptions struct {
 
 // FilesystemAttachmentStore retains immutable content-addressed session attachments.
 type FilesystemAttachmentStore struct {
-	root         string
-	retention    AttachmentRetention
-	maxFileBytes int64
-	allowedMIME  []string
-	now          func() time.Time
-	writeFile    attachmentWriteFile
-	mu           sync.Mutex
+	root          string
+	retention     AttachmentRetention
+	maxFileBytes  int64
+	allowedMIME   []string
+	now           func() time.Time
+	writeFile     attachmentWriteFile
+	retentionPins RetentionPinSource
+	deletedScopes map[string]struct{}
+	mu            sync.Mutex
 }
 
 var _ Store = (*FilesystemAttachmentStore)(nil)
+var _ ScopeLease = (*FilesystemAttachmentStore)(nil)
+
+// AcquireScopeLease blocks attachment mutations until the caller releases the lease.
+// An empty session ID reserves the whole workspace; the filesystem store currently
+// serializes all scopes through one mutex so workspace deletion cannot race a Put.
+func (s *FilesystemAttachmentStore) AcquireScopeLease(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (ScopeLeaseGuard, error) {
+	if err := attachmentContextErr(ctx); err != nil {
+		return nil, err
+	}
+	if _, err := sanitizeScopeID(workspaceID, "workspace"); err != nil {
+		return nil, err
+	}
+	if sessionID != "" {
+		if _, err := sanitizeScopeID(sessionID, "session"); err != nil {
+			return nil, err
+		}
+	}
+	s.mu.Lock()
+	if err := attachmentContextErr(ctx); err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
+	return &filesystemScopeLeaseGuard{
+		store: s,
+		key:   attachmentScopeKey(workspaceID, sessionID),
+	}, nil
+}
+
+type filesystemScopeLeaseGuard struct {
+	store   *FilesystemAttachmentStore
+	key     string
+	deleted bool
+	once    sync.Once
+}
+
+func (g *filesystemScopeLeaseGuard) MarkDeleted() {
+	if g == nil || g.store == nil {
+		return
+	}
+	g.deleted = true
+}
+
+func (g *filesystemScopeLeaseGuard) Release() {
+	if g == nil || g.store == nil {
+		return
+	}
+	g.once.Do(func() {
+		if g.deleted {
+			g.store.deletedScopes[g.key] = struct{}{}
+		}
+		g.store.mu.Unlock()
+	})
+}
+
+func attachmentScopeKey(workspaceID string, sessionID string) string {
+	return workspaceID + "\x00" + sessionID
+}
 
 // OpenFilesystemAttachmentStore opens the canonical store and applies retention before use.
 func OpenFilesystemAttachmentStore(
@@ -46,6 +110,7 @@ func OpenFilesystemAttachmentStore(
 	root string,
 	retention AttachmentRetention,
 	limits StoreLimits,
+	retentionPins RetentionPinSource,
 	opts ...func(*attachmentStoreOptions),
 ) (*FilesystemAttachmentStore, error) {
 	if strings.TrimSpace(root) == "" {
@@ -66,12 +131,14 @@ func OpenFilesystemAttachmentStore(
 		opt(&settings)
 	}
 	store := &FilesystemAttachmentStore{
-		root:         filepath.Clean(root),
-		retention:    retention,
-		maxFileBytes: limits.MaxFileBytes,
-		allowedMIME:  allowed,
-		now:          settings.now,
-		writeFile:    settings.writeFile,
+		root:          filepath.Clean(root),
+		retention:     retention,
+		maxFileBytes:  limits.MaxFileBytes,
+		allowedMIME:   allowed,
+		now:           settings.now,
+		writeFile:     settings.writeFile,
+		retentionPins: retentionPins,
+		deletedScopes: make(map[string]struct{}),
 	}
 	if err := store.ensureRoot(); err != nil {
 		return nil, err
@@ -118,6 +185,12 @@ func (s *FilesystemAttachmentStore) Put(
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, deleted := s.deletedScopes[attachmentScopeKey(workspaceID, sessionID)]; deleted {
+		return AttachmentRef{}, ErrNotFound
+	}
+	if _, deleted := s.deletedScopes[attachmentScopeKey(workspaceID, "")]; deleted {
+		return AttachmentRef{}, ErrNotFound
+	}
 
 	id := attachmentID(data)
 	sessionDir, err := s.ensureSessionDir(workspaceID, sessionID)
@@ -142,7 +215,7 @@ func (s *FilesystemAttachmentStore) Put(
 		return AttachmentRef{}, err
 	}
 	meta := attachmentMeta{
-		Name:      strings.TrimSpace(name),
+		Name:      diagnostics.Redact(strings.TrimSpace(name)),
 		MIMEType:  mime,
 		Bytes:     int64(len(data)),
 		SHA256:    attachmentSHA256(id),
