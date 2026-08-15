@@ -61,7 +61,12 @@ Inspect the exit plan's cleanup evidence before removal. Local evidence proves w
 elsewhere; fresh forge state can prove a PR merged. Removal preserves the branch and Git history.
 When dirty or unpushed work remains, the first remove call returns a machine-readable refusal; use
 `compozy worktree remove <ref> --force` only after reviewing it. Use `compozy worktree dismiss <ref>`
-to clear a retained tombstone after external deletion or an unrecoverable missing path.
+to clear a retained tombstone after external deletion or an unrecoverable missing path. Every
+worktree verb that takes `<ref>` accepts an ID or name. Dismissal keeps history addressable by the old
+ID while releasing the name for a new worktree; every non-dismissed row continues to reserve its name.
+Structured mutation receipts return the canonical ID after resolving a name. Because removal keeps
+the branch, recreate a released name with `--existing-branch <branch>` to retain that history, or
+choose `--branch <new-branch>` for a distinct branch.
 
 ## Configuration And Errors
 

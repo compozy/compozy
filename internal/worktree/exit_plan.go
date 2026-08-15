@@ -39,7 +39,7 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 	if item.State != StateReady {
 		return nil, ErrNotReady
 	}
-	status, err := s.Status(ctx, workspaceID, id, true)
+	status, err := s.Status(ctx, workspaceID, item.ID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 		return s.remoteUnreadableExitPlan(ctx, *item, status, scope)
 	}
 	forge := s.exitForgeCapabilities(ctx, remoteURLs)
-	forgeStatus, err := s.store.GetForgeStatus(ctx, workspaceID, id)
+	forgeStatus, err := s.store.GetForgeStatus(ctx, workspaceID, item.ID)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: read exit forge status: %w", err)
 	}

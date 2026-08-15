@@ -28,7 +28,7 @@ func TestExitPlan(t *testing.T) {
 		}}}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
 
-		plan, err := service.ExitPlan(context.Background(), item.WorkspaceID, item.ID)
+		plan, err := service.ExitPlan(context.Background(), item.WorkspaceID, item.Name)
 		if err != nil {
 			t.Fatalf("ExitPlan() error = %v", err)
 		}

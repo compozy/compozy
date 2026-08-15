@@ -28,7 +28,7 @@ func TestServiceStatus(t *testing.T) {
 		}
 		runner := &recordingGitRunner{}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
-		got, err := service.Status(context.Background(), item.WorkspaceID, item.ID, false)
+		got, err := service.Status(context.Background(), item.WorkspaceID, item.Name, false)
 		if err != nil || got.DirtyFiles == nil || *got.DirtyFiles != dirty || len(runner.invocations()) != 0 {
 			t.Fatalf("Status(cached) = %#v, %v calls=%#v, want cached value", got, err, runner.invocations())
 		}
@@ -246,6 +246,27 @@ func TestServiceStatus(t *testing.T) {
 		_, err := service.StatusDetails(context.Background(), item.WorkspaceID, item.ID, false, true)
 		if !errors.Is(err, ErrForgeUnavailable) || errors.Is(err, ErrForge) {
 			t.Fatalf("StatusDetails(forge unavailable) error = %v, want only ErrForgeUnavailable", err)
+		}
+	})
+
+	t.Run("Should report the canonical identity after status lookup by name", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryWorktreeStore()
+		item := statusTestWorktree()
+		if err := store.Insert(context.Background(), item); err != nil {
+			t.Fatalf("seed worktree: %v", err)
+		}
+		if err := store.SaveStatus(context.Background(), item.WorkspaceID, item.ID, Status{
+			WorktreeID: item.ID,
+		}); err != nil {
+			t.Fatalf("seed cached status: %v", err)
+		}
+		service := NewService(store, &recordingGitRunner{}, WithCapabilityGate(readyCapabilityGate()))
+		details, err := service.StatusDetails(
+			context.Background(), item.WorkspaceID, item.Name, false, false,
+		)
+		if err != nil || details == nil || details.WorktreeID != item.ID {
+			t.Fatalf("StatusDetails(name) = %#v, %v, want canonical id %q", details, err, item.ID)
 		}
 	})
 }

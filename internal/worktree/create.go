@@ -33,16 +33,17 @@ func (s *Service) Create(ctx context.Context, workspaceID string, options Create
 }
 
 func (s *Service) CancelCreate(ctx context.Context, workspaceID, id string) error {
-	canceled, err := s.cancelAcceptedCreation(ctx, workspaceID, id)
-	if canceled {
-		return err
-	}
 	item, err := s.store.Get(ctx, workspaceID, id)
 	if errors.Is(err, ErrNotFound) || item == nil {
 		return ErrNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("worktree: read create cancellation target: %w", err)
+	}
+	id = item.ID
+	canceled, err := s.cancelAcceptedCreation(ctx, workspaceID, id)
+	if canceled {
+		return err
 	}
 	if item.State != StatePending {
 		return ErrNotPending

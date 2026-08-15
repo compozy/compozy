@@ -28,9 +28,16 @@ Expected result:
 ```json
 {
   "action": "removed",
-  "worktree": { "id": "feature-auth" }
+  "worktree": {
+    "id": "wt_01...",
+    "name": "feature-auth",
+    "state": "removed"
+  }
 }
 ```
+
+Mutation receipts always report the canonical Worktree ID, even when the command is addressed by
+name.
 
 A bound idle session is stopped before removal. A session that is mid-turn blocks removal with
 `worktree_session_active`.
@@ -89,4 +96,15 @@ compozy worktree dismiss feature-auth --workspace . -o json
 ```
 
 Expected result reports `action: "dismissed"`. Dismiss does not delete a filesystem path, a branch,
-session history, task history, or workspace memory.
+session history, task history, or workspace memory. The retained record remains readable by its ID,
+but its name becomes available for a new Worktree. Every non-dismissed record, including `removed`,
+continues to reserve its name.
+
+Because removal preserves the branch, reuse the released Worktree name by attaching that branch:
+
+```bash
+compozy worktree create feature-auth --workspace . --existing-branch feature-auth -o json
+```
+
+This creates a new Worktree ID while the dismissed record and its history remain readable by the old
+ID. Use `--branch <new-branch>` instead when the replacement should start from a different branch.

@@ -95,10 +95,14 @@ func newWorktreeExitCancelCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := client.CancelWorktreeExitAction(cmd.Context(), workspaceID, args[0], opID); err != nil {
+			item, err := resolveWorktreeCommandTarget(cmd.Context(), client, workspaceID, args[0])
+			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, worktreeExitCancelBundle(args[0], opID))
+			if err := client.CancelWorktreeExitAction(cmd.Context(), workspaceID, item.ID, opID); err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, worktreeExitCancelBundle(item.ID, opID))
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)

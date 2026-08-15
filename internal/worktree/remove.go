@@ -55,7 +55,7 @@ func (s *Service) Remove(
 		return nil, err
 	}
 	swapped, err := s.store.CompareAndSwapState(
-		ctx, workspaceID, id, StateReady, StateRemoving, s.now().UTC(),
+		ctx, workspaceID, item.ID, StateReady, StateRemoving, s.now().UTC(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: fence removal: %w", err)

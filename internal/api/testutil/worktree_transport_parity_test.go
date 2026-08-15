@@ -41,19 +41,23 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 				{name: "list", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees", wantStatus: http.StatusOK},
 				{name: "create", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees", body: `{"name":"feature"}`, wantStatus: http.StatusAccepted},
 				{name: "adopt", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/adopt", body: `{"path":"/repo/feature"}`, wantStatus: http.StatusOK},
-				{name: "inspect", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity", wantStatus: http.StatusOK},
-				{name: "status", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity/status?refresh=true", wantStatus: http.StatusOK},
-				{name: "exit plan", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit", wantStatus: http.StatusOK},
-				{name: "exit action", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit/actions", body: `{"action":"commit"}`, wantStatus: http.StatusAccepted},
-				{name: "exit cancel", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/exit/cancel", body: `{"op_id":"op-parity"}`, wantStatus: http.StatusNoContent},
-				{name: "create cancel", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/cancel", wantStatus: http.StatusNoContent},
-				{name: "remove", method: http.MethodDelete, path: "/api/workspaces/ws-public/worktrees/wt-parity", wantStatus: http.StatusNoContent},
-				{name: "dismiss", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/wt-parity/dismiss", wantStatus: http.StatusNoContent},
+				{name: "inspect by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity", wantStatus: http.StatusOK},
+				{name: "status by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity/status?refresh=true", wantStatus: http.StatusOK},
+				{name: "exit plan by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity/exit", wantStatus: http.StatusOK},
+				{name: "exit action by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/actions", body: `{"action":"commit"}`, wantStatus: http.StatusAccepted},
+				{name: "exit cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/cancel", body: `{"op_id":"op-parity"}`, wantStatus: http.StatusNoContent},
+				{name: "create cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/cancel", wantStatus: http.StatusNoContent},
+				{name: "remove by name", method: http.MethodDelete, path: "/api/workspaces/ws-public/worktrees/parity", wantStatus: http.StatusNoContent},
+				{name: "dismiss by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/dismiss", wantStatus: http.StatusNoContent},
 			} {
 				t.Run("Should match "+test.name, func(t *testing.T) {
 					httpResponse := performWorktreeParityRequest(t, httpRouter, test.method, test.path, test.body)
 					udsResponse := performWorktreeParityRequest(t, udsRouter, test.method, test.path, test.body)
 					assertWorktreeParityResponse(t, httpResponse, udsResponse, test.wantStatus)
+					if test.name == "status by name" &&
+						!bytes.Contains(httpResponse.Body.Bytes(), []byte(`"worktree_id":"wt-parity"`)) {
+						t.Fatalf("status by name did not return canonical id: %s", httpResponse.Body.String())
+					}
 				})
 			}
 		},
@@ -287,7 +291,7 @@ func (s *parityWorktreeService) StatusDetails(
 	bool,
 	bool,
 ) (*worktree.StatusDetails, error) {
-	return &worktree.StatusDetails{Status: &s.status}, nil
+	return &worktree.StatusDetails{WorktreeID: s.item.ID, Status: &s.status}, nil
 }
 
 func (s *parityWorktreeService) ExitPlan(context.Context, string, string) (*worktree.ExitPlan, error) {

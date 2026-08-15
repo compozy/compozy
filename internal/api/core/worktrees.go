@@ -114,7 +114,9 @@ func (h *BaseHandlers) GetWorktreeStatus(c *gin.Context) {
 		status = &contract.WorktreeStatusPayload{}
 	}
 	c.JSON(http.StatusOK, contract.WorktreeStatusResponse{
-		WorktreeID: id, Status: *status, Forge: WorktreeForgePayloadFromStatus(details.ForgeStatus),
+		WorktreeID: details.WorktreeID,
+		Status:     *status,
+		Forge:      WorktreeForgePayloadFromStatus(details.ForgeStatus),
 	})
 }
 

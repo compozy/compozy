@@ -11,10 +11,11 @@ INSERT INTO worktrees (
   sqlc.arg(updated_at)
 );
 
--- name: GetWorktree :one
+-- name: GetWorktreeByName :one
 SELECT * FROM worktrees
 WHERE workspace_id = sqlc.arg(workspace_id)
-  AND (id = sqlc.arg(ref) OR name = sqlc.arg(ref))
+  AND name = sqlc.arg(name)
+  AND state <> 'dismissed'
 LIMIT 1;
 
 -- name: GetWorktreeByID :one

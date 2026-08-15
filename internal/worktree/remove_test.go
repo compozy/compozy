@@ -101,7 +101,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)
 		refusalResult, err := fixture.service.Remove(
-			context.Background(), fixture.workspace.ID, fixture.item.ID, false,
+			context.Background(), fixture.workspace.ID, fixture.item.Name, false,
 		)
 		if err != nil || refusalResult != nil {
 			t.Fatalf("Remove() = %#v, %v, want clean success", refusalResult, err)
@@ -119,6 +119,14 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 		if got := fixture.events.count(EventRemoved); got != 1 {
 			t.Fatalf("removed events = %d, want exactly one", got)
+		}
+		if err := fixture.service.Dismiss(
+			context.Background(), fixture.workspace.ID, fixture.item.Name,
+		); err != nil {
+			t.Fatalf("Dismiss(name) error = %v", err)
+		}
+		if got := fixture.mustItem(t).State; got != StateDismissed {
+			t.Fatalf("Dismiss(name) state = %q, want dismissed", got)
 		}
 	})
 

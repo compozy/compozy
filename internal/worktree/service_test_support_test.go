@@ -111,7 +111,8 @@ func (s *memoryWorktreeStore) Insert(_ context.Context, item Worktree) error {
 		return errors.New("unique id")
 	}
 	for _, existing := range s.items {
-		if existing.WorkspaceID == item.WorkspaceID && existing.Name == item.Name {
+		if item.State != StateDismissed && existing.State != StateDismissed &&
+			existing.WorkspaceID == item.WorkspaceID && existing.Name == item.Name {
 			return errors.New("unique name")
 		}
 		if existing.Path == item.Path && isLiveWorktreeState(existing.State) {
@@ -130,7 +131,13 @@ func (s *memoryWorktreeStore) Get(_ context.Context, workspaceID, ref string) (*
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, item := range s.items {
-		if item.WorkspaceID == workspaceID && (item.ID == ref || item.Name == ref) {
+		if item.WorkspaceID == workspaceID && item.ID == ref {
+			cloned := item
+			return &cloned, nil
+		}
+	}
+	for _, item := range s.items {
+		if item.WorkspaceID == workspaceID && item.Name == ref && item.State != StateDismissed {
 			cloned := item
 			return &cloned, nil
 		}

@@ -41,9 +41,16 @@ func (g *WorktreeRepo) Get(ctx context.Context, workspaceID, ref string) (*workt
 	if err := g.checkReady(ctx, "get worktree"); err != nil {
 		return nil, err
 	}
-	row, err := g.queries.GetWorktree(ctx, sqlcgen.GetWorktreeParams{
-		WorkspaceID: strings.TrimSpace(workspaceID), Ref: strings.TrimSpace(ref),
+	workspaceID = strings.TrimSpace(workspaceID)
+	ref = strings.TrimSpace(ref)
+	row, err := g.queries.GetWorktreeByID(ctx, sqlcgen.GetWorktreeByIDParams{
+		WorkspaceID: workspaceID, WorktreeID: ref,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		row, err = g.queries.GetWorktreeByName(ctx, sqlcgen.GetWorktreeByNameParams{
+			WorkspaceID: workspaceID, Name: ref,
+		})
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, worktree.ErrNotFound
 	}

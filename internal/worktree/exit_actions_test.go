@@ -21,14 +21,15 @@ func TestExitActions(t *testing.T) {
 		t.Parallel()
 		fixture := newExitActionFixture(t, false)
 		opID, err := fixture.service.RunExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.ID,
+			context.Background(), fixture.item.WorkspaceID, fixture.item.Name,
 			ExitActionRequest{Action: ExitActionCommitPush},
 		)
 		if err != nil || opID != "op-exit" {
 			t.Fatalf("RunExitAction() = %q, %v", opID, err)
 		}
 		operation := waitForExitOperation(t, fixture.store, opID, "completed")
-		if operation.FinishedAt == nil || !fixture.runner.isCommitted() || !fixture.runner.isPushed() {
+		if operation.WorktreeID != fixture.item.ID || operation.FinishedAt == nil ||
+			!fixture.runner.isCommitted() || !fixture.runner.isPushed() {
 			t.Fatalf(
 				"operation/runner = %#v committed=%t pushed=%t",
 				operation,
@@ -68,7 +69,7 @@ func TestExitActions(t *testing.T) {
 			t.Fatal("push phase did not start")
 		}
 		if err := fixture.service.CancelExitAction(
-			context.Background(), fixture.item.WorkspaceID, fixture.item.ID, opID,
+			context.Background(), fixture.item.WorkspaceID, fixture.item.Name, opID,
 		); err != nil {
 			t.Fatalf("CancelExitAction() error = %v", err)
 		}

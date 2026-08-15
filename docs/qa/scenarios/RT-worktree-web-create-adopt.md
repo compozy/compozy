@@ -4,15 +4,15 @@ area: RT
 title: Create and adopt worktrees through the desktop shell
 persona: Ada
 journey: J-worktree-management
-expected: Creation is name-first with the generated name in the placeholder only, a live `branch → path` preview, and three refusals that land on their own field — name collision, branch held elsewhere (offering "Select that worktree instead"), and base ref not found. After the request is accepted the row is pending and Cancel stays live; cancelling unwinds the creation daemon-side and removes the row. Selecting a discovered row opens the adoption confirm naming the validation and stating bootstrap is not re-run; a directory whose metadata resolves into the main checkout is refused and left untouched.
-entry_points: S4 Workspace menu → New worktree; S1|S2|S3 nest → discovered row; S5 Worktree row/status
-qa_status: pass
+expected: Creation is name-first with a truthful preview and field-level refusals; after acceptance, Cancel stays live until the exact row reaches ready, then the Web selects it and closes the dialog. A failed setup still completes as ready, while cancellation or materialization failure stays distinct. Adoption validates the linked checkout without re-running bootstrap.
+entry_points: S4 Workspace menu → New worktree; S1|S3 nest → discovered row; S2 overview menu → discovered row Adopt / New worktree footer row; S5 Worktree row/status
+qa_status: untested
 bug_ids: BUG-20260813-pending-worktree-marked-missing; BUG-20260813-base-ref-accepted-before-validation
 fix_status: fixed
 retest_status: pass
 fix_commits: b6eb94d0; 0d54b6fe
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-create-missing.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-stream-proof.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-stream-proof.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-cancel-complete.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-adopt.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/base-ref-refusal-fixed.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-base-ref-refusal-fixed.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-scroll-area-20260814-184457-553088-lab/qa-artifacts/qa/web-worktree-scroll-after.png; /Users/pedronauck/dev/qa-labs/compozy-worktree-scroll-area-20260814-184457-553088-lab/qa-artifacts/qa/cli-adopt-worktrees.jsonl
-last_report: docs/qa/reports/2026-08-14-worktree-scroll-area.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-lifecycle-fixes-20260815-004729-655016-lab/qa-artifacts/qa/screenshots/web-create-selected.png
+last_report: docs/qa/reports/2026-08-14-worktree-lifecycle-fixes.md
 overlaps: RT-worktree-web-nested-navigation
 ---
 
@@ -20,6 +20,11 @@ QA impact: Task 06 adds `WorktreeCreateDialog` (wired to create + create-cancel)
 `WorktreeAdoptDialog`. The Phase C walk must confirm the preview omits the path when the placement
 root cannot be derived rather than guessing it, that a refusal clears when its field is edited, and
 that adoption leaves an adopted external at its original foreign path.
+
+2026-08-15 S2 redesign (reset to untested): the Workspaces overview is now the Command-Tab
+switcher — its worktree nest is an always-visible vertical menu; discovered rows adopt via the
+revealed Adopt affordance or ↵, and New worktree is the footer row after the hairline (lone dashed
+button when the git workspace has zero worktrees). Dialogs and the S1/S3/S4 legs are unchanged.
 
 2026-08-13 fix replay: the first live create exposed a catalog race that changed the accepted
 `pending` row to `missing` before checkout materialization. After restricting missing-path
@@ -51,3 +56,10 @@ returned all 18 through the structured list. In the Web overview, New worktree s
 outside the scrolling catalog, opened the existing creation dialog, and Cancel returned cleanly.
 The prior end-to-end create/adopt evidence remains valid because this change only moved the shared
 entry point into the bounded submenu.
+
+2026-08-14 lifecycle fix flag: re-walk accepted creation through its authoritative `ready` row,
+including automatic selection/dialog close, pending cancellation, asynchronous rollback, and the
+`ready` plus failed-setup outcome.
+
+2026-08-14 targeted walk: `feature-analytics` reached ready, the dialog closed, the new worktree
+became the selected scope, and the selected identity survived a browser refresh.

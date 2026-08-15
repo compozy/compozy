@@ -21,12 +21,15 @@ CREATE TABLE worktrees (
 		run_id TEXT NOT NULL DEFAULT '',
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL,
-		UNIQUE (workspace_id, name),
 		UNIQUE (workspace_id, id)
 	);
 
 CREATE INDEX idx_worktrees_workspace_state
 		ON worktrees(workspace_id, state);
+
+CREATE UNIQUE INDEX idx_worktrees_reserved_name
+		ON worktrees(workspace_id, name)
+		WHERE state <> 'dismissed';
 
 CREATE UNIQUE INDEX idx_worktrees_live_path
 		ON worktrees(path)

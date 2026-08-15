@@ -760,7 +760,7 @@ func TestServiceCreate(t *testing.T) {
 		if err := fixture.store.Insert(context.Background(), pending); err != nil {
 			t.Fatalf("seed pending worktree: %v", err)
 		}
-		if err := fixture.service.CancelCreate(context.Background(), fixture.workspace.ID, pending.ID); err != nil {
+		if err := fixture.service.CancelCreate(context.Background(), fixture.workspace.ID, pending.Name); err != nil {
 			t.Fatalf("CancelCreate() error = %v", err)
 		}
 		if _, err := fixture.store.Get(

@@ -84,7 +84,7 @@ func (s *Service) RunExitAction(
 	if err := validateRequestedExitAction(plan, request.Action); err != nil {
 		return "", err
 	}
-	item, err := s.store.Get(ctx, workspaceID, id)
+	item, err := s.store.Get(ctx, workspaceID, plan.WorktreeID)
 	if err != nil || item == nil {
 		if err == nil {
 			err = ErrNotFound
@@ -96,7 +96,7 @@ func (s *Service) RunExitAction(
 		return "", fmt.Errorf("worktree: generate exit operation id: %w", err)
 	}
 	operation := ExitOperation{
-		ID: opID, WorkspaceID: workspaceID, WorktreeID: id,
+		ID: opID, WorkspaceID: workspaceID, WorktreeID: item.ID,
 		Action: string(request.Action), State: exitOperationRunning, StartedAt: s.now().UTC(),
 	}
 	if err := s.store.InsertExitOperation(ctx, operation); err != nil {
@@ -104,7 +104,7 @@ func (s *Service) RunExitAction(
 	}
 	executionCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	control := &exitOperationControl{
-		workspaceID: workspaceID, worktreeID: id, cancel: cancel, done: make(chan struct{}),
+		workspaceID: workspaceID, worktreeID: item.ID, cancel: cancel, done: make(chan struct{}),
 	}
 	s.exitMu.Lock()
 	s.exits[opID] = control
@@ -118,6 +118,14 @@ func (s *Service) RunExitAction(
 }
 
 func (s *Service) CancelExitAction(ctx context.Context, workspaceID, id, opID string) error {
+	item, err := s.store.Get(ctx, workspaceID, id)
+	if errors.Is(err, ErrNotFound) || item == nil {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("worktree: read exit cancellation target: %w", err)
+	}
+	id = item.ID
 	opID = strings.TrimSpace(opID)
 	s.exitMu.Lock()
 	control := s.exits[opID]
@@ -132,7 +140,7 @@ func (s *Service) CancelExitAction(ctx context.Context, workspaceID, id, opID st
 		}
 	}
 	operation := ExitOperation{ID: opID, WorkspaceID: workspaceID, WorktreeID: id, State: exitOperationCanceled}
-	_, err := s.finishExitOperation(ctx, operation, exitOperationCanceled, EventExitActionCanceled, ExitEventPayload{
+	_, err = s.finishExitOperation(ctx, operation, exitOperationCanceled, EventExitActionCanceled, ExitEventPayload{
 		OperationID: opID, State: exitOperationCanceled, Message: "Exit action canceled.",
 	})
 	return err

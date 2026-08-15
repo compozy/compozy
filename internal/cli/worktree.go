@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -84,10 +85,14 @@ func newWorktreeCancelCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := client.CancelWorktreeCreate(cmd.Context(), workspaceID, args[0]); err != nil {
+			item, err := resolveWorktreeCommandTarget(cmd.Context(), client, workspaceID, args[0])
+			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, worktreeMutationBundle("canceled", WorktreeRecord{ID: args[0]}))
+			if err := client.CancelWorktreeCreate(cmd.Context(), workspaceID, item.ID); err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, worktreeMutationBundle("canceled", item))
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
@@ -167,10 +172,15 @@ func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := client.RemoveWorktree(cmd.Context(), workspaceID, args[0], force); err != nil {
+			item, err := resolveWorktreeCommandTarget(cmd.Context(), client, workspaceID, args[0])
+			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, worktreeMutationBundle("removed", WorktreeRecord{ID: args[0]}))
+			if err := client.RemoveWorktree(cmd.Context(), workspaceID, item.ID, force); err != nil {
+				return err
+			}
+			item.State = lifecycleRemovedKey
+			return writeCommandOutput(cmd, worktreeMutationBundle(lifecycleRemovedKey, item))
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
@@ -187,10 +197,15 @@ func newWorktreeDismissCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := client.DismissWorktree(cmd.Context(), workspaceID, args[0]); err != nil {
+			item, err := resolveWorktreeCommandTarget(cmd.Context(), client, workspaceID, args[0])
+			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, worktreeMutationBundle("dismissed", WorktreeRecord{ID: args[0]}))
+			if err := client.DismissWorktree(cmd.Context(), workspaceID, item.ID); err != nil {
+				return err
+			}
+			item.State = "dismissed"
+			return writeCommandOutput(cmd, worktreeMutationBundle("dismissed", item))
 		},
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
@@ -214,6 +229,19 @@ func worktreeCommandContext(
 		return nil, "", err
 	}
 	return client, resolution.ID, nil
+}
+
+func resolveWorktreeCommandTarget(
+	ctx context.Context,
+	client DaemonClient,
+	workspaceID string,
+	ref string,
+) (WorktreeRecord, error) {
+	inspection, err := client.InspectWorktree(ctx, workspaceID, ref)
+	if err != nil {
+		return WorktreeRecord{}, err
+	}
+	return inspection.Worktree, nil
 }
 
 func addWorktreeWorkspaceFlag(cmd *cobra.Command, target *string) {
