@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-session-attachments
 expected: A file whose detected MIME is outside the configured allowlist is refused before prompt dispatch; changing its extension does not bypass detection and no attachment ref is created.
 entry_points: web session composer; attachment upload API
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412/05-unsupported-type-refused.png
+last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412.md
 overlaps: 
 ---
 
