@@ -88,8 +88,8 @@ export function useLoopRunPage(
   const definition = executedDefinition ?? loopQuery.data?.definition;
 
   const isLive = runQuery.isSuccess && !isTerminalLoopStatus(run?.status);
-  // Terminal runs replay their retained status event once so generation-zero
-  // failures remain visible after navigation or reload; the hook closes on it.
+  // Terminal runs keep replaying through their post-status effect results so
+  // generation-zero failures and terminal reactions survive navigation or reload.
   useLoopStream(workspaceId, runId, {
     enabled: runQuery.isSuccess && liveDataEnabled,
     onEvent: (frame, subscription) =>

@@ -24,7 +24,10 @@ const LOOP_EVENT_KINDS = [
 ] as const;
 
 class FakeLoopStreamEventSource {
-  public close = vi.fn();
+  private closed = false;
+  public close = vi.fn(() => {
+    this.closed = true;
+  });
   public onmessage: ((event: MessageEvent) => void) | null = null;
   public onerror: ((event: Event) => void) | null = null;
   public readonly addEventListener = vi.fn(this.recordAddListener.bind(this));
@@ -50,7 +53,7 @@ class FakeLoopStreamEventSource {
   }
 
   emitMessage(data: unknown) {
-    if (!this.onmessage) {
+    if (this.closed || !this.onmessage) {
       return;
     }
     this.onmessage(
@@ -61,6 +64,9 @@ class FakeLoopStreamEventSource {
   }
 
   emitNamed(type: string, data: unknown) {
+    if (this.closed) {
+      return;
+    }
     const current = this.listeners.get(type) ?? [];
     if (current.length === 0) {
       return;
@@ -78,7 +84,7 @@ class FakeLoopStreamEventSource {
   }
 
   emitError(event?: Event) {
-    if (!this.onerror) {
+    if (this.closed || !this.onerror) {
       return;
     }
     this.onerror(event ?? new Event("error"));
@@ -290,13 +296,13 @@ describe("useLoopStream", () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "runs", "ws_1"] });
   });
 
-  it("Should deliver a terminal status frame before closing its replay source", async () => {
+  it("Should keep the source open for effect results after terminal status until cleanup", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const eventSource = new FakeLoopStreamEventSource();
     const factory = vi.fn(() => eventSource);
     const onEvent = vi.fn();
 
-    renderHook(
+    const { unmount } = renderHook(
       () =>
         useLoopStream("ws_1", "looprun_1", {
           eventSourceFactory: factory,
@@ -306,19 +312,33 @@ describe("useLoopStream", () => {
     );
 
     const terminal = buildFrame({
+      id: "loopevt_terminal",
+      seq: 42,
       kind: "status_changed",
-      payload: { status: "failed", failure: { kind: "coordinator_failure" } },
+      payload: { status: "done" },
+    });
+    const effectResult = buildFrame({
+      id: "loopevt_effect",
+      seq: 43,
+      kind: "effect_results",
+      payload: {
+        delivery_id: "delivery_1",
+        trigger: "on_done",
+        outcome: "ok",
+        code: "",
+        cause: "",
+      },
     });
     act(() => {
       eventSource.emitNamed("status_changed", terminal);
+      eventSource.emitNamed("effect_results", effectResult);
     });
 
-    await waitFor(() =>
-      expect(onEvent).toHaveBeenCalledWith(
-        terminal,
-        expect.objectContaining({ runId: "looprun_1", workspaceId: "ws_1" })
-      )
-    );
+    await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(2));
+    expect(onEvent.mock.calls.map(([frame]) => frame)).toEqual([terminal, effectResult]);
+    expect(eventSource.close).not.toHaveBeenCalled();
+
+    unmount();
     expect(eventSource.close).toHaveBeenCalledTimes(1);
   });
 
