@@ -3,6 +3,7 @@ package builtin
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	jsonschemakind "github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
 
 func TestBuiltinNativeDescriptors(t *testing.T) {
@@ -1738,41 +1740,67 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		valid   bool
 	}{
 		{
-			name:    "text prompt",
+			name:    "Should accept a text prompt",
 			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","message":"hello"}`,
 			valid:   true,
 		},
 		{
-			name:    "attachment-only prompt",
+			name:    "Should accept an attachment-only prompt",
 			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","attachments":["att"]}`,
 			valid:   true,
 		},
 		{
-			name:    "missing prompt content",
+			name:    "Should reject missing prompt content",
 			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k"}`,
 		},
 		{
-			name:    "empty message",
+			name:    "Should reject an empty message",
 			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","message":""}`,
 		},
 		{
-			name:    "empty attachments",
+			name:    "Should reject empty attachments",
 			payload: `{"session_id":"s","message_id":"m","idempotency_key":"k","attachments":[]}`,
 		},
 	} {
-		instance, err := jsonschema.UnmarshalJSON(strings.NewReader(tc.payload))
-		if err != nil {
-			t.Fatalf("%s %s payload parse error = %v", descriptor.ID, tc.name, err)
-		}
-		err = compiled.Validate(instance)
-		if tc.valid && err != nil {
-			t.Fatalf("%s input schema rejected %s: %v", descriptor.ID, tc.name, err)
-		}
-		if !tc.valid && err == nil {
-			t.Fatalf("%s input schema accepted %s", descriptor.ID, tc.name)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(tc.payload))
+			if err != nil {
+				t.Fatalf("%s payload parse error = %v", descriptor.ID, err)
+			}
+			err = compiled.Validate(instance)
+			if tc.valid {
+				if err != nil {
+					t.Fatalf("%s input schema rejected payload: %v", descriptor.ID, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("%s input schema accepted rejected payload", descriptor.ID)
+			}
+			var validationErr *jsonschema.ValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("%s validation error = %T, want *jsonschema.ValidationError", descriptor.ID, err)
+			}
+			if !validationErrorHasNotCause(validationErr) {
+				t.Fatalf("%s validation cause = %#v, want not", descriptor.ID, validationErr)
+			}
+		})
 	}
 	assertSessionPromptMutationOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
+}
+
+func validationErrorHasNotCause(err *jsonschema.ValidationError) bool {
+	if _, ok := err.ErrorKind.(*jsonschemakind.Not); ok {
+		return true
+	}
+	for _, cause := range err.Causes {
+		if validationErrorHasNotCause(cause) {
+			return true
+		}
+	}
+	return false
 }
 
 func assertSessionRuntimeMutationSchemas(
