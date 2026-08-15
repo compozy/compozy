@@ -12,6 +12,12 @@ export interface RadioCardProps extends Omit<React.ComponentProps<"button">, "va
   title: React.ReactNode;
   description?: React.ReactNode;
   icon?: IconComponent;
+  /**
+   * Icon-well geometry. `default` is the 20px glyph slot; `lg` is the 28px
+   * tinted well from the modal RadioCard contract. Opt-in — do not change
+   * existing pickers silently.
+   */
+  iconWellSize?: "default" | "lg";
   badge?: React.ReactNode;
   /** Optional className merged onto the title slot. */
   titleClassName?: string;
@@ -29,6 +35,7 @@ function RadioCard({
   title,
   description,
   icon: Icon,
+  iconWellSize = "default",
   badge,
   titleClassName,
   className,
@@ -69,12 +76,21 @@ function RadioCard({
         {Icon ? (
           <span
             aria-hidden="true"
+            data-icon-well-size={iconWellSize}
+            data-slot="radio-card-icon-well"
             className={cn(
-              "inline-flex size-5 shrink-0 items-center justify-center",
-              selected ? "text-fg-strong" : "text-muted"
+              "inline-flex shrink-0 items-center justify-center",
+              iconWellSize === "lg"
+                ? cn(
+                    "size-7 rounded-sm bg-badge-fill",
+                    selected
+                      ? "text-fg-strong shadow-inset-strong"
+                      : "text-muted shadow-hairline-inset"
+                  )
+                : cn("size-5", selected ? "text-fg-strong" : "text-muted")
             )}
           >
-            <Icon className="size-3" />
+            <Icon className={iconWellSize === "lg" ? "size-3.5" : "size-3"} />
           </span>
         ) : null}
         <span

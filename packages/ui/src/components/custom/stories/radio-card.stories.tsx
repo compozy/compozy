@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { CpuIcon, ServerIcon, ZapIcon } from "lucide-react";
+import { Ban, CpuIcon, Hourglass, ServerIcon, ZapIcon } from "lucide-react";
 
 import { Pill } from "@compozy/ui";
 import { RadioCard } from "../radio-card";
@@ -99,6 +99,34 @@ export const SelectedVsRest: Story = {
         icon={ZapIcon}
         selected={false}
         onSelect={() => undefined}
+      />
+    </div>
+  ),
+};
+
+/**
+ * Opt-in 28px icon well from the modal RadioCard contract. Default wells stay
+ * the 20px glyph slot.
+ */
+export const IconWellLg: Story = {
+  args: {},
+  render: () => (
+    <div role="radiogroup" aria-label="Pause mode" className="flex flex-col gap-2">
+      <RadioCard
+        description="Nothing is interrupted. The lane parks once the attempt in flight settles."
+        icon={Hourglass}
+        iconWellSize="lg"
+        onSelect={() => undefined}
+        selected
+        title="Let the current attempt finish"
+      />
+      <RadioCard
+        description="The in-flight attempt is asked to cancel, then the lane parks."
+        icon={Ban}
+        iconWellSize="lg"
+        onSelect={() => undefined}
+        selected={false}
+        title="Ask the current attempt to stop"
       />
     </div>
   ),

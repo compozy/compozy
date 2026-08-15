@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Trash2 } from "lucide-react";
+import { Info, Trash2, Zap } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "../button";
@@ -193,5 +193,106 @@ describe("ConfirmDialog", () => {
     expect(order).toContain("cancel-action");
     expect(order.indexOf("confirm-note")).toBeLessThan(order.indexOf("confirm-body"));
     expect(order.indexOf("confirm-body")).toBeLessThan(order.indexOf("cancel-action"));
+  });
+
+  it("Should render the head icon well per iconTone and keep the title name clean", async () => {
+    renderDialog({
+      contentProps: { "data-testid": "confirm-dialog" },
+      eyebrow: "Run",
+      icon: Zap,
+      iconTone: "danger",
+      title: "Kill this run?",
+      tone: "danger",
+    });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    const well = screen
+      .getByTestId("confirm-dialog")
+      .querySelector('[data-slot="confirm-dialog-icon"]');
+    expect(well).toHaveAttribute("data-icon-tone", "danger");
+    expect(well?.className).toContain("bg-danger-tint");
+    expect(well?.className).toContain("rounded-icon-well");
+    expect(well?.querySelector("svg")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Kill this run?" })).toBeInTheDocument();
+    expect(screen.getByText("Run")).toBeInTheDocument();
+  });
+
+  it("Should paint accent and neutral wells from iconTone", async () => {
+    const { unmount } = renderDialog({
+      contentProps: { "data-testid": "confirm-dialog" },
+      icon: Trash2,
+      iconTone: "accent",
+      tone: "accent",
+    });
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(
+      screen.getByTestId("confirm-dialog").querySelector('[data-slot="confirm-dialog-icon"]')
+    ).toHaveAttribute("data-icon-tone", "accent");
+    unmount();
+
+    renderDialog({
+      contentProps: { "data-testid": "confirm-dialog" },
+      icon: Trash2,
+      iconTone: "neutral",
+      tone: "warning",
+    });
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    const well = screen
+      .getByTestId("confirm-dialog")
+      .querySelector('[data-slot="confirm-dialog-icon"]');
+    expect(well).toHaveAttribute("data-icon-tone", "neutral");
+    expect(well?.className).toContain("bg-canvas-tint");
+  });
+
+  it("Should keep description muted instead of painting it with tone", async () => {
+    renderDialog({
+      description: "This removes the selected entry.",
+      tone: "danger",
+    });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    const description = screen.getByText("This removes the selected entry.");
+    expect(description).toHaveAttribute("data-slot", "dialog-description");
+    expect(description.className).toContain("text-muted");
+    expect(description.className).not.toContain("text-danger");
+  });
+
+  it("Should map warning tone to the tinted destructive confirm variant", async () => {
+    renderDialog({
+      confirmButtonProps: { "data-testid": "confirm-action" },
+      confirmLabel: "Discard",
+      tone: "warning",
+    });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    const confirm = screen.getByTestId("confirm-action");
+    expect(confirm.className).toContain("bg-danger-tint");
+    expect(confirm.className).toContain("text-danger");
+    expect(confirm.className).not.toContain("bg-accent");
+  });
+
+  it("Should render footNote in the ruled footer beside the actions", async () => {
+    renderDialog({
+      contentProps: { "data-testid": "confirm-dialog" },
+      footNote: (
+        <>
+          <Info />
+          mode: drain
+        </>
+      ),
+    });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    const dialog = screen.getByTestId("confirm-dialog");
+    const footer = dialog.querySelector<HTMLElement>('[data-slot="dialog-footer"]');
+    const note = dialog.querySelector<HTMLElement>('[data-slot="confirm-dialog-footnote"]');
+    const actions = dialog.querySelector<HTMLElement>('[data-slot="confirm-dialog-actions"]');
+    if (!footer || !note || !actions) {
+      throw new Error("confirm dialog footer slots were not rendered");
+    }
+    expect(footer).toContainElement(note);
+    expect(footer).toContainElement(actions);
+    expect(note).toHaveTextContent("mode: drain");
+    expect(note.querySelector("svg")).not.toBeNull();
   });
 });

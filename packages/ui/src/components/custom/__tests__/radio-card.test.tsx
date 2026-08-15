@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { Hourglass } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
 import { RadioCard } from "../radio-card";
@@ -22,5 +23,34 @@ describe("RadioCard", () => {
       "aria-checked",
       "true"
     );
+  });
+
+  it("Should keep the default icon slot at 20px and opt into the 28px well", () => {
+    const { rerender } = render(
+      <RadioCard icon={Hourglass} onSelect={() => undefined} selected title="Drain" />
+    );
+    const defaultWell = screen
+      .getByRole("radio", { name: /drain/i })
+      .querySelector('[data-slot="radio-card-icon-well"]');
+    expect(defaultWell).toHaveAttribute("data-icon-well-size", "default");
+    expect(defaultWell?.className).toContain("size-5");
+    expect(defaultWell?.className).not.toContain("size-7");
+
+    rerender(
+      <RadioCard
+        icon={Hourglass}
+        iconWellSize="lg"
+        onSelect={() => undefined}
+        selected
+        title="Drain"
+      />
+    );
+    const lgWell = screen
+      .getByRole("radio", { name: /drain/i })
+      .querySelector('[data-slot="radio-card-icon-well"]');
+    expect(lgWell).toHaveAttribute("data-icon-well-size", "lg");
+    expect(lgWell?.className).toContain("size-7");
+    expect(lgWell?.className).toContain("rounded-sm");
+    expect(lgWell?.className).toContain("bg-badge-fill");
   });
 });

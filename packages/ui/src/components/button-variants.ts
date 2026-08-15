@@ -16,6 +16,8 @@ const buttonVariants = cva(
         ghost:
           "text-fg hover:bg-btn-default-hover aria-expanded:bg-btn-default-hover aria-expanded:text-fg",
         destructive: "bg-danger-tint text-danger hover:bg-danger-tint hover:opacity-90",
+        "destructive-solid":
+          "bg-danger text-accent-ink hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,black)]",
         success: "bg-success-tint text-success hover:opacity-90",
         link: "text-accent underline-offset-4 hover:underline",
         neutral: "bg-btn-default-fill text-fg-strong hover:bg-btn-default-hover",

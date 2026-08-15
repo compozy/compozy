@@ -10,7 +10,7 @@ const meta: Meta<typeof Button> = {
     docs: {
       description: {
         component:
-          "Primary button primitive. Variants — default, primary (semantic alias for default), outline, secondary, ghost, destructive, success, link, neutral (warm `--btn-default-fill` glaze). Sizes — default/xs/sm/lg/cta/cta-lg + icon/icon-xs/icon-sm/icon-lg.",
+          "Primary button primitive. Variants — default, primary (semantic alias for default), outline, secondary, ghost, destructive (tinted), destructive-solid (irreversible Kill), success, link, neutral (warm `--btn-default-fill` glaze). Sizes — default/xs/sm/lg/cta/cta-lg + icon/icon-xs/icon-sm/icon-lg.",
       },
     },
   },
@@ -58,6 +58,7 @@ export const Variants: Story = {
       <Button variant="secondary">Secondary</Button>
       <Button variant="ghost">Ghost</Button>
       <Button variant="destructive">Destructive</Button>
+      <Button variant="destructive-solid">Destructive solid</Button>
       <Button variant="success">Success</Button>
       <Button variant="link">Link</Button>
     </div>
@@ -80,4 +81,15 @@ export const Sizes: Story = {
 
 export const Disabled: Story = {
   args: { children: "Disabled", variant: "default", disabled: true },
+};
+
+/** Tinted destructive beside the solid fill reserved for irreversible Kill. */
+export const DestructivePair: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2 bg-background p-4 text-foreground">
+      <Button variant="destructive">Cancel run</Button>
+      <Button variant="destructive-solid">Kill run</Button>
+    </div>
+  ),
 };

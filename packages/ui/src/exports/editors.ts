@@ -43,6 +43,7 @@ export {
 export { RequiredMark, type RequiredMarkProps } from "../components/custom/required-mark";
 export {
   ConfirmDialog,
+  type ConfirmDialogIconTone,
   type ConfirmDialogNoteTone,
   type ConfirmDialogProps,
   type ConfirmDialogTone,
