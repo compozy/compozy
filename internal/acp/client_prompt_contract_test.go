@@ -325,6 +325,49 @@ func TestBuildWirePromptRequestAttachesPromptCacheControlMetadata(t *testing.T) 
 	})
 }
 
+func TestBuildWirePromptRequestAppendsAttachments(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should append attachment blocks after text", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{SessionID: "sess-attachments"}
+		proc.setCaps(Caps{PromptImage: true})
+		request, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID:  "turn-attachments",
+			Message: "inspect this",
+			Attachments: []PromptAttachment{{
+				Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
+			}},
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest() error = %v", err)
+		}
+		if len(request.Prompt) != 2 || request.Prompt[0].Text == nil || request.Prompt[1].Image == nil {
+			t.Fatalf("Prompt = %#v, want text followed by image", request.Prompt)
+		}
+	})
+
+	t.Run("Should omit the text block for an attachment-only prompt", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{SessionID: "sess-attachment-only"}
+		proc.setCaps(Caps{PromptImage: true})
+		request, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID: "turn-attachment-only",
+			Attachments: []PromptAttachment{{
+				Name: "diagram.png", MIMEType: "image/png", Data: []byte("image"),
+			}},
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest() error = %v", err)
+		}
+		if len(request.Prompt) != 1 || request.Prompt[0].Image == nil {
+			t.Fatalf("Prompt = %#v, want one image block", request.Prompt)
+		}
+	})
+}
+
 func TestPromptSkipsFirstTurnPrefixForNativeSystemPromptDelivery(t *testing.T) {
 	t.Parallel()
 

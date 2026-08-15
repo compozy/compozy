@@ -62,8 +62,7 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 		return err
 	}
 	process.setCaps(captureCaps(
-		process.CapsSnapshot().SupportsLoadSession,
-		process.CapsSnapshot().SupportsCloseSession,
+		process.CapsSnapshot(),
 		loadResponse.Modes,
 		loadResponse.ConfigOptions,
 	))
@@ -102,8 +101,7 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 		return err
 	}
 	process.setCaps(captureCaps(
-		process.CapsSnapshot().SupportsLoadSession,
-		process.CapsSnapshot().SupportsCloseSession,
+		process.CapsSnapshot(),
 		newResponse.Modes,
 		newResponse.ConfigOptions,
 	))

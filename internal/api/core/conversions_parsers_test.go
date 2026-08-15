@@ -106,8 +106,11 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			CreatedAt: now,
 			UpdatedAt: now,
 			ACPCaps: acp.Caps{
-				SupportsLoadSession: true,
-				SupportedModes:      []string{"chat"},
+				SupportsLoadSession:   true,
+				PromptImage:           true,
+				PromptAudio:           true,
+				PromptEmbeddedContext: true,
+				SupportedModes:        []string{"chat"},
 				ConfigOptions: []acp.SessionConfigOption{
 					{
 						ID:      "reasoning_effort",
@@ -191,6 +194,11 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 		if payload.Runtime.ACPCaps == nil || !payload.Runtime.ACPCaps.SupportsLoadSession {
 			t.Fatalf("caps = %#v", payload.Runtime.ACPCaps)
+		}
+		if !payload.Runtime.ACPCaps.PromptImage ||
+			!payload.Runtime.ACPCaps.PromptAudio ||
+			!payload.Runtime.ACPCaps.PromptEmbeddedContext {
+			t.Fatalf("prompt caps = %#v, want all enabled", payload.Runtime.ACPCaps)
 		}
 		if len(payload.AvailableCommands) != 1 || payload.AvailableCommands[0].Name != "compact" ||
 			payload.AvailableCommands[0].Input == nil ||

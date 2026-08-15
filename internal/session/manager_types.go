@@ -161,6 +161,7 @@ type Manager struct {
 	inputQueue                   *inputqueue.Service
 	inputQueueStore              store.SessionInputQueueStore
 	promptAdmissionStore         store.SessionPromptAdmissionStore
+	attachmentOpener             AttachmentOpener
 	managedInputLifecycle        ManagedInputLifecycle
 	workAdmission                admission.Checker
 	goalCommandHandler           GoalCommandHandler

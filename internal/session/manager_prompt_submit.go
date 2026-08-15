@@ -60,6 +60,16 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 			return nil, err
 		}
 	}
+	resolvedAttachments, err := m.resolvePromptAttachments(
+		ctx,
+		session.WorkspaceID,
+		session.ID,
+		req.attachments,
+		proc.CapsSnapshot(),
+	)
+	if err != nil {
+		return nil, err
+	}
 	session.setCurrentTurnID(req.turnID)
 	session.setCurrentTurnSource(req.turnSource)
 	session.setCurrentPromptMessage(req.authoredMessage)
@@ -86,7 +96,16 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		return nil, err
 	}
 	stateOwned = false
-	return m.submitPromptInReservedSlot(ctx, session, proc, req, message, dispatchMessage, turnState)
+	return m.submitPromptInReservedSlot(
+		ctx,
+		session,
+		proc,
+		req,
+		message,
+		dispatchMessage,
+		resolvedAttachments,
+		turnState,
+	)
 }
 
 func (m *Manager) submitPromptInReservedSlot(
@@ -96,6 +115,7 @@ func (m *Manager) submitPromptInReservedSlot(
 	req promptRequest,
 	message string,
 	dispatchMessage string,
+	attachments []acp.PromptAttachment,
 	turnState *promptTurnDispatchState,
 ) (<-chan acp.AgentEvent, error) {
 	promptExecutionCtx, cancelPromptExecution := m.promptExecutionContext(ctx, turnState.managed != nil)
@@ -130,6 +150,7 @@ func (m *Manager) submitPromptInReservedSlot(
 	source, err := m.driver.Prompt(promptExecutionCtx, proc, acp.PromptRequest{
 		TurnID:                    req.turnID,
 		Message:                   dispatchMessage,
+		Attachments:               attachments,
 		Meta:                      req.meta,
 		ActivityReporter:          activity.report,
 		ActivityHeartbeatInterval: supervision.ActivityHeartbeatInterval,

@@ -193,7 +193,9 @@ func statusForSessionValidationError(err error) (int, bool) {
 		return http.StatusBadRequest, true
 	case isProviderNegotiationFailure(err),
 		isProviderAuthFailure(err),
-		isReasoningEffortUnsupportedFailure(err):
+		isReasoningEffortUnsupportedFailure(err),
+		errors.Is(err, session.ErrPromptImagesUnsupported),
+		errors.Is(err, session.ErrPromptFilesUnsupported):
 		return http.StatusUnprocessableEntity, true
 	default:
 		return 0, false
@@ -216,6 +218,7 @@ func statusForSessionConflictError(err error) (int, bool) {
 		errors.Is(err, session.ErrActiveTurnMismatch),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotQueued),
 		errors.Is(err, store.ErrSessionInputMutationConflict),
+		errors.Is(err, store.ErrSessionInputSteerTextOnly),
 		errors.Is(err, session.ErrPendingPermissionNotFound),
 		errors.Is(err, session.ErrPendingPermissionConflict),
 		errors.Is(err, store.ErrSessionAttachLocked),

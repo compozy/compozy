@@ -201,6 +201,16 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 			err:        participation.ErrLiveUnsupported,
 			wantStatus: http.StatusUnprocessableEntity,
 		},
+		{
+			name:       "Should map unsupported prompt images to unprocessable entity",
+			err:        session.ErrPromptImagesUnsupported,
+			wantStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name:       "Should map unsupported prompt files to unprocessable entity",
+			err:        session.ErrPromptFilesUnsupported,
+			wantStatus: http.StatusUnprocessableEntity,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

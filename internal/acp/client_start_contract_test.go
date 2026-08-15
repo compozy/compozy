@@ -50,6 +50,23 @@ func TestStartInitializeContract(t *testing.T) {
 	})
 }
 
+func TestStartCapturesPromptCapabilities(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve initialize prompt capabilities after session negotiation", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc := startHelperProcess(t, driver, "prompt_capabilities", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+
+		caps := proc.CapsSnapshot()
+		if !caps.PromptImage || !caps.PromptAudio || !caps.PromptEmbeddedContext {
+			t.Fatalf("Start() prompt capabilities = %#v, want all enabled", caps)
+		}
+	})
+}
+
 func TestStartActivatesMCPAfterInitializeBeforeSessionNegotiation(t *testing.T) {
 	t.Parallel()
 

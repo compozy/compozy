@@ -39,6 +39,7 @@ type managedInput struct {
 	id            string
 	sessionID     string
 	text          string
+	attachments   []AttachmentMeta
 	runtime       store.SessionInputRuntime
 	taskRunID     string
 	runGeneration *int64
@@ -56,6 +57,7 @@ func managedInputFromQueueEntry(entry *store.SessionInputQueueEntry) managedInpu
 		id:            entry.ID,
 		sessionID:     entry.SessionID,
 		text:          entry.Text,
+		attachments:   attachmentMetaFromStore(entry.Attachments),
 		runtime:       entry.Runtime,
 		taskRunID:     entry.TaskRunID,
 		runGeneration: entry.RunGeneration,
@@ -79,6 +81,17 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 	}
 	defer session.finishPromptSetup()
 	proc, err := m.ensurePromptRuntime(setup.leaseCtx, session, setup.request.runtime, setup.process)
+	if err != nil {
+		m.failManagedInputPrompt(setup, err)
+		return
+	}
+	resolvedAttachments, err := m.resolvePromptAttachments(
+		setup.leaseCtx,
+		session.WorkspaceID,
+		session.ID,
+		setup.request.attachments,
+		proc.CapsSnapshot(),
+	)
 	if err != nil {
 		m.failManagedInputPrompt(setup, err)
 		return
@@ -124,6 +137,7 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		setup.request,
 		message,
 		dispatchMessage,
+		resolvedAttachments,
 		turnState,
 	)
 	if err != nil {
@@ -319,6 +333,7 @@ func managedInputPromptRequest(
 		target:          entry.sessionID,
 		message:         entry.text,
 		authoredMessage: entry.text,
+		attachments:     cloneAttachmentMeta(entry.attachments),
 		turnSource:      TurnSourceSynthetic,
 		runtime:         runtimeSelectionFromStore(entry.runtime),
 		meta: acp.PromptMeta{

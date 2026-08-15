@@ -43,15 +43,21 @@ func SessionFailurePayloadFromStore(failure *store.SessionFailure) *contract.Ses
 // ACPCapsPayloadFromInfo converts ACP capability info into the shared payload.
 func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 	if !caps.SupportsLoadSession &&
+		!caps.PromptImage &&
+		!caps.PromptAudio &&
+		!caps.PromptEmbeddedContext &&
 		len(caps.SupportedModes) == 0 &&
 		len(caps.ConfigOptions) == 0 {
 		return nil
 	}
 
 	return &contract.ACPCapsPayload{
-		SupportsLoadSession: caps.SupportsLoadSession,
-		SupportedModes:      append([]string(nil), caps.SupportedModes...),
-		ConfigOptions:       SessionConfigOptionPayloadsFromInfo(caps.ConfigOptions),
+		SupportsLoadSession:   caps.SupportsLoadSession,
+		PromptImage:           caps.PromptImage,
+		PromptAudio:           caps.PromptAudio,
+		PromptEmbeddedContext: caps.PromptEmbeddedContext,
+		SupportedModes:        append([]string(nil), caps.SupportedModes...),
+		ConfigOptions:         SessionConfigOptionPayloadsFromInfo(caps.ConfigOptions),
 	}
 }
 

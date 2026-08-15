@@ -132,9 +132,18 @@ func (d *Driver) sendPromptCancellationNotification(
 
 func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.PromptRequest, error) {
 	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(req.Message)
+	prompt := make([]acpsdk.ContentBlock, 0, 1+len(req.Attachments))
+	if promptText != "" {
+		prompt = append(prompt, textBlockWithPromptCacheControl(promptText, proc.promptCacheControl))
+	}
+	attachmentBlocks, err := attachmentContentBlocks(req, proc.CapsSnapshot())
+	if err != nil {
+		return acpsdk.PromptRequest{}, err
+	}
+	prompt = append(prompt, attachmentBlocks...)
 	promptRequest := acpsdk.PromptRequest{
 		SessionId: acpsdk.SessionId(proc.SessionID),
-		Prompt:    []acpsdk.ContentBlock{textBlockWithPromptCacheControl(promptText, proc.promptCacheControl)},
+		Prompt:    prompt,
 	}
 	meta := req.Meta.Normalize()
 	if includedSystemPrompt {

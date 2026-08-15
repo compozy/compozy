@@ -458,6 +458,11 @@ func (a *helperACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (
 		AgentCapabilities: acpsdk.AgentCapabilities{
 			LoadSession: a.scenario == "load_session" || a.scenario == "load_session_error" ||
 				a.scenario == "load_mode_mapping" || a.scenario == "load_config_options",
+			PromptCapabilities: acpsdk.PromptCapabilities{
+				Image:           a.scenario == "prompt_capabilities",
+				Audio:           a.scenario == "prompt_capabilities",
+				EmbeddedContext: a.scenario == "prompt_capabilities",
+			},
 		},
 		AuthMethods: []acpsdk.AuthMethod{},
 	}, nil
