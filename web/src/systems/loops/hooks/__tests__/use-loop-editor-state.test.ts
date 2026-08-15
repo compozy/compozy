@@ -228,6 +228,7 @@ describe("loopEditorLogic", () => {
     await vi.waitFor(() => {
       expect(store.getSnapshot().context.pendingPublishGeneration).toBeNull();
       expect(store.getSnapshot().context.publishError).toBe("publish unavailable");
+      expect(store.getSnapshot().context.publishFailureKind).toBe("transport");
     });
   });
 
@@ -255,6 +256,7 @@ describe("loopEditorLogic", () => {
     await vi.waitFor(() => {
       expect(store.getSnapshot().context.pendingPublishGeneration).toBeNull();
       expect(store.getSnapshot().context.publishRejectedDockStale).toBe(true);
+      expect(store.getSnapshot().context.publishFailureKind).toBe("rejected");
       expect(store.getSnapshot().context.publishRejectedIssues).toHaveLength(1);
       expect(store.getSnapshot().context.lint.validated).toBe(false);
     });

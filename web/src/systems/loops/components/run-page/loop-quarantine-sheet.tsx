@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Ban, History, Info, Lightbulb, ShieldAlert } from "lucide-react";
+import { History, Info, Lightbulb, ShieldAlert } from "lucide-react";
 
 import {
   Button,
@@ -16,7 +16,8 @@ import {
   SheetTitle,
 } from "@compozy/ui";
 
-import type { LoopNodeVerb } from "../../lib/loop-node-controls";
+import { LOOP_NODE_VERB_PRESENTATION, type LoopNodeVerb } from "../../lib/loop-node-controls";
+import { LOOP_NODE_VERB_ICONS } from "../../lib/loop-node-verb-icons";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 import { LoopSection } from "../loop-section";
 import { LoopQuarantineChain } from "./loop-quarantine-chain";
@@ -64,6 +65,7 @@ export function LoopQuarantineSheet({
   children,
 }: LoopQuarantineSheetProps) {
   const entry = node?.quarantineEntry ?? null;
+  const CancelIcon = LOOP_NODE_VERB_ICONS.cancel;
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
       <SheetContent
@@ -182,8 +184,8 @@ export function LoopQuarantineSheet({
                       type="button"
                       variant="outline"
                     >
-                      <Ban className="size-3.5" />
-                      Cancel
+                      <CancelIcon className="size-3.5" />
+                      {LOOP_NODE_VERB_PRESENTATION.cancel.label}
                     </Button>
                     <Button
                       data-testid="loop-quarantine-requeue"

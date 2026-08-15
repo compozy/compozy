@@ -671,9 +671,31 @@ describe("LoopEditor", () => {
   });
 
   it("Should show that the editor version was kept when a rejection has no issue list", () => {
-    render(<LoopEditorPublishRejectedStrip message="Publish rejected" issues={[]} version={4} />);
+    render(
+      <LoopEditorPublishRejectedStrip
+        failureKind="rejected"
+        issues={[]}
+        message="Publish rejected"
+        version={4}
+      />
+    );
     const strip = screen.getByTestId("loop-editor-publish-error");
     expect(strip).toHaveTextContent("422 · expected_version v4 kept");
+  });
+
+  it("Should render a transport failure without a 422 status claim", () => {
+    render(
+      <LoopEditorPublishRejectedStrip
+        failureKind="transport"
+        issues={[]}
+        message="publish unavailable"
+        version={4}
+      />
+    );
+    const strip = screen.getByTestId("loop-editor-publish-error");
+    expect(strip).toHaveTextContent("publish unavailable");
+    expect(strip).not.toHaveTextContent("422");
+    expect(strip).not.toHaveTextContent("expected_version");
   });
 
   it("Should list publish issues on the strip only when the dock is stale", () => {

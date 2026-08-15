@@ -42,7 +42,8 @@ const { buildNodeNowLines } = await import("../../lib/loop-node-now-view");
 const { quarantineChainRows } = await import("../../lib/loop-quarantine-entry");
 const { loopNodeStateStrip, loopNodeVerbConfirmCopy, loopRunStateStrip } =
   await import("../../lib/loop-node-verb-copy");
-const { checkLoopWaitPayload } = await import("../../lib/loop-node-wait-payload");
+const { checkLoopWaitPayload, loopWaitExpectRequiredKeys } =
+  await import("../../lib/loop-node-wait-payload");
 type LoopNodeLifecycle = import("../../lib/loop-node-lifecycle").LoopNodeLifecycle;
 const { LoopRunUsageRail } = await import("../run-page/loop-run-usage-rail");
 const { LoopRunAboutRail } = await import("../run-page/loop-run-about-rail");
@@ -159,28 +160,38 @@ describe("LoopRunStoryTimeline", () => {
   });
 
   it("Should render score, best, and restored provenance from a generation row", () => {
-    render(
-      <LoopRunStoryTimeline
-        rows={[
-          storyRow({
-            kind: "generation_started",
-            generation: 3,
-            score: 0.7,
-            isBest: true,
-            originLabel: "Restored from gen 1",
-          }),
-        ]}
-        isLive={false}
-        goalNodeIds={EMPTY_GOAL_IDS}
-        goalTurns={[]}
-      />
-    );
+    const originalScroll = Element.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    window.location.hash = "#loop-generation-3";
+    try {
+      render(
+        <LoopRunStoryTimeline
+          rows={[
+            storyRow({
+              kind: "generation_started",
+              generation: 3,
+              score: 0.7,
+              isBest: true,
+              originLabel: "Restored from gen 1",
+            }),
+          ]}
+          isLive={false}
+          goalNodeIds={EMPTY_GOAL_IDS}
+          goalTurns={[]}
+        />
+      );
 
-    const row = screen.getByTestId("loop-story-row");
-    expect(row).toHaveAttribute("id", "loop-generation-3");
-    expect(row).toHaveTextContent("score 0.70");
-    expect(row).toHaveTextContent("Best");
-    expect(row).toHaveTextContent("Restored from gen 1");
+      const row = screen.getByTestId("loop-story-row");
+      expect(row).toHaveAttribute("id", "loop-generation-3");
+      expect(row).toHaveTextContent("score 0.70");
+      expect(row).toHaveTextContent("Best");
+      expect(row).toHaveTextContent("Restored from gen 1");
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start" });
+    } finally {
+      Element.prototype.scrollIntoView = originalScroll;
+      window.location.hash = "";
+    }
   });
 
   it("Should stay quiet before any frame arrives", () => {
@@ -214,6 +225,7 @@ describe("LoopRunStoryTimeline", () => {
     expect(screen.getByTestId("loop-story-generation-1")).toHaveTextContent(
       "Generation 1 · 1 event"
     );
+    expect(screen.queryByText("Older beat")).not.toBeInTheDocument();
   });
 });
 
@@ -504,10 +516,50 @@ describe("LoopRunNeedsYouCard", () => {
         onDecision={vi.fn()}
       />
     );
-    expect(screen.getByTestId("loop-run-needs-quarantine-fix_batch")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-needs-quarantine-fix_batch-g2")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-needs-approval")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch"));
+    fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-g2"));
     expect(onOpenQuarantine).toHaveBeenCalledWith("fix_batch");
+  });
+
+  it("Should keep distinct testids when fan-out quarantines two items of the same node", () => {
+    const onOpenQuarantine = vi.fn();
+    render(
+      <LoopRunNeedsYouCard
+        run={run({ status: "running" })}
+        request={null}
+        fallbackFacts={[]}
+        showApproval={false}
+        quarantinedNodes={[
+          loopNodeLifecycleFixture({
+            nodeId: "fix_batch",
+            label: "fix batch",
+            state: "quarantined",
+            parked: true,
+            quarantined: true,
+            itemIndex: 0,
+            generation: 2,
+          }),
+          loopNodeLifecycleFixture({
+            nodeId: "fix_batch",
+            label: "fix batch",
+            state: "quarantined",
+            parked: true,
+            quarantined: true,
+            itemIndex: 1,
+            generation: 2,
+          }),
+        ]}
+        onOpenQuarantine={onOpenQuarantine}
+        onDecision={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("loop-run-needs-quarantine-fix_batch-0-g2")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-needs-quarantine-fix_batch-1-g2")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-0-g2"));
+    fireEvent.click(screen.getByTestId("loop-run-needs-open-quarantine-fix_batch-1-g2"));
+    expect(onOpenQuarantine).toHaveBeenNthCalledWith(1, "fix_batch");
+    expect(onOpenQuarantine).toHaveBeenNthCalledWith(2, "fix_batch");
   });
 });
 
@@ -1262,6 +1314,29 @@ describe("checkLoopWaitPayload", () => {
     expect(check.ok).toBe(false);
     expect(check.error).toBe("Missing key env.");
   });
+
+  it("Should treat a sample with a top-level type as a sample, not a schema", () => {
+    const expectBody = { type: "deploy", env: "staging" };
+    expect(loopWaitExpectRequiredKeys(expectBody)).toEqual(["type", "env"]);
+    expect(checkLoopWaitPayload("{}", expectBody).ok).toBe(false);
+    expect(checkLoopWaitPayload('{"type":"deploy","env":"staging"}', expectBody).ok).toBe(true);
+  });
+
+  it("Should honor a JSON Schema required list when type is object", () => {
+    expect(loopWaitExpectRequiredKeys({ type: "object", required: ["env", "region"] })).toEqual([
+      "env",
+      "region",
+    ]);
+  });
+
+  it("Should require no keys for a schema that only declares properties", () => {
+    expect(
+      loopWaitExpectRequiredKeys({
+        type: "object",
+        properties: { env: { type: "string" } },
+      })
+    ).toEqual([]);
+  });
 });
 
 describe("LoopQuarantineSheet", () => {
@@ -1302,7 +1377,7 @@ describe("LoopQuarantineSheet", () => {
       <LoopQuarantineSheet {...props} isRequeuePending node={quarantined} />
     );
     expect(screen.getByTestId("loop-quarantine-requeue")).toBeDisabled();
-    expect(screen.getByTestId("loop-quarantine-cancel")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-quarantine-cancel")).toHaveTextContent("Cancel…");
 
     rerender(<LoopQuarantineSheet {...props} node={quarantined} />);
     await user.click(screen.getByTestId("loop-quarantine-requeue"));
@@ -1544,7 +1619,7 @@ describe("LoopRunSubhead", () => {
         subject={null}
         hasWatchSource={false}
         elapsedLabel="22m 14s"
-        startedBy="Started by hand"
+        startedBy="hand"
       />
     );
     expect(screen.getByTestId("loop-run-started-by")).toHaveTextContent("Started by hand");

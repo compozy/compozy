@@ -134,7 +134,9 @@ function LoopEditorReady({
     <ReactFlowProvider>
       <div className="flex min-h-0 flex-1 flex-col gap-0" data-testid="loop-editor">
         <LoopEditorToolbar
+          addNodeDisabled={editor.busy || readOnly}
           busy={editor.busy}
+          onAddNode={editor.addNode}
           positionsDirty={editor.positionsDirty}
           view={editor.view}
           onViewChange={editor.selectView}
@@ -182,6 +184,7 @@ function LoopEditorReady({
                 issues={editor.publishRejectedIssues}
                 version={editor.version}
                 dockStale={editor.publishRejectedDockStale}
+                failureKind={editor.publishFailureKind}
               />
             ) : null}
 

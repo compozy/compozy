@@ -13,5 +13,6 @@ export function useLoopNodeExists(
   enabled = true
 ): boolean {
   const query = useQuery(loopNodeExistsOptions(workspaceId, state, enabled));
+  if (query.isError) return false;
   return (query.data?.items.length ?? 0) > 0;
 }

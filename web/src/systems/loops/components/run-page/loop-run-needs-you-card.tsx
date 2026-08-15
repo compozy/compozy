@@ -59,6 +59,10 @@ function nodeIdentity(node: LoopNodeLifecycle): string {
   return `${node.nodeId}${item} · gen ${node.generation}`;
 }
 
+function nodeRowKey(node: LoopNodeLifecycle): string {
+  return `${node.nodeId}${node.itemIndex === null ? "" : `-${node.itemIndex}`}-g${node.generation}`;
+}
+
 /**
  * The "Needs you" region: a neutral panelbox whose only colour is the warning
  * glyph. Approval decisions and quarantine entries share the same shell.
@@ -142,13 +146,14 @@ export function LoopRunNeedsYouCard({
         ) : null}
         {quarantinedNodes.map((node, index) => {
           const attempts = node.quarantineEntry?.attemptCount ?? 0;
+          const rowKey = nodeRowKey(node);
           return (
             <div
               className={`flex items-start gap-3 px-4 py-3.5 ${
                 showApproval || index > 0 ? "border-t border-line-soft" : ""
               }`}
-              data-testid={`loop-run-needs-quarantine-${node.nodeId}`}
-              key={node.nodeId}
+              data-testid={`loop-run-needs-quarantine-${rowKey}`}
+              key={rowKey}
             >
               <ShieldAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
               <div className="min-w-0 flex-1">
@@ -173,7 +178,7 @@ export function LoopRunNeedsYouCard({
                 {onOpenQuarantine ? (
                   <Button
                     className="min-h-6 shrink-0"
-                    data-testid={`loop-run-needs-open-quarantine-${node.nodeId}`}
+                    data-testid={`loop-run-needs-open-quarantine-${rowKey}`}
                     onClick={() => onOpenQuarantine(node.nodeId)}
                     size="sm"
                     type="button"

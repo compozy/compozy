@@ -22,11 +22,11 @@ vi.mock("@/systems/workspace/hooks/use-active-worktree", () => ({
   useScopedWorktreeFilter: vi.fn(),
 }));
 vi.mock("../use-worktree-scope", () => ({ useFocusedWorktreeScopeId: vi.fn(() => "window:one") }));
-vi.mock("@/systems/loops/hooks/use-loop-node-exists", () => ({
+vi.mock("@/systems/loops", () => ({
   useLoopNodeExists: vi.fn(() => false),
 }));
 
-import { useLoopNodeExists } from "@/systems/loops/hooks/use-loop-node-exists";
+import { useLoopNodeExists } from "@/systems/loops";
 import { useOsAttention } from "../use-os-attention";
 import { useSessions, type SessionPayload } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";

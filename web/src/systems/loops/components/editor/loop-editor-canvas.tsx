@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -72,6 +72,7 @@ export function LoopEditorCanvas({
   loopDefaultEnvironment,
 }: LoopEditorCanvasProps) {
   const { getZoom, setCenter } = useReactFlow();
+  const lastHandledSeq = useRef(0);
   // Drive the accent ring from the view-model selection so every selection path (click,
   // dock reveal, palette add) is truthful — React Flow's internal `selected` only tracks clicks.
   const displayNodes = nodes.map(node => ({
@@ -82,8 +83,10 @@ export function LoopEditorCanvas({
 
   useEffect(() => {
     if (revealSeq === 0 || !selectedNodeId) return;
+    if (revealSeq <= lastHandledSeq.current) return;
     const node = nodes.find(entry => entry.id === selectedNodeId);
     if (!node) return;
+    lastHandledSeq.current = revealSeq;
     void setCenter(
       node.position.x + EDITOR_NODE_WIDTH / 2,
       node.position.y + EDITOR_NODE_HEIGHT / 2,

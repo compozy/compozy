@@ -184,6 +184,7 @@ export function LoopRunStoryTimeline({
     }
   }
   const { newest, older } = partitionStoryGenerations(rows);
+  const [targetedGen, setTargetedGen] = useState(readTargetedGeneration);
   const [openGens, setOpenGens] = useState(() => {
     const targeted = readTargetedGeneration();
     return targeted === null ? new Set<number>() : new Set([targeted]);
@@ -198,10 +199,17 @@ export function LoopRunStoryTimeline({
         next.add(targeted);
         return next;
       });
+      setTargetedGen(targeted);
     };
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);
+  useEffect(() => {
+    if (targetedGen === null) return;
+    const el = document.getElementById(`loop-generation-${targetedGen}`);
+    if (!el) return;
+    el.scrollIntoView({ block: "start" });
+  }, [targetedGen]);
 
   const renderRow = (row: LoopStoryRow) => (
     <StoryRow

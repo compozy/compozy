@@ -223,11 +223,9 @@ function joinLabels(labels: string[]): string {
 
 function DependencyAttentionRow({
   group,
-  withDivider,
   onOpenQuarantine,
 }: {
   group: DependencyAttentionGroup;
-  withDivider: boolean;
   onOpenQuarantine?: (nodeId: string) => void;
 }) {
   const producerLabel = group.producerNodeId
@@ -237,7 +235,7 @@ function DependencyAttentionRow({
   const generation = group.consumers[0]?.generation;
   return (
     <div
-      className={`flex items-start gap-3 px-4 py-3.5 ${withDivider ? "border-t border-line-soft" : ""}`}
+      className="flex items-start gap-3 px-4 py-3.5"
       data-testid={`loop-run-attention-producer-${group.producerNodeId || "unknown"}`}
     >
       <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-warning" />
@@ -277,16 +275,14 @@ function DependencyAttentionRow({
 
 function AttentionFlagRow({
   node,
-  withDivider,
   renderNodeActions,
 }: {
   node: LoopNodeLifecycle;
-  withDivider: boolean;
   renderNodeActions?: (node: LoopNodeLifecycle) => ReactNode;
 }) {
   return (
     <div
-      className={`flex items-start gap-3 px-4 py-3.5 ${withDivider ? "border-t border-line-soft" : ""}`}
+      className="flex items-start gap-3 px-4 py-3.5"
       data-testid={`loop-run-attention-${node.nodeId}`}
     >
       <span aria-hidden="true" className="mt-1.5 size-2 shrink-0 rounded-full bg-warning" />
@@ -339,22 +335,14 @@ export function LoopRunAttentionPanel({
       title="Needs attention"
     >
       <div className={paired ? "grid grid-cols-1 gap-3 min-[900px]:grid-cols-2" : undefined}>
-        {groups.map((group, index) => (
+        {groups.map(group => (
           <div className={ATTENTION_CARD_CLASS} key={`producer-${group.producerNodeId}`}>
-            <DependencyAttentionRow
-              group={group}
-              onOpenQuarantine={onOpenQuarantine}
-              withDivider={!paired && index > 0}
-            />
+            <DependencyAttentionRow group={group} onOpenQuarantine={onOpenQuarantine} />
           </div>
         ))}
-        {singles.map((node, index) => (
+        {singles.map(node => (
           <div className={ATTENTION_CARD_CLASS} key={node.nodeId}>
-            <AttentionFlagRow
-              node={node}
-              renderNodeActions={renderNodeActions}
-              withDivider={!paired && groups.length + index > 0}
-            />
+            <AttentionFlagRow node={node} renderNodeActions={renderNodeActions} />
           </div>
         ))}
       </div>

@@ -35,6 +35,7 @@ describe("RadioCard", () => {
     expect(defaultWell).toHaveAttribute("data-icon-well-size", "default");
     expect(defaultWell?.className).toContain("size-5");
     expect(defaultWell?.className).not.toContain("size-7");
+    expect(defaultWell?.querySelector("svg")).toHaveClass("size-3");
 
     rerender(
       <RadioCard
@@ -52,5 +53,23 @@ describe("RadioCard", () => {
     expect(lgWell?.className).toContain("size-7");
     expect(lgWell?.className).toContain("rounded-sm");
     expect(lgWell?.className).toContain("bg-badge-fill");
+    expect(lgWell?.querySelector("svg")).toHaveClass("size-3.5");
+  });
+
+  it("Should keep the unselected lg well muted with an inset hairline", () => {
+    render(
+      <RadioCard
+        icon={Hourglass}
+        iconWellSize="lg"
+        onSelect={() => undefined}
+        selected={false}
+        title="Drain"
+      />
+    );
+    const well = screen
+      .getByRole("radio", { name: /drain/i })
+      .querySelector('[data-slot="radio-card-icon-well"]');
+    expect(well?.className).toContain("text-muted");
+    expect(well?.className).toContain("shadow-hairline-inset");
   });
 });

@@ -11,7 +11,15 @@ export interface LoopWaitPayloadCheck {
   error?: string;
 }
 
-const SCHEMA_KEYS = new Set(["$schema", "additionalProperties", "properties", "required", "type"]);
+const JSON_SCHEMA_TYPES = new Set([
+  "object",
+  "array",
+  "string",
+  "number",
+  "integer",
+  "boolean",
+  "null",
+]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -26,7 +34,7 @@ function expectHint(expect: unknown): string {
 
 function isJsonSchema(record: Record<string, unknown>): boolean {
   return (
-    typeof record.type === "string" ||
+    (typeof record.type === "string" && JSON_SCHEMA_TYPES.has(record.type)) ||
     asRecord(record.properties) !== null ||
     Array.isArray(record.required)
   );
@@ -40,7 +48,7 @@ export function loopWaitExpectRequiredKeys(expect: unknown): string[] {
     return record.required.filter((key): key is string => typeof key === "string" && key !== "");
   }
   if (isJsonSchema(record)) return [];
-  return Object.keys(record).filter(key => !SCHEMA_KEYS.has(key));
+  return Object.keys(record);
 }
 
 export function checkLoopWaitPayload(payload: string, expect: unknown): LoopWaitPayloadCheck {

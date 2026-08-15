@@ -370,6 +370,7 @@ export {
   useResumeLoopNode,
 } from "./hooks/use-loop-node-actions";
 export { useLoopNodeInventory } from "./hooks/use-loop-node-inventory";
+export { useLoopNodeExists } from "./hooks/use-loop-node-exists";
 export { type LoopNodeLifecycle, projectNodeLifecycles } from "./lib/loop-node-lifecycle";
 export {
   loopControlAnswer,

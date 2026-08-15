@@ -70,6 +70,8 @@ export interface UseLoopEditorResult {
   publishDisabled: boolean;
   busy: boolean;
   publishError: string | null;
+  /** Discriminator for `publishError`: a 422 validation rejection vs a transport/unknown failure. */
+  publishFailureKind: "rejected" | "transport" | null;
   /** The issue list a publish 422 returned; empty for a transport failure. */
   publishRejectedIssues: LoopValidationIssue[];
   dslLines: DslLine[];
@@ -125,6 +127,7 @@ export function useLoopEditor(
     nodes,
     positionsDirty,
     publishError,
+    publishFailureKind,
     publishRejectedIssues,
     publishRejectedDockStale,
     selectedNodeId,
@@ -376,6 +379,7 @@ export function useLoopEditor(
     publishDisabled: !definitionEditable || lint.hasBlockingErrors || busy,
     busy,
     publishError,
+    publishFailureKind,
     publishRejectedIssues,
     publishRejectedDockStale,
     revealSeq,

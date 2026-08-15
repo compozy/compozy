@@ -143,6 +143,7 @@ export interface LoopRunPageView {
   latestVerdict: LoopGateVerdict | null;
   watchCadence: string | null;
   inputRows: LoopRunInputRow[];
+  /** Unprefixed origin/actor from `humanizeStartOrigin`; the subhead prepends `Started by `. */
   startedBy: string;
   nextNote: string | null;
   showNowCard: boolean;

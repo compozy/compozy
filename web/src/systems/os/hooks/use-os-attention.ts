@@ -1,6 +1,6 @@
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
-import { useLoopNodeExists } from "@/systems/loops/hooks/use-loop-node-exists";
+import { useLoopNodeExists } from "@/systems/loops";
 import {
   attentionCount,
   deriveAttentionBadges,

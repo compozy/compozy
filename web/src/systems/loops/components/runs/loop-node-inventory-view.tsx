@@ -3,6 +3,7 @@ import { ChevronRight, Layers } from "lucide-react";
 
 import {
   Button,
+  CatalogCard,
   Empty,
   Eyebrow,
   ListingToolbar,
@@ -348,27 +349,29 @@ function InventoryCards({
         data-testid="loop-node-inventory-card-grid"
       >
         {rows.map(row => (
-          <Link
-            className="flex flex-col gap-2 rounded-lg border border-line bg-canvas-soft p-3.5 hover:bg-canvas-tint focus-visible:bg-canvas-tint"
-            data-testid={`loop-node-inventory-card-${row.key}`}
-            key={row.key}
-            params={{ runId: row.runId }}
-            to="/loop-runs/$runId"
-          >
-            <span className="flex items-center gap-2">
-              <InventoryStateGlyph state={row.state} />
-              <span className="min-w-0 flex-1 truncate text-ws-name font-medium text-fg-strong">
-                {row.label}
+          <CatalogCard actionable data-testid={`loop-node-inventory-card-${row.key}`} key={row.key}>
+            <Link
+              className="flex min-w-0 flex-col gap-3"
+              params={{ runId: row.runId }}
+              to="/loop-runs/$runId"
+            >
+              <span className="flex items-center gap-2">
+                <InventoryStateGlyph state={row.state} />
+                <span className="min-w-0 flex-1 truncate text-ws-name font-medium text-fg-strong">
+                  {row.label}
+                </span>
+                <Pill size="xs" tone={LOOP_NODE_INVENTORY_TONES[row.state]}>
+                  {LOOP_NODE_INVENTORY_LABELS[row.state]}
+                </Pill>
               </span>
-              <Pill size="xs" tone={LOOP_NODE_INVENTORY_TONES[row.state]}>
-                {LOOP_NODE_INVENTORY_LABELS[row.state]}
-              </Pill>
-            </span>
-            <span className="line-clamp-2 text-small-body text-muted">{row.reason}</span>
-            <span className="font-mono text-mono-id text-faint">
-              {row.micro} · {row.age} in this state
-            </span>
-          </Link>
+              <CatalogCard.Description className="line-clamp-2">
+                {row.reason}
+              </CatalogCard.Description>
+              <span className="font-mono text-mono-id text-faint">
+                {row.micro} · {row.age} in this state
+              </span>
+            </Link>
+          </CatalogCard>
         ))}
       </div>
       <InventoryFoot
