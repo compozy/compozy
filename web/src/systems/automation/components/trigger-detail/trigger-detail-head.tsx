@@ -8,7 +8,7 @@ import type { AutomationTrigger } from "../../types";
 interface TriggerEnableSwitchProps extends Omit<ComponentProps<"div">, "children"> {
   enabled: boolean;
   pending: boolean;
-  onToggle: (enabled: boolean) => void;
+  onEnabledChange: (enabled: boolean) => void;
 }
 
 /**
@@ -21,7 +21,7 @@ interface TriggerEnableSwitchProps extends Omit<ComponentProps<"div">, "children
 function TriggerEnableSwitch({
   enabled,
   pending,
-  onToggle,
+  onEnabledChange,
   className,
   ...props
 }: TriggerEnableSwitchProps) {
@@ -53,7 +53,7 @@ function TriggerEnableSwitch({
         data-testid="trigger-enable-switch"
         disabled={pending}
         onCheckedChange={next => {
-          if (!pending) onToggle(next);
+          if (!pending) onEnabledChange(next);
         }}
       />
     </div>
@@ -120,7 +120,7 @@ export function TriggerDetailHead({
         </div>
         <TriggerEnableSwitch
           enabled={trigger.enabled}
-          onToggle={onToggleEnabled}
+          onEnabledChange={onToggleEnabled}
           pending={isTogglePending}
         />
       </div>
