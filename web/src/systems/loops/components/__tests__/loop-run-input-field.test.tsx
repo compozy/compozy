@@ -92,7 +92,19 @@ describe("LoopRunInputField", () => {
         onChange={vi.fn()}
       />
     );
-    expect(screen.getByLabelText("required")).toBeInTheDocument();
+    expect(screen.getByText("required")).toBeInTheDocument();
     expect(screen.getByTestId("loop-run-field-error-slug")).toHaveTextContent("slug is required");
+  });
+
+  it("Should mark a required boolean with the same required affix", () => {
+    render(
+      <LoopRunInputField
+        name="auto_commit"
+        field={field({ type: "boolean", required: true })}
+        value={false}
+        onChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText("required")).toBeInTheDocument();
   });
 });

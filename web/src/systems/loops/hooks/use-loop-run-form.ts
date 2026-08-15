@@ -137,6 +137,7 @@ export function useLoopRunForm({
     missing,
     valid,
     busy,
+    pendingKind: pendingRequest?.kind ?? null,
     setInput,
     setOverridesDraft,
     setNetworkParticipationDraft,

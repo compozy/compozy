@@ -1,4 +1,7 @@
-import type { LoopInputSchema, LoopInputSchemaField } from "../types";
+import type { NetworkParticipationDraft } from "@/lib/network-participation";
+
+import type { LoopEnvironmentSpec, LoopInputSchema, LoopInputSchemaField } from "../types";
+import { LOOP_ENVIRONMENT_MODE_LABELS } from "./loop-node-schema-types";
 
 /** The resolved run-form input values, keyed by declared input name. */
 export type LoopRunInputs = Record<string, unknown>;
@@ -75,4 +78,31 @@ export function serializeRunInputs(
     out[name] = value;
   }
   return out;
+}
+
+/** Folded Inputs takeaway: required vs optional counts from the declared schema. */
+export function declaredInputCountsGist(schema?: LoopInputSchema): string {
+  const names = schema ? Object.keys(schema) : [];
+  const required = names.filter(name => schema?.[name]?.required).length;
+  return `${required} required · ${names.length - required} optional`;
+}
+
+/** Folded Participation takeaway from the live draft. */
+export function participationGist(draft: NetworkParticipationDraft): string {
+  if (draft.mode === "local") return "Local";
+  return `Live · ${draft.channelStrategy}`;
+}
+
+/** Folded Environment takeaway from the per-run override (inherit = loop default). */
+export function environmentGist(value: LoopEnvironmentSpec | null): string {
+  if (!value) return "Loop default";
+  if (value.mode === "worktree") {
+    const ref = value.worktree_ref?.trim();
+    return ref ? `worktree · ${ref}` : "worktree";
+  }
+  if (value.mode === "directory") {
+    const path = value.directory?.trim();
+    return path ? `directory · ${path}` : "directory";
+  }
+  return LOOP_ENVIRONMENT_MODE_LABELS[value.mode];
 }

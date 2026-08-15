@@ -1,4 +1,6 @@
-import { Field, FieldError, FieldLabel, FormSection, Input, PillGroup } from "@compozy/ui";
+import { FolderGit2 } from "lucide-react";
+
+import { Field, FieldError, FieldLabel, Input, PillGroup } from "@compozy/ui";
 
 import { WorktreeRefSelect, type WorktreePayload } from "@/systems/workspace";
 
@@ -8,7 +10,9 @@ import {
   loopEnvironmentItems,
   type LoopEnvironmentChoice,
 } from "../../lib/loop-environment-choice";
+import { environmentGist } from "../../lib/loop-run-form";
 import type { LoopEnvironmentSpec } from "../../types";
+import { LoopRailSection } from "../loop-rail-section";
 
 interface LoopRunEnvironmentProps {
   value: LoopEnvironmentSpec | null;
@@ -36,8 +40,12 @@ export function LoopRunEnvironment({
   }
 
   return (
-    <FormSection rightLabel="this run only" title="Environment">
-      <div data-mode={choice} data-slot="loop-run-environment">
+    <LoopRailSection
+      gist={environmentGist(value)}
+      icon={<FolderGit2 aria-hidden="true" className="size-3.5" />}
+      title="Environment"
+    >
+      <div className="px-3.5 py-3" data-mode={choice} data-slot="loop-run-environment">
         <PillGroup
           aria-label="Run environment"
           data-testid="loop-run-environment-mode"
@@ -76,6 +84,6 @@ export function LoopRunEnvironment({
           </Field>
         ) : null}
       </div>
-    </FormSection>
+    </LoopRailSection>
   );
 }

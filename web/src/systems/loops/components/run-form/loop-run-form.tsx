@@ -1,10 +1,12 @@
-import { CheckCircle2, Info, Play } from "lucide-react";
+import { CheckCircle2, FlaskConical, Info, Play, Radio, TextCursorInput } from "lucide-react";
 
-import { Button, Eyebrow, Section } from "@compozy/ui";
+import { Button, Eyebrow, Spinner } from "@compozy/ui";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
 import { loopSourceLabel } from "../../lib/loop-catalog";
+import { declaredInputCountsGist, participationGist } from "../../lib/loop-run-form";
 import { LoopPageLede } from "../loop-page-lede";
+import { LoopRailSection } from "../loop-rail-section";
 import type { LoopDetail, LoopEffectiveConfig, LoopRun } from "../../types";
 import { LoopRunActiveNotice } from "./loop-run-active-notice";
 import { LoopRunInputField } from "./loop-run-input-field";
@@ -13,6 +15,9 @@ import { LoopRunPlan } from "./loop-run-plan";
 import { NetworkParticipationFields } from "@/systems/network";
 import { useWorktrees } from "@/systems/workspace";
 import { LoopRunEnvironment } from "./loop-run-environment";
+
+const DRY_RUN_SENTENCE =
+  "Dry run validates inputs and renders the first-generation plan without starting a run.";
 
 interface LoopRunFormProps {
   workspaceId: string;
@@ -23,9 +28,92 @@ interface LoopRunFormProps {
   onRunStarted?: (runId: string) => void;
 }
 
+function actionBarNote(form: {
+  missing: Set<string>;
+  plan: unknown;
+  submitAttempted: boolean;
+  valid: boolean;
+}): { kind: "plan" | "missing" | "idle"; text: string } {
+  if (form.plan) return { kind: "plan", text: "Plan rendered" };
+  if (form.submitAttempted && !form.valid) {
+    if (form.missing.size === 1) {
+      const [name] = form.missing;
+      return { kind: "missing", text: `${name} is required to run this loop.` };
+    }
+    return { kind: "missing", text: "Fill the required inputs, then run." };
+  }
+  return { kind: "idle", text: DRY_RUN_SENTENCE };
+}
+
+function LoopRunFormActions({
+  busy,
+  note,
+  onDryRun,
+  onRun,
+  pendingKind,
+  valid,
+}: {
+  busy: boolean;
+  note: { kind: "plan" | "missing" | "idle"; text: string };
+  onDryRun: () => void;
+  onRun: () => void;
+  pendingKind: "dry-run" | "run" | null;
+  valid: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-line-soft pt-4">
+      <span
+        className={
+          note.kind === "plan"
+            ? "flex flex-1 items-center gap-1.5 text-form-hint text-success"
+            : "flex flex-1 items-start gap-1.5 text-form-hint leading-relaxed text-subtle"
+        }
+      >
+        {note.kind === "plan" ? (
+          <CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
+        ) : null}
+        {note.kind === "idle" ? (
+          <Info className="mt-0.5 size-3.5 shrink-0 text-faint" aria-hidden="true" />
+        ) : null}
+        {note.text}
+      </span>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        data-testid="loop-run-dry-button"
+        disabled={busy}
+        onClick={onDryRun}
+      >
+        {pendingKind === "dry-run" ? (
+          <Spinner className="size-3.5" />
+        ) : (
+          <FlaskConical className="size-3.5" aria-hidden="true" />
+        )}
+        Dry run
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="sm"
+        data-testid="loop-run-submit-button"
+        disabled={busy || !valid}
+        onClick={onRun}
+      >
+        {pendingKind === "run" ? (
+          <Spinner className="size-3.5" />
+        ) : (
+          <Play className="size-3.5" aria-hidden="true" />
+        )}
+        Start run
+      </Button>
+    </div>
+  );
+}
+
 /**
  * The hero run form (§4.3): an auto-generated typed input form from the Loop's declared
- * inputs, a folded per-run limits grid (clamped, no cost cap), and the Dry run / Start run
+ * inputs, a folded per-run limits list (clamped, no cost cap), and the Dry run / Start run
  * actions. After a successful Dry run, the resolved gen-1 plan renders inline. Leaving the
  * form without starting is a route action (`Close` in the window chrome), not a third button
  * beside the two that submit. State + the run/dry calls live in `useLoopRunForm`; this
@@ -48,6 +136,7 @@ export function LoopRunForm({
     onRunStarted,
   });
   const inputNames = form.schema ? Object.keys(form.schema) : [];
+  const note = actionBarNote(form);
 
   return (
     <div
@@ -55,7 +144,7 @@ export function LoopRunForm({
       data-testid="loop-run-form"
     >
       <form
-        className="flex min-w-0 flex-col gap-6 px-6 py-5"
+        className="flex min-w-0 flex-col gap-6 px-6 pt-5 pb-20"
         onSubmit={event => {
           event.preventDefault();
           form.handleRun();
@@ -82,14 +171,18 @@ export function LoopRunForm({
           <LoopRunActiveNotice concurrency={loop.definition.concurrency} run={activeRun} />
         ) : null}
 
-        <Section
-          label="Inputs"
-          note={inputNames.length > 0 ? "Generated from the loop's declared inputs" : undefined}
+        <LoopRailSection
+          defaultOpen
+          gist={declaredInputCountsGist(form.schema)}
+          icon={<TextCursorInput aria-hidden="true" className="size-3.5" />}
+          title="Inputs"
         >
           {inputNames.length === 0 ? (
-            <p className="text-sm text-subtle">This Loop declares no inputs — run it directly.</p>
+            <p className="px-3.5 py-3 text-sm text-subtle">
+              This Loop declares no inputs — run it directly.
+            </p>
           ) : (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 px-3.5 py-3">
               {inputNames.map(name => (
                 <LoopRunInputField
                   key={name}
@@ -107,17 +200,23 @@ export function LoopRunForm({
               ))}
             </div>
           )}
-        </Section>
+        </LoopRailSection>
 
-        <Section label="Participation" note="Resolved once when this run starts.">
-          <NetworkParticipationFields
-            allowedStrategies={["named", "loop_run"]}
-            disabled={form.busy}
-            onChange={form.setNetworkParticipationDraft}
-            testIdPrefix="loop-run-participation"
-            value={form.networkParticipation}
-          />
-        </Section>
+        <LoopRailSection
+          gist={participationGist(form.networkParticipation)}
+          icon={<Radio aria-hidden="true" className="size-3.5" />}
+          title="Participation"
+        >
+          <div className="px-3.5 py-3">
+            <NetworkParticipationFields
+              allowedStrategies={["named", "loop_run"]}
+              disabled={form.busy}
+              onChange={form.setNetworkParticipationDraft}
+              testIdPrefix="loop-run-participation"
+              value={form.networkParticipation}
+            />
+          </div>
+        </LoopRailSection>
 
         <LoopRunEnvironment
           disabled={form.busy}
@@ -134,46 +233,14 @@ export function LoopRunForm({
           onChange={form.setOverridesDraft}
         />
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-line-soft pt-4">
-          {form.plan ? (
-            <span className="flex flex-1 items-center gap-1.5 text-form-hint text-success">
-              <CheckCircle2 className="size-3.5" aria-hidden="true" />
-              Plan rendered
-            </span>
-          ) : (
-            <span className="flex-1 text-form-hint text-subtle">
-              {form.valid ? "Ready to run." : "Fill the required inputs, then run."}
-            </span>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            data-testid="loop-run-dry-button"
-            disabled={form.busy || !form.valid}
-            onClick={form.handleDryRun}
-          >
-            Dry run
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            data-testid="loop-run-submit-button"
-            disabled={form.busy || !form.valid}
-            onClick={form.handleRun}
-          >
-            <Play className="size-3.5" aria-hidden="true" />
-            Start run
-          </Button>
-        </div>
-
-        <p className="flex items-start gap-2 text-form-hint leading-relaxed text-subtle">
-          <Info className="mt-0.5 size-3 shrink-0 text-faint" aria-hidden="true" />
-          <span>
-            Dry run validates inputs and renders the first-generation plan without starting a run.
-          </span>
-        </p>
+        <LoopRunFormActions
+          busy={form.busy}
+          note={note}
+          onDryRun={form.handleDryRun}
+          onRun={form.handleRun}
+          pendingKind={form.pendingKind}
+          valid={form.valid}
+        />
 
         {form.plan ? <LoopRunPlan plan={form.plan} /> : null}
       </form>

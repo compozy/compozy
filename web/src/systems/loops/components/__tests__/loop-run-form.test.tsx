@@ -74,6 +74,10 @@ describe("LoopRunForm", () => {
     vi.unstubAllGlobals();
   });
 
+  function openSection(name: RegExp) {
+    fireEvent.click(screen.getByRole("button", { name }));
+  }
+
   it("Should auto-generate a typed field per declared input with a type badge", () => {
     renderForm();
     const slug = screen.getByTestId("loop-run-field-slug");
@@ -89,14 +93,31 @@ describe("LoopRunForm", () => {
     );
   });
 
-  it("Should keep Run and Dry run disabled until the required input is filled", () => {
+  it("Should keep Start run disabled until the required input is filled", () => {
     renderForm();
     expect(screen.getByTestId("loop-run-submit-button")).toBeDisabled();
+    expect(screen.getByTestId("loop-run-dry-button")).not.toBeDisabled();
     fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
       target: { value: "billing-webhooks" },
     });
     expect(screen.getByTestId("loop-run-submit-button")).not.toBeDisabled();
     expect(screen.getByTestId("loop-run-dry-button")).not.toBeDisabled();
+  });
+
+  it("Should paint the required-input error from Dry run without sending a request", async () => {
+    renderForm();
+    fireEvent.click(screen.getByTestId("loop-run-dry-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("loop-run-field-error-slug")).toBeInTheDocument()
+    );
+    expect(screen.getByTestId("loop-run-field-error-slug")).toHaveTextContent(
+      "slug is required to run this loop."
+    );
+    const runCalls = fetchMock.mock.calls.filter(([input]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      return url.includes("/loops/implement-tasks/run");
+    });
+    expect(runCalls).toHaveLength(0);
   });
 
   it("Should create no run when a required input is blank and submit is attempted", async () => {
@@ -218,6 +239,7 @@ describe("LoopRunForm", () => {
 
   it("Should serialize an explicit Live run without legacy participation fields", async () => {
     renderForm();
+    openSection(/Participation/);
     expect(screen.getByTestId("loop-run-participation-mode")).toHaveValue("local");
     fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
       target: { value: "billing-webhooks" },
@@ -318,6 +340,7 @@ describe("LoopRunForm", () => {
 
   it("Should send the selected environment as a per-run override", async () => {
     renderForm();
+    openSection(/Environment/);
     const perRun = screen.getByRole("button", { name: "Per-run" });
     await waitFor(() => expect(perRun).toBeEnabled());
     fireEvent.click(perRun);

@@ -104,6 +104,20 @@ export const AlreadyRunning: Story = {
   ),
 };
 
+/** Dry run stays clickable while invalid so the required-input error can paint. */
+export const RequiredInputError: Story = {
+  ...ImplementTasks,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByTestId("loop-run-dry-button"));
+    await expect(canvas.getByTestId("loop-run-field-error-slug")).toHaveTextContent(
+      "slug is required to run this loop."
+    );
+    await expect(canvas.getByTestId("loop-run-submit-button")).toBeDisabled();
+  },
+};
+
 /** A watch loop with no declared inputs — run it directly. */
 export const NoInputs: Story = {
   render: () => (
