@@ -238,3 +238,47 @@
     opacity: 0;
   }
 }
+
+/* Workspaces overview (Command-Tab switcher) entries. Components skip these
+   classes entirely under the in-product reduced-motion setting; the media
+   query covers the system preference. */
+@keyframes os-wsov-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+@keyframes os-wsov-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes os-wsov-cap-swap {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+.os-wsov-in {
+  animation: os-wsov-in var(--duration-slow) var(--ease-out);
+}
+
+.os-wsov-menu-in {
+  animation: os-wsov-menu-in var(--duration-base) var(--ease-out);
+}
+
+.os-wsov-cap-swap {
+  animation: os-wsov-cap-swap var(--duration-base) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .os-wsov-in,
+  .os-wsov-menu-in,
+  .os-wsov-cap-swap {
+    animation: none;
+  }
+}

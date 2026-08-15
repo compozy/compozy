@@ -57,6 +57,7 @@ function useHarnessModel(overrides: Partial<WorktreeCreateDialogModel>): Worktre
     cancelCreate: fn(),
     isCancelling: false,
     cancelError: null,
+    creationError: null,
     ...overrides,
   };
 }

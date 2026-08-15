@@ -37,6 +37,7 @@ export {
 export type { CreateWorkspaceParams, ResolveWorkspaceParams } from "./adapters/workspace-api";
 
 // Query infrastructure
+export { contractHomePath } from "./lib/display-path";
 export { isOperatorHomeWorkspace, partitionProjectWorkspaces } from "./lib/project-workspaces";
 export type { ProjectWorkspacePartition, WorkspaceHomeCandidate } from "./lib/project-workspaces";
 export { resolveActiveWorkspace, workspaceMonogram } from "./lib/active-workspace";

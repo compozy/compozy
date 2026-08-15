@@ -15,6 +15,7 @@ export interface OsShortcutHandlers {
   onPalette: () => void;
   onNewSession: () => void;
   onDesktops: () => void;
+  onWorkspaces: () => void;
   onEscape: () => void;
   onToggleGlobalScope: () => void;
 }
@@ -107,6 +108,7 @@ export function useOsShortcuts(
           manager,
           state,
           openDesktops: handlers.onDesktops,
+          openWorkspaces: handlers.onWorkspaces,
           activateWindow: windowId => void coordinator.userFocus(windowId),
           openNewTab: stackTargetWindowId =>
             void coordinator

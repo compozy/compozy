@@ -1,17 +1,27 @@
 import { Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 
+import { contractHomePath } from "../lib/display-path";
+
 export interface WorktreePathProps extends Omit<React.ComponentProps<"span">, "children"> {
   /** Absolute checkout path. Rendered truncated; the tooltip carries the full string. */
   path: string;
   /** Disable the extra tab stop when an interactive ancestor already owns focus. */
   focusable?: boolean;
+  /** When set, home-rooted paths display `~`-contracted; the tooltip stays absolute. */
+  userHomeDir?: string;
 }
 
 /**
  * The worktree checkout path. It is micro mono and demoted, and it must shrink
  * inside compact dialogs and nest rows — a long absolute path never owns layout.
  */
-export function WorktreePath({ path, focusable = true, className, ...props }: WorktreePathProps) {
+export function WorktreePath({
+  path,
+  focusable = true,
+  userHomeDir,
+  className,
+  ...props
+}: WorktreePathProps) {
   return (
     <Tooltip>
       <TooltipTrigger
@@ -26,7 +36,7 @@ export function WorktreePath({ path, focusable = true, className, ...props }: Wo
             tabIndex={focusable ? 0 : undefined}
             {...props}
           >
-            {path}
+            {contractHomePath(path, userHomeDir)}
           </span>
         }
       />

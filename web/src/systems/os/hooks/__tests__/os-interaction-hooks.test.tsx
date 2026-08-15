@@ -967,6 +967,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -987,6 +988,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1002,12 +1004,32 @@ describe("useOsShortcuts", () => {
     input.remove();
   });
 
+  it("Should open the workspaces overview on ⇧⌘W through the action registry", () => {
+    const shell = createShell();
+    const handlers: OsShortcutHandlers = {
+      onPalette: vi.fn(),
+      onNewSession: vi.fn(),
+      onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
+      onEscape: vi.fn(),
+      onToggleGlobalScope: vi.fn(),
+    };
+    renderHook(() => useOsShortcuts(handlers), { wrapper: shell.wrapper });
+
+    fireEvent.keyDown(document, { key: "w", code: "KeyW", metaKey: true, shiftKey: true });
+
+    expect(handlers.onWorkspaces).toHaveBeenCalledOnce();
+    // ⌘W (no shift) stays the window-close chord, untouched by the new action.
+    expect(shell.controller.closeWindow).not.toHaveBeenCalled();
+  });
+
   it("Should leave a prevented Escape to the nested control", () => {
     const { wrapper } = createShell({ live: false });
     const handlers: OsShortcutHandlers = {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1032,6 +1054,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1062,6 +1085,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1089,6 +1113,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1157,6 +1182,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1183,6 +1209,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };
@@ -1208,6 +1235,7 @@ describe("useOsShortcuts", () => {
       onPalette: vi.fn(),
       onNewSession: vi.fn(),
       onDesktops: vi.fn(),
+      onWorkspaces: vi.fn(),
       onEscape: vi.fn(),
       onToggleGlobalScope: vi.fn(),
     };

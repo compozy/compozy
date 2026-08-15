@@ -443,6 +443,13 @@
   --shadow-window-unfocused: 0 18px 50px -22px rgba(0, 0, 0, 0.55);
   --shadow-window-head-scrolled: 0 10px 18px -14px rgba(0, 0, 0, 0.55);
   --shadow-dock: 0 18px 50px -18px rgba(0, 0, 0, 0.6);
+  /* Workspaces overview (Command-Tab switcher) shell glass details.
+     The strip shadow is the overlay drop plus the inset top light edge; the
+     plate shadow is the frosted focus plate behind the focused tile; the halo
+     rings the current-workspace pill against the glass. */
+  --shadow-shell-strip: var(--shadow-overlay), var(--shadow-highlight);
+  --shadow-shell-plate: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18);
+  --shadow-shell-check-halo: 0 0 0 2px var(--shell-glass-pop);
 
   /* Shell motion tier — chrome-scale spatial transitions (window entry,
      dock magnification, minimize travel) above the base ladder; one spring. */
@@ -498,6 +505,11 @@
   --blur-shell: 28px;
   --blur-shell-pop: 32px;
   --blur-shell-scrim: 8px;
+  /* Workspaces overview tiers: strip glass, worktree menu / kebab popover
+     glass, and the frosted focus plate behind the focused tile. */
+  --blur-shell-strip: 34px;
+  --blur-shell-menu: 30px;
+  --blur-shell-plate: 12px;
 
   /* Compact (<960px) presentation — os-v2.css mobile block. */
   --height-dock-tabbar: 56px;
@@ -505,11 +517,8 @@
   --size-traffic-light-compact: 15px;
   --size-traffic-light-compact-target: 44px;
 
-  /* Workspace and desktop overview cards. */
-  --width-workspace-card: 264px;
+  /* Desktop overview cards + compact canvas faces (settings layouts). */
   --height-workspace-thumb: 148px;
-  --spacing-workspaces-subtitle-gap: 22px;
-  --spacing-workspaces-row-gap: 18px;
   --text-workspace-avatar: 9px;
 
   /* First-run setup panel — window grammar without being a window: identity
@@ -540,6 +549,39 @@
      adapters above; components never consume these directly. */
   --shell-glass: rgba(12, 11, 11, 0.72);
   --shell-glass-pop: rgba(19, 18, 17, 0.94);
+
+  /* Workspaces overview (Command-Tab switcher) gradient stacks — gradient
+     geometry is not a utility scale, so the family stays out of @theme.
+     Consumed via `bg-(image:--shell-…)`. The edge fades dissolve tiles into
+     the strip glass and add a dark "more to scroll" veil on the overflowing
+     side (workspaces.css contract). */
+  --shell-plate-gradient: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.09),
+    rgba(255, 255, 255, 0.035)
+  );
+  --shell-well-gradient: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--color-elevated) 90%, var(--color-fg) 5%),
+    var(--color-elevated)
+  );
+  --shell-edge-veil: rgba(0, 0, 0, 0.28);
+  /* oxfmt-ignore */
+  --shell-edge-fade-start: linear-gradient(90deg, var(--shell-edge-veil) 0%, transparent 55%),
+    linear-gradient(
+      90deg,
+      var(--shell-glass-pop) 0%,
+      color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%,
+      transparent 100%
+    );
+  /* oxfmt-ignore */
+  --shell-edge-fade-end: linear-gradient(270deg, var(--shell-edge-veil) 0%, transparent 55%),
+    linear-gradient(
+      270deg,
+      var(--shell-glass-pop) 0%,
+      color-mix(in oklch, var(--shell-glass-pop) 62%, transparent) 42%,
+      transparent 100%
+    );
 
   /* Scrim blur stays outside @theme: no matching Tailwind namespace. */
   --overlay-blur: 3px;

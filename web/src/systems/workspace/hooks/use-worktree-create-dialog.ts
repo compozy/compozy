@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   buildWorktreeCreatePreview,
@@ -12,6 +13,8 @@ import {
   type WorktreeRefusal,
 } from "../lib/worktree-refusal";
 import type { WorktreePayload, WorktreesResponse } from "../types";
+import { workspaceKeys } from "../lib/query-keys";
+import { worktreeMaterializationFailureOptions } from "../lib/query-options";
 import { useCancelWorktreeCreate, useCreateWorktree } from "./use-worktrees";
 
 export interface WorktreeCreateDraft {
@@ -73,6 +76,7 @@ export interface WorktreeCreateDialogModel {
   cancelCreate: () => void;
   isCancelling: boolean;
   cancelError: string | null;
+  creationError: string | null;
 }
 
 function fieldForRefusal(refusal: WorktreeRefusal | null): WorktreeCreateFieldError {
@@ -98,8 +102,14 @@ export function useWorktreeCreateDialog(
   const [draft, setDraftState] = useState<WorktreeCreateDraft>(EMPTY_DRAFT);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingWorktree, setPendingWorktree] = useState<WorktreePayload | null>(null);
+  const completedWorktreeID = useRef<string | null>(null);
+  const completionSubscription = useRef<(() => void) | null>(null);
+  const queryClient = useQueryClient();
   const createMutation = useCreateWorktree(workspaceId);
   const cancelMutation = useCancelWorktreeCreate(workspaceId);
+  const creationFailure = useQuery(
+    worktreeMaterializationFailureOptions(workspaceId, pendingWorktree?.id ?? "")
+  );
 
   const worktrees = listing?.worktrees ?? [];
   const parentDir = deriveWorktreeParentDir(worktrees);
@@ -136,19 +146,33 @@ export function useWorktreeCreateDialog(
   };
 
   const reset = () => {
+    completionSubscription.current?.();
+    completionSubscription.current = null;
     setDraftState(EMPTY_DRAFT);
     setAdvancedOpen(false);
     setPendingWorktree(null);
+    completedWorktreeID.current = null;
     createMutation.reset();
     cancelMutation.reset();
   };
 
-  // A pending row that reached `ready` (or left the list) is past the point of
-  // cancellation, so the affordance retires itself rather than lingering.
-  const livePending =
+  useEffect(
+    () => () => {
+      completionSubscription.current?.();
+      completionSubscription.current = null;
+    },
+    []
+  );
+
+  const listedAccepted =
     pendingWorktree === null
       ? null
-      : (worktrees.find(worktree => worktree.id === pendingWorktree.id) ?? pendingWorktree);
+      : (worktrees.find(worktree => worktree.id === pendingWorktree.id) ?? null);
+  const creationError = creationFailure.data?.trim() || null;
+
+  // Keep cancellation live until the catalog reaches a terminal outcome. The
+  // accepted payload covers the short interval before the first stream refresh.
+  const livePending = creationError ? null : (listedAccepted ?? pendingWorktree);
   const cancellablePending = livePending?.state === "pending" ? livePending : null;
 
   return {
@@ -177,8 +201,36 @@ export function useWorktreeCreateDialog(
           onSuccess: worktree => {
             // 202: the row is durable and materializing. Hold it so Cancel can
             // reach the daemon-side creation by id.
+            completedWorktreeID.current = null;
             setPendingWorktree(worktree);
-            options.onCreated?.(worktree);
+            completionSubscription.current?.();
+            const finishFromCatalog = () => {
+              const failure = queryClient.getQueryData<string>(
+                workspaceKeys.worktreeMaterializationFailure(workspaceId, worktree.id)
+              );
+              if (failure?.trim()) {
+                completionSubscription.current?.();
+                completionSubscription.current = null;
+                return;
+              }
+              const authoritative = queryClient
+                .getQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceId))
+                ?.worktrees.find(candidate => candidate.id === worktree.id);
+              if (
+                authoritative?.state !== "ready" ||
+                completedWorktreeID.current === authoritative.id
+              ) {
+                return;
+              }
+              completedWorktreeID.current = authoritative.id;
+              completionSubscription.current?.();
+              completionSubscription.current = null;
+              options.onCreated?.(authoritative);
+            };
+            completionSubscription.current = queryClient
+              .getQueryCache()
+              .subscribe(finishFromCatalog);
+            finishFromCatalog();
           },
         }
       );
@@ -188,10 +240,15 @@ export function useWorktreeCreateDialog(
     cancelCreate: () => {
       if (!cancellablePending) return;
       cancelMutation.mutate(cancellablePending.id, {
-        onSuccess: () => setPendingWorktree(null),
+        onSuccess: () => {
+          completionSubscription.current?.();
+          completionSubscription.current = null;
+          setPendingWorktree(null);
+        },
       });
     },
     isCancelling: cancelMutation.isPending,
     cancelError: cancelMutation.error instanceof Error ? cancelMutation.error.message : null,
+    creationError,
   };
 }

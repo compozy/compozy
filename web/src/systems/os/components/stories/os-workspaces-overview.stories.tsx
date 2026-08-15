@@ -1,17 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 
-import { StorySurface } from "@/storybook/story-layout";
-import type { WorkspacePayload } from "@/systems/workspace";
+import type { WorkspacePayload, WorktreeListingByWorkspace } from "@/systems/workspace";
 import {
-  discoveredOnlyWorktreeListingFixture,
+  discoveredWorktreeFixture,
   emptyWorktreeListingFixture,
+  nonGitWorktreeListingFixture,
   scrollableWorktreesListingFixture,
+  worktreeErrorFixture,
   worktreeListingFixture,
+  worktreeMissingFixture,
+  worktreePendingFixture,
+  worktreeReadyDirtyRunningFixture,
+  worktreeSetupFlaggedFixture,
 } from "@/systems/workspace/mocks";
 
-import type { OsWorkspaceDetailsResult } from "../../hooks/use-workspace-details";
-import { OsWorkspacesOverview } from "../os-workspaces-overview";
+import { OsWorkspacesOverview, type OsWorkspacesOverviewProps } from "../os-workspaces-overview";
 
 function workspace(id: string, name: string, rootDir: string): WorkspacePayload {
   return {
@@ -24,19 +28,67 @@ function workspace(id: string, name: string, rootDir: string): WorkspacePayload 
   };
 }
 
-const GIT_WORKSPACE = workspace("ws_launch_hq", "launch-hq", "/dev/launch-hq");
-const PLAIN_WORKSPACE = workspace("ws_branas_site", "branas-site", "/dev/branas-site");
+const COMPOZY = workspace("ws_compozy", "compozy", "/Users/ada/dev/compozy");
+const BRANAS = workspace("ws_branas_site", "branas-site", "/Users/ada/dev/branas/site");
+const NOTES = workspace("ws_notes", "notes", "/Users/ada/notes");
 
-function details(workspaces: WorkspacePayload[]): OsWorkspaceDetailsResult {
+const THREE_WORKSPACES = [COMPOZY, BRANAS, NOTES];
+
+/** compozy carries the canonical nest; branas-site is git+0; notes is non-git. */
+const THREE_LISTINGS: WorktreeListingByWorkspace = {
+  [COMPOZY.id]: worktreeListingFixture,
+  [BRANAS.id]: emptyWorktreeListingFixture,
+  [NOTES.id]: nonGitWorktreeListingFixture,
+};
+
+/** Non-ready vocabulary: one flagged ready, then pending/discovered/missing/error. */
+const MIXED_LISTINGS: WorktreeListingByWorkspace = {
+  [COMPOZY.id]: {
+    worktrees: [
+      worktreeSetupFlaggedFixture,
+      worktreePendingFixture,
+      worktreeMissingFixture,
+      worktreeErrorFixture,
+    ],
+    discovered: [discoveredWorktreeFixture],
+    repo: { git_backed: true, git_available: true },
+  },
+  [BRANAS.id]: emptyWorktreeListingFixture,
+  [NOTES.id]: nonGitWorktreeListingFixture,
+};
+
+const MANY_WORKSPACES = [
+  COMPOZY,
+  BRANAS,
+  NOTES,
+  workspace("ws_agh_docs", "agh-docs", "/Users/ada/dev/agh/docs"),
+  workspace("ws_payments", "payments", "/Users/ada/dev/payments"),
+  workspace("ws_infra", "infra", "/Users/ada/dev/infra"),
+  workspace("ws_design", "design-system", "/Users/ada/dev/compozy/packages/ui"),
+  workspace("ws_sandbox", "sandbox", "/Users/ada/dev/sandbox"),
+  workspace("ws_branas_ia", "branas-ia", "/Users/ada/dev/branas/ia"),
+  workspace("ws_ext", "compozy-ext", "/Users/ada/dev/compozy-extensions"),
+  workspace("ws_site", "site", "/Users/ada/dev/compozy/packages/site"),
+  workspace("ws_cli", "cli", "/Users/ada/dev/compozy/cmd"),
+];
+
+function baseProps(): OsWorkspacesOverviewProps {
   return {
-    byWorkspaceId: new Map(
-      workspaces.map(entry => [
-        entry.id,
-        { status: "ready" as const, agentCount: 3, sessionCount: 5, agentNames: ["atlas"] },
-      ])
-    ),
-    totalAgents: 3,
-  } as OsWorkspaceDetailsResult;
+    open: true,
+    onOpenChange: fn(),
+    workspaces: THREE_WORKSPACES,
+    activeWorkspaceId: COMPOZY.id,
+    scope: "workspace",
+    onSelectWorkspace: fn(),
+    onNewWorkspace: fn(),
+    reducedMotion: true,
+    worktreesByWorkspace: THREE_LISTINGS,
+    userHomeDir: "/Users/ada",
+    selectedWorktreeId: null,
+    onSelectWorktree: fn(),
+    onCreateWorktree: fn(),
+    onRemoveWorktree: fn(),
+  };
 }
 
 const meta: Meta<typeof OsWorkspacesOverview> = {
@@ -47,7 +99,7 @@ const meta: Meta<typeof OsWorkspacesOverview> = {
     docs: {
       description: {
         component:
-          "Workspace overview cards with a side worktree submenu. Hover or focus the Worktrees control to open the same nest the menubar uses; a click on the card still enters the workspace.",
+          "macOS Command-Tab workspace switcher: a centered glass strip of compact tiles over the shell scrim, with the focused git-backed workspace's worktrees as an always-visible vertical menu under the caption.",
       },
     },
   },
@@ -56,111 +108,150 @@ const meta: Meta<typeof OsWorkspacesOverview> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const openLaunchHqWorktrees: Story["play"] = async ({ canvasElement }) => {
-  const body = within(canvasElement.ownerDocument.body);
-  await userEvent.hover(
-    await body.findByTestId(`os-workspace-worktrees-toggle-${GIT_WORKSPACE.id}`)
-  );
-  await body.findByTestId(`os-worktree-submenu-${GIT_WORKSPACE.id}`);
+/** Three project tiles; current = check on the well; focus plate on compozy. */
+export const Default: Story = {
+  args: {},
+  render: () => <OsWorkspacesOverview {...baseProps()} />,
 };
 
-/** VC-19 — a workspace card with its worktree count and a hover side submenu. */
-export const WithWorktrees: Story = {
+/** Arrowing right moves the plate and caption; the check stays on compozy. */
+export const FocusNonCurrent: Story = {
   args: {},
   tags: ["play-fn"],
-  play: openLaunchHqWorktrees,
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await body.findByTestId(`os-workspace-tile-${COMPOZY.id}`);
+    await userEvent.keyboard("{ArrowRight}");
+    // Home-rooted caption paths display `~`-contracted.
+    await body.findByText("~/dev/branas/site");
+  },
+  render: () => <OsWorkspacesOverview {...baseProps()} />,
+};
+
+/** Zero project workspaces: the one primary on this surface; Global caption. */
+export const Empty: Story = {
+  args: {},
   render: () => (
-    <StorySurface>
-      <OsWorkspacesOverview
-        open
-        onOpenChange={fn()}
-        workspaces={[GIT_WORKSPACE]}
-        activeWorkspaceId={GIT_WORKSPACE.id}
-        onSelectWorkspace={fn()}
-        onNewWorkspace={fn()}
-        details={details([GIT_WORKSPACE])}
-        presentation="floating"
-        reducedMotion
-        worktreesByWorkspace={{ [GIT_WORKSPACE.id]: worktreeListingFixture }}
-        userHomeDir="/Users/ada"
-        onSelectWorktree={fn()}
-        onCreateWorktree={fn()}
-      />
-    </StorySurface>
+    <OsWorkspacesOverview
+      {...baseProps()}
+      workspaces={[]}
+      worktreesByWorkspace={{}}
+      activeWorkspaceId={null}
+      scope="global"
+    />
   ),
 };
 
-export const ScrollableWorktrees: Story = {
+/** The glass hugs a single tile; the add tile still trails. */
+export const OneWorkspace: Story = {
+  args: {},
+  render: () => (
+    <OsWorkspacesOverview
+      {...baseProps()}
+      workspaces={[COMPOZY]}
+      worktreesByWorkspace={{ [COMPOZY.id]: emptyWorktreeListingFixture }}
+    />
+  ),
+};
+
+/** Twelve tiles stay one row; the strip fills and the track scrolls with edge fades. */
+export const ManyOverflow: Story = {
+  args: {},
+  render: () => (
+    <OsWorkspacesOverview
+      {...baseProps()}
+      workspaces={MANY_WORKSPACES}
+      worktreesByWorkspace={{
+        [COMPOZY.id]: worktreeListingFixture,
+        [BRANAS.id]: emptyWorktreeListingFixture,
+        [NOTES.id]: nonGitWorktreeListingFixture,
+      }}
+    />
+  ),
+};
+
+/** Global scope on: no tile is current and the notice line renders. */
+export const GlobalOn: Story = {
+  args: {},
+  render: () => <OsWorkspacesOverview {...baseProps()} scope="global" selectedWorktreeId={null} />,
+};
+
+/** The dashed add tile focused: caption names the directory picker. */
+export const AddTileFocused: Story = {
   args: {},
   tags: ["play-fn"],
-  play: openLaunchHqWorktrees,
-  render: () => (
-    <StorySurface>
-      <OsWorkspacesOverview
-        open
-        onOpenChange={fn()}
-        workspaces={[GIT_WORKSPACE]}
-        activeWorkspaceId={GIT_WORKSPACE.id}
-        onSelectWorkspace={fn()}
-        onNewWorkspace={fn()}
-        details={details([GIT_WORKSPACE])}
-        presentation="floating"
-        reducedMotion
-        worktreesByWorkspace={{ [GIT_WORKSPACE.id]: scrollableWorktreesListingFixture }}
-        userHomeDir="/Users/ada"
-        onSelectWorktree={fn()}
-        onCreateWorktree={fn()}
-      />
-    </StorySurface>
-  ),
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await body.findByTestId("os-workspace-tile-add");
+    await userEvent.keyboard("{End}");
+    await body.findByText("Register a project folder");
+  },
+  render: () => <OsWorkspacesOverview {...baseProps()} />,
 };
 
-/** VC-20 — git-backed with none created: no count; the chevron still opens New worktree. */
-export const WithoutWorktrees: Story = {
+/** Canonical menu: worktree scope → check on the row, branch badge on the tile. */
+export const WorktreeMenuCanonical: Story = {
   args: {},
   render: () => (
-    <StorySurface>
-      <OsWorkspacesOverview
-        open
-        onOpenChange={fn()}
-        workspaces={[PLAIN_WORKSPACE]}
-        activeWorkspaceId={PLAIN_WORKSPACE.id}
-        onSelectWorkspace={fn()}
-        onNewWorkspace={fn()}
-        details={details([PLAIN_WORKSPACE])}
-        presentation="floating"
-        reducedMotion
-        worktreesByWorkspace={{ [PLAIN_WORKSPACE.id]: emptyWorktreeListingFixture }}
-        userHomeDir="/Users/ada"
-        onSelectWorktree={fn()}
-        onCreateWorktree={fn()}
-      />
-    </StorySurface>
+    <OsWorkspacesOverview
+      {...baseProps()}
+      selectedWorktreeId={worktreeReadyDirtyRunningFixture.id}
+    />
   ),
 };
 
-/** VC-21 — a discovered external keeps its foreign path and enters no count. */
-export const DiscoveredExternal: Story = {
+/** Row actions popover open: Copy path + the gated Delete worktree…. */
+export const WorktreeRowActionsOpen: Story = {
   args: {},
   tags: ["play-fn"],
-  play: openLaunchHqWorktrees,
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = await body.findByTestId(
+      `os-workspaces-worktree-actions-${worktreeReadyDirtyRunningFixture.id}`
+    );
+    await userEvent.click(trigger);
+    await body.findByText("Copy path");
+  },
   render: () => (
-    <StorySurface>
-      <OsWorkspacesOverview
-        open
-        onOpenChange={fn()}
-        workspaces={[GIT_WORKSPACE]}
-        activeWorkspaceId={GIT_WORKSPACE.id}
-        onSelectWorkspace={fn()}
-        onNewWorkspace={fn()}
-        details={details([GIT_WORKSPACE])}
-        presentation="floating"
-        reducedMotion
-        worktreesByWorkspace={{ [GIT_WORKSPACE.id]: discoveredOnlyWorktreeListingFixture }}
-        userHomeDir="/Users/ada"
-        onSelectWorktree={fn()}
-        onCreateWorktree={fn()}
-      />
-    </StorySurface>
+    <OsWorkspacesOverview
+      {...baseProps()}
+      selectedWorktreeId={worktreeReadyDirtyRunningFixture.id}
+    />
   ),
+};
+
+/** Locked sort with inert pending/missing rows and their functional reasons. */
+export const WorktreeMenuMixedStates: Story = {
+  args: {},
+  render: () => <OsWorkspacesOverview {...baseProps()} worktreesByWorkspace={MIXED_LISTINGS} />,
+};
+
+/** Truncation at five rows; the footer keeps only the real create destination. */
+export const WorktreeMenuTruncated: Story = {
+  args: {},
+  render: () => (
+    <OsWorkspacesOverview
+      {...baseProps()}
+      worktreesByWorkspace={{
+        [COMPOZY.id]: scrollableWorktreesListingFixture,
+        [BRANAS.id]: emptyWorktreeListingFixture,
+        [NOTES.id]: nonGitWorktreeListingFixture,
+      }}
+    />
+  ),
+};
+
+/** Git-backed with zero worktrees: only the lone dashed New worktree button. */
+export const WorktreeMenuAbsence: Story = {
+  args: {},
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await body.findByTestId(`os-workspace-tile-${BRANAS.id}`);
+    // branas-site is git+0 → lone button; one more arrow lands on notes
+    // (non-git) where the slot renders nothing at all.
+    await userEvent.keyboard("{ArrowRight}");
+    await body.findByTestId("os-workspaces-worktree-new");
+  },
+  render: () => <OsWorkspacesOverview {...baseProps()} />,
 };

@@ -46,6 +46,10 @@ export function WorktreeCreateDialogBoundary({
 }) {
   const model = useWorktreeCreateDialog(workspaceId, listing, {
     generatedName: suggestWorktreeName(listing),
+    onCreated: worktree => {
+      selectWorktreeForScope(scopeId, workspaceId, worktree.id);
+      onOpenChange(false);
+    },
   });
   return (
     <WorktreeCreateDialog
