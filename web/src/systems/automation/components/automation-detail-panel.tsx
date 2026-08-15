@@ -12,7 +12,6 @@ import {
   useTopbarSlot,
   type MetricTone,
 } from "@compozy/ui";
-import { useNavigate } from "@tanstack/react-router";
 
 import {
   automationScopeLabel,
@@ -50,6 +49,7 @@ interface AutomationDetailPanelProps {
   error: Error | null;
   state: AutomationDetailState;
   item: AutomationJob | undefined;
+  onBack: () => void;
   onDelete: () => void | Promise<void>;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
@@ -226,14 +226,12 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
   );
 }
 
-/**
- * The job detail surface. Triggers own `TriggerDetailPanel` — a schedule-driven
- * job and an event-driven rule share a data shape, not a reading.
- */
+/** Jobs and triggers use separate detail surfaces; trigger details use `TriggerDetailPanel`. */
 export function AutomationDetailPanel({
   error,
   state,
   item,
+  onBack,
   onDelete,
   onEdit,
   onToggleEnabled,
@@ -288,6 +286,7 @@ export function AutomationDetailPanel({
   return (
     <AutomationDetailLoadedPanel
       item={item}
+      onBack={onBack}
       onDelete={onDelete}
       onEdit={onEdit}
       onToggleEnabled={onToggleEnabled}
@@ -330,6 +329,7 @@ function AutomationDetailSkeleton() {
 
 interface AutomationDetailLoadedPanelProps {
   item: AutomationJob;
+  onBack: () => void;
   onDelete: () => void | Promise<void>;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
@@ -342,6 +342,7 @@ interface AutomationDetailLoadedPanelProps {
 
 function AutomationDetailLoadedPanel({
   item,
+  onBack,
   onDelete,
   onEdit,
   onToggleEnabled,
@@ -351,15 +352,11 @@ function AutomationDetailLoadedPanel({
   runsLoading,
   state,
 }: AutomationDetailLoadedPanelProps) {
-  const navigate = useNavigate();
   const { isDeleting, isTogglePending, isTriggerDisabled, isTriggerPending } = state;
   const isDynamic = item.source === "dynamic";
   const target = projectAutomationTarget(item);
   const enabledTone = automationStatusTone(item.enabled ? "enabled" : "disabled");
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const backToCatalog = () => {
-    void navigate({ to: "/jobs" });
-  };
   const showRunNow = Boolean(onTriggerNow);
   const showOverflow = isDynamic || showRunNow;
   const detailActions = (
@@ -398,8 +395,8 @@ function AutomationDetailLoadedPanel({
   );
 
   useTopbarSlot({
-    onBack: backToCatalog,
-    crumbs: [{ id: "catalog", label: "Jobs", onSelect: backToCatalog }],
+    onBack,
+    crumbs: [{ id: "catalog", label: "Jobs", onSelect: onBack }],
     crumb: item.name,
     status: (
       <Pill mono tone={enabledTone}>
@@ -457,6 +454,7 @@ function AutomationDetailLoadedPanel({
           emptyTitle="No runs recorded yet"
           error={runsError}
           isLoading={runsLoading}
+          loopWorkspaceId={target.kind === "loop" ? target.workspaceId : undefined}
           runs={runs}
           title="Runs"
         />

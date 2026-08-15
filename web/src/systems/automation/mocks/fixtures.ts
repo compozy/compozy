@@ -336,13 +336,12 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
     started_at: "2026-04-17T17:02:10Z",
   },
   {
-    id: "run_rerun_delivery_002",
-    status: "completed",
+    id: "run_deploy_webhook_002",
+    status: "running",
     attempt: 1,
-    trigger_id: "trg_rerun_delivery",
-    loop_run_id: "looprun_6b9e1043aa2c8810",
-    started_at: "2026-04-16T09:12:00Z",
-    ended_at: "2026-04-16T09:26:00Z",
+    trigger_id: "trg_deploy_webhook",
+    session_id: "sess_platform_rollout",
+    started_at: "2026-04-17T17:52:00Z",
   },
   {
     id: "run_deploy_webhook_001",
@@ -353,14 +352,6 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
     metadata: { delivery_id: "webhook:9ec3d15" },
     started_at: "2026-04-17T17:50:00Z",
     ended_at: "2026-04-17T17:50:18Z",
-  },
-  {
-    id: "run_deploy_webhook_002",
-    status: "running",
-    attempt: 1,
-    trigger_id: "trg_deploy_webhook",
-    session_id: "sess_platform_rollout",
-    started_at: "2026-04-17T17:52:00Z",
   },
   {
     id: "run_deploy_webhook_003",

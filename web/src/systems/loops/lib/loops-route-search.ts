@@ -12,6 +12,7 @@ export interface LoopsRouteSearch {
   kind?: Exclude<LoopKindFilter, "all">;
   category?: string;
   status?: LoopStatusFilter;
+  workspace?: string;
 }
 
 export interface LoopRunsRouteSearch {
@@ -21,6 +22,7 @@ export interface LoopRunsRouteSearch {
   nodes_loop?: string;
   nodes_run?: string;
   view?: ListingViewMode;
+  workspace?: string;
 }
 
 export function parseLoopKindFilter(value: unknown): Exclude<LoopKindFilter, "all"> | undefined {
@@ -44,6 +46,7 @@ export function validateLoopsSearch(search: Record<string, unknown>): LoopsRoute
     q: normalizeListingSearchValue(search.q),
     status: parseLoopStatusFilter(search.status),
     view: parseListingView(search.view),
+    workspace: normalizeListingSearchValue(search.workspace),
   };
 }
 
@@ -61,5 +64,6 @@ export function validateLoopRunsSearch(search: Record<string, unknown>): LoopRun
     nodes_loop: nodes === undefined ? undefined : nodesLoop,
     nodes_run: nodes === undefined ? undefined : nodesRun,
     view: parseListingView(search.view),
+    workspace: normalizeListingSearchValue(search.workspace),
   };
 }

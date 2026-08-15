@@ -1,5 +1,5 @@
 import { AlertCircle, Search } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { Empty, PAGE_CONTENT_GUTTER, Skeleton, cn } from "@compozy/ui";
 
@@ -7,13 +7,14 @@ import { Empty, PAGE_CONTENT_GUTTER, Skeleton, cn } from "@compozy/ui";
  * Loading keeps the shape of the answer, not a spinner: one sentence-width bar
  * where the rule will be, one meta bar under it. Never a guessed sentence.
  */
-export function TriggerDetailSkeleton() {
+export function TriggerDetailSkeleton({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       aria-busy="true"
-      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden")}
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden", className)}
       data-testid="automation-detail-loading"
       role="status"
+      {...props}
     >
       <div className="flex flex-col gap-3 border-b border-line pt-5 pb-4.5">
         <Skeleton className="h-5.5 w-[min(32.5rem,90%)]" />
@@ -39,19 +40,28 @@ export function TriggerDetailSkeleton() {
  * workspace's record, or a definition that no longer exists. The reason is the
  * message, because each one has a different next step.
  */
-export function TriggerDetailUnavailable({
-  action,
-  description,
-  reason,
-}: {
+interface TriggerDetailUnavailableProps extends Omit<ComponentProps<"div">, "children"> {
   action?: ReactNode;
   description: string;
   reason: "error" | "gone";
-}) {
+}
+
+export function TriggerDetailUnavailable({
+  action,
+  className,
+  description,
+  reason,
+  ...props
+}: TriggerDetailUnavailableProps) {
   return (
     <div
-      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 items-center justify-center py-10")}
+      className={cn(
+        PAGE_CONTENT_GUTTER,
+        "flex min-h-0 flex-1 items-center justify-center py-10",
+        className
+      )}
       data-testid={reason === "gone" ? "automation-detail-empty" : "automation-detail-error"}
+      {...props}
     >
       <Empty
         action={action}

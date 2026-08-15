@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";
 
-import { projectAutomationTarget } from "../../lib/automation-target";
+import { formatAutomationInputValue, projectAutomationTarget } from "../../lib/automation-target";
 import { tokenizeTemplate } from "../../lib/trigger-template";
 import type { LoopTargetProjection } from "../../lib/automation-target";
 import type { AutomationTrigger } from "../../types";
@@ -61,11 +61,6 @@ function TriggerPromptPreview({ prompt }: { prompt: string }) {
   );
 }
 
-function formatStaticInput(value: unknown): string {
-  if (typeof value === "string") return value;
-  return JSON.stringify(value) ?? String(value);
-}
-
 const MAPPING_ROW =
   "grid grid-cols-[minmax(88px,auto)_18px_minmax(0,1fr)_auto] items-center gap-2 border-t border-line-soft px-3 py-1.75 first:border-t-0";
 
@@ -109,7 +104,7 @@ function TriggerLoopMapping({ target, className, ...props }: TriggerLoopMappingP
             =
           </span>
           <span className="min-w-0">
-            <TriggerValueBadge fill value={formatStaticInput(value)} />
+            <TriggerValueBadge fill value={formatAutomationInputValue(value)} />
           </span>
           <span className="text-badge text-faint">static</span>
         </div>
@@ -143,6 +138,7 @@ export function TriggerRuleThen({ trigger, loopWorkspaceName }: TriggerRuleThenP
               className="rounded-xs transition-colors duration-base ease-out hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
               data-testid="trigger-loop-link"
               params={{ name: target.loopName }}
+              search={target.workspaceId ? { workspace: target.workspaceId } : {}}
               to="/loops/$name"
             >
               {target.loopName}

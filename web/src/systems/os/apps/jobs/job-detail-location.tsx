@@ -9,6 +9,7 @@ export function JobDetailLocation({ jobId }: { jobId: string }) {
       <AutomationDetailPanel
         error={page.error}
         item={page.job}
+        onBack={page.handleBack}
         onDelete={page.handleDelete}
         onEdit={page.handleEdit}
         onToggleEnabled={page.handleToggleEnabled}

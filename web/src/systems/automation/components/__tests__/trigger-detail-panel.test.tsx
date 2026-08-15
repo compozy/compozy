@@ -12,20 +12,36 @@ import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
+import type { AutomationRun, AutomationTrigger } from "../../types";
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   params?: { id?: string; name?: string; runId?: string };
+  search?: { workspace?: string };
   to?: string;
 }
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, params, to, ...props }: MockLinkProps) => {
-    const href =
-      to === "/loop-runs/$runId"
-        ? `/loop-runs/${params?.runId ?? ""}`
-        : to === "/loops/$name"
-          ? `/loops/${params?.name ?? ""}`
-          : `/session/${params?.id ?? ""}`;
+  Link: ({ children, params, search, to, ...props }: MockLinkProps) => {
+    let path: string;
+    switch (to) {
+      case "/loop-runs/$runId":
+        path = `/loop-runs/${params?.runId ?? ""}`;
+        break;
+      case "/loops/$name":
+        path = `/loops/${params?.name ?? ""}`;
+        break;
+      case "/session/$id":
+        path = `/session/${params?.id ?? ""}`;
+        break;
+      case "/settings/gateway":
+        path = "/settings/gateway";
+        break;
+      default:
+        throw new Error(`Unexpected test route: ${String(to)}`);
+    }
+    const href = search?.workspace
+      ? `${path}?workspace=${encodeURIComponent(search.workspace)}`
+      : path;
     return (
       <a href={href} {...props}>
         {children}
@@ -43,8 +59,14 @@ vi.mock("sonner", () => ({
 }));
 
 import { TriggerDetailPanel } from "../trigger-detail/trigger-detail-panel";
+import {
+  buildTriggerDiagnostics,
+  buildTriggerDiagnosticsNote,
+  buildTriggerEnvelopeSample,
+} from "../../lib/trigger-inspect-model";
+import { buildTriggerLede, describeTriggerWhen } from "../../lib/trigger-sentence";
 
-const agentTrigger = {
+const triggerDefaults: AutomationTrigger = {
   id: "trg_summarize_failures",
   name: "summarize-failures",
   agent_name: "summarizer",
@@ -63,8 +85,13 @@ const agentTrigger = {
   updated_at: "2026-04-17T16:40:00Z",
 };
 
-const loopTrigger = {
-  ...agentTrigger,
+function makeTrigger(overrides: Partial<AutomationTrigger> = {}): AutomationTrigger {
+  return { ...triggerDefaults, ...overrides };
+}
+
+const agentTrigger = makeTrigger();
+
+const loopTrigger = makeTrigger({
   id: "trg_rerun_delivery",
   name: "rerun-delivery",
   agent_name: "",
@@ -76,10 +103,9 @@ const loopTrigger = {
     inputs: { implementer: "code_implementer" },
     input_mapping: { slug: "data.session_name" },
   },
-};
+});
 
-const webhookTrigger = {
-  ...agentTrigger,
+const webhookTrigger = makeTrigger({
   id: "trg_deploy_webhook",
   name: "deploy-webhook",
   agent_name: "deployer",
@@ -88,12 +114,11 @@ const webhookTrigger = {
   filter: { "data.action": "deploy", "data.branch": "main" },
   endpoint_slug: "deploy",
   webhook_id: "wbh_abc123",
-  webhook_secret_hash: "sha256:deploy-webhook",
   webhook_secret_present: true,
   fire_limit: { max: 6, window: "1h" },
-};
+});
 
-const completedRun = {
+const runDefaults: AutomationRun = {
   id: "run_001",
   status: "completed" as const,
   attempt: 1,
@@ -102,6 +127,12 @@ const completedRun = {
   started_at: "2026-04-17T16:38:04Z",
   ended_at: "2026-04-17T16:38:22Z",
 };
+
+function makeRun(overrides: Partial<AutomationRun> = {}): AutomationRun {
+  return { ...runDefaults, ...overrides };
+}
+
+const completedRun = makeRun();
 
 type PanelProps = Parameters<typeof TriggerDetailPanel>[0];
 
@@ -112,7 +143,7 @@ function renderPanel(overrides: Partial<PanelProps> = {}) {
   const onRetryRuns = vi.fn();
   const onToggleEnabled = vi.fn();
 
-  renderWithTopbar(
+  const render = (nextOverrides: Partial<PanelProps>) => (
     <TriggerDetailPanel
       error={null}
       loopWorkspaceName="checkout-api"
@@ -127,11 +158,20 @@ function renderPanel(overrides: Partial<PanelProps> = {}) {
       state={{ isDeleting: false, isLoading: false, isTogglePending: false }}
       trigger={agentTrigger}
       workspaceName="checkout-api"
-      {...overrides}
+      {...nextOverrides}
     />
   );
+  const view = renderWithTopbar(render(overrides));
 
-  return { onBack, onDelete, onEdit, onRetryRuns, onToggleEnabled };
+  return {
+    onBack,
+    onDelete,
+    onEdit,
+    onRetryRuns,
+    onToggleEnabled,
+    rerenderPanel: (nextOverrides: Partial<PanelProps>) => view.rerender(render(nextOverrides)),
+    unmount: view.unmount,
+  };
 }
 
 describe("TriggerDetailPanel", () => {
@@ -186,7 +226,7 @@ describe("TriggerDetailPanel", () => {
     expect(screen.queryByTestId("trigger-prompt-preview")).not.toBeInTheDocument();
     expect(screen.getByTestId("trigger-loop-link")).toHaveAttribute(
       "href",
-      "/loops/software-delivery"
+      "/loops/software-delivery?workspace=ws_checkout_api"
     );
   });
 
@@ -250,16 +290,31 @@ describe("TriggerDetailPanel", () => {
   ])(
     "Should drop edit and delete for a $source-owned trigger, never disable them",
     ({ copy, source }) => {
-      renderPanel({ runs: [], trigger: { ...agentTrigger, source } });
+      const { onToggleEnabled } = renderPanel({ runs: [], trigger: makeTrigger({ source }) });
 
       expect(screen.getByTestId("trigger-detail-lock")).toHaveTextContent(copy);
       expect(screen.queryByTestId("edit-trigger-btn")).not.toBeInTheDocument();
       fireEvent.click(screen.getByTestId("automation-detail-overflow"));
       expect(screen.queryByTestId("edit-automation-btn")).not.toBeInTheDocument();
       expect(screen.queryByTestId("delete-automation-btn")).not.toBeInTheDocument();
-      expect(screen.getByTestId("toggle-automation-btn")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("toggle-automation-btn"));
+      expect(onToggleEnabled).toHaveBeenCalledWith(false);
+      expect(document.querySelector("[data-slot='topbar-actions']")).toBeNull();
     }
   );
+
+  it("Should disable the managed overflow toggle while its update is pending", () => {
+    const { onToggleEnabled } = renderPanel({
+      runs: [],
+      state: { isDeleting: false, isLoading: false, isTogglePending: true },
+      trigger: makeTrigger({ source: "config" }),
+    });
+
+    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+    expect(screen.getByTestId("toggle-automation-btn")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("toggle-automation-btn"));
+    expect(onToggleEnabled).not.toHaveBeenCalled();
+  });
 
   it("Should require explicit name confirmation before deleting a dynamic trigger", async () => {
     const user = userEvent.setup();
@@ -317,7 +372,7 @@ describe("TriggerDetailPanel", () => {
     fireEvent.click(screen.getByTestId("automation-run-run_loop"));
     expect(screen.getByTestId("trigger-run-open-run_loop")).toHaveAttribute(
       "href",
-      "/loop-runs/looprun_8f3a2b"
+      "/loop-runs/looprun_8f3a2b?workspace=ws_checkout_api"
     );
     expect(screen.getByTestId("trigger-run-drawer-run_loop")).toHaveTextContent(
       "Handed to software-delivery."
@@ -334,6 +389,65 @@ describe("TriggerDetailPanel", () => {
 
     expect(screen.getByTestId("automation-run-run_001")).toHaveTextContent("18s");
     expect(screen.getByTestId("automation-run-run_open")).toHaveTextContent("—");
+  });
+
+  it("Should describe failed and canceled run drawers without losing diagnostics", () => {
+    renderPanel({
+      runs: [
+        makeRun({
+          id: "run_failed_detailed",
+          status: "failed",
+          attempt: 3,
+          error: "Agent unavailable",
+          delivery_error: "Dispatch rejected",
+          session_id: undefined,
+        }),
+        makeRun({
+          id: "run_failed_empty",
+          status: "failed",
+          session_id: undefined,
+        }),
+        makeRun({ id: "run_canceled", status: "canceled", session_id: undefined }),
+      ],
+    });
+
+    fireEvent.click(screen.getByTestId("automation-run-run_failed_detailed"));
+    expect(screen.getByTestId("trigger-run-drawer-run_failed_detailed")).toHaveTextContent(
+      "Agent unavailable"
+    );
+    expect(screen.getByTestId("trigger-run-drawer-run_failed_detailed")).toHaveTextContent(
+      "Delivery: Dispatch rejected"
+    );
+    expect(screen.getByTestId("trigger-run-drawer-run_failed_detailed")).toHaveTextContent(
+      "Attempt 3."
+    );
+
+    fireEvent.click(screen.getByTestId("automation-run-run_failed_empty"));
+    expect(screen.getByTestId("trigger-run-drawer-run_failed_empty")).toHaveTextContent(
+      "The run failed before any detail was recorded."
+    );
+
+    fireEvent.click(screen.getByTestId("automation-run-run_canceled"));
+    expect(screen.getByTestId("trigger-run-drawer-run_canceled")).toHaveTextContent(
+      "This run was canceled."
+    );
+  });
+
+  it("Should exclude scheduled reservations from the Last ran fact", () => {
+    renderPanel({
+      runs: [
+        completedRun,
+        makeRun({
+          id: "run_reserved",
+          status: "scheduled",
+          session_id: undefined,
+          started_at: "2026-04-18T18:00:00Z",
+        }),
+      ],
+    });
+
+    const times = screen.getByTestId("trigger-detail-subhead").querySelectorAll("time");
+    expect(times[0]).toHaveAttribute("datetime", completedRun.started_at);
   });
 
   it("Should offer a retry when the run history fails and drop the count chip at zero", () => {
@@ -365,7 +479,7 @@ describe("TriggerDetailPanel", () => {
     const rail = screen.getByTestId("trigger-detail-rail");
     expect(rail).toHaveTextContent("Signing secret");
     expect(rail).toHaveTextContent("Set");
-    expect(rail).not.toHaveTextContent(webhookTrigger.webhook_secret_hash);
+    expect(rail).not.toHaveTextContent("sha256:deploy-webhook");
     expect(document.body.textContent).not.toContain("sha256:deploy-webhook");
   });
 
@@ -445,6 +559,108 @@ describe("TriggerDetailPanel", () => {
       expect(screen.getByTestId("trigger-inspect-envelope")).toHaveTextContent('"kind": "webhook"')
     );
     expect(screen.getByTestId("trigger-inspect-envelope")).toHaveTextContent('"action": "deploy"');
+    expect(screen.getByTestId("trigger-inspect-envelope")).toHaveTextContent(
+      '"endpoint": "deploy--wbh_abc123"'
+    );
+  });
+
+  it("Should reset trigger-owned overlays when the route changes trigger", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const first = renderPanel({ runs: [] });
+
+      fireEvent.click(screen.getByTestId("trigger-inspect-btn"));
+      expect(await screen.findByTestId("trigger-inspect-sheet")).toBeInTheDocument();
+      first.rerenderPanel({ runs: [], trigger: loopTrigger });
+      await waitFor(() =>
+        expect(screen.queryByTestId("trigger-inspect-sheet")).not.toBeInTheDocument()
+      );
+      first.unmount();
+
+      const second = renderPanel({ runs: [] });
+      fireEvent.click(screen.getByTestId("automation-detail-overflow"));
+      fireEvent.click(screen.getByTestId("delete-automation-btn"));
+      expect(screen.getByRole("dialog", { name: "Delete trigger?" })).toBeInTheDocument();
+      second.rerenderPanel({ runs: [], trigger: loopTrigger });
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "Delete trigger?" })).not.toBeInTheDocument()
+      );
+
+      expect(
+        consoleError.mock.calls.some(([message]) =>
+          String(message).includes("Encountered two children with the same key")
+        )
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("Should project non-webhook diagnostics, nested filters, and target mappings", () => {
+    const trigger = makeTrigger({
+      event: "ext.release.completed",
+      filter: {
+        kind: "ext.release.completed",
+        source: "extension",
+        workspace_id: "ws_checkout_api",
+        "data.metadata.step": "complete",
+      },
+      loop_target: {
+        workspace_id: "ws_checkout_api",
+        loop_name: "release-loop",
+        inputs: {},
+        input_mapping: { step: "data.metadata.step" },
+      },
+      target_kind: "loop",
+      agent_name: "",
+      prompt: "",
+    });
+
+    expect(buildTriggerDiagnostics(trigger)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "retry", value: "backoff · 2 · 5s" }),
+        expect.objectContaining({ id: "target", value: "loop · release-loop" }),
+      ])
+    );
+    expect(buildTriggerDiagnosticsNote(trigger)).toContain("Mapping step ← data.metadata.step.");
+    const envelope = buildTriggerEnvelopeSample(trigger);
+    expect(envelope.kind).toBe("ext.release.completed");
+    expect(envelope.source).toBe("extension");
+    expect(envelope.workspace_id).toBe("ws_checkout_api");
+    expect(envelope.data).toEqual(expect.objectContaining({ metadata: { step: "complete" } }));
+
+    expect(
+      buildTriggerDiagnostics(
+        makeTrigger({ retry: { strategy: "none", max_retries: 0, base_delay: "" } })
+      )
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ id: "retry", value: "none" })]));
+  });
+
+  it.each([
+    {
+      event: "memory.consolidated",
+      headline: "Memory consolidated",
+      phrase: "memory is consolidated",
+    },
+    {
+      event: "hook.release.completed",
+      headline: "Hook release completed",
+      phrase: "the release hook completes",
+    },
+    {
+      event: "ext.release.deployed",
+      headline: "Extension event",
+      phrase: "ext.release.deployed fires",
+    },
+  ])("Should derive supported $event trigger sentences", ({ event, headline, phrase }) => {
+    const trigger = makeTrigger({ event });
+
+    expect(
+      buildTriggerLede(trigger, "checkout-api")
+        .map(segment => segment.text)
+        .join("")
+    ).toContain(phrase);
+    expect(describeTriggerWhen(trigger, "checkout-api").headline).toBe(headline);
   });
 
   it("Should never offer a manual fire — the daemon has no such route for triggers", () => {

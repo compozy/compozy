@@ -5,7 +5,13 @@ import { Empty, Spinner } from "@compozy/ui";
 import { useLoopDetail } from "./use-loop-detail";
 import { LoopDetailView } from "@/systems/loops";
 
-export function LoopDetailLocation({ name }: { name: string }) {
+export function LoopDetailLocation({
+  name,
+  routeWorkspaceId,
+}: {
+  name: string;
+  routeWorkspaceId?: string;
+}) {
   const {
     workspaceId,
     loopQuery,
@@ -16,7 +22,7 @@ export function LoopDetailLocation({ name }: { name: string }) {
     deleteLoop,
     readGraph,
     handlers,
-  } = useLoopDetail(name);
+  } = useLoopDetail(name, routeWorkspaceId);
   if (workspaceId === "") {
     return (
       <DetailState

@@ -11,6 +11,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  TabsContent,
 } from "@compozy/ui";
 
 import {
@@ -25,7 +26,7 @@ type InspectPane = "diagnostics" | "envelope";
 
 const INSPECT_TABS = [
   { value: "diagnostics", label: "Diagnostics", testId: "trigger-inspect-tab-diagnostics" },
-  { value: "envelope", label: "Envelope", testId: "trigger-inspect-tab-envelope" },
+  { value: "envelope", label: "Sample envelope", testId: "trigger-inspect-tab-envelope" },
 ] as const satisfies ReadonlyArray<{ value: InspectPane; label: string; testId: string }>;
 
 interface TriggerInspectSheetProps {
@@ -38,8 +39,8 @@ interface TriggerInspectSheetProps {
  * The raw read, on request.
  *
  * The detail page speaks plain language; everything an operator needs when that
- * is not enough — runtime enums, dispatch internals, and the activation
- * envelope the agent or loop actually receives — lives here instead of
+ * is not enough — runtime enums, dispatch internals, and a reconstructed sample
+ * envelope — lives here instead of
  * crowding the page that answers "is this on and did it work".
  */
 export function TriggerInspectSheet({ trigger, open, onOpenChange }: TriggerInspectSheetProps) {
@@ -73,42 +74,46 @@ export function TriggerInspectSheet({ trigger, open, onOpenChange }: TriggerInsp
 
         <LaneTabs
           ariaLabel="Inspect panes"
+          className="min-h-0 flex-1 gap-0"
           items={INSPECT_TABS}
           listClassName="px-5"
           onChange={setPane}
           value={pane}
-        />
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4.5">
-          {pane === "diagnostics" ? (
-            <div data-testid="trigger-inspect-diagnostics">
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                {tiles.map(tile => (
-                  <MetadataTile
-                    key={tile.id}
-                    label={tile.label}
-                    value={tile.value}
-                    data-testid={`trigger-inspect-tile-${tile.id}`}
-                  />
-                ))}
-              </div>
-              <p className="mt-3.5 text-form-label leading-relaxed text-muted">
-                {buildTriggerDiagnosticsNote(trigger)}
-              </p>
+        >
+          <TabsContent
+            className="min-h-0 overflow-y-auto px-5 py-4.5"
+            data-testid="trigger-inspect-diagnostics"
+            value="diagnostics"
+          >
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {tiles.map(tile => (
+                <MetadataTile
+                  key={tile.id}
+                  label={tile.label}
+                  value={tile.value}
+                  data-testid={`trigger-inspect-tile-${tile.id}`}
+                />
+              ))}
             </div>
-          ) : (
-            <div data-testid="trigger-inspect-envelope">
-              <CodeBlock
-                className="bg-rail"
-                code={formatTriggerEnvelope(trigger)}
-                copyable
-                copyLabel="Copy envelope"
-                density="compact"
-                showPrompt={false}
-              />
-            </div>
-          )}
-        </div>
+            <p className="mt-3.5 text-form-label leading-relaxed text-muted">
+              {buildTriggerDiagnosticsNote(trigger)}
+            </p>
+          </TabsContent>
+          <TabsContent
+            className="min-h-0 overflow-y-auto px-5 py-4.5"
+            data-testid="trigger-inspect-envelope"
+            value="envelope"
+          >
+            <CodeBlock
+              className="bg-rail"
+              code={formatTriggerEnvelope(trigger)}
+              copyable
+              copyLabel="Copy sample envelope"
+              density="compact"
+              showPrompt={false}
+            />
+          </TabsContent>
+        </LaneTabs>
       </SheetContent>
     </Sheet>
   );

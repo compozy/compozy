@@ -50,7 +50,7 @@ export function useAutomationTriggerDetailPage(triggerId: string) {
     workspaces: toWorkspaceCommandSelectOptions(workspaces),
   });
 
-  // The detail page speaks in workspace names; ids stay on the inspection surface.
+  // The detail page prefers workspace names and falls back to the persisted id.
   const workspaceNameById = (id: string | undefined): string | null => {
     if (!id) return null;
     return workspaces.find(workspace => workspace.id === id)?.name ?? id;

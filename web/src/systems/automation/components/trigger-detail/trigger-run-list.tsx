@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertCircle,
@@ -34,14 +34,22 @@ const PANEL_SHELL = "overflow-hidden rounded-lg border border-line bg-canvas-sof
  * The drawer's one action, and only when the daemon recorded something to open.
  * A disabled placeholder would promise a destination that does not exist yet.
  */
-function TriggerRunOpenLink({ view }: { view: TriggerRunView }) {
+interface TriggerRunOpenLinkProps extends Omit<ComponentProps<"div">, "children"> {
+  view: TriggerRunView;
+}
+
+function TriggerRunOpenLink({ view, className, ...props }: TriggerRunOpenLinkProps) {
   if (!view.link) return null;
   const linkProps =
     view.link.kind === "loop-run"
-      ? ({ to: "/loop-runs/$runId", params: { runId: view.link.id } } as const)
+      ? ({
+          to: "/loop-runs/$runId",
+          params: { runId: view.link.id },
+          search: view.link.workspaceId ? { workspace: view.link.workspaceId } : {},
+        } as const)
       : ({ to: "/session/$id", params: { id: view.link.id } } as const);
   return (
-    <div className="mt-2.5 flex items-center gap-2">
+    <div className={cn("mt-2.5 flex items-center gap-2", className)} {...props}>
       <Button
         data-testid={`trigger-run-open-${view.id}`}
         nativeButton={false}
@@ -56,19 +64,17 @@ function TriggerRunOpenLink({ view }: { view: TriggerRunView }) {
   );
 }
 
-function TriggerRunRow({
-  view,
-  open,
-  onToggle,
-}: {
+interface TriggerRunRowProps extends Omit<ComponentProps<"li">, "children"> {
   view: TriggerRunView;
   open: boolean;
-  onToggle: () => void;
-}) {
+  onOpenToggle: () => void;
+}
+
+function TriggerRunRow({ view, open, onOpenToggle, className, ...props }: TriggerRunRowProps) {
   const MetaIcon = RUN_ICONS[view.icon];
   const drawerId = `trigger-run-drawer-${view.id}`;
   return (
-    <li className="border-t border-line-soft first:border-t-0">
+    <li className={cn("border-t border-line-soft first:border-t-0", className)} {...props}>
       <button
         aria-controls={drawerId}
         aria-expanded={open}
@@ -78,7 +84,7 @@ function TriggerRunRow({
           open && "bg-row-selected"
         )}
         data-testid={`automation-run-${view.id}`}
-        onClick={onToggle}
+        onClick={onOpenToggle}
         type="button"
       >
         <Pill size="sm" tone={view.tone}>
@@ -116,7 +122,7 @@ function TriggerRunRow({
               "text-small-body leading-relaxed",
               line.tone === "danger" ? "text-danger" : "text-muted"
             )}
-            key={line.text}
+            key={line.id}
           >
             {line.text}
           </p>
@@ -185,7 +191,9 @@ export function TriggerRunList({ trigger, runs, error, isLoading, onRetry }: Tri
             {views.map(view => (
               <TriggerRunRow
                 key={view.id}
-                onToggle={() => setOpenRunId(previous => (previous === view.id ? null : view.id))}
+                onOpenToggle={() =>
+                  setOpenRunId(previous => (previous === view.id ? null : view.id))
+                }
                 open={openRunId === view.id}
                 view={view}
               />

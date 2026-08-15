@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { Zap } from "lucide-react";
 
 import { Button, PAGE_CONTENT_GUTTER, cn, useTopbarSlot } from "@compozy/ui";
@@ -66,8 +66,11 @@ export function TriggerDetailPanel({
 }: TriggerDetailPanelProps) {
   // Transient panel state lives here, above the branch that unmounts: a refetch
   // that briefly empties the record must not slam a sheet shut mid-read.
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [inspectOpen, setInspectOpen] = useState(false);
+  const [deleteOverlay, setDeleteOverlay] = useState({ open: false, triggerId: "" });
+  const [inspectOverlay, setInspectOverlay] = useState({ open: false, triggerId: "" });
+  const triggerId = trigger?.id ?? "";
+  const deleteOpen = deleteOverlay.open && deleteOverlay.triggerId === triggerId;
+  const inspectOpen = inspectOverlay.open && inspectOverlay.triggerId === triggerId;
 
   if (state.isLoading) {
     return <TriggerDetailSkeleton />;
@@ -103,33 +106,39 @@ export function TriggerDetailPanel({
       loopWorkspaceName={loopWorkspaceName}
       onBack={onBack}
       onDelete={onDelete}
-      onDeleteOpenChange={setDeleteOpen}
+      onDeleteOpenChange={open => setDeleteOverlay({ open, triggerId })}
       onEdit={onEdit}
-      onInspectOpenChange={setInspectOpen}
+      onInspectOpenChange={open => setInspectOverlay({ open, triggerId })}
       onRetryRuns={onRetryRuns}
       onToggleEnabled={onToggleEnabled}
       runs={runs}
       runsError={runsError}
       runsLoading={runsLoading}
-      state={state}
+      state={{
+        isDeleting: state.isDeleting,
+        isTogglePending: state.isTogglePending,
+      }}
       trigger={trigger}
       workspaceName={workspaceName}
     />
   );
 }
 
-type LoadedPanelProps = Omit<TriggerDetailPanelProps, "error" | "trigger"> & {
-  trigger: AutomationTrigger;
-  deleteOpen: boolean;
-  inspectOpen: boolean;
-  onDeleteOpenChange: (open: boolean) => void;
-  onInspectOpenChange: (open: boolean) => void;
-};
+type LoadedPanelProps = Omit<TriggerDetailPanelProps, "error" | "state" | "trigger"> &
+  Omit<ComponentProps<"section">, "children"> & {
+    trigger: AutomationTrigger;
+    state: Omit<TriggerDetailState, "isLoading">;
+    deleteOpen: boolean;
+    inspectOpen: boolean;
+    onDeleteOpenChange: (open: boolean) => void;
+    onInspectOpenChange: (open: boolean) => void;
+  };
 
-/** Newest recorded start across the loaded run sample, or null when none ran. */
+/** Newest actual run start, excluding scheduled reservations that have not begun. */
 function lastRanAt(runs: AutomationRun[]): string | null {
   let newest: string | null = null;
   for (const run of runs) {
+    if (run.status === "scheduled") continue;
     const startedAt = run.started_at;
     if (!startedAt) continue;
     if (newest === null || startedAt > newest) newest = startedAt;
@@ -161,12 +170,17 @@ function TriggerDetailLoadedPanel({
   runs,
   runsError,
   runsLoading,
+  className,
+  ...props
 }: LoadedPanelProps) {
   useTopbarSlot({
     onBack,
     crumbs: [{ id: "catalog", label: "Triggers", onSelect: onBack }],
     crumb: trigger.name,
-    actions: <TriggerDetailActions onEdit={onEdit} trigger={trigger} />,
+    actions:
+      trigger.source === "dynamic" ? (
+        <TriggerDetailActions onEdit={onEdit} trigger={trigger} />
+      ) : undefined,
     overflow: (
       <TriggerDetailOverflow
         isTogglePending={state.isTogglePending}
@@ -180,11 +194,13 @@ function TriggerDetailLoadedPanel({
 
   return (
     <section
-      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden")}
+      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden", className)}
       data-testid="automation-detail-panel"
+      {...props}
     >
       {trigger.source === "dynamic" ? (
         <AutomationDeleteAction
+          key={`delete:${trigger.id}`}
           hideTrigger
           isPending={state.isDeleting}
           kind="triggers"
@@ -235,6 +251,7 @@ function TriggerDetailLoadedPanel({
       </div>
 
       <TriggerInspectSheet
+        key={`inspect:${trigger.id}`}
         onOpenChange={onInspectOpenChange}
         open={inspectOpen}
         trigger={trigger}

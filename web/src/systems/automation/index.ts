@@ -94,7 +94,7 @@ export {
 } from "./lib/automation-drafts";
 export type { AutomationDialogHandle } from "./lib/dialog-handle";
 export { createAutomationDialogHandle } from "./lib/dialog-handle";
-// The trigger detail view-model resolves a loop target's workspace for display.
+// Shared target projection for agent- and loop-backed automation surfaces.
 export { projectAutomationTarget, type AutomationTargetProjection } from "./lib/automation-target";
 export {
   automationSourceLabel,

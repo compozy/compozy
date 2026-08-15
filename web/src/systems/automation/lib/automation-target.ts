@@ -47,7 +47,7 @@ export function projectAutomationTarget(
   };
 }
 
-function formatInputValue(value: unknown): string {
+export function formatAutomationInputValue(value: unknown): string {
   if (typeof value === "string") return value;
   if (value === undefined) return "undefined";
   return JSON.stringify(value) ?? String(value);
@@ -60,7 +60,7 @@ export function describeAutomationTarget(target: AutomationTargetProjection): st
   }
 
   const inputs = Object.entries(target.inputs)
-    .map(([key, value]) => `${key}: ${formatInputValue(value)}`)
+    .map(([key, value]) => `${key}: ${formatAutomationInputValue(value)}`)
     .join(" · ");
   const loop = `Loop ${target.loopName || "not selected"}`;
   return inputs ? `${loop} · ${inputs}` : loop;

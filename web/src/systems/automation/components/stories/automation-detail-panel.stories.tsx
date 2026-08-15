@@ -31,6 +31,7 @@ function AutomationDetailPanelFromPage() {
       <AutomationDetailPanel
         error={job.error}
         item={job.data}
+        onBack={fn()}
         onDelete={fn()}
         onEdit={fn()}
         onToggleEnabled={fn()}
@@ -95,6 +96,7 @@ export const Loading: Story = {
           isTriggerPending: false,
         }}
         item={undefined}
+        onBack={fn()}
         onDelete={fn()}
         onEdit={fn()}
         onToggleEnabled={fn()}
@@ -131,6 +133,7 @@ export const LoopJob: Story = {
             input_mapping: {},
           },
         }}
+        onBack={fn()}
         onDelete={fn()}
         onEdit={fn()}
         onToggleEnabled={fn()}

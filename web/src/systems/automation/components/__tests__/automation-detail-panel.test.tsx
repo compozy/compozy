@@ -1,6 +1,6 @@
 // Suite: Automation job detail panel
 // Invariant: A persisted job read renders its schedule, stored execution target, and run
-// history without agent-only loss, and every mutating action is confirmed before it fires.
+// history without agent-only loss; destructive deletion requires explicit confirmation.
 // Boundary IN: Job API read models and the job detail/run-history presentation.
 // Boundary OUT: trigger detail (trigger-detail-panel.test.tsx); persistence and dispatch,
 // owned by daemon/store suites.
@@ -18,15 +18,16 @@ interface MockLinkParams {
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   params?: MockLinkParams;
+  search?: { workspace?: string };
   to?: string;
 }
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, params, to, ...props }: MockLinkProps) => (
+  Link: ({ children, params, search, to, ...props }: MockLinkProps) => (
     <a
       href={
         to === "/loop-runs/$runId"
-          ? `/loop-runs/${params?.runId ?? ""}`
+          ? `/loop-runs/${params?.runId ?? ""}${search?.workspace ? `?workspace=${encodeURIComponent(search.workspace)}` : ""}`
           : `/session/${params?.id ?? ""}`
       }
       {...props}
@@ -83,6 +84,7 @@ const runFixture = {
 };
 
 function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>[0]> = {}) {
+  const onBack = vi.fn();
   const onDelete = vi.fn();
   const onEdit = vi.fn();
   const onToggleEnabled = vi.fn();
@@ -99,6 +101,7 @@ function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>
         ...overrides.state,
       }}
       item={jobFixture}
+      onBack={onBack}
       onDelete={onDelete}
       onEdit={onEdit}
       onToggleEnabled={onToggleEnabled}
@@ -110,7 +113,7 @@ function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>
     />
   );
 
-  return { onDelete, onEdit, onToggleEnabled, onTriggerNow };
+  return { onBack, onDelete, onEdit, onToggleEnabled, onTriggerNow };
 }
 
 describe("AutomationDetailPanel", () => {
@@ -139,7 +142,7 @@ describe("AutomationDetailPanel", () => {
   });
 
   it("renders dynamic job details and dispatches non-destructive action callbacks", () => {
-    const { onDelete, onEdit, onToggleEnabled, onTriggerNow } = renderPanel();
+    const { onBack, onDelete, onEdit, onToggleEnabled, onTriggerNow } = renderPanel();
 
     expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
     expect(screen.getByTestId("topbar-title-text")).toHaveTextContent("daily-review");
@@ -160,10 +163,12 @@ describe("AutomationDetailPanel", () => {
     fireEvent.click(screen.getByTestId("edit-automation-btn"));
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("toggle-automation-btn"));
+    fireEvent.click(screen.getByRole("button", { name: "Back one level" }));
 
     expect(onToggleEnabled).toHaveBeenCalledWith(false);
     expect(onEdit).toHaveBeenCalledOnce();
     expect(onTriggerNow).toHaveBeenCalledOnce();
+    expect(onBack).toHaveBeenCalledOnce();
     expect(onDelete).not.toHaveBeenCalled();
   });
 
@@ -278,7 +283,7 @@ describe("AutomationDetailPanel", () => {
     expect(screen.queryByText(/Agent:/)).not.toBeInTheDocument();
     expect(screen.getByTestId("automation-run-run_loop")).toHaveAttribute(
       "href",
-      "/loop-runs/looprun_aeb24d4f17cf1feb"
+      "/loop-runs/looprun_aeb24d4f17cf1feb?workspace=ws_alpha"
     );
   });
 

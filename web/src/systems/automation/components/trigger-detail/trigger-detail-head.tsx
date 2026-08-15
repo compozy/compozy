@@ -128,7 +128,7 @@ export function TriggerDetailHead({
         className="mt-3 flex flex-wrap items-center gap-y-1 text-form-label text-subtle"
         data-testid="trigger-detail-subhead"
       >
-        <Pill className="mr-2" size="sm" tone="info">
+        <Pill className="mr-2" size="sm">
           {triggerEventLabel(trigger)}
         </Pill>
         <span>

@@ -18,7 +18,7 @@ export function TriggerWebhookEndpoint({ path, className, ...props }: TriggerWeb
       {...props}
     >
       <div className="flex items-center gap-2 rounded-sm border border-line-soft bg-rail px-2.5 py-2">
-        <Eyebrow className="rounded-xs bg-success-tint px-1.5 py-0.5 text-success">POST</Eyebrow>
+        <Eyebrow className="rounded-xs bg-canvas-soft px-1.5 py-0.5 text-subtle">POST</Eyebrow>
         <span className="min-w-0 flex-1 truncate font-mono text-form-hint text-fg">{path}</span>
         <CopyIconButton
           copiedLabel="Webhook path copied"

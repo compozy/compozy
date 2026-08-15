@@ -9,6 +9,7 @@
 
 import { getEventDef, type EventIconKey } from "./trigger-catalog";
 import { parseEventSelection, type EventSelection } from "./trigger-event-id";
+import { triggerFilterEntries } from "./trigger-filter";
 import { projectAutomationTarget } from "./automation-target";
 import type { AutomationTrigger } from "../types";
 
@@ -60,10 +61,6 @@ function humanizeFilterKey(key: string): string {
   return key.replace(/^data\./, "").replaceAll(/[._]/g, " ");
 }
 
-function filterEntries(trigger: AutomationTrigger): Array<[string, string]> {
-  return Object.entries(trigger.filter ?? {}).filter(([key]) => key.trim() !== "");
-}
-
 function eventClause(
   trigger: AutomationTrigger,
   selection: EventSelection
@@ -109,7 +106,7 @@ function workspaceClause(
 }
 
 function ifClauseSentence(trigger: AutomationTrigger): string {
-  const entries = filterEntries(trigger);
+  const entries = triggerFilterEntries(trigger);
   if (entries.length === 0) return "";
   if (entries.length === 1) {
     const [key, value] = entries[0];
@@ -194,7 +191,7 @@ export function describeTriggerWhen(
 }
 
 export function describeTriggerIf(trigger: AutomationTrigger): TriggerIfDescriptor {
-  const entries = filterEntries(trigger);
+  const entries = triggerFilterEntries(trigger);
   if (entries.length === 0) {
     return { clauses: [], note: null };
   }
