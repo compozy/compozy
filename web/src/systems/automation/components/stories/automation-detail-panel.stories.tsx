@@ -6,11 +6,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
 import { useAutomationJob, useAutomationJobRuns } from "@/systems/automation";
-import {
-  automationRunFixtures,
-  primaryAutomationJobFixture,
-  primaryAutomationTriggerFixture,
-} from "@/systems/automation/mocks";
+import { automationRunFixtures, primaryAutomationJobFixture } from "@/systems/automation/mocks";
 
 import { AutomationDetailPanel } from "../automation-detail-panel";
 
@@ -35,7 +31,6 @@ function AutomationDetailPanelFromPage() {
       <AutomationDetailPanel
         error={job.error}
         item={job.data}
-        kind="jobs"
         onDelete={fn()}
         onEdit={fn()}
         onToggleEnabled={fn()}
@@ -76,69 +71,7 @@ export const Error: Story = {
   render: () => <AutomationDetailPanelFromPage />,
 };
 
-export const TriggerDefault: Story = {
-  args: {},
-  render: () => (
-    <PanelSurface>
-      <AutomationDetailPanel
-        error={null}
-        state={{
-          isDeleting: false,
-          isLoading: false,
-          isTogglePending: false,
-          isTriggerPending: false,
-        }}
-        item={primaryAutomationTriggerFixture}
-        kind="triggers"
-        onDelete={fn()}
-        onEdit={fn()}
-        onToggleEnabled={fn()}
-        onTriggerNow={fn()}
-        runs={automationRunFixtures.filter(
-          run => run.trigger_id === primaryAutomationTriggerFixture.id
-        )}
-        runsError={null}
-        runsLoading={false}
-      />
-    </PanelSurface>
-  ),
-};
-
-export const PackageManaged: Story = {
-  args: {},
-  render: () => (
-    <PanelSurface>
-      <AutomationDetailPanel
-        error={null}
-        state={{
-          isDeleting: false,
-          isLoading: false,
-          isTogglePending: false,
-          isTriggerPending: false,
-        }}
-        item={{ ...primaryAutomationTriggerFixture, source: "package" }}
-        kind="triggers"
-        onDelete={fn()}
-        onEdit={fn()}
-        onToggleEnabled={fn()}
-        onTriggerNow={fn()}
-        runs={[]}
-        runsError={null}
-        runsLoading={false}
-      />
-    </PanelSurface>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.getByText(
-        "This automation is provided by an installed package. Only its enabled state can be changed here."
-      )
-    ).toBeInTheDocument();
-  },
-};
-
-export const TriggerHook: Story = {
+export const Focus: Story = {
   args: {},
   tags: ["play-fn"],
   render: () => <AutomationDetailPanelFromPage />,
@@ -162,7 +95,6 @@ export const Loading: Story = {
           isTriggerPending: false,
         }}
         item={undefined}
-        kind="jobs"
         onDelete={fn()}
         onEdit={fn()}
         onToggleEnabled={fn()}
@@ -199,7 +131,6 @@ export const LoopJob: Story = {
             input_mapping: {},
           },
         }}
-        kind="jobs"
         onDelete={fn()}
         onEdit={fn()}
         onToggleEnabled={fn()}

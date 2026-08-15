@@ -9,10 +9,10 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
-import type { AutomationJob, AutomationTrigger } from "../types";
+import type { AutomationJob } from "../types";
 
 interface AutomationDetailActionsProps {
-  item: AutomationJob | AutomationTrigger;
+  item: AutomationJob;
   onToggleEnabled: (enabled: boolean) => void;
   onTriggerNow?: () => void;
   state: {
@@ -62,8 +62,7 @@ function AutomationDetailActions({
 
 interface AutomationDetailOverflowProps {
   isTogglePending: boolean;
-  item: AutomationJob | AutomationTrigger;
-  kind: "jobs" | "triggers";
+  item: AutomationJob;
   onDelete: () => void;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
@@ -72,7 +71,6 @@ interface AutomationDetailOverflowProps {
 function AutomationDetailOverflow({
   isTogglePending,
   item,
-  kind,
   onDelete,
   onEdit,
   onToggleEnabled,
@@ -107,7 +105,7 @@ function AutomationDetailOverflow({
             onClick={onDelete}
             variant="destructive"
           >
-            Delete {kind === "jobs" ? "job" : "trigger"}
+            Delete job
           </DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>

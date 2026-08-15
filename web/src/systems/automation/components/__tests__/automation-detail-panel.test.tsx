@@ -1,7 +1,9 @@
-// Suite: Automation detail panel
-// Invariant: Persisted automation reads render the stored execution target without agent-only loss.
-// Boundary IN: Job/Trigger API read models and the detail/run-history presentation.
-// Boundary OUT: persistence and dispatch, owned by daemon/store suites.
+// Suite: Automation job detail panel
+// Invariant: A persisted job read renders its schedule, stored execution target, and run
+// history without agent-only loss, and every mutating action is confirmed before it fires.
+// Boundary IN: Job API read models and the job detail/run-history presentation.
+// Boundary OUT: trigger detail (trigger-detail-panel.test.tsx); persistence and dispatch,
+// owned by daemon/store suites.
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
@@ -68,27 +70,6 @@ const jobFixture = {
   updated_at: "2026-04-11T09:05:00Z",
 };
 
-const triggerFixture = {
-  id: "trg_push_review",
-  name: "push-review",
-  agent_name: "reviewer",
-  prompt: "Review push event {{ .Data.branch }}.",
-  event: "webhook",
-  filter: { "data.branch": "main" },
-  scope: "workspace" as const,
-  workspace_id: "ws_alpha",
-  source: "config" as const,
-  target_kind: "agent",
-  enabled: false,
-  retry: { strategy: "backoff" as const, max_retries: 4, base_delay: "5s" },
-  fire_limit: { max: 12, window: "1h" },
-  endpoint_slug: "push-review",
-  webhook_id: "wbh_push_review",
-  webhook_secret_present: false,
-  created_at: "2026-04-11T08:00:00Z",
-  updated_at: "2026-04-11T08:10:00Z",
-};
-
 const runFixture = {
   id: "run_001",
   status: "completed" as const,
@@ -118,7 +99,6 @@ function renderPanel(overrides: Partial<Parameters<typeof AutomationDetailPanel>
         ...overrides.state,
       }}
       item={jobFixture}
-      kind="jobs"
       onDelete={onDelete}
       onEdit={onEdit}
       onToggleEnabled={onToggleEnabled}
@@ -217,21 +197,14 @@ describe("AutomationDetailPanel", () => {
     expect(scheduler).not.toHaveTextContent("skip");
   });
 
-  it.each([
-    { item: jobFixture, kind: "jobs" as const, noun: "job" },
-    {
-      item: { ...triggerFixture, source: "dynamic" as const },
-      kind: "triggers" as const,
-      noun: "trigger",
-    },
-  ])("Should require explicit name confirmation before deleting a dynamic $noun", async case_ => {
+  it("Should require explicit name confirmation before deleting a dynamic job", async () => {
     const user = userEvent.setup();
-    const { onDelete } = renderPanel({ item: case_.item, kind: case_.kind, runs: [] });
+    const { onDelete } = renderPanel({ runs: [] });
 
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("delete-automation-btn"));
     expect(onDelete).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: `Delete ${case_.noun}?` })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Delete job?" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onDelete).not.toHaveBeenCalled();
@@ -240,11 +213,11 @@ describe("AutomationDetailPanel", () => {
     fireEvent.click(screen.getByTestId("automation-detail-overflow"));
     fireEvent.click(screen.getByTestId("delete-automation-btn"));
     const confirmButton = screen.getByTestId("confirm-delete-automation-btn");
-    await user.type(screen.getByLabelText("Type to confirm"), `${case_.item.name}-wrong`);
+    await user.type(screen.getByLabelText("Type to confirm"), `${jobFixture.name}-wrong`);
     expect(confirmButton).toBeDisabled();
 
     await user.clear(screen.getByLabelText("Type to confirm"));
-    await user.type(screen.getByLabelText("Type to confirm"), case_.item.name);
+    await user.type(screen.getByLabelText("Type to confirm"), jobFixture.name);
     expect(confirmButton).toBeEnabled();
     await user.click(confirmButton);
 
@@ -309,31 +282,6 @@ describe("AutomationDetailPanel", () => {
     );
   });
 
-  it("Should render a persisted Loop Trigger target and event input mapping", () => {
-    renderPanel({
-      item: {
-        ...triggerFixture,
-        source: "dynamic" as const,
-        agent_name: "",
-        prompt: "",
-        target_kind: "loop",
-        loop_target: {
-          workspace_id: "ws_alpha",
-          loop_name: "implement-tasks",
-          inputs: { slug: "helix-v1-launch" },
-          input_mapping: { branch: "data.branch" },
-        },
-      },
-      kind: "triggers",
-      runs: [],
-    });
-
-    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent("Loop: implement-tasks");
-    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("data.branch");
-    expect(screen.queryByText("Prompt template")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Dispatches to/)).not.toBeInTheDocument();
-  });
-
   it("Should render the detail header with the job name in the window-head slot", () => {
     renderPanel();
 
@@ -372,144 +320,5 @@ describe("AutomationDetailPanel", () => {
     expect(successRate).toHaveTextContent("67%");
     expect(runsShown).toHaveTextContent("Runs shown");
     expect(runsShown).toHaveTextContent("3");
-  });
-
-  it("renders the trigger hook Section with a KindChip for the source", () => {
-    renderPanel({
-      item: { ...triggerFixture, source: "dynamic" as const, event: "ext.github.push" },
-      kind: "triggers",
-      runs: [],
-    });
-
-    const kindChip = document.querySelector('[data-slot="kind-chip"][data-kind="ext.github.push"]');
-    expect(kindChip).not.toBeNull();
-  });
-
-  it.each([
-    {
-      copy: "This automation is defined in configuration files. Only its enabled state can be changed here.",
-      source: "config" as const,
-    },
-    {
-      copy: "This automation is provided by an installed package. Only its enabled state can be changed here.",
-      source: "package" as const,
-    },
-  ])("Should describe $source trigger ownership without mutable actions", ({ copy, source }) => {
-    renderPanel({
-      item: { ...triggerFixture, source },
-      kind: "triggers",
-      runs: [
-        { ...runFixture, id: "run_trigger", trigger_id: "trg_push_review", job_id: undefined },
-      ],
-    });
-
-    expect(screen.getByText(copy)).toBeInTheDocument();
-    expect(screen.getByText("Webhook id")).toBeInTheDocument();
-    expect(screen.getByText("wbh_push_review")).toBeInTheDocument();
-    expect(screen.queryByTestId("edit-automation-btn")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("delete-automation-btn")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("trigger-job-btn")).not.toBeInTheDocument();
-  });
-
-  it("renders a dynamic webhook trigger endpoint URL and curl copy affordance", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText },
-    });
-    renderPanel({
-      item: {
-        ...triggerFixture,
-        source: "dynamic" as const,
-        scope: "global" as const,
-        workspace_id: undefined,
-      },
-      kind: "triggers",
-      runs: [],
-    });
-
-    expect(screen.getByText("Webhook endpoint")).toBeInTheDocument();
-    expect(
-      screen.getByText("/api/webhooks/global/push-review--wbh_push_review")
-    ).toBeInTheDocument();
-    expect(screen.getByText("curl")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Copy webhook URL" }));
-
-    await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith("/api/webhooks/global/push-review--wbh_push_review")
-    );
-    fireEvent.click(screen.getByTestId("automation-detail-overflow"));
-    expect(screen.getByTestId("edit-automation-btn")).toBeInTheDocument();
-    expect(screen.getByTestId("delete-automation-btn")).toBeInTheDocument();
-  });
-
-  it("says public delivery is off instead of showing a URL that would not answer", () => {
-    renderPanel({ item: { ...triggerFixture }, kind: "triggers", runs: [] });
-
-    const ingress = screen.getByTestId("automation-trigger-ingress");
-    expect(ingress).toHaveTextContent("Public delivery ingress is off");
-    expect(ingress).toHaveTextContent("Open Gateway settings to publish one");
-  });
-
-  it("Should omit the public delivery section for non-webhook triggers", () => {
-    renderPanel({
-      item: { ...triggerFixture, event: "ext.github.push" },
-      kind: "triggers",
-      runs: [],
-    });
-
-    expect(screen.queryByTestId("automation-trigger-ingress")).not.toBeInTheDocument();
-    expect(screen.queryByText("Public delivery")).not.toBeInTheDocument();
-  });
-
-  it("publishes the delivery URL with its reachability and durability boundary once live", () => {
-    renderPanel({
-      item: {
-        ...triggerFixture,
-        ingress: {
-          confirmed_at: "2026-08-07T09:00:00Z",
-          confirmed_endpoint_generation: 4,
-          endpoint_generation: 4,
-          reachability: "live",
-          scope_kind: "workspace",
-          subject_id: "trg_push_review",
-          subject_kind: "webhook_trigger",
-          url: "https://public.gateway.test/api/webhooks/workspaces/ws_alpha/push-review--wbh_push_review",
-          workspace_id: "ws_alpha",
-        },
-      },
-      kind: "triggers",
-      runs: [],
-    });
-
-    const ingress = screen.getByTestId("automation-trigger-ingress");
-    expect(ingress).toHaveTextContent("Live");
-    expect(ingress).toHaveTextContent(
-      "https://public.gateway.test/api/webhooks/workspaces/ws_alpha/push-review--wbh_push_review"
-    );
-    expect(ingress).toHaveTextContent("There is no queue for messages sent while it is offline");
-  });
-
-  it("flags a delivery URL that needs reconfirmation after the public address changed", () => {
-    renderPanel({
-      item: {
-        ...triggerFixture,
-        ingress: {
-          confirmed_endpoint_generation: 3,
-          endpoint_generation: 4,
-          reachability: "reconfirmation_required",
-          scope_kind: "workspace",
-          subject_id: "trg_push_review",
-          subject_kind: "webhook_trigger",
-          url: "https://public.gateway.test/api/webhooks/workspaces/ws_alpha/push-review--wbh_push_review",
-          workspace_id: "ws_alpha",
-        },
-      },
-      kind: "triggers",
-      runs: [],
-    });
-
-    expect(screen.getByTestId("automation-trigger-ingress")).toHaveTextContent("Reconfirm");
   });
 });

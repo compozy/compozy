@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-24
 expected: `/jobs` and `/triggers` render as ListingPage catalogs (PageHead + ListingToolbar search/filters/view + rows/cards) instead of SplitPane master-detail; row click opens `/jobs/$jobId` or `/triggers/$triggerId` with breadcrumb parent link; Create CTA stays in topbar actions; `?create=loop&loop=` from Loop detail still opens the create editor seeded at that Loop; dynamic Edit/Delete/Run now live in topbar actions on detail.
 entry_points: web `/jobs`; web `/triggers`; Loop detail Add schedule/trigger CTAs
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -44,3 +44,9 @@ QA impact 2026-07-18: workspace-scoped Job and Trigger details, histories, edito
 are withheld unless their `workspace_id` exactly matches the active workspace; changing workspaces
 also closes an open editor. Managed-detail guidance now distinguishes config-owned automation from
 package-provided automation instead of describing both as configuration files.
+
+QA impact 2026-08-15: trigger detail redesigned to the rule-page anatomy — page-head sentence with
+the Enable switch opposite it, topbar ENABLED/DISABLED pill removed, Edit ghost + overflow stay
+dynamic-only, Run now remains jobs-only. Detail-surface expectations moved to
+`ET-web-trigger-detail-rule-page`; this scenario keeps catalog rendering, row → detail navigation,
+breadcrumb, Create CTA, and the Loop create seed. Status reset to untested pending a walk.

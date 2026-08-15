@@ -163,7 +163,6 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   const triggersWin = appWindow(appPage, "triggers");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
-  const triggerStatus = triggersWin.locator('[data-slot="topbar-status"]');
   await ensureGlobalWorkspace(runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(shellUI);
@@ -211,8 +210,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   await expect(ui.detailPanel).toContainText(webhookID);
   await expect(ui.detailPanel).not.toContainText(webhookSecret);
 
-  await ui.detailOverflow.click();
-  await appPage.getByTestId("edit-automation-btn").click();
+  await ui.editTriggerButton.click();
   await expect(ui.editorDialog).toBeVisible();
   await ui.triggerNameInput.fill(editedName);
   await ui.triggerPromptInput.fill(editedPrompt);
@@ -283,14 +281,14 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(windowTitle(triggersWin)).toContainText(editedName, { timeout: 20_000 });
   await expect(ui.run(firstRun.id)).toBeVisible();
-  await expect(ui.runSessionLink(firstRun.id)).toBeVisible();
+  await ui.run(firstRun.id).click();
+  await expect(ui.runOpenLink(firstRun.id)).toBeVisible();
 
-  await ui.detailOverflow.click();
-  await ui.toggleAutomationButton.click();
+  await ui.triggerEnableSwitch.click();
   await expect
     .poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled)
     .toBe(false);
-  await expect(triggerStatus).toContainText("DISABLED");
+  await expect(ui.triggerEnableLabel).toContainText("Disabled");
   const disabledDelivery = await deliverWebhook(runtime, {
     deliveryID: uniqueName("delivery-disabled"),
     endpoint,
@@ -301,9 +299,9 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   expect(disabledDelivery.body).toMatch(/disabled/i);
   expect(await triggerRunCount(runtime, updated.id)).toBe(1);
 
-  await ui.detailOverflow.click();
-  await ui.toggleAutomationButton.click();
+  await ui.triggerEnableSwitch.click();
   await expect.poll(async () => (await getTrigger(runtime, updated.id)).trigger.enabled).toBe(true);
+  await expect(ui.triggerEnableLabel).toContainText("Enabled");
   const reenabledDelivery = await deliverWebhook(runtime, {
     deliveryID: uniqueName("delivery-reenabled"),
     endpoint,
@@ -324,7 +322,8 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(windowTitle(triggersWin)).toContainText(editedName, { timeout: 20_000 });
   await expect(ui.run(reenabledRun.id)).toBeVisible();
-  await expect(ui.runSessionLink(reenabledRun.id)).toBeVisible();
+  await ui.run(reenabledRun.id).click();
+  await expect(ui.runOpenLink(reenabledRun.id)).toBeVisible();
 
   const reenabledWorkspaceID = await resolveAutomationWorkspaceID(
     runtime,
@@ -361,12 +360,14 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
     automation_run_count: expect.any(Number),
     automation_run_history_visible: true,
     automation_selected_item: editedName,
-    automation_session_link_count: 2,
+    // One open drawer at a time: the accordion never shows two session links at once.
+    automation_session_link_count: 1,
     automation_view_visible: true,
   });
   expect(Number(routeState.automation_run_count)).toBeGreaterThanOrEqual(2);
 
-  await ui.runSessionLink(reenabledRun.id).click();
+  await ui.run(reenabledRun.id).click();
+  await ui.runOpenLink(reenabledRun.id).click();
   const reenabledSessionId = reenabledRun.session_id;
   if (!reenabledSessionId) {
     throw new Error("Expected the re-enabled trigger run to expose a linked session.");
@@ -443,7 +444,8 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   await expect(ui.triggersShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
   await ui.itemLink(trigger.id).click();
-  await expect(ui.detailPanel).toContainText("1 retries from 100ms");
+  await ui.triggerRailReliability.click();
+  await expect(ui.triggerDetailRail).toContainText("Backoff · 1 time");
 
   const delivery = await deliverWebhook(runtime, {
     deliveryID: uniqueName("delivery-failure"),
@@ -473,7 +475,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(windowTitle(triggersWin)).toContainText(trigger.name, { timeout: 20_000 });
   await expect(ui.run(failedRun.id)).toBeVisible();
-  await expect(ui.run(failedRun.id)).toContainText("FAILED");
+  await expect(ui.run(failedRun.id)).toContainText("Failed");
   await expect(ui.run(failedRun.id)).toContainText(failureSummary);
 
   const failedWorkspaceID = await resolveAutomationWorkspaceID(runtime, failedRun.workspace_id);
@@ -570,8 +572,8 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
     /fire limit/i
   );
   await expect(ui.run(limitedRun?.id ?? "")).toBeVisible();
-  await expect(ui.run(limitedRun?.id ?? "")).toContainText("FAILED");
-  await expect(ui.runHistory).toContainText("COMPLETED");
+  await expect(ui.run(limitedRun?.id ?? "")).toContainText("Failed");
+  await expect(ui.runHistory).toContainText("Completed");
   const acceptedWorkspaceID = await resolveAutomationWorkspaceID(runtime, acceptedRun.workspace_id);
   const parity = await captureTriggerParity(
     runtime,

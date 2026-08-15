@@ -136,6 +136,89 @@ export const automationTriggerFixtures: AutomationTrigger[] = [
   },
 ];
 
+/**
+ * Detail-surface triggers: one per shape the page actually branches on — agent
+ * target, loop target, and a webhook event with published public ingress. They
+ * live in the default story workspace so the detail route resolves them.
+ */
+export const automationTriggerDetailFixtures: AutomationTrigger[] = [
+  {
+    id: "trg_summarize_failures",
+    name: "summarize-failures",
+    agent_name: storyAgentNames.release,
+    prompt:
+      'Session {{ .Data.session_id }} (agent {{ .Data.agent_name }}) stopped with reason "{{ .Data.stop_reason }}".\n\nRead the transcript, summarize what went wrong, the likely root cause, and one suggested next step.',
+    event: "session.stopped",
+    filter: { "data.stop_reason": "error" },
+    scope: "workspace",
+    workspace_id: storyWorkspaceIds.hq,
+    source: "dynamic",
+    target_kind: "agent",
+    enabled: true,
+    retry: { strategy: "backoff", max_retries: 2, base_delay: "5s" },
+    fire_limit: { max: 4, window: "1h" },
+    webhook_secret_present: false,
+    created_at: "2026-04-09T09:12:00Z",
+    updated_at: "2026-04-17T16:40:00Z",
+  },
+  {
+    id: "trg_rerun_delivery",
+    name: "rerun-delivery",
+    agent_name: "",
+    prompt: "",
+    event: "session.stopped",
+    filter: { "data.stop_reason": "error" },
+    scope: "workspace",
+    workspace_id: storyWorkspaceIds.hq,
+    source: "dynamic",
+    target_kind: "loop",
+    loop_target: {
+      workspace_id: storyWorkspaceIds.hq,
+      loop_name: "software-delivery",
+      inputs: { implementer: "code_implementer", target_branch: "main" },
+      input_mapping: { slug: "data.session_name" },
+    },
+    enabled: true,
+    retry: { strategy: "backoff", max_retries: 2, base_delay: "5s" },
+    fire_limit: { max: 4, window: "1h" },
+    webhook_secret_present: false,
+    created_at: "2026-04-14T11:02:00Z",
+    updated_at: "2026-04-17T17:05:00Z",
+  },
+  {
+    id: "trg_deploy_webhook",
+    name: "deploy-webhook",
+    agent_name: storyAgentNames.platform,
+    prompt: 'Validate deployment {{ index .Data "sha" }} on {{ index .Data "branch" }}.',
+    event: "webhook",
+    filter: { "data.action": "deploy", "data.branch": "main" },
+    scope: "workspace",
+    workspace_id: storyWorkspaceIds.hq,
+    source: "dynamic",
+    target_kind: "agent",
+    enabled: true,
+    retry: { strategy: "backoff", max_retries: 2, base_delay: "5s" },
+    fire_limit: { max: 6, window: "1h" },
+    endpoint_slug: "deploy",
+    webhook_id: "wbh_abc123",
+    webhook_secret_hash: "sha256:deploy-webhook",
+    webhook_secret_present: true,
+    ingress: {
+      confirmed_at: "2026-04-16T08:00:00Z",
+      confirmed_endpoint_generation: 4,
+      endpoint_generation: 4,
+      reachability: "live",
+      scope_kind: "workspace",
+      subject_id: "trg_deploy_webhook",
+      subject_kind: "webhook_trigger",
+      url: "https://northstar.gateway.test/api/webhooks/workspaces/ws_launch_hq/deploy--wbh_abc123",
+      workspace_id: storyWorkspaceIds.hq,
+    },
+    created_at: "2026-04-12T10:20:00Z",
+    updated_at: "2026-04-17T17:52:00Z",
+  },
+];
+
 export const automationRunFixtures: AutomationRun[] = [
   {
     id: "run_launch_command_digest_001",
@@ -221,6 +304,70 @@ export const automationSuggestionFixtures: AutomationSuggestion[] = [
     source: "catalog",
     status: "accepted",
     workspace_id: storyWorkspaceIds.hq,
+  },
+];
+
+/** Recent-run samples for the detail-surface triggers, one per status shape. */
+export const automationTriggerDetailRunFixtures: AutomationRun[] = [
+  {
+    id: "run_summarize_failures_001",
+    status: "completed",
+    attempt: 1,
+    trigger_id: "trg_summarize_failures",
+    session_id: "sess_release_control",
+    started_at: "2026-04-17T16:38:04Z",
+    ended_at: "2026-04-17T16:38:22Z",
+  },
+  {
+    id: "run_summarize_failures_002",
+    status: "failed",
+    attempt: 2,
+    trigger_id: "trg_summarize_failures",
+    error: "Agent release-manager-agent was not available",
+    started_at: "2026-04-17T12:04:00Z",
+    ended_at: "2026-04-17T12:04:00Z",
+  },
+  {
+    id: "run_rerun_delivery_001",
+    status: "delegated",
+    attempt: 1,
+    trigger_id: "trg_rerun_delivery",
+    loop_run_id: "looprun_8f3a2bce41d07a55",
+    started_at: "2026-04-17T17:02:10Z",
+  },
+  {
+    id: "run_rerun_delivery_002",
+    status: "completed",
+    attempt: 1,
+    trigger_id: "trg_rerun_delivery",
+    loop_run_id: "looprun_6b9e1043aa2c8810",
+    started_at: "2026-04-16T09:12:00Z",
+    ended_at: "2026-04-16T09:26:00Z",
+  },
+  {
+    id: "run_deploy_webhook_001",
+    status: "completed",
+    attempt: 1,
+    trigger_id: "trg_deploy_webhook",
+    session_id: "sess_platform_rollout",
+    metadata: { delivery_id: "webhook:9ec3d15" },
+    started_at: "2026-04-17T17:50:00Z",
+    ended_at: "2026-04-17T17:50:18Z",
+  },
+  {
+    id: "run_deploy_webhook_002",
+    status: "running",
+    attempt: 1,
+    trigger_id: "trg_deploy_webhook",
+    session_id: "sess_platform_rollout",
+    started_at: "2026-04-17T17:52:00Z",
+  },
+  {
+    id: "run_deploy_webhook_003",
+    status: "scheduled",
+    attempt: 1,
+    trigger_id: "trg_deploy_webhook",
+    scheduled_at: "2026-04-17T17:52:30Z",
   },
 ];
 

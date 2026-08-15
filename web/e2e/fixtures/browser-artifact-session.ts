@@ -230,6 +230,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
             testId !== "automation-run-history-loading" &&
             testId !== "automation-run-history-error" &&
             testId !== "automation-run-history-empty" &&
+            testId !== "automation-run-history-rows" &&
             !testId.startsWith("automation-run-session-link-")
         ).length;
     const networkPathTab = window.location.pathname.match(
@@ -364,8 +365,10 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         document.querySelector('[data-testid="automation-job-scheduler"]') !== null,
       automation_scope_filter: automationScopeFilter,
       automation_selected_item: automationSelectedItem,
+      // Job run rows link straight to the session; trigger runs expose the link inside the
+      // expanded drawer, and only when the daemon recorded a session id.
       automation_session_link_count: document.querySelectorAll(
-        'a[data-testid^="automation-run-"][href^="/session/"]'
+        'a[data-testid^="automation-run-"][href^="/session/"], a[data-testid^="trigger-run-open-"][href^="/session/"]'
       ).length,
       automation_trigger_visible:
         document.querySelector('[data-testid="trigger-job-btn"]') !== null,
