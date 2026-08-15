@@ -6,7 +6,6 @@ import { LOOP_RUN_EVENT_KINDS, LOOP_RUN_LIFECYCLE_EVENT_KINDS } from "@/generate
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { buildLoopStreamUrl } from "../adapters/loops-api";
-import { isTerminalLoopStatus } from "../lib/loop-formatters";
 import { loopsKeys } from "../lib/query-keys";
 import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
 import {
@@ -52,14 +51,6 @@ const LOOP_LIFECYCLE_EVENT_KINDS = new Set<LoopRunEventKind>(
 
 function isLifecycleKind(kind: string): boolean {
   return LOOP_LIFECYCLE_EVENT_KINDS.has(kind as LoopRunEventKind);
-}
-
-function isTerminalStatusFrame(kind: string, frame: LoopRunEventFrame): boolean {
-  if (kind !== "status_changed" || typeof frame.payload !== "object" || frame.payload === null) {
-    return false;
-  }
-  const status = (frame.payload as Record<string, unknown>).status;
-  return typeof status === "string" && isTerminalLoopStatus(status);
 }
 
 function defaultEventSourceFactory(url: string): LoopStreamEventSource {
@@ -111,7 +102,8 @@ function invalidateLoopRunQueries(
  * are display-only, applied via `onEvent`, never invalidating). `onEvent`/`onError`
  * are stabilized through Effect Events so an inline callback never tears down
  * and reopens the EventSource; only the workspace, run, resume seed, or factory
- * identity reopen the stream.
+ * identity reopen the stream. The mounted hook owns the source until cleanup;
+ * terminal effects can append frames after the run status becomes terminal.
  */
 export function useLoopStream(
   workspaceId: string,
@@ -192,10 +184,6 @@ export function useLoopStream(
         );
       }
       notifyEvent(payload, subscription);
-      if (isTerminalStatusFrame(kind, payload)) {
-        lifecycleStore.trigger.subscriptionClosed({ subscription });
-        source.close();
-      }
     };
 
     const handleError = (event: Event) => {
