@@ -68,7 +68,7 @@ function NestRowTrailing({ entry, checked }: { entry: WorktreeNestEntry; checked
   );
 }
 
-export interface WorktreeNestRowProps {
+export interface WorktreeNestRowProps extends Omit<React.ComponentProps<"span">, "children"> {
   entry: WorktreeNestEntry;
   /** Display-contracts home-rooted paths; actions keep the absolute path. */
   userHomeDir?: string;
@@ -89,11 +89,17 @@ export function WorktreeNestRow({
   userHomeDir,
   checked = false,
   descriptionId,
+  className,
+  ...props
 }: WorktreeNestRowProps) {
   return (
     <span
       data-slot="worktree-nest-row-body"
-      className="grid min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2"
+      className={cn(
+        "grid min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2",
+        className
+      )}
+      {...props}
     >
       {descriptionId ? (
         <span id={descriptionId} className="sr-only">

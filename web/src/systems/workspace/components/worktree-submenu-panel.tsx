@@ -41,6 +41,8 @@ export interface WorktreeSubmenuPanelProps {
   testIdPrefix: string;
   /** Menu items for S2; buttons + dropdown actions for S1/S3 popovers. */
   variant?: "menu" | "panel";
+  /** Display-contracts home-rooted nest paths; actions keep the absolute path. */
+  userHomeDir?: string;
   onSelectWorktree?: (entry: WorktreeNestEntry) => void;
   onCreateWorktree?: () => void;
   onRemoveWorktree?: (entry: WorktreeNestEntry) => void;
@@ -187,6 +189,7 @@ export function WorktreeSubmenuPanel({
   selectedWorktreeId,
   testIdPrefix,
   variant = "panel",
+  userHomeDir,
   onSelectWorktree,
   onCreateWorktree,
   onRemoveWorktree,
@@ -214,7 +217,7 @@ export function WorktreeSubmenuPanel({
         onOpenContext={onOpenContext}
       />
     );
-    const body = <WorktreeNestRow entry={entry} checked={checked} />;
+    const body = <WorktreeNestRow entry={entry} userHomeDir={userHomeDir} checked={checked} />;
     if (variant === "menu") {
       return (
         <div

@@ -156,6 +156,16 @@ describe("WorkspaceMenu", () => {
     expect(onOpenWorkspaces).not.toHaveBeenCalled();
   });
 
+  it("Should contract home-rooted nest paths when the host supplies userHomeDir", async () => {
+    const user = userEvent.setup();
+    renderMenu({ userHomeDir: "/Users/ada" });
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+
+    const row = await screen.findByTestId("os-worktree-option-wt_payments_retry");
+    expect(within(row).getByText("~/.compozy/worktrees/launch-hq/payments-retry")).toBeVisible();
+  });
+
   it("Should check the bound worktree, select rows, and close the menu on selection", async () => {
     const user = userEvent.setup();
     const { onOpenChange, onSelectWorktree } = renderMenu({

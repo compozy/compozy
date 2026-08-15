@@ -168,6 +168,7 @@ export function WorkspaceMenu({
                   selectedWorktreeId={globalScopeOn ? null : selectedWorktreeId}
                   testIdPrefix="os"
                   variant="menu"
+                  userHomeDir={userHomeDir}
                   onSelectWorktree={
                     onSelectWorktree ? entry => onSelectWorktree(workspace.id, entry) : undefined
                   }

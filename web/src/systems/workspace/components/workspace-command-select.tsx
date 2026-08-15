@@ -211,6 +211,7 @@ export function WorkspaceCommandSelect({
                     node={node}
                     selectedWorktreeId={selectedWorktreeId}
                     testIdPrefix={testIdPrefix}
+                    userHomeDir={userHomeDir}
                     onSelectWorktree={
                       onSelectWorktree ? entry => onSelectWorktree(workspace.id, entry) : undefined
                     }
