@@ -188,6 +188,40 @@ func (c *daemonClient) doRequestWithCredentialsAndClient(
 	credentials agentidentity.Credentials,
 	client *http.Client,
 ) (*http.Response, error) {
+	var body io.Reader
+	contentType := ""
+	if requestBody != nil {
+		payload, err := json.Marshal(requestBody)
+		if err != nil {
+			return nil, fmt.Errorf("cli: encode %s %s request: %w", method, path, err)
+		}
+		body = bytes.NewReader(payload)
+		contentType = "application/json"
+	}
+	return c.doRequestWithReaderAndClient(
+		ctx,
+		method,
+		path,
+		query,
+		body,
+		contentType,
+		lastEventID,
+		credentials,
+		client,
+	)
+}
+
+func (c *daemonClient) doRequestWithReaderAndClient(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	body io.Reader,
+	contentType string,
+	lastEventID string,
+	credentials agentidentity.Credentials,
+	client *http.Client,
+) (*http.Response, error) {
 	if ctx == nil {
 		return nil, errors.New("cli: context is required")
 	}
@@ -203,22 +237,13 @@ func (c *daemonClient) doRequestWithCredentialsAndClient(
 		target += "?" + query.Encode()
 	}
 
-	var body io.Reader
-	if requestBody != nil {
-		payload, err := json.Marshal(requestBody)
-		if err != nil {
-			return nil, fmt.Errorf("cli: encode %s %s request: %w", method, path, err)
-		}
-		body = bytes.NewReader(payload)
-	}
-
 	req, err := http.NewRequestWithContext(ctx, method, target, body)
 	if err != nil {
 		return nil, fmt.Errorf("cli: build %s %s request: %w", method, path, err)
 	}
 	req.Header.Set("User-Agent", defaultUserAgentName)
-	if requestBody != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(contentType) != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 	if strings.TrimSpace(lastEventID) != "" {
 		req.Header.Set("Last-Event-ID", strings.TrimSpace(lastEventID))

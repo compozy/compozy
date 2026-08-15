@@ -124,6 +124,9 @@ func (s *Server) ensureEngine() {
 	s.engine.Use(gin.Recovery())
 	s.engine.Use(requestLoggingMiddleware(s.logger))
 	s.engine.Use(corsMiddlewareWithForwardedTarget(s.host, s.surfaceSet != SurfaceSetLocal))
-	s.engine.Use(requestBodyLimitMiddleware(maxAPIRequestBodyBytes))
+	s.engine.Use(requestBodyLimitMiddlewareWithUploadLimit(
+		maxAPIRequestBodyBytes,
+		sessionAttachmentRequestBodyLimit(s.config.Session.Attachments.MaxFileBytes),
+	))
 	s.engine.Use(errorMiddleware())
 }

@@ -21,6 +21,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		supportBundles:     s.supportBundles,
 		tools:              s.tools,
 		toolArtifacts:      s.toolArtifacts,
+		sessionAttachments: s.sessionAttachments,
 		toolsets:           s.toolsets,
 		toolApprovals:      s.toolApprovals,
 		approvalGrants:     s.approvalGrants,

@@ -12,6 +12,9 @@ type CreateSessionRequest = contract.CreateSessionRequest
 // SessionRecord is the shared daemon session payload.
 type SessionRecord = contract.SessionPayload
 
+// SessionAttachmentRecord is the shared uploaded session attachment payload.
+type SessionAttachmentRecord = contract.SessionAttachmentPayload
+
 // RenameSessionRequest changes one user session's durable display name.
 type RenameSessionRequest = contract.RenameSessionRequest
 

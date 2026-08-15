@@ -9,7 +9,61 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/gin-gonic/gin"
 )
+
+func TestSessionAttachmentRequestBodyLimitUsesConfiguredFileCeiling(t *testing.T) {
+	t.Parallel()
+
+	const maxFileBytes int64 = 256
+	tests := []struct {
+		name       string
+		bodyBytes  int64
+		wantStatus int
+	}{
+		{
+			name:       "Should accept the configured file ceiling plus multipart overhead",
+			bodyBytes:  sessionAttachmentRequestBodyLimit(maxFileBytes),
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name:       "Should reject a body above the configured file ceiling plus multipart overhead",
+			bodyBytes:  sessionAttachmentRequestBodyLimit(maxFileBytes) + 1,
+			wantStatus: http.StatusRequestEntityTooLarge,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newDefaultServer(newTestHomePaths(t))
+			server.config.Session.Attachments.MaxFileBytes = maxFileBytes
+			server.host = "127.0.0.1"
+			server.ensureEngine()
+			server.engine.POST(
+				"/api/workspaces/:workspace_id/sessions/:session_id/attachments",
+				func(c *gin.Context) { c.Status(http.StatusNoContent) },
+			)
+
+			req := httptest.NewRequestWithContext(
+				context.Background(),
+				http.MethodPost,
+				"http://127.0.0.1/api/workspaces/ws-workspace/sessions/sess-123/attachments",
+				strings.NewReader(strings.Repeat("x", int(tt.bodyBytes))),
+			)
+			req.Header.Set("Content-Type", "multipart/form-data; boundary=test")
+			recorder := httptest.NewRecorder()
+
+			server.engine.ServeHTTP(recorder, req)
+
+			if recorder.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, tt.wantStatus, recorder.Body.String())
+			}
+		})
+	}
+}
 
 func TestRequestBodyLimitRejectsOversizedChunkedAPIRequestsContract(t *testing.T) {
 	t.Parallel()

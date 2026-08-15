@@ -2143,6 +2143,114 @@ func assertAgentRequestHeaders(t *testing.T, req *http.Request, credentials agen
 	}
 }
 
+func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should upload the file as a real session multipart attachment", func(t *testing.T) {
+		t.Parallel()
+
+		filePath := filepath.Join(t.TempDir(), "frame.png")
+		fileBytes := []byte("exact attachment bytes")
+		if err := os.WriteFile(filePath, fileBytes, 0o600); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+
+		var preflightCalls int
+		var uploadCalls int
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					switch {
+					case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
+						preflightCalls++
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/attachments":
+						uploadCalls++
+						reader, err := req.MultipartReader()
+						if err != nil {
+							t.Fatalf("Request.MultipartReader() error = %v", err)
+						}
+						part, err := reader.NextPart()
+						if err != nil {
+							t.Fatalf("multipart NextPart() error = %v", err)
+						}
+						if got := part.FormName(); got != "file" {
+							t.Fatalf("multipart field = %q, want file", got)
+						}
+						if got := part.FileName(); got != "frame.png" {
+							t.Fatalf("multipart filename = %q, want frame.png", got)
+						}
+						gotBytes, err := io.ReadAll(part)
+						if err != nil {
+							t.Fatalf("io.ReadAll(multipart file) error = %v", err)
+						}
+						if !bytes.Equal(gotBytes, fileBytes) {
+							t.Fatalf("multipart bytes = %q, want %q", gotBytes, fileBytes)
+						}
+						if _, err := reader.NextPart(); !errors.Is(err, io.EOF) {
+							t.Fatalf("multipart trailing part error = %v, want io.EOF", err)
+						}
+						return newHTTPResponse(
+							http.StatusCreated,
+							`{"attachment":{"id":"att-1","name":"frame.png","mime_type":"image/png","bytes":22,"sha256":"sha256:abc","kind":"image","width":4,"height":3,"created_at":"2026-04-03T12:00:00Z"}}`,
+						), nil
+					default:
+						t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+						return nil, nil
+					}
+				}),
+			},
+		}
+
+		record, err := client.UploadSessionAttachment(context.Background(), "sess-1", filePath)
+		if err != nil {
+			t.Fatalf("UploadSessionAttachment() error = %v", err)
+		}
+		if preflightCalls != 1 || uploadCalls != 1 {
+			t.Fatalf("request counts = preflight:%d upload:%d, want 1 each", preflightCalls, uploadCalls)
+		}
+		if record.ID != "att-1" || record.Name != "frame.png" || record.MIMEType != "image/png" ||
+			record.SHA256 != "sha256:abc" || record.Kind != "image" {
+			t.Fatalf("attachment record = %#v, want uploaded attachment metadata", record)
+		}
+		if got := fmt.Sprint(record.Bytes); got != "22" {
+			t.Fatalf("attachment bytes = %s, want 22", got)
+		}
+	})
+
+	t.Run("Should reject a missing file without sending an upload", func(t *testing.T) {
+		t.Parallel()
+
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodGet || req.URL.Path != "/api/sessions/sess-1" {
+						t.Fatalf("unexpected upload request = %s %s", req.Method, req.URL.Path)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+					), nil
+				}),
+			},
+		}
+
+		_, err := client.UploadSessionAttachment(
+			context.Background(),
+			"sess-1",
+			filepath.Join(t.TempDir(), "missing.png"),
+		)
+		if err == nil || !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("UploadSessionAttachment() error = %v, want os.ErrNotExist", err)
+		}
+	})
+}
+
 func TestUnixSocketClientMethods(t *testing.T) {
 	t.Parallel()
 
@@ -5037,6 +5145,11 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 			name:    "Should alias SessionRecord to the shared contract",
 			cliType: SessionRecord{},
 			want:    contract.SessionPayload{},
+		},
+		{
+			name:    "Should alias SessionAttachmentRecord to the shared contract",
+			cliType: SessionAttachmentRecord{},
+			want:    contract.SessionAttachmentPayload{},
 		},
 		{
 			name:    "Should alias SessionEventRecord to the shared contract",

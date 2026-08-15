@@ -62,6 +62,10 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	if err := os.WriteFile(heartbeatBodyPath, []byte("# Heartbeat\n\nCheck in.\n"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(HEARTBEAT.md) error = %v", err)
 	}
+	attachmentPath := filepath.Join(tempDir, "frame.png")
+	if err := os.WriteFile(attachmentPath, []byte("attachment"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(frame.png) error = %v", err)
+	}
 
 	getCalls := 0
 	networkChannelsCalled := false
@@ -312,6 +316,12 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		resumeSessionFn: func(context.Context, string) (SessionRecord, error) {
 			return statusSession, nil
 		},
+		uploadSessionAttachmentFn: func(_ context.Context, id string, path string) (SessionAttachmentRecord, error) {
+			if id != "sess-1" || path != attachmentPath {
+				t.Fatalf("UploadSessionAttachment() = (%q, %q), want (%q, %q)", id, path, "sess-1", attachmentPath)
+			}
+			return SessionAttachmentRecord{ID: "att-1", Name: "frame.png", CreatedAt: fixedTestNow}, nil
+		},
 		streamSessionFn: func(_ context.Context, _ string, _ SessionEventQuery, _ string, handler SSEHandler) error {
 			return handler(SSEEvent{Event: "session_stopped"})
 		},
@@ -488,6 +498,7 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		{"session", "usage", "sess-1", "-o", "json"},
 		{"session", "inspect", "sess-1", "-o", "json"},
 		{"session", "resume", "sess-1", "-o", "json"},
+		{"session", "attachments", "upload", "sess-1", attachmentPath, "-o", "json"},
 		{"session", "wait", "sess-1", "-o", "json"},
 		{"session", "history", "sess-1", "-o", "json"},
 	}

@@ -150,6 +150,7 @@ type stubClient struct {
 	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	deleteSessionFn              func(context.Context, string) error
 	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
+	uploadSessionAttachmentFn    func(context.Context, string, string) (SessionAttachmentRecord, error)
 	setSessionRuntimeFn          func(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)
 	clearSessionRuntimeFn        func(context.Context, string, int64) (SessionRecord, error)
 	sessionRecapFn               func(context.Context, string, int) (SessionRecapRecord, error)
@@ -1628,6 +1629,17 @@ func (s *stubClient) ResumeSession(ctx context.Context, id string) (SessionRecor
 		return s.resumeSessionFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected ResumeSession call")
+}
+
+func (s *stubClient) UploadSessionAttachment(
+	ctx context.Context,
+	id string,
+	filePath string,
+) (SessionAttachmentRecord, error) {
+	if s.uploadSessionAttachmentFn != nil {
+		return s.uploadSessionAttachmentFn(ctx, id, filePath)
+	}
+	return SessionAttachmentRecord{}, errors.New("unexpected UploadSessionAttachment call")
 }
 
 func (s *stubClient) SetSessionRuntime(

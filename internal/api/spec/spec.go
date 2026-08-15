@@ -244,8 +244,14 @@ type OperationSpec struct {
 	RequestBody any
 	// RequestBodyOptional keeps a request body schema documented while allowing empty requests.
 	RequestBodyOptional bool
-	Responses           []ResponseSpec
+	// RequestContentType overrides the request media type; empty means application/json.
+	// RequestUploadForm is the only non-JSON value accepted today.
+	RequestContentType string
+	Responses          []ResponseSpec
 }
+
+// RequestUploadForm documents a multipart upload carrying one required binary "file" field.
+const RequestUploadForm = "multipart/form-data"
 
 // Document builds the canonical OpenAPI specification document.
 func Document() (*openapi3.T, error) {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/gateway"
@@ -44,6 +45,7 @@ type handlerConfig struct {
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
 	toolArtifacts      toolspkg.ToolArtifactStore
+	sessionAttachments attachmentspkg.Store
 	toolsets           core.ToolsetRegistry
 	toolApprovals      core.ToolApprovalIssuer
 	approvalGrants     core.ToolApprovalGrantService
@@ -199,6 +201,7 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		SupportBundles:               cfg.supportBundles,
 		Tools:                        cfg.tools,
 		ToolArtifacts:                cfg.toolArtifacts,
+		SessionAttachments:           cfg.sessionAttachments,
 		Toolsets:                     cfg.toolsets,
 		ToolApprovals:                cfg.toolApprovals,
 		ApprovalGrants:               cfg.approvalGrants,

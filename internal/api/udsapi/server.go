@@ -11,6 +11,7 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
@@ -77,6 +78,7 @@ type Server struct {
 	supportBundles     core.SupportBundleService
 	tools              core.ToolRegistry
 	toolArtifacts      toolspkg.ToolArtifactStore
+	sessionAttachments attachmentspkg.Store
 	toolsets           core.ToolsetRegistry
 	toolApprovals      core.ToolApprovalIssuer
 	approvalGrants     core.ToolApprovalGrantService
